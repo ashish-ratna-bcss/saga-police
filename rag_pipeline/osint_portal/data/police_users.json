@@ -1,0 +1,18 @@
+{
+  "bhaskar": {
+    "password": "scrypt:32768:8:1$ao43F1xctzyMvbyA$4422a7445787f96fb955ee3615bb5bbfababd5b1456acd7a427276ab025cb0db58c18216647b15101f6e5b5a2b7a461a0b20777566c7c70dd43bec4587a5cdcb",
+    "role": "officer"
+  },
+  "officer1": {
+    "password": "scrypt:32768:8:1$u9hh9rllZ75jCQbo$3d87a518520a7c33c0c6a09a5563379076494ad3b3430d7d2c2d72bfdd7995769eb0cde52acf8269084c4c2c5e76bd185dc615a3a292ee0a4079e4194b53359f",
+    "role": "officer"
+  },
+  "officer11": {
+    "password": "scrypt:32768:8:1$sKuJ7BorzKDh4EGv$1833117584bf8c8e8f3dc2f3b070d911f9def38a12e6973bc75c919af791e77d7d464ee7d49c4dbc6a61b340ee98d4e78c8eb874b74e92df43f830f836409be2",
+    "role": "officer"
+  },
+  "officer2": {
+    "password": "scrypt:32768:8:1$GCvygRAq3CBTQUXT$e5715137ecdab43affe49826ad23e0e2926cf2cfff8a9e83efaee8090da06d6ef61f0fda5f26df52cb27a1fe72296c69ce68cf46c966069b145764f5e7c2438c",
+    "role": "officer"
+  }
+}

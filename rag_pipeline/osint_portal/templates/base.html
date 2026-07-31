@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}OSINT Portal{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --navy: #062952;
+            --navy-dark: #041d39;
+            --khaki: #cab58a;
+            --khaki-soft: #e2d3b2;
+            --accent: #f3c14b;
+            --surface: #f4f7fb;
+        }
+
+        body {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--surface);
+            color: #1a1f2b;
+        }
+
+        .gov-top {
+            background: var(--navy-dark);
+            color: #dce7fb;
+            font-size: 0.85rem;
+            padding: 0.5rem 0;
+        }
+
+        .gov-header {
+            background: linear-gradient(120deg, var(--navy-dark), var(--navy));
+            color: #fff;
+            border-bottom: 4px solid var(--khaki);
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.2);
+        }
+
+        .brand-block {
+            display: flex;
+            align-items: center;
+            gap: 0.9rem;
+        }
+
+        .header-title {
+            margin: 0;
+            font-size: 1.2rem;
+            letter-spacing: 0.02em;
+            font-weight: 700;
+        }
+
+        .header-subtitle {
+            margin: 0;
+            font-size: 0.9rem;
+            color: #d9e5ff;
+        }
+
+        .notice-bar {
+            background: #f4e4be;
+            border-top: 1px solid #ddc993;
+            border-bottom: 1px solid #ddc993;
+            color: #4e3d16;
+            font-size: 0.9rem;
+        }
+
+        .portal-card {
+            background: #fff;
+            border: 1px solid #d3deef;
+            border-radius: 14px;
+            box-shadow: 0 10px 24px rgba(6, 41, 82, 0.08);
+        }
+
+        .section-head {
+            background: linear-gradient(90deg, var(--navy), #0c3f7b);
+            color: #fff;
+            border-radius: 12px 12px 0 0;
+            padding: 0.8rem 1rem;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+        }
+
+        .input-control {
+            border: 1px solid #9eb3d2;
+            border-radius: 0.6rem;
+            min-height: 48px;
+        }
+
+        .input-control:focus {
+            border-color: #2f67b1;
+            box-shadow: 0 0 0 0.2rem rgba(47, 103, 177, 0.2);
+        }
+
+        .btn-intel {
+            background: var(--navy);
+            color: #fff;
+            border: 0;
+            min-width: 140px;
+            font-weight: 600;
+        }
+
+        .btn-intel:hover {
+            background: #0f4687;
+            color: #fff;
+        }
+
+        .btn-delete {
+            background: #dc3545;
+            color: #fff;
+            border: 0;
+            padding: 0.3rem 0.8rem;
+            font-size: 0.85rem;
+            border-radius: 6px;
+        }
+
+        .btn-delete:hover {
+            background: #bb2d3b;
+            color: #fff;
+        }
+
+        .service-tile {
+            border-left: 4px solid var(--khaki);
+            background: #fff;
+            border-radius: 10px;
+            padding: 0.8rem 1rem;
+            box-shadow: 0 6px 14px rgba(6, 41, 82, 0.06);
+            font-size: 0.92rem;
+        }
+
+        .tool-picker {
+            border: 1px solid #d8e2f1;
+            border-radius: 10px;
+            background: #f8fbff;
+            padding: 0.8rem;
+        }
+
+        .intel-box {
+            background: #fff;
+            border: 1px solid #c9d7ef;
+            border-radius: 10px;
+            padding: 1rem;
+            height: 100%;
+        }
+
+        .result-card {
+            border: 1px solid #c9d7ef;
+            border-radius: 10px;
+            background: #fff;
+            height: 100%;
+        }
+
+        .result-card .domain {
+            color: #0d4f93;
+            font-weight: 700;
+            margin-bottom: 0.4rem;
+        }
+
+        .tag-hit {
+            display: inline-block;
+            background: #e6f5ea;
+            color: #1f7a3f;
+            border: 1px solid #b7e5c6;
+            border-radius: 999px;
+            padding: 0.2rem 0.6rem;
+            font-size: 0.78rem;
+            margin-bottom: 0.7rem;
+        }
+
+        .link-card {
+            border: 1px solid #d3deef;
+            border-radius: 12px;
+            padding: 1rem;
+            background: #fbfcff;
+        }
+
+        .panel {
+            background: #fff;
+            border: 1px solid #d7e1f0;
+            border-radius: 12px;
+        }
+
+        .head {
+            background: linear-gradient(120deg, #041d39, #062952);
+            color: #fff;
+            border-radius: 12px 12px 0 0;
+            padding: 0.9rem 1rem;
+        }
+
+        footer {
+            color: #dbe7ff;
+            background: var(--navy-dark);
+            font-size: 0.88rem;
+        }
+
+        .nav-pill {
+            display: inline-block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: rgba(255,255,255,.72);
+            border: 1px solid rgba(255,255,255,.18);
+            border-radius: 6px;
+            padding: 0.3rem 0.85rem;
+            text-decoration: none;
+            transition: background .15s, color .15s, border-color .15s;
+        }
+        .nav-pill:hover {
+            background: rgba(255,255,255,.1);
+            color: #fff;
+            border-color: rgba(255,255,255,.35);
+        }
+        .nav-pill-active {
+            background: #fff;
+            color: var(--navy-dark) !important;
+            border-color: #fff;
+            font-weight: 700;
+        }
+        .nav-pill-active:hover {
+            background: #eef4ff;
+            color: var(--navy-dark) !important;
+        }
+
+        {% block extra_css %}{% endblock %}
+    </style>
+</head>
+<body>
+    <script>
+        window.OSINT_BASE = {{ osint_base | tojson }};
+    </script>
+    {% block navbar %}
+    <header class="gov-header py-3">
+        <div class="container">
+            <!-- Row 1: Title + User Account Section -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="brand-block">
+                    <div>
+                        <p class="header-title" style="line-height:1.2;white-space:nowrap;">Hyderabad City Police</p>
+                        <p class="header-subtitle" style="margin:0;">OSINT Portal</p>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    {% if police_email %}
+                        <span style="font-size:0.8rem;color:#b8cef0;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:0.28rem 0.75rem;letter-spacing:0.01em;">{{ police_email }}</span>
+                    {% endif %}
+                    {% if police_role %}
+                        <span style="font-size:0.72rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;background:var(--khaki);color:var(--navy-dark);border-radius:6px;padding:0.28rem 0.75rem;">{{ police_role }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            <!-- Row 2: Navigation Buttons -->
+            <div class="d-flex align-items-center gap-1 flex-wrap">
+                <a href="{{ url_for('index') }}" class="nav-pill {% if request.path == '/' %}nav-pill-active{% endif %}">Main Dashboard</a>
+                <a href="{{ url_for('infra_intel') }}" class="nav-pill {% if request.path.startswith('/infra-intel') %}nav-pill-active{% endif %}">🌐 Infrastructure Intel</a>
+                <a href="{{ url_for('image_intel.index') }}" class="nav-pill {% if request.path.startswith('/image-intel') %}nav-pill-active{% endif %}">🖼️ Image Intel</a>
+                <a href="{{ url_for('other_links') }}" class="nav-pill {% if request.path.startswith('/other-links') %}nav-pill-active{% endif %}">Other Links</a>
+                <a href="{{ url_for('ask_ai') }}" class="nav-pill {% if request.path.startswith('/ask-ai') %}nav-pill-active{% endif %}">Ask AI</a>
+                <a href="{{ url_for('master_prompt') }}" class="nav-pill {% if request.path.startswith('/master-prompt') %}nav-pill-active{% endif %}">🧠 Master Prompt</a>
+                {% if police_role == "admin" %}
+                    <a href="{{ url_for('admin_users') }}" class="nav-pill {% if request.path.startswith('/admin') %}nav-pill-active{% endif %}">Admin Panel</a>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    <div class="notice-bar py-2">
+        <div class="container">
+            <strong>Advisory:</strong> Use only with lawful authorization. Unauthorized probing or data misuse is punishable.
+        </div>
+    </div>
+    {% endblock %}
+
+    {% block content %}{% endblock %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,447 @@
+{% extends "base.html" %}
+
+{% block title %}OSINT Portal — Infrastructure Intel{% endblock %}
+
+{% block extra_css %}
+    .infra-card {
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        margin-bottom: 1.25rem;
+        overflow: hidden;
+    }
+    .infra-card-header {
+        background: linear-gradient(135deg, #062952 0%, #0c3f7b 100%);
+        color: #fff;
+        padding: 0.85rem 1.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .infra-card-header h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+    .infra-card-body { padding: 1rem 1.25rem; }
+    .intel-kv { display: flex; gap: 0.4rem; margin-bottom: 0.35rem; align-items: baseline; }
+    .intel-kv strong { color: #062952; min-width: 9rem; font-size: 0.8rem; flex-shrink: 0; }
+    .intel-kv span  { font-size: 0.82rem; color: #374151; word-break: break-all; }
+    .badge-critical { background: #dc2626 !important; }
+    .badge-high     { background: #d97706 !important; }
+    .badge-medium   { background: #0891b2 !important; }
+    .badge-low      { background: #64748b !important; }
+    .port-chip {
+        display: inline-block;
+        background: #e8f0fa;
+        color: #062952;
+        border-radius: 6px;
+        padding: 0.2rem 0.55rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin: 0.15rem;
+        font-family: monospace;
+    }
+    .tech-chip {
+        display: inline-block;
+        background: #f0fdf4;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+        border-radius: 6px;
+        padding: 0.2rem 0.55rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        margin: 0.15rem;
+    }
+    .tag-chip {
+        display: inline-block;
+        background: #ede9fe;
+        color: #5b21b6;
+        border-radius: 6px;
+        padding: 0.15rem 0.45rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        margin: 0.1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    #infra-map { height: 220px; border-radius: 8px; }
+    .scan-hero {
+        background: linear-gradient(135deg, #041d39 0%, #062952 60%, #0c3f7b 100%);
+        border-radius: 14px;
+        padding: 2.5rem 2rem;
+        color: #fff;
+        margin-bottom: 2rem;
+    }
+    .scan-hero h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .scan-hero p  { opacity: 0.75; font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .infra-input {
+        background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.3);
+        border-radius: 8px;
+        color: #fff;
+        padding: 0.65rem 1rem;
+        font-size: 0.95rem;
+        width: 100%;
+    }
+    .infra-input::placeholder { color: rgba(255,255,255,0.5); }
+    .infra-input:focus { outline: none; border-color: var(--accent); background: rgba(255,255,255,0.18); }
+    .btn-infra-scan {
+        background: var(--accent);
+        color: #062952;
+        border: none;
+        border-radius: 8px;
+        padding: 0.65rem 1.6rem;
+        font-weight: 700;
+        font-size: 0.95rem;
+        white-space: nowrap;
+        cursor: pointer;
+    }
+    .btn-infra-scan:hover { background: #f8d060; }
+    .result-meta { font-size: 0.75rem; color: #64748b; }
+    .tls-chip {
+        display: inline-block;
+        background: #ecfdf5;
+        color: #065f46;
+        border: 1px solid #a7f3d0;
+        border-radius: 5px;
+        padding: 0.15rem 0.45rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        margin: 0.1rem;
+    }
+    .screenshot-frame {
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
+        max-width: 320px;
+    }
+    .screenshot-frame img { width: 100%; display: block; }
+    .screenshot-label { font-size: 0.72rem; color: #64748b; padding: 0.3rem 0.6rem; background: #f8fafc; }
+    .san-list { font-size: 0.78rem; color: #374151; font-family: monospace; }
+    .san-list li { padding: 0.1rem 0; }
+{% endblock %}
+
+{% block content %}
+<main class="container my-4 my-md-5">
+
+    <!-- Hero input bar -->
+    <div class="scan-hero">
+        <h1>🌐 Infrastructure Intelligence</h1>
+        <p>Powered by Shodan — enter any domain, IP address, or URL to begin reconnaissance.</p>
+        <form method="POST">
+            <div class="d-flex gap-2 flex-wrap">
+                <input type="text" name="query" class="infra-input flex-grow-1"
+                       placeholder="e.g.  google.com  /  8.8.8.8  /  https://example.org"
+                       value="{{ query or '' }}" autocomplete="off" spellcheck="false">
+                <button type="submit" class="btn-infra-scan">Run Infrastructure Scan</button>
+            </div>
+            <div class="mt-2" style="font-size:0.78rem; opacity:0.6;">
+                Accepts: domain names · IP addresses · URLs (scheme and path are stripped automatically)
+            </div>
+        </form>
+    </div>
+
+    <!-- Error -->
+    {% if error %}
+    <div class="alert alert-danger" style="border-radius:10px;">
+        <strong>⚠ Scan Error:</strong> {{ error }}
+    </div>
+    {% endif %}
+
+    {% if result %}
+    {% set h = result.host_info %}
+    {% set g = result.geo %}
+
+    <!-- ── Summary strip ────────────────────────────────────────── -->
+    <div class="d-flex flex-wrap gap-2 mb-4 align-items-center">
+        <span class="badge bg-primary fs-6 px-3 py-2">{{ h.ip }}</span>
+        {% if h.query and h.query != h.ip %}
+        <span class="badge bg-secondary px-3 py-2">{{ h.query }}</span>
+        {% endif %}
+        <span class="badge bg-dark px-3 py-2">{{ h.country }} {% if h.country_code %}<img src="https://flagcdn.com/16x12/{{ h.country_code | lower }}.png" class="ms-1" style="vertical-align:middle">{% endif %}</span>
+        <span class="badge px-3 py-2" style="background:#062952;">{{ result.total_ports }} open ports</span>
+        {% if result.vulns %}
+        <span class="badge badge-{{ result.vulns[0].badge }} px-3 py-2">{{ result.vulns|length }} vulnerabilit{{ 'y' if result.vulns|length == 1 else 'ies' }}</span>
+        {% endif %}
+        {% for tag in h.tags %}
+        <span class="tag-chip">{{ tag }}</span>
+        {% endfor %}
+        {% if h.last_update %}
+        <span class="result-meta ms-auto">Last indexed: {{ h.last_update[:10] }}</span>
+        {% endif %}
+    </div>
+
+    <div class="row g-3">
+
+        <!-- LEFT COLUMN -->
+        <div class="col-lg-5">
+
+            <!-- Host Information -->
+            <div class="infra-card">
+                <div class="infra-card-header">
+                    <h3>🖥 Host Information</h3>
+                </div>
+                <div class="infra-card-body">
+                    <div class="intel-kv"><strong>IP Address</strong><span>{{ h.ip }}</span></div>
+                    {% if h.query and h.query != h.ip %}
+                    <div class="intel-kv"><strong>Query Target</strong><span>{{ h.query }}</span></div>
+                    {% endif %}
+                    <div class="intel-kv"><strong>Organization</strong><span>{{ h.org }}</span></div>
+                    <div class="intel-kv"><strong>ISP</strong><span>{{ h.isp }}</span></div>
+                    <div class="intel-kv"><strong>ASN</strong><span>{{ h.asn }}</span></div>
+                    <div class="intel-kv"><strong>Country</strong><span>{{ h.country }}</span></div>
+                    <div class="intel-kv"><strong>City</strong><span>{{ h.city }}</span></div>
+                    {% if h.hostnames %}
+                    <div class="intel-kv"><strong>Hostnames</strong>
+                        <span>{{ h.hostnames | join(', ') }}</span>
+                    </div>
+                    {% endif %}
+                    {% if h.domains %}
+                    <div class="intel-kv"><strong>Domains</strong>
+                        <span>{{ h.domains | join(', ') }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Geolocation -->
+            {% if g.lat and g.lng %}
+            <div class="infra-card">
+                <div class="infra-card-header">
+                    <h3>📍 Geolocation</h3>
+                    <span class="badge bg-light text-dark" style="font-size:0.72rem;">{{ "%.4f"|format(g.lat) }}, {{ "%.4f"|format(g.lng) }}</span>
+                </div>
+                <div class="infra-card-body p-2">
+                    <div id="infra-map"></div>
+                    <div class="mt-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <span class="result-meta">{{ h.city }}, {{ h.country }}</span>
+                        <a href="https://www.google.com/maps/search/?api=1&query={{ "%.6f"|format(g.lat) }},{{ "%.6f"|format(g.lng) }}"
+                           target="_blank" rel="noopener noreferrer"
+                           style="display:inline-flex;align-items:center;gap:0.35rem;font-size:0.78rem;font-weight:600;color:#fff;background:#062952;border-radius:6px;padding:0.3rem 0.75rem;text-decoration:none;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M8 0C5.24 0 3 2.24 3 5c0 3.75 5 11 5 11s5-7.25 5-11c0-2.76-2.24-5-5-5zm0 7.5C6.62 7.5 5.5 6.38 5.5 5S6.62 2.5 8 2.5 10.5 3.62 10.5 5 9.38 7.5 8 7.5z"/>
+                            </svg>
+                            Open in Google Maps
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Technologies -->
+            {% if result.technologies %}
+            <div class="infra-card">
+                <div class="infra-card-header">
+                    <h3>⚙ Services &amp; Technologies</h3>
+                    <span class="badge bg-light text-dark" style="font-size:0.72rem;">{{ result.technologies|length }} detected</span>
+                </div>
+                <div class="infra-card-body">
+                    {% for tech in result.technologies %}
+                    <span class="tech-chip">{{ tech.name }}{% if tech.version %} <span style="opacity:0.7;">{{ tech.version }}</span>{% endif %}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- SSL/TLS -->
+            {% if result.ssl_info %}
+            {% set ssl = result.ssl_info %}
+            <div class="infra-card">
+                <div class="infra-card-header">
+                    <h3>🔒 SSL / TLS Intelligence</h3>
+                </div>
+                <div class="infra-card-body">
+                    {% if ssl.subject_cn %}
+                    <div class="intel-kv"><strong>Subject CN</strong><span>{{ ssl.subject_cn }}</span></div>
+                    {% endif %}
+                    {% if ssl.issuer_cn %}
+                    <div class="intel-kv"><strong>Issuer</strong><span>{{ ssl.issuer_cn }}{% if ssl.issuer_org %} ({{ ssl.issuer_org }}){% endif %}</span></div>
+                    {% endif %}
+                    {% if ssl.issued %}
+                    <div class="intel-kv"><strong>Issued</strong><span>{{ ssl.issued[:10] }}</span></div>
+                    {% endif %}
+                    {% if ssl.expires %}
+                    <div class="intel-kv"><strong>Expires</strong><span>{{ ssl.expires[:10] }}</span></div>
+                    {% endif %}
+                    {% if ssl.cipher %}
+                    <div class="intel-kv"><strong>Cipher</strong><span>{{ ssl.cipher }}</span></div>
+                    {% endif %}
+                    {% if ssl.tls_versions %}
+                    <div class="intel-kv"><strong>TLS Versions</strong>
+                        <span>{% for v in ssl.tls_versions %}<span class="tls-chip">{{ v }}</span>{% endfor %}</span>
+                    </div>
+                    {% endif %}
+                    {% if ssl.sha256 %}
+                    <div class="intel-kv"><strong>SHA-256</strong><span style="font-family:monospace;font-size:0.72rem;">{{ ssl.sha256[:32] }}…</span></div>
+                    {% endif %}
+                    {% if ssl.san_domains %}
+                    <div class="mt-2">
+                        <small class="fw-semibold" style="color:#062952;">SAN Domains ({{ ssl.san_domains|length }})</small>
+                        <ul class="san-list mt-1 ps-3 mb-0" style="max-height:120px;overflow-y:auto;">
+                            {% for d in ssl.san_domains %}<li>{{ d }}</li>{% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div class="col-lg-7">
+
+            <!-- Open Ports -->
+            <div class="infra-card">
+                <div class="infra-card-header">
+                    <h3>🔌 Open Ports</h3>
+                    <span class="badge bg-light text-dark" style="font-size:0.72rem;">{{ result.total_ports }} ports</span>
+                </div>
+                <div class="infra-card-body p-2 pb-3 px-3">
+                    <div class="mb-3">
+                        {% for svc in result.services %}
+                        <span class="port-chip" title="{{ svc.service or svc.product or '' }}/{{ svc.transport }}">{{ svc.port }}/{{ svc.transport }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="table-responsive" style="max-height:340px;overflow-y:auto;">
+                        <table class="table table-sm table-hover mb-0" style="font-size:0.82rem;">
+                            <thead class="table-light" style="position:sticky;top:0;">
+                                <tr>
+                                    <th style="width:80px;">Port</th>
+                                    <th style="width:70px;">Protocol</th>
+                                    <th>Service / Product</th>
+                                    <th style="width:90px;">Version</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for svc in result.services %}
+                                <tr>
+                                    <td class="fw-bold" style="font-family:monospace;">{{ svc.port }}</td>
+                                    <td><span class="badge bg-secondary" style="font-size:0.68rem;">{{ svc.transport | upper }}</span></td>
+                                    <td>{{ svc.product or svc.service or '—' }}</td>
+                                    <td><small class="text-muted">{{ svc.version or '—' }}</small></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vulnerabilities -->
+            {% if result.vulns %}
+            <div class="infra-card">
+                <div class="infra-card-header">
+                    <h3>🛡 Vulnerabilities</h3>
+                    <span class="badge bg-danger" style="font-size:0.72rem;">{{ result.vulns|length }} CVEs</span>
+                </div>
+                <div class="infra-card-body p-0">
+                    <div class="table-responsive" style="max-height:380px;overflow-y:auto;">
+                        <table class="table table-sm table-hover mb-0" style="font-size:0.82rem;">
+                            <thead class="table-light" style="position:sticky;top:0;">
+                                <tr>
+                                    <th style="width:140px;">CVE</th>
+                                    <th style="width:90px;">Severity</th>
+                                    <th style="width:65px;">CVSS</th>
+                                    <th>Summary</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for v in result.vulns %}
+                                <tr>
+                                    <td><a href="https://nvd.nist.gov/vuln/detail/{{ v.cve }}" target="_blank" style="font-family:monospace;font-size:0.78rem;font-weight:600;">{{ v.cve }}</a></td>
+                                    <td><span class="badge badge-{{ v.badge }}">{{ v.severity }}</span></td>
+                                    <td class="fw-semibold">{{ "%.1f"|format(v.cvss) }}</td>
+                                    <td><small class="text-muted">{{ v.summary[:120] }}{% if v.summary|length > 120 %}…{% endif %}</small></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="infra-card">
+                <div class="infra-card-header"><h3>🛡 Vulnerabilities</h3></div>
+                <div class="infra-card-body">
+                    <div class="alert alert-success mb-0" style="font-size:0.85rem;">No known CVEs indexed by Shodan for this host.</div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Screenshots -->
+            {% if result.screenshots %}
+            <div class="infra-card">
+                <div class="infra-card-header">
+                    <h3>🖼 Screenshots</h3>
+                    <span class="badge bg-light text-dark" style="font-size:0.72rem;">{{ result.screenshots|length }} captured</span>
+                </div>
+                <div class="infra-card-body">
+                    <div class="d-flex flex-wrap gap-3">
+                        {% for sc in result.screenshots %}
+                        <div class="screenshot-frame">
+                            <img src="data:{{ sc.mime }};base64,{{ sc.data }}" alt="Port {{ sc.port }} screenshot">
+                            <div class="screenshot-label">Port {{ sc.port }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Service Banners (collapsible) -->
+            <div class="infra-card">
+                <div class="infra-card-header" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#banners-body">
+                    <h3>📄 Service Banners</h3>
+                    <span class="badge bg-light text-dark" style="font-size:0.72rem;">click to expand</span>
+                </div>
+                <div id="banners-body" class="collapse">
+                    <div class="infra-card-body p-0">
+                        {% for svc in result.services if svc.banner %}
+                        <div class="border-bottom p-2 px-3" style="font-family:monospace;font-size:0.75rem;white-space:pre-wrap;overflow-x:auto;background:#f8fafc;">
+                            <span class="badge bg-dark me-2">{{ svc.port }}/{{ svc.transport }}</span>{{ svc.banner }}
+                        </div>
+                        {% else %}
+                        <div class="p-3"><small class="text-muted">No banner data available.</small></div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /col-lg-7 -->
+    </div><!-- /row -->
+
+    <!-- Download PDF button — only shown when a result exists -->
+    <div class="d-flex justify-content-end mt-4 mb-2">
+        <a href="{{ url_for('infra_intel_download_pdf') }}"
+           class="btn btn-sm d-inline-flex align-items-center gap-2"
+           style="background:var(--navy);color:#fff;border-radius:8px;font-weight:700;padding:0.55rem 1.3rem;text-decoration:none;font-size:0.88rem;box-shadow:0 2px 8px rgba(6,41,82,.25);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+            </svg>
+            Download PDF Report
+        </a>
+    </div>
+    {% endif %}
+
+</main>
+{% endblock %}
+
+{% block extra_js %}
+{% if result and result.geo.lat and result.geo.lng %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV/XN/WPeE=" crossorigin=""></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const lat = {{ result.geo.lat }};
+        const lng = {{ result.geo.lng }};
+        const map = L.map('infra-map', { zoomControl: true, scrollWheelZoom: false }).setView([lat, lng], 10);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>',
+            maxZoom: 18
+        }).addTo(map);
+        L.marker([lat, lng])
+            .addTo(map)
+            .bindPopup(`<strong>{{ result.host_info.ip }}</strong><br>{{ result.host_info.city }}, {{ result.host_info.country }}`)
+            .openPopup();
+    });
+</script>
+{% endif %}
+{% endblock %}

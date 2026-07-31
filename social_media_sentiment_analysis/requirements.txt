@@ -1,0 +1,27 @@
+# IMPORTANT: transformers is PINNED. IndicTrans2's custom remote code
+# (trust_remote_code=True) imports `transformers.onnx` (removed in v5) and
+# expects the legacy tuple-based `past_key_values` KV cache (replaced by the
+# new Cache API in newer 4.5x releases). Verified working: 4.40.x.
+transformers==4.40.2
+tokenizers>=0.19,<0.20
+torch>=2.1
+scikit-learn>=1.4
+matplotlib>=3.8
+pandas>=2.1
+numpy>=1.26
+psutil>=5.9
+langdetect>=1.0.9
+lingua-language-detector>=2.0
+tqdm>=4.66
+sacrebleu>=2.4
+sentencepiece>=0.2
+accelerate>=0.28
+IndicTransToolkit>=1.0 ; python_version < "3.14"
+# Optional — enables COMET / CometKiwi translation quality scores (heavy install;
+# CometKiwi is additionally a gated HuggingFace model requiring `huggingface-cli login`):
+# unbabel-comet>=2.2
+
+# HTTP service (service.py) — exposes the production pipeline for SOCKEYE's
+# backend (SENTIMENT_ANALYSIS=CUSTOM).
+fastapi>=0.110.0
+uvicorn>=0.27.0

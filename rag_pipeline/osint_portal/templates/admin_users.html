@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - Police Accounts{% endblock %}
+
+{% block content %}
+    <div class="container py-4">
+        <div class="panel mb-4">
+            <div class="head">Create / Update User</div>
+            <div class="p-3">
+                {% if error %}
+                    <div class="alert alert-danger">{{ error }}</div>
+                {% endif %}
+                {% if success %}
+                    <div class="alert alert-success">{{ success }}</div>
+                {% endif %}
+                <form method="POST" class="row g-2">
+                    <input type="hidden" name="action" value="create_or_update">
+                    <div class="col-md-5">
+                        <input type="text" name="username" class="form-control"
+                               placeholder="e.g. officer_01" maxlength="20" required
+                               pattern="[a-zA-Z0-9_.]{1,20}">
+                        <div class="form-text text-muted" style="font-size:0.78rem;">
+                            Max 20 chars &mdash; letters, numbers, underscore, dot only.
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="input-group">
+                            <input type="password" name="password" id="adminPassword" class="form-control" placeholder="Set password" required>
+                            <button type="button" class="btn btn-outline-secondary" onclick="toggleAdminPw()" tabindex="-1" title="Show/hide password">
+                                <svg id="adminPwEye" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                                    <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="form-text text-muted" style="font-size:0.78rem;">
+                            8+ chars, uppercase, number, and special character required.
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <select name="role" class="form-select">
+                            <option value="officer">officer</option>
+                            <option value="analyst">analyst</option>
+                            <option value="admin">admin</option>
+                        </select>
+                    </div>
+                    <div class="col-md-1 d-grid">
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="head">File-Managed Users</div>
+            <div class="p-3">
+                {% if users %}
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Role</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in users %}
+                                    <tr>
+                                        <td>{{ user.username }}</td>
+                                        <td><span class="badge bg-warning text-dark">{{ user.role }}</span></td>
+                                        <td class="text-end">
+                                            <form method="POST" class="d-inline">
+                                                <input type="hidden" name="action" value="delete">
+                                                <input type="hidden" name="username" value="{{ user.username }}">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-0">No file-managed users yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleAdminPw() {
+    var inp = document.getElementById('adminPassword');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+</script>
+{% endblock %}

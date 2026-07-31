@@ -1,0 +1,12 @@
+.env
+.env.*
+!*.env.example
+*.bak
+
+node_modules/
+__pycache__/
+*.pyc
+venv/
+.venv/
+dist/
+build/
