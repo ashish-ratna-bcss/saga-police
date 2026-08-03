@@ -10,3 +10,6 @@ venv/
 .venv/
 dist/
 build/
+
+# independent service, own repo (github.com/BCSS-Nandeep/social_media_sentiment_analysis)
+social_media_sentiment_analysis/
