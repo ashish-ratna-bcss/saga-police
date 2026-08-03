@@ -390,7 +390,21 @@ const monitorYoutubeSource = async (source, apiKey) => {
       if (resolved.profileImageUrl && !source.profile_image_url) {
         updates.profile_image_url = resolved.profileImageUrl;
       }
-      await Source.findOneAndUpdate({ id: source.id }, updates);
+
+      try {
+        await Source.findOneAndUpdate({ id: source.id }, updates);
+      } catch (updateError) {
+        if (updateError?.code === 11000) {
+          // Another Source doc already owns this channel ID (duplicate added under a
+          // different handle/URL). Persisting would collide every cycle forever —
+          // deactivate this duplicate instead of retrying indefinitely.
+          const existingOwner = await Source.findOne({ platform: 'youtube', identifier: channelId, id: { $ne: source.id } });
+          console.warn(`[YouTube Monitor] ⚠️ "${source.display_name}" (${source.id}) resolves to channel ${channelId}, already monitored as "${existingOwner?.display_name || 'unknown'}" (${existingOwner?.id || '?'}). Deactivating duplicate.`);
+          await Source.findOneAndUpdate({ id: source.id }, { is_active: false });
+          return [];
+        }
+        throw updateError;
+      }
     }
 
     // Get latest videos
