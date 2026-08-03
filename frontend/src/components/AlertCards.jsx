@@ -17,7 +17,6 @@ import api, { BACKEND_URL } from '../lib/api';
 import { decodeHtmlEntities } from '../utils/decodeHtml';
 import { toast } from 'sonner';
 import ReasonModal from './ReasonModal';
-import ForensicResults from './ForensicResults';
 
 const WHATSAPP_GROUP_LINK = 'https://chat.whatsapp.com/HGGWZCyNXBmHfp4KvYxlXu';
 let activeVideoElement = null;
