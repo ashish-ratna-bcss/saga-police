@@ -1,6 +1,8 @@
 require('dotenv').config();
 const axios = require('axios');
 const { categorizeText } = require('./llmService');
+const { getEngineName } = require('./sentimentEngineService');
+const customSentimentService = require('./customSentimentService');
 const mappingService = require('./mappingService');
 const LegalSection = require('../models/LegalSection');
 const PlatformPolicy = require('../models/PlatformPolicy');
@@ -143,7 +145,23 @@ const analyzeContent = async (text, options = {}) => {
     }
 
     const finalRiskScore = llmResult.risk_score;
-    const finalSentiment = llmResult.sentiment;
+
+    // Category/intent/risk_score always come from the LLM (Pass A above).
+    // Sentiment alone is swappable via SENTIMENT_ANALYSIS — reuse llmResult.sentiment
+    // when engine=LLM (no extra call), otherwise ask the CUSTOM engine directly.
+    const sentimentEngine = getEngineName();
+    let finalSentiment = llmResult.sentiment;
+    let sentimentConfidence = null;
+    let sentimentDetails = null;
+    if (sentimentEngine === 'CUSTOM') {
+      const customResult = await customSentimentService.analyzeSentiment(text);
+      finalSentiment = customResult.sentiment;
+      sentimentConfidence = customResult.confidence;
+      sentimentDetails = customResult.details;
+    }
+    log(`Sentiment engine=${sentimentEngine} sentiment=${finalSentiment}` +
+        (sentimentConfidence != null ? ` confidence=${sentimentConfidence}` : '') +
+        (sentimentDetails ? ` lang=${sentimentDetails.language} translated=${sentimentDetails.was_translated} transliterated=${sentimentDetails.was_transliterated}` : ''));
 
     log(`LLM Result: cat=${llmResult.category}, intent="${llmResult.intent}", sentiment=${finalSentiment}, risk_score=${finalRiskScore}`);
 
