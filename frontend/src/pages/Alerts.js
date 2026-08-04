@@ -151,6 +151,7 @@ export default function Alerts() {
 
     if (!normalized) return 'others';
     return SOURCE_CATEGORY_OPTIONS.some((option) => option.value === normalized) ? normalized : 'others';
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [SOURCE_CATEGORY_OPTIONS]);
 
   const getPlatformLabel = useCallback((platformValue) => {
@@ -282,6 +283,7 @@ export default function Alerts() {
       totalsByCategory,
       grandTotal
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monitoredSources, normalizePlatform, normalizeCategory, SOURCE_CATEGORY_OPTIONS]);
 
   const normalizeDateInputValue = useCallback((value) => {
@@ -434,6 +436,7 @@ export default function Alerts() {
         return next;
       }, { replace: true });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   // Helper to clear handle param from URL
@@ -601,6 +604,7 @@ export default function Alerts() {
         setAlertStats(prev => prev || res.data);
       }
     }).catch(() => { });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Removed mapContentToAlert as it was only for content/feed fallback which is now unified
@@ -1193,6 +1197,7 @@ export default function Alerts() {
     if (searchQuery === '' && debouncedSearchQuery !== '') {
       setDebouncedSearchQuery('');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
   // Fetch Logic Triggered by Filters (Debounced Search, Tab Switch, etc.)
@@ -1326,6 +1331,7 @@ export default function Alerts() {
     } catch (e) {
       console.error("Polling error:", e); // Silent fail
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, loading, platformFilter, debouncedSearchQuery, alertCategory, keywordFilter, sourceCategoryFilter, hasAnyAlertFeature, pendingNewAlerts, isInstagramStoryView]);
 
   // Scroll Anchoring Effect

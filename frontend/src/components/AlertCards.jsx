@@ -2049,6 +2049,7 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
             setEngagerPage(1);
             setRetweetSearch('');
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
 
     const engagers = analysis?.engagers || [];
@@ -3086,6 +3087,7 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
         inlineMediaItems,
         fallbackInlineMedia,
         resolvedFacebookMediaItems: resolvedPlatformMediaItems
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [alert?.platform, fallbackInlineMedia, inlineMediaItems, resolvedPlatformMediaItems]);
     const isDownloadableLink = isDownloadableSocialLink(mediaUrl);
 
@@ -3106,6 +3108,7 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
             seen.add(item.url);
             merged.push(item);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         return merged;
     }, [cardMediaItems, uniqueMediaItems]);
 

@@ -196,6 +196,7 @@ const Announcements = () => {
         }, 2000); // Auto-save 2 seconds after last change
 
         return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [events, categories, hasUnsavedChanges, isLoading]);
 
     // Date navigation
