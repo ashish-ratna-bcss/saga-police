@@ -21,7 +21,7 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
 
     const highlights = alert?.threat_details?.highlights || alert?.triggered_keywords || analysis?.triggered_keywords || alert?.highlights || [];
     const detectedKeywords = alert?.matched_keywords_normalized || highlights || [];
-    const riskScore = alert?.llm_analysis?.score ?? alert?.threat_details?.risk_score ?? alert?.risk_score ?? 0;
+    const riskScore = Math.max(alert?.llm_analysis?.score || 0, alert?.threat_details?.risk_score || 0, alert?.risk_score || 0);
 
     // Policies & Laws (Priority: Root Alert fields which are normalized by backend)
     const violatedPolicies = alert?.violated_policies || alert?.threat_details?.violated_policies || (isExpert && alert?.llm_analysis?.platform_policies_violated) || [];

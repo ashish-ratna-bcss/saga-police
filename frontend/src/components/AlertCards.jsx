@@ -1382,7 +1382,7 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
             video.load();
             setHasLoadedMedia(true);
             if (pendingPlayRef.current) {
-                video.play().catch(() => {});
+                video.play().catch(() => { });
                 pendingPlayRef.current = false;
             }
             return true;
@@ -1406,7 +1406,7 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
                     hls.loadSource(currentUrl);
                     hls.attachMedia(video);
                     hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                        if (pendingPlayRef.current) { video.play().catch(() => {}); pendingPlayRef.current = false; }
+                        if (pendingPlayRef.current) { video.play().catch(() => { }); pendingPlayRef.current = false; }
                     });
                     hls.on(Hls.Events.ERROR, (_event, data) => {
                         if (data.fatal) { hls.destroy(); hlsRef.current = null; tryNextSource(); }
@@ -1435,7 +1435,7 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
         }, 8000);
 
         if (pendingPlayRef.current) {
-            video.play().catch(() => {});
+            video.play().catch(() => { });
             pendingPlayRef.current = false;
         }
     }, [hasLoadedMedia, type, currentUrl, tryNextSource, clearStallTimer, isPlaying, tryBlobLoad]);
@@ -1522,7 +1522,7 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
         }
 
         if (video.paused) {
-            video.play().catch(() => {});
+            video.play().catch(() => { });
         } else {
             video.pause();
         }
@@ -1589,9 +1589,9 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
                     <div className="space-y-1">
                         <span className="text-[10px] text-white/90 font-medium block">Video could not be loaded</span>
                         {contentUrl && ['facebook', 'instagram', 'x', 'twitter'].includes(String(platform || '').toLowerCase()) && (
-                            <Button 
-                                size="sm" 
-                                variant="outline" 
+                            <Button
+                                size="sm"
+                                variant="outline"
                                 className="h-7 px-3 bg-white/10 border-white/20 hover:bg-white/20 text-white text-[10px] uppercase tracking-wider font-bold mt-2"
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -1743,9 +1743,9 @@ const ImageWithFallback = ({ src, fallbackUrls = [], alt = '', className = '', p
                 <Image className="h-6 w-6 opacity-40" />
                 <span className="text-[10px] opacity-60">Image unavailable</span>
                 {['facebook', 'instagram'].includes(String(platform || '').toLowerCase()) && contentUrl && (
-                    <Button 
-                        size="sm" 
-                        variant="secondary" 
+                    <Button
+                        size="sm"
+                        variant="secondary"
                         className="h-7 px-3 bg-background/80 hover:bg-background border-border text-[9px] uppercase tracking-widest font-black mt-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={(e) => { e.stopPropagation(); window.open(contentUrl, '_blank'); }}
                     >
@@ -1869,11 +1869,11 @@ const RetweetTree = ({ sourceHandle, sourceName, sourceAvatar, topRetweeters, to
                     const mx = cx + ORBIT * 0.45 * Math.cos(a), my = cy + ORBIT * 0.45 * Math.sin(a);
                     const w = Math.max(1.5, (rt.tweet_count / maxT) * 4.5);
                     const c = getNodeColor(rt.tweet_count);
-                    const path = `M ${cx} ${cy} Q ${mx + (ny-cy)*0.12} ${my - (nx-cx)*0.12} ${nx} ${ny}`;
+                    const path = `M ${cx} ${cy} Q ${mx + (ny - cy) * 0.12} ${my - (nx - cx) * 0.12} ${nx} ${ny}`;
                     return (
                         <g key={`e-${i}`}>
                             <path d={path} fill="none" stroke={c} strokeWidth={w} strokeOpacity="0.3" strokeLinecap="round" />
-                            <circle r="2" fill={c} opacity="0.5"><animateMotion path={path} dur={`${2.8 + i*0.3}s`} repeatCount="indefinite" /></circle>
+                            <circle r="2" fill={c} opacity="0.5"><animateMotion path={path} dur={`${2.8 + i * 0.3}s`} repeatCount="indefinite" /></circle>
                         </g>
                     );
                 })}
@@ -1895,47 +1895,47 @@ const RetweetTree = ({ sourceHandle, sourceName, sourceAvatar, topRetweeters, to
                             {/* avatar / initial */}
                             {rt.avatar ? (
                                 <>
-                                    <clipPath id={`cr-${i}`}><circle cx={nx} cy={ny} r={NODE_R-1} /></clipPath>
-                                    <image href={rt.avatar} x={nx-NODE_R+1} y={ny-NODE_R+1} width={(NODE_R-1)*2} height={(NODE_R-1)*2} clipPath={`url(#cr-${i})`} />
+                                    <clipPath id={`cr-${i}`}><circle cx={nx} cy={ny} r={NODE_R - 1} /></clipPath>
+                                    <image href={rt.avatar} x={nx - NODE_R + 1} y={ny - NODE_R + 1} width={(NODE_R - 1) * 2} height={(NODE_R - 1) * 2} clipPath={`url(#cr-${i})`} />
                                 </>
                             ) : (
-                                <text x={nx} y={ny+1} textAnchor="middle" dominantBaseline="central" fontSize="14" fontWeight="700" fill="#374151">{init}</text>
+                                <text x={nx} y={ny + 1} textAnchor="middle" dominantBaseline="central" fontSize="14" fontWeight="700" fill="#374151">{init}</text>
                             )}
                             {/* tweet count badge top-right */}
-                            <circle cx={nx+NODE_R-3} cy={ny-NODE_R+3} r="10" fill={c} stroke="white" strokeWidth="1.5" />
-                            <text x={nx+NODE_R-3} y={ny-NODE_R+4} textAnchor="middle" dominantBaseline="central" fontSize="8" fontWeight="700" fill="white">{rt.tweet_count}</text>
+                            <circle cx={nx + NODE_R - 3} cy={ny - NODE_R + 3} r="10" fill={c} stroke="white" strokeWidth="1.5" />
+                            <text x={nx + NODE_R - 3} y={ny - NODE_R + 4} textAnchor="middle" dominantBaseline="central" fontSize="8" fontWeight="700" fill="white">{rt.tweet_count}</text>
                             {/* verified */}
                             {rt.verified && <>
-                                <circle cx={nx+NODE_R-3} cy={ny+NODE_R-3} r="7" fill="#3b82f6" stroke="white" strokeWidth="1" />
-                                <text x={nx+NODE_R-3} y={ny+NODE_R-2} textAnchor="middle" dominantBaseline="central" fontSize="7" fill="white">✓</text>
+                                <circle cx={nx + NODE_R - 3} cy={ny + NODE_R - 3} r="7" fill="#3b82f6" stroke="white" strokeWidth="1" />
+                                <text x={nx + NODE_R - 3} y={ny + NODE_R - 2} textAnchor="middle" dominantBaseline="central" fontSize="7" fill="white">✓</text>
                             </>}
                             {/* redirect to X profile top-left */}
                             <g className="cursor-pointer" onClick={(e) => { e.stopPropagation(); window.open(`https://x.com/${rt.handle}`, '_blank', 'noopener,noreferrer'); }}>
-                                <circle cx={nx-NODE_R+3} cy={ny-NODE_R+3} r="9" fill="#6b7280" stroke="white" strokeWidth="1.5" />
-                                <g transform={`translate(${nx-NODE_R+3},${ny-NODE_R+3}) scale(0.55)`}>
+                                <circle cx={nx - NODE_R + 3} cy={ny - NODE_R + 3} r="9" fill="#6b7280" stroke="white" strokeWidth="1.5" />
+                                <g transform={`translate(${nx - NODE_R + 3},${ny - NODE_R + 3}) scale(0.55)`}>
                                     <path d="M-5,1 L-5,5 a1,1,0,0,0,1,1 L0,6 a1,1,0,0,0,1,-1 L1,1 a1,1,0,0,0,-1,-1 L-4,0" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                                     <line x1="-2" y1="4" x2="5" y2="-3" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
                                     <polyline points="1,-3 5,-3 5,1" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                                 </g>
                             </g>
                             {/* label */}
-                            <text x={nx} y={lblY} textAnchor="middle" fontSize="9" fontWeight="600" fill="#374151">@{rt.handle.length > 13 ? rt.handle.slice(0,11)+'…' : rt.handle}</text>
+                            <text x={nx} y={lblY} textAnchor="middle" fontSize="9" fontWeight="600" fill="#374151">@{rt.handle.length > 13 ? rt.handle.slice(0, 11) + '…' : rt.handle}</text>
                         </g>
                     );
                 })}
 
                 {/* center source */}
                 <g filter="url(#srcGlow)">
-                    <circle cx={cx} cy={cy} r={SRC_R+3} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeOpacity="0.35" />
+                    <circle cx={cx} cy={cy} r={SRC_R + 3} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeOpacity="0.35" />
                     <circle cx={cx} cy={cy} r={SRC_R} fill="#2563eb" stroke="white" strokeWidth="2" />
                     {sourceAvatar ? (
-                        <><clipPath id="cSrc"><circle cx={cx} cy={cy} r={SRC_R-2} /></clipPath><image href={sourceAvatar} x={cx-SRC_R+2} y={cy-SRC_R+2} width={(SRC_R-2)*2} height={(SRC_R-2)*2} clipPath="url(#cSrc)" /></>
+                        <><clipPath id="cSrc"><circle cx={cx} cy={cy} r={SRC_R - 2} /></clipPath><image href={sourceAvatar} x={cx - SRC_R + 2} y={cy - SRC_R + 2} width={(SRC_R - 2) * 2} height={(SRC_R - 2) * 2} clipPath="url(#cSrc)" /></>
                     ) : (
-                        <text x={cx} y={cy+1} textAnchor="middle" dominantBaseline="central" fontSize="15" fontWeight="700" fill="white">{(sourceName||sourceHandle||'S')[0].toUpperCase()}</text>
+                        <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="central" fontSize="15" fontWeight="700" fill="white">{(sourceName || sourceHandle || 'S')[0].toUpperCase()}</text>
                     )}
                 </g>
-                <text x={cx} y={cy+SRC_R+16} textAnchor="middle" fontSize="11" fontWeight="700" fill="#1e40af">@{sourceHandle}</text>
-                <text x={cx} y={cy+SRC_R+29} textAnchor="middle" fontSize="9" fill="#6b7280">{totalRetweeters} unique retweeters</text>
+                <text x={cx} y={cy + SRC_R + 16} textAnchor="middle" fontSize="11" fontWeight="700" fill="#1e40af">@{sourceHandle}</text>
+                <text x={cx} y={cy + SRC_R + 29} textAnchor="middle" fontSize="9" fill="#6b7280">{totalRetweeters} unique retweeters</text>
             </svg>
         </div>
     );
@@ -2248,81 +2248,81 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
                                         const totalPages = Math.ceil(thisTweetRetweeters.length / PAGE_SIZE);
                                         const paged = thisTweetRetweeters.slice((engagerPage - 1) * PAGE_SIZE, engagerPage * PAGE_SIZE);
                                         return (
-                                        <div className="space-y-2">
-                                            {thisTweetInfo && (
-                                                <div className="p-2 rounded-lg border bg-muted/30 text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
-                                                    {thisTweetInfo.text || '(no text)'}
-                                                </div>
-                                            )}
-                                            {thisTweetRetweeters.length === 0 ? (
-                                                <div className="h-32 flex flex-col items-center justify-center text-muted-foreground gap-2">
-                                                    <Repeat className="h-6 w-6 opacity-25" />
-                                                    <span className="text-xs">No retweeters found for this tweet.</span>
-                                                </div>
-                                            ) : (<>
-                                                <div className="border rounded-lg overflow-hidden">
-                                                    <table className="w-full table-fixed text-[11px]">
-                                                        <colgroup>
-                                                            <col style={{ width: '55%' }} />
-                                                            <col style={{ width: '25%' }} />
-                                                            <col style={{ width: '20%' }} />
-                                                        </colgroup>
-                                                        <thead className="bg-muted/50">
-                                                            <tr>
-                                                                <th className="text-left px-2 py-1.5 font-semibold">Engager</th>
-                                                                <th className="text-center px-2 py-1.5 font-semibold">Retweeted</th>
-                                                                <th className="text-center px-2 py-1.5 font-semibold">Monitor</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {paged.map((rt) => {
-                                                                const already = isMonitored(rt.handle);
-                                                                const freq = rt.frequency || 'one-time';
-                                                                return (
-                                                                    <tr key={rt.handle} className={`border-t transition-colors ${FREQ_ROW_COLORS[freq] || ''}`}>
-                                                                        <td className="px-2 py-1.5 align-middle">
-                                                                            <div className="flex items-center gap-1.5">
-                                                                                {rt.avatar ? (
-                                                                                    <img src={rt.avatar} alt="" className="h-5 w-5 rounded-full object-cover shrink-0" />
-                                                                                ) : (
-                                                                                    <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-[8px] font-bold shrink-0">
-                                                                                        {(rt.name || rt.handle || '?')[0].toUpperCase()}
-                                                                                    </div>
-                                                                                )}
-                                                                                <a href={`https://x.com/${rt.handle}`} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline text-[11px] break-all leading-tight">@{rt.handle}</a>
-                                                                                {rt.verified && <CheckCircle2 className="h-2.5 w-2.5 text-blue-500 shrink-0" />}
-                                                                            </div>
-                                                                        </td>
-                                                                        <td className="px-2 py-1.5 text-center align-middle">
-                                                                            <span className="font-bold">{rt.tweets_retweeted}</span>
-                                                                            <span className="text-[9px] text-muted-foreground"> / {analysis.tweets_analyzed}</span>
-                                                                        </td>
-                                                                        <td className="px-2 py-1.5 text-center align-middle">
-                                                                            {onAddSource && !already ? (
-                                                                                <Button size="sm" variant="outline" className="h-5 gap-0.5 text-[9px] px-1.5 border-green-300 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20 dark:text-green-400 dark:border-green-800" onClick={() => handleAddSource(rt)}>
-                                                                                    <UserPlus className="h-2.5 w-2.5" /> Add
-                                                                                </Button>
-                                                                            ) : already ? (
-                                                                                <span className="inline-flex items-center gap-0.5 text-[9px] text-green-600 font-medium"><Check className="h-2.5 w-2.5" /> Monitored</span>
-                                                                            ) : null}
-                                                                        </td>
-                                                                    </tr>
-                                                                );
-                                                            })}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                                {totalPages > 1 && (
-                                                    <div className="flex items-center justify-between pt-1">
-                                                        <span className="text-[9px] text-muted-foreground">{thisTweetRetweeters.length} total · Page {engagerPage}/{totalPages}</span>
-                                                        <div className="flex gap-1">
-                                                            <Button size="sm" variant="outline" className="h-6 text-[9px] px-2" disabled={engagerPage <= 1} onClick={() => setEngagerPage(p => p - 1)}>Prev</Button>
-                                                            <Button size="sm" variant="outline" className="h-6 text-[9px] px-2" disabled={engagerPage >= totalPages} onClick={() => setEngagerPage(p => p + 1)}>Next</Button>
-                                                        </div>
+                                            <div className="space-y-2">
+                                                {thisTweetInfo && (
+                                                    <div className="p-2 rounded-lg border bg-muted/30 text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
+                                                        {thisTweetInfo.text || '(no text)'}
                                                     </div>
                                                 )}
-                                            </>)}
-                                        </div>
+                                                {thisTweetRetweeters.length === 0 ? (
+                                                    <div className="h-32 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                                                        <Repeat className="h-6 w-6 opacity-25" />
+                                                        <span className="text-xs">No retweeters found for this tweet.</span>
+                                                    </div>
+                                                ) : (<>
+                                                    <div className="border rounded-lg overflow-hidden">
+                                                        <table className="w-full table-fixed text-[11px]">
+                                                            <colgroup>
+                                                                <col style={{ width: '55%' }} />
+                                                                <col style={{ width: '25%' }} />
+                                                                <col style={{ width: '20%' }} />
+                                                            </colgroup>
+                                                            <thead className="bg-muted/50">
+                                                                <tr>
+                                                                    <th className="text-left px-2 py-1.5 font-semibold">Engager</th>
+                                                                    <th className="text-center px-2 py-1.5 font-semibold">Retweeted</th>
+                                                                    <th className="text-center px-2 py-1.5 font-semibold">Monitor</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {paged.map((rt) => {
+                                                                    const already = isMonitored(rt.handle);
+                                                                    const freq = rt.frequency || 'one-time';
+                                                                    return (
+                                                                        <tr key={rt.handle} className={`border-t transition-colors ${FREQ_ROW_COLORS[freq] || ''}`}>
+                                                                            <td className="px-2 py-1.5 align-middle">
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    {rt.avatar ? (
+                                                                                        <img src={rt.avatar} alt="" className="h-5 w-5 rounded-full object-cover shrink-0" />
+                                                                                    ) : (
+                                                                                        <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-[8px] font-bold shrink-0">
+                                                                                            {(rt.name || rt.handle || '?')[0].toUpperCase()}
+                                                                                        </div>
+                                                                                    )}
+                                                                                    <a href={`https://x.com/${rt.handle}`} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline text-[11px] break-all leading-tight">@{rt.handle}</a>
+                                                                                    {rt.verified && <CheckCircle2 className="h-2.5 w-2.5 text-blue-500 shrink-0" />}
+                                                                                </div>
+                                                                            </td>
+                                                                            <td className="px-2 py-1.5 text-center align-middle">
+                                                                                <span className="font-bold">{rt.tweets_retweeted}</span>
+                                                                                <span className="text-[9px] text-muted-foreground"> / {analysis.tweets_analyzed}</span>
+                                                                            </td>
+                                                                            <td className="px-2 py-1.5 text-center align-middle">
+                                                                                {onAddSource && !already ? (
+                                                                                    <Button size="sm" variant="outline" className="h-5 gap-0.5 text-[9px] px-1.5 border-green-300 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20 dark:text-green-400 dark:border-green-800" onClick={() => handleAddSource(rt)}>
+                                                                                        <UserPlus className="h-2.5 w-2.5" /> Add
+                                                                                    </Button>
+                                                                                ) : already ? (
+                                                                                    <span className="inline-flex items-center gap-0.5 text-[9px] text-green-600 font-medium"><Check className="h-2.5 w-2.5" /> Monitored</span>
+                                                                                ) : null}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                    {totalPages > 1 && (
+                                                        <div className="flex items-center justify-between pt-1">
+                                                            <span className="text-[9px] text-muted-foreground">{thisTweetRetweeters.length} total · Page {engagerPage}/{totalPages}</span>
+                                                            <div className="flex gap-1">
+                                                                <Button size="sm" variant="outline" className="h-6 text-[9px] px-2" disabled={engagerPage <= 1} onClick={() => setEngagerPage(p => p - 1)}>Prev</Button>
+                                                                <Button size="sm" variant="outline" className="h-6 text-[9px] px-2" disabled={engagerPage >= totalPages} onClick={() => setEngagerPage(p => p + 1)}>Next</Button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </>)}
+                                            </div>
                                         );
                                     })()}
 
@@ -2331,75 +2331,75 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
                                         const totalPages = Math.ceil(filteredEngagers.length / PAGE_SIZE);
                                         const paged = filteredEngagers.slice((engagerPage - 1) * PAGE_SIZE, engagerPage * PAGE_SIZE);
                                         return (
-                                        <div className="space-y-2">
-                                            {filteredEngagers.length === 0 ? (
-                                                <div className="h-32 flex items-center justify-center text-xs text-muted-foreground">
-                                                    {searchTerm ? 'No engagers match your search.' : 'No retweeters found.'}
-                                                </div>
-                                            ) : (<>
-                                                <div className="border rounded-lg overflow-hidden">
-                                                    <table className="w-full table-fixed text-[11px]">
-                                                        <colgroup>
-                                                            <col style={{ width: '55%' }} />
-                                                            <col style={{ width: '25%' }} />
-                                                            <col style={{ width: '20%' }} />
-                                                        </colgroup>
-                                                        <thead className="bg-muted/50">
-                                                            <tr>
-                                                                <th className="text-left px-2 py-1.5 font-semibold">Engager</th>
-                                                                <th className="text-center px-2 py-1.5 font-semibold">Retweeted</th>
-                                                                <th className="text-center px-2 py-1.5 font-semibold">Monitor</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {paged.map((rt) => {
-                                                                const already = isMonitored(rt.handle);
-                                                                const freq = rt.frequency || 'one-time';
-                                                                return (
-                                                                    <tr key={rt.handle} className={`border-t transition-colors ${FREQ_ROW_COLORS[freq] || ''}`}>
-                                                                        <td className="px-2 py-1.5 align-middle">
-                                                                            <div className="flex items-center gap-1.5">
-                                                                                {rt.avatar ? (
-                                                                                    <img src={rt.avatar} alt="" className="h-5 w-5 rounded-full object-cover shrink-0" />
-                                                                                ) : (
-                                                                                    <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-[8px] font-bold shrink-0">
-                                                                                        {(rt.name || rt.handle || '?')[0].toUpperCase()}
-                                                                                    </div>
-                                                                                )}
-                                                                                <a href={`https://x.com/${rt.handle}`} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline text-[11px] break-all leading-tight">@{rt.handle}</a>
-                                                                                {rt.verified && <CheckCircle2 className="h-2.5 w-2.5 text-blue-500 shrink-0" />}
-                                                                            </div>
-                                                                        </td>
-                                                                        <td className="px-2 py-1.5 text-center align-middle">
-                                                                            <span className="font-bold">{rt.tweets_retweeted}</span>
-                                                                            <span className="text-[9px] text-muted-foreground"> / {analysis.tweets_analyzed}</span>
-                                                                        </td>
-                                                                        <td className="px-2 py-1.5 text-center align-middle">
-                                                                            {onAddSource && !already ? (
-                                                                                <Button size="sm" variant="outline" className="h-5 gap-0.5 text-[9px] px-1.5 border-green-300 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20 dark:text-green-400 dark:border-green-800" onClick={() => handleAddSource(rt)}>
-                                                                                    <UserPlus className="h-2.5 w-2.5" /> Add
-                                                                                </Button>
-                                                                            ) : already ? (
-                                                                                <span className="inline-flex items-center gap-0.5 text-[9px] text-green-600 font-medium"><Check className="h-2.5 w-2.5" /> Monitored</span>
-                                                                            ) : null}
-                                                                        </td>
-                                                                    </tr>
-                                                                );
-                                                            })}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                                {totalPages > 1 && (
-                                                    <div className="flex items-center justify-between pt-1">
-                                                        <span className="text-[9px] text-muted-foreground">{filteredEngagers.length} total · Page {engagerPage}/{totalPages}</span>
-                                                        <div className="flex gap-1">
-                                                            <Button size="sm" variant="outline" className="h-6 text-[9px] px-2" disabled={engagerPage <= 1} onClick={() => setEngagerPage(p => p - 1)}>Prev</Button>
-                                                            <Button size="sm" variant="outline" className="h-6 text-[9px] px-2" disabled={engagerPage >= totalPages} onClick={() => setEngagerPage(p => p + 1)}>Next</Button>
-                                                        </div>
+                                            <div className="space-y-2">
+                                                {filteredEngagers.length === 0 ? (
+                                                    <div className="h-32 flex items-center justify-center text-xs text-muted-foreground">
+                                                        {searchTerm ? 'No engagers match your search.' : 'No retweeters found.'}
                                                     </div>
-                                                )}
-                                            </>)}
-                                        </div>
+                                                ) : (<>
+                                                    <div className="border rounded-lg overflow-hidden">
+                                                        <table className="w-full table-fixed text-[11px]">
+                                                            <colgroup>
+                                                                <col style={{ width: '55%' }} />
+                                                                <col style={{ width: '25%' }} />
+                                                                <col style={{ width: '20%' }} />
+                                                            </colgroup>
+                                                            <thead className="bg-muted/50">
+                                                                <tr>
+                                                                    <th className="text-left px-2 py-1.5 font-semibold">Engager</th>
+                                                                    <th className="text-center px-2 py-1.5 font-semibold">Retweeted</th>
+                                                                    <th className="text-center px-2 py-1.5 font-semibold">Monitor</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {paged.map((rt) => {
+                                                                    const already = isMonitored(rt.handle);
+                                                                    const freq = rt.frequency || 'one-time';
+                                                                    return (
+                                                                        <tr key={rt.handle} className={`border-t transition-colors ${FREQ_ROW_COLORS[freq] || ''}`}>
+                                                                            <td className="px-2 py-1.5 align-middle">
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    {rt.avatar ? (
+                                                                                        <img src={rt.avatar} alt="" className="h-5 w-5 rounded-full object-cover shrink-0" />
+                                                                                    ) : (
+                                                                                        <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-[8px] font-bold shrink-0">
+                                                                                            {(rt.name || rt.handle || '?')[0].toUpperCase()}
+                                                                                        </div>
+                                                                                    )}
+                                                                                    <a href={`https://x.com/${rt.handle}`} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline text-[11px] break-all leading-tight">@{rt.handle}</a>
+                                                                                    {rt.verified && <CheckCircle2 className="h-2.5 w-2.5 text-blue-500 shrink-0" />}
+                                                                                </div>
+                                                                            </td>
+                                                                            <td className="px-2 py-1.5 text-center align-middle">
+                                                                                <span className="font-bold">{rt.tweets_retweeted}</span>
+                                                                                <span className="text-[9px] text-muted-foreground"> / {analysis.tweets_analyzed}</span>
+                                                                            </td>
+                                                                            <td className="px-2 py-1.5 text-center align-middle">
+                                                                                {onAddSource && !already ? (
+                                                                                    <Button size="sm" variant="outline" className="h-5 gap-0.5 text-[9px] px-1.5 border-green-300 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20 dark:text-green-400 dark:border-green-800" onClick={() => handleAddSource(rt)}>
+                                                                                        <UserPlus className="h-2.5 w-2.5" /> Add
+                                                                                    </Button>
+                                                                                ) : already ? (
+                                                                                    <span className="inline-flex items-center gap-0.5 text-[9px] text-green-600 font-medium"><Check className="h-2.5 w-2.5" /> Monitored</span>
+                                                                                ) : null}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                    {totalPages > 1 && (
+                                                        <div className="flex items-center justify-between pt-1">
+                                                            <span className="text-[9px] text-muted-foreground">{filteredEngagers.length} total · Page {engagerPage}/{totalPages}</span>
+                                                            <div className="flex gap-1">
+                                                                <Button size="sm" variant="outline" className="h-6 text-[9px] px-2" disabled={engagerPage <= 1} onClick={() => setEngagerPage(p => p - 1)}>Prev</Button>
+                                                                <Button size="sm" variant="outline" className="h-6 text-[9px] px-2" disabled={engagerPage >= totalPages} onClick={() => setEngagerPage(p => p + 1)}>Next</Button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </>)}
+                                            </div>
                                         );
                                     })()}
                                 </div>
@@ -2587,79 +2587,78 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                     </div>
                                 ) : (
                                     <>
-                                    <div className="border rounded-lg overflow-hidden">
-                                        <table className="w-full text-xs">
-                                            <thead className="bg-muted/50">
-                                                <tr>
-                                                    <th className="text-left px-3 py-2 font-semibold">Account</th>
-                                                    <th className="text-center px-3 py-2 font-semibold">Status</th>
-                                                    <th className="text-center px-3 py-2 font-semibold">Tweets</th>
-                                                    <th className="text-center px-3 py-2 font-semibold">Engagers</th>
-                                                    <th className="text-center px-3 py-2 font-semibold">Last Analyzed</th>
-                                                    <th className="text-center px-3 py-2 font-semibold w-16"></th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {pagedAnalyses.map(a => (
-                                                    <tr key={a.id || a._id || a.handle_lower}
-                                                        className={`border-t transition-colors ${a.status === 'completed' ? 'cursor-pointer hover:bg-accent/50' : ''} ${a.status === 'processing' ? 'bg-yellow-50 dark:bg-yellow-950/10' : a.status === 'failed' ? 'bg-red-50/50 dark:bg-red-950/5' : ''}`}
-                                                        onClick={() => a.status === 'completed' ? openDetail(a.handle) : null}
-                                                    >
-                                                        <td className="px-3 py-2">
-                                                            <div className="flex items-center gap-2">
-                                                                {a.avatar ? (
-                                                                    <img src={a.avatar} alt="" className="h-6 w-6 rounded-full object-cover shrink-0" />
-                                                                ) : (
-                                                                    <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-[9px] font-bold shrink-0">
-                                                                        {(a.display_name || a.handle || '?')[0].toUpperCase()}
-                                                                    </div>
-                                                                )}
-                                                                <div>
-                                                                    <span className="font-medium">@{a.handle}</span>
-                                                                    {a.display_name && a.display_name !== a.handle && <span className="text-[10px] text-muted-foreground ml-1.5">{a.display_name}</span>}
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-3 py-2 text-center">
-                                                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
-                                                                a.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400' :
-                                                                a.status === 'processing' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400' :
-                                                                a.status === 'failed' ? 'bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400' :
-                                                                'bg-gray-100 text-gray-600'
-                                                            }`}>
-                                                                {a.status === 'processing' && <Loader2 className="h-2.5 w-2.5 animate-spin inline mr-0.5" />}
-                                                                {a.status}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-3 py-2 text-center font-medium">{a.tweets_analyzed || '-'}</td>
-                                                        <td className="px-3 py-2 text-center font-medium">{a.unique_retweeters || '-'}</td>
-                                                        <td className="px-3 py-2 text-center text-muted-foreground">
-                                                            {a.analyzed_at ? format(new Date(a.analyzed_at), 'MMM d, h:mm a') : '-'}
-                                                        </td>
-                                                        <td className="px-3 py-2 text-center">
-                                                            {a.status === 'failed' && (
-                                                                <Button size="sm" variant="outline" className="h-5 text-[9px] px-1.5" onClick={(e) => { e.stopPropagation(); retriggerAnalysis(a.handle); }}>
-                                                                    Retry
-                                                                </Button>
-                                                            )}
-                                                        </td>
+                                        <div className="border rounded-lg overflow-hidden">
+                                            <table className="w-full text-xs">
+                                                <thead className="bg-muted/50">
+                                                    <tr>
+                                                        <th className="text-left px-3 py-2 font-semibold">Account</th>
+                                                        <th className="text-center px-3 py-2 font-semibold">Status</th>
+                                                        <th className="text-center px-3 py-2 font-semibold">Tweets</th>
+                                                        <th className="text-center px-3 py-2 font-semibold">Engagers</th>
+                                                        <th className="text-center px-3 py-2 font-semibold">Last Analyzed</th>
+                                                        <th className="text-center px-3 py-2 font-semibold w-16"></th>
                                                     </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    {listTotalPages > 1 && (
-                                        <div className="flex items-center justify-between pt-3">
-                                            <span className="text-[9px] text-muted-foreground">{filteredAnalyses.length} account{filteredAnalyses.length !== 1 ? 's' : ''} · Page {listPage}/{listTotalPages}</span>
-                                            <div className="flex gap-1">
-                                                <Button size="sm" variant="outline" className="h-6 text-[9px] px-2" disabled={listPage <= 1} onClick={() => setListPage(p => p - 1)}>Prev</Button>
-                                                <Button size="sm" variant="outline" className="h-6 text-[9px] px-2" disabled={listPage >= listTotalPages} onClick={() => setListPage(p => p + 1)}>Next</Button>
-                                            </div>
+                                                </thead>
+                                                <tbody>
+                                                    {pagedAnalyses.map(a => (
+                                                        <tr key={a.id || a._id || a.handle_lower}
+                                                            className={`border-t transition-colors ${a.status === 'completed' ? 'cursor-pointer hover:bg-accent/50' : ''} ${a.status === 'processing' ? 'bg-yellow-50 dark:bg-yellow-950/10' : a.status === 'failed' ? 'bg-red-50/50 dark:bg-red-950/5' : ''}`}
+                                                            onClick={() => a.status === 'completed' ? openDetail(a.handle) : null}
+                                                        >
+                                                            <td className="px-3 py-2">
+                                                                <div className="flex items-center gap-2">
+                                                                    {a.avatar ? (
+                                                                        <img src={a.avatar} alt="" className="h-6 w-6 rounded-full object-cover shrink-0" />
+                                                                    ) : (
+                                                                        <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-[9px] font-bold shrink-0">
+                                                                            {(a.display_name || a.handle || '?')[0].toUpperCase()}
+                                                                        </div>
+                                                                    )}
+                                                                    <div>
+                                                                        <span className="font-medium">@{a.handle}</span>
+                                                                        {a.display_name && a.display_name !== a.handle && <span className="text-[10px] text-muted-foreground ml-1.5">{a.display_name}</span>}
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-3 py-2 text-center">
+                                                                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${a.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400' :
+                                                                    a.status === 'processing' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400' :
+                                                                        a.status === 'failed' ? 'bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400' :
+                                                                            'bg-gray-100 text-gray-600'
+                                                                    }`}>
+                                                                    {a.status === 'processing' && <Loader2 className="h-2.5 w-2.5 animate-spin inline mr-0.5" />}
+                                                                    {a.status}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-3 py-2 text-center font-medium">{a.tweets_analyzed || '-'}</td>
+                                                            <td className="px-3 py-2 text-center font-medium">{a.unique_retweeters || '-'}</td>
+                                                            <td className="px-3 py-2 text-center text-muted-foreground">
+                                                                {a.analyzed_at ? format(new Date(a.analyzed_at), 'MMM d, h:mm a') : '-'}
+                                                            </td>
+                                                            <td className="px-3 py-2 text-center">
+                                                                {a.status === 'failed' && (
+                                                                    <Button size="sm" variant="outline" className="h-5 text-[9px] px-1.5" onClick={(e) => { e.stopPropagation(); retriggerAnalysis(a.handle); }}>
+                                                                        Retry
+                                                                    </Button>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
                                         </div>
-                                    )}
-                                    {listSearchTerm && filteredAnalyses.length === 0 && (
-                                        <div className="h-24 flex items-center justify-center text-xs text-muted-foreground">No accounts match "{listSearch}"</div>
-                                    )}
+                                        {listTotalPages > 1 && (
+                                            <div className="flex items-center justify-between pt-3">
+                                                <span className="text-[9px] text-muted-foreground">{filteredAnalyses.length} account{filteredAnalyses.length !== 1 ? 's' : ''} · Page {listPage}/{listTotalPages}</span>
+                                                <div className="flex gap-1">
+                                                    <Button size="sm" variant="outline" className="h-6 text-[9px] px-2" disabled={listPage <= 1} onClick={() => setListPage(p => p - 1)}>Prev</Button>
+                                                    <Button size="sm" variant="outline" className="h-6 text-[9px] px-2" disabled={listPage >= listTotalPages} onClick={() => setListPage(p => p + 1)}>Next</Button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {listSearchTerm && filteredAnalyses.length === 0 && (
+                                            <div className="h-24 flex items-center justify-center text-xs text-muted-foreground">No accounts match "{listSearch}"</div>
+                                        )}
                                     </>
                                 )}
                             </div>
@@ -2754,78 +2753,78 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                                 const totalPages = Math.ceil(filteredEngagers.length / PAGE_SIZE);
                                                 const paged = filteredEngagers.slice((engagerPage - 1) * PAGE_SIZE, engagerPage * PAGE_SIZE);
                                                 return (
-                                                <div className="space-y-2">
-                                                    {filteredEngagers.length === 0 ? (
-                                                        <div className="h-32 flex items-center justify-center text-xs text-muted-foreground">
-                                                            {searchTerm ? 'No engagers match your search.' : 'No retweeters found.'}
-                                                        </div>
-                                                    ) : (<>
-                                                        <div className="border rounded-lg overflow-hidden">
-                                                            <table className="w-full table-fixed text-[11px]">
-                                                                <colgroup>
-                                                                    <col style={{ width: '55%' }} />
-                                                                    <col style={{ width: '25%' }} />
-                                                                    <col style={{ width: '20%' }} />
-                                                                </colgroup>
-                                                                <thead className="bg-muted/50">
-                                                                    <tr>
-                                                                        <th className="text-left px-2 py-1.5 font-semibold">Engager</th>
-                                                                        <th className="text-center px-2 py-1.5 font-semibold">Retweeted</th>
-                                                                        <th className="text-center px-2 py-1.5 font-semibold">Monitor</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {paged.map((rt) => {
-                                                                        const already = isMonitored(rt.handle);
-                                                                        const freq = rt.frequency || 'one-time';
-                                                                        return (
-                                                                            <tr key={rt.handle} className={`border-t transition-colors ${FREQ_ROW_COLORS[freq] || ''}`}>
-                                                                                <td className="px-2 py-1.5 align-middle">
-                                                                                    <div className="flex items-center gap-1.5">
-                                                                                        {rt.avatar ? (
-                                                                                            <img src={rt.avatar} alt="" className="h-5 w-5 rounded-full object-cover shrink-0" />
-                                                                                        ) : (
-                                                                                            <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-[8px] font-bold shrink-0">
-                                                                                                {(rt.name || rt.handle || '?')[0].toUpperCase()}
-                                                                                            </div>
-                                                                                        )}
-                                                                                        <div className="flex flex-col min-w-0">
-                                                                                            <a href={`https://x.com/${rt.handle}`} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline text-[11px] break-all leading-tight">@{rt.handle}</a>
-                                                                                            {rt.name && rt.name !== rt.handle && <span className="text-[9px] text-muted-foreground leading-tight truncate">{rt.name}</span>}
-                                                                                        </div>
-                                                                                        {rt.verified && <CheckCircle2 className="h-2.5 w-2.5 text-blue-500 shrink-0" />}
-                                                                                    </div>
-                                                                                </td>
-                                                                                <td className="px-2 py-1.5 text-center align-middle">
-                                                                                    <span className="font-bold">{rt.tweets_retweeted}</span>
-                                                                                    <span className="text-[9px] text-muted-foreground"> / {analysis.tweets_analyzed}</span>
-                                                                                </td>
-                                                                                <td className="px-2 py-1.5 text-center align-middle">
-                                                                                    {onAddSource && !already ? (
-                                                                                        <Button size="sm" variant="outline" className="h-5 gap-0.5 text-[9px] px-1.5 border-green-300 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20 dark:text-green-400 dark:border-green-800" onClick={() => handleAddSource(rt)}>
-                                                                                            <UserPlus className="h-2.5 w-2.5" /> Add
-                                                                                        </Button>
-                                                                                    ) : already ? (
-                                                                                        <span className="inline-flex items-center gap-0.5 text-[9px] text-green-600 font-medium"><Check className="h-2.5 w-2.5" /> Monitored</span>
-                                                                                    ) : null}
-                                                                                </td>
-                                                                            </tr>
-                                                                        );
-                                                                    })}
-                                                                </tbody>
-                                                            </table>
-                                                        </div>
-                                                        {totalPages > 1 && (
-                                                            <div className="flex items-center justify-between pt-1">
-                                                                <span className="text-[9px] text-muted-foreground">{filteredEngagers.length} total · Page {engagerPage}/{totalPages}</span>
-                                                                <div className="flex gap-1">
-                                                                    <Button size="sm" variant="outline" className="h-6 text-[9px] px-2" disabled={engagerPage <= 1} onClick={() => setEngagerPage(p => p - 1)}>Prev</Button>
-                                                                    <Button size="sm" variant="outline" className="h-6 text-[9px] px-2" disabled={engagerPage >= totalPages} onClick={() => setEngagerPage(p => p + 1)}>Next</Button>
-                                                                </div>
+                                                    <div className="space-y-2">
+                                                        {filteredEngagers.length === 0 ? (
+                                                            <div className="h-32 flex items-center justify-center text-xs text-muted-foreground">
+                                                                {searchTerm ? 'No engagers match your search.' : 'No retweeters found.'}
                                                             </div>
-                                                        )}
-                                                    </>)}
-                                                </div>
+                                                        ) : (<>
+                                                            <div className="border rounded-lg overflow-hidden">
+                                                                <table className="w-full table-fixed text-[11px]">
+                                                                    <colgroup>
+                                                                        <col style={{ width: '55%' }} />
+                                                                        <col style={{ width: '25%' }} />
+                                                                        <col style={{ width: '20%' }} />
+                                                                    </colgroup>
+                                                                    <thead className="bg-muted/50">
+                                                                        <tr>
+                                                                            <th className="text-left px-2 py-1.5 font-semibold">Engager</th>
+                                                                            <th className="text-center px-2 py-1.5 font-semibold">Retweeted</th>
+                                                                            <th className="text-center px-2 py-1.5 font-semibold">Monitor</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {paged.map((rt) => {
+                                                                            const already = isMonitored(rt.handle);
+                                                                            const freq = rt.frequency || 'one-time';
+                                                                            return (
+                                                                                <tr key={rt.handle} className={`border-t transition-colors ${FREQ_ROW_COLORS[freq] || ''}`}>
+                                                                                    <td className="px-2 py-1.5 align-middle">
+                                                                                        <div className="flex items-center gap-1.5">
+                                                                                            {rt.avatar ? (
+                                                                                                <img src={rt.avatar} alt="" className="h-5 w-5 rounded-full object-cover shrink-0" />
+                                                                                            ) : (
+                                                                                                <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-[8px] font-bold shrink-0">
+                                                                                                    {(rt.name || rt.handle || '?')[0].toUpperCase()}
+                                                                                                </div>
+                                                                                            )}
+                                                                                            <div className="flex flex-col min-w-0">
+                                                                                                <a href={`https://x.com/${rt.handle}`} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline text-[11px] break-all leading-tight">@{rt.handle}</a>
+                                                                                                {rt.name && rt.name !== rt.handle && <span className="text-[9px] text-muted-foreground leading-tight truncate">{rt.name}</span>}
+                                                                                            </div>
+                                                                                            {rt.verified && <CheckCircle2 className="h-2.5 w-2.5 text-blue-500 shrink-0" />}
+                                                                                        </div>
+                                                                                    </td>
+                                                                                    <td className="px-2 py-1.5 text-center align-middle">
+                                                                                        <span className="font-bold">{rt.tweets_retweeted}</span>
+                                                                                        <span className="text-[9px] text-muted-foreground"> / {analysis.tweets_analyzed}</span>
+                                                                                    </td>
+                                                                                    <td className="px-2 py-1.5 text-center align-middle">
+                                                                                        {onAddSource && !already ? (
+                                                                                            <Button size="sm" variant="outline" className="h-5 gap-0.5 text-[9px] px-1.5 border-green-300 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20 dark:text-green-400 dark:border-green-800" onClick={() => handleAddSource(rt)}>
+                                                                                                <UserPlus className="h-2.5 w-2.5" /> Add
+                                                                                            </Button>
+                                                                                        ) : already ? (
+                                                                                            <span className="inline-flex items-center gap-0.5 text-[9px] text-green-600 font-medium"><Check className="h-2.5 w-2.5" /> Monitored</span>
+                                                                                        ) : null}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                            {totalPages > 1 && (
+                                                                <div className="flex items-center justify-between pt-1">
+                                                                    <span className="text-[9px] text-muted-foreground">{filteredEngagers.length} total · Page {engagerPage}/{totalPages}</span>
+                                                                    <div className="flex gap-1">
+                                                                        <Button size="sm" variant="outline" className="h-6 text-[9px] px-2" disabled={engagerPage <= 1} onClick={() => setEngagerPage(p => p - 1)}>Prev</Button>
+                                                                        <Button size="sm" variant="outline" className="h-6 text-[9px] px-2" disabled={engagerPage >= totalPages} onClick={() => setEngagerPage(p => p + 1)}>Next</Button>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </>)}
+                                                    </div>
                                                 );
                                             })()}
                                         </div>
@@ -2966,7 +2965,8 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
 
     // Engagement
     const metrics = content?.engagement || {};
-    const contentText = decodeHtmlEntities(content?.text || alert.description || '');
+    let rawContentText = decodeHtmlEntities(content?.text || alert.description || '');
+    const contentText = rawContentText.replace(/\*\*Intent Detected:\*\*.*?(?:\n\n|\n|$)/g, '').trim();
     const shouldShowReadMore = contentText.length > 150 || (contentText.match(/\n/g) || []).length >= 2;
     const quotedContentText = decodeHtmlEntities(content?.quoted_content?.text || '');
     const shouldShowQuotedReadMore = quotedContentText.length > 130 || (quotedContentText.match(/\n/g) || []).length >= 2;
@@ -3781,7 +3781,7 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                                     try {
                                         const res = await api.get(`/poi/by-source/${sid || 'none'}?handle=${encodeURIComponent(h)}&platform=x`);
                                         if (res.data?._id) { navigate(`/person-of-interest/${res.data._id}`, { state: { poi: res.data, selectedPlatform: 'x' } }); return; }
-                                    } catch (_) {}
+                                    } catch (_) { }
                                     navigate(`/x-monitor?handle=${h}`);
                                 }}
                             >
@@ -3914,8 +3914,8 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                                     : (isStoryCard
                                         ? 'aspect-[3/4] max-h-[360px]'
                                         : (isInstagramReel
-                                        ? 'aspect-[9/16]'
-                                        : (type === 'video' || type === 'animated_gif' ? 'aspect-video' : 'max-h-[500px]')));
+                                            ? 'aspect-[9/16]'
+                                            : (type === 'video' || type === 'animated_gif' ? 'aspect-video' : 'max-h-[500px]')));
 
                                 // Build comprehensive image fallback list
                                 const imageFallbacks = [itemS3Url, itemS3Preview, preview, ...previewFallbackUrls, ...fallbackUrls].filter(
@@ -3928,25 +3928,25 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                                         onClick={(e) => e.stopPropagation()}
                                     >
                                         {type === 'video' || type === 'animated_gif' ? (
-                                                <VideoPlayer
-                                                    url={url}
-                                                    preview={preview}
-                                                    type={type}
-                                                    autoPlay={type === 'animated_gif'}
-                                                    fallbackUrls={fallbackUrls}
-                                                    previewFallbackUrls={previewFallbackUrls}
-                                                    platform={alert?.platform}
-                                                    contentUrl={cardOpenUrl}
-                                                />
-                                            ) : (
-                                                <ImageWithFallback
-                                                    src={url}
-                                                    fallbackUrls={imageFallbacks}
-                                                    alt={`Media ${idx + 1}`}
-                                                    className="w-full h-full object-cover hover:opacity-95 transition-opacity"
-                                                    platform={alert?.platform}
-                                                    contentUrl={cardOpenUrl}
-                                                />
+                                            <VideoPlayer
+                                                url={url}
+                                                preview={preview}
+                                                type={type}
+                                                autoPlay={type === 'animated_gif'}
+                                                fallbackUrls={fallbackUrls}
+                                                previewFallbackUrls={previewFallbackUrls}
+                                                platform={alert?.platform}
+                                                contentUrl={cardOpenUrl}
+                                            />
+                                        ) : (
+                                            <ImageWithFallback
+                                                src={url}
+                                                fallbackUrls={imageFallbacks}
+                                                alt={`Media ${idx + 1}`}
+                                                className="w-full h-full object-cover hover:opacity-95 transition-opacity"
+                                                platform={alert?.platform}
+                                                contentUrl={cardOpenUrl}
+                                            />
                                         )}
                                     </div>
                                 );
@@ -4259,7 +4259,8 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
     const timeStr = publishedAtDate ? publishedAtDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
     const dateStr = publishedAtDate ? publishedAtDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
     const isGrid = viewMode === 'grid';
-    const contentText = decodeHtmlEntities(content?.text || alert.description || '');
+    let rawContentText = decodeHtmlEntities(content?.text || alert.description || '');
+    const contentText = rawContentText.replace(/\*\*Intent Detected:\*\*.*?(?:\n\n|\n|$)/g, '').trim();
     const shouldShowReadMore = contentText.length > 150 || (contentText.match(/\n/g) || []).length >= 2;
     const channelHandleRaw = String(content?.author_handle || source?.handle || alert?.author_handle || '').replace(/^@+/, '');
     const channelHandle = channelHandleRaw ? `@${channelHandleRaw}` : '@youtube';
@@ -4890,16 +4891,22 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
                         </div>
                     </div>
 
-                    <a
-                        href={mediaUrl || '#'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block mb-1.5"
-                    >
-                        <h3 className="text-sm font-semibold text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors">
-                            {alert.title}
-                        </h3>
-                    </a>
+                    {!(() => {
+                        if (!alert.title) return false;
+                        const t = String(alert.title).replace(/[^a-zA-Z]/g, '').toUpperCase();
+                        return t.includes('LOWRISK') || t.includes('MEDIUMRISK') || t.includes('HIGHRISK') || t.includes('CRITICALRISK') || t.includes('UNKNOWNRISK') || t.includes('NEUTRALRISK') || t.includes('NORMALRISK');
+                    })() && (
+                            <a
+                                href={mediaUrl || '#'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block mb-1.5"
+                            >
+                                <h3 className="text-sm font-semibold text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors">
+                                    {alert.title}
+                                </h3>
+                            </a>
+                        )}
 
                     <div className={`text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words mb-2 ${!isExpanded ? 'line-clamp-3' : ''}`}>
                         {isTranslated ? translatedText : contentText}
@@ -4933,233 +4940,239 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
 
                     {/* Inline YouTube Player */}
                     <div className={`relative mb-3 w-full overflow-hidden rounded-md border border-border bg-black ${isYoutubeShort ? 'max-w-[320px] mx-auto aspect-[9/16]' : 'aspect-video'}`}>
-                    {youtubeFallbackLevel === 0 && youtubeNoCookieEmbedUrl && (
-                        <iframe
-                            key={`yt-nocookie-${youtubeVideoId || alert?.id || mediaUrl}`}
-                            src={youtubeNoCookieEmbedUrl}
-                            title={alert.title || 'YouTube video'}
-                            className="absolute inset-0 w-full h-full"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                            referrerPolicy="strict-origin-when-cross-origin"
-                            loading="lazy"
-                            allowFullScreen
-                            onError={advanceYoutubeFallback}
-                        />
-                    )}
-
-                    {youtubeFallbackLevel === 1 && (youtubeEmbedUrl || mediaUrl) && (
-                        <iframe
-                            key={`yt-embed-${youtubeVideoId || alert?.id || mediaUrl}`}
-                            src={youtubeEmbedUrl || mediaUrl}
-                            title={alert.title || 'YouTube video'}
-                            className="absolute inset-0 w-full h-full"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                            referrerPolicy="strict-origin-when-cross-origin"
-                            loading="lazy"
-                            allowFullScreen
-                            onError={advanceYoutubeFallback}
-                        />
-                    )}
-
-                    {youtubeFallbackLevel >= 2 && (
-                        <div className="relative w-full h-full">
-                            <ImageWithFallback
-                                src={thumbnailUrl}
-                                fallbackUrls={youtubeVideoId ? [
-                                    `https://img.youtube.com/vi/${youtubeVideoId}/hqdefault.jpg`,
-                                    `https://img.youtube.com/vi/${youtubeVideoId}/mqdefault.jpg`
-                                ] : []}
-                                alt={alert.title || 'YouTube thumbnail'}
-                                className="w-full h-full object-cover"
+                        {youtubeFallbackLevel === 0 && youtubeNoCookieEmbedUrl && (
+                            <iframe
+                                key={`yt-nocookie-${youtubeVideoId || alert?.id || mediaUrl}`}
+                                src={youtubeNoCookieEmbedUrl}
+                                title={alert.title || 'YouTube video'}
+                                className="absolute inset-0 w-full h-full"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                referrerPolicy="strict-origin-when-cross-origin"
+                                loading="lazy"
+                                allowFullScreen
+                                onError={advanceYoutubeFallback}
                             />
-                            {mediaUrl && (
+                        )}
+
+                        {youtubeFallbackLevel === 1 && (youtubeEmbedUrl || mediaUrl) && (
+                            <iframe
+                                key={`yt-embed-${youtubeVideoId || alert?.id || mediaUrl}`}
+                                src={youtubeEmbedUrl || mediaUrl}
+                                title={alert.title || 'YouTube video'}
+                                className="absolute inset-0 w-full h-full"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                referrerPolicy="strict-origin-when-cross-origin"
+                                loading="lazy"
+                                allowFullScreen
+                                onError={advanceYoutubeFallback}
+                            />
+                        )}
+
+                        {youtubeFallbackLevel >= 2 && (
+                            <div className="relative w-full h-full">
+                                <ImageWithFallback
+                                    src={thumbnailUrl}
+                                    fallbackUrls={youtubeVideoId ? [
+                                        `https://img.youtube.com/vi/${youtubeVideoId}/hqdefault.jpg`,
+                                        `https://img.youtube.com/vi/${youtubeVideoId}/mqdefault.jpg`
+                                    ] : []}
+                                    alt={alert.title || 'YouTube thumbnail'}
+                                    className="w-full h-full object-cover"
+                                />
+                                {mediaUrl && (
+                                    <a
+                                        href={mediaUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="absolute inset-0 z-20 flex items-center justify-center bg-black/30 hover:bg-black/45 transition-colors"
+                                        title="Open on YouTube"
+                                    >
+                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-black/80 px-3 py-1.5 text-xs font-semibold text-white">
+                                            <ExternalLink className="h-3.5 w-3.5" />
+                                            Open on YouTube
+                                        </span>
+                                    </a>
+                                )}
+                            </div>
+                        )}
+
+                        {mediaUrl && youtubeFallbackLevel < 2 && (
+                            <a
+                                href={mediaUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="absolute top-1.5 right-1.5 z-20 bg-black/70 hover:bg-black/85 text-white p-1 rounded-md transition-colors"
+                                title="Open on YouTube"
+                            >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                        )}
+
+                        {/* Download Progress Overlay */}
+                        {downloading && (
+                            <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-2 backdrop-blur-sm rounded-md z-30">
+                                <Download className="h-8 w-8 text-white animate-bounce" />
+                                <div className="w-3/4">
+                                    <div className="flex justify-between text-xs text-white mb-1">
+                                        <span>{downloadStatus}</span>
+                                        <span>{Math.round(downloadProgress)}%</span>
+                                    </div>
+                                    <div className="w-full bg-gray-600 rounded-full h-2 overflow-hidden">
+                                        <div
+                                            className="bg-green-500 h-full rounded-full transition-all duration-300 ease-out"
+                                            style={{ width: `${downloadProgress}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs font-medium px-1.5 py-0.5 rounded z-20">
+                            {content?.duration || '0:00'}
+                        </div>
+
+                    </div>
+
+                    {/* Info Section */}
+                    <div className="flex flex-col flex-grow min-w-0 px-4 pl-5 pb-4">
+                        {!(() => {
+                            if (!alert.title) return false;
+                            const t = String(alert.title).replace(/[^a-zA-Z]/g, '').toUpperCase();
+                            return t.includes('LOWRISK') || t.includes('MEDIUMRISK') || t.includes('HIGHRISK') || t.includes('CRITICALRISK') || t.includes('UNKNOWNRISK') || t.includes('NEUTRALRISK') || t.includes('NORMALRISK');
+                        })() && (
                                 <a
-                                    href={mediaUrl}
+                                    href={mediaUrl || '#'}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="absolute inset-0 z-20 flex items-center justify-center bg-black/30 hover:bg-black/45 transition-colors"
-                                    title="Open on YouTube"
+                                    className="block mb-1.5"
                                 >
-                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-black/80 px-3 py-1.5 text-xs font-semibold text-white">
-                                        <ExternalLink className="h-3.5 w-3.5" />
-                                        Open on YouTube
-                                    </span>
+                                    <h3 className="text-sm font-semibold text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors">
+                                        <HighlightText text={alert.title} highlight={searchQuery} />
+                                    </h3>
                                 </a>
                             )}
+
+                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-2">
+                            <span className="font-medium text-foreground/80 hover:underline"><HighlightText text={source?.name || alert.author} highlight={searchQuery} /></span>
+                            <span className="text-border">•</span>
+                            <span>{formatMetric(metrics.views || 0)} views</span>
+                            <span className="text-border">•</span>
+                            <span>{dateStr || '—'}</span>
                         </div>
-                    )}
 
-                    {mediaUrl && youtubeFallbackLevel < 2 && (
-                        <a
-                            href={mediaUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="absolute top-1.5 right-1.5 z-20 bg-black/70 hover:bg-black/85 text-white p-1 rounded-md transition-colors"
-                            title="Open on YouTube"
-                        >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                    )}
-
-                    {/* Download Progress Overlay */}
-                    {downloading && (
-                        <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-2 backdrop-blur-sm rounded-md z-30">
-                            <Download className="h-8 w-8 text-white animate-bounce" />
-                            <div className="w-3/4">
-                                <div className="flex justify-between text-xs text-white mb-1">
-                                    <span>{downloadStatus}</span>
-                                    <span>{Math.round(downloadProgress)}%</span>
-                                </div>
-                                <div className="w-full bg-gray-600 rounded-full h-2 overflow-hidden">
-                                    <div
-                                        className="bg-green-500 h-full rounded-full transition-all duration-300 ease-out"
-                                        style={{ width: `${downloadProgress}%` }}
-                                    />
-                                </div>
-                            </div>
+                        <div className={`text-xs text-muted-foreground mb-2 ${!isExpanded ? 'line-clamp-3' : ''} leading-relaxed`}>
+                            <HighlightText text={isTranslated ? translatedText : contentText} highlight={searchQuery} />
                         </div>
-                    )}
-                    <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs font-medium px-1.5 py-0.5 rounded z-20">
-                        {content?.duration || '0:00'}
-                    </div>
-
-                    </div>
-
-                {/* Info Section */}
-                <div className="flex flex-col flex-grow min-w-0 px-4 pl-5 pb-4">
-                    <a
-                        href={mediaUrl || '#'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block mb-1.5"
-                    >
-                        <h3 className="text-sm font-semibold text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors">
-                            <HighlightText text={alert.title} highlight={searchQuery} />
-                        </h3>
-                    </a>
-
-                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-2">
-                        <span className="font-medium text-foreground/80 hover:underline"><HighlightText text={source?.name || alert.author} highlight={searchQuery} /></span>
-                        <span className="text-border">•</span>
-                        <span>{formatMetric(metrics.views || 0)} views</span>
-                        <span className="text-border">•</span>
-                        <span>{dateStr || '—'}</span>
-                    </div>
-
-                    <div className={`text-xs text-muted-foreground mb-2 ${!isExpanded ? 'line-clamp-3' : ''} leading-relaxed`}>
-                        <HighlightText text={isTranslated ? translatedText : contentText} highlight={searchQuery} />
-                    </div>
-                    <div className="flex items-center gap-3">
-                        {shouldShowReadMore && (
-                            <button
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    setIsExpanded(!isExpanded);
-                                }}
-                                className="text-[11px] font-medium text-primary hover:text-primary/80"
-                            >
-                                {isExpanded ? 'Read less' : 'Read more'}
-                            </button>
-                        )}
-                        <button
-                            onClick={handleTranslate}
-                            disabled={isTranslating}
-                            className="text-[11px] font-medium text-primary hover:text-primary/80 flex items-center gap-1"
-                        >
-                            {isTranslating ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                                <Globe className="h-3 w-3" />
+                        <div className="flex items-center gap-3">
+                            {shouldShowReadMore && (
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setIsExpanded(!isExpanded);
+                                    }}
+                                    className="text-[11px] font-medium text-primary hover:text-primary/80"
+                                >
+                                    {isExpanded ? 'Read less' : 'Read more'}
+                                </button>
                             )}
-                            <span>{isTranslated ? 'Show Original' : (isTranslating ? 'Translating...' : 'Translate')}</span>
-                        </button>
-                    </div>
-
-                    {/* Metadata Line */}
-                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground py-2.5 border-y border-border/50 mb-3">
-                        {timeStr && <span>{timeStr}</span>}
-                        {timeStr && dateStr && <span className="text-border">·</span>}
-                        {dateStr && <span>{dateStr}</span>}
-                        {(timeStr || dateStr) && <span className="text-border">·</span>}
-                        <span className="font-semibold text-foreground">{formatMetric(metrics.views || 0)}</span>
-                        <span className="ml-0.5">Views</span>
-                    </div>
-
-                    {/* Risk Factors */}
-                    {filterRiskFactors(content).length > 0 && (
-                        <div className="mb-3 flex flex-wrap gap-1.5">
-                            {filterRiskFactors(content).map((factor, idx) => (
-                                <div key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 text-[10px] font-medium text-red-700 dark:text-red-400">
-                                    <Zap className="h-2.5 w-2.5 fill-red-700 dark:fill-red-400" />
-                                    <span>
-                                        {factor.keyword ? `Matched: "${factor.keyword}"` : factor.context || 'Risk Detected'}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Threat Summary */}
-                    {hasReasons && (
-                        <div className="mb-3 flex items-center justify-between p-2 rounded-md bg-muted/50 border border-border">
-                            <div className="flex items-center gap-2 flex-wrap">
-                                {intentLabel && (
-                                    <span className={`px-2 py-0.5 rounded-full font-medium text-[10px] ${intentLabel.toLowerCase().includes('violence') ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                                        intentLabel.toLowerCase().includes('political') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
-                                            intentLabel.toLowerCase().includes('communal') ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
-                                                'bg-muted text-muted-foreground'
-                                        }`}>
-                                        {intentLabel}
-                                    </span>
-                                )}
-                                {highlights.length > 0 && (
-                                    <div className="flex items-center gap-1">
-                                        <span className="text-[10px] text-muted-foreground">Flagged:</span>
-                                        {highlights.slice(0, 2).map((phrase, idx) => (
-                                            <span key={idx} className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-1.5 py-0.5 rounded-full text-[10px] font-medium">
-                                                {phrase}
-                                            </span>
-                                        ))}
-                                        {highlights.length > 2 && (
-                                            <span className="text-[10px] text-muted-foreground">+{highlights.length - 2}</span>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
                             <button
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    setShowReasonModal(true);
-                                }}
-                                className="flex items-center gap-1 text-[10px] font-medium text-primary hover:text-primary/80 px-2 py-1 rounded-md hover:bg-accent transition-colors shrink-0"
-                                title="View Details"
+                                onClick={handleTranslate}
+                                disabled={isTranslating}
+                                className="text-[11px] font-medium text-primary hover:text-primary/80 flex items-center gap-1"
                             >
-                                <Info className="h-3 w-3" />
+                                {isTranslating ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                    <Globe className="h-3 w-3" />
+                                )}
+                                <span>{isTranslated ? 'Show Original' : (isTranslating ? 'Translating...' : 'Translate')}</span>
                             </button>
                         </div>
-                    )}
 
-                    <div className="flex items-center justify-between text-muted-foreground pt-2 border-t border-border/50">
-                        <div className="flex gap-4">
-                            <div className="flex items-center gap-1 text-[11px]">
-                                <ThumbsUp className="h-3 w-3" />
-                                <span>{formatMetric(metrics.likes || 0)}</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-[11px]">
-                                <MessageSquare className="h-3 w-3" />
-                                <span>{formatMetric(metrics.comments || 0)}</span>
-                            </div>
+                        {/* Metadata Line */}
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground py-2.5 border-y border-border/50 mb-3">
+                            {timeStr && <span>{timeStr}</span>}
+                            {timeStr && dateStr && <span className="text-border">·</span>}
+                            {dateStr && <span>{dateStr}</span>}
+                            {(timeStr || dateStr) && <span className="text-border">·</span>}
+                            <span className="font-semibold text-foreground">{formatMetric(metrics.views || 0)}</span>
+                            <span className="ml-0.5">Views</span>
                         </div>
-                        <div className="flex items-center gap-1 text-[11px] font-medium">
-                            <AlertTriangleIcon level={alert.risk_level} />
-                            <span className={`${alert.risk_level === 'high' || alert.risk_level === 'critical' ? 'text-red-500' : alert.risk_level === 'low' ? 'text-emerald-500' : 'text-amber-500'}`}>Risk: {content?.risk_score || alert.threat_details?.risk_score || 0}%</span>
+
+                        {/* Risk Factors */}
+                        {filterRiskFactors(content).length > 0 && (
+                            <div className="mb-3 flex flex-wrap gap-1.5">
+                                {filterRiskFactors(content).map((factor, idx) => (
+                                    <div key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 text-[10px] font-medium text-red-700 dark:text-red-400">
+                                        <Zap className="h-2.5 w-2.5 fill-red-700 dark:fill-red-400" />
+                                        <span>
+                                            {factor.keyword ? `Matched: "${factor.keyword}"` : factor.context || 'Risk Detected'}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Threat Summary */}
+                        {hasReasons && (
+                            <div className="mb-3 flex items-center justify-between p-2 rounded-md bg-muted/50 border border-border">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    {intentLabel && (
+                                        <span className={`px-2 py-0.5 rounded-full font-medium text-[10px] ${intentLabel.toLowerCase().includes('violence') ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                                            intentLabel.toLowerCase().includes('political') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                                                intentLabel.toLowerCase().includes('communal') ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+                                                    'bg-muted text-muted-foreground'
+                                            }`}>
+                                            {intentLabel}
+                                        </span>
+                                    )}
+                                    {highlights.length > 0 && (
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-[10px] text-muted-foreground">Flagged:</span>
+                                            {highlights.slice(0, 2).map((phrase, idx) => (
+                                                <span key={idx} className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-1.5 py-0.5 rounded-full text-[10px] font-medium">
+                                                    {phrase}
+                                                </span>
+                                            ))}
+                                            {highlights.length > 2 && (
+                                                <span className="text-[10px] text-muted-foreground">+{highlights.length - 2}</span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        setShowReasonModal(true);
+                                    }}
+                                    className="flex items-center gap-1 text-[10px] font-medium text-primary hover:text-primary/80 px-2 py-1 rounded-md hover:bg-accent transition-colors shrink-0"
+                                    title="View Details"
+                                >
+                                    <Info className="h-3 w-3" />
+                                </button>
+                            </div>
+                        )}
+
+                        <div className="flex items-center justify-between text-muted-foreground pt-2 border-t border-border/50">
+                            <div className="flex gap-4">
+                                <div className="flex items-center gap-1 text-[11px]">
+                                    <ThumbsUp className="h-3 w-3" />
+                                    <span>{formatMetric(metrics.likes || 0)}</span>
+                                </div>
+                                <div className="flex items-center gap-1 text-[11px]">
+                                    <MessageSquare className="h-3 w-3" />
+                                    <span>{formatMetric(metrics.comments || 0)}</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-1 text-[11px] font-medium">
+                                <AlertTriangleIcon level={alert.risk_level} />
+                                <span className={`${alert.risk_level === 'high' || alert.risk_level === 'critical' ? 'text-red-500' : alert.risk_level === 'low' ? 'text-emerald-500' : 'text-amber-500'}`}>Risk: {content?.risk_score || alert.threat_details?.risk_score || 0}%</span>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
             </div>
             <WhatsAppShareModal
                 isOpen={isShareModalOpen}
