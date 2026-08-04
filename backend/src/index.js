@@ -57,6 +57,7 @@ app.use('/api/files', express.static(reportStorageDir, reportStaticOptions));
 
 // Routes
 app.use('/api/deepfake', require('./routes/deepfakeRoutes'));
+app.use('/api/health', require('./routes/healthRoutes'));
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/sources', require('./routes/sourceRoutes'));
 app.use('/api/content', require('./routes/contentRoutes'));

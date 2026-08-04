@@ -52,8 +52,16 @@ const rapidRequestX = async (config, retryCount = 0) => {
             },
             timeout: requestTimeout
         });
+        totalCalls++;
+        if (response.headers['x-ratelimit-requests-remaining']) {
+            globalRateLimitRemaining = parseInt(response.headers['x-ratelimit-requests-remaining'], 10);
+        }
+        if (response.headers['x-ratelimit-requests-limit']) {
+            globalRateLimit = parseInt(response.headers['x-ratelimit-requests-limit'], 10);
+        }
         return response;
     } catch (error) {
+        totalCalls++;
         const status = error.response?.status;
         const msg = String(error.response?.data?.message || error.response?.data?.error || error.message || '').toLowerCase();
         const isTimeoutOrNetwork =
@@ -132,6 +140,10 @@ const GLOBAL_RATE_LIMIT_PAUSE_MS = Math.max(30000, parseInt(process.env.RAPIDAPI
 // Per-request throttle: minimum gap between API calls to avoid burst-hitting rate limits
 let lastRequestTime = 0;
 const MIN_REQUEST_GAP_MS = Math.max(200, parseInt(process.env.RAPIDAPI_X_MIN_GAP_MS || '500', 10));
+
+let totalCalls = 0;
+let globalRateLimitRemaining = null;
+let globalRateLimit = null;
 
 const getTweetCacheKey = (handle, limit) => `${String(handle || '').toLowerCase()}::${limit}`;
 
@@ -2057,6 +2069,7 @@ const fetchTweetQuoteTweeters = async (tweetId, authorHandle, options = {}) => {
 };
 
 module.exports = {
+    getKeyHealthStatus: () => [{ key: 'X', available: true, totalCalls, remaining: globalRateLimitRemaining, limit: globalRateLimit }],
     fetchUserTweets,
     fetchAllUserTweetsSince,
     searchUsers,

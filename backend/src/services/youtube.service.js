@@ -11,10 +11,21 @@ class YouTubeService {
         this.quotaLimit = 10000; // Default daily limit
     }
 
+    getKeyHealthStatus() {
+        return [{
+            key: 'YouTube',
+            available: true,
+            totalCalls: this.quotaUsed,
+            remaining: this.quotaLimit - this.quotaUsed,
+            limit: this.quotaLimit
+        }];
+    }
+
     // --- Channel Methods ---
 
     async getChannelDetails(channelId) {
         try {
+            this.quotaUsed++;
             const response = await this.youtube.channels.list({
                 part: ['snippet', 'statistics', 'brandingSettings', 'contentDetails'],
                 id: [channelId]
@@ -53,6 +64,7 @@ class YouTubeService {
 
     async searchChannels(query, limit = 10) {
         try {
+            this.quotaUsed += 100;
             const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
             const response = await this.youtube.search.list({
                 part: ['snippet'],
@@ -64,6 +76,7 @@ class YouTubeService {
             const channelIds = response.data.items.map(item => item.snippet.channelId).filter(Boolean);
             if (channelIds.length === 0) return [];
 
+            this.quotaUsed++;
             // Fetch full channel details with statistics (subscriber counts)
             const detailsResponse = await this.youtube.channels.list({
                 part: ['snippet', 'statistics'],
@@ -106,6 +119,7 @@ class YouTubeService {
                 const remaining = safeLimit - videoIds.length;
                 const pageSize = Math.min(remaining, 50);
 
+                this.quotaUsed += 100;
                 const response = await this.youtube.search.list({
                     part: ['snippet'],
                     q: query,
@@ -141,6 +155,7 @@ class YouTubeService {
 
     async getVideosFromPlaylist(playlistId, maxResults = 50) {
         try {
+            this.quotaUsed++;
             const response = await this.youtube.playlistItems.list({
                 part: ['snippet', 'contentDetails'],
                 playlistId: playlistId,
@@ -166,6 +181,7 @@ class YouTubeService {
         let allVideos = [];
         for (const chunk of chunks) {
             try {
+                this.quotaUsed++;
                 const response = await this.youtube.videos.list({
                     part: ['snippet', 'contentDetails', 'statistics'],
                     id: chunk
@@ -199,6 +215,7 @@ class YouTubeService {
 
     async getVideoComments(videoId, maxResults = 100) {
         try {
+            this.quotaUsed++;
             const response = await this.youtube.commentThreads.list({
                 part: ['snippet', 'replies'],
                 videoId: videoId,

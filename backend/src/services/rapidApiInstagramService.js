@@ -9,10 +9,12 @@ let totalCalls = 0;
 let igGlobalRateLimitPauseUntil = 0;
 const IG_GLOBAL_RATE_LIMIT_PAUSE_MS = Number(process.env.RAPIDAPI_IG_GLOBAL_PAUSE_MS) || 60000;
 let igLastRequestTime = 0;
+let globalRateLimitRemaining = null;
+let globalRateLimit = null;
 const IG_MIN_REQUEST_GAP_MS = Number(process.env.RAPIDAPI_IG_MIN_GAP_MS) || 500;
 
 const getInstagramRapidApiKeys = () => {
-    const key = String(process.env.RAPIDAPI_INSTAGRAM_KEY || process.env.RAPIDAPI_INSTAGRAM_KEYS ).split(',')[0].trim();
+    const key = String(process.env.RAPIDAPI_INSTAGRAM_KEY || process.env.RAPIDAPI_INSTAGRAM_KEYS).split(',')[0].trim();
     return key ? [key] : [];
 };
 
@@ -73,7 +75,9 @@ const getKeyHealthStatus = () => {
         available: true,
         failures: 0,
         totalCalls,
-        cooldownRemaining: 0
+        cooldownRemaining: 0,
+        remaining: globalRateLimitRemaining,
+        limit: globalRateLimit
     }));
 };
 
@@ -94,7 +98,7 @@ const rapidPost = async (path, data, _retryCount = 0) => {
     const now = Date.now();
     if (now < igGlobalRateLimitPauseUntil) {
         const waitMs = igGlobalRateLimitPauseUntil - now;
-        (() => {})(`[Instagram] ⏸️ Global rate-limit pause active — waiting ${Math.ceil(waitMs / 1000)}s before POST ${path}`);
+        (() => { })(`[Instagram] ⏸️ Global rate-limit pause active — waiting ${Math.ceil(waitMs / 1000)}s before POST ${path}`);
         await new Promise(r => setTimeout(r, waitMs));
     }
 
@@ -118,6 +122,12 @@ const rapidPost = async (path, data, _retryCount = 0) => {
             timeout: 30000
         });
         totalCalls++;
+        if (response.headers['x-ratelimit-requests-remaining']) {
+            globalRateLimitRemaining = parseInt(response.headers['x-ratelimit-requests-remaining'], 10);
+        }
+        if (response.headers['x-ratelimit-requests-limit']) {
+            globalRateLimit = parseInt(response.headers['x-ratelimit-requests-limit'], 10);
+        }
         return response;
     } catch (error) {
         totalCalls++;
@@ -129,12 +139,12 @@ const rapidPost = async (path, data, _retryCount = 0) => {
 
         if (isServerError || isRateLimit) {
             const waitMs = isRateLimit ? 3000 : 2000;
-            (() => {})(`[Instagram] ${isRateLimit ? '429 rate-limit' : `${status} server error`} on POST ${path} — retry ${_retryCount + 1}/${MAX_RETRIES}`);
+            (() => { })(`[Instagram] ${isRateLimit ? '429 rate-limit' : `${status} server error`} on POST ${path} — retry ${_retryCount + 1}/${MAX_RETRIES}`);
             await new Promise(r => setTimeout(r, waitMs));
             if (isRateLimit && _retryCount + 1 >= MAX_RETRIES) {
                 // All retries exhausted on 429 — activate global pause
                 igGlobalRateLimitPauseUntil = Date.now() + IG_GLOBAL_RATE_LIMIT_PAUSE_MS;
-                (() => {})(`[Instagram] 🛑 429 exhausted all retries on POST ${path} — global pause ${IG_GLOBAL_RATE_LIMIT_PAUSE_MS / 1000}s`);
+                (() => { })(`[Instagram] 🛑 429 exhausted all retries on POST ${path} — global pause ${IG_GLOBAL_RATE_LIMIT_PAUSE_MS / 1000}s`);
                 const err = new Error(`[Instagram] Rate limit exhausted on POST ${path}`);
                 err.isRateLimit = true;
                 throw err;
@@ -144,7 +154,7 @@ const rapidPost = async (path, data, _retryCount = 0) => {
 
         if (status === 404) throw error;
 
-        (() => {})(`[Instagram] POST ${path}: ${status} — ${error.response?.data?.message || error.message}`);
+        (() => { })(`[Instagram] POST ${path}: ${status} — ${error.response?.data?.message || error.message}`);
         throw error;
     }
 };
@@ -166,7 +176,7 @@ const rapidGet = async (path, params = {}, _retryCount = 0) => {
     const now = Date.now();
     if (now < igGlobalRateLimitPauseUntil) {
         const waitMs = igGlobalRateLimitPauseUntil - now;
-        (() => {})(`[Instagram] ⏸️ Global rate-limit pause active — waiting ${Math.ceil(waitMs / 1000)}s before GET ${path}`);
+        (() => { })(`[Instagram] ⏸️ Global rate-limit pause active — waiting ${Math.ceil(waitMs / 1000)}s before GET ${path}`);
         await new Promise(r => setTimeout(r, waitMs));
     }
 
@@ -200,11 +210,11 @@ const rapidGet = async (path, params = {}, _retryCount = 0) => {
 
         if (isServerError || isRateLimit) {
             const waitMs = isRateLimit ? 3000 : 2000;
-            (() => {})(`[Instagram] ${isRateLimit ? '429 rate-limit' : `${status} server error`} on GET ${path} — retry ${_retryCount + 1}/${MAX_RETRIES}`);
+            (() => { })(`[Instagram] ${isRateLimit ? '429 rate-limit' : `${status} server error`} on GET ${path} — retry ${_retryCount + 1}/${MAX_RETRIES}`);
             await new Promise(r => setTimeout(r, waitMs));
             if (isRateLimit && _retryCount + 1 >= MAX_RETRIES) {
                 igGlobalRateLimitPauseUntil = Date.now() + IG_GLOBAL_RATE_LIMIT_PAUSE_MS;
-                (() => {})(`[Instagram] 🛑 429 exhausted all retries on GET ${path} — global pause ${IG_GLOBAL_RATE_LIMIT_PAUSE_MS / 1000}s`);
+                (() => { })(`[Instagram] 🛑 429 exhausted all retries on GET ${path} — global pause ${IG_GLOBAL_RATE_LIMIT_PAUSE_MS / 1000}s`);
                 const err = new Error(`[Instagram] Rate limit exhausted on GET ${path}`);
                 err.isRateLimit = true;
                 throw err;
@@ -237,28 +247,28 @@ const fetchUserPosts = async (username, maxId = "") => {
 
     for (const ep of endpoints) {
         try {
-            (() => {})(`[Instagram] Fetching posts for ${username} via ${ep.method} ${ep.path}`);
+            (() => { })(`[Instagram] Fetching posts for ${username} via ${ep.method} ${ep.path}`);
             const response = ep.method === 'POST'
                 ? await rapidPost(ep.path, ep.data)
                 : await rapidGet(ep.path, ep.data);
 
             if (response?.data) {
-                (() => {})(`[Instagram] ✅ Posts fetched for ${username} via ${ep.path}`);
+                (() => { })(`[Instagram] ✅ Posts fetched for ${username} via ${ep.path}`);
                 return response.data;
             }
         } catch (error) {
             if (error.isRateLimit) {
-                (() => {})(`[Instagram] ⚠️ Rate-limited on ${ep.path} for ${username} — will try next endpoint (global pause will auto-wait)`);
+                (() => { })(`[Instagram] ⚠️ Rate-limited on ${ep.path} for ${username} — will try next endpoint (global pause will auto-wait)`);
                 // Don't return null — let the loop continue; the next rapidPost call
                 // will wait out the global pause automatically before making the request
             } else {
-                (() => {})(`[Instagram] ⚠️ ${ep.path} failed for ${username}: ${error.message}`);
+                (() => { })(`[Instagram] ⚠️ ${ep.path} failed for ${username}: ${error.message}`);
             }
             // Continue to next endpoint
         }
     }
 
-    (() => {})(`[Instagram] ❌ All endpoints failed for posts of ${username}`);
+    (() => { })(`[Instagram] ❌ All endpoints failed for posts of ${username}`);
     return null;
 };
 
@@ -288,19 +298,19 @@ const fetchUserProfile = async (username) => {
                 : await rapidGet(ep.path, ep.data);
 
             if (response?.data) {
-                (() => {})(`[Instagram] ✅ Profile fetched for ${username} via ${ep.path}`);
+                (() => { })(`[Instagram] ✅ Profile fetched for ${username} via ${ep.path}`);
                 return response.data;
             }
         } catch (error) {
             if (error.isRateLimit) {
-                (() => {})(`[Instagram] ⚠️ Rate-limited on ${ep.path} for profile ${username} — will try next endpoint`);
+                (() => { })(`[Instagram] ⚠️ Rate-limited on ${ep.path} for profile ${username} — will try next endpoint`);
             } else {
-                (() => {})(`[Instagram] ⚠️ ${ep.path} failed for ${username}: ${error.message}`);
+                (() => { })(`[Instagram] ⚠️ ${ep.path} failed for ${username}: ${error.message}`);
             }
         }
     }
 
-    (() => {})(`[Instagram] ❌ All endpoints failed for profile of ${username}`);
+    (() => { })(`[Instagram] ❌ All endpoints failed for profile of ${username}`);
     return null;
 };
 
@@ -529,7 +539,7 @@ const searchUsers = async (query, limit = 1) => {
             const raw = Array.isArray(resultArr) ? (resultArr[0]?.user || resultArr[0]) : null;
             const user = raw || profileData.data || profileData.user || profileData;
             if (user.username || user.full_name) {
-                (() => {})(`[Instagram] Found user profile: ${user.username}`);
+                (() => { })(`[Instagram] Found user profile: ${user.username}`);
                 return [{
                     id: user.pk || user.pk_id || user.id || '',
                     name: user.full_name || user.username || cleanQuery,
@@ -545,7 +555,7 @@ const searchUsers = async (query, limit = 1) => {
             }
         }
     } catch (err) {
-        (() => {})(`[Instagram] Profile lookup failed for '${cleanQuery}':`, err.message);
+        (() => { })(`[Instagram] Profile lookup failed for '${cleanQuery}':`, err.message);
     }
 
     return [];
@@ -597,11 +607,11 @@ const searchPosts = async (query, limit = 50) => {
         }).filter(p => p.id);
 
         if (normalized.length > 0) {
-            (() => {})(`[Instagram] Found ${normalized.length} posts for user '${cleanQuery}'`);
+            (() => { })(`[Instagram] Found ${normalized.length} posts for user '${cleanQuery}'`);
         }
         return normalized;
     } catch (err) {
-        (() => {})(`[Instagram] Posts lookup failed for '${cleanQuery}':`, err.message);
+        (() => { })(`[Instagram] Posts lookup failed for '${cleanQuery}':`, err.message);
     }
 
     return [];

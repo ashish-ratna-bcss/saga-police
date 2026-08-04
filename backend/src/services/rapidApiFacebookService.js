@@ -2,6 +2,10 @@ const axios = require('axios');
 
 const FACEBOOK_DEFAULT_HOST = 'facebook-scraper3.p.rapidapi.com';
 
+let totalCalls = 0;
+let globalRateLimitRemaining = null;
+let globalRateLimit = null;
+
 // Simple in-memory throttling + key rotation to handle RapidAPI 429s gracefully.
 const fbState = {
     keys: null,
@@ -184,7 +188,7 @@ const rapidGet = async (path, params, options = {}, _attempt = 0) => {
     const key = await pickUsableKey(options);
     const host = getFacebookRapidApiHost();
     try {
-        return await axios.get(`https://${host}${path}`, {
+        const response = await axios.get(`https://${host}${path}`, {
             params,
             headers: {
                 'x-rapidapi-key': key,
@@ -192,7 +196,16 @@ const rapidGet = async (path, params, options = {}, _attempt = 0) => {
             },
             timeout: Math.max(5000, Number(options.timeoutMs) || 20000)
         });
+        totalCalls++;
+        if (response.headers['x-ratelimit-requests-remaining']) {
+            globalRateLimitRemaining = parseInt(response.headers['x-ratelimit-requests-remaining'], 10);
+        }
+        if (response.headers['x-ratelimit-requests-limit']) {
+            globalRateLimit = parseInt(response.headers['x-ratelimit-requests-limit'], 10);
+        }
+        return response;
     } catch (error) {
+        totalCalls++;
         const status = error?.response?.status;
         const msg = String(error?.response?.data?.message || '').toLowerCase();
 
@@ -864,6 +877,7 @@ const searchPosts = async (query, limit = 50, options = {}) => {
 };
 
 module.exports = {
+    getKeyHealthStatus: () => [{ key: 'Facebook', available: true, totalCalls, remaining: globalRateLimitRemaining, limit: globalRateLimit }],
     fetchPageDetails,
     fetchPagePosts,
     fetchPostComments,
