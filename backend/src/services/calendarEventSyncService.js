@@ -249,10 +249,10 @@ const syncCalendarToEvents = async () => {
     }
 
     if (created > 0 || statusUpdated > 0) {
-      console.log(`[CalendarSync] Created ${created} events, updated ${statusUpdated} statuses, skipped ${skipped} existing`);
+      (() => {})(`[CalendarSync] Created ${created} events, updated ${statusUpdated} statuses, skipped ${skipped} existing`);
     }
   } catch (err) {
-    console.error('[CalendarSync] Error:', err.message);
+    (() => {})('[CalendarSync] Error:', err.message);
   }
 };
 

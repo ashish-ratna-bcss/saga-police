@@ -87,7 +87,7 @@ const rankAndProcess = async (rawResults, query, apiKey) => {
         candidates.sort((a, b) => (b.finalScore || b.baseScore) - (a.finalScore || a.baseScore));
 
     } catch (e) {
-        console.error("AI Ranking Error:", e.message);
+        (() => {})("AI Ranking Error:", e.message);
         // Fallback: use base scores
     }
 

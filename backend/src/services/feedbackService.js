@@ -41,7 +41,7 @@ const recordFeedback = async ({ text, category, legal_sections, review_status, c
 
         const mlServiceUrl = process.env.ML_SERVICE_URL || 'http://localhost:8006';
         
-        console.log(`[FeedbackService] Sending feedback to server: ${mlServiceUrl}/record-feedback`);
+        (() => {})(`[FeedbackService] Sending feedback to server: ${mlServiceUrl}/record-feedback`);
 
         const response = await axios.post(`${mlServiceUrl}/record-feedback`, {
             text,
@@ -54,14 +54,14 @@ const recordFeedback = async ({ text, category, legal_sections, review_status, c
         });
 
         if (response.data.status === 'success') {
-            console.log(`[FeedbackService] Server accepted feedback: ${response.data.message}`);
+            (() => {})(`[FeedbackService] Server accepted feedback: ${response.data.message}`);
             if (response.data.retraining_triggered) {
-                console.log('[FeedbackService] Retraining threshold reached on server!');
+                (() => {})('[FeedbackService] Retraining threshold reached on server!');
             }
         }
 
     } catch (error) {
-        console.error('[FeedbackService] Error sending feedback to server:', error.response?.data || error.message);
+        (() => {})('[FeedbackService] Error sending feedback to server:', error.response?.data || error.message);
     }
 };
 

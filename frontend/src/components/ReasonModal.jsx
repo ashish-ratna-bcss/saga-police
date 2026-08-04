@@ -220,12 +220,12 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
 
                             {/* Subject Content */}
                             <tr className="border-b">
-                                <td className="py-3 pr-4 font-medium text-gray-600 dark:text-gray-400 align-top">Subject Content</td>
+                                <td className="py-3 pr-4 font-medium text-gray-600 dark:text-gray-400 align-top">AI Analysis</td>
                                 <td className="py-3">
                                     <div className={`whitespace-pre-wrap ${isContentExpanded ? '' : 'line-clamp-3'}`}>
-                                        {content?.text || alert?.description || 'No content preview available'}
+                                        {alert?.description || 'No AI analysis available'}
                                     </div>
-                                    {((content?.text || alert?.description || '').length > 100 || ((content?.text || alert?.description || '').match(/\n/g) || []).length >= 2) && (
+                                    {(alert?.description?.length > 100 || (alert?.description?.match(/\n/g) || []).length >= 2) && (
                                         <button
                                             onClick={() => setIsContentExpanded(!isContentExpanded)}
                                             className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1 hover:underline"

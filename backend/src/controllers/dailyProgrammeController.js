@@ -528,7 +528,7 @@ const uploadPeriscope = async (req, res) => {
                 req.file.originalname || `Periscope_${date}.docx`
             );
         } catch (s3Err) {
-            console.error('[Periscope] S3 upload failed (non-fatal):', s3Err.message);
+            (() => {})('[Periscope] S3 upload failed (non-fatal):', s3Err.message);
         }
 
         // ── Store / update upload metadata ──
@@ -573,7 +573,7 @@ const uploadPeriscope = async (req, res) => {
             hasOriginalDoc: !!s3Info,
         });
     } catch (error) {
-        console.error('Error uploading periscope:', error);
+        (() => {})('Error uploading periscope:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -634,7 +634,7 @@ const downloadPeriscopeDoc = async (req, res) => {
             originalFilename: upload.originalFilename,
         });
     } catch (error) {
-        console.error('Error getting download URL:', error);
+        (() => {})('Error getting download URL:', error);
         res.status(500).json({ message: error.message });
     }
 };

@@ -184,7 +184,7 @@ const createReport = async (req, res) => {
 
     res.status(created ? 201 : 200).json(report);
   } catch (error) {
-    console.error('Error creating suggestion report:', error);
+    (() => {})('Error creating suggestion report:', error);
     res.status(500).json({ error: 'Failed to create suggestion report' });
   }
 };
@@ -226,7 +226,7 @@ const shareReport = async (req, res) => {
 
     res.json(report);
   } catch (error) {
-    console.error('Error sharing suggestion report:', error);
+    (() => {})('Error sharing suggestion report:', error);
     res.status(500).json({ error: 'Failed to share report' });
   }
 };
@@ -303,7 +303,7 @@ const getReports = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching suggestion reports:', error);
+    (() => {})('Error fetching suggestion reports:', error);
     res.status(500).json({ error: 'Failed to fetch reports' });
   }
 };
@@ -426,7 +426,7 @@ const exportReports = async (req, res) => {
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
-    console.error('Error exporting suggestion reports:', error);
+    (() => {})('Error exporting suggestion reports:', error);
     res.status(500).json({ error: 'Failed to export reports' });
   }
 };
@@ -503,7 +503,7 @@ const generateReportPdf = async (req, res) => {
 
     return res.json({ pdf_url: pdfUrl });
   } catch (err) {
-    console.error('PDF generation error:', err);
+    (() => {})('PDF generation error:', err);
     return res.status(500).json({ error: 'PDF generation failed', detail: err.message });
   }
 };

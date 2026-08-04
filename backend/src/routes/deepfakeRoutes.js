@@ -248,7 +248,7 @@ const extractMediaItemsWithBrowser = async (pageUrl) => {
 
         return collectUniqueMediaItems(structuredItems, 12);
     } catch (error) {
-        console.warn(`[Deepfake Link] Browser extraction failed for ${pageUrl}: ${error.message}`);
+        (() => {})(`[Deepfake Link] Browser extraction failed for ${pageUrl}: ${error.message}`);
         return [];
     } finally {
         if (browser) {
@@ -313,7 +313,7 @@ const extractMediaItemsWithYtDlp = async (pageUrl) => {
 
         return collectUniqueMediaItems(out, 12);
     } catch (error) {
-        console.warn(`[Deepfake Link] yt-dlp extraction failed for ${pageUrl}: ${error.message}`);
+        (() => {})(`[Deepfake Link] yt-dlp extraction failed for ${pageUrl}: ${error.message}`);
         return [];
     }
 };
@@ -445,7 +445,7 @@ const resolveSocialMediaItems = async (url) => {
                     }
                 }
             } catch (jsonErr) {
-                console.warn(`[Deepfake Link] Instagram JSON media failed for ${shortcode}: ${jsonErr?.response?.status || jsonErr.message}`);
+                (() => {})(`[Deepfake Link] Instagram JSON media failed for ${shortcode}: ${jsonErr?.response?.status || jsonErr.message}`);
             }
 
             // 2. Try Instagram public oEmbed — works for public posts, no key needed
@@ -476,7 +476,7 @@ const resolveSocialMediaItems = async (url) => {
                         }
                     }
                 } catch (oErr) {
-                    console.warn(`[Deepfake Link] Instagram oEmbed failed for ${shortcode}: ${oErr?.response?.status || oErr.message}`);
+                    (() => {})(`[Deepfake Link] Instagram oEmbed failed for ${shortcode}: ${oErr?.response?.status || oErr.message}`);
                 }
             }
 
@@ -505,7 +505,7 @@ const resolveSocialMediaItems = async (url) => {
                             break;
                         }
                     } catch (embedErr) {
-                        console.warn(`[Deepfake Link] Instagram embed page failed for ${shortcode}: ${embedErr?.response?.status || embedErr.message}`);
+                        (() => {})(`[Deepfake Link] Instagram embed page failed for ${shortcode}: ${embedErr?.response?.status || embedErr.message}`);
                     }
                 }
             }
@@ -562,31 +562,31 @@ const resolveSocialMediaItems = async (url) => {
 
     if ((/x\.com\//i.test(url) || /twitter\.com\//i.test(url)) && !mediaItems.length) {
         // Strategy: Browser extraction (fast) → RapidAPI (reliable)
-        console.log(`[Deepfake Link] Twitter extraction starting for: ${url}`);
+        (() => {})(`[Deepfake Link] Twitter extraction starting for: ${url}`);
         
         // 1. Try browser-based extraction first (works without API keys)
         let browserItems = [];
         try {
-            console.log(`[Deepfake Link] Attempting browser extraction for Twitter...`);
+            (() => {})(`[Deepfake Link] Attempting browser extraction for Twitter...`);
             browserItems = await extractMediaItemsWithBrowser(url);
             if (browserItems.length) {
-                console.log(`[Deepfake Link] Browser extraction found ${browserItems.length} items from Twitter`);
+                (() => {})(`[Deepfake Link] Browser extraction found ${browserItems.length} items from Twitter`);
                 mediaItems.push(...browserItems);
             }
         } catch (browserErr) {
-            console.warn(`[Deepfake Link] Twitter browser extraction failed: ${browserErr.message}`);
+            (() => {})(`[Deepfake Link] Twitter browser extraction failed: ${browserErr.message}`);
         }
 
         // 2. Fallback to RapidAPI if browser didn't find anything
         if (!mediaItems.length) {
             try {
-                console.log(`[Deepfake Link] Attempting RapidAPI extraction for Twitter...`);
+                (() => {})(`[Deepfake Link] Attempting RapidAPI extraction for Twitter...`);
                 const tweetId = extractTweetId(url);
                 if (tweetId) {
                     const detail = await fetchTweetDetail(tweetId);
                     const media = Array.isArray(detail?.media) ? detail.media : [];
                     if (media.length) {
-                        console.log(`[Deepfake Link] RapidAPI found ${media.length} media items from Twitter`);
+                        (() => {})(`[Deepfake Link] RapidAPI found ${media.length} media items from Twitter`);
                     }
                     media.forEach(item => {
                         const mediaUrl = item?.url || item?.preview;
@@ -596,7 +596,7 @@ const resolveSocialMediaItems = async (url) => {
                     });
                 }
             } catch (rapidErr) {
-                console.warn(`[Deepfake Link] Twitter RapidAPI fallback failed: ${rapidErr.message}`);
+                (() => {})(`[Deepfake Link] Twitter RapidAPI fallback failed: ${rapidErr.message}`);
                 // If RapidAPI also fails, try to at least get the thumbnail from og:image
                 try {
                     const twitterRes = await axios.get(url, {
@@ -607,19 +607,19 @@ const resolveSocialMediaItems = async (url) => {
                     });
                     const extracted = extractMediaItemsFromHtml(twitterRes.data, url);
                     if (extracted.length) {
-                        console.log(`[Deepfake Link] HTML extraction found ${extracted.length} items from Twitter`);
+                        (() => {})(`[Deepfake Link] HTML extraction found ${extracted.length} items from Twitter`);
                         mediaItems.push(...extracted);
                     }
                 } catch (htmlErr) {
-                    console.warn(`[Deepfake Link] Twitter HTML extraction also failed: ${htmlErr.message}`);
+                    (() => {})(`[Deepfake Link] Twitter HTML extraction also failed: ${htmlErr.message}`);
                 }
             }
         }
 
         if (mediaItems.length) {
-            console.log(`[Deepfake Link] Twitter: Successfully extracted ${mediaItems.length} media items`);
+            (() => {})(`[Deepfake Link] Twitter: Successfully extracted ${mediaItems.length} media items`);
         } else {
-            console.warn(`[Deepfake Link] Twitter: Could not extract any media items`);
+            (() => {})(`[Deepfake Link] Twitter: Could not extract any media items`);
             // Always fall back to the tweet URL as a video source so ML service
             // can resolve the real media via yt-dlp.
             mediaItems.push({ url, type: 'video' });
@@ -643,7 +643,7 @@ const resolveSocialMediaItems = async (url) => {
                         mediaItems.push({ url: thumb, type: 'image' });
                     }
                 } catch (ytApiErr) {
-                    console.warn(`[Deepfake Link] YouTube metadata fallback failed: ${ytApiErr.message}`);
+                    (() => {})(`[Deepfake Link] YouTube metadata fallback failed: ${ytApiErr.message}`);
                 }
             }
 
@@ -681,7 +681,7 @@ const resolveSocialMediaItems = async (url) => {
                     mediaItems.push(...videoFirst);
                 }
             } catch (fbErr) {
-                console.warn(`[Deepfake Link] Facebook extraction failed: ${fbErr.message}`);
+                (() => {})(`[Deepfake Link] Facebook extraction failed: ${fbErr.message}`);
             }
 
             // Browser fallback if no media found
@@ -728,7 +728,7 @@ const resolveSocialMediaItems = async (url) => {
                     mediaItems.push(...browserItems);
                 }
             } catch (tkErr) {
-                console.warn(`[Deepfake Link] TikTok extraction failed: ${tkErr.message}`);
+                (() => {})(`[Deepfake Link] TikTok extraction failed: ${tkErr.message}`);
             }
         }
 
@@ -872,7 +872,7 @@ router.post('/image', upload.single('file'), async (req, res) => {
 
         res.json(finalResult);
     } catch (error) {
-        console.error('Deepfake Image Analysis Error:', error.message);
+        (() => {})('Deepfake Image Analysis Error:', error.message);
         const status = error.response?.status || 500;
         const message = error.response?.data?.detail || 'Deepfake image analysis failed';
         res.status(status).json({ message, error: error.message });
@@ -933,7 +933,7 @@ router.post('/video', upload.single('file'), async (req, res) => {
 
         res.json(finalResult);
     } catch (error) {
-        console.error('Deepfake Video Analysis Error:', error.message);
+        (() => {})('Deepfake Video Analysis Error:', error.message);
         const status = error.response?.status || 500;
         const message = error.response?.data?.detail || 'Deepfake video analysis failed';
         res.status(status).json({ message, error: error.message });
@@ -987,7 +987,7 @@ router.post('/link', async (req, res) => {
             } catch (pageErr) {
                 // Many social websites block HTML scraping from server-side requests.
                 if (pageErr?.response?.status) {
-                    console.warn(`[Deepfake Link] Page fetch blocked (${pageErr.response.status}) for ${url}, trying API fallback`);
+                    (() => {})(`[Deepfake Link] Page fetch blocked (${pageErr.response.status}) for ${url}, trying API fallback`);
                 }
             }
 
@@ -1030,7 +1030,7 @@ router.post('/link', async (req, res) => {
             results: normalizedResults
         });
     } catch (error) {
-        console.error('Deepfake Link Analysis Error:', error.message);
+        (() => {})('Deepfake Link Analysis Error:', error.message);
         const status = 500;
         const message = error.response?.data?.detail || error.response?.data?.message || 'Unable to analyze this link. The site may block scraping; try a direct media URL or a public post.';
         res.status(status).json({ message, error: error.message });
@@ -1075,11 +1075,11 @@ router.get('/source', async (req, res) => {
             config.headers.Range = req.headers.range;
         }
 
-        console.log(`[Deepfake Source] Proxying: ${targetUrl.substring(0, 100)}...`);
+        (() => {})(`[Deepfake Source] Proxying: ${targetUrl.substring(0, 100)}...`);
         const response = await axios.get(targetUrl, config);
 
         // Log response headers for debugging
-        console.log(`[Deepfake Source] Response Content-Type: ${response.headers['content-type']}, Size: ${response.headers['content-length']}`);
+        (() => {})(`[Deepfake Source] Response Content-Type: ${response.headers['content-type']}, Size: ${response.headers['content-length']}`);
 
         // Set appropriate response headers
         if (response.headers['content-type']) {
@@ -1106,7 +1106,7 @@ router.get('/source', async (req, res) => {
 
         response.data.pipe(res);
     } catch (error) {
-        console.error('Source Media Proxy Error:', {
+        (() => {})('Source Media Proxy Error:', {
             message: error.message,
             code: error.code,
             status: error.response?.status,
@@ -1147,7 +1147,7 @@ router.get('/forensics/:filename', async (req, res) => {
         res.setHeader('Content-Type', response.headers['content-type']);
         response.data.pipe(res);
     } catch (error) {
-        console.error('Forensic Image Proxy Error:', error.message);
+        (() => {})('Forensic Image Proxy Error:', error.message);
         res.status(404).send('Not Found');
     }
 });

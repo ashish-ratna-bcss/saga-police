@@ -50,7 +50,7 @@ const logAction = async (user, action, resourceType, resourceId, details) => {
             details: details
         });
     } catch (error) {
-        console.error('Audit Log Error:', error);
+        (() => {})('Audit Log Error:', error);
     }
 };
 
@@ -132,7 +132,7 @@ router.post('/download-video', mockUser, async (req, res) => {
             return res.status(400).json({ error: 'media_url is required' });
         }
 
-        console.log(`Initiating X video download for: ${mediaUrl}`);
+        (() => {})(`Initiating X video download for: ${mediaUrl}`);
 
         const result = await mediaAnalyzerService.downloadVideo(mediaUrl);
 
@@ -151,7 +151,7 @@ router.post('/download-video', mockUser, async (req, res) => {
             duration_seconds: result.duration_seconds
         });
     } catch (error) {
-        console.error('X video download error:', error);
+        (() => {})('X video download error:', error);
         res.status(error.statusCode || 500).json({
             error: error.message || 'Failed to download video'
         });
@@ -256,7 +256,7 @@ router.get('/tweet-engagers', async (req, res) => {
         const engagers = await getTweetEngagers({ source, tweetId: String(tweetId) });
         return res.json(engagers);
     } catch (error) {
-        console.error('[TweetEngagers] Error:', error.message);
+        (() => {})('[TweetEngagers] Error:', error.message);
         return res.status(500).json({ error: 'Failed to fetch tweet engagers', message: error.message });
     }
 });
@@ -286,12 +286,12 @@ router.post('/engager-analysis', async (req, res) => {
         // Record is now saved as 'processing' — run heavy work in background
         const cleanHandle = String(handle).replace(/^@/, '').trim().toLowerCase();
         executeAnalysisWork(prepResult.analysisId, cleanHandle, safePeriod, prepResult.analysis).catch(err => {
-            console.error(`[EngagerAnalysis] Background analysis failed for ${cleanHandle}:`, err.message);
+            (() => {})(`[EngagerAnalysis] Background analysis failed for ${cleanHandle}:`, err.message);
         });
 
         return res.json({ status: 'started', handle: cleanHandle });
     } catch (error) {
-        console.error('[EngagerAnalysis] Error:', error.message);
+        (() => {})('[EngagerAnalysis] Error:', error.message);
         return res.status(500).json({ error: 'Failed to start engager analysis', message: error.message });
     }
 });

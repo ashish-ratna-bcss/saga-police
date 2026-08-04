@@ -6,7 +6,7 @@ import { useRbac } from '../contexts/RbacContext';
 import AccessDenied from './AccessDenied';
 import {
   Shield, LayoutDashboard, Rss, AlertTriangle, BarChart3,
-  Settings, FileText, LogOut, Menu, X, Moon, Sun, ChevronRight, HelpCircle, Youtube, Twitter, Facebook, Instagram, Globe, CalendarDays, BellOff, MessageSquare, PhoneCall, Monitor, UserSearch, Scan, Search, Wrench, Bot
+  Settings, FileText, LogOut, Menu, X, Moon, Sun, ChevronRight, HelpCircle, Youtube, Twitter, Facebook, Instagram, Globe, CalendarDays, BellOff, MessageSquare, PhoneCall, Monitor, UserSearch, Scan, Search, Wrench, Bot, Activity
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
@@ -90,6 +90,7 @@ const Layout = () => {
     //{ name: 'Access Management', href: '/access-management', icon: Shield, roles: ['superadmin'] },
     //{ name: 'Telegram', href: '/telegram', icon: MessageSquare },
     { name: 'Settings', href: '/settings', icon: Settings },
+    { name: 'System Health', href: '/system-health', icon: Activity },
     //{ name: 'Help Guide', href: '/help', icon: HelpCircle },
 
   ];

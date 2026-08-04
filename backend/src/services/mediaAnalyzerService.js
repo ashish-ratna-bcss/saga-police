@@ -152,13 +152,13 @@ async function downloadVideo(mediaUrl) {
         source: 'media-analyzer'  // Flag to indicate this needs proxying
       };
     } catch (err) {
-      console.log('External service failed, falling back to direct download...');
+      (() => {})('External service failed, falling back to direct download...');
       // Fall through to direct download
     }
   }
 
   if (isTwitter) {
-    console.log('Falling back to direct/RapidAPI download...');
+    (() => {})('Falling back to direct/RapidAPI download...');
     return await downloadTwitterMediaDirect(normalizedUrl);
   }
 
@@ -172,7 +172,7 @@ async function downloadVideo(mediaUrl) {
   }
 
   if (isDirectMedia && canStreamProxy) {
-    console.log('Falling back to stream-proxy direct media download...');
+    (() => {})('Falling back to stream-proxy direct media download...');
     return await downloadDirectMedia(normalizedUrl);
   }
 
@@ -214,7 +214,7 @@ async function downloadImages(imageUrls, contentId) {
         }))
       };
     } catch (err) {
-      console.log('External service failed for images, falling back to direct download...');
+      (() => {})('External service failed for images, falling back to direct download...');
     }
   }
 
@@ -320,7 +320,7 @@ async function downloadTweetMedia(tweetId, originalUrl) {
       items: downloads
     };
   } catch (error) {
-    console.error('Tweet media download error:', error.message);
+    (() => {})('Tweet media download error:', error.message);
     const fallbackProxy = isDirectMediaUrl(originalUrl) && isAllowedStreamHost(originalUrl)
       ? toStreamProxyUrl(originalUrl)
       : originalUrl;
@@ -399,7 +399,7 @@ async function downloadDirectMedia(url) {
       size: null
     };
   } catch (error) {
-    console.error('Direct media download error:', error.message);
+    (() => {})('Direct media download error:', error.message);
     throw new Error(`Failed to download media: ${error.message}`);
   }
 }

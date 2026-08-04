@@ -22,14 +22,14 @@ const prepareAnalysisRecord = async (handle, { periodDays = 30, sourceId = null 
   // Check if THIS handle already has a processing record
   const sameHandleProcessing = await EngagerAnalysis.findOne({ handle_lower: cleanHandle, status: 'processing' });
   if (sameHandleProcessing) {
-    console.log(`[EngagerAnalysis] Already processing @${cleanHandle}, skipping`);
+    (() => {})(`[EngagerAnalysis] Already processing @${cleanHandle}, skipping`);
     return { status: 'already_processing', handle: cleanHandle };
   }
 
   // Check if ANY other analysis is currently processing
   const anyProcessing = await EngagerAnalysis.findOne({ status: 'processing' });
   if (anyProcessing) {
-    console.log(`[EngagerAnalysis] Blocked — @${anyProcessing.handle} is already processing`);
+    (() => {})(`[EngagerAnalysis] Blocked — @${anyProcessing.handle} is already processing`);
     return { status: 'blocked', handle: cleanHandle, blocked_by: anyProcessing.handle };
   }
 
@@ -43,7 +43,7 @@ const prepareAnalysisRecord = async (handle, { periodDays = 30, sourceId = null 
     const toDelete = allRecords.filter(r => r._id.toString() !== analysis._id.toString());
     if (toDelete.length > 0) {
       await EngagerAnalysis.deleteMany({ _id: { $in: toDelete.map(r => r._id) } });
-      console.log(`[EngagerAnalysis] Cleaned up ${toDelete.length} duplicate records for @${cleanHandle}`);
+      (() => {})(`[EngagerAnalysis] Cleaned up ${toDelete.length} duplicate records for @${cleanHandle}`);
     }
     analysis.status = 'processing';
     analysis.analyzed_at = new Date();
@@ -89,13 +89,13 @@ const executeAnalysisWork = async (analysisId, cleanHandle, periodDays, analysis
   try {
     // 1. Fetch ALL user tweets within the period
     const cutoff = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
-    console.log(`[EngagerAnalysis] Fetching all tweets for @${cleanHandle} since ${cutoff.toISOString()}...`);
+    (() => {})(`[EngagerAnalysis] Fetching all tweets for @${cleanHandle} since ${cutoff.toISOString()}...`);
     
     let result;
     try {
       result = await rapidApiXService.fetchAllUserTweetsSince(cleanHandle, cutoff, 200);
     } catch (fetchErr) {
-      console.error(`[EngagerAnalysis] Tweet fetch threw for @${cleanHandle}:`, fetchErr.message);
+      (() => {})(`[EngagerAnalysis] Tweet fetch threw for @${cleanHandle}:`, fetchErr.message);
       await EngagerAnalysis.updateOne({ _id: analysisId }, { $set: { status: 'failed', error: `Tweet fetch failed: ${fetchErr.message}` } });
       return (await EngagerAnalysis.findById(analysisId).lean());
     }
@@ -104,7 +104,7 @@ const executeAnalysisWork = async (analysisId, cleanHandle, periodDays, analysis
 
     if (!apiTweets || apiTweets.length === 0) {
       await EngagerAnalysis.updateOne({ _id: analysisId }, { $set: { status: 'failed', error: 'Could not fetch tweets from Twitter. The account may be private or suspended.' } });
-      console.warn(`[EngagerAnalysis] No tweets found for @${cleanHandle}`);
+      (() => {})(`[EngagerAnalysis] No tweets found for @${cleanHandle}`);
       return (await EngagerAnalysis.findById(analysisId).lean());
     }
 
@@ -117,7 +117,7 @@ const executeAnalysisWork = async (analysisId, cleanHandle, periodDays, analysis
     // All tweets are already within the period (filtered during fetch)
     const periodTweets = apiTweets;
 
-    console.log(`[EngagerAnalysis] ${periodTweets.length} tweets within ${periodDays}-day window`);
+    (() => {})(`[EngagerAnalysis] ${periodTweets.length} tweets within ${periodDays}-day window`);
 
     // 3. For each tweet, fetch retweeters
     // Merge with existing engager data from previous analyses
@@ -184,7 +184,7 @@ const executeAnalysisWork = async (analysisId, cleanHandle, periodDays, analysis
         const isTopTweet = sortedTweets.indexOf(tweet) < MAX_TWEETS_FOR_RETWEETERS;
         if (isTopTweet) {
           retweeterFetchCount++;
-          console.log(`[EngagerAnalysis] Fetching retweeters for tweet ${retweeterFetchCount}/${MAX_TWEETS_FOR_RETWEETERS}: ${tweetId} (${retweetCount} RTs)`);
+          (() => {})(`[EngagerAnalysis] Fetching retweeters for tweet ${retweeterFetchCount}/${MAX_TWEETS_FOR_RETWEETERS}: ${tweetId} (${retweetCount} RTs)`);
           try {
             const retweeters = await rapidApiXService.fetchTweetRetweeters(tweetId, { count: 200 });
             snapshot.retweeters_found = retweeters.length;
@@ -212,7 +212,7 @@ const executeAnalysisWork = async (analysisId, cleanHandle, periodDays, analysis
               if (rt.id) entry.user_id = rt.id;
             }
           } catch (err) {
-            console.warn(`[EngagerAnalysis] Failed to fetch retweeters for tweet ${tweetId}: ${err.message}`);
+            (() => {})(`[EngagerAnalysis] Failed to fetch retweeters for tweet ${tweetId}: ${err.message}`);
           }
         }
       }
@@ -290,15 +290,15 @@ const executeAnalysisWork = async (analysisId, cleanHandle, periodDays, analysis
     analysis.error = null;
     await analysis.save();
 
-    console.log(`[EngagerAnalysis] Completed for @${cleanHandle}: ${totalTweetsAnalyzed} tweets, ${engagerMap.size} unique retweeters, ${totalRetweetEvents} total retweet events`);
+    (() => {})(`[EngagerAnalysis] Completed for @${cleanHandle}: ${totalTweetsAnalyzed} tweets, ${engagerMap.size} unique retweeters, ${totalRetweetEvents} total retweet events`);
     return analysis.toObject();
   } catch (err) {
-    console.error(`[EngagerAnalysis] Failed for @${cleanHandle}:`, err.message, err.stack);
+    (() => {})(`[EngagerAnalysis] Failed for @${cleanHandle}:`, err.message, err.stack);
     // Always mark as failed using updateOne (bulletproof even if analysis doc is stale)
     try {
       await EngagerAnalysis.updateOne({ _id: analysisId }, { $set: { status: 'failed', error: err.message } });
     } catch (saveErr) {
-      console.error(`[EngagerAnalysis] CRITICAL - could not save failure status for @${cleanHandle}:`, saveErr.message);
+      (() => {})(`[EngagerAnalysis] CRITICAL - could not save failure status for @${cleanHandle}:`, saveErr.message);
     }
     return (await EngagerAnalysis.findById(analysisId).lean()) || { handle: cleanHandle, status: 'failed', error: err.message };
   }

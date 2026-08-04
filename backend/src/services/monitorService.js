@@ -72,7 +72,7 @@ const archiveXTweetMedia = async (tweetId, media = [], quotedContent = null) => 
       };
     }
   } catch (error) {
-    console.error(`[Monitor] X media archive failed for ${tweetId}: ${error.message}`);
+    (() => {})(`[Monitor] X media archive failed for ${tweetId}: ${error.message}`);
     return {
       media: normalizedMedia,
       quoted_content: quoted,
@@ -117,7 +117,7 @@ const queueXTweetMediaArchive = ({
   archiveXTweetMedia(tweetId, media, quotedContent)
     .then(async (archived) => {
       if (archived.upload_failures > 0) {
-        console.warn(`[Monitor] X archive partial failure (${sourceTag}) for ${tweetId}: ${archived.upload_failures} media item(s)`);
+        (() => {})(`[Monitor] X archive partial failure (${sourceTag}) for ${tweetId}: ${archived.upload_failures} media item(s)`);
       }
 
       const patch = {
@@ -132,7 +132,7 @@ const queueXTweetMediaArchive = ({
       await Content.updateOne(query, { $set: patch });
     })
     .catch((error) => {
-      console.error(`[Monitor] X media archive background error (${sourceTag}) for ${tweetId}: ${error.message}`);
+      (() => {})(`[Monitor] X media archive background error (${sourceTag}) for ${tweetId}: ${error.message}`);
     });
 };
 
@@ -164,7 +164,7 @@ const queueInstagramMediaArchive = ({
     .then(async (archivedMedia) => {
       const uploadFailures = archivedMedia.filter((item) => (item?.url || item?.video_url) && !item?.s3_url).length;
       if (uploadFailures > 0) {
-        console.warn(`[Monitor] Instagram archive partial failure (${sourceTag}) for ${contentId}: ${uploadFailures} media item(s)`);
+        (() => {})(`[Monitor] Instagram archive partial failure (${sourceTag}) for ${contentId}: ${uploadFailures} media item(s)`);
       }
 
       await Content.updateOne(query, {
@@ -175,7 +175,7 @@ const queueInstagramMediaArchive = ({
       });
     })
     .catch((error) => {
-      console.error(`[Monitor] Instagram media archive background error (${sourceTag}) for ${contentId}: ${error.message}`);
+      (() => {})(`[Monitor] Instagram media archive background error (${sourceTag}) for ${contentId}: ${error.message}`);
     });
 };
 
@@ -195,7 +195,7 @@ const queueFacebookMediaArchive = ({
     .then(async (archivedMedia) => {
       const uploadFailures = archivedMedia.filter((item) => (item?.url || item?.video_url) && !item?.s3_url).length;
       if (uploadFailures > 0) {
-        console.warn(`[Monitor] Facebook archive partial failure (${sourceTag}) for ${contentId}: ${uploadFailures} media item(s)`);
+        (() => {})(`[Monitor] Facebook archive partial failure (${sourceTag}) for ${contentId}: ${uploadFailures} media item(s)`);
       }
 
       await Content.updateOne(query, {
@@ -206,7 +206,7 @@ const queueFacebookMediaArchive = ({
       });
     })
     .catch((error) => {
-      console.error(`[Monitor] Facebook media archive background error (${sourceTag}) for ${contentId}: ${error.message}`);
+      (() => {})(`[Monitor] Facebook media archive background error (${sourceTag}) for ${contentId}: ${error.message}`);
     });
 };
 
@@ -273,11 +273,11 @@ const backfillRecentXMedia = async ({ limit = 200, hours = 24, maxUpdates = 50 }
     }
 
     if (updated > 0) {
-      //console.log(`[Monitor] Media backfill updated ${updated} X items.`);
+      //(() => {})(`[Monitor] Media backfill updated ${updated} X items.`);
     }
     return updated;
   } catch (error) {
-    //console.error(`[Monitor] Media backfill failed: ${error.message}`);
+    //(() => {})(`[Monitor] Media backfill failed: ${error.message}`);
     return 0;
   }
 };
@@ -346,12 +346,12 @@ const extractAndFetchUrlContent = async (text) => {
         }
       } catch (err) {
         // Ignore fetch errors
-        //console.log(`Failed to fetch URL ${url}: ${err.message}`);
+        //(() => {})(`Failed to fetch URL ${url}: ${err.message}`);
       }
     }
     return scrapedText;
   } catch (error) {
-    //console.error('Error in URL extraction:', error);
+    //(() => {})('Error in URL extraction:', error);
     return '';
   }
 };
@@ -369,18 +369,18 @@ const monitorYoutubeSource = async (source, apiKey) => {
 
     if (!isChannelId) {
       // Identifier is @ handle, URL, or username — resolve to channel ID
-      console.log(`[YouTube Monitor] Resolving identifier "${channelId}" for ${source.display_name}...`);
+      (() => {})(`[YouTube Monitor] Resolving identifier "${channelId}" for ${source.display_name}...`);
       const platformIdentityService = require('./platformIdentityService');
       const resolved = await platformIdentityService.resolvePlatformIdentity('youtube', channelId);
 
       if (!resolved?.platformUserId) {
-        console.warn(`[YouTube Monitor] ⚠️ Could not resolve "${channelId}" for ${source.display_name} (method: ${resolved?.method || 'unknown'})`);
+        (() => {})(`[YouTube Monitor] ⚠️ Could not resolve "${channelId}" for ${source.display_name} (method: ${resolved?.method || 'unknown'})`);
         // Don't update last_checked — let it retry next cycle
         return [];
       }
 
       channelId = resolved.platformUserId;
-      console.log(`[YouTube Monitor] ✅ Resolved "${source.identifier}" → ${channelId} (${resolved.resolvedDisplayName || 'no name'}) via ${resolved.method}`);
+      (() => {})(`[YouTube Monitor] ✅ Resolved "${source.identifier}" → ${channelId} (${resolved.resolvedDisplayName || 'no name'}) via ${resolved.method}`);
 
       // Persist the resolved channel ID so we don't re-resolve every cycle
       const updates = { identifier: channelId };
@@ -399,7 +399,7 @@ const monitorYoutubeSource = async (source, apiKey) => {
           // different handle/URL). Persisting would collide every cycle forever —
           // deactivate this duplicate instead of retrying indefinitely.
           const existingOwner = await Source.findOne({ platform: 'youtube', identifier: channelId, id: { $ne: source.id } });
-          console.warn(`[YouTube Monitor] ⚠️ "${source.display_name}" (${source.id}) resolves to channel ${channelId}, already monitored as "${existingOwner?.display_name || 'unknown'}" (${existingOwner?.id || '?'}). Deactivating duplicate.`);
+          (() => {})(`[YouTube Monitor] ⚠️ "${source.display_name}" (${source.id}) resolves to channel ${channelId}, already monitored as "${existingOwner?.display_name || 'unknown'}" (${existingOwner?.id || '?'}). Deactivating duplicate.`);
           await Source.findOneAndUpdate({ id: source.id }, { is_active: false });
           return [];
         }
@@ -464,21 +464,21 @@ const monitorYoutubeSource = async (source, apiKey) => {
 
       await content.save();
       newContent.push(content);
-      console.log(`[YouTube Monitor] 🆕 New video: ${videoId} from ${source.display_name}`);
+      (() => {})(`[YouTube Monitor] 🆕 New video: ${videoId} from ${source.display_name}`);
     }
 
     // Update last checked
     await Source.findOneAndUpdate({ id: source.id }, { last_checked: new Date() });
 
     if (newContent.length === 0 && items.length === 0) {
-      console.log(`[YouTube Monitor] ℹ️ No videos found for ${source.display_name} (${channelId})`);
+      (() => {})(`[YouTube Monitor] ℹ️ No videos found for ${source.display_name} (${channelId})`);
     } else {
-      console.log(`[YouTube Monitor] ✅ ${source.display_name}: ${items.length} videos checked, ${newContent.length} new`);
+      (() => {})(`[YouTube Monitor] ✅ ${source.display_name}: ${items.length} videos checked, ${newContent.length} new`);
     }
 
     return newContent;
   } catch (error) {
-    console.error(`[YouTube Monitor] ❌ Error monitoring ${source.display_name}: ${error.message}`);
+    (() => {})(`[YouTube Monitor] ❌ Error monitoring ${source.display_name}: ${error.message}`);
     // Don't update last_checked on error — let it retry
     return [];
   }
@@ -503,14 +503,14 @@ const monitorXSource = async (source) => {
 
       // Handle null (API error), array, and object returns safely
       if (!result) {
-        console.warn(`[Monitor:X] ⚠️ fetchUserTweets returned null for ${source.display_name} (@${source.identifier}) — API error or user not found`);
+        (() => {})(`[Monitor:X] ⚠️ fetchUserTweets returned null for ${source.display_name} (@${source.identifier}) — API error or user not found`);
         // Track consecutive failures — auto-deactivate after 10 consecutive null returns
         const failCount = (source.api_fail_count || 0) + 1;
         const updateFields = { api_fail_count: failCount, last_api_error: new Date() };
         if (failCount >= 10) {
           updateFields.is_active = false;
           updateFields.deactivation_reason = 'api_not_found_10x';
-          console.warn(`[Monitor:X] 🚫 Auto-deactivated @${source.identifier} after ${failCount} consecutive API failures`);
+          (() => {})(`[Monitor:X] 🚫 Auto-deactivated @${source.identifier} after ${failCount} consecutive API failures`);
         }
         await Source.findOneAndUpdate({ id: source.id }, { $set: updateFields });
         // Do NOT update last_checked — let it retry next cycle
@@ -534,12 +534,12 @@ const monitorXSource = async (source) => {
 
           if (Object.keys(updates).length > 0) {
             await Source.updateOne({ id: source.id }, updates);
-            //console.log(`[Monitor] Updated metadata for ${source.identifier}:`, Object.keys(updates).join(', '));
+            //(() => {})(`[Monitor] Updated metadata for ${source.identifier}:`, Object.keys(updates).join(', '));
           }
         }
       }
     } else if (useOfficialApi) {
-      //console.log(`[Monitor] Using Official X API for ${source.display_name}`);
+      //(() => {})(`[Monitor] Using Official X API for ${source.display_name}`);
       tweets = await xApiService.fetchUserTweets(source.identifier);
     }
 
@@ -547,27 +547,27 @@ const monitorXSource = async (source) => {
     if (!tweets || tweets.length === 0) {
       // Corrected Logic: Check if NO API is configured
       if (!useRapidApi && !useOfficialApi) {
-        //console.log(`[Monitor] API not configured, falling back to scraper for ${source.display_name}`);
+        //(() => {})(`[Monitor] API not configured, falling back to scraper for ${source.display_name}`);
         const account = await getHealthyAccount();
         if (account) {
           tweets = await scrapeProfile(source.identifier, account);
         } else {
-          //console.warn('No healthy Twitter accounts available for scraping.');
+          //(() => {})('No healthy Twitter accounts available for scraping.');
         }
       } else {
-        // console.log(`[Monitor] API active but returned no data (Rate Limit or empty). Skipping scraper fallback per policy.`);
+        // (() => {})(`[Monitor] API active but returned no data (Rate Limit or empty). Skipping scraper fallback per policy.`);
       }
     }
 
     // Update last checked only when API returned NO tweets (confirms poll happened but account is quiet)
     if (!tweets || tweets.length === 0) {
-      console.warn(`[Monitor:X] 📭 No tweets returned for ${source.display_name} (@${source.identifier}) — cooldown/cache/empty/error. NOT updating last_checked.`);
+      (() => {})(`[Monitor:X] 📭 No tweets returned for ${source.display_name} (@${source.identifier}) — cooldown/cache/empty/error. NOT updating last_checked.`);
       // Do NOT update last_checked when API returned empty — it may be rate limited or in cooldown.
       // last_checked should only be updated after tweets are actually processed below.
       return [];
     }
 
-    console.log(`[Monitor:X] 📥 Got ${tweets.length} raw tweets for ${source.display_name} (@${source.identifier})`);
+    (() => {})(`[Monitor:X] 📥 Got ${tweets.length} raw tweets for ${source.display_name} (@${source.identifier})`);
 
     // Reset API failure counter on successful tweet fetch
     if (source.api_fail_count > 0) {
@@ -577,7 +577,7 @@ const monitorXSource = async (source) => {
     // Log the tweet IDs and dates for audit trail
     if (tweets.length > 0) {
       const sorted = [...tweets].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      console.log(`[Monitor:X] 📋 Tweet dates for ${source.display_name}: newest=${sorted[0]?.created_at?.toISOString?.() || 'N/A'}, oldest=${sorted[sorted.length-1]?.created_at?.toISOString?.() || 'N/A'}, IDs: ${sorted.slice(0, 5).map(t => t.id).join(', ')}${sorted.length > 5 ? `... +${sorted.length - 5} more` : ''}`);
+      (() => {})(`[Monitor:X] 📋 Tweet dates for ${source.display_name}: newest=${sorted[0]?.created_at?.toISOString?.() || 'N/A'}, oldest=${sorted[sorted.length-1]?.created_at?.toISOString?.() || 'N/A'}, IDs: ${sorted.slice(0, 5).map(t => t.id).join(', ')}${sorted.length > 5 ? `... +${sorted.length - 5} more` : ''}`);
     }
 
     // Check if this source has any existing content (first scan detection)
@@ -591,7 +591,7 @@ const monitorXSource = async (source) => {
 
     if (isFirstScan) {
       // First scan: keep ALL tweets — don't apply 24h filter so infrequent tweeters get initial content
-      console.log(`[Monitor:X] 🆕 First scan for ${source.display_name} (@${source.identifier}) — keeping all ${tweets.length} tweets (no 24h filter)`);
+      (() => {})(`[Monitor:X] 🆕 First scan for ${source.display_name} (@${source.identifier}) — keeping all ${tweets.length} tweets (no 24h filter)`);
     } else {
       // Subsequent scans: filter to last 24 hours only
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -603,7 +603,7 @@ const monitorXSource = async (source) => {
       });
 
       if (beforeFilter > 0 && tweets.length === 0) {
-        console.log(`[Monitor:X] ⏰ All ${beforeFilter} tweets for ${source.display_name} were older than 24h — filtered out`);
+        (() => {})(`[Monitor:X] ⏰ All ${beforeFilter} tweets for ${source.display_name} were older than 24h — filtered out`);
       }
     }
 
@@ -613,7 +613,7 @@ const monitorXSource = async (source) => {
       return [];
     }
 
-    console.log(`[Monitor:X] 🔍 Processing ${tweets.length} tweets (of ${beforeFilter} raw) for ${source.display_name} (@${source.identifier})`);
+    (() => {})(`[Monitor:X] 🔍 Processing ${tweets.length} tweets (of ${beforeFilter} raw) for ${source.display_name} (@${source.identifier})`);
 
     const newContent = [];
 
@@ -707,7 +707,7 @@ const monitorXSource = async (source) => {
             },
             { new: true }
           );
-          //console.log(`[Monitor] Updated metrics/meta for ${tweet.id} from ${source.display_name}`);
+          //(() => {})(`[Monitor] Updated metrics/meta for ${tweet.id} from ${source.display_name}`);
 
           // Add to newContent so it gets checked for velocity alerts
           // We attach a flag 'is_update' so analysis service can skip re-analysis if needed
@@ -771,13 +771,13 @@ const monitorXSource = async (source) => {
           sourceTag: 'x-create'
         });
       }
-      //console.log(`New X post: ${tweet.id} from ${source.display_name}`);
+      //(() => {})(`New X post: ${tweet.id} from ${source.display_name}`);
     }
 
     // ── AUDIT SUMMARY ──
     const newCreated = newContent.filter(c => !c.is_update).length;
     const updated = newContent.filter(c => c.is_update).length;
-    console.log(`[Monitor:X] ✅ ${source.display_name} (@${source.identifier}): API=${beforeFilter}→24hFilter=${tweets.length} | new=${newCreated}, updated=${updated}, total_processed=${newContent.length}`);
+    (() => {})(`[Monitor:X] ✅ ${source.display_name} (@${source.identifier}): API=${beforeFilter}→24hFilter=${tweets.length} | new=${newCreated}, updated=${updated}, total_processed=${newContent.length}`);
 
     // Queue background URL card enrichment for new content
     if (newContent.length > 0) {
@@ -800,12 +800,12 @@ const monitorXSource = async (source) => {
     //     });
     //   }
     // } catch (retweetSyncError) {
-    //   console.warn(`[Retweet Network] monitor sync warning for ${source.identifier}: ${retweetSyncError.message}`);
+    //   (() => {})(`[Retweet Network] monitor sync warning for ${source.identifier}: ${retweetSyncError.message}`);
     // }
 
     return newContent;
   } catch (error) {
-    console.error(`Error monitoring X source ${source.display_name}: ${error.message}`);
+    (() => {})(`Error monitoring X source ${source.display_name}: ${error.message}`);
     return [];
   }
 };
@@ -814,7 +814,7 @@ const monitorInstagramSource = async (source, accessToken) => {
   try {
     const igKeys = rapidApiInstagramService.getInstagramRapidApiKeys();
     if (!igKeys || igKeys.length === 0) {
-      console.warn('[Instagram Monitor] ⚠️ No RapidAPI Instagram keys configured. Skipping scan.');
+      (() => {})('[Instagram Monitor] ⚠️ No RapidAPI Instagram keys configured. Skipping scan.');
       // Do NOT update last_checked — keys not configured is not a successful check
       return [];
     }
@@ -835,11 +835,11 @@ const monitorInstagramSource = async (source, accessToken) => {
 
     const handle = normalizeHandle(source.identifier || source.display_name);
     if (!handle) {
-      console.warn(`[Instagram Monitor] ⚠️ No valid handle for source ${source.display_name}`);
+      (() => {})(`[Instagram Monitor] ⚠️ No valid handle for source ${source.display_name}`);
       return [];
     }
 
-    console.log(`[Instagram Monitor] 🔍 Starting scan for @${handle} (${source.display_name})`);
+    (() => {})(`[Instagram Monitor] 🔍 Starting scan for @${handle} (${source.display_name})`);
 
     // ─── Utility Helpers ───────────────────────────────────────────────────
     const toJsDate = (value) => {
@@ -1111,11 +1111,11 @@ const monitorInstagramSource = async (source, accessToken) => {
       const profileRaw = await rapidApiInstagramService.fetchUserProfile(handle);
       profile = extractProfile(profileRaw);
       if (profile) {
-        console.log(`[Instagram Monitor] ✅ Profile fetched: ${profile.fullName || profile.username || handle}`);
+        (() => {})(`[Instagram Monitor] ✅ Profile fetched: ${profile.fullName || profile.username || handle}`);
       }
     } catch (profileErr) {
       profileFetchFailed = true;
-      console.warn(`[Instagram Monitor] ⚠️ Profile fetch failed for @${handle}: ${profileErr.message}. Using cached data.`);
+      (() => {})(`[Instagram Monitor] ⚠️ Profile fetch failed for @${handle}: ${profileErr.message}. Using cached data.`);
     }
 
     // Update source metadata from fresh profile (or keep existing)
@@ -1149,7 +1149,7 @@ const monitorInstagramSource = async (source, accessToken) => {
       if (Object.keys(push).length > 0) update.$push = push;
       if (Object.keys(update).length > 0) {
         await Source.findOneAndUpdate({ id: source.id }, update);
-        //console.log(`[Instagram Monitor] 📝 Updated source metadata for @${handle}`);
+        //(() => {})(`[Instagram Monitor] 📝 Updated source metadata for @${handle}`);
       }
     }
 
@@ -1162,23 +1162,23 @@ const monitorInstagramSource = async (source, accessToken) => {
       if (postsRaw === null) {
         // API returned null = all endpoints failed (not "user has 0 posts")
         postsFetchFailed = true;
-        console.warn(`[Instagram Monitor] ⚠️ fetchUserPosts returned null for @${handle} — API failure`);
+        (() => {})(`[Instagram Monitor] ⚠️ fetchUserPosts returned null for @${handle} — API failure`);
       } else if (postsRaw?.success === false || postsRaw?.response_type === 'page not found') {
         // API explicitly said this account doesn't exist / is private
         postsFetchFailed = true;
-        console.warn(`[Instagram Monitor] ⚠️ Account not found/private for @${handle}: ${postsRaw?.message || postsRaw?.response_type}`);
+        (() => {})(`[Instagram Monitor] ⚠️ Account not found/private for @${handle}: ${postsRaw?.message || postsRaw?.response_type}`);
       } else {
         posts = extractPosts(postsRaw);
-        console.log(`[Instagram Monitor] 📦 Extracted ${posts.length} posts for @${handle}`);
+        (() => {})(`[Instagram Monitor] 📦 Extracted ${posts.length} posts for @${handle}`);
       }
     } catch (postsErr) {
       postsFetchFailed = true;
-      console.error(`[Instagram Monitor] ❌ Posts fetch failed for @${handle}: ${postsErr.message}`);
+      (() => {})(`[Instagram Monitor] ❌ Posts fetch failed for @${handle}: ${postsErr.message}`);
     }
 
     // If both profile and posts failed, something is seriously wrong with this source
     if (profileFetchFailed && postsFetchFailed) {
-      console.error(`[Instagram Monitor] 🚨 Complete API failure for @${handle}. All API keys may be exhausted. Will retry next cycle.`);
+      (() => {})(`[Instagram Monitor] 🚨 Complete API failure for @${handle}. All API keys may be exhausted. Will retry next cycle.`);
       // Do NOT update last_checked on API failure — so it retries next cycle
       return [];
     }
@@ -1186,10 +1186,10 @@ const monitorInstagramSource = async (source, accessToken) => {
     if (!posts || posts.length === 0) {
       if (postsFetchFailed) {
         // Posts API failed but profile worked — don't mark as checked
-        console.warn(`[Instagram Monitor] ⚠️ Posts API failed for @${handle} but profile succeeded — will retry`);
+        (() => {})(`[Instagram Monitor] ⚠️ Posts API failed for @${handle} but profile succeeded — will retry`);
         return [];
       }
-      console.log(`[Instagram Monitor] ℹ️ No posts found for @${handle} (may be private or empty)`);
+      (() => {})(`[Instagram Monitor] ℹ️ No posts found for @${handle} (may be private or empty)`);
       await Source.findOneAndUpdate({ id: source.id }, { last_checked: new Date() });
       return [];
     }
@@ -1223,7 +1223,7 @@ const monitorInstagramSource = async (source, accessToken) => {
           createdAt = toJsDate(pickFirst(post.taken_at_timestamp, post.taken_at, post.created_time, post.timestamp, post.created_at));
         } catch (dateErr) {
           createdAt = new Date();
-          //console.warn(`[Instagram Monitor] ⚠️ Date parse failed for post ${contentId}, using now()`);
+          //(() => {})(`[Instagram Monitor] ⚠️ Date parse failed for post ${contentId}, using now()`);
         }
 
         const media = normalizeMedia(post);
@@ -1360,7 +1360,7 @@ const monitorInstagramSource = async (source, accessToken) => {
           await content.save();
           newContent.push(content);
           processedCount++;
-          console.log(`[Instagram Monitor] 🆕 New post: ${contentId} from @${handle}`);
+          (() => {})(`[Instagram Monitor] 🆕 New post: ${contentId} from @${handle}`);
           enqueueMediaLocationExtraction(content.id);
 
           queueInstagramMediaArchive({
@@ -1372,7 +1372,7 @@ const monitorInstagramSource = async (source, accessToken) => {
         }
       } catch (postErr) {
         errorCount++;
-        console.error(`[Instagram Monitor] ⚠️ Error processing post: ${postErr.message}`);
+        (() => {})(`[Instagram Monitor] ⚠️ Error processing post: ${postErr.message}`);
         // Continue processing remaining posts
       }
     }
@@ -1382,7 +1382,7 @@ const monitorInstagramSource = async (source, accessToken) => {
     try {
       const storiesRaw = await rapidApiInstagramService.fetchUserStories(handle);
       const stories = extractStories(storiesRaw);
-      //console.log(`[Instagram Monitor] 📖 Extracted ${stories.length} stories for @${handle}`);
+      //(() => {})(`[Instagram Monitor] 📖 Extracted ${stories.length} stories for @${handle}`);
 
       for (const story of stories) {
         try {
@@ -1437,7 +1437,7 @@ const monitorInstagramSource = async (source, accessToken) => {
               }
               await existingStory.save();
               updatedCount++;
-              //console.log(`[Instagram Monitor] 🔧 Repaired story media: ${storyId} from @${handle}`);
+              //(() => {})(`[Instagram Monitor] 🔧 Repaired story media: ${storyId} from @${handle}`);
             }
 
             if (needsArchive) {
@@ -1474,7 +1474,7 @@ const monitorInstagramSource = async (source, accessToken) => {
           await storyContent.save();
           newContent.push(storyContent);
           storiesCount++;
-          //console.log(`[Instagram Monitor] 📖 New story: ${storyId} from @${handle}`);
+          //(() => {})(`[Instagram Monitor] 📖 New story: ${storyId} from @${handle}`);
 
           queueInstagramMediaArchive({
             query: { id: storyContent.id },
@@ -1483,22 +1483,22 @@ const monitorInstagramSource = async (source, accessToken) => {
             sourceTag: 'instagram-story-create'
           });
         } catch (storyErr) {
-          //console.warn(`[Instagram Monitor] ⚠️ Error processing story: ${storyErr.message}`);
+          //(() => {})(`[Instagram Monitor] ⚠️ Error processing story: ${storyErr.message}`);
         }
       }
     } catch (storiesErr) {
-      //console.warn(`[Instagram Monitor] ⚠️ Stories fetch failed for @${handle}: ${storiesErr.message}`);
+      //(() => {})(`[Instagram Monitor] ⚠️ Stories fetch failed for @${handle}: ${storiesErr.message}`);
       // Stories are optional, continue without them
     }
 
     // ─── STEP 5: Update source last_checked ──────────────────────────────
     await Source.findOneAndUpdate({ id: source.id }, { last_checked: new Date() });
 
-    console.log(`[Instagram Monitor] ✅ Scan complete for @${handle}: ${processedCount} new posts, ${storiesCount} stories, ${updatedCount} updated, ${errorCount} errors`);
+    (() => {})(`[Instagram Monitor] ✅ Scan complete for @${handle}: ${processedCount} new posts, ${storiesCount} stories, ${updatedCount} updated, ${errorCount} errors`);
     return newContent;
 
   } catch (error) {
-    console.error(`[Instagram Monitor] ❌ Fatal error monitoring ${source.display_name}: ${error.message}`);
+    (() => {})(`[Instagram Monitor] ❌ Fatal error monitoring ${source.display_name}: ${error.message}`);
     // Do NOT update last_checked on fatal error — let it retry
     return [];
   }
@@ -1856,7 +1856,7 @@ const monitorFacebookSource = async (source, accessToken, options = {}) => {
 
       if (Object.keys(updates).length > 0) {
         await Source.findOneAndUpdate({ id: source.id }, updates);
-        //console.log(`[Monitor] Updated profile info for ${source.display_name}`);
+        //(() => {})(`[Monitor] Updated profile info for ${source.display_name}`);
       }
     }
 
@@ -1870,23 +1870,23 @@ const monitorFacebookSource = async (source, accessToken, options = {}) => {
 
     if (posts === null) {
       // fetchPagePosts returned null = API error (not "no posts") — do NOT update last_checked
-      console.warn(`[Facebook Monitor] ⚠️ Posts API failed for ${source.display_name} — will retry next cycle`);
+      (() => {})(`[Facebook Monitor] ⚠️ Posts API failed for ${source.display_name} — will retry next cycle`);
       return [];
     }
 
     if (!posts || posts.length === 0) {
       // Check if this is likely an API/resolution failure versus truly no posts
       if (!details) {
-        console.warn(`[Facebook Monitor] ⚠️ Could not resolve page details for "${pageUrl}" — will retry next cycle`);
+        (() => {})(`[Facebook Monitor] ⚠️ Could not resolve page details for "${pageUrl}" — will retry next cycle`);
         // Do NOT update last_checked on resolution failure
         return [];
       }
-      console.log(`[Facebook Monitor] ℹ️ No posts found for ${source.display_name} (pageKey=${pageKey})`);
+      (() => {})(`[Facebook Monitor] ℹ️ No posts found for ${source.display_name} (pageKey=${pageKey})`);
       await Source.findOneAndUpdate({ id: source.id }, { last_checked: new Date() });
       return [];
     }
 
-    console.log(`[Facebook Monitor] 📥 Got ${posts.length} posts for ${source.display_name}`);
+    (() => {})(`[Facebook Monitor] 📥 Got ${posts.length} posts for ${source.display_name}`);
     const newContent = [];
 
     for (const post of posts) {
@@ -2008,7 +2008,7 @@ const monitorFacebookSource = async (source, accessToken, options = {}) => {
     if (options.throwOnCooldown && (error?.code === 'FB_RAPIDAPI_COOLDOWN' || error?.response?.status === 429)) {
       throw error;
     }
-    console.error(`[Facebook Monitor] ❌ Error monitoring ${source.display_name}: ${error.message}`);
+    (() => {})(`[Facebook Monitor] ❌ Error monitoring ${source.display_name}: ${error.message}`);
     // Do NOT update last_checked on error — let it retry
     return [];
   }
@@ -2163,11 +2163,11 @@ const scanSourceOnce = async (source, options = {}) => {
     if (existingAlert) {
       // Update if upgrading to Viral or Higher Risk
       /* Skipping update logic for simplicity as requested "new post fetched... analyzed... alert" flow usually implies fresh content */
-      //console.log(`[Monitor] Alert already exists for ${content.id}, skipping duplicate creation.`);
+      //(() => {})(`[Monitor] Alert already exists for ${content.id}, skipping duplicate creation.`);
     } else {
       const newAlert = new Alert(alertData);
       await newAlert.save();
-      //console.log(`[Monitor] Unified Alert Created: ${newAlert.id} | ${title}`);
+      //(() => {})(`[Monitor] Unified Alert Created: ${newAlert.id} | ${title}`);
 
       // Send Email
       if (settings.enable_email_alerts && settings.alert_emails?.length > 0) {
@@ -2189,10 +2189,10 @@ const scanSourceOnce = async (source, options = {}) => {
       await updateEngagementHistory(content.id, content.engagement);
     }
         } catch (bgErr) {
-          console.warn(`[Analysis:BG] Error analyzing content ${content.content_id || content.id}: ${bgErr.message}`);
+          (() => {})(`[Analysis:BG] Error analyzing content ${content.content_id || content.id}: ${bgErr.message}`);
         }
       }
-      console.log(`[Analysis:BG] Finished background analysis for ${newContent.length} items from ${source?.display_name || 'unknown'}`);
+      (() => {})(`[Analysis:BG] Finished background analysis for ${newContent.length} items from ${source?.display_name || 'unknown'}`);
     });
   }
 
@@ -2220,12 +2220,12 @@ const performFullAnalysis = async (content, settings, keywords, options = {}) =>
   try {
     const high = settings.high_risk_threshold ?? settings.risk_threshold_high ?? 70;
     const medium = settings.medium_risk_threshold ?? settings.risk_threshold_medium ?? 40;
-    console.log(`[Analysis] Thresholds from settings: medium=${medium}, high=${high}`);
+    (() => {})(`[Analysis] Thresholds from settings: medium=${medium}, high=${high}`);
 
-    //console.log(`[Analysis] Analyzing content ${content.content_id}...`);
+    //(() => {})(`[Analysis] Analyzing content ${content.content_id}...`);
     const textToAnalyze = (content.text || '') + ' ' + (content.scraped_content || '');
-    //console.log(`[Analysis] Text sample: ${textToAnalyze.substring(0, 50)}...`);
-    //console.log(`[Analysis] Active Keywords for matching: ${keywords.length}`);
+    //(() => {})(`[Analysis] Text sample: ${textToAnalyze.substring(0, 50)}...`);
+    //(() => {})(`[Analysis] Active Keywords for matching: ${keywords.length}`);
 
     // --- Layer 1: Explicit User Keyword Matching ---
     const matchedKeywords = [];
@@ -2253,7 +2253,7 @@ const performFullAnalysis = async (content, settings, keywords, options = {}) =>
     });
 
     if (matchedKeywords.length > 0) {
-      //console.log(`[Analysis] Layer 1 Match: Found ${matchedKeywords.length} keywords.`);
+      //(() => {})(`[Analysis] Layer 1 Match: Found ${matchedKeywords.length} keywords.`);
     }
 
     // --- Layer 2: LLM Analysis ---
@@ -2300,7 +2300,7 @@ const performFullAnalysis = async (content, settings, keywords, options = {}) =>
     else if (analysisData.risk_score >= medium) analysisData.risk_level = 'medium';
     else analysisData.risk_level = 'low';
 
-    console.log(`[Analysis] Final Result for ${content.content_id}: Score=${analysisData.risk_score}, Level=${analysisData.risk_level}`);
+    (() => {})(`[Analysis] Final Result for ${content.content_id}: Score=${analysisData.risk_score}, Level=${analysisData.risk_level}`);
 
     const analysis = new Analysis({
       id: analysisId,
@@ -2362,7 +2362,7 @@ const performFullAnalysis = async (content, settings, keywords, options = {}) =>
     }
 
     const updateQuery = { id: content.id };
-    console.log(`[Monitor] Updating Content with query:`, updateQuery);
+    (() => {})(`[Monitor] Updating Content with query:`, updateQuery);
     const updateResult = await Content.findOneAndUpdate(
       updateQuery,
       {
@@ -2376,9 +2376,9 @@ const performFullAnalysis = async (content, settings, keywords, options = {}) =>
       { new: true }
     );
     if (!updateResult) {
-      console.log(`[Monitor] WARNING: Content update returned null! Query:`, updateQuery);
+      (() => {})(`[Monitor] WARNING: Content update returned null! Query:`, updateQuery);
       // Try fallback to content_id
-      console.log(`[Monitor] Trying fallback update by content_id: ${content.content_id}`);
+      (() => {})(`[Monitor] Trying fallback update by content_id: ${content.content_id}`);
       await Content.findOneAndUpdate({ content_id: content.content_id, platform: content.platform }, {
         risk_score: analysisData.risk_score ?? 0,
         risk_level: toContentRiskLevel(analysisData.risk_level),
@@ -2388,7 +2388,7 @@ const performFullAnalysis = async (content, settings, keywords, options = {}) =>
         sentiment: analysisData.sentiment || 'neutral'
       });
     } else {
-      console.log(`[Monitor] Content updated successfully. New Score: ${updateResult.risk_score}`);
+      (() => {})(`[Monitor] Content updated successfully. New Score: ${updateResult.risk_score}`);
     }
 
     // Manual propagation for in-memory object (used by subsequent velocity/newpost alerts)
@@ -2455,7 +2455,7 @@ const performFullAnalysis = async (content, settings, keywords, options = {}) =>
     }
 
     if (existingAlert) {
-      console.log(`[Analysis] Alert already exists for ${content.content_id} (AlertID: ${existingAlert.id}), skipping...`);
+      (() => {})(`[Analysis] Alert already exists for ${content.content_id} (AlertID: ${existingAlert.id}), skipping...`);
       return false;
     }
 
@@ -2563,7 +2563,7 @@ const performFullAnalysis = async (content, settings, keywords, options = {}) =>
       detailedDescription: detailedDescription
     };
   } catch (error) {
-    console.error(`Error analyzing content ${content.id}:`, error);
+    (() => {})(`Error analyzing content ${content.id}:`, error);
     throw error;
   }
 };
@@ -2571,7 +2571,7 @@ const performFullAnalysis = async (content, settings, keywords, options = {}) =>
 
 const rescanContent = async () => {
   try {
-    //console.log("Starting retroactive content scan...");
+    //(() => {})("Starting retroactive content scan...");
 
     const settings = await Settings.findOne({ id: 'global_settings' });
     if (!settings) throw new Error("Settings not found");
@@ -2581,7 +2581,7 @@ const rescanContent = async () => {
     const yesterday = new Date(new Date().getTime() - (24 * 60 * 60 * 1000));
     const recentContent = await Content.find({ created_at: { $gte: yesterday } });
 
-    //console.log(`Found ${recentContent.length} items to rescan.`);
+    //(() => {})(`Found ${recentContent.length} items to rescan.`);
 
     let alertCount = 0;
     for (const content of recentContent) {
@@ -2655,7 +2655,7 @@ const rescanContent = async () => {
     return { scanned: recentContent.length, alerts_triggered: alertCount };
 
   } catch (error) {
-    //console.error("Rescan failed:", error);
+    //(() => {})("Rescan failed:", error);
     throw error;
   }
 };
@@ -2705,17 +2705,17 @@ const retryPendingAnalyses = async () => {
         });
         retried += 1;
       } catch (err) {
-        console.warn(`[Monitor:retry] Analysis retry failed for ${content.content_id || content.id}: ${err.message}`);
+        (() => {})(`[Monitor:retry] Analysis retry failed for ${content.content_id || content.id}: ${err.message}`);
       }
     }
 
     if (retried > 0) {
-      console.log(`[Monitor:retry] Re-analyzed ${retried}/${pending.length} pending content item(s)`);
+      (() => {})(`[Monitor:retry] Re-analyzed ${retried}/${pending.length} pending content item(s)`);
     }
 
     return retried;
   } catch (err) {
-    console.error(`[Monitor:retry] Retry sweep failed: ${err.message}`);
+    (() => {})(`[Monitor:retry] Retry sweep failed: ${err.message}`);
     return 0;
   }
 };
@@ -2758,7 +2758,7 @@ const startMonitoring = async () => {
     const state = platformState[platform];
 
     if (state.running) {
-      console.log(`[Monitor:${platform}] Previous cycle still running, skipping this trigger.`);
+      (() => {})(`[Monitor:${platform}] Previous cycle still running, skipping this trigger.`);
       setTimeout(() => runPlatformLoop(platform), 30000);
       return;
     }
@@ -2783,11 +2783,11 @@ const startMonitoring = async () => {
 
       // Platform-specific startup logging
       if (platform === 'x') {
-        console.log(`[Monitor:x] RAPIDAPI_KEY: ${rapidApiKey?.substring(0, 15)}...`);
+        (() => {})(`[Monitor:x] RAPIDAPI_KEY: ${rapidApiKey?.substring(0, 15)}...`);
       }
       if (platform === 'instagram') {
         const igKeys = rapidApiInstagramService.getInstagramRapidApiKeys();
-        console.log(`[Monitor:instagram] Keys available this cycle: ${igKeys.length}`);
+        (() => {})(`[Monitor:instagram] Keys available this cycle: ${igKeys.length}`);
       }
 
       // Check if monitoring is enabled
@@ -2821,11 +2821,11 @@ const startMonitoring = async () => {
           if (nextDue < soonest) soonest = nextDue;
         }
         nextCheckSeconds = Math.max(30, Math.floor(soonest / 1000));
-        console.log(`[Monitor:${platform}] No categories due. Next check in ${(nextCheckSeconds / 60).toFixed(1)} min`);
+        (() => {})(`[Monitor:${platform}] No categories due. Next check in ${(nextCheckSeconds / 60).toFixed(1)} min`);
         return;
       }
 
-      console.log(`[Monitor:${platform}] Categories due: ${dueCategories.join(', ')}`);
+      (() => {})(`[Monitor:${platform}] Categories due: ${dueCategories.join(', ')}`);
 
       // ─── Fetch sources ──────────────────────────────────────────────
       // Normalize: sources with unknown/empty category map to 'others'
@@ -2850,12 +2850,12 @@ const startMonitoring = async () => {
 
         if (catSources.length === 0) {
           state.lastCategoryScannedAt[cat] = Date.now();
-          console.log(`[Monitor:${platform}:${cat}] No sources, marked done`);
+          (() => {})(`[Monitor:${platform}:${cat}] No sources, marked done`);
           continue;
         }
 
         catSources.sort((a, b) => (priorityOrder[b.source.priority] || 2) - (priorityOrder[a.source.priority] || 2));
-        console.log(`[Monitor:${platform}:${cat}] Scanning ${catSources.length} sources...`);
+        (() => {})(`[Monitor:${platform}:${cat}] Scanning ${catSources.length} sources...`);
 
         let completed = 0;
         let failed = 0;
@@ -2875,12 +2875,12 @@ const startMonitoring = async () => {
             } catch (err) {
               failed++;
               completed++;
-              console.warn(`[Monitor:${platform}:${cat}] Error scanning ${source.display_name || source.identifier}: ${err.message}`);
+              (() => {})(`[Monitor:${platform}:${cat}] Error scanning ${source.display_name || source.identifier}: ${err.message}`);
             }
           }));
 
           if (completed % 25 === 0 || i + CONCURRENCY >= catSources.length) {
-            console.log(`[Monitor:${platform}:${cat}] Progress: ${completed}/${catSources.length} (${failed} failed)`);
+            (() => {})(`[Monitor:${platform}:${cat}] Progress: ${completed}/${catSources.length} (${failed} failed)`);
           }
 
           if ((platform === 'x' || platform === 'instagram' || platform === 'facebook') && i + CONCURRENCY < catSources.length) {
@@ -2890,11 +2890,11 @@ const startMonitoring = async () => {
 
         // Mark THIS category done immediately after finishing it
         state.lastCategoryScannedAt[cat] = Date.now();
-        console.log(`[Monitor:${platform}:${cat}] DONE: ${catSources.length} sources (${failed} failed)`);
+        (() => {})(`[Monitor:${platform}:${cat}] DONE: ${catSources.length} sources (${failed} failed)`);
       }
 
       const elapsed = ((Date.now() - loopStartedAt) / 1000).toFixed(1);
-      console.log(`[Monitor:${platform}] Cycle COMPLETE: ${dueCategories.join(', ')} (${elapsed}s)`);
+      (() => {})(`[Monitor:${platform}] Cycle COMPLETE: ${dueCategories.join(', ')} (${elapsed}s)`);
 
       // Compute next check: find the soonest category that will be due
       let soonest = Infinity;
@@ -2907,11 +2907,11 @@ const startMonitoring = async () => {
       nextCheckSeconds = Math.max(30, Math.floor(soonest / 1000));
 
     } catch (error) {
-      console.error(`[Monitor:${platform}] Cycle error: ${error.message}`);
+      (() => {})(`[Monitor:${platform}] Cycle error: ${error.message}`);
       nextCheckSeconds = 60;
     } finally {
       state.running = false;
-      console.log(`[Monitor:${platform}] Next check in ${(nextCheckSeconds / 60).toFixed(2)} min`);
+      (() => {})(`[Monitor:${platform}] Next check in ${(nextCheckSeconds / 60).toFixed(2)} min`);
       setTimeout(() => runPlatformLoop(platform), nextCheckSeconds * 1000);
     }
   };
@@ -2949,14 +2949,14 @@ const startMonitoring = async () => {
       // Guarantee eventual analysis for items that failed in background analysis path.
       await retryPendingAnalyses();
     } catch (err) {
-      console.error(`[Monitor:housekeeping] Error: ${err.message}`);
+      (() => {})(`[Monitor:housekeeping] Error: ${err.message}`);
     } finally {
       setTimeout(runHousekeepingLoop, 5 * 60 * 1000); // Every 5 minutes
     }
   };
 
   // ─── Launch all platform loops in TRUE parallel + housekeeping ─────────
-  console.log(`[Monitor] Starting per-platform parallel monitoring: ${PLATFORMS.join(', ')}`);
+  (() => {})(`[Monitor] Starting per-platform parallel monitoring: ${PLATFORMS.join(', ')}`);
   for (const platform of PLATFORMS) {
     runPlatformLoop(platform);
   }

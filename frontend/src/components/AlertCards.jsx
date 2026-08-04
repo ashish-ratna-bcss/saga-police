@@ -2965,7 +2965,7 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
 
     // Engagement
     const metrics = content?.engagement || {};
-    let rawContentText = decodeHtmlEntities(content?.text || alert.description || '');
+    let rawContentText = decodeHtmlEntities(alert?.content_details?.text || '');
     const contentText = rawContentText.replace(/\*\*Intent Detected:\*\*.*?(?:\n\n|\n|$)/g, '').trim();
     const shouldShowReadMore = contentText.length > 150 || (contentText.match(/\n/g) || []).length >= 2;
     const quotedContentText = decodeHtmlEntities(content?.quoted_content?.text || '');
@@ -4259,7 +4259,7 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
     const timeStr = publishedAtDate ? publishedAtDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
     const dateStr = publishedAtDate ? publishedAtDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
     const isGrid = viewMode === 'grid';
-    let rawContentText = decodeHtmlEntities(content?.text || alert.description || '');
+    let rawContentText = decodeHtmlEntities(alert?.content_details?.text || '');
     const contentText = rawContentText.replace(/\*\*Intent Detected:\*\*.*?(?:\n\n|\n|$)/g, '').trim();
     const shouldShowReadMore = contentText.length > 150 || (contentText.match(/\n/g) || []).length >= 2;
     const channelHandleRaw = String(content?.author_handle || source?.handle || alert?.author_handle || '').replace(/^@+/, '');

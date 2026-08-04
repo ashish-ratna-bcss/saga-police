@@ -2,6 +2,10 @@ const axios = require('axios');
 
 const FACEBOOK_DEFAULT_HOST = 'facebook-scraper3.p.rapidapi.com';
 
+let totalCalls = 0;
+let globalRateLimitRemaining = null;
+let globalRateLimit = null;
+
 // Simple in-memory throttling + key rotation to handle RapidAPI 429s gracefully.
 const fbState = {
     keys: null,
@@ -147,7 +151,7 @@ const pickUsableKey = async (options = {}) => {
         throw err;
     }
 
-    console.warn(`[Facebook] ⏸️ All keys cooling down — waiting ${secondsLeft}s for key recovery`);
+    (() => {})(`[Facebook] ⏸️ All keys cooling down — waiting ${secondsLeft}s for key recovery`);
     await new Promise(r => setTimeout(r, waitMs));
 
     // After waiting, pick the now-available key
@@ -177,14 +181,14 @@ const markKeyRateLimited = (key, retryAfterSeconds) => {
         fbState.keyIndex = (fbState.keyIndex + 1) % fbState.keys.length;
     }
 
-    console.warn(`[Facebook] RapidAPI 429. Cooling down key for ${seconds}s.`);
+    (() => {})(`[Facebook] RapidAPI 429. Cooling down key for ${seconds}s.`);
 };
 
 const rapidGet = async (path, params, options = {}, _attempt = 0) => {
     const key = await pickUsableKey(options);
     const host = getFacebookRapidApiHost();
     try {
-        return await axios.get(`https://${host}${path}`, {
+        const response = await axios.get(`https://${host}${path}`, {
             params,
             headers: {
                 'x-rapidapi-key': key,
@@ -192,7 +196,16 @@ const rapidGet = async (path, params, options = {}, _attempt = 0) => {
             },
             timeout: Math.max(5000, Number(options.timeoutMs) || 20000)
         });
+        totalCalls++;
+        if (response.headers['x-ratelimit-requests-remaining']) {
+            globalRateLimitRemaining = parseInt(response.headers['x-ratelimit-requests-remaining'], 10);
+        }
+        if (response.headers['x-ratelimit-requests-limit']) {
+            globalRateLimit = parseInt(response.headers['x-ratelimit-requests-limit'], 10);
+        }
+        return response;
     } catch (error) {
+        totalCalls++;
         const status = error?.response?.status;
         const msg = String(error?.response?.data?.message || '').toLowerCase();
 
@@ -201,14 +214,14 @@ const rapidGet = async (path, params, options = {}, _attempt = 0) => {
             markKeyRateLimited(key, ra);
             // Retry with next key (pickUsableKey will wait if all are cooling)
             if (_attempt < 3) {
-                console.warn(`[Facebook] 429 on ${path} — rotating key and retrying (attempt ${_attempt + 1}/3)`);
+                (() => {})(`[Facebook] 429 on ${path} — rotating key and retrying (attempt ${_attempt + 1}/3)`);
                 return rapidGet(path, params, options, _attempt + 1);
             }
         }
 
         // 403 "not subscribed" — permanently skip this key and retry with next
         if (status === 403 && msg.includes('not subscribed') && _attempt < 3) {
-            console.warn(`[Facebook] Key ${key.substring(0, 8)}... not subscribed. Trying next key.`);
+            (() => {})(`[Facebook] Key ${key.substring(0, 8)}... not subscribed. Trying next key.`);
             markKeyRateLimited(key, 86400); // cooldown for 24h
             return rapidGet(path, params, options, _attempt + 1);
         }
@@ -271,7 +284,7 @@ const resolveUsablePageId = async (pageIdOrUrl) => {
 
     const token = extractFacebookEntityToken(input);
     if (!token) {
-        console.warn(`[Facebook] resolveUsablePageId: Could not extract token from "${input}"`);
+        (() => {})(`[Facebook] resolveUsablePageId: Could not extract token from "${input}"`);
         return null;
     }
 
@@ -306,7 +319,7 @@ const resolveUsablePageId = async (pageIdOrUrl) => {
     if (id) {
         setCachedResolvedPageId(cacheKey, id);
     } else {
-        console.warn(`[Facebook] resolveUsablePageId: Search for "${token}" returned no usable page ID (${(results || []).length} results)`);
+        (() => {})(`[Facebook] resolveUsablePageId: Search for "${token}" returned no usable page ID (${(results || []).length} results)`);
         // Cache the failure for a shorter time (30min) so we don't keep searching
         fbState.pageIdCache.set(cacheKey, { id: null, expiresAt: Date.now() + 30 * 60 * 1000 });
     }
@@ -371,7 +384,7 @@ const fetchPageDetails = async (pageIdOrUrl, options = {}) => {
             throw error;
         }
         if (error?.code === 'FB_RAPIDAPI_COOLDOWN') return null;
-        console.error(`[Facebook] Error fetching page details for ${pageIdOrUrl}:`, error.message);
+        (() => {})(`[Facebook] Error fetching page details for ${pageIdOrUrl}:`, error.message);
         return null;
     }
 };
@@ -391,7 +404,7 @@ const fetchPagePosts = async (pageIdOrUrl, limit = 10, pageName = null, options 
         // - Else: resolve via /search/pages -> facebook_id.
         const resolvedId = isNumericId(input) ? input : await resolveUsablePageId(input);
         if (!resolvedId) {
-            console.warn(`[Facebook] fetchPagePosts: Could not resolve page ID for "${input}" — returning empty`);
+            (() => {})(`[Facebook] fetchPagePosts: Could not resolve page ID for "${input}" — returning empty`);
             return [];
         }
 
@@ -468,7 +481,7 @@ const fetchPagePosts = async (pageIdOrUrl, limit = 10, pageName = null, options 
             throw error;
         }
         if (error?.code === 'FB_RAPIDAPI_COOLDOWN') return null;
-        console.error(`[Facebook] Error fetching posts for ${pageIdOrUrl}:`, error.message);
+        (() => {})(`[Facebook] Error fetching posts for ${pageIdOrUrl}:`, error.message);
         return null;
     }
 };
@@ -506,7 +519,7 @@ const fetchPostComments = async (postId, limit = 20, options = {}) => {
         }
         if (error.response?.status === 404) return [];
         if (error?.code === 'FB_RAPIDAPI_COOLDOWN') return [];
-        console.error(`[Facebook] Error fetching comments for ${postId}:`, error.message);
+        (() => {})(`[Facebook] Error fetching comments for ${postId}:`, error.message);
         return [];
     }
 };
@@ -568,7 +581,7 @@ const searchPages = async (query, options = {}) => {
             throw error;
         }
         if (error?.code === 'FB_RAPIDAPI_COOLDOWN') return [];
-        console.error(`[Facebook] Error searching pages:`, error.message);
+        (() => {})(`[Facebook] Error searching pages:`, error.message);
         return [];
     }
 };
@@ -844,7 +857,7 @@ const searchPosts = async (query, limit = 50, options = {}) => {
         const allRaw = merged;
 
         if (shouldStop()) {
-            console.warn(`[Facebook] searchPosts deadline reached (${deadlineMs}ms) for query "${query}" — returning ${allRaw.length} partial results`);
+            (() => {})(`[Facebook] searchPosts deadline reached (${deadlineMs}ms) for query "${query}" — returning ${allRaw.length} partial results`);
         }
 
         return allRaw.map(normalizeRawPost).sort((a, b) => {
@@ -858,12 +871,13 @@ const searchPosts = async (query, limit = 50, options = {}) => {
             throw error;
         }
         if (error?.code === 'FB_RAPIDAPI_COOLDOWN') return [];
-        console.error(`[Facebook] Error searching posts:`, error.message);
+        (() => {})(`[Facebook] Error searching posts:`, error.message);
         return [];
     }
 };
 
 module.exports = {
+    getKeyHealthStatus: () => [{ key: 'Facebook', available: true, totalCalls, remaining: globalRateLimitRemaining, limit: globalRateLimit }],
     fetchPageDetails,
     fetchPagePosts,
     fetchPostComments,

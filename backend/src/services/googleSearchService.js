@@ -54,7 +54,7 @@ const searchWeb = async (query, limit = 10, timeFilter = null) => {
         return items;
 
     } catch (error) {
-        console.error('Web Search Error (Axios):', error.message);
+        (() => {})('Web Search Error (Axios):', error.message);
         return [];
     }
 };

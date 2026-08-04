@@ -238,7 +238,7 @@ const forgotPassword = async (req, res) => {
 
     res.json({ message: 'If that email exists, a reset link has been sent.' });
   } catch (error) {
-    console.error('[Auth] forgotPassword error:', error);
+    (() => {})('[Auth] forgotPassword error:', error);
     res.status(500).json({ message: 'Something went wrong. Please try again.' });
   }
 };
@@ -290,7 +290,7 @@ const resetPassword = async (req, res) => {
 
     res.json({ message: 'Password has been reset successfully. You can now log in.' });
   } catch (error) {
-    console.error('[Auth] resetPassword error:', error);
+    (() => {})('[Auth] resetPassword error:', error);
     res.status(500).json({ message: 'Something went wrong. Please try again.' });
   }
 };
@@ -342,7 +342,7 @@ const ssoBridge = async (req, res) => {
       password_hash: user.password,
     });
   } catch (error) {
-    console.error('[Auth] ssoBridge error:', error);
+    (() => {})('[Auth] ssoBridge error:', error);
     res.status(500).json({ message: 'SSO bridge failed' });
   }
 };

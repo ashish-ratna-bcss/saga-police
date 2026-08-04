@@ -38,7 +38,7 @@ function enqueue(fn) {
     queue.push({ fn, resolve, reject });
     stats.queued++;
     if (queue.length > 1) {
-      console.log(`[CustomSentiment Queue] ${queue.length} requests queued (${stats.completed} completed, ${stats.failed} failed)`);
+      (() => {})(`[CustomSentiment Queue] ${queue.length} requests queued (${stats.completed} completed, ${stats.failed} failed)`);
     }
     pumpWorkers();
   });
@@ -108,7 +108,7 @@ async function analyzeSentiment(text) {
     return await enqueue(() => requestSentiment(text));
   } catch (err) {
     const detail = err?.response?.data?.detail || err?.message || 'custom sentiment request failed';
-    console.error(`[CustomSentiment] ${detail}`);
+    (() => {})(`[CustomSentiment] ${detail}`);
     return { sentiment: 'neutral', confidence: 0, provider: 'custom', model: MODEL_NAME, error: detail };
   }
 }

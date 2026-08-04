@@ -75,7 +75,7 @@ const parseDocxToHtml = async (buffer) => {
 
         // Log conversion warnings for debugging
         if (result.messages && result.messages.length > 0) {
-            console.log('[TemplateService] Mammoth warnings:', result.messages.map(m => m.message));
+            (() => {})('[TemplateService] Mammoth warnings:', result.messages.map(m => m.message));
         }
 
         return sanitizeHtml(result.value);

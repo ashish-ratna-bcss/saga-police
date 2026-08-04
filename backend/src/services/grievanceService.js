@@ -649,7 +649,7 @@ const archiveTwitterMediaSafe = async (mediaItems, contentId, archiveMediaFn = a
         const failures = archived.filter((item) => (item?.url || item?.video_url) && !item?.s3_url).length;
         return { media: archived, failures };
     } catch (error) {
-        console.error(`[Grievance] Failed to archive media for ${contentId}: ${error.message}`);
+        (() => {})(`[Grievance] Failed to archive media for ${contentId}: ${error.message}`);
         return { media: mediaItems, failures: mediaItems.length };
     }
 };
@@ -751,7 +751,7 @@ const upsertXGrievancesForSource = async (source, startDate = null, endDate = nu
 
         const preparedMention = await archiveMentionFn(mention, archiveMediaFn);
         if (preparedMention.upload_failures > 0) {
-            console.warn(`[Grievance] Partial media archive failure for tweet ${mention.tweet_id}: ${preparedMention.upload_failures} item(s)`);
+            (() => {})(`[Grievance] Partial media archive failure for tweet ${mention.tweet_id}: ${preparedMention.upload_failures} item(s)`);
         }
 
         const grievance = new GrievanceModel({

@@ -126,7 +126,7 @@ const createEvent = async (req, res) => {
           const settings = await Settings.findOne({ id: 'global_settings' });
           await scanEventOnce({ event, settings });
         } catch (err) {
-          console.warn(`[Events] Initial scan failed for ${event.id}: ${err.message}`);
+          (() => {})(`[Events] Initial scan failed for ${event.id}: ${err.message}`);
         }
       })();
     }
@@ -427,10 +427,10 @@ module.exports = {
               }
             );
           } catch (err) {
-            console.warn('[getEventContent] classify failed:', err.message);
+            (() => {})('[getEventContent] classify failed:', err.message);
           }
         })))
-        .catch((err) => console.warn('[getEventContent] classify batch failed:', err.message));
+        .catch((err) => (() => {})('[getEventContent] classify batch failed:', err.message));
 
       res.status(200).json({
         content,
@@ -451,7 +451,7 @@ module.exports = {
       }
       res.status(200).json(result);
     } catch (error) {
-      console.error('[GenerateKeywords] Error:', error.message);
+      (() => {})('[GenerateKeywords] Error:', error.message);
       res.status(500).json({ error: error.message });
     }
   },
@@ -716,7 +716,7 @@ module.exports = {
 
       res.status(200).json({ pdf_url: pdfUrl });
     } catch (error) {
-      console.error('[EventReportPdf] Error:', error.message);
+      (() => {})('[EventReportPdf] Error:', error.message);
       res.status(500).json({ message: error.message });
     }
   }

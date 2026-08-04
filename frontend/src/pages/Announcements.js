@@ -390,7 +390,7 @@ const Announcements = () => {
         } catch (err) {
             console.error('Keyword generation error:', err);
             toast.dismiss(toastId);
-            toast.error(err?.response?.data?.error || 'Failed to generate keywords. Ensure Ollama is running locally.');
+            toast.error(err?.response?.data?.error || 'Failed to generate keywords. Ensure BCSS LLM is running locally.');
         } finally {
             setGeneratingEventId(null);
         }

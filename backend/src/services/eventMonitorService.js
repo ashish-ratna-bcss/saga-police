@@ -142,7 +142,7 @@ const fetchUniqueByQueries = async (queries, fetcher) => {
         merged.push(...batch);
       }
     } catch (error) {
-      console.warn(`[EventMonitor] Query failed "${query}": ${error.message}`);
+      (() => {})(`[EventMonitor] Query failed "${query}": ${error.message}`);
     }
   }
   return uniqueById(merged);
@@ -277,7 +277,7 @@ const scanEventOnce = async ({ event, settings }) => {
       tweetMediaCache.set(cleanHandle, map);
       return map;
     } catch (error) {
-      console.warn(`[EventScan] Failed to hydrate media for @${cleanHandle}:`, error.message);
+      (() => {})(`[EventScan] Failed to hydrate media for @${cleanHandle}:`, error.message);
       tweetMediaCache.set(cleanHandle, null);
       return null;
     }
@@ -348,13 +348,13 @@ const scanEventOnce = async ({ event, settings }) => {
               });
             }
           } catch (err) {
-            console.error(`[EventMonitor] S3 Archive failed for X ${content.content_id}:`, err.message);
+            (() => {})(`[EventMonitor] S3 Archive failed for X ${content.content_id}:`, err.message);
           }
         }
       }
       trackPlatform('x', { ingested: ingested - xIngestedBefore });
     } catch (error) {
-      console.error(`[EventMonitor] Error monitoring X for event ${event.name}: ${error.message}`);
+      (() => {})(`[EventMonitor] Error monitoring X for event ${event.name}: ${error.message}`);
       errors.push({ platform: 'x', message: error.message });
     }
   }
@@ -407,10 +407,10 @@ const scanEventOnce = async ({ event, settings }) => {
       trackPlatform('youtube', { ingested: ingested - ytIngestedBefore });
     } catch (error) {
       if (error.code === 403 || (error.message && error.message.includes('quota'))) {
-        console.warn(`[EventMonitor] YouTube Quota Exceeded for event ${event.name}. Skipping YouTube scan.`);
+        (() => {})(`[EventMonitor] YouTube Quota Exceeded for event ${event.name}. Skipping YouTube scan.`);
         errors.push({ platform: 'youtube', message: 'YouTube API quota exceeded' });
       } else {
-        console.error(`[EventMonitor] Error monitoring YouTube for event ${event.name}: ${error.message}`);
+        (() => {})(`[EventMonitor] Error monitoring YouTube for event ${event.name}: ${error.message}`);
         errors.push({ platform: 'youtube', message: error.message });
       }
     }
@@ -476,13 +476,13 @@ const scanEventOnce = async ({ event, settings }) => {
               });
             }
           } catch (err) {
-            console.error(`[EventMonitor] S3 Archive failed for Facebook ${content.content_id}:`, err.message);
+            (() => {})(`[EventMonitor] S3 Archive failed for Facebook ${content.content_id}:`, err.message);
           }
         }
       }
       trackPlatform('facebook', { ingested: ingested - fbIngestedBefore });
     } catch (error) {
-      console.error(`[EventMonitor] Error monitoring Facebook for event ${event.name}: ${error.message}`);
+      (() => {})(`[EventMonitor] Error monitoring Facebook for event ${event.name}: ${error.message}`);
       errors.push({ platform: 'facebook', message: error.message });
     }
   }
@@ -535,13 +535,13 @@ const scanEventOnce = async ({ event, settings }) => {
               });
             }
           } catch (err) {
-            console.error(`[EventMonitor] S3 Archive failed for Instagram ${content.content_id}:`, err.message);
+            (() => {})(`[EventMonitor] S3 Archive failed for Instagram ${content.content_id}:`, err.message);
           }
         }
       }
       trackPlatform('instagram', { ingested: ingested - igIngestedBefore });
     } catch (error) {
-      console.error(`[EventMonitor] Error monitoring Instagram for event ${event.name}: ${error.message}`);
+      (() => {})(`[EventMonitor] Error monitoring Instagram for event ${event.name}: ${error.message}`);
       errors.push({ platform: 'instagram', message: error.message });
     }
   }

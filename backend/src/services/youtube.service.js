@@ -11,10 +11,21 @@ class YouTubeService {
         this.quotaLimit = 10000; // Default daily limit
     }
 
+    getKeyHealthStatus() {
+        return [{
+            key: 'YouTube',
+            available: true,
+            totalCalls: this.quotaUsed,
+            remaining: this.quotaLimit - this.quotaUsed,
+            limit: this.quotaLimit
+        }];
+    }
+
     // --- Channel Methods ---
 
     async getChannelDetails(channelId) {
         try {
+            this.quotaUsed++;
             const response = await this.youtube.channels.list({
                 part: ['snippet', 'statistics', 'brandingSettings', 'contentDetails'],
                 id: [channelId]
@@ -46,13 +57,14 @@ class YouTubeService {
                 country: channel.snippet.country
             };
         } catch (error) {
-            console.error('Error fetching channel details:', error);
+            (() => {})('Error fetching channel details:', error);
             throw error;
         }
     }
 
     async searchChannels(query, limit = 10) {
         try {
+            this.quotaUsed += 100;
             const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
             const response = await this.youtube.search.list({
                 part: ['snippet'],
@@ -64,6 +76,7 @@ class YouTubeService {
             const channelIds = response.data.items.map(item => item.snippet.channelId).filter(Boolean);
             if (channelIds.length === 0) return [];
 
+            this.quotaUsed++;
             // Fetch full channel details with statistics (subscriber counts)
             const detailsResponse = await this.youtube.channels.list({
                 part: ['snippet', 'statistics'],
@@ -88,10 +101,10 @@ class YouTubeService {
             });
         } catch (error) {
             if (error?.status === 403 || error?.code === 403 || error?.errors?.[0]?.reason === 'quotaExceeded') {
-                console.warn('[YouTube] API quota exceeded, returning empty results');
+                (() => {})('[YouTube] API quota exceeded, returning empty results');
                 return [];
             }
-            console.error('Error searching channels:', error);
+            (() => {})('Error searching channels:', error);
             throw error;
         }
     }
@@ -106,6 +119,7 @@ class YouTubeService {
                 const remaining = safeLimit - videoIds.length;
                 const pageSize = Math.min(remaining, 50);
 
+                this.quotaUsed += 100;
                 const response = await this.youtube.search.list({
                     part: ['snippet'],
                     q: query,
@@ -129,10 +143,10 @@ class YouTubeService {
             return await this.getVideoDetails(videoIds);
         } catch (error) {
             if (error?.status === 403 || error?.code === 403 || error?.errors?.[0]?.reason === 'quotaExceeded') {
-                console.warn('[YouTube] API quota exceeded, returning empty results');
+                (() => {})('[YouTube] API quota exceeded, returning empty results');
                 return [];
             }
-            console.error('Error searching videos:', error);
+            (() => {})('Error searching videos:', error);
             throw error;
         }
     }
@@ -141,6 +155,7 @@ class YouTubeService {
 
     async getVideosFromPlaylist(playlistId, maxResults = 50) {
         try {
+            this.quotaUsed++;
             const response = await this.youtube.playlistItems.list({
                 part: ['snippet', 'contentDetails'],
                 playlistId: playlistId,
@@ -150,7 +165,7 @@ class YouTubeService {
             const videoIds = response.data.items.map(item => item.contentDetails.videoId);
             return await this.getVideoDetails(videoIds);
         } catch (error) {
-            console.error('Error fetching playlist videos:', error);
+            (() => {})('Error fetching playlist videos:', error);
             throw error;
         }
     }
@@ -166,13 +181,14 @@ class YouTubeService {
         let allVideos = [];
         for (const chunk of chunks) {
             try {
+                this.quotaUsed++;
                 const response = await this.youtube.videos.list({
                     part: ['snippet', 'contentDetails', 'statistics'],
                     id: chunk
                 });
                 allVideos = allVideos.concat(response.data.items);
             } catch (error) {
-                console.error('Error fetching video details chunk:', error);
+                (() => {})('Error fetching video details chunk:', error);
             }
         }
 
@@ -199,6 +215,7 @@ class YouTubeService {
 
     async getVideoComments(videoId, maxResults = 100) {
         try {
+            this.quotaUsed++;
             const response = await this.youtube.commentThreads.list({
                 part: ['snippet', 'replies'],
                 videoId: videoId,
@@ -220,10 +237,10 @@ class YouTubeService {
         } catch (error) {
             // If comments are disabled, 403 error might occur, handle gracefully
             if (error.code === 403) {
-                console.warn(`Comments disabled or restricted for video ${videoId}`);
+                (() => {})(`Comments disabled or restricted for video ${videoId}`);
                 return [];
             }
-            console.error(`Error fetching comments for video ${videoId}:`, error);
+            (() => {})(`Error fetching comments for video ${videoId}:`, error);
             throw error;
         }
     }

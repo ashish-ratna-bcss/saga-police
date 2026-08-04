@@ -17,7 +17,7 @@ router.get('/search', async (req, res) => {
     const response = await axios.get(`${serviceUrl}/search`, { params: { username } });
     res.json(response.data);
   } catch (error) {
-    console.error('Error fetching Maigret data:', error.message);
+    (() => {})('Error fetching Maigret data:', error.message);
     res.status(error.response?.status || 500).json({ error: 'Failed to fetch Maigret data', details: error.message });
   }
 });

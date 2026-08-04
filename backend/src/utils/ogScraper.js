@@ -61,7 +61,7 @@ const scrapeOpenGraph = async (url) => {
         return ogData;
     } catch (error) {
         // Silently fail - URL scraping is best-effort
-        console.warn(`[OG Scraper] Failed to scrape ${url}: ${error.message}`);
+        (() => {})(`[OG Scraper] Failed to scrape ${url}: ${error.message}`);
         return null;
     }
 };

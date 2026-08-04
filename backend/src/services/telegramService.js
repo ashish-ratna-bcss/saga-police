@@ -11,7 +11,7 @@ const telegramS3Service = require('./telegramS3Service');
 
 const apiId = process.env.TELEGRAM_API_ID ? parseInt(process.env.TELEGRAM_API_ID) : null;
 const apiHash = process.env.TELEGRAM_API_HASH;
-console.log(`[Telegram Service] Module loaded. API_ID: ${apiId ? 'Defined' : 'UNDEFINED'}`);
+(() => {})(`[Telegram Service] Module loaded. API_ID: ${apiId ? 'Defined' : 'UNDEFINED'}`);
 
 let client = null;
 let connectionPromise = null;
@@ -89,7 +89,7 @@ const formatPhone = (phone) => {
 const initClient = async (sessionString = '') => {
     if (client) return client;
 
-    console.log('[Telegram Service] Initializing client. API_ID:', apiId ? 'Present' : 'MISSING');
+    (() => {})('[Telegram Service] Initializing client. API_ID:', apiId ? 'Present' : 'MISSING');
     if (!apiId || !apiHash) {
         throw new Error('TELEGRAM_API_ID or TELEGRAM_API_HASH missing in .env');
     }
@@ -117,26 +117,26 @@ const getClient = async () => {
 
     // If client exists but is totally stuck or disconnected
     if (!client.connected && !connectionPromise) {
-        console.log('[Telegram Service] Client disconnected. Attempting stable connection...');
+        (() => {})('[Telegram Service] Client disconnected. Attempting stable connection...');
         connectionPromise = (async () => {
             try {
                 // Manually start connection
                 await withTimeout(client.connect(), TELEGRAM_CONNECT_TIMEOUT_MS, 'connect');
-                console.log('[Telegram Service] Connection established.');
+                (() => {})('[Telegram Service] Connection established.');
             } catch (err) {
-                console.error('[Telegram Service] Connection fatal error:', err.message);
+                (() => {})('[Telegram Service] Connection fatal error:', err.message);
 
                 // Telegram invalidated this auth key (usually same session used elsewhere).
                 // Recover by clearing persisted session and switching to a fresh unauthenticated client.
                 if (isAuthKeyDuplicatedError(err)) {
-                    console.warn('[Telegram Service] AUTH_KEY_DUPLICATED detected. Clearing saved session and recovering fresh client...');
+                    (() => {})('[Telegram Service] AUTH_KEY_DUPLICATED detected. Clearing saved session and recovering fresh client...');
                     try {
                         await clearSavedTelegramSession();
                         await createFreshClientAndConnect();
-                        console.log('[Telegram Service] Fresh Telegram client connected. OTP login can continue.');
+                        (() => {})('[Telegram Service] Fresh Telegram client connected. OTP login can continue.');
                         return;
                     } catch (recoverErr) {
-                        console.error('[Telegram Service] Recovery after AUTH_KEY_DUPLICATED failed:', recoverErr.message);
+                        (() => {})('[Telegram Service] Recovery after AUTH_KEY_DUPLICATED failed:', recoverErr.message);
                     }
                 }
 
@@ -174,7 +174,7 @@ const sendCode = async (phone) => {
         throw new Error('Telegram client unavailable. Please retry in a few seconds.');
     }
     const formattedPhone = formatPhone(phone);
-    console.log(`[Telegram Service] Sending code to ${formattedPhone}...`);
+    (() => {})(`[Telegram Service] Sending code to ${formattedPhone}...`);
     const result = await withTimeout(tlClient.sendCode(
         {
             apiId: parseInt(apiId),
@@ -194,7 +194,7 @@ const signIn = async (phone, code, phoneCodeHash, password = '') => {
         throw new Error('Telegram client unavailable. Please retry in a few seconds.');
     }
     const formattedPhone = formatPhone(phone);
-    console.log(`[Telegram Service] Signing in for ${formattedPhone}...`);
+    (() => {})(`[Telegram Service] Signing in for ${formattedPhone}...`);
 
     try {
         let result;
@@ -210,7 +210,7 @@ const signIn = async (phone, code, phoneCodeHash, password = '') => {
         } catch (error) {
             // Handle 2FA if needed
             if (error.errorMessage === 'SESSION_PASSWORD_NEEDED' && password) {
-                console.log('[Telegram Service] 2FA required, checking password...');
+                (() => {})('[Telegram Service] 2FA required, checking password...');
                 const pwd = await withTimeout(tlClient.invoke(new Api.account.GetPassword()), TELEGRAM_AUTH_TIMEOUT_MS, 'fetch-password-state');
                 const passwordResult = await withTimeout(tlClient.invoke(
                     new Api.auth.CheckPassword({
@@ -223,11 +223,11 @@ const signIn = async (phone, code, phoneCodeHash, password = '') => {
             }
         }
 
-        console.log('[Telegram Service] Sign in successful. Saving session...');
+        (() => {})('[Telegram Service] Sign in successful. Saving session...');
         await saveSession();
         return { success: true, user: result.user };
     } catch (error) {
-        console.error('[Telegram Service] Sign in failed:', error);
+        (() => {})('[Telegram Service] Sign in failed:', error);
         throw error;
     }
 };
@@ -316,18 +316,18 @@ const joinGroup = async (usernameOrLink) => {
         }
     }
 
-    console.log(`[Telegram Service] Attempting to join. Identifier: ${identifier} | Extracted Hash: ${hash}`);
+    (() => {})(`[Telegram Service] Attempting to join. Identifier: ${identifier} | Extracted Hash: ${hash}`);
 
     try {
         if (hash) {
-            console.log(`[Telegram Service] Using ImportChatInvite for hash: ${hash}`);
+            (() => {})(`[Telegram Service] Using ImportChatInvite for hash: ${hash}`);
             result = await tlClient.invoke(
                 new Api.messages.ImportChatInvite({ hash })
             );
         } else {
             // Treat as public username or link
             const username = identifier.split('/').filter(Boolean).pop().replace('@', '').split('?')[0];
-            console.log(`[Telegram Service] Using JoinChannel for username: ${username}`);
+            (() => {})(`[Telegram Service] Using JoinChannel for username: ${username}`);
             result = await tlClient.invoke(
                 new Api.channels.JoinChannel({ channel: username })
             );
@@ -335,7 +335,7 @@ const joinGroup = async (usernameOrLink) => {
     } catch (err) {
         // Handle common errors gracefully
         if (err.message.includes('USER_ALREADY_PARTICIPANT')) {
-            console.log('[Telegram Service] Already a member of this group. Fetching info...');
+            (() => {})('[Telegram Service] Already a member of this group. Fetching info...');
             // If already a participant, try to get the channel info via its username or hash
             try {
                 // If it was a username, we can just resolve it
@@ -361,7 +361,7 @@ const joinGroup = async (usernameOrLink) => {
         } else if (err.message.includes('INVITE_HASH_INVALID')) {
             throw new Error('Invalid invite link or hash.');
         } else if (err.message.includes('INVITE_REQUEST_SENT')) {
-            console.log('[Telegram Service] Join request already sent (from error).');
+            (() => {})('[Telegram Service] Join request already sent (from error).');
             // Save as pending in database so we can track it
             await TelegramGroup.findOneAndUpdate(
                 { invite_link: identifier },
@@ -382,14 +382,14 @@ const joinGroup = async (usernameOrLink) => {
                 message: 'Join request has been sent and is pending admin approval.'
             };
         } else if (err.errorMessage === 'FLOOD' || err.code === 420) {
-            console.warn(`[Telegram Service] FloodWait hit: ${err.seconds} seconds required.`);
+            (() => {})(`[Telegram Service] FloodWait hit: ${err.seconds} seconds required.`);
             return {
                 error: 'flood_wait',
                 seconds: err.seconds || 0,
                 message: `Telegram rate limit hit. Please wait ${Math.ceil((err.seconds || 0) / 60)} minutes before joining more groups.`
             };
         } else {
-            console.error('[Telegram Service] Join failed:', err);
+            (() => {})('[Telegram Service] Join failed:', err);
             throw err;
         }
     }
@@ -422,7 +422,7 @@ const joinGroup = async (usernameOrLink) => {
 
     // Handle InviteRequestSent (updates.InviteRequestSent)
     if (result && (result.className === 'updates.InviteRequestSent' || result.className === 'InviteRequestSent')) {
-        console.log('[Telegram Service] Join request sent and pending approval.');
+        (() => {})('[Telegram Service] Join request sent and pending approval.');
         // Save as pending in database
         await TelegramGroup.findOneAndUpdate(
             { invite_link: identifier },
@@ -453,14 +453,14 @@ const joinGroup = async (usernameOrLink) => {
  */
 const syncJoinedGroups = async (force = false) => {
     if (isSyncing && !force) {
-        console.log('[Telegram Service] Sync already in progress, skipping syncJoinedGroups...');
+        (() => {})('[Telegram Service] Sync already in progress, skipping syncJoinedGroups...');
         return [];
     }
 
     isSyncing = true;
     try {
         const tlClient = await getClient();
-        console.log('[Telegram Service] Syncing joined groups from dialogs (limit: 200)...');
+        (() => {})('[Telegram Service] Syncing joined groups from dialogs (limit: 200)...');
         const dialogs = await tlClient.getDialogs({ limit: 200 });
         const syncResults = [];
         const seenInTelegram = new Set();
@@ -505,7 +505,7 @@ const syncJoinedGroups = async (force = false) => {
                     syncResults.push(group);
                 } catch (err) {
                     if (err.code === 11000) {
-                        console.warn(`[Telegram Service] Duplicate key during syncJoinedGroups: ${chat.id}`);
+                        (() => {})(`[Telegram Service] Duplicate key during syncJoinedGroups: ${chat.id}`);
                     } else {
                         throw err;
                     }
@@ -518,15 +518,15 @@ const syncJoinedGroups = async (force = false) => {
         for (const dbg of dbGroups) {
             const rawId = dbg.telegram_id.replace('-100', '');
             if (!seenInTelegram.has(rawId) && !seenInTelegram.has(`-${rawId}`) && !seenInTelegram.has(dbg.telegram_id)) {
-                console.log(`[Telegram Service] Auto-cleanup: Group ${dbg.title} (${dbg.telegram_id}) no longer in dialogs. Marking as left.`);
+                (() => {})(`[Telegram Service] Auto-cleanup: Group ${dbg.title} (${dbg.telegram_id}) no longer in dialogs. Marking as left.`);
                 await TelegramGroup.updateOne({ id: dbg.id }, { $set: { status: 'left', is_active: false } });
             }
         }
 
-        console.log(`[Telegram Service] Sync complete. Processed ${syncResults.length} live groups.`);
+        (() => {})(`[Telegram Service] Sync complete. Processed ${syncResults.length} live groups.`);
         return syncResults;
     } catch (error) {
-        console.error('[Telegram Service] Sync failed:', error);
+        (() => {})('[Telegram Service] Sync failed:', error);
         throw error;
     } finally {
         isSyncing = false;
@@ -548,7 +548,7 @@ const resolvePeer = async (tlClient, dbGroup) => {
                 if (ent && ent.accessHash) {
                     const newHash = ent.accessHash.toString();
                     if (dbGroup.access_hash !== newHash) {
-                        console.log(`[Telegram Service] Persisting discovered access_hash for ${dbGroup.title}: ${newHash}`);
+                        (() => {})(`[Telegram Service] Persisting discovered access_hash for ${dbGroup.title}: ${newHash}`);
                         await TelegramGroup.updateOne({ id: dbGroup.id }, { $set: { access_hash: newHash } });
                         dbGroup.access_hash = newHash;
                     }
@@ -572,7 +572,7 @@ const resolvePeer = async (tlClient, dbGroup) => {
                         accessHash: BigInt(dbGroup.access_hash)
                     }));
                 } catch (e) {
-                    console.warn(`[Telegram Service] ID+Hash failed for ${dbGroup.title}, trying numeric ID...`);
+                    (() => {})(`[Telegram Service] ID+Hash failed for ${dbGroup.title}, trying numeric ID...`);
                 }
             }
 
@@ -584,7 +584,7 @@ const resolvePeer = async (tlClient, dbGroup) => {
                 return await repairHash(entity);
             } catch (e) {
                 // 4. Final Fallback: Dialogs
-                console.warn(`[Telegram Service] getEntity failed for ${dbGroup.title}, trying dialogs...`);
+                (() => {})(`[Telegram Service] getEntity failed for ${dbGroup.title}, trying dialogs...`);
                 const dialogs = await tlClient.getDialogs({ limit: 100 });
                 const rawId = dbGroup.telegram_id.replace('-100', '');
                 const found = dialogs.find(d => {
@@ -598,7 +598,7 @@ const resolvePeer = async (tlClient, dbGroup) => {
                 return await repairHash(entity);
             }
         } catch (error) {
-            console.error(`[Telegram Service] Resolution failed for ${dbGroup.title}:`, error.message);
+            (() => {})(`[Telegram Service] Resolution failed for ${dbGroup.title}:`, error.message);
             throw error;
         } finally {
             resolutionMap.delete(groupId);
@@ -667,7 +667,7 @@ const fetchMessages = async (groupId, limit = 50, markAsRead = false) => {
         const currentChat = result.chats.find(c => c.id?.toString() === dbGroup.telegram_id.replace('-100', ''));
         if (currentChat && currentChat.accessHash && (!dbGroup.access_hash || dbGroup.access_hash !== currentChat.accessHash.toString())) {
             const newHash = currentChat.accessHash.toString();
-            console.log(`[Telegram Service] Auto-repairing access_hash for group ${dbGroup.title}: ${newHash}`);
+            (() => {})(`[Telegram Service] Auto-repairing access_hash for group ${dbGroup.title}: ${newHash}`);
             await TelegramGroup.updateOne({ id: dbGroup.id }, { $set: { access_hash: newHash } });
         }
     }
@@ -790,11 +790,11 @@ const fetchMessages = async (groupId, limit = 50, markAsRead = false) => {
 
                 if (msg.media && saved && needsArchiving) {
                     archiveMessageMedia(tlClient, dbGroup, saved, msg).catch(err =>
-                        console.error(`[Telegram Service] Background archival failed for msg ${msg.id}:`, err.message)
+                        (() => {})(`[Telegram Service] Background archival failed for msg ${msg.id}:`, err.message)
                     );
                 }
             } catch (e) {
-                console.error('[Telegram Service] Error processing message:', e);
+                (() => {})('[Telegram Service] Error processing message:', e);
             }
         }
     }
@@ -806,12 +806,12 @@ const fetchMessages = async (groupId, limit = 50, markAsRead = false) => {
                 peer: peer,
                 maxId: maxMsgId
             }));
-            console.log(`[Telegram Service] Phone sync: Marked history as read for ${dbGroup.title} up to message ID ${maxMsgId}`);
+            (() => {})(`[Telegram Service] Phone sync: Marked history as read for ${dbGroup.title} up to message ID ${maxMsgId}`);
 
             // Immediately clear the unread count in DB too
             await TelegramGroup.updateOne({ id: groupId }, { $set: { unread_count: 0 } });
         } catch (readErr) {
-            console.warn(`[Telegram Service] Failed to sync read receipt to phone for ${dbGroup.title}:`, readErr.message);
+            (() => {})(`[Telegram Service] Failed to sync read receipt to phone for ${dbGroup.title}:`, readErr.message);
         }
     }
 
@@ -867,7 +867,7 @@ const searchDialogsForKeyword = async (keyword) => {
             }
         }
     } catch (err) {
-        console.warn('[Telegram Service] Dialog scan warning:', err.message);
+        (() => {})('[Telegram Service] Dialog scan warning:', err.message);
     }
     return found;
 };
@@ -888,7 +888,7 @@ const searchDialogsForKeyword = async (keyword) => {
  */
 const discoverInviteLinks = async (keyword, hubOffset = 0, deepScan = false, autoJoin = false) => {
     const tlClient = await getClient();
-    console.log(`[Telegram Service] Advanced Discovery for: "${keyword}" (Offset: ${hubOffset}, Deep: ${deepScan}, AutoJoin: ${autoJoin})`);
+    (() => {})(`[Telegram Service] Advanced Discovery for: "${keyword}" (Offset: ${hubOffset}, Deep: ${deepScan}, AutoJoin: ${autoJoin})`);
 
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
     const results = [];
@@ -916,13 +916,13 @@ const discoverInviteLinks = async (keyword, hubOffset = 0, deepScan = false, aut
                 results.push(searchResult);
                 await delay(500);
             } catch (err) {
-                console.warn(`[Telegram Service] Strategy failed for "${query}":`, err.message);
+                (() => {})(`[Telegram Service] Strategy failed for "${query}":`, err.message);
             }
         }
 
         // Strategy 5: Web Index Search (Native TG Meta Search)
         if (deepScan) {
-            console.log('[Telegram Service] Strategy 5: Web Index Search (Native TG Meta Search)...');
+            (() => {})('[Telegram Service] Strategy 5: Web Index Search (Native TG Meta Search)...');
             // Web scraping disabled due to anti-bot protections.
             // Relying only on native search queries for directories now.
 
@@ -947,7 +947,7 @@ const discoverInviteLinks = async (keyword, hubOffset = 0, deepScan = false, aut
     }
 
     // --- Strategy 4 & 6: Hub Scanning & Spidering ---
-    console.log(`[Telegram Service] Hub Scanning (Offset: ${hubOffset})`);
+    (() => {})(`[Telegram Service] Hub Scanning (Offset: ${hubOffset})`);
     try {
         const publicHubs = await tlClient.invoke(
             new Api.contacts.Search({ q: keyword, limit: 15 })
@@ -976,7 +976,7 @@ const discoverInviteLinks = async (keyword, hubOffset = 0, deepScan = false, aut
 
             // Strategy 7: Bio/About Scraping
             if (deepScan) {
-                console.log(`[Telegram Service] Strategy 7: Scraping Metadata for ${chat.title}`);
+                (() => {})(`[Telegram Service] Strategy 7: Scraping Metadata for ${chat.title}`);
                 try {
                     const fullChat = await tlClient.invoke(
                         chat.broadcast
@@ -993,7 +993,7 @@ const discoverInviteLinks = async (keyword, hubOffset = 0, deepScan = false, aut
             await delay(300);
         }
     } catch (err) {
-        console.warn('[Telegram Service] Hub Search failed:', err.message);
+        (() => {})('[Telegram Service] Hub Search failed:', err.message);
     }
 
     // --- Extraction & Deduplication ---
@@ -1038,17 +1038,17 @@ const discoverInviteLinks = async (keyword, hubOffset = 0, deepScan = false, aut
 
             // Optional Auto-Join (Sequential with delay to avoid flood)
             if (autoJoin && hubOffset === 0) {
-                console.log(`[Telegram Service] Auto-Joining: ${hash}`);
+                (() => {})(`[Telegram Service] Auto-Joining: ${hash}`);
                 try {
                     const joinRes = await joinGroup(match[0]);
                     if (joinRes && joinRes.error === 'flood_wait') {
-                        console.warn(`[Telegram Service] Auto-Join stopped due to FloodWait (${joinRes.seconds}s)`);
+                        (() => {})(`[Telegram Service] Auto-Join stopped due to FloodWait (${joinRes.seconds}s)`);
                         floodWaitData = { seconds: joinRes.seconds, message: joinRes.message };
                         break; // Stop auto-joining if we hit a flood wait
                     }
                     await new Promise(r => setTimeout(r, 2500)); // 2.5s delay between joins
                 } catch (err) {
-                    console.warn(`[Telegram Service] Auto-Join failed for ${hash}:`, err.message);
+                    (() => {})(`[Telegram Service] Auto-Join failed for ${hash}:`, err.message);
                 }
             }
         }
@@ -1096,7 +1096,7 @@ const discoverInviteLinks = async (keyword, hubOffset = 0, deepScan = false, aut
         });
     }
 
-    console.log(`[Telegram Service] Discovery found ${discoveryMap.size} unique results`);
+    (() => {})(`[Telegram Service] Discovery found ${discoveryMap.size} unique results`);
     return {
         results: Array.from(discoveryMap.values()),
         floodWait: floodWaitData
@@ -1114,11 +1114,11 @@ const downloadMedia = async (groupId, messageId) => {
     });
     if (!dbGroup) throw new Error('Group not found in database');
 
-    console.log(`[Telegram Service] Media Request: Msg ${messageId} | Group: ${dbGroup.title} (${dbGroup.telegram_id})`);
+    (() => {})(`[Telegram Service] Media Request: Msg ${messageId} | Group: ${dbGroup.title} (${dbGroup.telegram_id})`);
 
     try {
         let peer = await resolvePeer(tlClient, dbGroup);
-        console.log(`[Telegram Service] Resolved Peer: ${peer.className} with ID ${peer.id}`);
+        (() => {})(`[Telegram Service] Resolved Peer: ${peer.className} with ID ${peer.id}`);
 
         const messages = await tlClient.getMessages(peer, {
             ids: [parseInt(messageId)]
@@ -1126,12 +1126,12 @@ const downloadMedia = async (groupId, messageId) => {
 
         const msg = messages[0];
         if (!msg || msg.className === 'MessageEmpty') {
-            console.error(`[Telegram Service] Message ${messageId} not found in peer ${peer.className}`);
+            (() => {})(`[Telegram Service] Message ${messageId} not found in peer ${peer.className}`);
             throw new Error('Message not found');
         }
 
         if (!msg.media) {
-            console.error('[Telegram Service] Message has no media:', messageId);
+            (() => {})('[Telegram Service] Message has no media:', messageId);
             throw new Error('No media found');
         }
 
@@ -1140,7 +1140,7 @@ const downloadMedia = async (groupId, messageId) => {
         if (messageDoc && messageDoc.media && messageDoc.media.length > 0) {
             const cachedMedia = messageDoc.media.find(m => m.s3_url);
             if (cachedMedia && cachedMedia.s3_url) {
-                console.log(`[Telegram Service] Found media in S3 cache: ${cachedMedia.s3_url}`);
+                (() => {})(`[Telegram Service] Found media in S3 cache: ${cachedMedia.s3_url}`);
                 try {
                     const response = await axios.get(cachedMedia.s3_url, { responseType: 'arraybuffer' });
                     return {
@@ -1149,12 +1149,12 @@ const downloadMedia = async (groupId, messageId) => {
                         fileName: cachedMedia.fileName || ''
                     };
                 } catch (s3Err) {
-                    console.warn(`[Telegram Service] S3 cache fetch failed, falling back to Telegram: ${s3Err.message}`);
+                    (() => {})(`[Telegram Service] S3 cache fetch failed, falling back to Telegram: ${s3Err.message}`);
                 }
             }
         }
 
-        console.log(`[Telegram Service] Downloading media from Telegram (type: ${msg.media.className})...`);
+        (() => {})(`[Telegram Service] Downloading media from Telegram (type: ${msg.media.className})...`);
         const buffer = await tlClient.downloadMedia(msg.media, {
             workers: 4
         });
@@ -1166,11 +1166,11 @@ const downloadMedia = async (groupId, messageId) => {
         // --- NEW: Trigger background archival so it's ready for next time ---
         if (messageDoc) {
             archiveMessageMedia(tlClient, dbGroup, messageDoc, msg).catch(err =>
-                console.error(`[Telegram Service] Post-download archival failed:`, err.message)
+                (() => {})(`[Telegram Service] Post-download archival failed:`, err.message)
             );
         }
 
-        console.log(`[Telegram Service] Telegram download success. Size: ${buffer.length} bytes`);
+        (() => {})(`[Telegram Service] Telegram download success. Size: ${buffer.length} bytes`);
 
         let mimeType = 'image/jpeg';
         let fileName = '';
@@ -1184,7 +1184,7 @@ const downloadMedia = async (groupId, messageId) => {
 
         return { buffer, mimeType, fileName };
     } catch (error) {
-        console.error('[Telegram Service] downloadMedia failure:', error);
+        (() => {})('[Telegram Service] downloadMedia failure:', error);
         throw error;
     }
 };
@@ -1195,7 +1195,7 @@ const downloadMedia = async (groupId, messageId) => {
  */
 const checkPendingGroups = async (force = false) => {
     if (isSyncing && !force) {
-        console.log('[Telegram Service] Sync already in progress, skipping checkPendingGroups...');
+        (() => {})('[Telegram Service] Sync already in progress, skipping checkPendingGroups...');
         return { accepted: [], still_pending: [] };
     }
     isSyncing = true;
@@ -1208,7 +1208,7 @@ const checkPendingGroups = async (force = false) => {
 
 const _checkPendingGroups = async () => {
     try {
-        console.log('[Telegram Service] Syncing real-time group status and messaging counts...');
+        (() => {})('[Telegram Service] Syncing real-time group status and messaging counts...');
         const tlClient = await getClient();
         const dialogs = await tlClient.getDialogs({ limit: 200 });
 
@@ -1238,10 +1238,10 @@ const _checkPendingGroups = async () => {
                     }
                 } catch (err) {
                     if (err.errorMessage === 'FLOOD' || err.code === 420 || err.message.includes('FLOOD')) {
-                        console.warn(`[Telegram Service] FloodWait hit during checkPending: ${err.seconds || 'unknown'} seconds. Halting CheckChatInvite for now.`);
+                        (() => {})(`[Telegram Service] FloodWait hit during checkPending: ${err.seconds || 'unknown'} seconds. Halting CheckChatInvite for now.`);
                         hitFloodLimit = true;
                     } else {
-                        console.warn(`[Telegram Service] CheckChatInvite metadata for ${pg.invite_link}: ${err.message}`);
+                        (() => {})(`[Telegram Service] CheckChatInvite metadata for ${pg.invite_link}: ${err.message}`);
                     }
                 }
             }
@@ -1284,10 +1284,10 @@ const _checkPendingGroups = async () => {
                         { new: true }
                     );
                     accepted.push(group);
-                    console.log(`[Telegram Service] Pending group accepted: ${found.title}`);
+                    (() => {})(`[Telegram Service] Pending group accepted: ${found.title}`);
                 } catch (err) {
                     if (err.code === 11000) {
-                        console.warn(`[Telegram Service] Duplicate key error (joined) for ${found.title}, skipping...`);
+                        (() => {})(`[Telegram Service] Duplicate key error (joined) for ${found.title}, skipping...`);
                     } else {
                         throw err;
                     }
@@ -1322,7 +1322,7 @@ const _checkPendingGroups = async () => {
                     (existing.top_message_id || 0) < topMsgId;
 
                 if (hasChanged) {
-                    console.log(`[Telegram Service] Activity detected for ${chat.title}: Unread: ${unreadCount}, TopMsg: ${topMsgId}`);
+                    (() => {})(`[Telegram Service] Activity detected for ${chat.title}: Unread: ${unreadCount}, TopMsg: ${topMsgId}`);
                     await TelegramGroup.findOneAndUpdate(
                         { _id: existing._id },
                         {
@@ -1357,10 +1357,10 @@ const _checkPendingGroups = async () => {
                         { upsert: true, new: true }
                     );
                     accepted.push(group);
-                    console.log(`[Telegram Service] New group from mobile: ${chat.title}`);
+                    (() => {})(`[Telegram Service] New group from mobile: ${chat.title}`);
                 } catch (err) {
                     if (err.code === 11000) {
-                        console.warn(`[Telegram Service] Duplicate key error (mobile) for ${chat.title}, skipping...`);
+                        (() => {})(`[Telegram Service] Duplicate key error (mobile) for ${chat.title}, skipping...`);
                     } else {
                         throw err;
                     }
@@ -1368,10 +1368,10 @@ const _checkPendingGroups = async () => {
             }
         }
 
-        console.log(`[Telegram Service] Sync complete: ${accepted.length} newly accepted/joined, ${stillPending.length} still pending, ${syncCount} existing groups updated with live counts.`);
+        (() => {})(`[Telegram Service] Sync complete: ${accepted.length} newly accepted/joined, ${stillPending.length} still pending, ${syncCount} existing groups updated with live counts.`);
         return { accepted, still_pending: stillPending };
     } catch (error) {
-        console.error('[Telegram Service] checkPendingGroups failure:', error);
+        (() => {})('[Telegram Service] checkPendingGroups failure:', error);
         throw error;
     }
 };
@@ -1381,14 +1381,14 @@ const _checkPendingGroups = async () => {
  */
 const scrapeAllGroups = async (limit = 30, force = false) => {
     if (isSyncing && !force) {
-        console.log('[Telegram Service] Sync already in progress, skipping scrapeAllGroups...');
+        (() => {})('[Telegram Service] Sync already in progress, skipping scrapeAllGroups...');
         return [];
     }
 
     isSyncing = true;
     try {
         const groups = await TelegramGroup.find({ status: 'joined', is_active: true });
-        console.log(`[Telegram Service] Batch scraping ${groups.length} groups...`);
+        (() => {})(`[Telegram Service] Batch scraping ${groups.length} groups...`);
 
         const results = [];
         for (const group of groups) {
@@ -1396,7 +1396,7 @@ const scrapeAllGroups = async (limit = 30, force = false) => {
                 const messages = await fetchMessages(group.id, limit);
                 results.push({ group_id: group.id, title: group.title, count: messages.length, success: true });
             } catch (err) {
-                console.warn(`[Telegram Service] Scrape failed for ${group.title}:`, err.message);
+                (() => {})(`[Telegram Service] Scrape failed for ${group.title}:`, err.message);
                 results.push({ group_id: group.id, title: group.title, count: 0, success: false, error: err.message });
             }
             // Small delay to avoid flood
@@ -1422,7 +1422,7 @@ const leaveGroup = async (groupId) => {
     });
     if (!dbGroup) throw new Error('Group not found in database');
 
-    console.log(`[Telegram Service] Leaving group: ${dbGroup.title}`);
+    (() => {})(`[Telegram Service] Leaving group: ${dbGroup.title}`);
 
     // For pending groups, just update DB status
     if (dbGroup.status === 'pending') {
@@ -1435,7 +1435,7 @@ const leaveGroup = async (groupId) => {
         await tlClient.invoke(
             new Api.channels.LeaveChannel({ channel: peer })
         );
-        console.log(`[Telegram Service] Successfully left: ${dbGroup.title}`);
+        (() => {})(`[Telegram Service] Successfully left: ${dbGroup.title}`);
     } catch (err) {
         // If it's a Chat (not Channel), try deleteChatUser
         if (err.message?.includes('CHANNEL_INVALID') || err.message?.includes('PEER_ID_INVALID')) {
@@ -1447,10 +1447,10 @@ const leaveGroup = async (groupId) => {
                     })
                 );
             } catch (innerErr) {
-                console.warn(`[Telegram Service] Could not leave via API: ${innerErr.message}. Updating DB only.`);
+                (() => {})(`[Telegram Service] Could not leave via API: ${innerErr.message}. Updating DB only.`);
             }
         } else {
-            console.warn(`[Telegram Service] Leave API error: ${err.message}. Updating DB only.`);
+            (() => {})(`[Telegram Service] Leave API error: ${err.message}. Updating DB only.`);
         }
     }
 
@@ -1462,7 +1462,7 @@ const leaveGroup = async (groupId) => {
  * Helper to mark a group as left/deactivated when it's no longer accessible via API.
  */
 const deactivateGroup = async (groupId, reason = 'unknown') => {
-    console.log(`[Telegram Service] Deactivating group ${groupId}. Reason: ${reason}`);
+    (() => {})(`[Telegram Service] Deactivating group ${groupId}. Reason: ${reason}`);
     await TelegramGroup.updateOne(
         {
             $or: [
@@ -1505,7 +1505,7 @@ const markAsRead = async (groupId) => {
         await TelegramGroup.updateOne({ _id: dbGroup._id }, { $set: { unread_count: 0 } });
         return { success: true };
     } catch (err) {
-        console.warn(`[Telegram Service] markAsRead failed for ${dbGroup.title}:`, err.message);
+        (() => {})(`[Telegram Service] markAsRead failed for ${dbGroup.title}:`, err.message);
         // Still clear local DB count if user viewed it
         await TelegramGroup.updateOne({ _id: dbGroup._id }, { $set: { unread_count: 0 } });
         return { success: false, error: err.message };
@@ -1526,14 +1526,14 @@ const deleteGroup = async (groupId, deleteMessages = true) => {
     });
     if (!dbGroup) throw new Error('Group not found in database');
 
-    console.log(`[Telegram Service] Deleting group: ${dbGroup.title} (deleteMessages: ${deleteMessages})`);
+    (() => {})(`[Telegram Service] Deleting group: ${dbGroup.title} (deleteMessages: ${deleteMessages})`);
 
     // Leave if still joined
     if (dbGroup.status === 'joined') {
         try {
             await leaveGroup(groupId);
         } catch (err) {
-            console.warn(`[Telegram Service] Leave before delete failed: ${err.message}`);
+            (() => {})(`[Telegram Service] Leave before delete failed: ${err.message}`);
         }
     }
 
@@ -1542,12 +1542,12 @@ const deleteGroup = async (groupId, deleteMessages = true) => {
     if (deleteMessages) {
         const result = await TelegramMessage.deleteMany({ group_id: groupId });
         deletedMessages = result.deletedCount || 0;
-        console.log(`[Telegram Service] Deleted ${deletedMessages} messages for group: ${dbGroup.title}`);
+        (() => {})(`[Telegram Service] Deleted ${deletedMessages} messages for group: ${dbGroup.title}`);
     }
 
     // Delete the group record
     await TelegramGroup.deleteOne({ _id: dbGroup._id });
-    console.log(`[Telegram Service] Group record deleted: ${dbGroup.title}`);
+    (() => {})(`[Telegram Service] Group record deleted: ${dbGroup.title}`);
 
     return {
         success: true,
@@ -1570,7 +1570,7 @@ const rejoinGroup = async (groupId) => {
     if (!dbGroup) throw new Error('Group not found in database');
     if (dbGroup.status === 'joined') throw new Error('Already a member of this group');
 
-    console.log(`[Telegram Service] Rejoining group: ${dbGroup.title}`);
+    (() => {})(`[Telegram Service] Rejoining group: ${dbGroup.title}`);
 
     // Determine identifier to use for joining
     let identifier = '';
@@ -1599,7 +1599,7 @@ const logout = async () => {
         try {
             await client.disconnect();
         } catch (e) {
-            console.warn('[Telegram Service] Error disconnecting during logout:', e.message);
+            (() => {})('[Telegram Service] Error disconnecting during logout:', e.message);
         }
         client = null;
         connectionPromise = null;
@@ -1611,7 +1611,7 @@ const logout = async () => {
         { $unset: { telegram_session: "" } }
     );
 
-    console.log('[Telegram Service] Logged out successfully.');
+    (() => {})('[Telegram Service] Logged out successfully.');
 };
 
 /**
@@ -1626,7 +1626,7 @@ const startTelegramAutoSync = () => {
     if (autoSyncRunning) return;
     autoSyncRunning = true;
 
-    console.log('[Telegram Service] Starting Background Auto-Sync');
+    (() => {})('[Telegram Service] Starting Background Auto-Sync');
 
     // Run once after 1 minute of startup to give connection time to stabilize
     setTimeout(() => runSyncCycle(), 60000);
@@ -1654,7 +1654,7 @@ const startTelegramAutoSync = () => {
 
 const runSyncCycle = async (force = false) => {
     if (isSyncing && !force) {
-        console.log('[Telegram Service] Sync already in progress, skipping runSyncCycle...');
+        (() => {})('[Telegram Service] Sync already in progress, skipping runSyncCycle...');
         return;
     }
 
@@ -1662,7 +1662,7 @@ const runSyncCycle = async (force = false) => {
     try {
         const auth = await checkStatus();
         if (!auth.authenticated) {
-            console.log('[Telegram Service] Auto-Sync skipped: Not authenticated');
+            (() => {})('[Telegram Service] Auto-Sync skipped: Not authenticated');
             return;
         }
 
@@ -1672,7 +1672,7 @@ const runSyncCycle = async (force = false) => {
         // 2. Identify groups that actually have new messages
         const allJoined = await TelegramGroup.find({ status: 'joined', is_active: true });
         if (allJoined.length > 0) {
-            console.log(`[Telegram Service] Sync Cycle: Tracking ${allJoined.length} active groups. [Activity: ${allJoined.map(g => `${g.title}: ${g.unread_count || 0} / New: ${(g.top_message_id || 0) > (g.last_message_id || 0)}`).join(', ')}]`);
+            (() => {})(`[Telegram Service] Sync Cycle: Tracking ${allJoined.length} active groups. [Activity: ${allJoined.map(g => `${g.title}: ${g.unread_count || 0} / New: ${(g.top_message_id || 0) > (g.last_message_id || 0)}`).join(', ')}]`);
         }
 
         const groupsToScrape = allJoined.filter(g =>
@@ -1680,7 +1680,7 @@ const runSyncCycle = async (force = false) => {
         );
 
         if (groupsToScrape.length > 0) {
-            console.log(`[Telegram Service] Auto-Scraping ${groupsToScrape.length} groups with new activity: ${groupsToScrape.map(g => g.title).join(', ')}`);
+            (() => {})(`[Telegram Service] Auto-Scraping ${groupsToScrape.length} groups with new activity: ${groupsToScrape.map(g => g.title).join(', ')}`);
             for (const group of groupsToScrape) {
                 try {
                     // Fetch up to 50 messages to ensure we catch the unread ones
@@ -1688,12 +1688,12 @@ const runSyncCycle = async (force = false) => {
                     // Small delay between groups to avoid flood
                     await new Promise(r => setTimeout(r, 2000));
                 } catch (err) {
-                    console.error(`[Telegram Service] Auto-Scrape failed for ${group.title}:`, err.message);
+                    (() => {})(`[Telegram Service] Auto-Scrape failed for ${group.title}:`, err.message);
                 }
             }
         }
     } catch (error) {
-        console.error('[Telegram Service] Critical error in Auto-Sync cycle:', error.message);
+        (() => {})('[Telegram Service] Critical error in Auto-Sync cycle:', error.message);
     } finally {
         isSyncing = false;
     }
@@ -1716,7 +1716,7 @@ const archiveMessageMedia = async (tlClient, dbGroup, messageDoc, gramJsMsg) => 
         if (item.s3_url || item.type === 'link' || item.type === 'other') continue;
 
         try {
-            console.log(`[Telegram Service] Archiving media for msg ${gramJsMsg.id} in group ${dbGroup.title}...`);
+            (() => {})(`[Telegram Service] Archiving media for msg ${gramJsMsg.id} in group ${dbGroup.title}...`);
 
             // Generate S3 Key
             const ext = item.mimeType ? item.mimeType.split('/').pop() : 'dat';
@@ -1727,7 +1727,7 @@ const archiveMessageMedia = async (tlClient, dbGroup, messageDoc, gramJsMsg) => 
             const alreadyExists = await telegramS3Service.existsInS3(s3Key);
 
             if (alreadyExists) {
-                console.log(`[Telegram Service] Media already on disk: ${s3Key}`);
+                (() => {})(`[Telegram Service] Media already on disk: ${s3Key}`);
                 const publicBase = (process.env.PUBLIC_BACKEND_URL || `http://localhost:${process.env.PORT || 8000}`).replace(/\/+$/, '');
                 s3Result = {
                     url: `${publicBase}/files/${s3Key.split('/').map(encodeURIComponent).join('/')}`,
@@ -1743,7 +1743,7 @@ const archiveMessageMedia = async (tlClient, dbGroup, messageDoc, gramJsMsg) => 
 
                 // Upload to S3
                 s3Result = await telegramS3Service.uploadToS3(buffer, s3Key, item.mimeType || 'application/octet-stream');
-                console.log(`[Telegram Service] ✅ Archived to S3: ${s3Result.url}`);
+                (() => {})(`[Telegram Service] ✅ Archived to S3: ${s3Result.url}`);
             }
 
             if (s3Result) {
@@ -1752,7 +1752,7 @@ const archiveMessageMedia = async (tlClient, dbGroup, messageDoc, gramJsMsg) => 
                 changed = true;
             }
         } catch (err) {
-            console.error(`[Telegram Service] ❌ Failed to archive media item ${i} for msg ${gramJsMsg.id}:`, err.message);
+            (() => {})(`[Telegram Service] ❌ Failed to archive media item ${i} for msg ${gramJsMsg.id}:`, err.message);
         }
     }
 

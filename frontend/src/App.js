@@ -63,6 +63,7 @@ const MaigretSearch = lazy(() => import('./pages/MaigretSearch'));
 const WhatsMyNameSearch = lazy(() => import('./pages/WhatsMyNameSearch'));
 const AiAssistant = lazy(() => import('./pages/AiAssistant'));
 const PostLocationLookup = lazy(() => import('./pages/PostLocationLookup'));
+const SystemHealth = lazy(() => import('./pages/SystemHealth'));
 
 // Loading fallback
 const PageLoader = () => (
@@ -132,6 +133,7 @@ function App() {
                     <Route path="deepfake-analysis" element={<DeepfakeAnalysis />} />
                     <Route path="telegram" element={<Telegram />} />
                     <Route path="analysis-tools" element={<AnalysisTools />} />
+                    <Route path="system-health" element={<SystemHealth />} />
                     <Route path="analysis-tools/osint-tools" element={<OSINTLayout />}>
                       <Route index element={<OSINTDashboard />} />
                       <Route path="email" element={<EmailTools />} />

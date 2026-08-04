@@ -114,7 +114,7 @@ const lookupPostLocation = async (req, res) => {
       error: 'Facebook single-link lookup is not supported. Add the Facebook page as a source to capture posts with location.'
     });
   } catch (err) {
-    console.error('[Post Location Lookup] Error:', err);
+    (() => {})('[Post Location Lookup] Error:', err);
     return res.status(500).json({ error: 'Lookup failed', details: err.message });
   }
 };

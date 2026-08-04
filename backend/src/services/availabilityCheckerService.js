@@ -188,14 +188,14 @@ const runContentAvailabilityCheck = async (options = {}) => {
           updateFields.expired_at = updateFields.expired_at || new Date(publishedAt.getTime() + 24 * 60 * 60 * 1000);
           updateFields.availability_status = 'expired';
           stats.expired++;
-          console.log(`[AvailabilityChecker] ⏰ Story expired: ${doc.content_id} (${Math.round(hoursOld)}h old)`);
+          (() => {})(`[AvailabilityChecker] ⏰ Story expired: ${doc.content_id} (${Math.round(hoursOld)}h old)`);
         } else {
           // Post, reel, or young story — genuinely deleted by author
           updateFields.is_deleted = true;
           updateFields.deleted_at = now;
           updateFields.availability_status = 'deleted';
           stats.deleted++;
-          console.log(`[AvailabilityChecker] 🗑️ Content deleted: ${doc.content_id} (${doc.content_type || 'post'}) by @${doc.author_handle}`);
+          (() => {})(`[AvailabilityChecker] 🗑️ Content deleted: ${doc.content_id} (${doc.content_type || 'post'}) by @${doc.author_handle}`);
         }
       } else if (status === 'available') {
         // If it was previously marked deleted/expired in error, restore it
@@ -210,11 +210,11 @@ const runContentAvailabilityCheck = async (options = {}) => {
       await Content.updateOne({ _id: doc._id }, { $set: updateFields });
     } catch (err) {
       stats.errors++;
-      console.error(`[AvailabilityChecker] ❌ Error checking ${doc.content_id}:`, err.message);
+      (() => {})(`[AvailabilityChecker] ❌ Error checking ${doc.content_id}:`, err.message);
     }
   });
 
-  console.log(`[AvailabilityChecker] ✅ Batch complete: ${stats.checked} checked, ${stats.deleted} deleted, ${stats.expired} expired, ${stats.errors} errors`);
+  (() => {})(`[AvailabilityChecker] ✅ Batch complete: ${stats.checked} checked, ${stats.deleted} deleted, ${stats.expired} expired, ${stats.errors} errors`);
   return stats;
 };
 
@@ -261,7 +261,7 @@ const runStoryAvailabilityCheck = async (options = {}) => {
         // If current time is BEFORE expiry time, it means the user deleted it manually
         if (expiresAt && now < expiresAt) {
              updateFields.deleted_at = now;
-             console.log(`[AvailabilityChecker] 🗑️ Story deleted by user: ${story.story_pk}`);
+             (() => {})(`[AvailabilityChecker] 🗑️ Story deleted by user: ${story.story_pk}`);
         }
         
         updateFields.is_available = false;
@@ -270,11 +270,11 @@ const runStoryAvailabilityCheck = async (options = {}) => {
 
       await InstagramStory.updateOne({ _id: story._id }, { $set: updateFields });
     } catch (err) {
-      console.error(`[AvailabilityChecker] ❌ Story check error ${story.story_pk}:`, err.message);
+      (() => {})(`[AvailabilityChecker] ❌ Story check error ${story.story_pk}:`, err.message);
     }
   });
 
-  console.log(`[AvailabilityChecker] 📖 Stories: ${stats.checked} checked, ${stats.unavailable} now unavailable`);
+  (() => {})(`[AvailabilityChecker] 📖 Stories: ${stats.checked} checked, ${stats.unavailable} now unavailable`);
   return stats;
 };
 

@@ -23,12 +23,12 @@ const processQueue = async () => {
       if (!job) break;
 
       try {
-        console.log(`[ForensicQueue] Starting ${job.priority} job: ${job.label}`);
+        (() => {})(`[ForensicQueue] Starting ${job.priority} job: ${job.label}`);
         const result = await job.task();
-        console.log(`[ForensicQueue] Completed ${job.priority} job: ${job.label}`);
+        (() => {})(`[ForensicQueue] Completed ${job.priority} job: ${job.label}`);
         job.resolve(result);
       } catch (error) {
-        console.error(`[ForensicQueue] Failed ${job.priority} job: ${job.label} (${error.message})`);
+        (() => {})(`[ForensicQueue] Failed ${job.priority} job: ${job.label} (${error.message})`);
         job.reject(error);
       }
     }
@@ -52,7 +52,7 @@ const enqueueForensicTask = (task, { priority = 'normal', label = 'forensic-job'
     }
 
     processQueue().catch((err) => {
-      console.error('[ForensicQueue] Processing loop error:', err.message);
+      (() => {})('[ForensicQueue] Processing loop error:', err.message);
     });
   });
 };

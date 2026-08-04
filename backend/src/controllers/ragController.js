@@ -15,7 +15,7 @@ exports.health = async (req, res) => {
     const { data } = await ragApi.get('/api/rag/health');
     res.json(data);
   } catch (error) {
-    console.error('[RAG] Health check failed:', error.message);
+    (() => {})('[RAG] Health check failed:', error.message);
     res.status(503).json({
       healthy: false,
       error: 'RAG pipeline service is not reachable. Is api_server.py running?',
@@ -29,7 +29,7 @@ exports.collections = async (req, res) => {
     const { data } = await ragApi.get('/api/rag/collections');
     res.json(data);
   } catch (error) {
-    console.error('[RAG] Collections fetch failed:', error.message);
+    (() => {})('[RAG] Collections fetch failed:', error.message);
     res.status(500).json({ error: 'Failed to fetch collections from RAG service' });
   }
 };
@@ -50,7 +50,7 @@ exports.query = async (req, res) => {
     });
     res.json(data);
   } catch (error) {
-    console.error('[RAG] Query failed:', error.message);
+    (() => {})('[RAG] Query failed:', error.message);
     const status = error.response?.status || 500;
     const detail = error.response?.data?.detail || 'RAG query failed';
     res.status(status).json({ error: detail });
@@ -72,7 +72,7 @@ exports.queryAsync = async (req, res) => {
     });
     res.json(data);
   } catch (error) {
-    console.error('[RAG] Async query failed:', error.message);
+    (() => {})('[RAG] Async query failed:', error.message);
     const status = error.response?.status || 500;
     const detail = error.response?.data?.detail || 'RAG async query failed';
     res.status(status).json({ error: detail });
@@ -125,7 +125,7 @@ exports.ingest = async (req, res) => {
     const { data } = await ragApi.post('/api/rag/ingest', { collection });
     res.json(data);
   } catch (error) {
-    console.error('[RAG] Ingest failed:', error.message);
+    (() => {})('[RAG] Ingest failed:', error.message);
     const status = error.response?.status || 500;
     const detail = error.response?.data?.detail || 'RAG ingestion failed';
     res.status(status).json({ error: detail });
@@ -138,7 +138,7 @@ exports.stats = async (req, res) => {
     const { data } = await ragApi.get('/api/rag/stats');
     res.json(data);
   } catch (error) {
-    console.error('[RAG] Stats failed:', error.message);
+    (() => {})('[RAG] Stats failed:', error.message);
     res.status(500).json({ error: 'Failed to fetch RAG stats' });
   }
 };
@@ -149,7 +149,7 @@ exports.topAlertsByCategory = async (req, res) => {
     const { data } = await ragApi.post('/api/rag/top-alerts/by-category', req.body || {});
     res.json(data);
   } catch (error) {
-    console.error('[RAG] Top alerts by category failed:', error.message);
+    (() => {})('[RAG] Top alerts by category failed:', error.message);
     const status = error.response?.status || 500;
     const detail = error.response?.data?.detail || 'Failed to fetch top alerts by category';
     res.status(status).json({ error: detail });
@@ -162,7 +162,7 @@ exports.topAlertsCached = async (req, res) => {
     const { data } = await ragApi.get('/api/rag/top-alerts/cached', { params: req.query });
     res.json(data);
   } catch (error) {
-    console.error('[RAG] Cached top alerts failed:', error.message);
+    (() => {})('[RAG] Cached top alerts failed:', error.message);
     const status = error.response?.status || 500;
     const detail = error.response?.data?.detail || 'Failed to fetch cached top alerts';
     res.status(status).json({ error: detail });

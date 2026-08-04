@@ -482,7 +482,7 @@ const generateComprehensiveReport = async (targetDate = null) => {
     await report.save();
     return report;
   } catch (error) {
-    console.error('Error generating comprehensive report:', error);
+    (() => {})('Error generating comprehensive report:', error);
     if (existing) { existing.status = 'failed'; await existing.save(); }
     throw error;
   }
@@ -624,7 +624,7 @@ const generateLiveSoceyeReport = async (windowHours = 24, options = {}) => {
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
     } catch (err) {
-      console.warn('[soceye-snapshot] persist failed:', err.message);
+      (() => {})('[soceye-snapshot] persist failed:', err.message);
     }
   }
 

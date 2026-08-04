@@ -71,7 +71,7 @@ const getStories = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('[StoryController] getStories error:', error);
+    (() => {})('[StoryController] getStories error:', error);
     res.status(500).json({ message: 'Failed to fetch stories', error: error.message });
   }
 };
@@ -203,7 +203,7 @@ const storeStories = async (req, res) => {
                 results.archived++;
               }
             })
-            .catch(err => console.error(`[StoryController] S3 archive bg error for ${storyPk}:`, err.message));
+            .catch(err => (() => {})(`[StoryController] S3 archive bg error for ${storyPk}:`, err.message));
 
           // Also archive thumbnail if different from main
           if (thumbnailUrl && thumbnailUrl !== originalUrl) {
@@ -220,7 +220,7 @@ const storeStories = async (req, res) => {
                   );
                 }
               })
-              .catch(err => console.error(`[StoryController] S3 thumb archive error for ${storyPk}:`, err.message));
+              .catch(err => (() => {})(`[StoryController] S3 thumb archive error for ${storyPk}:`, err.message));
           }
         }
       } catch (storyError) {
@@ -237,7 +237,7 @@ const storeStories = async (req, res) => {
       ...results
     });
   } catch (error) {
-    console.error('[StoryController] storeStories error:', error);
+    (() => {})('[StoryController] storeStories error:', error);
     res.status(500).json({ message: 'Failed to store stories', error: error.message });
   }
 };
@@ -279,7 +279,7 @@ const deleteStory = async (req, res) => {
 
     res.json({ message: 'Story deleted successfully', id: req.params.id });
   } catch (error) {
-    console.error('[StoryController] deleteStory error:', error);
+    (() => {})('[StoryController] deleteStory error:', error);
     res.status(500).json({ message: 'Failed to delete story', error: error.message });
   }
 };
@@ -312,7 +312,7 @@ const bulkDeleteStories = async (req, res) => {
       deletedCount: result.deletedCount
     });
   } catch (error) {
-    console.error('[StoryController] bulkDeleteStories error:', error);
+    (() => {})('[StoryController] bulkDeleteStories error:', error);
     res.status(500).json({ message: 'Failed to delete stories', error: error.message });
   }
 };
@@ -356,7 +356,7 @@ const cleanupStories = async (req, res) => {
       markedUnavailable: expiredStories.length
     });
   } catch (error) {
-    console.error('[StoryController] cleanupStories error:', error);
+    (() => {})('[StoryController] cleanupStories error:', error);
     res.status(500).json({ message: 'Cleanup failed', error: error.message });
   }
 };

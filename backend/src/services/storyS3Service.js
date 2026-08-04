@@ -84,10 +84,10 @@ const archiveStoryMedia = async (mediaUrl, storyPk, mediaType = 'image', suffix 
     const filename = `${storyPk}${suffix}.${ext}`;
 
     const result = await uploadStoryToS3(buffer, filename, contentType);
-    console.log(`[StoryS3] ✅ Archived story ${storyPk}${suffix} → ${result.key}`);
+    (() => {})(`[StoryS3] ✅ Archived story ${storyPk}${suffix} → ${result.key}`);
     return result;
   } catch (error) {
-    console.error(`[StoryS3] ❌ Failed to archive story ${storyPk}${suffix}:`, error.message);
+    (() => {})(`[StoryS3] ❌ Failed to archive story ${storyPk}${suffix}:`, error.message);
     return null;
   }
 };
@@ -96,11 +96,11 @@ const deleteStoryFromS3 = async (s3Key) => {
   if (!s3Key) return false;
   try {
     await fs.promises.unlink(path.join(STORAGE_DIR, s3Key));
-    console.log(`[StoryS3] 🗑️ Deleted ${s3Key}`);
+    (() => {})(`[StoryS3] 🗑️ Deleted ${s3Key}`);
     return true;
   } catch (error) {
     if (error.code === 'ENOENT') return true;
-    console.error(`[StoryS3] ❌ Delete failed for ${s3Key}:`, error.message);
+    (() => {})(`[StoryS3] ❌ Delete failed for ${s3Key}:`, error.message);
     return false;
   }
 };

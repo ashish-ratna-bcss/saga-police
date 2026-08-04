@@ -85,7 +85,7 @@ const classifyDirect = async (text) => {
     } catch (error) {
       lastError = error;
       const isOverloaded = error.response?.status === 503 || error.response?.status === 429;
-      console.warn(`[Investigation-LLM] Attempt ${attempt}/${maxAttempts} failed: ${error.message}`);
+      (() => {})(`[Investigation-LLM] Attempt ${attempt}/${maxAttempts} failed: ${error.message}`);
       if (attempt < maxAttempts) {
         await new Promise(r => setTimeout(r, (isOverloaded ? 2000 : 1000) * attempt));
       }
@@ -147,10 +147,10 @@ const analyzeInvestigationText = async (text, options = {}) => {
     });
 
     if (matchedKeywords.length > 0) {
-      console.log(`[Investigation] Layer 1: Matched ${matchedKeywords.length} keywords (max weight: ${keywordRiskScore})`);
+      (() => {})(`[Investigation] Layer 1: Matched ${matchedKeywords.length} keywords (max weight: ${keywordRiskScore})`);
     }
   } catch (kwErr) {
-    console.warn(`[Investigation] Keyword check failed: ${kwErr.message}`);
+    (() => {})(`[Investigation] Keyword check failed: ${kwErr.message}`);
   }
 
   // ── Layer 2: Intelligence ──
@@ -162,6 +162,7 @@ const analyzeInvestigationText = async (text, options = {}) => {
 
   if (!llmResult) {
     console.warn('[Investigation] Intelligence failed — using keyword-only fallback');
+    // If keywords matched, use keyword risk; otherwise low
     const fallbackScore = keywordRiskScore > 0 ? keywordRiskScore : 0;
     return {
       risk_level: fallbackScore >= 70 ? 'high' : fallbackScore >= 40 ? 'medium' : 'low',
@@ -207,7 +208,7 @@ const analyzeInvestigationText = async (text, options = {}) => {
     });
 
     if (keywordRiskScore > llmResult.risk_score) {
-      console.log(`[Investigation] Layer 4: Keyword weight (${keywordRiskScore}) overrides LLM score (${llmResult.risk_score})`);
+      (() => {})(`[Investigation] Layer 4: Keyword weight (${keywordRiskScore}) overrides LLM score (${llmResult.risk_score})`);
       llmResult.risk_score = keywordRiskScore;
     }
   }
@@ -235,7 +236,7 @@ const analyzeInvestigationText = async (text, options = {}) => {
     ...aggregatedLegalSections.map(l => `Legal: ${l.act} ${l.section}`)
   ].filter(Boolean);
 
-  console.log(`[Investigation] Final: score=${finalScore}, level=${riskLevel}, cat=${llmResult.category}, keywords=${matchedKeywords.length}`);
+  (() => {})(`[Investigation] Final: score=${finalScore}, level=${riskLevel}, cat=${llmResult.category}, keywords=${matchedKeywords.length}`);
 
   return {
     risk_level: riskLevel,

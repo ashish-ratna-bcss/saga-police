@@ -136,7 +136,7 @@ const syncRetweetRelationshipsForSource = async (
 
       syncedRetweeters += retweeters.length;
     } catch (error) {
-      console.warn(`[Retweet Network] Sync failed for source ${source.identifier}, tweet ${content.content_id}: ${error.message}`);
+      (() => {})(`[Retweet Network] Sync failed for source ${source.identifier}, tweet ${content.content_id}: ${error.message}`);
     }
   }
 
@@ -593,7 +593,7 @@ let retweetSyncRunning = false;
 
 const runRetweetSyncCycle = async () => {
   if (retweetSyncRunning) {
-    console.log('[Retweet Scheduler] Previous sync still running, skipping...');
+    (() => {})('[Retweet Scheduler] Previous sync still running, skipping...');
     return;
   }
 
@@ -603,11 +603,11 @@ const runRetweetSyncCycle = async () => {
   try {
     const xSources = await Source.find({ platform: 'x', is_active: true }).lean();
     if (xSources.length === 0) {
-      console.log('[Retweet Scheduler] No active X sources, skipping cycle.');
+      (() => {})('[Retweet Scheduler] No active X sources, skipping cycle.');
       return;
     }
 
-    console.log(`[Retweet Scheduler] Starting sync for ${xSources.length} X sources...`);
+    (() => {})(`[Retweet Scheduler] Starting sync for ${xSources.length} X sources...`);
 
     let totalSyncedTweets = 0;
     let totalSyncedRetweeters = 0;
@@ -660,21 +660,21 @@ const runRetweetSyncCycle = async () => {
         totalSyncedTweets += syncResult.syncedTweets;
         totalSyncedRetweeters += syncResult.syncedRetweeters;
       } catch (sourceErr) {
-        console.warn(`[Retweet Scheduler] Error syncing source ${source.identifier}: ${sourceErr.message}`);
+        (() => {})(`[Retweet Scheduler] Error syncing source ${source.identifier}: ${sourceErr.message}`);
       }
     }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[Retweet Scheduler] Cycle complete in ${elapsed}s — ${totalSyncedTweets} tweets, ${totalSyncedRetweeters} retweeters synced.`);
+    (() => {})(`[Retweet Scheduler] Cycle complete in ${elapsed}s — ${totalSyncedTweets} tweets, ${totalSyncedRetweeters} retweeters synced.`);
   } catch (err) {
-    console.error('[Retweet Scheduler] Cycle error:', err.message);
+    (() => {})('[Retweet Scheduler] Cycle error:', err.message);
   } finally {
     retweetSyncRunning = false;
   }
 };
 
 const startRetweetSyncScheduler = () => {
-  console.log('[Retweet Scheduler] Starting retweet sync scheduler (every 1 hour)...');
+  (() => {})('[Retweet Scheduler] Starting retweet sync scheduler (every 1 hour)...');
 
   // Run first cycle after a 2-minute delay to let monitoring settle
   setTimeout(() => {
@@ -750,7 +750,7 @@ const getTweetEngagers = async ({ source, tweetId }) => {
       rapidApiXService.fetchTweetQuoteTweeters(safeTweetId, sourceHandle).catch(() => [])
     ]);
   } catch (err) {
-    console.error('[RetweetNetwork] Failed to fetch repliers/quoters:', err.message);
+    (() => {})('[RetweetNetwork] Failed to fetch repliers/quoters:', err.message);
   }
 
   return {

@@ -36,9 +36,9 @@ class MappingService {
             }));
 
             this.isLoaded = true;
-            console.log(`[MappingService] Successfully loaded ${mappings.length} category mappings from MongoDB.`);
+            (() => {})(`[MappingService] Successfully loaded ${mappings.length} category mappings from MongoDB.`);
         } catch (error) {
-            console.error('[MappingService] Error loading mapping data from DB:', error.message);
+            (() => {})('[MappingService] Error loading mapping data from DB:', error.message);
             // Fallback to file if DB fails on startup? 
             // Better to keep previous cache if update fails
             if (!this.isLoaded) {
@@ -64,14 +64,14 @@ class MappingService {
             const dataPath = path.join(__dirname, '../config/mapping_data.json');
             const rawData = fs.readFileSync(dataPath, 'utf8');
             this.mappingData = JSON.parse(rawData);
-            console.log(`[MappingService] Loaded fallback file data.`);
+            (() => {})(`[MappingService] Loaded fallback file data.`);
             this.isLoaded = true;
-        } catch (e) { console.error("Fallback load failed", e); }
+        } catch (e) { (() => {})("Fallback load failed", e); }
     }
 
     // Method to force refresh (e.g., after Admin API update)
     async forceRefresh() {
-        console.log("[MappingService] Force refreshing mappings...");
+        (() => {})("[MappingService] Force refreshing mappings...");
         await this.loadMappings();
     }
 
@@ -114,7 +114,7 @@ class MappingService {
                 platform: platformKey
             }));
         } else {
-            console.warn(`[MappingService] No mapping found for category: ${category} (Country: ${country})`);
+            (() => {})(`[MappingService] No mapping found for category: ${category} (Country: ${country})`);
         }
 
         // Always extract keywords for explainability, regardless of mapping

@@ -32,7 +32,7 @@ const createTransporter = () => {
 const sendPasswordResetEmail = async (toEmail, resetUrl, userName) => {
   const transporter = createTransporter();
   if (!transporter) {
-    console.error('[SMTP] Not configured — cannot send password reset email');
+    (() => {})('[SMTP] Not configured — cannot send password reset email');
     return false;
   }
 
@@ -88,10 +88,10 @@ const sendPasswordResetEmail = async (toEmail, resetUrl, userName) => {
       subject: 'SOC-EYE — Password Reset Request',
       html,
     });
-    console.log(`[SMTP] Password reset email sent to ${toEmail}: ${info.messageId}`);
+    (() => {})(`[SMTP] Password reset email sent to ${toEmail}: ${info.messageId}`);
     return true;
   } catch (err) {
-    console.error(`[SMTP] Failed to send reset email: ${err.message}`);
+    (() => {})(`[SMTP] Failed to send reset email: ${err.message}`);
     return false;
   }
 };
