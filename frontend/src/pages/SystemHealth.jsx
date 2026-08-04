@@ -29,6 +29,7 @@ const SystemHealth = () => {
     fetchHealth();
     const interval = setInterval(() => fetchHealth(false), 15000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const StatusCard = ({ title, status, description, icon: Icon, latency }) => {

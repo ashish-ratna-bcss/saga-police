@@ -2727,7 +2727,7 @@ export default function Alerts() {
                 <h1 className="font-bold text-base leading-tight">AI-Ranked Top Alerts · Per Category</h1>
                 <p className="text-[11px] text-red-100">
                   {topAlertsLoading
-                    ? 'Ollama is scanning & ranking each category…'
+                    ? 'BCSS LLM is scanning & ranking each category…'
                     : topAlertsData
                       ? `${topAlertsData.top_n} alerts · up to ${topAlertsData.top_n_per_category || 50}/category · from ${topAlertsData.total_unique} unique · last ${topAlertsData.hours}h · ${topAlertsData.date || ''}`
                       : 'Ready'}
