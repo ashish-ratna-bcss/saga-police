@@ -29,7 +29,7 @@ const Surveillance = lazy(() => import('./pages/Surveillance'));
 const IntelProcessed = lazy(() => import('./pages/IntelProcessed'));
 const CaseReports = lazy(() => import('./pages/CaseReports'));
 const AuditLogs = lazy(() => import('./pages/AuditLogs'));
-const HelpGuide = lazy(() => import('./pages/HelpGuide'));
+const HelpGuide = lazy(() => import('./pages/Help'));
 const GlobalSearch = lazy(() => import('./pages/GlobalSearch'));
 const Events = lazy(() => import('./pages/Events'));
 const Announcements = lazy(() => import('./pages/Announcements'));

@@ -91,7 +91,7 @@ const Layout = () => {
     //{ name: 'Telegram', href: '/telegram', icon: MessageSquare },
     { name: 'Settings', href: '/settings', icon: Settings },
     { name: 'System Health', href: '/system-health', icon: Activity },
-    //{ name: 'Help Guide', href: '/help', icon: HelpCircle },
+    { name: 'Help', href: '/help', icon: HelpCircle },
 
   ];
 
@@ -107,7 +107,8 @@ const Layout = () => {
     location.pathname.startsWith('/reports/generate/') ||
     location.pathname === '/sources' ||
     location.pathname === '/telegram' ||
-    location.pathname === '/settings';
+    location.pathname === '/settings' ||
+    location.pathname === '/help';
 
   return (
     <div className="h-screen w-full flex flex-col bg-background overflow-hidden relative print:h-auto print:overflow-visible">
