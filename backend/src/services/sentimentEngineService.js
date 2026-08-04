@@ -1,14 +1,15 @@
 /**
  * Sentiment Engine — pluggable front door over multiple sentiment providers.
  *
- * SENTIMENT_ANALYSIS=LLM     -> existing production LLM pipeline (categorizeText), unchanged.
- * SENTIMENT_ANALYSIS=CUSTOM  -> social_media_sentiment_analysis (IndicTrans2 + Cardiff RoBERTa),
- *                                see customSentimentService.js.
+ * Primary intelligence path for SOCEYE ingest is now controlled by
+ * INTELLIGENCE_ENGINE (see intelligenceClientService.js / analysisService.js):
+ *   SENTIMENT_SERVICE → POST /analyze/intelligence (sentiment + category/intent/risk)
+ *   LOCAL_OLLAMA      → llmService.categorizeText (+ optional SENTIMENT_ANALYSIS=CUSTOM)
  *
- * This module does NOT replace or call into analysisService.analyzeContent() /
- * investigationAnalysisService.js / monitorService.js — those keep using
- * llmService.categorizeText() directly, exactly as before. This is a new,
- * parallel entry point for callers that just want a sentiment label.
+ * This module remains for callers that only need a sentiment label, and for the
+ * LOCAL_OLLAMA rollback path inside analysisService:
+ *   SENTIMENT_ANALYSIS=LLM     -> categorizeText sentiment field
+ *   SENTIMENT_ANALYSIS=CUSTOM  -> social_media_sentiment_analysis POST /analyze
  */
 const { categorizeText } = require('./llmService');
 const customSentimentService = require('./customSentimentService');

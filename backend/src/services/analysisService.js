@@ -3,10 +3,16 @@ const axios = require('axios');
 const { categorizeText } = require('./llmService');
 const { getEngineName } = require('./sentimentEngineService');
 const customSentimentService = require('./customSentimentService');
+const intelligenceClient = require('./intelligenceClientService');
 const mappingService = require('./mappingService');
 const LegalSection = require('../models/LegalSection');
 const PlatformPolicy = require('../models/PlatformPolicy');
 const { enqueueForensicTask } = require('./forensicQueueService');
+
+const SHADOW_SAMPLE_RATE = Math.max(
+  0,
+  Math.min(1, Number(process.env.INTELLIGENCE_SHADOW_SAMPLE_RATE || 0))
+);
 
 const ANALYSIS_CACHE_TTL_MS = Math.max(60000, Number(process.env.ANALYSIS_CACHE_TTL_MS || 30 * 60 * 1000));
 const ANALYSIS_CACHE_MAX_ITEMS = Math.max(100, Number(process.env.ANALYSIS_CACHE_MAX_ITEMS || 5000));
@@ -47,12 +53,59 @@ const setCachedAnalysis = (text, value) => {
 };
 
 /**
- * LLM-Centric Analysis Pipeline (V6.0)
- * Pass A: LLM (qwen2.5:14b) for Category, Intent, Sentiment, Risk Score, Risk Level
+ * Analysis Pipeline (V7.0)
+ * Pass A: Intelligence engine
+ *   INTELLIGENCE_ENGINE=SENTIMENT_SERVICE (default) → one call to
+ *     social_media_sentiment_analysis POST /analyze/intelligence
+ *     (IndicTrans2 + Cardiff sentiment + Ollama category/intent/risk)
+ *   INTELLIGENCE_ENGINE=LOCAL_OLLAMA → legacy llmService.categorizeText (+ optional CUSTOM sentiment)
+ *   INTELLIGENCE_ENGINE=SHADOW → LOCAL_OLLAMA persisted; sample also hits sentiment-api (log only)
  * Pass B: Deterministic Mapping Engine for Legal & Policy Mapping
- * Pass C: (REMOVED — ML risk scoring replaced by LLM)
  * Pass D: Standalone Deepfake Forensics (S3-First, Async)
  */
+
+async function runPassA(text, log) {
+  const mode = intelligenceClient.getEngineMode();
+
+  if (mode === 'SENTIMENT_SERVICE') {
+    log('Running Pass A (sentiment-api /analyze/intelligence)...');
+    const result = await intelligenceClient.analyzeText(text, { lane: 'bulk' });
+    return { llmResult: result, sentimentFromIntel: true, mode };
+  }
+
+  // LOCAL_OLLAMA or SHADOW — authoritative path is still local Ollama (+ optional CUSTOM).
+  log(`Running Pass A (LOCAL_OLLAMA${mode === 'SHADOW' ? '+SHADOW' : ''})...`);
+  let llmResult = await categorizeText(text);
+
+  if (mode === 'SHADOW' && llmResult && Math.random() < SHADOW_SAMPLE_RATE) {
+    // Fire-and-forget comparison; never affects the persisted path.
+    Promise.resolve()
+      .then(() => intelligenceClient.analyzeText(text, { lane: 'bulk' }))
+      .then((candidate) => {
+        console.log(JSON.stringify({
+          type: 'intelligence_shadow',
+          baseline: {
+            category: llmResult.category,
+            intent: llmResult.intent,
+            sentiment: llmResult.sentiment,
+            risk_score: llmResult.risk_score
+          },
+          candidate: candidate
+            ? {
+                category: candidate.category,
+                intent: candidate.intent,
+                sentiment: candidate.sentiment,
+                risk_score: candidate.risk_score,
+                source: candidate.source
+              }
+            : null
+        }));
+      })
+      .catch((err) => console.warn(`[AnalysisService] shadow failed: ${err.message}`));
+  }
+
+  return { llmResult, sentimentFromIntel: false, mode };
+}
 
 const triggerForensicAnalysis = async (content, analysisId) => {
   const log = (msg) => console.log(`[ForensicQueue] ${msg}`);
@@ -123,17 +176,16 @@ const analyzeContent = async (text, options = {}) => {
       };
     }
 
-    log(`Starting LLM-Centric analysis for: "${text.substring(0, 50)}..."`);
+    log(`Starting analysis for: "${text.substring(0, 50)}..."`);
 
-    // --- PASS A: LLM FULL ANALYSIS (Category + Intent + Sentiment + Risk) ---
-    log("Running Pass A (LLM Full Analysis)...");
-    let llmResult = await categorizeText(text);
+    // --- PASS A: FULL INTELLIGENCE (Category + Intent + Sentiment + Risk) ---
+    let { llmResult, sentimentFromIntel, mode } = await runPassA(text, log);
 
     if (!llmResult) {
       if (options.requireLLM) {
         throw new Error('On-prem LLM timeout/overload or unavailable — item will be retried');
       }
-      log("Pass A failed. Using fallback (Normal).");
+      log('Pass A failed. Using fallback (Normal).');
       llmResult = {
         category: 'Normal',
         intent: 'Normal',
@@ -146,24 +198,51 @@ const analyzeContent = async (text, options = {}) => {
 
     const finalRiskScore = llmResult.risk_score;
 
-    // Category/intent/risk_score always come from the LLM (Pass A above).
-    // Sentiment alone is swappable via SENTIMENT_ANALYSIS — reuse llmResult.sentiment
-    // when engine=LLM (no extra call), otherwise ask the CUSTOM engine directly.
-    const sentimentEngine = getEngineName();
+    // When Pass A used sentiment-api, Cardiff sentiment is already on llmResult —
+    // do NOT make a second /analyze call. LOCAL_OLLAMA still honours SENTIMENT_ANALYSIS.
     let finalSentiment = llmResult.sentiment;
-    let sentimentConfidence = null;
+    let sentimentConfidence = llmResult.sentiment_confidence ?? null;
     let sentimentDetails = null;
-    if (sentimentEngine === 'CUSTOM') {
-      const customResult = await customSentimentService.analyzeSentiment(text);
-      finalSentiment = customResult.sentiment;
-      sentimentConfidence = customResult.confidence;
-      sentimentDetails = customResult.details;
-    }
-    log(`Sentiment engine=${sentimentEngine} sentiment=${finalSentiment}` +
+    if (sentimentFromIntel) {
+      sentimentDetails = {
+        language: llmResult.language,
+        english_text: llmResult.english_text,
+        was_translated: llmResult.was_translated,
+        was_transliterated: llmResult.was_transliterated,
+        engine: 'sentiment-api',
+        intelligence_source: llmResult.source,
+        model: llmResult.model
+      };
+      log(
+        `Pass A engine=${mode} sentiment=${finalSentiment}` +
         (sentimentConfidence != null ? ` confidence=${sentimentConfidence}` : '') +
-        (sentimentDetails ? ` lang=${sentimentDetails.language} translated=${sentimentDetails.was_translated} transliterated=${sentimentDetails.was_transliterated}` : ''));
+        (sentimentDetails.language ? ` lang=${sentimentDetails.language}` : '') +
+        (sentimentDetails.was_translated != null
+          ? ` translated=${sentimentDetails.was_translated} transliterated=${sentimentDetails.was_transliterated}`
+          : '')
+      );
+    } else {
+      const sentimentEngine = getEngineName();
+      if (sentimentEngine === 'CUSTOM') {
+        const customResult = await customSentimentService.analyzeSentiment(text);
+        finalSentiment = customResult.sentiment;
+        sentimentConfidence = customResult.confidence;
+        sentimentDetails = customResult.details;
+      }
+      log(
+        `Sentiment engine=${sentimentEngine} sentiment=${finalSentiment}` +
+        (sentimentConfidence != null ? ` confidence=${sentimentConfidence}` : '') +
+        (sentimentDetails
+          ? ` lang=${sentimentDetails.language} translated=${sentimentDetails.was_translated} transliterated=${sentimentDetails.was_transliterated}`
+          : '')
+      );
+    }
 
-    log(`LLM Result: cat=${llmResult.category}, intent="${llmResult.intent}", sentiment=${finalSentiment}, risk_score=${finalRiskScore}`);
+    log(
+      `Pass A result: cat=${llmResult.category}, intent="${llmResult.intent}", ` +
+      `sentiment=${finalSentiment}, risk_score=${finalRiskScore}` +
+      (llmResult.recommended_action ? `, action=${llmResult.recommended_action}` : '')
+    );
 
     // --- PASS B: DETERMINISTIC MAPPING ENGINE ---
     log("Running Pass B (Deterministic Mapping Engine)...");
@@ -206,13 +285,24 @@ const analyzeContent = async (text, options = {}) => {
       sentiment: finalSentiment,
       explanation: llmResult.reasoning || '',
       highlights: mappingResult.triggered_keywords || [],
-      // Structure for ReasonModal
+      summary: llmResult.summary || '',
+      recommended_action: llmResult.recommended_action || '',
+      evidence_confidence: llmResult.confidence || null,
+      signals: Array.isArray(llmResult.signals) ? llmResult.signals : [],
+      intelligence_source: llmResult.source || mode,
+      intelligence_model: llmResult.model || null,
+      sentiment_confidence: sentimentConfidence,
+      // Structure for ReasonModal (existing keys preserved; extras additive)
       llm_analysis: {
         category: llmResult.category,
         intent: llmResult.intent || llmResult.category,
         sentiment: finalSentiment,
         reasoning: llmResult.reasoning || '',
         score: finalRiskScore,
+        summary: llmResult.summary || '',
+        recommended_action: llmResult.recommended_action || '',
+        evidence_confidence: llmResult.confidence || null,
+        signals: Array.isArray(llmResult.signals) ? llmResult.signals : [],
         platform_policies_violated: mappingResult.platform_policies || [],
         bns_sections_violated: mappingResult.legal_sections || []
       }

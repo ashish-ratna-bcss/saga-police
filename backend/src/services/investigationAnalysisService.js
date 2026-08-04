@@ -1,15 +1,18 @@
 /**
  * Investigation Analysis Service
  * ================================
- * Own fast queue (bypasses congested shared LLM queue) but identical analysis steps:
+ * Own fast lane (never blocked by bulk ingest) but identical analysis steps:
  *   Layer 1 → Keyword matching (from Keyword collection, same as performFullAnalysis)
- *   Layer 2 → Direct Ollama call (same model, same prompt, same validation as categorizeText)
+ *   Layer 2 → Intelligence engine
+ *              SENTIMENT_SERVICE → sentiment-api interactive lane
+ *              LOCAL_OLLAMA     → direct Ollama (legacy classifyDirect)
  *   Layer 3 → All-platform mapping (same resolveMapping across x/youtube/facebook/instagram)
  *   Layer 4 → Hybrid merge (keyword weight overrides LLM score if higher)
  *   Risk level derived from Settings thresholds (same as performFullAnalysis)
  */
 const axios = require('axios');
 const { buildPromptPrefix, extractJSON } = require('./llmService');
+const intelligenceClient = require('./intelligenceClientService');
 const mappingService = require('./mappingService');
 const Keyword = require('../models/Keyword');
 const Settings = require('../models/Settings');
@@ -18,8 +21,8 @@ const MIN_TEXT_LENGTH = 3;
 const MAX_TEXT_LENGTH = Math.max(800, Number(process.env.OLLAMA_MAX_TEXT_LENGTH || 2500));
 
 /**
- * Direct Ollama call — same model, prompt, and validation as categorizeText()
- * but does NOT enter the shared LLM queue. Processed immediately via investigation queue.
+ * Direct Ollama call — rollback path when INTELLIGENCE_ENGINE=LOCAL_OLLAMA.
+ * Does NOT enter the shared LLM queue.
  */
 const classifyDirect = async (text) => {
   const baseURL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
@@ -57,7 +60,6 @@ const classifyDirect = async (text) => {
       const parsed = extractJSON(raw);
       if (!parsed) throw new Error('Invalid JSON from Ollama');
 
-      // ── Validate (same logic as categorizeText) ──
       const availableCategories = (mappingService.mappingData.category_mappings || []).map(c => c.category_id);
       let category = String(parsed.category || 'Normal').trim();
       if (!availableCategories.includes(category)) {
@@ -89,9 +91,19 @@ const classifyDirect = async (text) => {
       }
     }
   }
-  console.error(`[Investigation-LLM] All ${maxAttempts} attempts failed`);
+  console.error(`[Investigation-LLM] All ${maxAttempts} attempts failed: ${lastError?.message || ''}`);
   return null;
 };
+
+async function runLayer2(analysisText) {
+  const mode = intelligenceClient.getEngineMode();
+  if (mode === 'SENTIMENT_SERVICE') {
+    console.log('[Investigation] Layer 2: sentiment-api interactive lane...');
+    return intelligenceClient.analyzeText(analysisText, { lane: 'interactive' });
+  }
+  console.log(`[Investigation] Layer 2: Direct Ollama call (${mode})...`);
+  return classifyDirect(analysisText);
+}
 
 const analyzeInvestigationText = async (text, options = {}) => {
   const input = String(text || '').trim();
@@ -141,17 +153,15 @@ const analyzeInvestigationText = async (text, options = {}) => {
     console.warn(`[Investigation] Keyword check failed: ${kwErr.message}`);
   }
 
-  // ── Layer 2: Direct LLM call (same model/prompt, bypasses shared queue) ──
+  // ── Layer 2: Intelligence ──
   const analysisText = input.length > MAX_TEXT_LENGTH
     ? input.substring(0, MAX_TEXT_LENGTH) + '\n[...content truncated for analysis]'
     : input;
 
-  console.log(`[Investigation] Layer 2: Direct Ollama call (bypasses shared queue)...`);
-  const llmResult = await classifyDirect(analysisText);
+  const llmResult = await runLayer2(analysisText);
 
   if (!llmResult) {
-    console.warn(`[Investigation] LLM failed — using keyword-only fallback`);
-    // If keywords matched, use keyword risk; otherwise low
+    console.warn('[Investigation] Intelligence failed — using keyword-only fallback');
     const fallbackScore = keywordRiskScore > 0 ? keywordRiskScore : 0;
     return {
       risk_level: fallbackScore >= 70 ? 'high' : fallbackScore >= 40 ? 'medium' : 'low',
@@ -238,12 +248,18 @@ const analyzeInvestigationText = async (text, options = {}) => {
     violated_policies: allViolatedPolicies,
     legal_sections: aggregatedLegalSections,
     explanation: llmResult.reasoning || '',
+    summary: llmResult.summary || '',
+    recommended_action: llmResult.recommended_action || '',
     llm_analysis: {
       category: llmResult.category,
       intent: llmResult.intent,
       sentiment: llmResult.sentiment,
       reasoning: llmResult.reasoning || '',
       score: finalScore,
+      summary: llmResult.summary || '',
+      recommended_action: llmResult.recommended_action || '',
+      evidence_confidence: llmResult.confidence || null,
+      signals: Array.isArray(llmResult.signals) ? llmResult.signals : [],
       platform_policies_violated: allViolatedPolicies,
       bns_sections_violated: aggregatedLegalSections
     }
