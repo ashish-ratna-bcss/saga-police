@@ -195,7 +195,7 @@ const CategorizationResultSchema = z
 async function categorizeText(text, categories, examples = []) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.warn('[Gemini] GEMINI_API_KEY missing. Skipping LLM categorization.');
+    (() => {})('[Gemini] GEMINI_API_KEY missing. Skipping LLM categorization.');
     return null;
   }
 
@@ -254,11 +254,11 @@ async function categorizeText(text, categories, examples = []) {
     if (parsed.success) {
       return parsed.data;
     } else {
-      console.warn('[Gemini] Schema validation failed:', parsed.error);
+      (() => {})('[Gemini] Schema validation failed:', parsed.error);
       return json; // Return raw JSON if schema fails but structure is usable
     }
   } catch (error) {
-    console.error('[Gemini] Categorization failed:', error.message);
+    (() => {})('[Gemini] Categorization failed:', error.message);
     return null;
   }
 }

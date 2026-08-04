@@ -15,7 +15,7 @@ const enrichUrlCards = async (contentId) => {
         // Skip if we already have url_cards with images
         if (content.url_cards?.some(card => card.image)) return;
 
-        console.log(`[URLEnrich] Scraping ${tcoUrls.length} URLs for content ${contentId}`);
+        (() => {})(`[URLEnrich] Scraping ${tcoUrls.length} URLs for content ${contentId}`);
 
         const urlCards = [];
         for (const url of tcoUrls.slice(0, 2)) { // Limit to 2 URLs per tweet
@@ -35,10 +35,10 @@ const enrichUrlCards = async (contentId) => {
         if (urlCards.length > 0) {
             content.url_cards = urlCards;
             await content.save();
-            console.log(`[URLEnrich] Updated ${contentId} with ${urlCards.length} URL cards`);
+            (() => {})(`[URLEnrich] Updated ${contentId} with ${urlCards.length} URL cards`);
         }
     } catch (error) {
-        console.warn(`[URLEnrich] Error enriching ${contentId}: ${error.message}`);
+        (() => {})(`[URLEnrich] Error enriching ${contentId}: ${error.message}`);
     }
 };
 
@@ -49,7 +49,7 @@ const enrichUrlCards = async (contentId) => {
 const queueUrlEnrichment = (contentIds) => {
     contentIds.forEach((id, index) => {
         setTimeout(() => {
-            enrichUrlCards(id).catch(console.error);
+            enrichUrlCards(id).catch((() => {}));
         }, index * 2000);
     });
 };

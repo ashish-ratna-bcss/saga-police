@@ -48,7 +48,7 @@ const searchUsers = async (query, limit = 25) => {
             };
         }).slice(0, safeLimit);
     } catch (error) {
-        console.error('Reddit User Search Error:', error.message);
+        (() => {})('Reddit User Search Error:', error.message);
         return [];
     }
 };
@@ -89,7 +89,7 @@ const searchPosts = async (query, limit = 50) => {
             };
         }).slice(0, safeLimit);
     } catch (error) {
-        console.error('Reddit Content Search Error:', error.message);
+        (() => {})('Reddit Content Search Error:', error.message);
         return [];
     }
 };

@@ -86,10 +86,10 @@ const createReportFromAlert = async (alertId) => {
                 review_status: 'escalated',
                 current_risk: 'HIGH'
             });
-            console.log(`[ReportService] Recorded feedback for report: ${alertId}`);
+            (() => {})(`[ReportService] Recorded feedback for report: ${alertId}`);
         }
     } catch (fbError) {
-        console.error('[ReportService] Feedback recording failed:', fbError);
+        (() => {})('[ReportService] Feedback recording failed:', fbError);
     }
 
     return report;

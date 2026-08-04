@@ -6,7 +6,7 @@ const scrapeProfile = async (targetHandle, account) => {
     return new Promise((resolve, reject) => {
         // Clean handle
         const cleanHandle = targetHandle.replace('@', '');
-        console.log(`[Python] Spawning scraper for ${cleanHandle} using ${account.username}...`);
+        (() => {})(`[Python] Spawning scraper for ${cleanHandle} using ${account.username}...`);
 
         const scriptPath = path.resolve(__dirname, '../../scripts/scraper.py');
         const pythonProcess = spawn('python', [scriptPath, account.username, cleanHandle]);
@@ -20,27 +20,27 @@ const scrapeProfile = async (targetHandle, account) => {
 
         pythonProcess.stderr.on('data', (data) => {
             // Log stderr but don't fail immediately, sometimes Selenium logs harmless warnings
-            console.error(`[Python Log]: ${data.toString()}`);
+            (() => {})(`[Python Log]: ${data.toString()}`);
             errorString += data.toString();
         });
 
         pythonProcess.on('close', async (code) => {
             if (code !== 0) {
-                console.error(`Python script exited with code ${code}`);
+                (() => {})(`Python script exited with code ${code}`);
                 // Verify if dataString has content even if code is non-zero (unlikely but possible)
             }
 
             try {
                 // If the script crashed or returned empty string
                 if (!dataString.trim()) {
-                    console.warn('[Python] No data returned.');
+                    (() => {})('[Python] No data returned.');
                     resolve([]);
                     return;
                 }
 
                 // Parse the JSON output from Python
                 const tweets = JSON.parse(dataString);
-                console.log(`[Python] Scraped ${tweets.length} tweets.`);
+                (() => {})(`[Python] Scraped ${tweets.length} tweets.`);
 
                 // Update stats
                 account.daily_stats.requests += 1;
@@ -48,8 +48,8 @@ const scrapeProfile = async (targetHandle, account) => {
 
                 resolve(tweets);
             } catch (e) {
-                console.error('Failed to parse Python output:', e.message);
-                console.error('Raw Output:', dataString);
+                (() => {})('Failed to parse Python output:', e.message);
+                (() => {})('Raw Output:', dataString);
                 resolve([]);
             }
         });

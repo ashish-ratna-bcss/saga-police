@@ -312,7 +312,7 @@ const getAlertsIntelligence = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Alerts intelligence error:', error);
+    (() => {})('Alerts intelligence error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -510,7 +510,7 @@ const getGrievancesIntelligence = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Grievances intelligence error:', error);
+    (() => {})('Grievances intelligence error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -705,7 +705,7 @@ const getProfilesIntelligence = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Profiles intelligence error:', error);
+    (() => {})('Profiles intelligence error:', error);
     res.status(500).json({ message: error.message });
   }
 };

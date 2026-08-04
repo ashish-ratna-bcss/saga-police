@@ -46,7 +46,7 @@ class YouTubeService {
                 country: channel.snippet.country
             };
         } catch (error) {
-            console.error('Error fetching channel details:', error);
+            (() => {})('Error fetching channel details:', error);
             throw error;
         }
     }
@@ -88,10 +88,10 @@ class YouTubeService {
             });
         } catch (error) {
             if (error?.status === 403 || error?.code === 403 || error?.errors?.[0]?.reason === 'quotaExceeded') {
-                console.warn('[YouTube] API quota exceeded, returning empty results');
+                (() => {})('[YouTube] API quota exceeded, returning empty results');
                 return [];
             }
-            console.error('Error searching channels:', error);
+            (() => {})('Error searching channels:', error);
             throw error;
         }
     }
@@ -129,10 +129,10 @@ class YouTubeService {
             return await this.getVideoDetails(videoIds);
         } catch (error) {
             if (error?.status === 403 || error?.code === 403 || error?.errors?.[0]?.reason === 'quotaExceeded') {
-                console.warn('[YouTube] API quota exceeded, returning empty results');
+                (() => {})('[YouTube] API quota exceeded, returning empty results');
                 return [];
             }
-            console.error('Error searching videos:', error);
+            (() => {})('Error searching videos:', error);
             throw error;
         }
     }
@@ -150,7 +150,7 @@ class YouTubeService {
             const videoIds = response.data.items.map(item => item.contentDetails.videoId);
             return await this.getVideoDetails(videoIds);
         } catch (error) {
-            console.error('Error fetching playlist videos:', error);
+            (() => {})('Error fetching playlist videos:', error);
             throw error;
         }
     }
@@ -172,7 +172,7 @@ class YouTubeService {
                 });
                 allVideos = allVideos.concat(response.data.items);
             } catch (error) {
-                console.error('Error fetching video details chunk:', error);
+                (() => {})('Error fetching video details chunk:', error);
             }
         }
 
@@ -220,10 +220,10 @@ class YouTubeService {
         } catch (error) {
             // If comments are disabled, 403 error might occur, handle gracefully
             if (error.code === 403) {
-                console.warn(`Comments disabled or restricted for video ${videoId}`);
+                (() => {})(`Comments disabled or restricted for video ${videoId}`);
                 return [];
             }
-            console.error(`Error fetching comments for video ${videoId}:`, error);
+            (() => {})(`Error fetching comments for video ${videoId}:`, error);
             throw error;
         }
     }

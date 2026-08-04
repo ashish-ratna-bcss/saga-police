@@ -50,7 +50,7 @@ const logAction = async (user, action, resourceType, resourceId, details) => {
       details: details
     });
   } catch (error) {
-    //console.error('Audit Log Error:', error);
+    //(() => {})('Audit Log Error:', error);
   }
 };
 
@@ -484,7 +484,7 @@ router.post('/download', ...mediaAccessMiddleware, requirePlatformFeatureAccess(
         return res.status(400).json({ error: 'media_url is required' });
       }
 
-      //console.log(`Initiating media download for: ${mediaUrl}`);
+      //(() => {})(`Initiating media download for: ${mediaUrl}`);
       result = await mediaAnalyzerService.downloadVideo(mediaUrl);
     }
 
@@ -521,7 +521,7 @@ router.post('/download', ...mediaAccessMiddleware, requirePlatformFeatureAccess(
       items
     });
   } catch (error) {
-    //console.error('Media download error:', error);
+    //(() => {})('Media download error:', error);
     res.status(error.statusCode || 500).json({
       error: error.message || 'Failed to download media'
     });
@@ -537,7 +537,7 @@ router.post('/download-images', ...mediaAccessMiddleware, requirePlatformFeature
       return res.status(400).json({ error: 'image_urls array is required' });
     }
 
-    //console.log(`Downloading ${image_urls.length} images...`);
+    //(() => {})(`Downloading ${image_urls.length} images...`);
     const result = await mediaAnalyzerService.downloadImages(image_urls, content_id);
 
     const toAbsolute = getAbsoluteUrlHelper(req);
@@ -555,7 +555,7 @@ router.post('/download-images', ...mediaAccessMiddleware, requirePlatformFeature
 
     res.json(absoluteResult);
   } catch (error) {
-    // console.error('Image download error:', error);
+    // (() => {})('Image download error:', error);
     res.status(500).json({ error: 'Failed to download images' });
   }
 });
@@ -569,7 +569,7 @@ router.post('/download-video', ...mediaAccessMiddleware, requirePlatformFeatureA
       return res.status(400).json({ error: 'media_url or video_urls is required' });
     }
 
-    //console.log(`Downloading video from: ${media_url || video_urls[0]}`);
+    //(() => {})(`Downloading video from: ${media_url || video_urls[0]}`);
 
     // Use media analyzer service for video download (supports longer videos)
     const result = await mediaAnalyzerService.downloadVideo(media_url || video_urls[0]);
@@ -596,7 +596,7 @@ router.post('/download-video', ...mediaAccessMiddleware, requirePlatformFeatureA
       })) : [{ filename: result.filename, download_url: downloadUrl }]
     });
   } catch (error) {
-    //console.error('Video download error:', error);
+    //(() => {})('Video download error:', error);
     res.status(error.statusCode || 500).json({
       error: error.message || 'Failed to download video'
     });
@@ -634,7 +634,7 @@ router.get('/downloads/:filename', (req, res) => {
     const fileStream = fs.createReadStream(filepath);
     fileStream.pipe(res);
   } catch (error) {
-    //console.error('File serve error:', error);
+    //(() => {})('File serve error:', error);
     res.status(500).json({ error: 'Failed to serve file' });
   }
 });
@@ -957,7 +957,7 @@ router.get('/stream', async (req, res) => {
     res.status(upstream.status);
 
     if (upstream.status >= 400) {
-      //console.error(`Upstream error ${upstream.status} for ${rawUrl}`);
+      //(() => {})(`Upstream error ${upstream.status} for ${rawUrl}`);
     }
 
     // ---------------------------------------------------------------
@@ -1007,7 +1007,7 @@ router.get('/stream', async (req, res) => {
       bindAbortOnClientClose(upstream.data);
       upstream.data.pipe(res);
       upstream.data.on('error', (err) => {
-        //console.error('Upstream stream error:', err);
+        //(() => {})('Upstream stream error:', err);
         if (!res.headersSent) {
           res.status(500).json({ error: 'Failed to stream media' });
         } else {
@@ -1016,7 +1016,7 @@ router.get('/stream', async (req, res) => {
       });
     }
   } catch (error) {
-    //console.error('Media stream proxy error:', error.message);
+    //(() => {})('Media stream proxy error:', error.message);
     res.status(500).json({ error: 'Failed to stream media' });
   }
 });
@@ -1034,7 +1034,7 @@ router.get('/proxy/:videoId', async (req, res) => {
       return res.status(400).json({ error: 'Invalid video ID' });
     }
 
-    //console.log(`Proxying download for: ${sanitizedVideoId}`);
+    //(() => {})(`Proxying download for: ${sanitizedVideoId}`);
 
     const { stream, headers, status } = await mediaAnalyzerService.getVideoStream(sanitizedVideoId);
 
@@ -1098,13 +1098,13 @@ router.get('/proxy/:videoId', async (req, res) => {
     stream.pipe(res);
 
     stream.on('error', (err) => {
-      // console.error('Stream error:', err);
+      // (() => {})('Stream error:', err);
       if (!res.headersSent) {
         res.status(500).json({ error: 'Failed to stream video' });
       }
     });
   } catch (error) {
-    // console.error('Proxy download error:', error.message);
+    // (() => {})('Proxy download error:', error.message);
     res.status(error.response?.status || 500).json({
       error: error.response?.data?.detail || 'Failed to download video. It may have been cleaned up.'
     });

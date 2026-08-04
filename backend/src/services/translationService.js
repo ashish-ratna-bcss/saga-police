@@ -17,7 +17,7 @@ class TranslationService {
         }
 
         try {
-            console.log(`[TranslationService] Translating to ${target}...`);
+            (() => {})(`[TranslationService] Translating to ${target}...`);
 
             // Add a timeout to prevent hanging the backend
             const translatePromise = translate(text, { to: target, from: source });
@@ -33,7 +33,7 @@ class TranslationService {
 
             throw new Error('Empty response from Google Translate');
         } catch (error) {
-            console.error('[TranslationService] Error:', error.message);
+            (() => {})('[TranslationService] Error:', error.message);
             throw new Error(`Translation failed: ${error.message}`);
         }
     }

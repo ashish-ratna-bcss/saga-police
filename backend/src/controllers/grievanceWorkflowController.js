@@ -107,7 +107,7 @@ const createReport = async (req, res) => {
           postUrl: post_link || grievanceDoc.tweet_url
         })
         : [];
-    } catch (e) { console.error('Media archive warning:', e.message); }
+    } catch (e) { (() => {})('Media archive warning:', e.message); }
 
     const finalOriginalUrls = Array.from(new Set(
       [...dedupeMediaItems(mediaToArchive).map(i => i.video_url || i.url),
@@ -194,7 +194,7 @@ const createReport = async (req, res) => {
 
     res.status(created ? 201 : 200).json(report);
   } catch (error) {
-    console.error('Error creating grievance workflow report:', error);
+    (() => {})('Error creating grievance workflow report:', error);
     res.status(500).json({ error: 'Failed to create report' });
   }
 };
@@ -255,7 +255,7 @@ const shareReport = async (req, res) => {
 
     res.json(report);
   } catch (error) {
-    console.error('Error sharing grievance workflow report:', error);
+    (() => {})('Error sharing grievance workflow report:', error);
     res.status(500).json({ error: 'Failed to share report' });
   }
 };
@@ -297,7 +297,7 @@ const closeReport = async (req, res) => {
           useUniqueFileName: true
         });
         archivedClosingS3Urls = archived.flatMap(i => [i?.s3_url, i?.s3_preview]).filter(Boolean);
-      } catch (e) { console.error('Closing media archive warning:', e.message); }
+      } catch (e) { (() => {})('Closing media archive warning:', e.message); }
     }
 
     const finalClosingS3Urls = Array.from(new Set([
@@ -354,7 +354,7 @@ const closeReport = async (req, res) => {
 
     res.json(report);
   } catch (error) {
-    console.error('Error closing grievance workflow report:', error);
+    (() => {})('Error closing grievance workflow report:', error);
     res.status(500).json({ error: 'Failed to close report' });
   }
 };
@@ -400,7 +400,7 @@ const updateReportStatus = async (req, res) => {
 
     res.json(report);
   } catch (error) {
-    console.error('Error updating grievance workflow status:', error);
+    (() => {})('Error updating grievance workflow status:', error);
     res.status(500).json({ error: 'Failed to update status' });
   }
 };
@@ -481,7 +481,7 @@ const getReports = async (req, res) => {
       }
     }
 
-    console.log('[getReports] Found', reports.length, 'reports. First report status:', reports[0]?.status);
+    (() => {})('[getReports] Found', reports.length, 'reports. First report status:', reports[0]?.status);
 
     const statsQuery = {};
     if (platform && platform !== 'all') statsQuery.platform = platform;
@@ -541,7 +541,7 @@ const getReports = async (req, res) => {
       stats: { total: statsTotal, pending, escalated, closed, fir }
     });
   } catch (error) {
-    console.error('Error fetching grievance workflow reports:', error);
+    (() => {})('Error fetching grievance workflow reports:', error);
     res.status(500).json({ error: 'Failed to fetch reports' });
   }
 };
@@ -564,7 +564,7 @@ const getReport = async (req, res) => {
           report.grievance_post_date = grievance.post_date;
         }
       } catch (e) {
-        console.error('[getReport] Failed to fetch linked grievance context:', e.message);
+        (() => {})('[getReport] Failed to fetch linked grievance context:', e.message);
       }
     }
 
@@ -680,7 +680,7 @@ const exportReports = async (req, res) => {
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
-    console.error('Error exporting grievance workflow reports:', error);
+    (() => {})('Error exporting grievance workflow reports:', error);
     res.status(500).json({ error: 'Failed to export reports' });
   }
 };
@@ -713,7 +713,7 @@ const updateReport = async (req, res) => {
 
     res.json(report);
   } catch (error) {
-    console.error('Error updating grievance report details:', error);
+    (() => {})('Error updating grievance report details:', error);
     res.status(500).json({ error: 'Failed to update report details' });
   }
 };
@@ -752,7 +752,7 @@ const addCommunicationLog = async (req, res) => {
 
     res.json({ success: true, log: logEntry });
   } catch (error) {
-    console.error('Error adding communication log:', error);
+    (() => {})('Error adding communication log:', error);
     res.status(500).json({ error: 'Failed to add communication log' });
   }
 };
@@ -787,7 +787,7 @@ const generateReportPdf = async (req, res) => {
           report.grievance_post_date = grievance.post_date;
         }
       } catch (e) {
-        console.error('[generateReportPdf] Failed to fetch grievance context:', e.message);
+        (() => {})('[generateReportPdf] Failed to fetch grievance context:', e.message);
       }
     }
 
@@ -842,7 +842,7 @@ const generateReportPdf = async (req, res) => {
 
     return res.json({ pdf_url: finalPdfUrl });
   } catch (err) {
-    console.error('PDF generation error:', err);
+    (() => {})('PDF generation error:', err);
     return res.status(500).json({ error: 'PDF generation failed', detail: err.message });
   }
 };
@@ -867,7 +867,7 @@ const generateQrDataUrl = async (value, size = 120) => {
       color: { dark: '#000000', light: '#FFFFFF' }
     });
   } catch (err) {
-    console.error('[Grievance QR] generation failed:', err.message);
+    (() => {})('[Grievance QR] generation failed:', err.message);
     return '';
   }
 };
@@ -1346,7 +1346,7 @@ const getDashboardStats = async (_req, res) => {
 
     res.json({ byPlatform });
   } catch (error) {
-    console.error('Error fetching grievance workflow dashboard stats:', error);
+    (() => {})('Error fetching grievance workflow dashboard stats:', error);
     res.status(500).json({ error: 'Failed to fetch stats' });
   }
 };

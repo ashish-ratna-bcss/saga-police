@@ -100,7 +100,7 @@ const getContentFeed = async (req, res) => {
       // Filter out empty strings
       const terms = search.trim().split(/[\s,]+/).filter(Boolean);
 
-      //console.log('SEARCH DEBUG:', { original: search, terms });
+      //(() => {})('SEARCH DEBUG:', { original: search, terms });
 
       if (terms.length > 0) {
         // Escape each term individually
@@ -585,7 +585,7 @@ const checkContentAvailability = async (req, res) => {
       ...stats
     });
   } catch (error) {
-    console.error('[ContentController] checkAvailability error:', error);
+    (() => {})('[ContentController] checkAvailability error:', error);
     res.status(500).json({ message: 'Availability check failed', error: error.message });
   }
 };

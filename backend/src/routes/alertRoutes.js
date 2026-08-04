@@ -44,11 +44,11 @@ router.get('/dashboard-stats', getDashboardStats);
 router.get('/workflow-kpi', getWorkflowKpi);
 router.get('/unread', requireFeatureAccess('/alerts', () => 'active'), getUnreadCount);
 router.post('/investigate', requireFeatureAccess('/alerts', () => 'active'), (req, res, next) => {
-    console.log('[AlertRoutes] POST /investigate reached');
+    (() => {})('[AlertRoutes] POST /investigate reached');
     investigateLink(req, res, next);
 });
 router.post('/public-investigate', (req, res) => {
-    console.log('[AlertRoutes] POST /public-investigate reached');
+    (() => {})('[AlertRoutes] POST /public-investigate reached');
     investigateLink(req, res);
 });
 router.post('/translate', translateAlertContent);

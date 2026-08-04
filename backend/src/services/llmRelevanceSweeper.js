@@ -23,7 +23,7 @@ const purgeEventAlertsForContent = async (contentDoc) => {
   try {
     await Alert.deleteMany({ content_id: contentDoc.id, event_id: { $ne: null } });
   } catch (err) {
-    console.warn(`[LLMSweeper] alert purge failed for ${contentDoc.id}: ${err.message}`);
+    (() => {})(`[LLMSweeper] alert purge failed for ${contentDoc.id}: ${err.message}`);
   }
 };
 
@@ -100,7 +100,7 @@ const classifyOne = async (doc) => {
 // Logs but never throws into the caller's promise chain.
 const classifyOneAsync = (doc) => {
   classifyOne(doc).catch((err) => {
-    console.warn(`[LLMSweeper] classifyOne failed for ${doc?.id}: ${err.message}`);
+    (() => {})(`[LLMSweeper] classifyOne failed for ${doc?.id}: ${err.message}`);
   });
 };
 

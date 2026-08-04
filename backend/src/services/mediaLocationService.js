@@ -46,7 +46,7 @@ const drainQueue = async () => {
     try {
       await extractMediaLocationForContent(id);
     } catch (err) {
-      console.error(`[MediaLocation] worker error for ${id}: ${err.message}`);
+      (() => {})(`[MediaLocation] worker error for ${id}: ${err.message}`);
     }
   }
   workerRunning = false;
@@ -221,7 +221,7 @@ const extractMediaLocationForContent = async (contentId) => {
 
   await Content.updateOne({ id: contentId }, { $set: update });
 
-  console.log(`[MediaLocation] ✅ ${contentId} → ${place.name || `${gpsHit.lat},${gpsHit.lng}`}`);
+  (() => {})(`[MediaLocation] ✅ ${contentId} → ${place.name || `${gpsHit.lat},${gpsHit.lng}`}`);
   return update.location || null;
 };
 

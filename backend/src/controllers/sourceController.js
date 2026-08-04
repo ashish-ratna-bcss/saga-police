@@ -228,7 +228,7 @@ const getSources = async (req, res) => {
           secondaryQuery.$or.push({ id: { $in: Array.from(poiSourceIds) } });
         }
       } catch (poiErr) {
-        console.error('[Sources] POI cross-search failed (non-fatal):', poiErr.message);
+        (() => {})('[Sources] POI cross-search failed (non-fatal):', poiErr.message);
       }
     }    // Determine dynamic limit logic
     let queryLimit = 0; // 0 = no limit
@@ -454,7 +454,7 @@ const createSource = async (req, res) => {
               }
             }
           } catch (identityError) {
-            console.warn(`[Source] Identity resolution failed for ${identifier}: ${identityError.message}`);
+            (() => {})(`[Source] Identity resolution failed for ${identifier}: ${identityError.message}`);
           }
 
           // 2. Fetch extra profile metadata (if applicable)
@@ -477,7 +477,7 @@ const createSource = async (req, res) => {
           const { scanSourceOnce } = require('../services/monitorService');
           await scanSourceOnce(source);
         } catch (error) {
-          // console.error(`[Background Task] Error for ${identifier}:`, error.message);
+          // (() => {})(`[Background Task] Error for ${identifier}:`, error.message);
         }
       };
 
@@ -641,7 +641,7 @@ const createSource = async (req, res) => {
           await newPoi.save();
         }
       } catch (err) {
-        console.error('[POI Link Error] Failed to auto-link/create POI for source:', err.message);
+        (() => {})('[POI Link Error] Failed to auto-link/create POI for source:', err.message);
       }
     };
 
@@ -808,7 +808,7 @@ const updateSource = async (req, res) => {
           }
         }
       } catch (poiError) {
-        console.error('[Sync POI Error] Failed to sync source update to POI:', poiError.message);
+        (() => {})('[Sync POI Error] Failed to sync source update to POI:', poiError.message);
       }
     }
 
@@ -879,11 +879,11 @@ const deleteSource = async (req, res) => {
         });
 
         if (emptied.deletedCount > 0) {
-          console.log(`[Source Cleanup] Removed ${emptied.deletedCount} POI profile(s) with no remaining monitored handle after deleting "${sourceLabel}"`);
+          (() => {})(`[Source Cleanup] Removed ${emptied.deletedCount} POI profile(s) with no remaining monitored handle after deleting "${sourceLabel}"`);
         }
       }
     } catch (cleanupError) {
-      console.error('[Source Cleanup] Failed to clean up POIs:', cleanupError.message);
+      (() => {})('[Source Cleanup] Failed to clean up POIs:', cleanupError.message);
     }
 
     await createAuditLog(req.user, 'delete', 'source', source.id || source._id, {});
@@ -1074,7 +1074,7 @@ const createSourcesBulk = async (req, res) => {
               await newPoi.save();
             }
           } catch (err) {
-            console.error('[POI Link Error] Failed to auto-link/create POI for bulk source:', err.message);
+            (() => {})('[POI Link Error] Failed to auto-link/create POI for bulk source:', err.message);
           }
         };
 
@@ -1297,7 +1297,7 @@ const getInstagramProfile = async (req, res) => {
 
     return res.json(profileData);
   } catch (error) {
-    //console.error('[getInstagramProfile] Error:', error.message);
+    //(() => {})('[getInstagramProfile] Error:', error.message);
     // Fallback to cached source data
     try {
       const source = await Source.findOne({ id: req.params.id });

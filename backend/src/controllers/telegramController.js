@@ -6,12 +6,12 @@ exports.sendCode = async (req, res) => {
     try {
         const { phone } = req.body;
         if (!phone) return res.status(400).json({ message: 'Phone number is required' });
-        console.log(`[Telegram Controller] Requesting code for ${phone}`);
+        (() => {})(`[Telegram Controller] Requesting code for ${phone}`);
         const result = await telegramService.sendCode(phone);
         // Result now contains phoneCodeHash
         res.json({ message: 'Code sent', ...result });
     } catch (error) {
-        console.error('[Telegram Controller] sendCode error:', error);
+        (() => {})('[Telegram Controller] sendCode error:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -19,16 +19,16 @@ exports.sendCode = async (req, res) => {
 exports.verifyCode = async (req, res) => {
     try {
         const { phone, code, phoneCodeHash, password } = req.body;
-        console.log('[Telegram Controller] Verify Payload Keys:', Object.keys(req.body));
+        (() => {})('[Telegram Controller] Verify Payload Keys:', Object.keys(req.body));
         if (!phone || !code || !phoneCodeHash) {
-            console.error('[Telegram Controller] Missing params:', { phone: !!phone, code: !!code, hash: !!phoneCodeHash });
+            (() => {})('[Telegram Controller] Missing params:', { phone: !!phone, code: !!code, hash: !!phoneCodeHash });
             return res.status(400).json({ message: 'Phone, code, and session hash are required' });
         }
-        console.log(`[Telegram Controller] Verifying code for ${phone}`);
+        (() => {})(`[Telegram Controller] Verifying code for ${phone}`);
         const result = await telegramService.signIn(phone, code, phoneCodeHash, password);
         res.json({ message: 'Authenticated successfully', result });
     } catch (error) {
-        console.error('[Telegram Controller] verifyCode error:', error);
+        (() => {})('[Telegram Controller] verifyCode error:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -61,7 +61,7 @@ exports.searchGlobal = async (req, res) => {
         const hubOffset = parseInt(offset || '0');
         const isDeepScan = deepScan === 'true';
         const isAutoJoin = autoJoin === 'true';
-        console.log(`[Telegram Controller] Unified Global Search for: ${q} (Offset: ${hubOffset}, Deep: ${isDeepScan}, Auto: ${isAutoJoin})`);
+        (() => {})(`[Telegram Controller] Unified Global Search for: ${q} (Offset: ${hubOffset}, Deep: ${isDeepScan}, Auto: ${isAutoJoin})`);
 
         // Run searches SEQUENTIALLY — GramJS uses a single connection,
         // so parallel API calls cause hanging/flooding
@@ -75,9 +75,9 @@ exports.searchGlobal = async (req, res) => {
         if (hubOffset === 0) {
             try {
                 publicGroups = await telegramService.searchGroups(q);
-                console.log(`[Telegram Controller] Public search found ${publicGroups.length} groups`);
+                (() => {})(`[Telegram Controller] Public search found ${publicGroups.length} groups`);
             } catch (err) {
-                console.error('[Telegram Controller] Public search failed:', err.message);
+                (() => {})('[Telegram Controller] Public search failed:', err.message);
             }
         }
 
@@ -86,9 +86,9 @@ exports.searchGlobal = async (req, res) => {
             const discovery = await telegramService.discoverInviteLinks(q, hubOffset, isDeepScan, isAutoJoin);
             discoveredResults = discovery.results || [];
             floodWait = discovery.floodWait;
-            console.log(`[Telegram Controller] Discovery found ${discoveredResults.length} results`);
+            (() => {})(`[Telegram Controller] Discovery found ${discoveredResults.length} results`);
         } catch (err) {
-            console.error('[Telegram Controller] Discovery failed:', err.message);
+            (() => {})('[Telegram Controller] Discovery failed:', err.message);
         }
 
         // 3. Dialog scan (local)
@@ -96,9 +96,9 @@ exports.searchGlobal = async (req, res) => {
         if (hubOffset === 0) {
             try {
                 myGroups = await telegramService.searchDialogsForKeyword(q);
-                console.log(`[Telegram Controller] Dialog scan found ${myGroups.length} groups`);
+                (() => {})(`[Telegram Controller] Dialog scan found ${myGroups.length} groups`);
             } catch (err) {
-                console.error('[Telegram Controller] Dialog scan failed:', err.message);
+                (() => {})('[Telegram Controller] Dialog scan failed:', err.message);
             }
         }
 
@@ -115,7 +115,7 @@ exports.searchGlobal = async (req, res) => {
             floodWait: floodWait
         });
     } catch (error) {
-        console.error('[Telegram Controller] searchGlobal error:', error);
+        (() => {})('[Telegram Controller] searchGlobal error:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -139,7 +139,7 @@ exports.join = async (req, res) => {
 
         res.json(result);
     } catch (error) {
-        console.error('[Telegram Controller] Join failed:', error.message);
+        (() => {})('[Telegram Controller] Join failed:', error.message);
         res.status(500).json({ message: error.message });
     }
 };
@@ -152,7 +152,7 @@ exports.sync = async (req, res) => {
             count: syncResults.length
         });
     } catch (error) {
-        console.error('[Telegram Controller] Sync failed:', error.message);
+        (() => {})('[Telegram Controller] Sync failed:', error.message);
         res.status(500).json({ message: error.message });
     }
 };
@@ -193,11 +193,11 @@ exports.discover = async (req, res) => {
     try {
         const { q } = req.query;
         if (!q) return res.status(400).json({ message: 'Keyword is required' });
-        console.log(`[Telegram Controller] Discovering links for: ${q}`);
+        (() => {})(`[Telegram Controller] Discovering links for: ${q}`);
         const links = await telegramService.discoverInviteLinks(q);
         res.json(links);
     } catch (error) {
-        console.error('[Telegram Controller] Discover error:', error);
+        (() => {})('[Telegram Controller] Discover error:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -212,7 +212,7 @@ exports.getMedia = async (req, res) => {
         }
         res.send(buffer);
     } catch (error) {
-        console.error('[Telegram Controller] Media error:', error);
+        (() => {})('[Telegram Controller] Media error:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -222,7 +222,7 @@ exports.checkPending = async (req, res) => {
         const result = await telegramService.checkPendingGroups(true); // Manual bypass
         res.json(result);
     } catch (error) {
-        console.error('[Telegram Controller] Check pending error:', error.message);
+        (() => {})('[Telegram Controller] Check pending error:', error.message);
         res.status(500).json({ message: error.message });
     }
 };
@@ -241,7 +241,7 @@ exports.scrapeAll = async (req, res) => {
             details: results
         });
     } catch (error) {
-        console.error('[Telegram Controller] Scrape all error:', error.message);
+        (() => {})('[Telegram Controller] Scrape all error:', error.message);
         res.status(500).json({ message: error.message });
     }
 };
@@ -253,7 +253,7 @@ exports.leaveGroup = async (req, res) => {
         const result = await telegramService.leaveGroup(groupId);
         res.json(result);
     } catch (error) {
-        console.error('[Telegram Controller] Leave group error:', error.message);
+        (() => {})('[Telegram Controller] Leave group error:', error.message);
         res.status(500).json({ message: error.message });
     }
 };
@@ -265,7 +265,7 @@ exports.markRead = async (req, res) => {
         const result = await telegramService.markAsRead(groupId);
         res.json(result);
     } catch (error) {
-        console.error('[Telegram Controller] Mark read error:', error.message);
+        (() => {})('[Telegram Controller] Mark read error:', error.message);
         res.status(500).json({ message: error.message });
     }
 };
@@ -277,7 +277,7 @@ exports.rejoinGroup = async (req, res) => {
         const result = await telegramService.rejoinGroup(groupId);
         res.json(result);
     } catch (error) {
-        console.error('[Telegram Controller] Rejoin group error:', error.message);
+        (() => {})('[Telegram Controller] Rejoin group error:', error.message);
         res.status(500).json({ message: error.message });
     }
 };
@@ -290,7 +290,7 @@ exports.deleteGroup = async (req, res) => {
         const result = await telegramService.deleteGroup(groupId, deleteMessages !== 'false');
         res.json(result);
     } catch (error) {
-        console.error('[Telegram Controller] Delete group error:', error.message);
+        (() => {})('[Telegram Controller] Delete group error:', error.message);
         res.status(500).json({ message: error.message });
     }
 };
@@ -300,7 +300,7 @@ exports.logout = async (req, res) => {
         await telegramService.logout();
         res.json({ message: 'Logged out successfully' });
     } catch (error) {
-        console.error('[Telegram Controller] Logout error:', error.message);
+        (() => {})('[Telegram Controller] Logout error:', error.message);
         res.status(500).json({ message: error.message });
     }
 };

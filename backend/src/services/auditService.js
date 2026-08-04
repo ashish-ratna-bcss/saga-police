@@ -12,7 +12,7 @@ const createAuditLog = async (user, action, resourceType, resourceId = null, det
       details: details || {}
     });
   } catch (error) {
-    console.error(`Failed to create audit log: ${error.message}`);
+    (() => {})(`Failed to create audit log: ${error.message}`);
   }
 };
 

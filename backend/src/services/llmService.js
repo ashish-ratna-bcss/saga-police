@@ -55,7 +55,7 @@ function enqueueLLMRequest(fn, options = {}) {
     const maxQueueSize = getMaxQueueSize();
     if (Number.isFinite(maxQueueSize) && llmQueue.length >= maxQueueSize) {
       llmStats.dropped++;
-      console.warn(`[LLM Queue] FULL (${maxQueueSize}). Dropping request. Total dropped: ${llmStats.dropped}`);
+      (() => {})(`[LLM Queue] FULL (${maxQueueSize}). Dropping request. Total dropped: ${llmStats.dropped}`);
       reject(new Error('LLM queue full — request dropped'));
       return;
     }
@@ -63,7 +63,7 @@ function enqueueLLMRequest(fn, options = {}) {
     llmQueue.push({ fn, resolve, reject, enqueuedAt: Date.now(), queueWaitMs });
     llmStats.queued++;
     if (llmQueue.length > 1) {
-      console.log(`[LLM Queue] ${llmQueue.length} requests queued (${llmStats.completed} completed, ${llmStats.failed} failed)`);
+      (() => {})(`[LLM Queue] ${llmQueue.length} requests queued (${llmStats.completed} completed, ${llmStats.failed} failed)`);
     }
     pumpLLMWorkers();
   });
@@ -178,12 +178,12 @@ async function categorizeText(text, options = {}) {
 
   // 0. Input validation
   if (!text || typeof text !== 'string') {
-    console.warn('[LLM] Skipped: text is null/undefined/non-string');
+    (() => {})('[LLM] Skipped: text is null/undefined/non-string');
     return null;
   }
   const trimmed = text.trim();
   if (trimmed.length < MIN_TEXT_LENGTH) {
-    console.warn(`[LLM] Skipped: text too short (${trimmed.length} chars)`);
+    (() => {})(`[LLM] Skipped: text too short (${trimmed.length} chars)`);
     return null;
   }
 
@@ -211,7 +211,7 @@ async function categorizeText(text, options = {}) {
 
   // Dynamic Prompt Construction
   const { promptPrefix, categoryCount } = buildPromptPrefix();
-  console.log(`[LLM] Constructing prompt with ${categoryCount} allowed categories.`);
+  (() => {})(`[LLM] Constructing prompt with ${categoryCount} allowed categories.`);
   const prompt = `${promptPrefix}
 
 ────────────────────────
@@ -249,7 +249,7 @@ ${analysisText}
           }
           const parsed = extractJSON(raw);
           if (!parsed) {
-            console.warn(`[LLM] Failed to parse JSON from response (length=${raw.length}): ${raw.substring(0, 200)}`);
+            (() => {})(`[LLM] Failed to parse JSON from response (length=${raw.length}): ${raw.substring(0, 200)}`);
             throw new Error('LLM response is not valid JSON');
           }
           return parsed;
@@ -257,7 +257,7 @@ ${analysisText}
           lastError = err;
           const isTimeout = err.code === 'ECONNABORTED' || err.message?.includes('timeout');
           const isOverloaded = err.response?.status === 503 || err.response?.status === 429;
-          console.warn(`[LLM] Attempt ${attempt}/${config.maxAttempts} failed: ${err.message}${isTimeout ? ' (TIMEOUT)' : ''}${isOverloaded ? ' (OVERLOADED)' : ''}`);
+          (() => {})(`[LLM] Attempt ${attempt}/${config.maxAttempts} failed: ${err.message}${isTimeout ? ' (TIMEOUT)' : ''}${isOverloaded ? ' (OVERLOADED)' : ''}`);
           if (attempt < config.maxAttempts) {
             const delay = isOverloaded ? 2000 * attempt : 1000 * attempt;
             await new Promise(r => setTimeout(r, delay));
@@ -279,7 +279,7 @@ ${analysisText}
     const availableCategories = (mappingService.mappingData.category_mappings || []).map(c => c.category_id);
     let finalCategory = result.category;
 
-    console.log(`[LLM] Raw Category: "${finalCategory}"`);
+    (() => {})(`[LLM] Raw Category: "${finalCategory}"`);
 
     if (!availableCategories.includes(finalCategory)) {
       // Try strict case-insensitive match (trim + case)
@@ -290,7 +290,7 @@ ${analysisText}
       if (exactMatch) {
         finalCategory = exactMatch;
       } else {
-        console.warn(`[LLM] INVALID CATEGORY: "${finalCategory}". Fallback to 'Normal'.`);
+        (() => {})(`[LLM] INVALID CATEGORY: "${finalCategory}". Fallback to 'Normal'.`);
         finalCategory = 'Normal';
       }
     }
@@ -305,7 +305,7 @@ ${analysisText}
     if (isNaN(finalRiskScore) || finalRiskScore < 0) finalRiskScore = 0;
     if (finalRiskScore > 100) finalRiskScore = 100;
 
-    console.log(`[LLM] Result: cat=${finalCategory}, sentiment=${finalSentiment}, risk_score=${finalRiskScore}, intent="${(result.intent || '').substring(0, 50)}"`);
+    (() => {})(`[LLM] Result: cat=${finalCategory}, sentiment=${finalSentiment}, risk_score=${finalRiskScore}, intent="${(result.intent || '').substring(0, 50)}"`);
 
     return {
       category: finalCategory,
@@ -315,7 +315,7 @@ ${analysisText}
       reasoning: result.reasoning || ""
     };
   } catch (err) {
-    console.error(`[LLM] [ollama] Analysis Failed:`, err.message);
+    (() => {})(`[LLM] [ollama] Analysis Failed:`, err.message);
 
     return null;
   }
@@ -405,7 +405,7 @@ ${analysisText}
       model: config.model
     };
   } catch (err) {
-    console.warn(`[LLM][TS-relevance] failed: ${err.message}`);
+    (() => {})(`[LLM][TS-relevance] failed: ${err.message}`);
     return null;
   }
 }

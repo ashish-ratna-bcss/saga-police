@@ -26,7 +26,7 @@ class GlobalSearchService {
      */
     async searchProfiles(query, limit = 20) {
         const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
-        console.log(`[GlobalSearch] Searching profiles for: ${query}`);
+        (() => {})(`[GlobalSearch] Searching profiles for: ${query}`);
         // X fallback: RapidAPI X -> Official X API -> Scraper
         let xResults = [];
         let xError = null;
@@ -97,7 +97,7 @@ class GlobalSearchService {
      */
     async searchContent(query, limit = 20) {
         const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
-        console.log(`[GlobalSearch] Searching content for: ${query}`);
+        (() => {})(`[GlobalSearch] Searching content for: ${query}`);
         // X fallback: RapidAPI X -> Official X API -> Scraper
         let xResults = [];
         let xError = null;
@@ -212,7 +212,7 @@ class GlobalSearchService {
 
             return normalized;
         } catch (e) {
-            console.error(`Error normalizing ${platform} item:`, e.message);
+            (() => {})(`Error normalizing ${platform} item:`, e.message);
             return null;
         }
     }

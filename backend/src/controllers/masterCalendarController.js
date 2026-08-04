@@ -75,9 +75,9 @@ const seedRecurringEvents = async () => {
         { upsert: true, new: true }
       );
     }
-    console.log('[MasterCalendar] 48 HCP recurring events seeded');
+    (() => {})('[MasterCalendar] 48 HCP recurring events seeded');
   } catch (err) {
-    console.error('[MasterCalendar] Seed error:', err.message);
+    (() => {})('[MasterCalendar] Seed error:', err.message);
   }
 };
 

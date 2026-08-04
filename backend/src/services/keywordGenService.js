@@ -82,7 +82,7 @@ function extractJSON(text) {
 
 async function generateEventKeywords(eventData) {
   if (!GROQ_API_KEY) {
-    console.error('[KeywordGen] GROQ_API_KEY not set');
+    (() => {})('[KeywordGen] GROQ_API_KEY not set');
     return null;
   }
 
@@ -90,24 +90,24 @@ async function generateEventKeywords(eventData) {
 
   try {
     // Step 1: Web search via compound-mini (~10-20s)
-    console.log('[KeywordGen] Step 1: Web search (compound-mini)...');
+    (() => {})('[KeywordGen] Step 1: Web search (compound-mini)...');
     let searchResults = '';
     try {
       searchResults = await webSearch(eventData);
-      console.log(`[KeywordGen] Search found ${searchResults.length} chars in ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
+      (() => {})(`[KeywordGen] Search found ${searchResults.length} chars in ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
     } catch (searchErr) {
-      console.warn('[KeywordGen] Web search failed, proceeding with LLM only:', searchErr.response?.data?.error?.message || searchErr.message);
+      (() => {})('[KeywordGen] Web search failed, proceeding with LLM only:', searchErr.response?.data?.error?.message || searchErr.message);
     }
 
     // Step 2: Generate keywords with 70b, grounded by search data (~2-5s)
-    console.log('[KeywordGen] Step 2: Generating keywords (70b)...');
+    (() => {})('[KeywordGen] Step 2: Generating keywords (70b)...');
     const structured = await generateFromSearch(searchResults, eventData);
     const total = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[KeywordGen] Done in ${total}s`);
+    (() => {})(`[KeywordGen] Done in ${total}s`);
 
     const result = extractJSON(structured);
     if (!result?.keywords_by_language) {
-      console.warn('[KeywordGen] Parse failed:', structured?.substring(0, 300));
+      (() => {})('[KeywordGen] Parse failed:', structured?.substring(0, 300));
       return null;
     }
 
@@ -125,10 +125,10 @@ async function generateEventKeywords(eventData) {
     const status = err.response?.status;
     const errMsg = err.response?.data?.error?.message || err.message;
     if (status === 429) {
-      console.error(`[KeywordGen] Rate limited after ${elapsed}s:`, errMsg);
+      (() => {})(`[KeywordGen] Rate limited after ${elapsed}s:`, errMsg);
       return null;
     }
-    console.error(`[KeywordGen] Failed after ${elapsed}s (${status}):`, errMsg);
+    (() => {})(`[KeywordGen] Failed after ${elapsed}s (${status}):`, errMsg);
     return null;
   }
 }

@@ -1,4 +1,5 @@
 require('dotenv').config();
+const mongoose = require('mongoose');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -466,7 +467,6 @@ const startLlmRelevanceSweeper = () => {
   };
   setTimeout(kick, 60 * 1000); // first run 1 min after boot
   setInterval(kick, intervalMs);
-  console.log(`[LLMSweeper] enabled — interval=${intervalMs}ms batch=${batch}`);
 };
 
 const startServer = async () => {
@@ -500,18 +500,14 @@ const startServer = async () => {
   // Start Monitoring Service OR temp content processor (engine mode)
   const useEngine = String(process.env.USE_ENGINE || 'false').toLowerCase() === 'true';
   if (useEngine) {
-    console.log('[Server] USE_ENGINE=true -> starting temp content processor and skipping direct monitoring fetch loops');
     startTempContentProcessor();
   } else {
-    console.log('[Server] USE_ENGINE=false -> starting existing monitoring service');
     startMonitoring();
   }
 
   // Start Grievance Auto-Fetch Scheduler only in legacy mode.
   if (!useEngine) {
     startGrievanceScheduler();
-  } else {
-    console.log('[Server] USE_ENGINE=true -> skipping backend Grievance Auto-Fetch (handled by engine)');
   }
 
   // Start Content Availability Checker
@@ -538,14 +534,17 @@ const startServer = async () => {
     } catch (err) {
       console.warn('[Server] Could not initialize Telegram Auto-Sync:', err.message);
     }
-  } else {
-    console.log('[Server] USE_ENGINE=true -> skipping backend Telegram Auto-Sync (handled by engine)');
   }
 
   const PORT = process.env.PORT || 8000;
 
   app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log('\\n----------------------------------------');
+    console.log(`🚀 Server Status: Online`);
+    console.log(`🔌 Port: ${PORT}`);
+    console.log(`🍃 Database: MongoDB connected to '${mongoose.connection.name}'`);
+    console.log(`🤖 Background Services: Active`);
+    console.log('----------------------------------------\\n');
   });
 };
 

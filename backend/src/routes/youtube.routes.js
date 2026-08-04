@@ -44,7 +44,7 @@ const logAction = async (user, action, resourceType, resourceId, details) => {
             details: details
         });
     } catch (error) {
-        console.error('Audit Log Error:', error);
+        (() => {})('Audit Log Error:', error);
     }
 };
 
@@ -101,7 +101,7 @@ router.post('/channels', mockUser, async (req, res) => {
             }
 
             if (isQuotaError) {
-                console.warn(`YouTube API Quota Exceeded for ${identifier}. Creating pending source.`);
+                (() => {})(`YouTube API Quota Exceeded for ${identifier}. Creating pending source.`);
                 isPending = true;
                 // create dummy details
                 details = {
@@ -119,7 +119,7 @@ router.post('/channels', mockUser, async (req, res) => {
                     }
                 };
             } else {
-                console.error('YouTube API Error:', apiError);
+                (() => {})('YouTube API Error:', apiError);
                 throw apiError; // Re-throw other errors
             }
         }
@@ -162,7 +162,7 @@ router.post('/channels', mockUser, async (req, res) => {
 
         res.status(201).json(newSource);
     } catch (error) {
-        console.error(error);
+        (() => {})(error);
         res.status(500).json({ message: 'Error adding channel', error: error.message });
     }
 });
@@ -387,7 +387,7 @@ router.post('/channels/:id/sync', mockUser, async (req, res) => {
 
         res.json({ message: 'Sync completed', new_videos: newCount });
     } catch (error) {
-        console.error(error);
+        (() => {})(error);
         res.status(500).json({ message: 'Error syncing channel', error: error.message });
     }
 });
@@ -500,7 +500,7 @@ router.post('/videos/transcribe-analyze', mockUser, async (req, res) => {
             return res.status(400).json({ message: 'Provide video_ids or youtube_urls' });
         }
 
-        console.log('Backend /transcribe-analyze received inputs:', JSON.stringify(inputs, null, 2));
+        (() => {})('Backend /transcribe-analyze received inputs:', JSON.stringify(inputs, null, 2));
 
         const results = [];
         const errors = [];
@@ -511,16 +511,16 @@ router.post('/videos/transcribe-analyze', mockUser, async (req, res) => {
 
             try {
                 // 1. Transcribe
-                console.log(`Calling media-analyzer for ${youtube_url}...`);
+                (() => {})(`Calling media-analyzer for ${youtube_url}...`);
                 const transcriptResponse = await mediaAnalyzerService.transcribeYoutubeUrl(youtube_url);
-                console.log('media-analyzer response short summary:', {
+                (() => {})('media-analyzer response short summary:', {
                     id: transcriptResponse.id,
                     transcriptLength: transcriptResponse.transcript?.length,
                     duration: transcriptResponse.duration_seconds
                 });
 
                 if (!transcriptResponse.transcript) {
-                    console.warn(`WARNING: Transcript is empty for ${youtube_url}`);
+                    (() => {})(`WARNING: Transcript is empty for ${youtube_url}`);
                     // Provide fallback to avoid Mongoose validation error
                     transcriptResponse.transcript = "[No speech detected or transcript empty]";
                 }
@@ -609,7 +609,7 @@ router.post('/videos/transcribe-analyze', mockUser, async (req, res) => {
                                     };
                                 }
                             } catch (e) {
-                                console.warn('Failed to fetch video details for content creation', e);
+                                (() => {})('Failed to fetch video details for content creation', e);
                             }
                             await content.save();
                         }
@@ -666,7 +666,7 @@ router.post('/videos/transcribe-analyze', mockUser, async (req, res) => {
                         await content.save();
 
                     } catch (syncErr) {
-                        console.error('Failed to sync Gemini results to Content/Analysis:', syncErr);
+                        (() => {})('Failed to sync Gemini results to Content/Analysis:', syncErr);
                         // Don't fail the whole request, but log it.
                     }
 
@@ -694,7 +694,7 @@ router.post('/videos/transcribe-analyze', mockUser, async (req, res) => {
                 });
 
             } catch (videoErr) {
-                console.error(`Error processing video ${videoId}:`, videoErr);
+                (() => {})(`Error processing video ${videoId}:`, videoErr);
                 errors.push({ video_id: videoId, error: videoErr.message });
             }
         }
@@ -732,7 +732,7 @@ async function syncCommentsForVideo(content) {
             }
         }
     } catch (e) {
-        console.error("Comment Sync Error", e);
+        (() => {})("Comment Sync Error", e);
     }
 }
 
@@ -748,7 +748,7 @@ router.post('/download-video', mockUser, async (req, res) => {
             return res.status(400).json({ error: 'media_url is required' });
         }
         
-        console.log(`Initiating video download for: ${mediaUrl}`);
+        (() => {})(`Initiating video download for: ${mediaUrl}`);
         
         const result = await mediaAnalyzerService.downloadVideo(mediaUrl);
         
@@ -768,7 +768,7 @@ router.post('/download-video', mockUser, async (req, res) => {
             duration_seconds: result.duration_seconds
         });
     } catch (error) {
-        console.error('Video download error:', error);
+        (() => {})('Video download error:', error);
         res.status(error.statusCode || 500).json({ 
             error: error.message || 'Failed to download video' 
         });

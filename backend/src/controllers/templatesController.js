@@ -296,7 +296,7 @@ const generateTemplate = async (req, res) => {
 
         res.json({ html });
     } catch (error) {
-        console.error('Generate template error:', error);
+        (() => {})('Generate template error:', error);
         res.status(500).json({ error: error.message });
     }
 };

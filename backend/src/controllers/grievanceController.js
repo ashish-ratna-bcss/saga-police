@@ -363,7 +363,7 @@ const addSource = async (req, res) => {
             try {
                 profile = await grievanceService.fetchUserProfile(cleanHandle);
             } catch (err) {
-                console.warn(`Failed to fetch X profile for ${cleanHandle}:`, err.message);
+                (() => {})(`Failed to fetch X profile for ${cleanHandle}:`, err.message);
             }
             finalHandle = `@${cleanHandle}`;
         } else if (platform === 'facebook') {
@@ -373,7 +373,7 @@ const addSource = async (req, res) => {
                     finalHandle = profile.id;
                 }
             } catch (err) {
-                console.warn(`Failed to fetch Facebook profile for ${cleanHandle}:`, err.message);
+                (() => {})(`Failed to fetch Facebook profile for ${cleanHandle}:`, err.message);
             }
         }
 
@@ -980,13 +980,13 @@ const ingestWhatsAppWebhook = async (req, res) => {
             throw saveError;
         }
 
-        console.info(`[GrievanceWebhook] Ingested WhatsApp grievance ${grievance.id} (${messageSid})`);
+        (() => {})(`[GrievanceWebhook] Ingested WhatsApp grievance ${grievance.id} (${messageSid})`);
         return sendTwilioAck(res, 200);
     } catch (error) {
         if (error.code === 'TWILIO_TOKEN_MISSING') {
             return res.status(500).json({ message: error.message });
         }
-        console.error('[GrievanceWebhook] Failed to ingest WhatsApp message:', error.message);
+        (() => {})('[GrievanceWebhook] Failed to ingest WhatsApp message:', error.message);
         return res.status(500).json({ message: 'Failed to process webhook' });
     }
 };
@@ -1342,7 +1342,7 @@ const enrichGrievanceContext = async (req, res) => {
                     updated = true;
                 }
             } catch (e) {
-                console.error(`[enrichGrievanceContext] Failed to fetch in_reply_to ${ctx.in_reply_to.tweet_id}:`, e.message);
+                (() => {})(`[enrichGrievanceContext] Failed to fetch in_reply_to ${ctx.in_reply_to.tweet_id}:`, e.message);
             }
         }
 
@@ -1359,7 +1359,7 @@ const enrichGrievanceContext = async (req, res) => {
                     updated = true;
                 }
             } catch (e) {
-                console.error(`[enrichGrievanceContext] Failed to fetch quoted ${ctx.quoted.tweet_id}:`, e.message);
+                (() => {})(`[enrichGrievanceContext] Failed to fetch quoted ${ctx.quoted.tweet_id}:`, e.message);
             }
         }
 
@@ -1376,7 +1376,7 @@ const enrichGrievanceContext = async (req, res) => {
                     updated = true;
                 }
             } catch (e) {
-                console.error(`[enrichGrievanceContext] Failed to fetch reposted_from ${ctx.reposted_from.tweet_id}:`, e.message);
+                (() => {})(`[enrichGrievanceContext] Failed to fetch reposted_from ${ctx.reposted_from.tweet_id}:`, e.message);
             }
         }
 
@@ -1391,7 +1391,7 @@ const enrichGrievanceContext = async (req, res) => {
                     updated = true;
                 }
             } catch (e) {
-                console.error(`[enrichGrievanceContext] Failed to build thread chain for ${replySeed.tweet_id}:`, e.message);
+                (() => {})(`[enrichGrievanceContext] Failed to build thread chain for ${replySeed.tweet_id}:`, e.message);
             }
         }
 
@@ -1411,7 +1411,7 @@ const enrichGrievanceContext = async (req, res) => {
                             updated = true;
                         }
                     } catch (e) {
-                        console.error(`[enrichGrievanceContext] Failed to re-enrich thread_chain node ${chain[i].tweet_id}:`, e.message);
+                        (() => {})(`[enrichGrievanceContext] Failed to re-enrich thread_chain node ${chain[i].tweet_id}:`, e.message);
                     }
                 }
             }
@@ -1430,7 +1430,7 @@ const enrichGrievanceContext = async (req, res) => {
         payload.can_convert_to_fir = canConvertToFir(payload);
         res.status(200).json({ enriched: updated, grievance: payload });
     } catch (error) {
-        console.error('[enrichGrievanceContext] Error:', error);
+        (() => {})('[enrichGrievanceContext] Error:', error);
         res.status(500).json({ message: error.message });
     }
 };

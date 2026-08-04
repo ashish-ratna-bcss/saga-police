@@ -3,7 +3,7 @@ const nodemailer = require('nodemailer');
 const sendAlertEmail = async (smtpConfig, toEmails, alertData) => {
   try {
     if (!smtpConfig.host || !smtpConfig.username || !smtpConfig.password) {
-      console.warn("SMTP not configured, email not sent");
+      (() => {})("SMTP not configured, email not sent");
       return false;
     }
 
@@ -78,10 +78,10 @@ const sendAlertEmail = async (smtpConfig, toEmails, alertData) => {
       html: htmlBody,
     });
 
-    console.log(`Alert email sent to ${toEmails}: ${info.messageId}`);
+    (() => {})(`Alert email sent to ${toEmails}: ${info.messageId}`);
     return true;
   } catch (error) {
-    console.error(`Failed to send alert email: ${error.message}`);
+    (() => {})(`Failed to send alert email: ${error.message}`);
     return false;
   }
 };

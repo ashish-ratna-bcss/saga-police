@@ -121,7 +121,7 @@ router.post('/:id/pdf', async (req, res) => {
         res.setHeader('Content-Length', pdf.length);
         return res.end(pdf);
     } catch (error) {
-        console.error('PDF generation failed:', error);
+        (() => {})('PDF generation failed:', error);
         return res.status(500).json({ error: error.message || 'PDF generation failed' });
     }
 });

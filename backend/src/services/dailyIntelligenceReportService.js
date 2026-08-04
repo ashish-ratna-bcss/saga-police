@@ -571,7 +571,7 @@ const generateDailyIntelligenceReport = async (targetDate = null) => {
         return report;
 
     } catch (error) {
-        console.error('Error generating daily intelligence report:', error);
+        (() => {})('Error generating daily intelligence report:', error);
         
         if (existing) {
             existing.status = 'failed';

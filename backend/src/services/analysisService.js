@@ -55,7 +55,7 @@ const setCachedAnalysis = (text, value) => {
  */
 
 const triggerForensicAnalysis = async (content, analysisId) => {
-  const log = (msg) => console.log(`[ForensicQueue] ${msg}`);
+  const log = (msg) => (() => {})(`[ForensicQueue] ${msg}`);
   const mlServiceUrl = process.env.DEEPFAKE_ML_URL || 'http://localhost:8001';
 
   // Queue background alert-batch forensics at normal priority.
@@ -100,7 +100,7 @@ const triggerForensicAnalysis = async (content, analysisId) => {
 };
 
 const analyzeContent = async (text, options = {}) => {
-  const log = (msg) => console.log(`[AnalysisService] ${msg}`);
+  const log = (msg) => (() => {})(`[AnalysisService] ${msg}`);
 
   if (!text || !text.trim()) {
     return {
