@@ -311,6 +311,54 @@ code {
     .custom-scrollbar-dark::-webkit-scrollbar-thumb:hover {
         background: rgba(255, 255, 255, 0.4);
     }
+
+    /* Thin, modern scrollbar — overlay style, track-less, appears on hover */
+    .thin-scrollbar {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(100, 116, 139, 0.3) transparent;
+    }
+
+    .thin-scrollbar::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    .thin-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .thin-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(100, 116, 139, 0.25);
+        border-radius: 9999px;
+    }
+
+    .thin-scrollbar:hover::-webkit-scrollbar-thumb {
+        background: rgba(100, 116, 139, 0.4);
+    }
+
+    .thin-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(100, 116, 139, 0.6);
+    }
+
+    .thin-scrollbar::-webkit-scrollbar-corner {
+        background: transparent;
+    }
+
+    .dark .thin-scrollbar {
+        scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
+    }
+
+    .dark .thin-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.22);
+    }
+
+    .dark .thin-scrollbar:hover::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.38);
+    }
+
+    .dark .thin-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(148, 163, 184, 0.55);
+    }
 }
 
 /* ========================
