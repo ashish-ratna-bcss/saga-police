@@ -101,21 +101,22 @@ const ExpandableText = ({ text, limit = 150, className }) => {
 const SuggestionReportDetailView = ({ report, onUpdate }) => {
     const [pdfGenerating, setPdfGenerating] = useState(false);
     const [pdfUrl, setPdfUrl] = useState(report?.report_pdf_url || null);
+    const pdfGeneratingRef = useRef(false);
+    pdfGeneratingRef.current = pdfGenerating;
+    const reportRef = useRef(report);
+    reportRef.current = report;
+    const onUpdateRef = useRef(onUpdate);
+    onUpdateRef.current = onUpdate;
 
-    useEffect(() => {
-        if (!pdfUrl && report?.id && !pdfGenerating) {
-            handleGeneratePdf();
-        }
-    }, [pdfUrl, report?.id]);
-
-    const handleGeneratePdf = async () => {
+    const handleGeneratePdf = useCallback(async () => {
+        const current = reportRef.current;
         setPdfGenerating(true);
         try {
-            const res = await api.post(`/suggestion/reports/${report?.id || report?.unique_code}/generate-pdf`);
+            const res = await api.post(`/suggestion/reports/${current?.id || current?.unique_code}/generate-pdf`);
             const url = res.data?.pdf_url;
             if (url) {
                 setPdfUrl(url);
-                onUpdate?.({ ...report, report_pdf_url: url });
+                onUpdateRef.current?.({ ...current, report_pdf_url: url });
                 toast.success('PDF generated successfully');
             }
         } catch (err) {
@@ -124,7 +125,13 @@ const SuggestionReportDetailView = ({ report, onUpdate }) => {
         } finally {
             setPdfGenerating(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        if (!pdfUrl && report?.id && !pdfGeneratingRef.current) {
+            handleGeneratePdf();
+        }
+    }, [pdfUrl, report?.id, handleGeneratePdf]);
 
     const r = report || {};
     const mediaUrls = (Array.isArray(r.media_s3_urls) && r.media_s3_urls.length > 0 ? r.media_s3_urls : r.media_urls || []);
@@ -391,6 +398,8 @@ export const SuggestionReports = ({ openReportCode = '', onReportCodeHandled }) 
     const [detailDragOffset, setDetailDragOffset] = useState({ x: 0, y: 0 });
     const [sortConfig, setSortConfig] = useState({ key: 'post_date', direction: 'desc' });
     const [pdfGenerating, setPdfGenerating] = useState(false);
+    const pdfGeneratingRef = useRef(false);
+    pdfGeneratingRef.current = pdfGenerating;
 
     useEffect(() => {
         if (quickRange === 'all') {
@@ -427,13 +436,7 @@ export const SuggestionReports = ({ openReportCode = '', onReportCodeHandled }) 
         setPage(1);
     }, [quickRange]);
 
-    useEffect(() => {
-        if (selectedReport && !selectedReport.report_pdf_url && !pdfGenerating) {
-            handleAutoGeneratePdf(selectedReport);
-        }
-    }, [selectedReport]);
-
-    const handleAutoGeneratePdf = async (report) => {
+    const handleAutoGeneratePdf = useCallback(async (report) => {
         setPdfGenerating(true);
         try {
             const res = await api.post(`/suggestion/reports/${report.id}/generate-pdf`);
@@ -449,7 +452,13 @@ export const SuggestionReports = ({ openReportCode = '', onReportCodeHandled }) 
         } finally {
             setPdfGenerating(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        if (selectedReport && !selectedReport.report_pdf_url && !pdfGeneratingRef.current) {
+            handleAutoGeneratePdf(selectedReport);
+        }
+    }, [selectedReport, handleAutoGeneratePdf]);
 
     const timelineSteps = React.useMemo(() => {
         if (!selectedReport) return [];

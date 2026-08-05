@@ -525,18 +525,21 @@ const Events = () => {
 
 
   // ── Data Fetching ──
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+
   const fetchEvents = useCallback(async () => {
     setLoadingEvents(true);
     try {
       const res = await api.get('/events', { params: { status: 'all' } });
       setEvents(res.data || []);
-      if (!selectedId && res.data?.length > 0) setSelectedId(res.data[0].id);
+      if (!selectedIdRef.current && res.data?.length > 0) setSelectedId(res.data[0].id);
     } catch {
       toast.error('Failed to load events');
     } finally {
       setLoadingEvents(false);
     }
-  }, [selectedId]);
+  }, []);
 
 
   const fetchDashboard = useCallback(async (id) => {
@@ -653,7 +656,7 @@ const Events = () => {
   }, []);
 
 
-  useEffect(() => { fetchEvents(); }, []);
+  useEffect(() => { fetchEvents(); }, [fetchEvents]);
   useEffect(() => {
     if (selectedId) {
       fetchDashboard(selectedId);

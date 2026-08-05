@@ -222,21 +222,22 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
     const [pdfGenerating, setPdfGenerating] = useState(false);
     const [pdfUrl, setPdfUrl] = useState(report?.report_pdf_url || null);
     const resolvedPdfUrl = toApiFilesUrl(pdfUrl || report?.report_pdf_url);
+    const pdfGeneratingRef = useRef(false);
+    pdfGeneratingRef.current = pdfGenerating;
+    const reportRef = useRef(report);
+    reportRef.current = report;
+    const onUpdateRef = useRef(onUpdate);
+    onUpdateRef.current = onUpdate;
 
-    useEffect(() => {
-        if (!pdfUrl && report?.id && !pdfGenerating) {
-            handleGeneratePdf();
-        }
-    }, [pdfUrl, report?.id]);
-
-    const handleGeneratePdf = async () => {
+    const handleGeneratePdf = useCallback(async () => {
+        const current = reportRef.current;
         setPdfGenerating(true);
         try {
-            const res = await api.post(`/grievance-workflow/reports/${report?.id || report?.unique_code}/generate-pdf`);
+            const res = await api.post(`/grievance-workflow/reports/${current?.id || current?.unique_code}/generate-pdf`);
             const url = res.data?.pdf_url;
             if (url) {
                 setPdfUrl(url);
-                onUpdate?.({ ...report, report_pdf_url: url });
+                onUpdateRef.current?.({ ...current, report_pdf_url: url });
                 toast.success('PDF generated successfully');
             }
         } catch (err) {
@@ -245,7 +246,13 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
         } finally {
             setPdfGenerating(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        if (!pdfUrl && report?.id && !pdfGeneratingRef.current) {
+            handleGeneratePdf();
+        }
+    }, [pdfUrl, report?.id, handleGeneratePdf]);
 
     const simModeOptions = {
         user: ['X POST', 'X DM', 'WHATSAPP CALL', 'WHATSAPP DM', 'FB POST'],
@@ -284,14 +291,14 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
     const timelineSteps = useMemo(() => {
         if (!report) return [];
         const steps = [];
-        const hist = r.status_history || [];
+        const hist = report.status_history || [];
 
         /* PENDING */
         const pendingEntry = hist.find(h => h.to_status === 'PENDING') || {};
-        const createdAt = r.created_at;
-        const escalatedAt = r.escalated_at || hist.find(h => h.to_status === 'ESCALATED' || h.to_status === 'ESCALED')?.timestamp;
-        const closedAt = r.closed_at || hist.find(h => h.to_status === 'CLOSED')?.timestamp;
-        const currentStatus = (r.status || 'PENDING').toUpperCase();
+        const createdAt = report.created_at;
+        const escalatedAt = report.escalated_at || hist.find(h => h.to_status === 'ESCALATED' || h.to_status === 'ESCALED')?.timestamp;
+        const closedAt = report.closed_at || hist.find(h => h.to_status === 'CLOSED')?.timestamp;
+        const currentStatus = (report.status || 'PENDING').toUpperCase();
 
         steps.push({
             label: 'Pending',
@@ -299,7 +306,7 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
             active: true,
             current: currentStatus === 'PENDING',
             duration: calcDuration(createdAt, escalatedAt || closedAt || (currentStatus === 'PENDING' ? null : createdAt)),
-            officer: r.created_by?.name || r.informed_to?.name || '—',
+            officer: report.created_by?.name || report.informed_to?.name || '—',
             note: 'Issue created',
             color: 'yellow'
         });
@@ -308,9 +315,9 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
         const escalateHist = hist.find(h => h.to_status === 'ESCALATED' || h.to_status === 'ESCALED');
         const isEscalated = currentStatus === 'ESCALATED' || currentStatus === 'ESCALED' || currentStatus === 'CLOSED';
 
-        let escalatedNote = escalateHist?.note || (r.informed_to?.name ? `Escalated to ${r.informed_to.name}` : '—');
-        if (r.informed_to?.phone && escalatedNote !== '—' && !escalatedNote.includes(r.informed_to.phone)) {
-            escalatedNote += ` (${r.informed_to.phone})`;
+        let escalatedNote = escalateHist?.note || (report.informed_to?.name ? `Escalated to ${report.informed_to.name}` : '—');
+        if (report.informed_to?.phone && escalatedNote !== '—' && !escalatedNote.includes(report.informed_to.phone)) {
+            escalatedNote += ` (${report.informed_to.phone})`;
         }
 
         steps.push({
@@ -319,7 +326,7 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
             active: isEscalated,
             current: currentStatus === 'ESCALATED' || currentStatus === 'ESCALED',
             duration: isEscalated ? calcDuration(escalatedAt, closedAt || (currentStatus === 'CLOSED' ? closedAt : null)) : '—',
-            officer: escalateHist?.changed_by?.name || r.informed_to?.name || '—',
+            officer: escalateHist?.changed_by?.name || report.informed_to?.name || '—',
             note: escalatedNote,
             color: 'orange'
         });
@@ -334,13 +341,13 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
             current: isClosed,
             duration: isClosed ? calcDuration(createdAt, closedAt) : '—',
             officer: closeHist?.changed_by?.name || '—',
-            note: r.closing_remarks || closeHist?.note || 'Resolved',
+            note: report.closing_remarks || closeHist?.note || 'Resolved',
             color: 'green',
             totalResolution: true
         });
 
         return steps;
-    }, [r]);
+    }, [report]);
 
     /* Chat logs merged */
     const chatLogs = useMemo(() => {
@@ -362,7 +369,7 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
         }
 
         return logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    }, [r.complainant_logs, r.officer_logs, r.status_history, r.escalated_at, r.remarks, r.created_by, r.informed_to]);
+    }, [r.complainant_logs, r.officer_logs, r.status_history, r.escalated_at, r.remarks, r.created_by, r.informed_to, r.escalation_message]);
 
     const colorMap = { yellow: { bg: 'bg-yellow-500', ring: 'ring-yellow-200', text: 'text-yellow-700', light: 'bg-yellow-50' }, orange: { bg: 'bg-orange-500', ring: 'ring-orange-200', text: 'text-orange-700', light: 'bg-orange-50' }, green: { bg: 'bg-green-500', ring: 'ring-green-200', text: 'text-green-700', light: 'bg-green-50' } };
     const colorHex = { yellow: { border: '#eab308', text: '#ca8a04', bg: '#facc15' }, orange: { border: '#f97316', text: '#ea580c', bg: '#fb923c' }, green: { border: '#22c55e', text: '#16a34a', bg: '#4ade80' } };
@@ -1093,6 +1100,8 @@ export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStats
     const [copied, setCopied] = useState(false);
     const detailPopupRef = useRef(null);
     const printComponentRef = useRef(null);
+    const onStatsUpdateRef = useRef(onStatsUpdate);
+    onStatsUpdateRef.current = onStatsUpdate;
     const [detailPos, setDetailPos] = useState({
         x: Math.max(24, window.innerWidth / 2 - 480),
         y: 40
@@ -1177,7 +1186,7 @@ export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStats
             setPagination(res.data?.pagination || { total: 0, pages: 1 });
             if (res.data?.stats) {
                 setStats(res.data.stats);
-                onStatsUpdate?.(res.data.stats);
+                onStatsUpdateRef.current?.(res.data.stats);
             }
         } catch {
             toast.error('Failed to load grievance reports', {

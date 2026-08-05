@@ -145,14 +145,12 @@ export const QueryReports = ({ externalStatusFilter = 'all', onStatsUpdate }) =>
     const [activeTab, setActiveTab] = useState('details');
     const [previewMedia, setPreviewMedia] = useState(null);
     const [pdfGenerating, setPdfGenerating] = useState(false);
+    const pdfGeneratingRef = useRef(false);
+    pdfGeneratingRef.current = pdfGenerating;
+    const onStatsUpdateRef = useRef(onStatsUpdate);
+    onStatsUpdateRef.current = onStatsUpdate;
 
-    useEffect(() => {
-        if (selectedReport && !selectedReport.report_pdf_url && !pdfGenerating) {
-            handleAutoGeneratePdf(selectedReport);
-        }
-    }, [selectedReport]);
-
-    const handleAutoGeneratePdf = async (report) => {
+    const handleAutoGeneratePdf = useCallback(async (report) => {
         setPdfGenerating(true);
         try {
             const res = await api.post(`/query-workflow/reports/${report.id}/generate-pdf`);
@@ -168,7 +166,13 @@ export const QueryReports = ({ externalStatusFilter = 'all', onStatsUpdate }) =>
         } finally {
             setPdfGenerating(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        if (selectedReport && !selectedReport.report_pdf_url && !pdfGeneratingRef.current) {
+            handleAutoGeneratePdf(selectedReport);
+        }
+    }, [selectedReport, handleAutoGeneratePdf]);
 
     useEffect(() => {
         const normalized = String(externalStatusFilter || 'all').trim().toUpperCase();
@@ -235,7 +239,7 @@ export const QueryReports = ({ externalStatusFilter = 'all', onStatsUpdate }) =>
             setPagination(res.data?.pagination || { total: 0, pages: 1 });
             if (res.data?.stats) {
                 setStats(res.data.stats);
-                onStatsUpdate?.(res.data.stats);
+                onStatsUpdateRef.current?.(res.data.stats);
             }
         } catch {
             toast.error('Failed to load query reports', {

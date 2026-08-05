@@ -55,6 +55,34 @@ const formatFullDate = (date) => {
     try { return new Date(date).toLocaleString('en-IN', { dateStyle: 'long', timeStyle: 'short' }); } catch { return ''; }
 };
 
+const buildGrievanceMessage = (g) => {
+    if (!g) return '';
+    const greeting = getGreeting();
+    const author = g.posted_by?.display_name || g.posted_by?.handle || 'Unknown';
+    const handle = g.posted_by?.handle ? `@${g.posted_by.handle}` : '';
+    const desc = g.content?.full_text || g.content?.text || '';
+    const link = g.tweet_url || g.url || g.post_url || '';
+    const eng = g.engagement || g.metrics || {};
+    const phone = extractPhoneFromText(desc) || g.complainant_phone || 'None';
+    const platformName = (g.platform || 'x') === 'x' ? 'X (Twitter)' : g.platform === 'facebook' ? 'Facebook' : 'WhatsApp';
+
+    return [
+        `${greeting} Sir/Ma'am,`,
+        ``,
+        `A post requiring attention has been identified on ${platformName}.`,
+        ``,
+        `Complaint Phone Number: ${phone}`,
+        ``,
+        `📌 *Post Details:*`,
+        `*Posted by*: ${author} ${handle}`,
+        `*Post Link:* ${link}`,
+        `*Post Content*: ${desc}`,
+        ``,
+        `📊 *Engagement:*`,
+        `• Views: ${fmtNum(eng.views || 0)} | Reposts: ${fmtNum(eng.retweet_count || eng.reposts || 0)} | Likes: ${fmtNum(eng.like_count || eng.likes || 0)} | Replies: ${fmtNum(eng.reply_count || eng.replies || 0)}`
+    ].join('\n');
+};
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*                    GRIEVANCE POPUP (G)                           */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -72,7 +100,7 @@ export const GrievancePopup = ({ grievance, onClose, userName = '', onReportCrea
     const [pendingModeEdit, setPendingModeEdit] = useState(null); // { source, idx, oldMode, newMode }
 
     /* ─── Data ─── */
-    const [message, setMessage] = useState('');
+    const [message, setMessage] = useState(() => buildGrievanceMessage(grievance));
     const [category, setCategory] = useState('Others');
     const [complaintPhone, setComplaintPhone] = useState('');
     const [uniqueCode, setUniqueCode] = useState('');
@@ -133,41 +161,6 @@ export const GrievancePopup = ({ grievance, onClose, userName = '', onReportCrea
             f.lastModified === fileToRemove.lastModified
         )));
     };
-
-    /* ─── Build message ─── */
-    const buildMessage = useCallback(() => {
-        const g = grievance;
-        if (!g) return '';
-        const greeting = getGreeting();
-        const author = g.posted_by?.display_name || g.posted_by?.handle || 'Unknown';
-        const handle = g.posted_by?.handle ? `@${g.posted_by.handle}` : '';
-        const desc = g.content?.full_text || g.content?.text || '';
-        const link = g.tweet_url || g.url || g.post_url || '';
-        const eng = g.engagement || g.metrics || {};
-        const phone = extractPhoneFromText(desc) || g.complainant_phone || 'None';
-        const platformName = (g.platform || 'x') === 'x' ? 'X (Twitter)' : g.platform === 'facebook' ? 'Facebook' : 'WhatsApp';
-
-        return [
-            `${greeting} Sir/Ma'am,`,
-            ``,
-            `A post requiring attention has been identified on ${platformName}.`,
-            ``,
-            `Complaint Phone Number: ${phone}`,
-            ``,
-            `📌 *Post Details:*`,
-            `*Posted by*: ${author} ${handle}`,
-            `*Post Link:* ${link}`,
-            `*Post Content*: ${desc}`,
-            ``,
-            `📊 *Engagement:*`,
-            `• Views: ${fmtNum(eng.views || 0)} | Reposts: ${fmtNum(eng.retweet_count || eng.reposts || 0)} | Likes: ${fmtNum(eng.like_count || eng.likes || 0)} | Replies: ${fmtNum(eng.reply_count || eng.replies || 0)}`
-        ].join('\n');
-    }, [grievance]);
-
-    useEffect(() => {
-        setMessage(buildMessage());
-        setComplaintPhone('');
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         if (step !== 'details') return;

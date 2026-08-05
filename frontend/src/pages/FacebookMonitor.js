@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import api from '../lib/api';
 import {
     Facebook, Search, Shield, AlertTriangle, Activity,
@@ -333,11 +333,10 @@ const FacebookMonitor = () => {
         toast.success('Excel report exported successfully');
     };
 
-    useEffect(() => {
-        fetchData();
-    }, []);
+    const selectedSourceRef = useRef(selectedSource);
+    selectedSourceRef.current = selectedSource;
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
             const [srcRes, postsRes] = await Promise.all([
@@ -350,14 +349,18 @@ const FacebookMonitor = () => {
 
             setSources(normalizedSources);
             setPosts(normalizedPosts);
-            if (!selectedSource) toast.success('Facebook data refreshed');
+            if (!selectedSourceRef.current) toast.success('Facebook data refreshed');
         } catch (error) {
             console.error('Error fetching Facebook data:', error);
             toast.error('Failed to load Facebook data');
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const handleAddSource = async (e) => {
         e.preventDefault();

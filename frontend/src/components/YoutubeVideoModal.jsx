@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     Shield, AlertTriangle, AlertOctagon, AlertCircle, Activity,
     MessageSquare, TrendingUp, TrendingDown, User, Calendar,
@@ -225,13 +225,7 @@ export const VideoModal = ({ video, onClose }) => {
     const [loading, setLoading] = useState(true);
     const [showThreatsOnly, setShowThreatsOnly] = useState(false);
 
-    useEffect(() => {
-        if (video) {
-            fetchComments();
-        }
-    }, [video]);
-
-    const fetchComments = async () => {
+    const fetchComments = useCallback(async () => {
         try {
             const res = await api.get(`/youtube/videos/${video.content_id}/comments`);
             setComments(res.data);
@@ -241,7 +235,13 @@ export const VideoModal = ({ video, onClose }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [video]);
+
+    useEffect(() => {
+        if (video) {
+            fetchComments();
+        }
+    }, [video, fetchComments]);
 
     const filteredComments = useMemo(() => {
         return showThreatsOnly

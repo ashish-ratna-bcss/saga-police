@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
     CalendarDays, Plus, FileText, Edit2, Trash2,
@@ -157,7 +157,7 @@ const Announcements = () => {
     };
 
     // Auto-save function
-    const performAutoSave = async (eventsToSave, categoriesToSave) => {
+    const performAutoSave = useCallback(async (eventsToSave, categoriesToSave) => {
         setAutoSaveStatus('saving');
         try {
             const groupedEvents = {
@@ -185,7 +185,7 @@ const Announcements = () => {
             console.error('Auto-save error:', error);
             setAutoSaveStatus('');
         }
-    };
+    }, [selectedDate]);
 
     // Auto-save effect - debounced
     useEffect(() => {
@@ -196,8 +196,7 @@ const Announcements = () => {
         }, 2000); // Auto-save 2 seconds after last change
 
         return () => clearTimeout(timer);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [events, categories, hasUnsavedChanges, isLoading]);
+    }, [events, categories, hasUnsavedChanges, isLoading, performAutoSave]);
 
     // Date navigation
     const handleDateChange = (days) => {

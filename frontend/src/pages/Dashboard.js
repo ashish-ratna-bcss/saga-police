@@ -43,6 +43,11 @@ const PLATFORMS = [
   { id: 'whatsapp', label: 'WhatsApp', shortLabel: 'WhatsApp', icon: PlatformIcons.whatsapp, activeClass: 'bg-gradient-to-br from-green-600 to-green-700 text-white' }
 ];
 
+const getApiPlatform = (platformId) => {
+  if (platformId === 'twitter') return 'x';
+  return platformId;
+};
+
 const CATEGORIES = [
   { id: 'all', label: 'All topics' },
   { id: 'political', label: 'Politics' },
@@ -167,7 +172,7 @@ const ManagedRibbonWidget = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isManageOpen, setIsManageOpen] = useState(false);
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       const response = await api.get('/ongoing-events', {
         params: { bucket }
@@ -179,11 +184,11 @@ const ManagedRibbonWidget = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [bucket]);
 
   useEffect(() => {
     fetchEvents();
-  }, [bucket]);
+  }, [fetchEvents]);
 
   return (
     <>
@@ -1190,16 +1195,7 @@ const Dashboard = () => {
   const [monitorPlatform, setMonitorPlatform] = useState('all');
   const [eventMonitorData, setEventMonitorData] = useState({ active: 0, paused: 0, planned: 0, archived: 0, total: 0, activeEvents: [], events: [] });
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const getApiPlatform = (platformId) => {
-    if (platformId === 'twitter') return 'x';
-    return platformId;
-  };
-
-  const fetchAlertsTotal = async (params) => {
+  const fetchAlertsTotal = useCallback(async (params) => {
     const response = await api.get('/alerts', {
       params: {
         page: 1,
@@ -1208,9 +1204,9 @@ const Dashboard = () => {
       }
     });
     return response.data?.pagination?.total || 0;
-  };
+  }, []);
 
-  const buildDashboardCounts = async () => {
+  const buildDashboardCounts = useCallback(async () => {
     const platformIds = PLATFORMS.map(p => p.id);
 
     const alertStatsEntries = await Promise.all(
@@ -1296,9 +1292,9 @@ const Dashboard = () => {
     setAlertPendingReportData(Object.fromEntries(pendingReportEntries));
     setReportData(reportCounts);
     setGrievanceData(Object.fromEntries(grievanceEntries));
-  };
+  }, [fetchAlertsTotal]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [overviewRes, alertsRes, eventsRes] = await Promise.all([
         api.get('/analytics/overview'),
@@ -1325,7 +1321,11 @@ const Dashboard = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [buildDashboardCounts]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleRefresh = () => {
     setRefreshing(true);

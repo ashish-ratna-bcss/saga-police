@@ -150,6 +150,8 @@ const POIDetail = () => {
     const [reportPage, setReportPage] = useState(1);
     const [hasMoreReports, setHasMoreReports] = useState(true);
     const [loadingMoreReports, setLoadingMoreReports] = useState(false);
+    const reportPageRef = React.useRef(reportPage);
+    reportPageRef.current = reportPage;
     const aggregatedCategories = React.useMemo(() => {
         const categories = new Set();
         (poiData.socialMedia || []).forEach(sm => {
@@ -162,7 +164,7 @@ const POIDetail = () => {
         return list.length > 0 ? list.join(', ') : 'Others';
     }, [poiData.socialMedia]);
 
-    const fetchEscalationStats = async (handlesToFetch, isLoadMore = false) => {
+    const fetchEscalationStats = useCallback(async (handlesToFetch, isLoadMore = false) => {
         if (!handlesToFetch || (Array.isArray(handlesToFetch) && handlesToFetch.length === 0)) return;
         if (isFetchingReportsRef.current) return; // Block concurrent requests
 
@@ -185,7 +187,7 @@ const POIDetail = () => {
         try {
             // Check if we are searching for multiple handles
             const searchQuery = cleanHandles.join(',');
-            const currentPage = isLoadMore ? reportPage + 1 : 1;
+            const currentPage = isLoadMore ? reportPageRef.current + 1 : 1;
             const res = await api.get(`/reports?search=${encodeURIComponent(searchQuery)}&page=${currentPage}&limit=20`);
 
             // Abort if a newer request has been started (prevents race conditions)
@@ -225,7 +227,7 @@ const POIDetail = () => {
                 isFetchingReportsRef.current = false; // Release lock
             }
         }
-    };
+    }, []);
     const [isEditing, setIsEditing] = useState(false);
     const [originalData, setOriginalData] = useState(null);
     const [saving, setSaving] = useState(false);
@@ -250,6 +252,10 @@ const POIDetail = () => {
     const [isLinking, setIsLinking] = useState(true); // Default to true to prevent blank screen during initialization
     const [linkingIdx, setLinkingIdx] = useState(null);
     const [selectedSourceId, setSelectedSourceId] = useState(null);
+    const selectedSourceIdRef = React.useRef(selectedSourceId);
+    selectedSourceIdRef.current = selectedSourceId;
+    const poiDataRef = React.useRef(poiData);
+    poiDataRef.current = poiData;
     const [linkStep, setLinkStep] = useState('search'); // 'search' | 'create'
     const [newSourceForm, setNewSourceForm] = useState({
         identifier: '',
@@ -1185,13 +1191,15 @@ const POIDetail = () => {
     };
 
     // Effect to fetch stats when linked handles change
+    const linkedHandlesKey = linkedHandles.map(h => h.handle).join(',');
+    const primaryLinkedHandle = linkedHandles[0]?.handle;
     useEffect(() => {
-        if (linkedHandles && linkedHandles.length > 0) {
+        if (primaryLinkedHandle) {
             // For now, fetch stats for the primary (first) handle
             // or we could aggregate them if needed
-            fetchEscalationStats(linkedHandles[0].handle);
+            fetchEscalationStats(primaryLinkedHandle);
         }
-    }, [linkedHandles.map(h => h.handle).join(',')]);
+    }, [linkedHandlesKey, primaryLinkedHandle, fetchEscalationStats]);
 
     // Compute total escalated-to-intermediary count across ALL linked social media handles
     useEffect(() => {
@@ -1221,29 +1229,20 @@ const POIDetail = () => {
             }
         };
         fetchTotalEscalated();
-    }, [poiData._id, poiData.socialMedia?.length]);
-
-    // Fetch available sources and POI data on mount
-    useEffect(() => {
-        fetchSources();
-        if (id && id !== '1' && id !== 'new') {
-            fetchPOIData(id);
-        } else if (poiData._id && poiData._id !== '1') {
-            fetchPOIData(poiData._id);
-        }
-    }, [id]);
+    }, [poiData._id, poiData.socialMedia]);
 
     useEffect(() => {
+        const timersByKey = editIdentityTimerRef.current;
         return () => {
-            Object.values(editIdentityTimerRef.current).forEach((timerId) => {
+            Object.values(timersByKey).forEach((timerId) => {
                 if (timerId) clearTimeout(timerId);
             });
         };
     }, []);
 
-    const fetchPOIData = async (id) => {
+    const fetchPOIData = useCallback(async (poiId) => {
         try {
-            const res = await api.get(`/poi/${id}`);
+            const res = await api.get(`/poi/${poiId}`);
             const updatedPoi = res.data;
 
             // Normalize data if necessary
@@ -1257,9 +1256,9 @@ const POIDetail = () => {
             console.error("Failed to fetch POI data", err);
             // toast.error("Failed to synchronize profile data");
         }
-    };
+    }, []);
 
-    const fetchSources = async (search = '') => {
+    const fetchSources = useCallback(async (search = '') => {
         try {
             setLoadingSources(true);
             const schemaPlatform = selectedPlatform === 'twitter' ? 'x' : selectedPlatform;
@@ -1267,7 +1266,8 @@ const POIDetail = () => {
 
             // Always ask backend to suggest based on POI identities for prioritization/sorting,
             // even if a search term is present.
-            const suggestNames = [poiData.name, poiData.realName, ...(poiData.aliasNames || [])]
+            const currentPoi = poiDataRef.current;
+            const suggestNames = [currentPoi.name, currentPoi.realName, ...(currentPoi.aliasNames || [])]
                 .filter(Boolean)
                 .map(n => n.trim())
                 .filter(n => n.toLowerCase() !== 'unknown' && n.toLowerCase() !== 'null')
@@ -1287,11 +1287,25 @@ const POIDetail = () => {
         } finally {
             setLoadingSources(false);
         }
-    };
+    }, [selectedPlatform]);
+
+    // Fetch available sources when route id or platform changes
+    useEffect(() => {
+        fetchSources();
+    }, [id, fetchSources]);
+
+    // Fetch POI data on mount / route id change
+    useEffect(() => {
+        if (id && id !== '1' && id !== 'new') {
+            fetchPOIData(id);
+        } else if (poiDataRef.current._id && poiDataRef.current._id !== '1') {
+            fetchPOIData(poiDataRef.current._id);
+        }
+    }, [id, fetchPOIData]);
 
     const getEditIdentityStateKey = (platform, globalIdx) => `${platform}:${globalIdx}`;
 
-    const triggerPoiIdentityLookup = (platform, globalIdx, rawHandle, updateSM) => {
+    const triggerPoiIdentityLookup = useCallback((platform, globalIdx, rawHandle, updateSM) => {
         const key = getEditIdentityStateKey(platform, globalIdx);
         const handle = String(rawHandle || '').trim();
 
@@ -1338,26 +1352,26 @@ const POIDetail = () => {
                 }));
             }
         }, 500);
-    };
+    }, []);
 
-    const updateSocialMediaFieldByIndex = (globalIdx, field, value) => {
+    const updateSocialMediaFieldByIndex = useCallback((globalIdx, field, value) => {
         setPoiData((prev) => {
             const arr = [...(prev.socialMedia || [])];
             if (!arr[globalIdx]) return prev;
             arr[globalIdx] = { ...arr[globalIdx], [field]: value };
             return { ...prev, socialMedia: arr };
         });
-    };
+    }, []);
 
-    const getSourceById = (sourceId) => {
+    const getSourceById = useCallback((sourceId) => {
         if (!sourceId) return null;
         return sources.find(s => s.id === sourceId || s._id === sourceId) || null;
-    };
+    }, [sources]);
 
-    const getSocialUserId = (sm) => {
+    const getSocialUserId = useCallback((sm) => {
         const src = getSourceById(sm?.sourceId);
         return sm?.platformUserId || src?.platform_user_id || '';
-    };
+    }, [getSourceById]);
 
     useEffect(() => {
         if (!isEditing) return;
@@ -1390,7 +1404,7 @@ const POIDetail = () => {
                 }
             }
         }
-    }, [isEditing, poiData.socialMedia, sources]);
+    }, [isEditing, poiData.socialMedia, sources, getSocialUserId, triggerPoiIdentityLookup, updateSocialMediaFieldByIndex]);
 
     const getSocialOldUsernames = (sm) => {
         const src = getSourceById(sm?.sourceId);
@@ -1436,7 +1450,7 @@ const POIDetail = () => {
         }, 300);
 
         return () => clearTimeout(timer);
-    }, [searchTerm, selectedPlatform, isLinking]);
+    }, [searchTerm, selectedPlatform, isLinking, fetchSources]);
 
     // When platform changes, check if we have matching linked handles
     useEffect(() => {
@@ -1479,11 +1493,13 @@ const POIDetail = () => {
             setLinkedHandles(validatedLinks);
             setLinkedHandle(validatedLinks[0]); // Primary handle for singular elements
 
-            // Manage default selection carefully
+            // Manage default selection carefully — read selectedSourceId from ref to avoid
+            // re-running this effect every time selection changes (would duplicate handle setup).
+            const currentSelectedSourceId = selectedSourceIdRef.current;
             const platformChanged = prevPlatformRef.current !== selectedPlatform;
-            const currentSelectionInvalid = selectedSourceId && !validatedLinks.some(l => (l.sourceId || l.id || l._id) === selectedSourceId);
+            const currentSelectionInvalid = currentSelectedSourceId && !validatedLinks.some(l => (l.sourceId || l.id || l._id) === currentSelectedSourceId);
 
-            if (platformChanged || !selectedSourceId || currentSelectionInvalid) {
+            if (platformChanged || !currentSelectedSourceId || currentSelectionInvalid) {
                 const firstId = validatedLinks[0].sourceId || validatedLinks[0].id || validatedLinks[0]._id;
                 setSelectedSourceId(firstId);
             }
@@ -1548,30 +1564,9 @@ const POIDetail = () => {
                 updatePoiBackend(nextPoi);
             }
         }
-    }, [sources, poiData._id, isEditing]);
+    }, [sources, poiData, isEditing]);
 
-    useEffect(() => {
-        // Reset locks on account switch so fetch always fires
-        lastFetchedRef.current = { sourceId: null, platform: null, handle: null, selectedSourceId: null };
-        isFetchingFeedRef.current = false;
-        pageRef.current = 1;
-
-        if (linkedHandles.length > 0) {
-            fetchContent(linkedHandles);
-
-            // Always refresh reports so the badge shows the correct number for the selected profile
-            const handlesToFetch = selectedSourceId
-                ? [linkedHandles.find(h => (h.sourceId || h.id || h._id) === selectedSourceId)?.handle].filter(Boolean)
-                : linkedHandles.map(h => h.handle).filter(Boolean);
-
-            if (handlesToFetch.length > 0) {
-                setReports([]); // Clear immediately for instant feedback
-                fetchEscalationStats(handlesToFetch);
-            }
-        }
-    }, [selectedSourceId, linkedHandles]);
-
-    const fetchContent = async (links, isLoadMore = false) => {
+    const fetchContent = useCallback(async (links, isLoadMore = false) => {
         if (!links || (Array.isArray(links) && links.length === 0)) return;
         if (isFetchingFeedRef.current) return; // Block concurrent requests
 
@@ -1584,13 +1579,14 @@ const POIDetail = () => {
         const firstLink = linksArray[0];
         const platform = firstLink.platform === 'twitter' ? 'x' : (firstLink.platform || selectedPlatform);
         const mainHandle = firstLink.handle;
+        const currentSelectedSourceId = selectedSourceIdRef.current;
 
         // Prevent redundant fetching for same platform/source
         if (!isLoadMore &&
             lastFetchedRef.current.platform === platform &&
             lastFetchedRef.current.sourceId === sourceIds &&
             lastFetchedRef.current.handle === mainHandle &&
-            lastFetchedRef.current.selectedSourceId === selectedSourceId) {
+            lastFetchedRef.current.selectedSourceId === currentSelectedSourceId) {
 
             return;
         }
@@ -1614,8 +1610,8 @@ const POIDetail = () => {
             let url = `/content/feed?platform=${platform}&page=${currentPage}&limit=20&status=all`;
 
             // If a specific source is selected via the ribbon, use ONLY that one
-            if (selectedSourceId) {
-                url += `&source_id=${selectedSourceId}`;
+            if (currentSelectedSourceId) {
+                url += `&source_id=${currentSelectedSourceId}`;
             } else if (sourceIds) {
                 url += `&source_id=${sourceIds}`;
             } else if (mainHandle) {
@@ -1655,7 +1651,7 @@ const POIDetail = () => {
                 setContentFeed(uniqueItems);
                 pageRef.current = 1;
                 setPage(1);
-                lastFetchedRef.current = { sourceId: sourceIds, platform, handle: mainHandle, selectedSourceId };
+                lastFetchedRef.current = { sourceId: sourceIds, platform, handle: mainHandle, selectedSourceId: currentSelectedSourceId };
             }
 
             setHasMore(pagination.hasMore && items?.length > 0);
@@ -1670,7 +1666,28 @@ const POIDetail = () => {
                 setLoadingFeed(false); // Only latest request controls spinner
             }
         }
-    };
+    }, [selectedPlatform]);
+
+    useEffect(() => {
+        // Reset locks on account switch so fetch always fires
+        lastFetchedRef.current = { sourceId: null, platform: null, handle: null, selectedSourceId: null };
+        isFetchingFeedRef.current = false;
+        pageRef.current = 1;
+
+        if (linkedHandles.length > 0) {
+            fetchContent(linkedHandles);
+
+            // Always refresh reports so the badge shows the correct number for the selected profile
+            const handlesToFetch = selectedSourceId
+                ? [linkedHandles.find(h => (h.sourceId || h.id || h._id) === selectedSourceId)?.handle].filter(Boolean)
+                : linkedHandles.map(h => h.handle).filter(Boolean);
+
+            if (handlesToFetch.length > 0) {
+                setReports([]); // Clear immediately for instant feedback
+                fetchEscalationStats(handlesToFetch);
+            }
+        }
+    }, [selectedSourceId, linkedHandles, fetchContent, fetchEscalationStats]);
 
     // Infinite Scroll Observer implementation
     useEffect(() => {
@@ -1700,7 +1717,7 @@ const POIDetail = () => {
                 observer.unobserve(currentTarget);
             }
         };
-    }, [hasMore, loadingFeed, isFetchingMore, linkedHandles, selectedPlatform]);
+    }, [hasMore, loadingFeed, isFetchingMore, linkedHandles, selectedPlatform, fetchContent]);
 
     // Link Handlers
     const handleLinkSource = (source) => {

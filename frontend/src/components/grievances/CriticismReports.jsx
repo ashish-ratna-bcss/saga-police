@@ -125,21 +125,22 @@ const CriticismReportDetailView = ({ report: r, onClose, onPrint, onUpdate }) =>
     const isVideo = (url) => typeof url === 'string' && (url.toLowerCase().endsWith('.mp4') || url.toLowerCase().includes('/video/'));
     const [pdfGenerating, setPdfGenerating] = useState(false);
     const [pdfUrl, setPdfUrl] = useState(r?.report_pdf_url || null);
+    const pdfGeneratingRef = useRef(false);
+    pdfGeneratingRef.current = pdfGenerating;
+    const reportRef = useRef(r);
+    reportRef.current = r;
+    const onUpdateRef = useRef(onUpdate);
+    onUpdateRef.current = onUpdate;
 
-    React.useEffect(() => {
-        if (!pdfUrl && r?.id && !pdfGenerating) {
-            handleGeneratePdf();
-        }
-    }, [pdfUrl, r?.id]);
-
-    const handleGeneratePdf = async () => {
+    const handleGeneratePdf = useCallback(async () => {
+        const report = reportRef.current;
         setPdfGenerating(true);
         try {
-            const res = await api.post(`/criticism/reports/${r?.id || r?.unique_code}/generate-pdf`);
+            const res = await api.post(`/criticism/reports/${report?.id || report?.unique_code}/generate-pdf`);
             const url = res.data?.pdf_url;
             if (url) {
                 setPdfUrl(url);
-                onUpdate?.({ ...r, report_pdf_url: url });
+                onUpdateRef.current?.({ ...report, report_pdf_url: url });
                 toast.success('PDF generated successfully');
             }
         } catch (err) {
@@ -148,7 +149,13 @@ const CriticismReportDetailView = ({ report: r, onClose, onPrint, onUpdate }) =>
         } finally {
             setPdfGenerating(false);
         }
-    };
+    }, []);
+
+    React.useEffect(() => {
+        if (!pdfUrl && r?.id && !pdfGeneratingRef.current) {
+            handleGeneratePdf();
+        }
+    }, [pdfUrl, r?.id, handleGeneratePdf]);
 
     // Derived state for status timeline
     const timelineSteps = React.useMemo(() => {
@@ -647,6 +654,8 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
     const [detailDragOffset, setDetailDragOffset] = useState({ x: 0, y: 0 });
     const [sortConfig, setSortConfig] = useState({ key: 'post_date', direction: 'desc' });
     const [pdfGenerating, setPdfGenerating] = useState(false);
+    const pdfGeneratingRef = useRef(false);
+    pdfGeneratingRef.current = pdfGenerating;
 
     useEffect(() => {
         if (quickRange === 'all') {
@@ -683,13 +692,7 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
         setPage(1);
     }, [quickRange]);
 
-    useEffect(() => {
-        if (selectedReport && !selectedReport.report_pdf_url && !pdfGenerating) {
-            handleAutoGeneratePdf(selectedReport);
-        }
-    }, [selectedReport]);
-
-    const handleAutoGeneratePdf = async (report) => {
+    const handleAutoGeneratePdf = useCallback(async (report) => {
         setPdfGenerating(true);
         try {
             const res = await api.post(`/criticism/reports/${report.id}/generate-pdf`);
@@ -705,7 +708,13 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
         } finally {
             setPdfGenerating(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        if (selectedReport && !selectedReport.report_pdf_url && !pdfGeneratingRef.current) {
+            handleAutoGeneratePdf(selectedReport);
+        }
+    }, [selectedReport, handleAutoGeneratePdf]);
 
     const fetchReports = useCallback(async () => {
         setLoading(true);

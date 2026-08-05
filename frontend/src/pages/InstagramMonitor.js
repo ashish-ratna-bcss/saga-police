@@ -242,7 +242,7 @@ const StoryTileMedia = React.memo(({ story, storyKey, isExpired, timeLeftHours, 
     );
 
     return buildMediaCandidates(videoRaw);
-  }, [mediaItems, story?.video_url, story?.videoUrl, story?.video_versions, story?.videoVersions]);
+  }, [mediaItems, story?.video_url, story?.videoUrl, story?.video_versions, story?.videoVersions, story?.media_type, story?.s3_url]);
 
   const imageCandidates = useMemo(() => {
     const imageRaw = [];
@@ -310,7 +310,10 @@ const StoryTileMedia = React.memo(({ story, storyKey, isExpired, timeLeftHours, 
     story?.image_url,
     story?.image_versions2,
     story?.image_versions,
-    story?.display_resources
+    story?.display_resources,
+    story?.media_type,
+    story?.s3_thumbnail_url,
+    story?.s3_url
   ]);
   const activeVideoSrc = videoCandidates[videoIdx] || null;
   const activeImageSrc = imageCandidates[imageIdx] || null;
@@ -637,8 +640,18 @@ const InstagramMonitor = () => {
   const postsRef = useRef(posts);
   const selectedSourceRef = useRef(selectedSource);
   const selectedStoriesRef = useRef(null);
+  const hasMoreRef = useRef(hasMore);
+  const viewedStoryIdsRef = useRef(viewedStoryIds);
+  const sourcesRef = useRef(sources);
+  const searchParamsRef = useRef(searchParams);
+  const fetchDbStoriesRef = useRef(null);
+  const persistStoriesToDbRef = useRef(null);
   postsRef.current = posts;
   selectedSourceRef.current = selectedSource;
+  hasMoreRef.current = hasMore;
+  viewedStoryIdsRef.current = viewedStoryIds;
+  sourcesRef.current = sources;
+  searchParamsRef.current = searchParams;
 
   // Helper: Format date to IST string
   const formatIST = (dateStr) => {
@@ -847,84 +860,8 @@ const InstagramMonitor = () => {
     toast.success('Excel report exported successfully');
   };
 
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
-
-  const fetchInitialData = async () => {
-    const cachedSources = getSources();
-    const cachedStories = getContent('monitor', 'stories');
-    const cachedReels = getReels(selectedSourceRef.current?.id || 'all');
-
-    if (cachedSources) setSources(cachedSources);
-    if (cachedStories?.items) setStories(cachedStories.items);
-    if (cachedReels?.items) {
-      setPosts(cachedReels.items);
-      setPage(cachedReels.page || 1);
-      setHasMore(!!cachedReels.hasMore);
-    }
-
-    setStatsLoading(true);
-    setStoriesLoading(true);
-    try {
-      const handleParam = searchParams.get('handle');
-
-      const [srcRes, statsRes, storiesRes] = await Promise.all([
-        api.get('/sources?platform=instagram'),
-        api.get('/content/stats?platform=instagram'),
-        api.get('/content?platform=instagram&content_type=story&limit=50')
-      ]);
-
-      setSources(srcRes.data);
-      setCachedSources(srcRes.data);
-      
-      // Process stories
-      const storiesData = Array.isArray(storiesRes.data) ? storiesRes.data : (storiesRes.data.content || storiesRes.data.items || []);
-      setStories(storiesData);
-      setContent('monitor', 'stories', storiesData, 1, false);
-
-      // Auto-persist fetched stories to DB & S3
-      if (storiesData.length > 0) {
-        persistStoriesToDb(storiesData, { identifier: 'all' });
-        fetchDbStories();
-      }
-
-      setStats({
-        ...statsRes.data,
-        totalSources: srcRes.data.length,
-        totalPosts: statsRes.data.totalTweets || 0,
-        totalStories: storiesData.length
-      });
-
-      if (handleParam) {
-        const source = srcRes.data.find(s =>
-          s.identifier.replace('@', '').toLowerCase() === handleParam.toLowerCase()
-        );
-        if (source) {
-          setSelectedSource(source);
-          setActiveTab('overview');
-          window.scrollTo(0, 0);
-
-          const nextParams = new URLSearchParams(searchParams);
-          nextParams.delete('handle');
-          setSearchParams(nextParams, { replace: true });
-        } else {
-          fetchPostsPage(1, true, true);
-        }
-      } else if (!selectedSource) {
-        fetchPostsPage(1, true, true);
-      }
-    } catch (error) {
-      console.error('Initial fetch failed:', error);
-      toast.error('Failed to load Instagram data');
-    } finally {
-      setStatsLoading(false);
-      setStoriesLoading(false);
-    }
-  };
-
-  const fetchPostsPage = async (pageNum, reset = false, preferCache = false) => {
-    if (pageNum > 1 && !hasMore) return;
+  const fetchPostsPage = useCallback(async (pageNum, reset = false, preferCache = false) => {
+    if (pageNum > 1 && !hasMoreRef.current) return;
     const selectedKey = selectedSourceRef.current?.id || 'all';
     if (preferCache && pageNum === 1 && reset) {
       const cached = getReels(selectedKey);
@@ -955,10 +892,10 @@ const InstagramMonitor = () => {
       setLoading(false);
       loadingRef.current = false;
     }
-  };
+  }, [getReels, setReels]);
 
   // Fetch Instagram profile when source is selected
-  const fetchProfileData = async (sourceId) => {
+  const fetchProfileData = useCallback(async (sourceId) => {
     const cachedProfile = getProfile(sourceId);
     const cachedProfileStories = getContent(sourceId, 'stories');
     if (cachedProfile) setProfileData(cachedProfile);
@@ -977,10 +914,10 @@ const InstagramMonitor = () => {
       setContent(sourceId, 'stories', storiesData, 1, false);
 
       // Persist profile stories to DB & S3
-      const source = sources.find(s => s.id === sourceId);
+      const source = sourcesRef.current.find(s => s.id === sourceId);
       if (storiesData.length > 0 && source) {
-        persistStoriesToDb(storiesData, source);
-        fetchDbStories(sourceId);
+        persistStoriesToDbRef.current?.(storiesData, source);
+        fetchDbStoriesRef.current?.(sourceId);
       }
     } catch (error) {
       console.error('Failed to fetch profile data:', error);
@@ -989,7 +926,83 @@ const InstagramMonitor = () => {
     } finally {
       setProfileLoading(false);
     }
-  };
+  }, [getProfile, setProfile, getContent, setContent]);
+
+  const fetchInitialData = useCallback(async () => {
+    const cachedSources = getSources();
+    const cachedStories = getContent('monitor', 'stories');
+    const cachedReels = getReels(selectedSourceRef.current?.id || 'all');
+
+    if (cachedSources) setSources(cachedSources);
+    if (cachedStories?.items) setStories(cachedStories.items);
+    if (cachedReels?.items) {
+      setPosts(cachedReels.items);
+      setPage(cachedReels.page || 1);
+      setHasMore(!!cachedReels.hasMore);
+    }
+
+    setStatsLoading(true);
+    setStoriesLoading(true);
+    try {
+      const handleParam = searchParamsRef.current.get('handle');
+
+      const [srcRes, statsRes, storiesRes] = await Promise.all([
+        api.get('/sources?platform=instagram'),
+        api.get('/content/stats?platform=instagram'),
+        api.get('/content?platform=instagram&content_type=story&limit=50')
+      ]);
+
+      setSources(srcRes.data);
+      setCachedSources(srcRes.data);
+      
+      // Process stories
+      const storiesData = Array.isArray(storiesRes.data) ? storiesRes.data : (storiesRes.data.content || storiesRes.data.items || []);
+      setStories(storiesData);
+      setContent('monitor', 'stories', storiesData, 1, false);
+
+      // Auto-persist fetched stories to DB & S3
+      if (storiesData.length > 0) {
+        persistStoriesToDbRef.current?.(storiesData, { identifier: 'all' });
+        fetchDbStoriesRef.current?.();
+      }
+
+      setStats({
+        ...statsRes.data,
+        totalSources: srcRes.data.length,
+        totalPosts: statsRes.data.totalTweets || 0,
+        totalStories: storiesData.length
+      });
+
+      if (handleParam) {
+        const source = srcRes.data.find(s =>
+          s.identifier.replace('@', '').toLowerCase() === handleParam.toLowerCase()
+        );
+        if (source) {
+          setSelectedSource(source);
+          setActiveTab('overview');
+          window.scrollTo(0, 0);
+
+          const nextParams = new URLSearchParams(searchParamsRef.current);
+          nextParams.delete('handle');
+          setSearchParams(nextParams, { replace: true });
+        } else {
+          fetchPostsPage(1, true, true);
+        }
+      } else if (!selectedSourceRef.current) {
+        fetchPostsPage(1, true, true);
+      }
+    } catch (error) {
+      console.error('Initial fetch failed:', error);
+      toast.error('Failed to load Instagram data');
+    } finally {
+      setStatsLoading(false);
+      setStoriesLoading(false);
+    }
+  }, [getSources, getContent, getReels, setCachedSources, setContent, fetchPostsPage, setSearchParams]);
+
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
 
   // Refetch posts when source changes
   useEffect(() => {
@@ -1002,7 +1015,7 @@ const InstagramMonitor = () => {
       setProfileData(null);
       setProfileStories([]);
     }
-  }, [selectedSource]);
+  }, [selectedSource, fetchPostsPage, fetchProfileData]);
 
   useEffect(() => {
     if (!selectedSource || selectedSourceTab !== 'stories') return;
@@ -1017,7 +1030,7 @@ const InstagramMonitor = () => {
     if (!loadingRef.current && hasMore) {
       fetchPostsPage(page + 1);
     }
-  }, [hasMore, page]);
+  }, [hasMore, page, fetchPostsPage]);
 
   // Infinite Scroll Ref
   const observer = useRef();
@@ -1166,7 +1179,7 @@ const InstagramMonitor = () => {
       const data = res.data?.stories || [];
       setDbStories(data);
       // Merge viewed state
-      const viewed = new Set(viewedStoryIds);
+      const viewed = new Set(viewedStoryIdsRef.current);
       data.filter(s => s.viewed).forEach(s => viewed.add(s.id));
       setViewedStoryIds(viewed);
       return data;
@@ -1176,7 +1189,8 @@ const InstagramMonitor = () => {
     } finally {
       setDbStoriesLoading(false);
     }
-  }, [viewedStoryIds]);
+  }, []);
+  fetchDbStoriesRef.current = fetchDbStories;
 
   // Persist fetched stories to backend DB
   const persistStoriesToDb = useCallback(async (storyItems, source) => {
@@ -1193,6 +1207,7 @@ const InstagramMonitor = () => {
       console.error('[Stories] Failed to persist stories:', err.message);
     }
   }, []);
+  persistStoriesToDbRef.current = persistStoriesToDb;
 
   // Open story in the in-page viewer
   const openStoryViewer = useCallback((story, storySource, allStories) => {
@@ -1263,7 +1278,7 @@ const InstagramMonitor = () => {
   // Fetch DB stories on mount
   useEffect(() => {
     fetchDbStories();
-  }, []);
+  }, [fetchDbStories]);
 
   // Source map for building source info for posts
   const sourceMap = useMemo(

@@ -366,11 +366,16 @@ const GenerateReport = () => {
         }
     };
 
+    // Keep latest saveReport without tying handleDownloadPdf identity to form fields
+    // (that identity is watched by the auto-print effect).
+    const saveReportRef = useRef(saveReport);
+    saveReportRef.current = saveReport;
+
     const handleDownloadPdf = useCallback(async () => {
         if (!reportRef.current) return;
         try {
             setGeneratingPdf(true);
-            await saveReport(true);
+            await saveReportRef.current(true);
 
             // Custom templates: send the user-edited templateHtml directly so
             // the backend can render it in a clean A4 wrapper, bypassing all
@@ -409,11 +414,10 @@ const GenerateReport = () => {
             }
         } catch (err) {
             console.error('PDF generation failed:', err);
-            alert('Failed to generate PDF. Please try again.');
+            window.alert('Failed to generate PDF. Please try again.');
         } finally {
             setGeneratingPdf(false);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, serialNumber, useCustomTemplate, templateHtml]);
 
     const handlePrint = useReactToPrint({

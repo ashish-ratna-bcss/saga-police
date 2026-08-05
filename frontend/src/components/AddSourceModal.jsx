@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -10,27 +10,27 @@ import { Youtube, Twitter, Instagram, Facebook, Sparkles, CheckCircle, ChevronDo
 import { toast } from 'sonner';
 import api from '../lib/api';
 
-const AddSourceModal = ({ open, onClose, onSuccess, initialData = null, onDirtyChange }) => {
-    const emptyPoiData = {
-        realName: '',
-        aliasNames: [],
-        mobileNumbers: [],
-        emailIds: [],
-        currentAddress: '',
-        psLimits: '',
-        districtCommisionerate: '',
-        lastUsedIp: '',
-        softwareHardwareIdentifiers: '',
-        firNo: '',
-        firDetails: [],
-        linkedIncidents: '',
-        briefSummary: '',
-        whatsappNumbers: [],
-        socialMedia: [],
-        previouslyDeletedProfiles: { x: [], facebook: [], instagram: [], youtube: [], whatsapp: [] },
-        escalatedToIntermediariesCount: ''
-    };
+const emptyPoiData = {
+    realName: '',
+    aliasNames: [],
+    mobileNumbers: [],
+    emailIds: [],
+    currentAddress: '',
+    psLimits: '',
+    districtCommisionerate: '',
+    lastUsedIp: '',
+    softwareHardwareIdentifiers: '',
+    firNo: '',
+    firDetails: [],
+    linkedIncidents: '',
+    briefSummary: '',
+    whatsappNumbers: [],
+    socialMedia: [],
+    previouslyDeletedProfiles: { x: [], facebook: [], instagram: [], youtube: [], whatsapp: [] },
+    escalatedToIntermediariesCount: ''
+};
 
+const AddSourceModal = ({ open, onClose, onSuccess, initialData = null, onDirtyChange }) => {
     const [formData, setFormData] = useState({
         platform: 'youtube',
         identifier: '',
@@ -87,20 +87,21 @@ const AddSourceModal = ({ open, onClose, onSuccess, initialData = null, onDirtyC
         }
     }, [initialData, open]);
 
-    const hasUnsavedChanges = () => {
+    const hasUnsavedChanges = useCallback(() => {
         if (!initialState) return false;
         return JSON.stringify(formData) !== JSON.stringify(initialState);
-    };
+    }, [formData, initialState]);
 
     useEffect(() => {
         if (onDirtyChange) {
             onDirtyChange(hasUnsavedChanges());
         }
-    }, [formData, initialState, onDirtyChange]);
+    }, [formData, initialState, onDirtyChange, hasUnsavedChanges]);
 
     useEffect(() => {
+        const timersRef = identityTimerRef;
         return () => {
-            Object.values(identityTimerRef.current).forEach((timerId) => {
+            Object.values(timersRef.current).forEach((timerId) => {
                 if (timerId) clearTimeout(timerId);
             });
         };

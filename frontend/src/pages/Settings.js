@@ -158,16 +158,22 @@ const Settings = () => {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Mount-only URL seed: keep latest values in refs so deps stay empty without eslint-disable
+  const searchParamsRef = useRef(searchParams);
+  const initialTabRef = useRef(initialTab);
+  searchParamsRef.current = searchParams;
+  initialTabRef.current = initialTab;
+
   // Ensure URL always has ?tab= on mount (so back-navigation works)
   useEffect(() => {
-    if (!searchParams.get('tab')) {
+    if (!searchParamsRef.current.get('tab')) {
       setSearchParams(prev => {
         const next = new URLSearchParams(prev);
-        next.set('tab', initialTab);
+        next.set('tab', initialTabRef.current);
         return next;
       }, { replace: true });
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [setSearchParams]);
 
   // View mode: 'tabs' or 'editor'
   const [viewMode, setViewMode] = useState('tabs');
@@ -206,7 +212,7 @@ const Settings = () => {
     if (tabFromUrl && VALID_TABS.includes(tabFromUrl) && tabFromUrl !== activeTab) {
       setActiveTab(tabFromUrl);
     }
-  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchParams, activeTab]);
 
   // Warn on browser/tab close
   useEffect(() => {

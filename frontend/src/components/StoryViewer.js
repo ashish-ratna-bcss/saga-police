@@ -47,6 +47,8 @@ const buildCandidates = (s) => {
   return [...new Set(candidates.filter(Boolean))];
 };
 
+const EMPTY_STORY = {};
+
 /**
  * Full-screen in-page story viewer with Instagram-like UX.
  * Supports video playback, progress bars, navigation, download, and viewed state.
@@ -79,7 +81,7 @@ const StoryViewer = ({
   const STORY_DURATION = 6000; // 6 seconds for images
   const PRELOAD_AHEAD = 2; // preload next N stories
 
-  const story = stories[currentIndex] || {};
+  const story = stories[currentIndex] || EMPTY_STORY;
 
   // Build media source candidates with S3 fallback
   const mediaCandidates = useMemo(() => buildCandidates(story), [story]);

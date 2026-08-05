@@ -1146,8 +1146,6 @@ const AlertCardMasonry = ({ alerts, emptyMsg, showRank = true, onResolve, hideAc
 
 const AlertsTab = ({ report, fileTag, fullAlertsById, hydrating, onAlertResolve }) => {
   const summary = report.alerts || {};
-  const topIds = report.alerts?.top_alert_ids || [];
-  const viralIds = report.alerts?.viral_alert_ids || [];
 
   const [search, setSearch] = useState('');
   const [riskFilter, setRiskFilter] = useState('all'); // all | high | medium | low
@@ -1165,12 +1163,18 @@ const AlertsTab = ({ report, fileTag, fullAlertsById, hydrating, onAlertResolve 
 
   // Preserve the backend-supplied order
   const topAlerts = useMemo(
-    () => topIds.map((id) => fullAlertsById[id]).filter(Boolean).filter(matches),
-    [topIds, fullAlertsById, matches]
+    () => {
+      const topIds = report.alerts?.top_alert_ids || [];
+      return topIds.map((id) => fullAlertsById[id]).filter(Boolean).filter(matches);
+    },
+    [report.alerts?.top_alert_ids, fullAlertsById, matches]
   );
   const viralAlerts = useMemo(
-    () => viralIds.map((id) => fullAlertsById[id]).filter(Boolean).filter(matches),
-    [viralIds, fullAlertsById, matches]
+    () => {
+      const viralIds = report.alerts?.viral_alert_ids || [];
+      return viralIds.map((id) => fullAlertsById[id]).filter(Boolean).filter(matches);
+    },
+    [report.alerts?.viral_alert_ids, fullAlertsById, matches]
   );
 
   const top50Summary = report.alerts?.alert_summaries || [];
@@ -1347,7 +1351,7 @@ const AlertsTab = ({ report, fileTag, fullAlertsById, hydrating, onAlertResolve 
 };
 
 const ProfilesTab = ({ report, fileTag }) => {
-  const profiles = report.profiles || {};
+  const profiles = useMemo(() => report.profiles || {}, [report.profiles]);
   const topProfiles = report.alerts?.top_profiles || [];
   const keywords = report.keywords_trends || [];
 

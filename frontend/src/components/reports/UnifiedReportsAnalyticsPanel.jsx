@@ -219,10 +219,13 @@ const UnifiedReportsAnalyticsPanel = ({
   onClearCustomRange
 }) => {
   const effectiveWindow = selectedWindow === 'custom' && !data?.totals?.custom ? 'weekly' : selectedWindow;
-  const selectedTotals = data?.totals?.[effectiveWindow] || {};
-  const trend = data?.trend || {};
-  const statuses = data?.status || {};
-  const breakdowns = data?.breakdowns || {};
+  const selectedTotals = useMemo(
+    () => data?.totals?.[effectiveWindow] || {},
+    [data?.totals, effectiveWindow]
+  );
+  const trend = useMemo(() => data?.trend || {}, [data?.trend]);
+  const statuses = useMemo(() => data?.status || {}, [data?.status]);
+  const breakdowns = useMemo(() => data?.breakdowns || {}, [data?.breakdowns]);
 
   const domainRows = useMemo(() =>
     DOMAIN_META.map((m) => ({

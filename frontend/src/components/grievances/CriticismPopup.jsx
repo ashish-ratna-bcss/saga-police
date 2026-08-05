@@ -61,6 +61,42 @@ const normalizeMediaList = (media) => {
 const CATEGORIES = [
     'Cyber crimes', 'E-Challan', 'L&O', 'Others', 'She Team', 'Task force', 'Traffic'
 ];
+
+const buildCriticismMessage = (g) => {
+    if (!g) return '';
+
+    const greeting = getGreeting();
+    const author = g.posted_by?.display_name || g.posted_by?.handle || 'Unknown';
+    const handle = g.posted_by?.handle ? `@${g.posted_by.handle}` : '';
+    const desc = g.content?.full_text || g.content?.text || '';
+    const link = g.tweet_url || g.url || g.post_url || '';
+    const engagement = g.engagement || g.metrics || {};
+    const views = fmtNum(engagement.views || engagement.impression_count || 0);
+    const reposts = fmtNum(engagement.retweet_count || engagement.reposts || engagement.shares || 0);
+    const likes = fmtNum(engagement.like_count || engagement.likes || engagement.reactions || 0);
+    const replies = fmtNum(engagement.reply_count || engagement.replies || engagement.comments || 0);
+    const platform = g.platform || 'x';
+    const platformName = platform === 'x' ? 'X (Twitter)' : platform === 'facebook' ? 'Facebook' : 'WhatsApp';
+    const phone = extractPhoneFromText(desc) || g.complainant_phone || 'None';
+
+    const lines = [
+        `${greeting} Sir/Ma'am,`,
+        ``,
+        `A post requiring attention has been identified on ${platformName}.`,
+        ``,
+        `Complaint Phone Number: ${phone}`,
+        ``,
+        `📌 *Post Details:*`,
+        `*Posted by*: ${author} ${handle}`,
+        `*Post Link:* ${link}`,
+        `*Post Content*: ${desc}`,
+        ``,
+        `# views: ${views} | reposts: ${reposts} | likes: ${likes} | replies: ${replies}`
+    ];
+
+    return lines.join('\n');
+};
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*                       CRITICISM POPUP                          */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -77,7 +113,7 @@ export const CriticismPopup = ({ grievance, onClose, onReportCreated, userName =
     const [step, setStep] = useState('compose'); // compose | contacts | done
 
     /* ─── Data ─── */
-    const [message, setMessage] = useState('');
+    const [message, setMessage] = useState(() => buildCriticismMessage(grievance));
     const [category, setCategory] = useState('Others');
     const [uniqueCode, setUniqueCode] = useState('');
     const [reportId, setReportId] = useState(null);
@@ -94,48 +130,6 @@ export const CriticismPopup = ({ grievance, onClose, onReportCreated, userName =
     const [sharing, setSharing] = useState(false);
     const [contactSearch, setContactSearch] = useState('');
     const [showAllContactsList, setShowAllContactsList] = useState(false);
-
-    /* ─── Build auto message ─── */
-    const buildMessage = useCallback(() => {
-        const g = grievance;
-        if (!g) return '';
-
-        const greeting = getGreeting();
-        const author = g.posted_by?.display_name || g.posted_by?.handle || 'Unknown';
-        const handle = g.posted_by?.handle ? `@${g.posted_by.handle}` : '';
-        const desc = g.content?.full_text || g.content?.text || '';
-        const link = g.tweet_url || g.url || g.post_url || '';
-        const engagement = g.engagement || g.metrics || {};
-        const views = fmtNum(engagement.views || engagement.impression_count || 0);
-        const reposts = fmtNum(engagement.retweet_count || engagement.reposts || engagement.shares || 0);
-        const likes = fmtNum(engagement.like_count || engagement.likes || engagement.reactions || 0);
-        const replies = fmtNum(engagement.reply_count || engagement.replies || engagement.comments || 0);
-        const platform = g.platform || 'x';
-        const platformName = platform === 'x' ? 'X (Twitter)' : platform === 'facebook' ? 'Facebook' : 'WhatsApp';
-        const phone = extractPhoneFromText(desc) || g.complainant_phone || 'None';
-
-        const lines = [
-            `${greeting} Sir/Ma'am,`,
-            ``,
-            `A post requiring attention has been identified on ${platformName}.`,
-            ``,
-            `Complaint Phone Number: ${phone}`,
-            ``,
-            `📌 *Post Details:*`,
-            `*Posted by*: ${author} ${handle}`,
-            `*Post Link:* ${link}`,
-            `*Post Content*: ${desc}`,
-            ``,
-            `# views: ${views} | reposts: ${reposts} | likes: ${likes} | replies: ${replies}`
-        ];
-
-        return lines.join('\n');
-    }, [grievance]);
-
-    /* ─── Initialize message on mount ─── */
-    useEffect(() => {
-        setMessage(buildMessage());
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     /* ─── Drag handlers ─── */
     useEffect(() => {

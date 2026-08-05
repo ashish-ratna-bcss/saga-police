@@ -129,17 +129,18 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
     const [profileReports, setProfileReports] = useState([]);
     const [profileLoading, setProfileLoading] = useState(false);
 
-    // Fetch full history when profile is selected
+    // Fetch full history when profile is selected (deps on handle only — same as before)
+    const selectedProfileHandle = selectedProfile?.handle;
     useEffect(() => {
-        const fetchProfileReports = async () => {
-            if (!selectedProfile?.handle) return;
+        if (!selectedProfileHandle) return;
 
+        const fetchProfileReports = async () => {
             setProfileLoading(true);
             try {
                 // Fetch ALL reports for this user (ignore global status filters)
                 const response = await api.get('/reports', {
                     params: {
-                        search: selectedProfile.handle.replace('@', ''),
+                        search: selectedProfileHandle.replace('@', ''),
                         // Explicitly clear status filter to get closed reports too
                         status: undefined
                     }
@@ -153,12 +154,10 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
             }
         };
 
-        if (selectedProfile) {
-            fetchProfileReports();
-        }
-    }, [selectedProfile?.handle]);
+        fetchProfileReports();
+    }, [selectedProfileHandle]);
 
-    const getUserStats = (handle) => {
+    const getUserStats = useCallback((handle) => {
         // Use profileReports if we are viewing that profile and it matches, otherwise fallback to global reports
         // But getUserStats is also used for the main table hover cards. 
         // For the main table, we want stats based on specific logic or global? 
@@ -179,7 +178,7 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
         const awaiting = userReports.filter(r => r.status === 'sent_to_intermediary' || r.status === 'awaiting_reply').length;
         const closed = userReports.filter(r => r.status === 'closed' || r.status === 'resolved').length;
         return { total, awaiting, closed, userReports };
-    };
+    }, [selectedProfile, profileReports, reports]);
 
     // Export reports to Excel/CSV
     const exportToExcel = (reportsToExport, filename = 'reports') => {
@@ -324,7 +323,7 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
         return { alert, content, source };
     };
 
-    const fetchReports = async () => {
+    const fetchReports = useCallback(async () => {
         setLoading(true);
         try {
             const params = {
@@ -366,11 +365,11 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
         } finally {
             setLoading(false);
         }
-    };
+    }, [platformFilter, statusFilter, debouncedSearch, dateRange, keywordFilter, alertCategory, sourceCategoryFilter, viewHandle, currentPage]);
 
     useEffect(() => {
         fetchReports();
-    }, [platformFilter, statusFilter, debouncedSearch, dateRange, keywordFilter, alertCategory, sourceCategoryFilter, viewHandle, currentPage]);
+    }, [fetchReports]);
 
     const hasActiveFilters =
         Boolean(dateRange.from) ||
@@ -411,7 +410,7 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
                 });
             }
         }
-    }, [viewHandle, reports, selectedProfile]);
+    }, [viewHandle, reports, selectedProfile, getUserStats]);
 
     // Server already filters — no client-side re-filtering needed
     // filteredReports removed: replaced with reports directly

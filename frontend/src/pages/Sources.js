@@ -492,7 +492,7 @@ const Sources = () => {
     } else {
       fetchSources();
     }
-  }, [categoryFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [categoryFilter, fetchSources]);
   useEffect(() => { setSelectedSourceIds(prev => prev.filter(id => sources.some(s => s.id === id))); }, [sources]);
 
   // Debounced backend search — cross-searches POI fields (alias, mobile, FIR, district, etc.)
@@ -810,7 +810,7 @@ const Sources = () => {
   useEffect(() => {
     setCurrentPage(1);
     fetchPlatformStats();
-  }, [platformFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [platformFilter, fetchPlatformStats]);
 
   const selectedSet = useMemo(() => new Set(selectedSourceIds), [selectedSourceIds]);
   const allVisibleSelected = paginatedSources.length > 0 && paginatedSources.every(s => selectedSet.has(s.id));

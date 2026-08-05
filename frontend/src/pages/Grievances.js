@@ -966,13 +966,8 @@ const Grievances = () => {
     }, [replyCommentDialog, userName, extractTwitterStatusId, openSocialComposerWindow]);
 
     /* ─── Data Fetching ─── */
-    useEffect(() => { fetchSources(); }, []);
-    useEffect(() => {
-        if (!navbarStatus) return;
-        if (!allowedNavbarStatuses.includes(navbarStatus)) return;
-        fetchDashboardStats();
-        fetchGrievances();
-    }, [activeTab, platformFilter, dateRange, debouncedSearch, navbarPlatform, navbarStatus, selectedHandle, allowedNavbarStatuses]);
+    const canAccessGrievanceReportsRef = useRef(canAccessGrievanceReports);
+    canAccessGrievanceReportsRef.current = canAccessGrievanceReports;
 
     const fetchSources = async () => {
         setSourcesLoading(true);
@@ -987,7 +982,7 @@ const Grievances = () => {
         }
     };
 
-    const fetchDashboardStats = async () => {
+    const fetchDashboardStats = useCallback(async () => {
         try {
             const effectivePlatform = navbarPlatform && navbarPlatform !== 'all'
                 ? navbarPlatform
@@ -995,7 +990,7 @@ const Grievances = () => {
             const platformParam = { platform: effectivePlatform };
 
             const requests = [api.get('/grievances/stats', { params: platformParam })];
-            if (canAccessGrievanceReports) {
+            if (canAccessGrievanceReportsRef.current) {
                 requests.push(api.get('/grievance-workflow/reports', {
                     params: {
                         page: 1,
@@ -1009,15 +1004,15 @@ const Grievances = () => {
             if (statsRes.data) setStats(statsRes.data);
             if (wfRes?.data?.stats) {
                 setWorkflowStats(wfRes.data.stats);
-            } else if (!canAccessGrievanceReports) {
+            } else if (!canAccessGrievanceReportsRef.current) {
                 setWorkflowStats({ total: 0, pending: 0, escalated: 0, closed: 0, fir: 0 });
             }
         } catch (error) {
             console.error('Failed to fetch stats', error);
         }
-    };
+    }, [navbarPlatform, platformFilter]);
 
-    const fetchGrievances = async (cursor = null) => {
+    const fetchGrievances = useCallback(async (cursor = null) => {
         if (!navbarStatus || (allowedNavbarStatuses.length > 0 && !allowedNavbarStatuses.includes(navbarStatus))) {
             setGrievances([]);
             setPagination({ hasMore: false, nextCursor: null, total: 0 });
@@ -1135,7 +1130,15 @@ const Grievances = () => {
                 setLoadingMore(false);
             }
         }
-    };
+    }, [navbarStatus, allowedNavbarStatuses, activeTab, navbarPlatform, platformFilter, selectedHandle, debouncedSearch, dateRange]);
+
+    useEffect(() => { fetchSources(); }, []);
+    useEffect(() => {
+        if (!navbarStatus) return;
+        if (!allowedNavbarStatuses.includes(navbarStatus)) return;
+        fetchDashboardStats();
+        fetchGrievances();
+    }, [activeTab, platformFilter, dateRange, debouncedSearch, navbarPlatform, navbarStatus, selectedHandle, allowedNavbarStatuses, fetchDashboardStats, fetchGrievances]);
 
     /* ─── Source Management ─── */
     const handleAddSource = async () => {

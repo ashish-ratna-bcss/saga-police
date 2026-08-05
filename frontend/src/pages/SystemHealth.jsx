@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Activity, Server, Database, Brain, Zap, RefreshCw, ShieldAlert } from 'lucide-react';
 import api from '../lib/api';
 
@@ -7,11 +7,13 @@ const SystemHealth = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const healthDataRef = useRef(healthData);
+  healthDataRef.current = healthData;
 
-  const fetchHealth = async (manual = false) => {
+  const fetchHealth = useCallback(async (manual = false) => {
     try {
       if (manual) setIsRefreshing(true);
-      else if (!healthData) setLoading(true);
+      else if (!healthDataRef.current) setLoading(true);
       
       const res = await api.get('/health/status');
       setHealthData(res.data.data);
@@ -23,14 +25,13 @@ const SystemHealth = () => {
       setLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchHealth();
     const interval = setInterval(() => fetchHealth(false), 15000);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchHealth]);
 
   const StatusCard = ({ title, statusObj, icon: Icon, latency }) => {
     const { status, message } = statusObj || { status: 'offline', message: 'Unknown state' };

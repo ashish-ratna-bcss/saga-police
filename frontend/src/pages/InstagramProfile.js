@@ -479,6 +479,11 @@ const InstagramProfile = () => {
 
   const loadingRef = useRef(false);
   const observerRef = useRef(null);
+  // Refs so loadContent stays stable across pagination updates (avoids tab-effect loops)
+  const pageRef = useRef(page);
+  const hasMoreRef = useRef(hasMore);
+  pageRef.current = page;
+  hasMoreRef.current = hasMore;
 
   // Load profile info (skip if cached)
   useEffect(() => {
@@ -537,11 +542,11 @@ const InstagramProfile = () => {
   const loadContent = useCallback(
     async (reset = false) => {
       if (loadingRef.current) return;
-      if (!reset && !hasMore) return;
+      if (!reset && !hasMoreRef.current) return;
 
       loadingRef.current = true;
       setLoading(true);
-      const pageToLoad = reset ? 1 : page;
+      const pageToLoad = reset ? 1 : pageRef.current;
 
       try {
         const params = {
@@ -580,7 +585,7 @@ const InstagramProfile = () => {
         loadingRef.current = false;
       }
     },
-    [sourceId, page, hasMore, activeTab]
+    [sourceId, activeTab]
   );
 
   const handleManualScan = async () => {
@@ -611,8 +616,7 @@ const InstagramProfile = () => {
       setHasMore(true);
       loadContent(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceId, activeTab]);
+  }, [sourceId, activeTab, loadContent, cache]);
 
   const lastElementRef = useCallback(
     (node) => {

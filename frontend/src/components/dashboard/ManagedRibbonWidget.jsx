@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../lib/api';
 import { Loader2, Plus, Trash2, ArrowRight, Calendar as CalendarIcon } from 'lucide-react';
@@ -147,7 +147,7 @@ const ManagedRibbonWidget = ({
   const [sequenceHeight, setSequenceHeight] = useState(0);
   const [date, setDate] = useState(new Date());
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       const params = { bucket };
       if (date) {
@@ -171,15 +171,17 @@ const ManagedRibbonWidget = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [bucket, date]);
 
   useEffect(() => {
     fetchEvents();
-  }, [bucket, date]);
+  }, [fetchEvents]);
 
-  const effectiveEvents = events.length > 0
-    ? events
-    : (Array.isArray(fallbackEvents) ? fallbackEvents : []);
+  const effectiveEvents = useMemo(() => (
+    events.length > 0
+      ? events
+      : (Array.isArray(fallbackEvents) ? fallbackEvents : [])
+  ), [events, fallbackEvents]);
 
   const baseEvents = useMemo(() => {
     if (!effectiveEvents.length) return [];

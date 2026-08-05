@@ -59,6 +59,30 @@ const Dial100IncidentReporting = () => {
     });
     const [isRangeOpen, setIsRangeOpen] = useState(false);
     const [mediaPreview, setMediaPreview] = useState({ open: false, url: '', type: 'image' });
+
+    const getIncidentDayKey = useCallback((incident) => {
+        if (incident?.dateTime) return formatDateAPI(new Date(incident.dateTime));
+        if (incident?.date) return formatDateAPI(new Date(incident.date));
+        return dateRange.start;
+    }, [dateRange.start]);
+
+    const saveIncidentsByRange = useCallback(async (items) => {
+        if (!items.length) return;
+        const grouped = items.reduce((acc, item) => {
+            const key = getIncidentDayKey(item);
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(item);
+            return acc;
+        }, {});
+
+        const entries = Object.entries(grouped);
+        for (const [date, list] of entries) {
+            await api.post('/dial100-incidents/bulk', {
+                date,
+                incidents: list
+            });
+        }
+    }, [getIncidentDayKey]);
     
     // Auto-save logic
     const performAutoSave = useCallback(async (incidentsToSave) => {
@@ -69,7 +93,7 @@ const Dial100IncidentReporting = () => {
         } catch (error) {
             console.error('Auto-save error:', error);
         }
-    }, [dateRange]);
+    }, [saveIncidentsByRange]);
 
     useEffect(() => {
         if (hasUnsavedChanges && !isLoading && incidents.length > 0) {
@@ -251,30 +275,6 @@ const Dial100IncidentReporting = () => {
             return { ...next, end: next.start };
         }
         return next;
-    };
-
-    const getIncidentDayKey = (incident) => {
-        if (incident?.dateTime) return formatDateAPI(new Date(incident.dateTime));
-        if (incident?.date) return formatDateAPI(new Date(incident.date));
-        return dateRange.start;
-    };
-
-    const saveIncidentsByRange = async (items) => {
-        if (!items.length) return;
-        const grouped = items.reduce((acc, item) => {
-            const key = getIncidentDayKey(item);
-            if (!acc[key]) acc[key] = [];
-            acc[key].push(item);
-            return acc;
-        }, {});
-
-        const entries = Object.entries(grouped);
-        for (const [date, list] of entries) {
-            await api.post('/dial100-incidents/bulk', {
-                date,
-                incidents: list
-            });
-        }
     };
 
     const renderCell = (incident, field) => {

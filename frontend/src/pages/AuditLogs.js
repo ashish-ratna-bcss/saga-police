@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -46,19 +46,17 @@ const AuditLogs = () => {
   const [resourceFilter, setResourceFilter] = useState('all');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const { toast } = useToast();
+  const dateRangeRef = useRef(dateRange);
+  dateRangeRef.current = dateRange;
 
-  useEffect(() => {
-    fetchLogs();
-  }, []);
-
-  const fetchLogs = async (overrides = {}) => {
+  const fetchLogs = useCallback(async (overrides = {}) => {
     setLoading(true);
     try {
       const params = {};
       
       // Safely get date values
-      const start = overrides.hasOwnProperty('start') ? overrides.start : dateRange.start;
-      const end = overrides.hasOwnProperty('end') ? overrides.end : dateRange.end;
+      const start = overrides.hasOwnProperty('start') ? overrides.start : dateRangeRef.current.start;
+      const end = overrides.hasOwnProperty('end') ? overrides.end : dateRangeRef.current.end;
 
       if (start) {
         params.start_date = start;
@@ -79,7 +77,11 @@ const AuditLogs = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
 
   const handleDateChange = (type, value) => {
     setDateRange(prev => ({ ...prev, [type]: value }));

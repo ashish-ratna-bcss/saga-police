@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect, memo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MessageCircle, Repeat, Heart, BarChart2, MoreHorizontal, Share, CheckCircle2, ThumbsUp, Eye, ExternalLink, MessageSquare, Zap, Info, X, AlertTriangle, Shield, ShieldCheck, Download, Loader2, FileText, Share2, Check, XCircle, AlertCircle, FilePlus, ChevronDown, ChevronRight, Image, Video, Pause, Play, Plus, Twitter, Instagram, Facebook, Users, Trash2, Clock, Globe, Network, UserPlus, CalendarDays, Search, Tags, MapPin, HelpCircle } from 'lucide-react';
 import { formatDistanceToNow, format, startOfDay, startOfWeek, endOfDay } from 'date-fns';
@@ -1968,6 +1968,8 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
     const PAGE_SIZE = 20;
 
     const handleClean = String(sourceHandle || '').replace(/^@/, '').trim();
+    const handleCleanRef = useRef(handleClean);
+    handleCleanRef.current = handleClean;
 
     const isMonitored = (handle) => {
         if (!handle || !Array.isArray(monitoredHandles) || monitoredHandles.length === 0) return false;
@@ -1981,12 +1983,13 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
     };
 
     // Load latest analysis when dialog opens
-    const loadLatest = async () => {
-        if (!handleClean) return;
+    const loadLatest = useCallback(async () => {
+        const hc = handleCleanRef.current;
+        if (!hc) return;
         setLoading(true);
         setError('');
         try {
-            const res = await api.get('/x/engager-analysis/latest', { params: { handle: handleClean } });
+            const res = await api.get('/x/engager-analysis/latest', { params: { handle: hc } });
             setAnalysis(res.data);
         } catch (err) {
             if (err?.response?.status !== 404) {
@@ -1994,16 +1997,17 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
             }
             setAnalysis(null);
         } finally { setLoading(false); }
-    };
+    }, []);
 
     // Load analysis history
-    const loadHistory = async () => {
-        if (!handleClean) return;
+    const loadHistory = useCallback(async () => {
+        const hc = handleCleanRef.current;
+        if (!hc) return;
         try {
-            const res = await api.get('/x/engager-analysis/history', { params: { handle: handleClean } });
+            const res = await api.get('/x/engager-analysis/history', { params: { handle: hc } });
             setHistory(res.data?.analyses || []);
         } catch { setHistory([]); }
-    };
+    }, []);
 
     // Load a specific past analysis
     const loadAnalysisById = async (id) => {
@@ -2041,7 +2045,7 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
     };
 
     useEffect(() => {
-        if (open && handleClean) {
+        if (open && handleCleanRef.current) {
             loadLatest();
             loadHistory();
             setShowHistory(false);
@@ -2049,8 +2053,7 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
             setEngagerPage(1);
             setRetweetSearch('');
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open]);
+    }, [open, loadLatest, loadHistory]);
 
     const engagers = analysis?.engagers || [];
     const tweets = analysis?.tweets || [];
@@ -2905,64 +2908,68 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
     const timeStr = dateObj ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
     const dateStr = dateObj ? dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 
-    const mediaItems = normalizeMediaList(content?.media);
-    const quotedMediaItems = normalizeMediaList(content?.quoted_content?.media);
+    const { mediaItems, quotedMediaItems, inlineMediaItems, uniqueMediaItems } = useMemo(() => {
+        const mediaItems = normalizeMediaList(content?.media);
+        const quotedMediaItems = normalizeMediaList(content?.quoted_content?.media);
 
-    // Gather additional media references (retweets, reposts, attachments, etc.) so downloads remain exhaustive
-    const extraMediaSources = [
-        content?.original_media,
-        content?.reposted_content?.media,
-        content?.retweeted_content?.media,
-        content?.retweeted_content?.quoted_content?.media,
-        content?.referenced_tweet?.media,
-        content?.parent?.media,
-        content?.extended_entities?.media,
-        content?.media_entities,
-        content?.image,
-        content?.images,
-        content?.video,
-        content?.thumbnail,
-        content?.thumbnails?.high,
-        content?.thumbnails?.medium,
-        content?.thumbnails?.default,
-        content?.attachments?.media,
-        content?.attachments,
-        content?.cards_media,
-        // Facebook-specific fields (from raw_data or direct API)
-        content?.full_picture,
-        content?.picture,
-        content?.source,
-        content?.raw_data?.full_picture,
-        content?.raw_data?.picture,
-        content?.raw_data?.image,
-        content?.raw_data?.video,
-        content?.raw_data?.source,
-        content?.raw_data?.video_thumbnail,
-        ...(Array.isArray(content?.raw_data?.album_preview)
-            ? content.raw_data.album_preview.map(a => a?.url || a)
-            : []),
-        ...(Array.isArray(content?.raw_data?.images) ? content.raw_data.images : [])
-    ];
-    const extraMediaItems = extraMediaSources.flatMap((m) => normalizeMediaList(m));
+        // Gather additional media references (retweets, reposts, attachments, etc.) so downloads remain exhaustive
+        const extraMediaSources = [
+            content?.original_media,
+            content?.reposted_content?.media,
+            content?.retweeted_content?.media,
+            content?.retweeted_content?.quoted_content?.media,
+            content?.referenced_tweet?.media,
+            content?.parent?.media,
+            content?.extended_entities?.media,
+            content?.media_entities,
+            content?.image,
+            content?.images,
+            content?.video,
+            content?.thumbnail,
+            content?.thumbnails?.high,
+            content?.thumbnails?.medium,
+            content?.thumbnails?.default,
+            content?.attachments?.media,
+            content?.attachments,
+            content?.cards_media,
+            // Facebook-specific fields (from raw_data or direct API)
+            content?.full_picture,
+            content?.picture,
+            content?.source,
+            content?.raw_data?.full_picture,
+            content?.raw_data?.picture,
+            content?.raw_data?.image,
+            content?.raw_data?.video,
+            content?.raw_data?.source,
+            content?.raw_data?.video_thumbnail,
+            ...(Array.isArray(content?.raw_data?.album_preview)
+                ? content.raw_data.album_preview.map(a => a?.url || a)
+                : []),
+            ...(Array.isArray(content?.raw_data?.images) ? content.raw_data.images : [])
+        ];
+        const extraMediaItems = extraMediaSources.flatMap((m) => normalizeMediaList(m));
 
-    const inlineMediaItems = [];
-    const seenInlineMediaUrls = new Set();
-    for (const item of [...mediaItems, ...extraMediaItems]) {
-        if (!item || !item.url) continue;
-        if (seenInlineMediaUrls.has(item.url)) continue;
-        seenInlineMediaUrls.add(item.url);
-        inlineMediaItems.push(item);
-    }
+        const inlineMediaItems = [];
+        const seenInlineMediaUrls = new Set();
+        for (const item of [...mediaItems, ...extraMediaItems]) {
+            if (!item || !item.url) continue;
+            if (seenInlineMediaUrls.has(item.url)) continue;
+            seenInlineMediaUrls.add(item.url);
+            inlineMediaItems.push(item);
+        }
 
-    const aggregatedMediaItems = [...mediaItems, ...quotedMediaItems, ...extraMediaItems];
-    const uniqueMediaItems = [];
-    const seenMediaUrls = new Set();
-    for (const item of aggregatedMediaItems) {
-        if (!item || !item.url) continue;
-        if (seenMediaUrls.has(item.url)) continue;
-        seenMediaUrls.add(item.url);
-        uniqueMediaItems.push(item);
-    }
+        const aggregatedMediaItems = [...mediaItems, ...quotedMediaItems, ...extraMediaItems];
+        const uniqueMediaItems = [];
+        const seenMediaUrls = new Set();
+        for (const item of aggregatedMediaItems) {
+            if (!item || !item.url) continue;
+            if (seenMediaUrls.has(item.url)) continue;
+            seenMediaUrls.add(item.url);
+            uniqueMediaItems.push(item);
+        }
+
+        return { mediaItems, quotedMediaItems, inlineMediaItems, uniqueMediaItems };
+    }, [content]);
 
     // Engagement
     const metrics = content?.engagement || {};
@@ -3079,15 +3086,16 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
     const mediaUrl = publicAlertContentUrl || publicDirectUrl || publicContentDetailsUrl;
     const cardOpenUrl = publicAlertContentUrl || publicContentDetailsUrl || publicDirectUrl;
     const [resolvedPlatformMediaItems, setResolvedPlatformMediaItems] = useState([]);
-    const fallbackInlineMedia = (!inlineMediaItems.length && (isLikelyVideoUrl(mediaUrl) || isLikelyImageUrl(mediaUrl)))
-        ? normalizeMediaList([{ type: isLikelyVideoUrl(mediaUrl) ? 'video' : 'photo', url: mediaUrl, preview: mediaUrl }])
-        : [];
+    const fallbackInlineMedia = useMemo(() => (
+        (!inlineMediaItems.length && (isLikelyVideoUrl(mediaUrl) || isLikelyImageUrl(mediaUrl)))
+            ? normalizeMediaList([{ type: isLikelyVideoUrl(mediaUrl) ? 'video' : 'photo', url: mediaUrl, preview: mediaUrl }])
+            : []
+    ), [inlineMediaItems, mediaUrl]);
     const cardMediaItems = React.useMemo(() => pickCardMediaItems({
         platform: alert?.platform,
         inlineMediaItems,
         fallbackInlineMedia,
         resolvedFacebookMediaItems: resolvedPlatformMediaItems
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [alert?.platform, fallbackInlineMedia, inlineMediaItems, resolvedPlatformMediaItems]);
     const isDownloadableLink = isDownloadableSocialLink(mediaUrl);
 
@@ -3108,7 +3116,6 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
             seen.add(item.url);
             merged.push(item);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         return merged;
     }, [cardMediaItems, uniqueMediaItems]);
 

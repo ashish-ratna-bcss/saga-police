@@ -56,6 +56,41 @@ const CATEGORIES = [
     'Cyber crimes', 'E-Challan', 'L&O', 'Others', 'She Team', 'Task force', 'Traffic'
 ];
 
+const buildSuggestionMessage = (g) => {
+    if (!g) return '';
+
+    const greeting = getGreeting();
+    const author = g.posted_by?.display_name || g.posted_by?.handle || 'Unknown';
+    const handle = g.posted_by?.handle ? `@${g.posted_by.handle}` : '';
+    const desc = g.content?.full_text || g.content?.text || '';
+    const link = g.tweet_url || g.url || g.post_url || '';
+    const engagement = g.engagement || g.metrics || {};
+    const views = fmtNum(engagement.views || engagement.impression_count || 0);
+    const reposts = fmtNum(engagement.retweet_count || engagement.reposts || engagement.shares || 0);
+    const likes = fmtNum(engagement.like_count || engagement.likes || engagement.reactions || 0);
+    const replies = fmtNum(engagement.reply_count || engagement.replies || engagement.comments || 0);
+    const platform = g.platform || 'x';
+    const platformName = platform === 'x' ? 'X (Twitter)' : platform === 'facebook' ? 'Facebook' : 'WhatsApp';
+
+    const lines = [
+        `${greeting} Sir/Ma'am,`,
+        ``,
+        `A post requiring attention has been identified on ${platformName}.`,
+        ``,
+        `Complaint Phone Number: None`,
+        ``,
+        `📌 *Post Details:*`,
+        `*Posted by*: ${author} ${handle}`,
+        `*Post Link:* ${link}`,
+        `*Post Content*: ${desc}`,
+        ``,
+        `📊 *Engagement:*`,
+        `• Views: ${views} | Reposts: ${reposts} | Likes: ${likes} | Replies: ${replies}`
+    ];
+
+    return lines.join('\n');
+};
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*                    SUGGESTION POPUP (S)                          */
 /*  Flow: compose → contacts → done  (like Criticism)              */
@@ -73,7 +108,7 @@ export const SuggestionPopup = ({ grievance, onClose, userName = '', onReportCre
     const [step, setStep] = useState('compose'); // compose | contacts | done
 
     /* ─── Data ─── */
-    const [message, setMessage] = useState('');
+    const [message, setMessage] = useState(() => buildSuggestionMessage(grievance));
     const [category, setCategory] = useState('Others');
     const [uniqueCode, setUniqueCode] = useState('');
     const [reportId, setReportId] = useState(null);
@@ -90,48 +125,6 @@ export const SuggestionPopup = ({ grievance, onClose, userName = '', onReportCre
     const [sharing, setSharing] = useState(false);
     const [contactSearch, setContactSearch] = useState('');
     const [showAllContactsList, setShowAllContactsList] = useState(false);
-
-    /* ─── Build auto message ─── */
-    const buildMessage = useCallback(() => {
-        const g = grievance;
-        if (!g) return '';
-
-        const greeting = getGreeting();
-        const author = g.posted_by?.display_name || g.posted_by?.handle || 'Unknown';
-        const handle = g.posted_by?.handle ? `@${g.posted_by.handle}` : '';
-        const desc = g.content?.full_text || g.content?.text || '';
-        const link = g.tweet_url || g.url || g.post_url || '';
-        const engagement = g.engagement || g.metrics || {};
-        const views = fmtNum(engagement.views || engagement.impression_count || 0);
-        const reposts = fmtNum(engagement.retweet_count || engagement.reposts || engagement.shares || 0);
-        const likes = fmtNum(engagement.like_count || engagement.likes || engagement.reactions || 0);
-        const replies = fmtNum(engagement.reply_count || engagement.replies || engagement.comments || 0);
-        const platform = g.platform || 'x';
-        const platformName = platform === 'x' ? 'X (Twitter)' : platform === 'facebook' ? 'Facebook' : 'WhatsApp';
-
-        const lines = [
-            `${greeting} Sir/Ma'am,`,
-            ``,
-            `A post requiring attention has been identified on ${platformName}.`,
-            ``,
-            `Complaint Phone Number: None`,
-            ``,
-            `📌 *Post Details:*`,
-            `*Posted by*: ${author} ${handle}`,
-            `*Post Link:* ${link}`,
-            `*Post Content*: ${desc}`,
-            ``,
-            `📊 *Engagement:*`,
-            `• Views: ${views} | Reposts: ${reposts} | Likes: ${likes} | Replies: ${replies}`
-        ];
-
-        return lines.join('\n');
-    }, [grievance]);
-
-    /* ─── Initialize message ─── */
-    useEffect(() => {
-        setMessage(buildMessage());
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     /* ─── Drag ─── */
     useEffect(() => {

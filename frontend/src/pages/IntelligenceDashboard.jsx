@@ -110,6 +110,31 @@ const fmt = (v, compact = false) => {
 };
 const prettify = (s) => String(s || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
+const PROFILE_CATEGORIES = [
+  { value: 'political', label: 'Political' },
+  { value: 'communal', label: 'Communal' },
+  { value: 'trouble_makers', label: 'Trouble Makers' },
+  { value: 'defamation', label: 'Defamation' },
+  { value: 'narcotics', label: 'Narcotics' },
+  { value: 'history_sheeters', label: 'History Sheeters' },
+  { value: 'others', label: 'Others' }
+];
+
+const PROFILE_PLATFORM_ORDER = ['x', 'youtube', 'facebook', 'instagram', 'whatsapp', 'telegram'];
+
+const PROFILE_PLATFORM_THEMES = {
+  x: { label: 'X', rowClass: 'bg-slate-200/70 hover:bg-slate-300/70', stickyClass: 'bg-slate-200/80', color: '#000000', dotClass: 'bg-black' },
+  youtube: { label: 'YouTube', rowClass: 'bg-red-200/60 hover:bg-red-300/60', stickyClass: 'bg-red-200/75', color: '#FF0000', dotClass: 'bg-red-500' },
+  facebook: { label: 'Facebook', rowClass: 'bg-blue-200/60 hover:bg-blue-300/60', stickyClass: 'bg-blue-200/75', color: '#1877F2', dotClass: 'bg-blue-500' },
+  instagram: { label: 'Instagram', rowClass: 'bg-pink-200/60 hover:bg-pink-300/60', stickyClass: 'bg-pink-200/75', color: '#E4405F', dotClass: 'bg-pink-500' },
+  whatsapp: { label: 'WhatsApp', rowClass: 'bg-emerald-200/60 hover:bg-emerald-300/60', stickyClass: 'bg-emerald-200/75', color: '#25D366', dotClass: 'bg-emerald-500' },
+  telegram: { label: 'Telegram', rowClass: 'bg-cyan-200/60 hover:bg-cyan-300/60', stickyClass: 'bg-cyan-200/75', color: '#26A5E4', dotClass: 'bg-cyan-500' },
+};
+
+const PRIORITY_COLORS = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
+const RISK_BADGE_COLORS = { critical: '#7c2d12', high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
+const EMPTY_TOP_ACCOUNTS = [];
+
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
   visible: (i = 0) => ({ opacity: 1, y: 0, transition: { delay: i * 0.05, duration: 0.35, ease: 'easeOut' } })
@@ -275,30 +300,6 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
   const [topAccountsModalOpen, setTopAccountsModalOpen] = useState(false);
   const [topKeywordsModalOpen, setTopKeywordsModalOpen] = useState(false);
   const navigate = useNavigate();
-
-  const PROFILE_CATEGORIES = [
-    { value: 'political', label: 'Political' },
-    { value: 'communal', label: 'Communal' },
-    { value: 'trouble_makers', label: 'Trouble Makers' },
-    { value: 'defamation', label: 'Defamation' },
-    { value: 'narcotics', label: 'Narcotics' },
-    { value: 'history_sheeters', label: 'History Sheeters' },
-    { value: 'others', label: 'Others' }
-  ];
-
-  const PROFILE_PLATFORM_ORDER = ['x', 'youtube', 'facebook', 'instagram', 'whatsapp', 'telegram'];
-
-  const PROFILE_PLATFORM_THEMES = {
-    x: { label: 'X', rowClass: 'bg-slate-200/70 hover:bg-slate-300/70', stickyClass: 'bg-slate-200/80', color: '#000000', dotClass: 'bg-black' },
-    youtube: { label: 'YouTube', rowClass: 'bg-red-200/60 hover:bg-red-300/60', stickyClass: 'bg-red-200/75', color: '#FF0000', dotClass: 'bg-red-500' },
-    facebook: { label: 'Facebook', rowClass: 'bg-blue-200/60 hover:bg-blue-300/60', stickyClass: 'bg-blue-200/75', color: '#1877F2', dotClass: 'bg-blue-500' },
-    instagram: { label: 'Instagram', rowClass: 'bg-pink-200/60 hover:bg-pink-300/60', stickyClass: 'bg-pink-200/75', color: '#E4405F', dotClass: 'bg-pink-500' },
-    whatsapp: { label: 'WhatsApp', rowClass: 'bg-emerald-200/60 hover:bg-emerald-300/60', stickyClass: 'bg-emerald-200/75', color: '#25D366', dotClass: 'bg-emerald-500' },
-    telegram: { label: 'Telegram', rowClass: 'bg-cyan-200/60 hover:bg-cyan-300/60', stickyClass: 'bg-cyan-200/75', color: '#26A5E4', dotClass: 'bg-cyan-500' },
-  };
-
-  const PRIORITY_COLORS = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
-  const RISK_BADGE_COLORS = { critical: '#7c2d12', high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
 
   // Normalize a source's platform & category
   const normalizeSource = useCallback((source) => {
@@ -573,7 +574,7 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
     saveAs(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `new_profiles_${new Date().toISOString().split('T')[0]}.xlsx`);
   }, [newProfilesInRange, dateFrom, dateTo, escalationCounts]);
 
-  const topAccounts = data?.topActiveAccounts || [];
+  const topAccounts = data?.topActiveAccounts || EMPTY_TOP_ACCOUNTS;
 
   const exportTopAccountsPDF = useCallback(() => {
     const doc = new jsPDF({ orientation: 'landscape' });
@@ -2587,16 +2588,24 @@ const IntelligenceDashboard = () => {
 
   const activeTabMeta = useMemo(() => TABS.find(t => t.key === activeTab) || TABS[0], [activeTab]);
 
+  // Dates are edited on every keystroke; apply is manual — keep them out of fetchData identity
+  const dateFromRef = useRef(dateFrom);
+  const dateToRef = useRef(dateTo);
+  const activeTabRef = useRef(activeTab);
+  dateFromRef.current = dateFrom;
+  dateToRef.current = dateTo;
+  activeTabRef.current = activeTab;
+
   const fetchData = useCallback(async (tab) => {
     if (tab === 'events') { setLoading(false); return; }
     setLoading(true);
     setError('');
     try {
       const params = {};
-      if (dateFrom) params.from = dateFrom;
-      if (dateTo) params.to = dateTo;
+      if (dateFromRef.current) params.from = dateFromRef.current;
+      if (dateToRef.current) params.to = dateToRef.current;
 
-      const targetTab = tab || activeTab;
+      const targetTab = tab || activeTabRef.current;
       const response = await api.get(`/intelligence/${targetTab}`, { params });
 
       switch (targetTab) {
@@ -2605,15 +2614,15 @@ const IntelligenceDashboard = () => {
         case 'profiles': setProfilesData(response.data); break;
       }
     } catch (err) {
-      setError(`Failed to load ${tab || activeTab} intelligence. Please try again.`);
+      setError(`Failed to load ${tab || activeTabRef.current} intelligence. Please try again.`);
     } finally {
       setLoading(false);
     }
-  }, [activeTab, dateFrom, dateTo]);
+  }, []);
 
   useEffect(() => {
     fetchData(activeTab);
-  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab, fetchData]);
 
   const handleApplyDateRange = () => {
     if (!dateFrom || !dateTo) return;
@@ -2621,6 +2630,8 @@ const IntelligenceDashboard = () => {
   };
 
   const handleClearDateRange = () => {
+    dateFromRef.current = '';
+    dateToRef.current = '';
     setDateFrom('');
     setDateTo('');
     // Re-fetch with no custom range
