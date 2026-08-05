@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../lib/api';
+import { AlertService } from '@/features/alerts/api/alertService';
 import {
   Shield, ChevronRight, RefreshCw, Search, Filter,
   Clock, ExternalLink, AlertTriangle, CheckCircle, Flag,
@@ -42,7 +42,7 @@ const CaseReports = () => {
     try {
       if (showRefresh) setRefreshing(true);
       else setLoading(true);
-      const response = await api.get('/alerts');
+      const response = await AlertService.list();
       setReports(response.data.alerts || []);
     } catch (error) {
       toast.error('Failed to load case reports');

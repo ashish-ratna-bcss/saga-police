@@ -39,6 +39,7 @@ import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 import { saveAs } from 'file-saver';
 import api from '../../lib/api';
+import { AlertService } from '@/features/alerts/api/alertService';
 import { TwitterAlertCard, YoutubeAlertCard } from '../AlertCards';
 import ContentCard from '../ContentCard';
 
@@ -1642,7 +1643,7 @@ const SoceyeDailyReport = () => {
         const map = {};
         for (let i = 0; i < uniqueIds.length; i += BATCH) {
           const slice = uniqueIds.slice(i, i + BATCH);
-          const res = await api.post('/alerts/bulk', { ids: slice });
+          const res = await AlertService.bulk(slice);
           (res.data?.alerts || []).forEach((a) => { if (a?.id) map[a.id] = a; });
           if (cancelled) return;
         }

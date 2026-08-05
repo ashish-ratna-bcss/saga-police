@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../lib/api';
+import { AlertService } from '@/features/alerts/api/alertService';
 import {
   AlertTriangle, Shield, Clock, ExternalLink, ChevronRight,
   Filter, Search, RefreshCw, TrendingUp, Zap, Target,
@@ -45,7 +45,7 @@ const ActiveThreats = () => {
     try {
       if (showRefresh) setRefreshing(true);
       else setLoading(true);
-      const response = await api.get('/alerts', { params: { status_filter: 'active' } });
+      const response = await AlertService.list({ status_filter: 'active' });
       setThreats(response.data.alerts || []);
     } catch (error) {
       toast.error('Failed to load active threats');
@@ -57,7 +57,7 @@ const ActiveThreats = () => {
 
   const handleUpdateStatus = async (threatId, status) => {
     try {
-      await api.put(`/alerts/${threatId}`, { status, notes });
+      await AlertService.update(threatId, { status, notes });
       toast.success(`Threat ${status === 'acknowledged' ? 'acknowledged' : status === 'escalated' ? 'escalated' : 'marked as false positive'}`);
       setActionDialogOpen(false);
       setNotes('');

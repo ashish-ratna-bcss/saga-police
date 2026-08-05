@@ -3,21 +3,8 @@ import { X, ChevronLeft, ChevronRight, Volume2, VolumeX, Play, Pause, Download, 
 import { Button } from './ui/button';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
-import api, { BACKEND_URL } from '../lib/api';
-
-const proxyUrl = (rawUrl) => {
-  if (!rawUrl || typeof rawUrl !== 'string') return rawUrl;
-  if (rawUrl.startsWith('/') || rawUrl.startsWith(BACKEND_URL)) return rawUrl;
-  if (
-    rawUrl.includes('cdninstagram.com') ||
-    rawUrl.includes('fbcdn.net') ||
-    rawUrl.includes('instagram.') ||
-    rawUrl.includes('scontent')
-  ) {
-    return `${BACKEND_URL}/api/media/stream?url=${encodeURIComponent(rawUrl)}`;
-  }
-  return rawUrl;
-};
+import api from '../lib/api';
+import { proxyInstagramMediaUrl as proxyUrl } from '@/shared/utils/mediaProxy';
 
 // Build media candidates for any story object
 const buildCandidates = (s) => {

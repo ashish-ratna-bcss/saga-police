@@ -1,17 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { MapPin, Search, ExternalLink, Loader2, AlertCircle, Instagram } from 'lucide-react';
-import api, { BACKEND_URL } from '../lib/api';
-
-const NEEDS_PROXY_RE = /(amazonaws\.com|\.fbcdn\.net|\.fbsbx\.com|lookaside\.facebook\.com|cdninstagram\.com|video\.twimg\.com|pbs\.twimg\.com|googlevideo\.com|ytimg\.com|ggpht\.com|googleusercontent\.com|scontent|bhaskar-media-storage)/i;
-
-const proxyMediaUrl = (rawUrl) => {
-  if (!rawUrl || typeof rawUrl !== 'string') return '';
-  const trimmed = rawUrl.trim();
-  if (!trimmed) return '';
-  if (trimmed.startsWith('/') || trimmed.startsWith(BACKEND_URL)) return trimmed;
-  if (NEEDS_PROXY_RE.test(trimmed)) return `${BACKEND_URL}/api/media/stream?url=${encodeURIComponent(trimmed)}`;
-  return trimmed;
-};
+import api from '../lib/api';
+import { proxyMediaUrl } from '@/shared/utils/mediaProxy';
 
 const XLogo = ({ className = '' }) => (
   <svg viewBox="0 0 24 24" className={className} fill="currentColor">

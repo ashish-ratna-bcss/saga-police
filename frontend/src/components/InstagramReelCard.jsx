@@ -19,23 +19,10 @@ import {
   Shield
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import api, { BACKEND_URL } from '../lib/api';
+import api from '../lib/api';
 import { toast } from 'sonner';
 import ReasonModal from './ReasonModal';
-
-const proxyUrl = (rawUrl) => {
-  if (!rawUrl || typeof rawUrl !== 'string') return rawUrl;
-  if (rawUrl.startsWith('/') || rawUrl.startsWith(BACKEND_URL)) return rawUrl;
-  if (
-    rawUrl.includes('cdninstagram.com') ||
-    rawUrl.includes('fbcdn.net') ||
-    rawUrl.includes('instagram.') ||
-    rawUrl.includes('scontent')
-  ) {
-    return `${BACKEND_URL}/api/media/stream?url=${encodeURIComponent(rawUrl)}`;
-  }
-  return rawUrl;
-};
+import { proxyInstagramMediaUrl as proxyUrl } from '@/shared/utils/mediaProxy';
 
 /*
   INSTAGRAM VIDEO PLAYER

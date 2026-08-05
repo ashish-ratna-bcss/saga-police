@@ -13,21 +13,16 @@ import { Textarea } from './ui/textarea';
 import { HoverCard, HoverCardTrigger, HoverCardContent } from './ui/hover-card';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Calendar } from './ui/calendar';
-import api, { BACKEND_URL } from '../lib/api';
+import api from '../lib/api';
 import { decodeHtmlEntities } from '../utils/decodeHtml';
 import { toast } from 'sonner';
 import ReasonModal from './ReasonModal';
+import { NEEDS_PROXY_RE, proxyMediaUrl } from '@/shared/utils/mediaProxy';
+import { AlertService } from '@/features/alerts/api/alertService';
 
 const WHATSAPP_GROUP_LINK = 'https://chat.whatsapp.com/HGGWZCyNXBmHfp4KvYxlXu';
 let activeVideoElement = null;
 const mediaResolveCache = new Map();
-
-/**
- * Route S3 / CDN media URLs through our backend proxy to avoid CORS issues.
- * The backend /api/media/stream endpoint already supports S3, Instagram CDN,
- * Facebook CDN, Twitter CDN, and YouTube CDN hosts.
- */
-const NEEDS_PROXY_RE = /(amazonaws\.com|\.fbcdn\.net|\.fbsbx\.com|lookaside\.facebook\.com|cdninstagram\.com|video\.twimg\.com|pbs\.twimg\.com|googlevideo\.com|ytimg\.com|ggpht\.com|googleusercontent\.com|scontent|bhaskar-media-storage)/i;
 
 // ─── Location chip ────────────────────────────────────────────────────────
 // Renders on every alert card. Behavior:
@@ -85,19 +80,6 @@ export const AlertLocationChip = ({ content }) => {
             <span>Unknown location</span>
         </span>
     );
-};
-
-const proxyMediaUrl = (rawUrl) => {
-    if (!rawUrl || typeof rawUrl !== 'string') return rawUrl || '';
-    const trimmed = rawUrl.trim();
-    if (!trimmed) return '';
-    // Already proxied or local
-    if (trimmed.startsWith('/') || trimmed.startsWith(BACKEND_URL)) return trimmed;
-    // Needs proxying
-    if (NEEDS_PROXY_RE.test(trimmed)) {
-        return `${BACKEND_URL}/api/media/stream?url=${encodeURIComponent(trimmed)}`;
-    }
-    return trimmed;
 };
 
 const resolvePostMediaFallback = async (postUrl) => {
@@ -3024,7 +3006,7 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
     const handleChangeCategory = async (newCategory) => {
         setActionLoading(true);
         try {
-            await api.put(`/alerts/${alert.id}/change-category`, { category: newCategory });
+            await AlertService.changeCategory(alert.id, newCategory);
             if (onResolve) onResolve({ ...alert, source_category: newCategory });
             setShowActionDropdown(false);
             setShowCategorySubmenu(false);
@@ -3041,9 +3023,9 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
         setActionLoading(true);
         try {
             if (status === 'escalated') {
-                await api.put(`/alerts/${alert.id}`, { status: 'escalated' });
+                await AlertService.update(alert.id, { status: 'escalated' });
             } else {
-                await api.put(`/alerts/${alert.id}`, { status });
+                await AlertService.update(alert.id, { status });
             }
             if (onResolve) onResolve({ ...alert, status });
             setShowActionDropdown(false);
@@ -3059,7 +3041,7 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
         if (newRiskLevel === alert.risk_level) return;
         setActionLoading(true);
         try {
-            await api.put(`/alerts/${alert.id}`, { risk_level: newRiskLevel });
+            await AlertService.update(alert.id, { risk_level: newRiskLevel });
             if (onResolve) onResolve({ ...alert, risk_level: newRiskLevel });
             setShowActionDropdown(false);
             setShowRiskSubmenu(false);
@@ -3258,11 +3240,11 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
 
         setIsTranslating(true);
         try {
-            const promises = [api.post('/alerts/translate', { text: contentText })];
+            const promises = [AlertService.translate(contentText)];
             const hasQuoted = content?.quoted_content?.text;
 
             if (hasQuoted) {
-                promises.push(api.post('/alerts/translate', { text: content.quoted_content.text }));
+                promises.push(AlertService.translate(content.quoted_content.text));
             }
 
             const results = await Promise.all(promises);
@@ -4173,7 +4155,7 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
     const handleChangeCategory = async (newCategory) => {
         setActionLoading(true);
         try {
-            await api.put(`/alerts/${alert.id}/change-category`, { category: newCategory });
+            await AlertService.changeCategory(alert.id, newCategory);
             if (onResolve) onResolve({ ...alert, source_category: newCategory });
             setShowActionDropdown(false);
             setShowCategorySubmenu(false);
@@ -4190,9 +4172,9 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
         setActionLoading(true);
         try {
             if (status === 'escalated') {
-                await api.put(`/alerts/${alert.id}`, { status: 'escalated' });
+                await AlertService.update(alert.id, { status: 'escalated' });
             } else {
-                await api.put(`/alerts/${alert.id}`, { status });
+                await AlertService.update(alert.id, { status });
             }
             if (onResolve) onResolve({ ...alert, status });
             setShowActionDropdown(false);
@@ -4208,7 +4190,7 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
         if (newRiskLevel === alert.risk_level) return;
         setActionLoading(true);
         try {
-            await api.put(`/alerts/${alert.id}`, { risk_level: newRiskLevel });
+            await AlertService.update(alert.id, { risk_level: newRiskLevel });
             if (onResolve) onResolve({ ...alert, risk_level: newRiskLevel });
             setShowActionDropdown(false);
             setShowRiskSubmenu(false);
@@ -4371,7 +4353,7 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
 
         setIsTranslating(true);
         try {
-            const response = await api.post('/alerts/translate', { text: contentText });
+            const response = await AlertService.translate(contentText);
             setTranslatedText(response.data.translatedText);
             setIsTranslated(true);
         } catch (error) {

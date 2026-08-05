@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Card } from '../ui/card';
 import { Download, RefreshCw, Activity, Users } from 'lucide-react';
-import api from '../../lib/api';
+import { AlertService } from '@/features/alerts/api/alertService';
 
 const STATUSES = [
   { key: 'acknowledged', label: 'Acknowledged', color: '#8b5cf6' },
@@ -29,7 +29,7 @@ const WorkflowKpiCard = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get('/alerts/workflow-kpi', { params: { start, end } });
+      const res = await AlertService.getWorkflowKpi({ start, end });
       // eslint-disable-next-line no-console
       console.log('[WorkflowKpiCard] response', res.status, res.data);
       setData(res.data);
@@ -79,10 +79,10 @@ const WorkflowKpiCard = () => {
 
   const downloadCsv = async () => {
     try {
-      const res = await api.get('/alerts/workflow-kpi', {
-        params: { start, end, format: 'csv' },
-        responseType: 'blob'
-      });
+      const res = await AlertService.getWorkflowKpi(
+        { start, end, format: 'csv' },
+        { responseType: 'blob' }
+      );
       const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
       const a = document.createElement('a');
       a.href = url;

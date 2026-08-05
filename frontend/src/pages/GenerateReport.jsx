@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import api from '../lib/api';
+import { AlertService } from '@/features/alerts/api/alertService';
 import {
     ArrowLeft, Printer, AlertCircle, Loader2, Repeat2, Save, CheckCircle, AlertTriangle, FileText, ChevronDown
 } from 'lucide-react';
@@ -72,7 +73,7 @@ const GenerateReport = () => {
             try {
                 setLoading(true);
                 const [alertRes, reportRes] = await Promise.all([
-                    api.get(`/alerts/${id}`),
+                    AlertService.getById(id),
                     api.get(`/reports`).then(res => res.data.find(r => r.alert_id === id)).catch(() => null)
                 ]);
 
@@ -226,7 +227,7 @@ const GenerateReport = () => {
                 const textToCheck = contentData?.text || alertData.description;
                 if (textToCheck) {
                     try {
-                        const simRes = await api.post('/alerts/similar', { text: textToCheck });
+                        const simRes = await AlertService.similar(textToCheck);
                         if (simRes.data.similarCount > 0) {
                             const others = simRes.data.alerts.filter(a => a.id !== id);
                             if (others.length > 0) {

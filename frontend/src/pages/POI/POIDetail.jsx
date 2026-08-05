@@ -22,7 +22,8 @@ import { toast } from 'sonner';
 import { TwitterAlertCard, YoutubeAlertCard } from '../../components/AlertCards';
 import ManageProfileImageDialog from './ManageProfileImageDialog';
 import AddSourceModal from '../../components/AddSourceModal';
-import api, { BACKEND_URL } from '../../lib/api'; // Use authenticated API helper
+import api from '../../lib/api'; // Use authenticated API helper
+import { proxyMediaUrlAlways } from '@/shared/utils/mediaProxy';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '../../components/ui/dialog';
@@ -314,23 +315,7 @@ const POIDetail = () => {
             .catch(() => setReportProfileImageDataUrl(null));
     }, [effectiveProfileImage]);
 
-    const proxifyImageUrl = (url) => {
-        if (!url || typeof url !== 'string' || url === '') return url;
-
-        // If it's a data URI or blob, it's already local/embedded
-        if (url.startsWith('data:') || url.includes('blob:')) return url;
-
-        // If it already includes our backend host, don't double proxify
-        // UNLESS it's a direct /uploads path, in which case we still want to go through the proxy for CORS headers in reports
-        if (url.includes(window.location.hostname) && !url.includes('/uploads/')) return url;
-
-        // Use the stream proxy for EVERYTHING (local uploads and external social photos)
-        // This ensures:
-        // 1. Absolute URLs (fixes sidebar on port 3000)
-        // 2. Proper CORS headers (fixes report printing/archive with html2canvas)
-        // 3. Robust loading across all environments
-        return `${BACKEND_URL}/api/media/stream?url=${encodeURIComponent(url)}`;
-    };
+    const proxifyImageUrl = (url) => proxyMediaUrlAlways(url);
 
     const getMobileFriendlyUrl = (forcedUrl = null) => {
         // If an explicit URL is forced (e.g. during capture), use it

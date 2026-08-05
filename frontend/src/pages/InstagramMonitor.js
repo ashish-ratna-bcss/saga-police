@@ -30,34 +30,10 @@ import { cn } from '../lib/utils';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useInstagramCache } from '../contexts/InstagramCacheContext';
-import { BACKEND_URL } from '../lib/api';
-
-const proxyUrl = (rawUrl) => {
-  if (!rawUrl || typeof rawUrl !== 'string') return rawUrl;
-  if (rawUrl.startsWith('/') || rawUrl.startsWith(BACKEND_URL)) return rawUrl;
-  if (
-    rawUrl.includes('cdninstagram.com') ||
-    rawUrl.includes('fbcdn.net') ||
-    rawUrl.includes('instagram.') ||
-    rawUrl.includes('scontent')
-  ) {
-    return `${BACKEND_URL}/api/media/stream?url=${encodeURIComponent(rawUrl)}`;
-  }
-  return rawUrl;
-};
-
-const buildMediaCandidates = (urls = []) => {
-  const candidates = [];
-  urls
-    .filter((url) => typeof url === 'string' && url.trim())
-    .forEach((url) => {
-      const trimmed = url.trim();
-      const proxied = proxyUrl(trimmed);
-      if (proxied && !candidates.includes(proxied)) candidates.push(proxied);
-      if (trimmed && proxied !== trimmed && !candidates.includes(trimmed)) candidates.push(trimmed);
-    });
-  return candidates;
-};
+import {
+  proxyInstagramMediaUrl as proxyUrl,
+  buildInstagramMediaCandidates as buildMediaCandidates,
+} from '@/shared/utils/mediaProxy';
 
 const INSTAGRAM_VIDEO_EXT_RE = /\.(mp4|webm|m3u8|mov)(\?|$)/i;
 

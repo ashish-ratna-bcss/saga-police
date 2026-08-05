@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../lib/api';
+import { AlertService } from '@/features/alerts/api/alertService';
 import {
   Shield, AlertTriangle, RefreshCcw, Clock, CalendarDays,
   ExternalLink, CheckCircle2, Eye, FileText, Send,
@@ -1196,12 +1197,10 @@ const Dashboard = () => {
   const [eventMonitorData, setEventMonitorData] = useState({ active: 0, paused: 0, planned: 0, archived: 0, total: 0, activeEvents: [], events: [] });
 
   const fetchAlertsTotal = useCallback(async (params) => {
-    const response = await api.get('/alerts', {
-      params: {
+    const response = await AlertService.list({
         page: 1,
         limit: 1,
         ...params
-      }
     });
     return response.data?.pagination?.total || 0;
   }, []);
@@ -1212,7 +1211,7 @@ const Dashboard = () => {
     const alertStatsEntries = await Promise.all(
       platformIds.map(async (platformId) => {
         const platform = platformId === 'all' ? undefined : getApiPlatform(platformId);
-        const response = await api.get('/alerts/stats', { params: { platform } });
+        const response = await AlertService.getStats({ platform });
         return [platformId, response.data || {}];
       })
     );
@@ -1298,7 +1297,7 @@ const Dashboard = () => {
     try {
       const [overviewRes, alertsRes, eventsRes] = await Promise.all([
         api.get('/analytics/overview'),
-        api.get('/alerts?status=active'),
+        AlertService.list({ status: 'active' }),
         api.get('/events').catch(() => ({ data: [] }))
       ]);
       setOverview(overviewRes.data);

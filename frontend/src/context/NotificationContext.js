@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import api from '../lib/api';
+import { AlertService } from '@/features/alerts/api/alertService';
 // import { toast } from 'sonner'; // Disabled - using silent alert count only
 import { useAuth } from '../contexts/AuthContext';
 
@@ -13,7 +13,7 @@ export const NotificationProvider = ({ children }) => {
     const fetchUnreadCount = useCallback(async (silent = false) => {
         if (!user) return;
         try {
-            const res = await api.get('/alerts/unread');
+            const res = await AlertService.getUnread();
             const { count, latest_alert } = res.data;
 
             // If we have a latest alert, update tracking (no popup - just increment count)
@@ -31,7 +31,7 @@ export const NotificationProvider = ({ children }) => {
 
     const markAllRead = async () => {
         try {
-            await api.put('/alerts/read');
+            await AlertService.markAllRead();
             setUnreadCount(0);
         } catch (error) {
             console.error('Failed to mark read', error);

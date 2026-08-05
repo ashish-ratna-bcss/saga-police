@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom';
 import { useNotification } from '../context/NotificationContext';
 import api from '../lib/api';
+import { AlertService } from '@/features/alerts/api/alertService';
 import { AlertTriangle, CheckCircle, Flag, XCircle, Zap, Activity, MessageSquare, Filter, ExternalLink, Search, Calendar, Download, Loader2, ArrowUpCircle, Plus, LayoutGrid, LayoutList, Twitter, Youtube, Facebook, Instagram, Users, X, Sparkles } from 'lucide-react';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -602,7 +603,7 @@ export default function Alerts() {
     fetchKeywords();
 
     // Prefetch lightweight summary for instant tab counts
-    api.get('/alerts/summary').then(res => {
+    AlertService.getSummary().then(res => {
       if (res.data) {
         setAlertStats(prev => prev || res.data);
       }
@@ -678,7 +679,7 @@ export default function Alerts() {
         params.risk_level = alertCategory;
       }
 
-      const response = await api.get('/alerts', { params, signal: controller.signal });
+      const response = await AlertService.list(params, { signal: controller.signal });
       if (requestSeq !== fetchRequestSeqRef.current) return;
 
       const newAlerts = response.data.alerts || [];
@@ -1051,15 +1052,12 @@ export default function Alerts() {
         const seenPageSignatures = new Set();
 
         while (hasMoreStories && currentPage <= maxPages) {
-          const response = await api.get('/alerts', {
-            params: {
+          const response = await AlertService.list({
               platform: 'instagram',
               status: 'all',
               page: currentPage,
               limit: 80
-            },
-            timeout: 12000
-          });
+            }, { timeout: 12000 });
 
           if (requestId !== recentStoriesReqIdRef.current) {
             return allStories;
@@ -1184,7 +1182,7 @@ export default function Alerts() {
         params.risk_level = alertCategory;
       }
 
-      const response = await api.get('/alerts/stats', { params });
+      const response = await AlertService.getStats(params);
       setAlertStats(response.data);
     } catch (error) {
       console.error('Failed to fetch alert stats:', error);
@@ -1298,7 +1296,7 @@ export default function Alerts() {
       else if (alertCategory === 'risk') params.alert_type = 'risk';
       else if (['high', 'medium', 'low', 'critical'].includes(alertCategory)) params.risk_level = alertCategory;
 
-      const response = await api.get('/alerts', { params: { ...params, includeStats: true } });
+      const response = await AlertService.list({ ...params, includeStats: true });
       const mappedNew = response.data.alerts || [];
 
       // Identify truly new items — ALWAYS buffer them, never prepend directly.
@@ -1507,7 +1505,7 @@ export default function Alerts() {
       const fullAlerts = [];
       for (let i = 0; i < alertIds.length; i += BATCH) {
         const batch = alertIds.slice(i, i + BATCH);
-        const res = await api.post('/alerts/bulk', { ids: batch });
+        const res = await AlertService.bulk(batch);
         fullAlerts.push(...(res.data?.alerts || []));
       }
 
@@ -1556,7 +1554,7 @@ export default function Alerts() {
     setIsInvestigating(true);
     try {
       console.log('[Alerts] POSTing to /alerts/investigate...');
-      const response = await api.post('/alerts/investigate', { url });
+      const response = await AlertService.investigate(url);
       console.log('[Alerts] Investigation response:', response.data);
       const newAlert = response.data;
 
@@ -2695,7 +2693,7 @@ export default function Alerts() {
               // Update each alert with source_id
               for (const alert of alertsToUpdate) {
                 try {
-                  api.put(`/alerts/${alert.id}`, { source_id: createdSource?.id || null }).catch(err => {
+                  AlertService.update(alert.id, { source_id: createdSource?.id || null }).catch(err => {
                     console.error(`Failed to link alert ${alert.id} to source:`, err);
                   });
                 } catch (error) {

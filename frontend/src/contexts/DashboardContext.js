@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import api from '../lib/api';
+import { AlertService } from '@/features/alerts/api/alertService';
 import { toast } from 'sonner';
 
 const DashboardContext = createContext(null);
@@ -62,7 +63,7 @@ export const DashboardProvider = ({ children }) => {
         poiStatsRes,
         eventsRes
       ] = await Promise.all([
-        api.get('/alerts/dashboard-stats'),
+        AlertService.getDashboardStats(),
         api.get('/reports/stats'),
         optionalRequest(getGrievanceDashboardStats()),
         optionalRequest(api.get('/poi/stats')),

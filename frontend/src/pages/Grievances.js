@@ -42,8 +42,8 @@ import { QueryReports } from '../components/grievances/QueryReports';
 import { SuggestionPopup } from '../components/grievances/SuggestionPopup';
 import { SuggestionReports } from '../components/grievances/SuggestionReports';
 import { useRbac } from '../contexts/RbacContext';
+import { proxyMediaUrl } from '@/shared/utils/mediaProxy';
 
-const NEEDS_PROXY_RE = /(amazonaws\.com|\.fbcdn\.net|\.fbsbx\.com|lookaside\.facebook\.com|cdninstagram\.com|video\.twimg\.com|pbs\.twimg\.com|googlevideo\.com|ytimg\.com|ggpht\.com|googleusercontent\.com|scontent|bhaskar-media-storage)/i;
 const DEFAULT_SOCIAL_ACTION_OVERLAY = {
     visible: false,
     platformLabel: '',
@@ -170,16 +170,7 @@ const Grievances = () => {
         }));
     }, []);
 
-    const getProxiedMediaUrl = useCallback((rawUrl) => {
-        if (!rawUrl || typeof rawUrl !== 'string') return rawUrl || '';
-        const trimmed = rawUrl.trim();
-        if (!trimmed) return '';
-        if (trimmed.startsWith('/') || trimmed.startsWith(BACKEND_URL)) return trimmed;
-        if (NEEDS_PROXY_RE.test(trimmed)) {
-            return `${BACKEND_URL}/api/media/stream?url=${encodeURIComponent(trimmed)}`;
-        }
-        return trimmed;
-    }, []);
+    const getProxiedMediaUrl = useCallback((rawUrl) => proxyMediaUrl(rawUrl), []);
 
     const toPreviewMedia = useCallback((mediaItem) => {
         if (!mediaItem) return null;

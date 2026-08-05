@@ -26,27 +26,14 @@ import {
   Trash2,
   Clock,
 } from 'lucide-react';
-import api, { BACKEND_URL } from '../lib/api';
+import api from '../lib/api';
 import { Badge } from '../components/ui/badge';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { useInstagramCache } from '../contexts/InstagramCacheContext';
+import { proxyInstagramMediaUrl as proxyUrl } from '@/shared/utils/mediaProxy';
 const DEFAULT_LIMIT = 18;
-
-const proxyUrl = (rawUrl) => {
-  if (!rawUrl || typeof rawUrl !== 'string') return rawUrl;
-  if (rawUrl.startsWith('/') || rawUrl.startsWith(BACKEND_URL)) return rawUrl;
-  if (
-    rawUrl.includes('cdninstagram.com') ||
-    rawUrl.includes('fbcdn.net') ||
-    rawUrl.includes('instagram.') ||
-    rawUrl.includes('scontent')
-  ) {
-    return `${BACKEND_URL}/api/media/stream?url=${encodeURIComponent(rawUrl)}`;
-  }
-  return rawUrl;
-};
 
 const formatCount = (num) => {
   if (!num) return '0';
