@@ -1,5 +1,6 @@
 const { google } = require('googleapis');
 const moment = require('moment');
+const Counter = require('../models/Counter');
 
 class YouTubeService {
     constructor() {
@@ -9,6 +10,19 @@ class YouTubeService {
         });
         this.quotaUsed = 0;
         this.quotaLimit = 10000; // Default daily limit
+
+        // Initialize from DB
+        (async () => {
+            try {
+                const doc = await Counter.findOne({ key: 'api_calls_youtube' });
+                if (doc) this.quotaUsed = doc.seq;
+            } catch (e) {}
+        })();
+    }
+
+    _incrementQuota(amount = 1) {
+        this.quotaUsed += amount;
+        Counter.findOneAndUpdate({ key: 'api_calls_youtube' }, { $inc: { seq: amount } }, { upsert: true }).catch(() => {});
     }
 
     getKeyHealthStatus() {
@@ -25,7 +39,7 @@ class YouTubeService {
 
     async getChannelDetails(channelId) {
         try {
-            this.quotaUsed++;
+            this._incrementQuota(1);
             const response = await this.youtube.channels.list({
                 part: ['snippet', 'statistics', 'brandingSettings', 'contentDetails'],
                 id: [channelId]
@@ -64,7 +78,7 @@ class YouTubeService {
 
     async searchChannels(query, limit = 10) {
         try {
-            this.quotaUsed += 100;
+            this._incrementQuota(100);
             const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
             const response = await this.youtube.search.list({
                 part: ['snippet'],
@@ -76,7 +90,7 @@ class YouTubeService {
             const channelIds = response.data.items.map(item => item.snippet.channelId).filter(Boolean);
             if (channelIds.length === 0) return [];
 
-            this.quotaUsed++;
+            this._incrementQuota(1);
             // Fetch full channel details with statistics (subscriber counts)
             const detailsResponse = await this.youtube.channels.list({
                 part: ['snippet', 'statistics'],
@@ -101,6 +115,7 @@ class YouTubeService {
             });
         } catch (error) {
             if (error?.status === 403 || error?.code === 403 || error?.errors?.[0]?.reason === 'quotaExceeded') {
+                this.quotaUsed = this.quotaLimit; // Force remaining to 0
                 (() => {})('[YouTube] API quota exceeded, returning empty results');
                 return [];
             }
@@ -119,7 +134,7 @@ class YouTubeService {
                 const remaining = safeLimit - videoIds.length;
                 const pageSize = Math.min(remaining, 50);
 
-                this.quotaUsed += 100;
+                this._incrementQuota(100);
                 const response = await this.youtube.search.list({
                     part: ['snippet'],
                     q: query,
@@ -155,7 +170,7 @@ class YouTubeService {
 
     async getVideosFromPlaylist(playlistId, maxResults = 50) {
         try {
-            this.quotaUsed++;
+            this._incrementQuota(1);
             const response = await this.youtube.playlistItems.list({
                 part: ['snippet', 'contentDetails'],
                 playlistId: playlistId,
@@ -181,7 +196,7 @@ class YouTubeService {
         let allVideos = [];
         for (const chunk of chunks) {
             try {
-                this.quotaUsed++;
+                this._incrementQuota(1);
                 const response = await this.youtube.videos.list({
                     part: ['snippet', 'contentDetails', 'statistics'],
                     id: chunk
@@ -215,7 +230,7 @@ class YouTubeService {
 
     async getVideoComments(videoId, maxResults = 100) {
         try {
-            this.quotaUsed++;
+            this._incrementQuota(1);
             const response = await this.youtube.commentThreads.list({
                 part: ['snippet', 'replies'],
                 videoId: videoId,

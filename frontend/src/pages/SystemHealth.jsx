@@ -32,28 +32,34 @@ const SystemHealth = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const StatusCard = ({ title, status, description, icon: Icon, latency }) => {
-    const isOnline = status === 'online';
+  const StatusCard = ({ title, statusObj, icon: Icon, latency }) => {
+    const { status, message } = statusObj || { status: 'offline', message: 'Unknown state' };
+    let label = 'Offline';
+    let colorClasses = 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
     
+    if (status === 'online' || status === 'active') {
+      label = status === 'active' ? 'Active' : 'Operational';
+      colorClasses = 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+    } else if (status === 'quota_completed') {
+      label = 'Quota Completed';
+      colorClasses = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-500';
+    }
+
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
         <div className="flex justify-between items-start mb-3">
           <div className="p-2 bg-gray-100 dark:bg-gray-900 rounded-md">
             <Icon className="w-4 h-4 text-gray-700 dark:text-gray-300" />
           </div>
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] uppercase font-semibold tracking-wide ${
-            isOnline 
-              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
-              : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-          }`}>
-            {isOnline ? 'Operational' : 'Offline'}
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] uppercase font-semibold tracking-wide ${colorClasses}`}>
+            {label}
           </span>
         </div>
         
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">{title}</h3>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 leading-tight">{description}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 leading-tight">{message}</p>
         
-        {latency && isOnline ? (
+        {latency && (status === 'online' || status === 'active') ? (
           <span className="text-[11px] text-gray-400 dark:text-gray-500 font-mono">
             Latency: {latency}ms
           </span>
@@ -62,59 +68,16 @@ const SystemHealth = () => {
     );
   };
 
-  const QuotaCard = ({ title, data, icon: Icon, colorClass, bgClass, description }) => {
-    const isKnown = data?.remaining !== undefined && data?.remaining !== 'Unknown';
-    const isExceeded = isKnown && Number(data.remaining) <= 0;
-    
-    let percentage = null;
-    let used = 0;
-    if (isKnown && Number(data.limit) > 0) {
-      used = Number(data.limit) - Number(data.remaining);
-      percentage = Math.round((used / Number(data.limit)) * 100);
+  const getApiStatus = (quotaData) => {
+    if (!quotaData) return { status: 'offline', message: 'No data from backend.' };
+    if (quotaData.available === false) return { status: 'offline', message: 'API keys exhausted or invalid.' };
+    if (quotaData.remaining !== undefined && quotaData.remaining !== 'Unknown' && Number(quotaData.remaining) <= 0) {
+      return { status: 'quota_completed', message: 'Rate limit / quota exceeded.' };
     }
-
-    return (
-      <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border ${isExceeded ? 'border-red-400 dark:border-red-500/50' : 'border-gray-200 dark:border-gray-700'} p-4 transition-colors`}>
-        <div className="flex justify-between items-start mb-3">
-          <div className="flex items-center gap-2">
-            <div className={`p-2 rounded-md ${isExceeded ? 'bg-red-50 dark:bg-red-900/30' : bgClass}`}>
-              <Icon className={`w-4 h-4 ${isExceeded ? 'text-red-600 dark:text-red-400' : colorClass}`} />
-            </div>
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h3>
-          </div>
-          {isExceeded && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400 animate-pulse border border-red-200 dark:border-red-800/50">
-              Overage
-            </span>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-          <div className="flex items-baseline gap-1.5">
-            <span className={`text-lg font-bold tracking-tight ${isExceeded ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
-              {isKnown ? `${used.toLocaleString()}/${Number(data.limit).toLocaleString()}` : (data?.totalCalls || 0).toLocaleString()}
-            </span>
-            <span className={`text-[11px] font-medium whitespace-nowrap ${isExceeded ? 'text-red-500/80 dark:text-red-400/80' : 'text-gray-500 dark:text-gray-400'}`}>
-              {isKnown ? 'used' : 'calls made'}
-            </span>
-          </div>
-          {percentage !== null && (
-            <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isExceeded ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
-              {percentage}% used
-            </span>
-          )}
-        </div>
-        <div className={`flex justify-between items-end text-[10px] leading-tight ${isExceeded ? 'text-red-500 dark:text-red-400/80' : 'text-gray-400 dark:text-gray-500'}`}>
-          <span>
-            {isKnown ? (isExceeded ? '⚠️ Quota limit exceeded!' : 'Live BCSS quota.') : description}
-          </span>
-          <span className="font-mono bg-gray-50 dark:bg-gray-900 px-1.5 py-0.5 rounded border border-gray-100 dark:border-gray-800">
-            {data?.totalCalls || 0} calls
-          </span>
-        </div>
-      </div>
-    );
+    return { status: 'active', message: 'Operational and within limits.' };
   };
+
+
 
   if (error) {
     return (
@@ -176,9 +139,8 @@ const SystemHealth = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               <StatusCard 
                 title="MongoDB Database"
-                description="Primary datastore for content and alerts."
                 icon={Server}
-                status={healthData.database.status}
+                statusObj={{ status: healthData.database.status, message: 'Primary datastore for content and alerts.' }}
               />
             </div>
           </section>
@@ -192,37 +154,32 @@ const SystemHealth = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               <StatusCard 
                 title="BCSS LLM"
-                description="Local Language Model (Risk Scoring)"
                 icon={Brain}
-                status={healthData.services.ollama.status}
+                statusObj={{ status: healthData.services.ollama.status, message: 'Local Language Model (Risk Scoring)' }}
                 latency={healthData.services.ollama.latency}
               />
               <StatusCard 
                 title="Deepfake ML Engine"
-                description="Forensic analysis of media."
                 icon={Zap}
-                status={healthData.services.deepfake.status}
+                statusObj={{ status: healthData.services.deepfake.status, message: 'Forensic analysis of media.' }}
                 latency={healthData.services.deepfake.latency}
               />
               <StatusCard 
                 title="Custom Sentiment"
-                description="Regional sentiment classification."
                 icon={Activity}
-                status={healthData.services.sentiment.status}
+                statusObj={{ status: healthData.services.sentiment.status, message: 'Multi-lingual emotion detection.' }}
                 latency={healthData.services.sentiment.latency}
               />
               <StatusCard 
                 title="Media Analyzer"
-                description="Object and Face recognition."
-                icon={Server}
-                status={healthData.services.mediaAnalyzer.status}
+                icon={Database}
+                statusObj={{ status: healthData.services.mediaAnalyzer.status, message: 'Image & Video OCR pipeline.' }}
                 latency={healthData.services.mediaAnalyzer.latency}
               />
               <StatusCard 
                 title="RAG API"
-                description="Vector DB for semantic search."
                 icon={Database}
-                status={healthData.services.ragApi.status}
+                statusObj={{ status: healthData.services.ragApi.status, message: 'Vector database retrieval.' }}
                 latency={healthData.services.ragApi.latency}
               />
             </div>
@@ -239,29 +196,23 @@ const SystemHealth = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               <StatusCard 
                 title="BCSS Instagram"
-                description="Social media scraper API."
                 icon={Activity}
-                status="online"
+                statusObj={getApiStatus(healthData.quotas.instagram)}
               />
-              <QuotaCard 
+              <StatusCard 
                 title="BCSS Facebook"
-                data={healthData.quotas.facebook}
                 icon={Activity}
-                colorClass="text-blue-600 dark:text-blue-400"
-                bgClass="bg-blue-50 dark:bg-blue-900/30"
-                description="Live BCSS quota."
+                statusObj={getApiStatus(healthData.quotas.facebook)}
               />
               <StatusCard 
                 title="BCSS X (Twitter)"
-                description="Social media scraper API."
                 icon={Activity}
-                status="online"
+                statusObj={getApiStatus(healthData.quotas.x)}
               />
               <StatusCard 
                 title="Google YouTube"
-                description="Data API service."
                 icon={Activity}
-                status="online"
+                statusObj={getApiStatus(healthData.quotas.youtube)}
               />
             </div>
           </section>

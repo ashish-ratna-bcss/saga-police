@@ -1,9 +1,23 @@
 const axios = require('axios');
+const Counter = require('../models/Counter');
 
 const INSTAGRAM_DEFAULT_HOST = 'instagram120.p.rapidapi.com';
 
 // ─── Subscribed Key — Direct Usage (no cooldown/rotation) ──────────────────
 let totalCalls = 0;
+
+// Initialize from DB
+(async () => {
+    try {
+        const doc = await Counter.findOne({ key: 'api_calls_instagram' });
+        if (doc) totalCalls = doc.seq;
+    } catch(e) {}
+})();
+
+const _incrementCalls = () => {
+    totalCalls++;
+    Counter.findOneAndUpdate({ key: 'api_calls_instagram' }, { $inc: { seq: 1 } }, { upsert: true }).catch(()=>{});
+};
 
 // ─── Global Rate-Limit Protection ──────────────────────────────────────────
 let igGlobalRateLimitPauseUntil = 0;
@@ -121,7 +135,7 @@ const rapidPost = async (path, data, _retryCount = 0) => {
             },
             timeout: 30000
         });
-        totalCalls++;
+        _incrementCalls();
         if (response.headers['x-ratelimit-requests-remaining']) {
             globalRateLimitRemaining = parseInt(response.headers['x-ratelimit-requests-remaining'], 10);
         }
@@ -130,7 +144,7 @@ const rapidPost = async (path, data, _retryCount = 0) => {
         }
         return response;
     } catch (error) {
-        totalCalls++;
+        _incrementCalls();
         const status = error.response?.status;
         const msg = String(error.response?.data?.message || error.response?.data?.error || error.message || '').toLowerCase();
 
@@ -198,10 +212,10 @@ const rapidGet = async (path, params = {}, _retryCount = 0) => {
             },
             timeout: 30000
         });
-        totalCalls++;
+        _incrementCalls();
         return response;
     } catch (error) {
-        totalCalls++;
+        _incrementCalls();
         const status = error.response?.status;
         const msg = String(error.response?.data?.message || error.response?.data?.error || error.message || '').toLowerCase();
 

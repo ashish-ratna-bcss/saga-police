@@ -36,12 +36,13 @@ const checkSystemHealth = async () => {
         const igService = require('./rapidApiInstagramService');
         if (igService.getKeyHealthStatus) {
             const igHealth = igService.getKeyHealthStatus();
-            const activeKey = Array.isArray(igHealth) ? igHealth.find(k => k.available) : null;
-            if (activeKey) {
+            const firstKey = Array.isArray(igHealth) ? igHealth[0] : null;
+            if (firstKey) {
                 instagramLimit = {
-                    totalCalls: activeKey.totalCalls || 0,
-                    remaining: activeKey.remaining !== null ? activeKey.remaining : 'Unknown',
-                    limit: activeKey.limit !== null ? activeKey.limit : 'Unknown'
+                    totalCalls: firstKey.totalCalls || 0,
+                    remaining: firstKey.remaining !== null ? firstKey.remaining : 'Unknown',
+                    limit: firstKey.limit !== null ? firstKey.limit : 'Unknown',
+                    available: firstKey.available
                 };
             }
         }
@@ -51,12 +52,13 @@ const checkSystemHealth = async () => {
         const fbService = require('./rapidApiFacebookService');
         if (fbService.getKeyHealthStatus) {
             const fbHealth = fbService.getKeyHealthStatus();
-            const activeKey = Array.isArray(fbHealth) ? fbHealth.find(k => k.available) : null;
-            if (activeKey) {
+            const firstKey = Array.isArray(fbHealth) ? fbHealth[0] : null;
+            if (firstKey) {
                 facebookLimit = {
-                    totalCalls: activeKey.totalCalls || 0,
-                    remaining: activeKey.remaining !== null ? activeKey.remaining : 'Unknown',
-                    limit: activeKey.limit !== null ? activeKey.limit : 'Unknown'
+                    totalCalls: firstKey.totalCalls || 0,
+                    remaining: firstKey.remaining !== null ? firstKey.remaining : 'Unknown',
+                    limit: firstKey.limit !== null ? firstKey.limit : 'Unknown',
+                    available: firstKey.available
                 };
             }
         }
@@ -66,12 +68,13 @@ const checkSystemHealth = async () => {
         const xService = require('./rapidApiXService');
         if (xService.getKeyHealthStatus) {
             const xHealth = xService.getKeyHealthStatus();
-            const activeKey = Array.isArray(xHealth) ? xHealth.find(k => k.available) : null;
-            if (activeKey) {
+            const firstKey = Array.isArray(xHealth) ? xHealth[0] : null;
+            if (firstKey) {
                 xLimit = {
-                    totalCalls: activeKey.totalCalls || 0,
-                    remaining: activeKey.remaining !== null ? activeKey.remaining : 'Unknown',
-                    limit: activeKey.limit !== null ? activeKey.limit : 'Unknown'
+                    totalCalls: firstKey.totalCalls || 0,
+                    remaining: firstKey.remaining !== null ? firstKey.remaining : 'Unknown',
+                    limit: firstKey.limit !== null ? firstKey.limit : 'Unknown',
+                    available: firstKey.available
                 };
             }
         }
@@ -81,12 +84,13 @@ const checkSystemHealth = async () => {
         const ytService = require('./youtube.service');
         if (ytService.getKeyHealthStatus) {
             const ytHealth = ytService.getKeyHealthStatus();
-            const activeKey = Array.isArray(ytHealth) ? ytHealth.find(k => k.available) : null;
-            if (activeKey) {
+            const firstKey = Array.isArray(ytHealth) ? ytHealth[0] : null;
+            if (firstKey) {
                 youtubeLimit = {
-                    totalCalls: activeKey.totalCalls || 0,
-                    remaining: activeKey.remaining !== null ? activeKey.remaining : 'Unknown',
-                    limit: activeKey.limit !== null ? activeKey.limit : 'Unknown'
+                    totalCalls: firstKey.totalCalls || 0,
+                    remaining: firstKey.remaining !== null ? firstKey.remaining : 'Unknown',
+                    limit: firstKey.limit !== null ? firstKey.limit : 'Unknown',
+                    available: firstKey.available
                 };
             }
         }

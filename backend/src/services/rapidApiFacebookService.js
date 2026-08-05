@@ -1,8 +1,22 @@
 const axios = require('axios');
+const Counter = require('../models/Counter');
 
 const FACEBOOK_DEFAULT_HOST = 'facebook-scraper3.p.rapidapi.com';
 
 let totalCalls = 0;
+// Initialize from DB
+(async () => {
+    try {
+        const doc = await Counter.findOne({ key: 'api_calls_facebook' });
+        if (doc) totalCalls = doc.seq;
+    } catch(e) {}
+})();
+
+const _incrementCalls = () => {
+    totalCalls++;
+    Counter.findOneAndUpdate({ key: 'api_calls_facebook' }, { $inc: { seq: 1 } }, { upsert: true }).catch(()=>{});
+};
+
 let globalRateLimitRemaining = null;
 let globalRateLimit = null;
 
@@ -196,7 +210,7 @@ const rapidGet = async (path, params, options = {}, _attempt = 0) => {
             },
             timeout: Math.max(5000, Number(options.timeoutMs) || 20000)
         });
-        totalCalls++;
+        _incrementCalls();
         if (response.headers['x-ratelimit-requests-remaining']) {
             globalRateLimitRemaining = parseInt(response.headers['x-ratelimit-requests-remaining'], 10);
         }
@@ -205,7 +219,7 @@ const rapidGet = async (path, params, options = {}, _attempt = 0) => {
         }
         return response;
     } catch (error) {
-        totalCalls++;
+        _incrementCalls();
         const status = error?.response?.status;
         const msg = String(error?.response?.data?.message || '').toLowerCase();
 
@@ -542,7 +556,7 @@ const enrichPageCounts = async (page) => {
 const searchPages = async (query, options = {}) => {
     try {
         const safeLimit = Math.min(Math.max(Number(options?.limit) || 20, 1), 50);
-        const response = await rapidGet('/search/pages', { query, limit: safeLimit });
+        const response = await rapidGet('/search/pages', { query, limit: safeLimit }, options);
 
         const rawResults = response.data?.results || response.data?.pages || response.data || [];
         
@@ -877,7 +891,11 @@ const searchPosts = async (query, limit = 50, options = {}) => {
 };
 
 module.exports = {
-    getKeyHealthStatus: () => [{ key: 'Facebook', available: true, totalCalls, remaining: globalRateLimitRemaining, limit: globalRateLimit }],
+    getKeyHealthStatus: () => {
+        const now = Date.now();
+        const anyAvailable = fbState.keys.some(k => (fbState.cooldownUntilByKey.get(k) || 0) <= now);
+        return [{ key: 'Facebook', available: anyAvailable, totalCalls, remaining: globalRateLimitRemaining, limit: globalRateLimit }];
+    },
     fetchPageDetails,
     fetchPagePosts,
     fetchPostComments,

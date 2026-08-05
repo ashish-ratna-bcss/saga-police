@@ -1,4 +1,5 @@
 const axios = require('axios');
+const Counter = require('../models/Counter');
 
 const getRapidApiHeaders = () => {
     const apiKey = process.env.RAPIDAPI_KEY;
@@ -52,7 +53,7 @@ const rapidRequestX = async (config, retryCount = 0) => {
             },
             timeout: requestTimeout
         });
-        totalCalls++;
+        _incrementCalls();
         if (response.headers['x-ratelimit-requests-remaining']) {
             globalRateLimitRemaining = parseInt(response.headers['x-ratelimit-requests-remaining'], 10);
         }
@@ -61,7 +62,7 @@ const rapidRequestX = async (config, retryCount = 0) => {
         }
         return response;
     } catch (error) {
-        totalCalls++;
+        _incrementCalls();
         const status = error.response?.status;
         const msg = String(error.response?.data?.message || error.response?.data?.error || error.message || '').toLowerCase();
         const isTimeoutOrNetwork =
@@ -142,6 +143,19 @@ let lastRequestTime = 0;
 const MIN_REQUEST_GAP_MS = Math.max(200, parseInt(process.env.RAPIDAPI_X_MIN_GAP_MS || '500', 10));
 
 let totalCalls = 0;
+
+// Initialize from DB
+(async () => {
+    try {
+        const doc = await Counter.findOne({ key: 'api_calls_x' });
+        if (doc) totalCalls = doc.seq;
+    } catch(e) {}
+})();
+
+const _incrementCalls = () => {
+    totalCalls++;
+    Counter.findOneAndUpdate({ key: 'api_calls_x' }, { $inc: { seq: 1 } }, { upsert: true }).catch(()=>{});
+};
 let globalRateLimitRemaining = null;
 let globalRateLimit = null;
 
