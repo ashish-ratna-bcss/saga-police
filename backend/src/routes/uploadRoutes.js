@@ -4,6 +4,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const rateLimit = require('express-rate-limit');
 const { protect } = require('../middleware/authMiddleware');
 const { requireAnyPageAccess } = require('../middleware/rbacMiddleware');
 
@@ -12,9 +13,33 @@ const { requireAnyPageAccess } = require('../middleware/rbacMiddleware');
 const router = express.Router();
 router.use(protect, requireAnyPageAccess(['/dial-100-incident-reporting', '/grievances', '/person-of-interest']));
 
+const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.UPLOAD_RATE_LIMIT_MAX || 60),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many upload requests, please try again later' }
+});
+router.use(uploadLimiter);
+
 const STORAGE_DIR = process.env.REPORT_STORAGE_DIR || path.join(__dirname, '..', '..', 'storage');
 const PUBLIC_BASE = (process.env.PUBLIC_BACKEND_URL || `http://localhost:${process.env.PORT || 8000}`).replace(/\/+$/, '');
 const UPLOAD_FOLDER = process.env.UPLOAD_FOLDER || 'uploads';
+
+const DEFAULT_PROXY_HOST_SUFFIXES = [
+  'amazonaws.com',
+  'fbcdn.net',
+  'fbsbx.com',
+  'facebook.com',
+  'cdninstagram.com',
+  'instagram.com',
+  'twimg.com',
+  'googlevideo.com',
+  'ytimg.com',
+  'ggpht.com',
+  'googleusercontent.com',
+  'bhaskar-media-storage'
+];
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -24,14 +49,77 @@ const upload = multer({
 const buildPublicUrl = (key) =>
   `${PUBLIC_BASE}/files/${key.split('/').map(encodeURIComponent).join('/')}`;
 
+const sanitizeStorageKey = (customKey) => {
+  if (customKey == null || customKey === '' || customKey === 'undefined' || customKey === 'null') {
+    return null;
+  }
+  if (typeof customKey !== 'string') {
+    throw new Error('Invalid customKey');
+  }
+
+  const normalized = path.normalize(customKey).replace(/^(\.\.(\/|\\|$))+/, '');
+  if (
+    !normalized ||
+    path.isAbsolute(normalized) ||
+    normalized.split(/[/\\]/).includes('..') ||
+    normalized.includes('\0')
+  ) {
+    throw new Error('Invalid customKey');
+  }
+
+  return normalized;
+};
+
+const getProxyHostAllowlist = () => {
+  const fromEnv = (process.env.UPLOAD_PROXY_HOST_ALLOWLIST || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+
+  const list = fromEnv.length ? fromEnv : DEFAULT_PROXY_HOST_SUFFIXES.slice();
+
+  try {
+    const publicHost = new URL(PUBLIC_BASE).hostname.toLowerCase();
+    if (publicHost && !list.includes(publicHost)) list.push(publicHost);
+  } catch {
+    // ignore invalid PUBLIC_BACKEND_URL
+  }
+
+  return list;
+};
+
+const isProxyUrlAllowed = (rawUrl) => {
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+
+  const host = parsed.hostname.toLowerCase();
+  return getProxyHostAllowlist().some((suffix) => {
+    const needle = suffix.replace(/^\./, '');
+    return host === needle || host.endsWith(`.${needle}`) || host.endsWith(needle);
+  });
+};
+
 const writeBufferToDisk = async (file, customKey = null) => {
-  const key = customKey || `${UPLOAD_FOLDER}/${crypto.randomUUID()}-${file.originalname.replace(/\s+/g, '-')}`;
+  const safeKey = sanitizeStorageKey(customKey);
+  const key = safeKey || `${UPLOAD_FOLDER}/${crypto.randomUUID()}-${file.originalname.replace(/\s+/g, '-')}`;
 
   if (!file.buffer || file.size === 0) {
     throw new Error("Cannot write empty file to storage");
   }
 
   const absPath = path.join(STORAGE_DIR, key);
+  const resolvedStorage = path.resolve(STORAGE_DIR);
+  const resolvedFile = path.resolve(absPath);
+  if (!resolvedFile.startsWith(resolvedStorage + path.sep) && resolvedFile !== resolvedStorage) {
+    throw new Error('Invalid storage path');
+  }
+
   fs.mkdirSync(path.dirname(absPath), { recursive: true });
   await fs.promises.writeFile(absPath, file.buffer);
 
@@ -64,7 +152,8 @@ router.post('/s3', upload.array('files', 10), async (req, res) => {
     res.status(200).json({ uploads });
   } catch (error) {
     (() => {})('[Upload] ❌ FAILURE:', error);
-    res.status(500).json({ message: 'Upload failed', error: error.message });
+    const status = error.message === 'Invalid customKey' || error.message === 'Invalid storage path' ? 400 : 500;
+    res.status(status).json({ message: 'Upload failed', error: error.message });
   }
 });
 
@@ -86,7 +175,7 @@ router.get('/predict', (req, res) => {
   }
 });
 
-// Proxy endpoint for downloading files to bypass CORS
+// Proxy endpoint for downloading files to bypass CORS (host allowlisted — SSRF harden)
 router.get('/proxy', async (req, res) => {
   try {
     const { url } = req.query;
@@ -94,10 +183,16 @@ router.get('/proxy', async (req, res) => {
       return res.status(400).send('URL is required');
     }
 
+    if (!isProxyUrlAllowed(url)) {
+      return res.status(400).send('URL host is not allowed');
+    }
+
     const response = await axios({
       method: 'GET',
       url: url,
-      responseType: 'stream'
+      responseType: 'stream',
+      timeout: Number(process.env.UPLOAD_PROXY_TIMEOUT_MS || 30000),
+      maxRedirects: 3
     });
 
     const contentType = response.headers['content-type'];

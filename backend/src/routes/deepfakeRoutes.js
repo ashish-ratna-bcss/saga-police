@@ -10,8 +10,15 @@ const { fetchInstagramPostDetail } = require('../services/rapidApiInstagramServi
 const { fetchTweetDetail } = require('../services/rapidApiXService');
 const { enqueueForensicTask } = require('../services/forensicQueueService');
 const youtubeService = require('../services/youtube.service');
+const { protect } = require('../middleware/authMiddleware');
 const router = express.Router();
 const execFileAsync = promisify(execFile);
+
+// Rollback: DEEPFAKE_AUTH_REQUIRED=false restores pre-E0 open access (not for production).
+const deepfakeAuthRequired = String(process.env.DEEPFAKE_AUTH_REQUIRED || 'true').toLowerCase() !== 'false';
+if (deepfakeAuthRequired) {
+    router.use(protect);
+}
 
 // Configuration for Deepfake ML Service
 // Use DEEPFAKE_ML_URL to avoid conflict with remote ML_SERVICE_URL

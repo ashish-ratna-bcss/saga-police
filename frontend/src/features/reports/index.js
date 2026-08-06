@@ -1,5 +1,5 @@
 /**
- * Reports feature boundary (strangler facade).
+ * Reports feature boundary.
+ * Page modules stay under @/pages until decomposed; keep this barrel utility-only.
  */
-export { default as GenerateReport } from '@/pages/GenerateReport';
-export { default as UnifiedReports } from '@/pages/UnifiedReports';
+export {};

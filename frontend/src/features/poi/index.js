@@ -1,6 +1,5 @@
 /**
- * Person-of-Interest feature boundary (strangler facade).
+ * Person-of-Interest feature boundary.
+ * Export stable utilities only — do not re-export full page modules.
  */
-export { default as PersonOfInterest } from '@/pages/POI/PersonOfInterest';
-export { default as POIDetail } from '@/pages/POI/POIDetail';
 export { proxyMediaUrlAlways } from '@/shared/utils/mediaProxy';

@@ -5,6 +5,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 const connectDB = require('./config/db');
+const { assertJwtConfigured, shouldSeedDefaultAdmin, isProduction } = require('./config/security');
 const { startMonitoring } = require('./services/monitorService');
 const { startTempContentProcessor } = require('./services/tempContentProcessor');
 const { seedDefaultThresholds } = require('./services/velocityAlertService');
@@ -23,6 +24,9 @@ const { seedRecurringEvents } = require('./controllers/masterCalendarController'
 const { syncCalendarToEvents } = require('./services/calendarEventSyncService');
 const fs = require('fs');
 
+// Fail closed on secrets before accepting traffic.
+assertJwtConfigured();
+
 const app = express();
 
 // Trust proxy for proper protocol detection behind nginx/load balancer
@@ -30,8 +34,15 @@ app.set('trust proxy', 1);
 
 // Middleware
 app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
+
+if (isProduction() && !process.env.CORS_ORIGINS) {
+  throw new Error('CORS_ORIGINS is required in production (comma-separated allowlist).');
+}
+
 app.use(cors({
-  origin: process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map(o => o.trim()) : '*',
+  origin: process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+    : '*',
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning', 'x-requested-with']
 }));
@@ -115,6 +126,10 @@ app.use((req, res, next) => {
 // Default Admin User
 const createDefaultAdmin = async () => {
   try {
+    if (!shouldSeedDefaultAdmin()) {
+      return;
+    }
+
     const adminEmail = 'admin@blurahub.com';
     const adminExists = await User.findOne({ email: adminEmail });
 

@@ -4,15 +4,16 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const { createAuditLog } = require('../services/auditService');
 const { sendPasswordResetEmail } = require('../utils/mailer');
+const { getJwtSecret, getRefreshTokenSecret } = require('../config/security');
 
 const generateToken = (id) => {
-  return jwt.sign({ user_id: id }, process.env.JWT_SECRET || 'blura-hub-secret-key-change-in-production', {
+  return jwt.sign({ user_id: id }, getJwtSecret(), {
     expiresIn: '24h',
   });
 };
 
 const generateRefreshToken = (id) => {
-  return jwt.sign({ user_id: id }, process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET || 'blura-hub-secret-key-change-in-production', {
+  return jwt.sign({ user_id: id }, getRefreshTokenSecret(), {
     expiresIn: '7d',
   });
 };
@@ -155,7 +156,7 @@ const refreshToken = async (req, res) => {
 
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET || 'blura-hub-secret-key-change-in-production');
+      decoded = jwt.verify(token, getRefreshTokenSecret());
     } catch (error) {
       return res.status(401).json({ message: 'Invalid or expired refresh token' });
     }

@@ -1,6 +1,6 @@
 /**
- * Grievances feature boundary (strangler facade).
+ * Grievances feature boundary.
+ * Export stable utilities/components only — do not re-export full pages.
  */
-export { default as GrievancesPage } from '@/pages/Grievances';
 export { GrievanceCard } from '@/components/grievances/GrievanceCard';
 export { proxyMediaUrl } from '@/shared/utils/mediaProxy';

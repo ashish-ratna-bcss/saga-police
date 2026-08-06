@@ -1,4 +1,5 @@
 /**
- * Intelligence dashboard feature boundary (strangler facade).
+ * Intelligence feature boundary.
+ * Page modules stay under @/pages until decomposed; keep this barrel utility-only.
  */
-export { default as IntelligenceDashboard } from '@/pages/IntelligenceDashboard';
+export {};
