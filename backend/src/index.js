@@ -104,7 +104,6 @@ app.use('/api/suggestions', require('./routes/suggestionRoutes'));
 app.use('/api/policies', require('./routes/policyRoutes'));
 app.use('/api/templates', require('./routes/templatesRoutes'));
 app.use('/api/poi', require('./routes/poiRoutes'));
-app.use('/api/telegram', require('./routes/telegramRoutes'));
 app.use('/api/master-calendar', require('./routes/masterCalendarRoutes'));
 app.use('/api/rag', require('./routes/ragRoutes'));
 app.use('/api/daily-intelligence-report', require('./routes/dailyIntelligenceReportRoutes'));
@@ -541,16 +540,6 @@ const startServer = async () => {
   // } catch (err) {
   //   console.warn('[Server] Could not initialize Retweet Sync Scheduler:', err.message);
   // }
-
-  // Start Telegram Auto-Sync/Scrape only in legacy mode.
-  if (!useEngine) {
-    try {
-      const telegramService = require('./services/telegramService');
-      telegramService.startTelegramAutoSync();
-    } catch (err) {
-      console.warn('[Server] Could not initialize Telegram Auto-Sync:', err.message);
-    }
-  }
 
   const PORT = process.env.PORT || 8000;
 

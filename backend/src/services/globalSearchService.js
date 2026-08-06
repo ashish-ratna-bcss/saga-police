@@ -2,7 +2,6 @@ const rapidApiXService = require('./rapidApiXService');
 const rapidApiFacebookService = require('./rapidApiFacebookService');
 const rapidApiInstagramService = require('./rapidApiInstagramService');
 const youtubeService = require('./youtube.service');
-const redditService = require('./redditService');
 
 class GlobalSearchService {
     constructor() {
@@ -16,8 +15,7 @@ class GlobalSearchService {
             'x': 1.2, // Boost X for real-time news
             'youtube': 1.0,
             'facebook': 0.9,
-            'instagram': 0.95,
-            'reddit': 0.8
+            'instagram': 0.95
         };
     }
 
@@ -83,8 +81,7 @@ class GlobalSearchService {
             Promise.resolve(this.normalizeList(xResults, 'x', 'user')),
             youtubeService.searchChannels(query, safeLimit).then(res => this.normalizeList(res, 'youtube', 'user')),
             rapidApiFacebookService.searchPages(query, { limit: safeLimit }).then(res => this.normalizeList(res, 'facebook', 'user')),
-            rapidApiInstagramService.searchUsers(query, safeLimit).then(res => this.normalizeList(res, 'instagram', 'user')),
-            redditService.searchUsers(query, safeLimit).then(res => this.normalizeList(res, 'reddit', 'user'))
+            rapidApiInstagramService.searchUsers(query, safeLimit).then(res => this.normalizeList(res, 'instagram', 'user'))
         ]);
         const flatResults = results
             .filter(r => r.status === 'fulfilled')
@@ -131,8 +128,7 @@ class GlobalSearchService {
         const results = await Promise.allSettled([
             Promise.resolve(this.normalizeList(xResults, 'x', 'post')),
             youtubeService.searchVideos(query, safeLimit).then(res => this.normalizeList(res, 'youtube', 'video')),
-            rapidApiFacebookService.searchPosts(query, safeLimit).then(res => this.normalizeList(res, 'facebook', 'post')),
-            redditService.searchPosts(query, safeLimit).then(res => this.normalizeList(res, 'reddit', 'post'))
+            rapidApiFacebookService.searchPosts(query, safeLimit).then(res => this.normalizeList(res, 'facebook', 'post'))
         ]);
         const flatResults = results
             .filter(r => r.status === 'fulfilled')

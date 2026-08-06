@@ -62,6 +62,8 @@ const comprehensiveReportSchema = new mongoose.Schema({
       risk_score: Number, created_at: Date, platform: String, status: String
     }],
     priority_scoring: { high: Number, medium: Number, low: Number },
+    risk_scoring: { high: Number, medium: Number, low: Number },
+    by_virality: { high: Number, medium: Number, low: Number },
     by_category: [{ category: String, count: Number }],
     by_platform: [{ platform: String, count: Number }],
     escalated_count: { type: Number, default: 0 },
@@ -77,6 +79,7 @@ const comprehensiveReportSchema = new mongoose.Schema({
     // Viral Posts
     viral_posts: [{
       post_id: String, content_preview: String, platform: String,
+      virality_level: String, virality_detected_at: Date,
       engagement: { views: Number, likes: Number, shares: Number, comments: Number },
       virality_score: Number, ai_explanation: String
     }],
@@ -138,7 +141,6 @@ const comprehensiveReportSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 comprehensiveReportSchema.index({ report_date: -1 });
-comprehensiveReportSchema.index({ date_key: 1 });
 comprehensiveReportSchema.index({ status: 1, report_date: -1 });
 
 module.exports = mongoose.model('ComprehensiveReport', comprehensiveReportSchema);

@@ -27,9 +27,6 @@ const parsePostUrl = (url) => {
     const instagramResult = parseInstagramUrl(trimmedUrl);
     if (instagramResult) return instagramResult;
 
-    const redditResult = parseRedditUrl(trimmedUrl);
-    if (redditResult) return redditResult;
-
     return null;
 };
 
@@ -312,53 +309,6 @@ const parseInstagramUrl = (url) => {
 };
 
 /**
- * Parse Reddit URLs
- * Supports: reddit.com/r/<sub>/comments/<id>/..., reddit.com/comments/<id>/..., redd.it/<id>
- */
-const parseRedditUrl = (url) => {
-    try {
-        // redd.it short links
-        const shortMatch = url.match(/redd\.it\/([a-zA-Z0-9]+)/i);
-        if (shortMatch) {
-            return {
-                platform: 'reddit',
-                postId: shortMatch[1],
-                authorHandle: null
-            };
-        }
-
-        if (!url.includes('reddit.com')) return null;
-
-        const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
-        const pathname = urlObj.pathname;
-
-        // /r/<sub>/comments/<id>/...
-        const commentsMatch = pathname.match(/\/r\/[^\/]+\/comments\/([a-zA-Z0-9]+)/i);
-        if (commentsMatch) {
-            return {
-                platform: 'reddit',
-                postId: commentsMatch[1],
-                authorHandle: null
-            };
-        }
-
-        // /comments/<id>/...
-        const directMatch = pathname.match(/\/comments\/([a-zA-Z0-9]+)/i);
-        if (directMatch) {
-            return {
-                platform: 'reddit',
-                postId: directMatch[1],
-                authorHandle: null
-            };
-        }
-
-        return null;
-    } catch (e) {
-        return null;
-    }
-};
-
-/**
  * Get display name for a platform
  */
 const getPlatformDisplayName = (platform) => {
@@ -366,8 +316,7 @@ const getPlatformDisplayName = (platform) => {
         'youtube': 'YouTube',
         'x': 'X (Twitter)',
         'facebook': 'Facebook',
-        'instagram': 'Instagram',
-        'reddit': 'Reddit'
+        'instagram': 'Instagram'
     };
     return names[platform] || platform;
 };
@@ -378,6 +327,5 @@ module.exports = {
     parseXTwitterUrl,
     parseFacebookUrl,
     parseInstagramUrl,
-    parseRedditUrl,
     getPlatformDisplayName
 };

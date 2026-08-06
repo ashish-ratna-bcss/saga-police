@@ -120,7 +120,7 @@ const PROFILE_CATEGORIES = [
   { value: 'others', label: 'Others' }
 ];
 
-const PROFILE_PLATFORM_ORDER = ['x', 'youtube', 'facebook', 'instagram', 'whatsapp', 'telegram'];
+const PROFILE_PLATFORM_ORDER = ['x', 'youtube', 'facebook', 'instagram', 'whatsapp'];
 
 const PROFILE_PLATFORM_THEMES = {
   x: { label: 'X', rowClass: 'bg-slate-200/70 hover:bg-slate-300/70', stickyClass: 'bg-slate-200/80', color: '#000000', dotClass: 'bg-black' },
@@ -128,7 +128,6 @@ const PROFILE_PLATFORM_THEMES = {
   facebook: { label: 'Facebook', rowClass: 'bg-blue-200/60 hover:bg-blue-300/60', stickyClass: 'bg-blue-200/75', color: '#1877F2', dotClass: 'bg-blue-500' },
   instagram: { label: 'Instagram', rowClass: 'bg-pink-200/60 hover:bg-pink-300/60', stickyClass: 'bg-pink-200/75', color: '#E4405F', dotClass: 'bg-pink-500' },
   whatsapp: { label: 'WhatsApp', rowClass: 'bg-emerald-200/60 hover:bg-emerald-300/60', stickyClass: 'bg-emerald-200/75', color: '#25D366', dotClass: 'bg-emerald-500' },
-  telegram: { label: 'Telegram', rowClass: 'bg-cyan-200/60 hover:bg-cyan-300/60', stickyClass: 'bg-cyan-200/75', color: '#26A5E4', dotClass: 'bg-cyan-500' },
 };
 
 const PRIORITY_COLORS = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };

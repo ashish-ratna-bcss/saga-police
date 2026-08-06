@@ -117,17 +117,61 @@ class MappingService {
             (() => {})(`[MappingService] No mapping found for category: ${category} (Country: ${country})`);
         }
 
-        // Always extract keywords for explainability, regardless of mapping
-        result.triggered_keywords = this.extractKeywords(text);
+        // Prefer PolicyMapping.keywords when present; empty → KR_MAP fallback inside extractKeywords
+        result.triggered_keywords = this.extractKeywords(
+            text,
+            mapping ? (mapping.keywords || []) : [],
+            category
+        );
 
         return result;
     }
 
-    extractKeywords(text) {
-        if (!text) return [];
+    /**
+     * Shared keyword matcher — case-insensitive substring, dedupe, sort.
+     * @param {string} text
+     * @param {string[]} keywordList
+     * @returns {string[]}
+     */
+    matchKeywords(text, keywordList) {
+        if (!text || !Array.isArray(keywordList) || keywordList.length === 0) return [];
         const text_norm = text.toLowerCase();
         const keywords_found = new Set();
 
+        for (const kw of keywordList) {
+            if (kw == null || kw === '') continue;
+            const term = String(kw);
+            if (text_norm.includes(term.toLowerCase())) {
+                keywords_found.add(term);
+            }
+        }
+        return Array.from(keywords_found).sort();
+    }
+
+    /**
+     * Extract triggered keywords from text.
+     * Primary source: PolicyMapping.keywords (when non-empty).
+     * Fallback: hardcoded KR_MAP (backward compatible).
+     * @param {string} text
+     * @param {string[]} [dbKeywords=[]]
+     * @param {string|null} [categoryId=null]
+     * @returns {string[]}
+     */
+    extractKeywords(text, dbKeywords = [], categoryId = null) {
+        if (!text) return [];
+
+        const list = Array.isArray(dbKeywords)
+            ? dbKeywords.filter((kw) => kw != null && String(kw).trim() !== '').map(String)
+            : [];
+
+        if (list.length > 0) {
+            console.debug(`Using PolicyMapping keywords for category ${categoryId}`);
+            return this.matchKeywords(text, list);
+        }
+
+        console.debug('PolicyMapping keywords empty, falling back to KR_MAP');
+
+        // Allocated only on fallback path — skipped when DB keywords are used
         const KR_MAP = {
             "violence": ["kill", "murder", "attack", "wipe out", "revolt", "overthrow", "weapons", "terrorism", "extremist", "bomb", "explode", "sovereignty", "integrity", "చంపేస్తా", "దాడి", "मारो", "बम"],
             "sexual": ["rape", "sex", "modesty", "nudity", "porn", "బలాత్కారం", "బలాత్కరించు", "बलात्कार"],
@@ -139,14 +183,13 @@ class MappingService {
             "civic": ["election", "vote", "voter card", "evm", "rigging", "misinformation", "ఓటు", "ఎన్నికలు", "चुनाव", "वोट"]
         };
 
+        const flat = [];
         for (const cat in KR_MAP) {
             for (const kw of KR_MAP[cat]) {
-                if (text_norm.includes(kw.toLowerCase())) {
-                    keywords_found.add(kw);
-                }
+                flat.push(kw);
             }
         }
-        return Array.from(keywords_found).sort();
+        return this.matchKeywords(text, flat);
     }
 }
 

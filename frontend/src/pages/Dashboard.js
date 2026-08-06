@@ -1236,7 +1236,7 @@ const Dashboard = () => {
         const platform = platformId === 'all' ? undefined : getApiPlatform(platformId);
         const total = await fetchAlertsTotal({
           status: 'active',
-          alert_type: 'velocity',
+          virality_level: 'any',
           platform
         });
         return [platformId, total];

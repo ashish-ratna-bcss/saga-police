@@ -47,7 +47,6 @@
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "qrcode": "^1.5.4",
-    "telegram": "^2.26.22",
     "twitter-api-v2": "^1.16.0",
     "uuid": "^13.0.0",
     "xlsx": "^0.18.5",

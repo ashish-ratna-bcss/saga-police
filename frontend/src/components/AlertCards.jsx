@@ -24,6 +24,52 @@ const WHATSAPP_GROUP_LINK = 'https://chat.whatsapp.com/HGGWZCyNXBmHfp4KvYxlXu';
 let activeVideoElement = null;
 const mediaResolveCache = new Map();
 
+const LEVEL_BADGE_CLASS = {
+  high: 'bg-red-600 text-white',
+  critical: 'bg-red-600 text-white',
+  medium: 'bg-amber-500 text-black',
+  low: 'bg-emerald-500 text-white'
+};
+
+const LEVEL_DOT = {
+  high: '🔴',
+  critical: '🔴',
+  medium: '🟠',
+  low: '🟢'
+};
+
+const resolveViralityLevel = (alert) => {
+  const direct = alert?.virality_level;
+  if (direct != null && String(direct).trim() !== '') {
+    const v = String(direct).toLowerCase();
+    if (v === 'low' || v === 'medium' || v === 'high') return v;
+  }
+  return null;
+};
+
+const RiskViralityBadges = ({ alert, extra = null, absolute = true }) => {
+  const risk = String(alert?.risk_level || 'low').toLowerCase();
+  const virality = resolveViralityLevel(alert);
+  const wrapClass = absolute
+    ? 'absolute left-0 top-2.5 z-10 flex flex-row flex-wrap items-center gap-1.5 max-w-[calc(100%-3.5rem)]'
+    : 'flex flex-row flex-wrap items-center gap-1.5 mb-2';
+  return (
+    <div className={wrapClass}>
+      <div className={`rounded-r-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-sm inline-flex items-center gap-1 whitespace-nowrap ${LEVEL_BADGE_CLASS[risk] || 'bg-slate-400 text-white'}`}>
+        <span aria-hidden="true">{LEVEL_DOT[risk] || '🟢'}</span>
+        {risk === 'critical' ? 'high' : risk} risk
+      </div>
+      {virality && (
+        <div className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-sm inline-flex items-center gap-1 whitespace-nowrap ${LEVEL_BADGE_CLASS[virality] || 'bg-slate-400 text-white'}`}>
+          <span aria-hidden="true">{LEVEL_DOT[virality] || '🟢'}</span>
+          {virality} viral
+        </div>
+      )}
+      {extra}
+    </div>
+  );
+};
+
 // ─── Location chip ────────────────────────────────────────────────────────
 // Renders on every alert card. Behavior:
 //   • content.location.name present  → green chip linking to Google Maps
@@ -3305,35 +3351,28 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                     }`} />
 
                 <div className={isStoryCard ? 'p-3 pl-4' : 'p-4 pl-5'}>
-                    {/* Risk & Viral Badges (same row, absolute positioned) */}
-                    <div className="absolute left-0 top-2.5 z-10 flex items-center gap-1.5">
-                        <div className={`rounded-r-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-sm ${(alert.risk_level === 'high' || alert.risk_level === 'critical') ? 'bg-red-600 text-white' :
-                            (alert.risk_level === 'medium') ? 'bg-amber-500 text-black' :
-                                'bg-emerald-500 text-white'
-                            }`}>
-                            {alert.risk_level}
-                        </div>
-                        {alert.alert_type === 'velocity' && (
-                            <div className="rounded-r-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-sm bg-white text-blue-900">
-                                Viral
-                            </div>
+                    {/* Risk & Virality Badges */}
+                    <RiskViralityBadges
+                        alert={alert}
+                        extra={(
+                            <>
+                                {content?.is_deleted && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-white bg-red-600 px-2 py-0.5 rounded-full">
+                                        <Trash2 className="h-2.5 w-2.5" />
+                                        Deleted{content.deleted_at ? ` · ${new Date(content.deleted_at).toLocaleDateString()}` : ''}
+                                    </span>
+                                )}
+                                {content?.is_expired && !content?.is_deleted && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-white bg-amber-500 px-2 py-0.5 rounded-full">
+                                        <Clock className="h-2.5 w-2.5" />
+                                        Expired
+                                    </span>
+                                )}
+                            </>
                         )}
-                        {/* Content availability status */}
-                        {content?.is_deleted && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-white bg-red-600 px-2 py-0.5 rounded-full">
-                                <Trash2 className="h-2.5 w-2.5" />
-                                Deleted{content.deleted_at ? ` · ${new Date(content.deleted_at).toLocaleDateString()}` : ''}
-                            </span>
-                        )}
-                        {content?.is_expired && !content?.is_deleted && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-white bg-amber-500 px-2 py-0.5 rounded-full">
-                                <Clock className="h-2.5 w-2.5" />
-                                Expired
-                            </span>
-                        )}
-                    </div>
+                    />
                     {/* Action Controls - right-aligned, wraps left on smaller screens */}
-                    <div className="flex items-center gap-2 flex-wrap justify-end mt-3 mb-2">
+                    <div className="flex items-center gap-2 flex-wrap justify-end mt-8 mb-2">
 
                         {/* Action Button */}
                         {!hideActions && alert.status === 'active' && (
@@ -4419,33 +4458,28 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
                     }`} />
 
                 <div className="p-4 pl-5">
-                    {/* Risk & Viral Badges (same row, absolute positioned) */}
-                    <div className="absolute left-0 top-2.5 z-10 flex items-center gap-1.5">
-                        <div className={`rounded-r-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-sm ${(alert.risk_level === 'high' || alert.risk_level === 'critical') ? 'bg-red-600 text-white' :
-                            (alert.risk_level === 'medium') ? 'bg-amber-500 text-black' :
-                                (alert.risk_level === 'low') ? 'bg-emerald-500 text-white' :
-                                    'bg-slate-400 text-white'
-                            }`}>
-                            {alert.risk_level}
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        {/* Content availability status */}
-                        {content?.is_deleted && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-white bg-red-600 px-2 py-0.5 rounded-full">
-                                <Trash2 className="h-2.5 w-2.5" />
-                                Deleted{content.deleted_at ? ` · ${new Date(content.deleted_at).toLocaleDateString()}` : ''}
-                            </span>
+                    {/* Risk & Virality Badges */}
+                    <RiskViralityBadges
+                        alert={alert}
+                        extra={(
+                            <>
+                                {content?.is_deleted && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-white bg-red-600 px-2 py-0.5 rounded-full">
+                                        <Trash2 className="h-2.5 w-2.5" />
+                                        Deleted{content.deleted_at ? ` · ${new Date(content.deleted_at).toLocaleDateString()}` : ''}
+                                    </span>
+                                )}
+                                {content?.is_expired && !content?.is_deleted && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-white bg-amber-500 px-2 py-0.5 rounded-full">
+                                        <Clock className="h-2.5 w-2.5" />
+                                        Expired
+                                    </span>
+                                )}
+                            </>
                         )}
-                        {content?.is_expired && !content?.is_deleted && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-white bg-amber-500 px-2 py-0.5 rounded-full">
-                                <Clock className="h-2.5 w-2.5" />
-                                Expired
-                            </span>
-                        )}
-                    </div>
+                    />
                     {/* Action Controls - right-aligned, wraps left on smaller screens */}
-                    <div className="flex items-center gap-2 flex-wrap justify-end mt-3 mb-2">
+                    <div className="flex items-center gap-2 flex-wrap justify-end mt-8 mb-2">
                         {(() => {
                             const targetHandle = content?.channelId || alert.author_handle;
                             if (onAddSource && targetHandle && !isMonitoredHandle(targetHandle)) {

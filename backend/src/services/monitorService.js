@@ -2014,6 +2014,182 @@ const monitorFacebookSource = async (source, accessToken, options = {}) => {
   }
 };
 
+/**
+ * Shared post-ingest path used by monitored Sources:
+ * AI analysis → independent virality check → one Alert per content (create or upward virality upgrade).
+ * Velocity NEVER modifies risk_level or threat_details.risk_score.
+ */
+const VIRALITY_RANK = { low: 1, medium: 2, high: 3 };
+
+const mapVelocityPriorityToVirality = (priority) => {
+  if (!priority) return null;
+  const p = String(priority).toUpperCase();
+  if (p === 'HIGH') return 'high';
+  if (p === 'MEDIUM') return 'medium';
+  if (p === 'LOW') return 'low';
+  return null;
+};
+
+const isViralityUpgrade = (current, next) => {
+  if (!next) return false;
+  if (!current) return true;
+  return (VIRALITY_RANK[next] || 0) > (VIRALITY_RANK[current] || 0);
+};
+
+const normalizeAlertRiskLevel = (level) => {
+  const v = String(level || 'low').toLowerCase();
+  if (v === 'critical' || v === 'high') return 'high';
+  if (v === 'medium') return 'medium';
+  return 'low';
+};
+
+const buildVelocityData = (velocity) => {
+  if (!velocity) return undefined;
+  return {
+    metric: velocity.triggeredMetrics.map((m) => m.metric).join(', '),
+    current_value: Math.max(...velocity.triggeredMetrics.map((m) => m.value)),
+    previous_value: 0,
+    velocity: Math.max(...velocity.triggeredMetrics.map((m) => m.value)),
+    time_window_minutes: velocity.threshold.time_window_minutes,
+    threshold_triggered: velocity.highestPriority.thresholdTriggered
+  };
+};
+
+const finalizeMonitoredContent = async (content, settings, keywords, { source = null } = {}) => {
+  if (!content) return null;
+
+  const analysis = await performFullAnalysis(content, settings, keywords, {
+    skipAlert: true,
+    requireLLM: isStrictAnalysisMode()
+  });
+
+  const velocity = await checkVelocity(content, settings);
+  const viralityLevel = mapVelocityPriorityToVirality(velocity?.highestPriority?.priority);
+  // AI/keyword origin only — do not use alert_type as a virality proxy
+  let alertType = analysis?.is_keyword_match ? 'keyword_risk' : 'ai_risk';
+  const finalRiskLevel = normalizeAlertRiskLevel(analysis?.content_risk_level || 'low');
+
+  const intent = analysis?.intent || 'Unknown';
+  const intentStr = (intent !== 'Neutral' && intent !== 'Unknown' && intent !== 'Normal' && intent !== 'Monitor') ? intent + ' - ' : '';
+  const title = `${finalRiskLevel.toUpperCase()} Risk: ${intentStr}${content.author}`;
+
+  const parts = [];
+  if (viralityLevel) {
+    parts.push(`**Virality:** ${viralityLevel.toUpperCase()} (${velocity.triggeredMetrics.map((m) => m.metric).join(', ')})`);
+  }
+  if (analysis?.detailedDescription) {
+    parts.push(analysis.detailedDescription);
+  } else if (analysis?.reasons?.length > 0) {
+    parts.push(`**Analysis:**\n${analysis.reasons.map((r) => `• ${r}`).join('\n')}`);
+  } else {
+    parts.push(`**Analysis:** ${analysis?.explanation || 'Routine content analysis complete.'}`);
+  }
+  const description = parts.join('\n\n');
+
+  const aiRiskScore = Number(analysis?.risk_score) || 0;
+  const velocityData = buildVelocityData(velocity);
+
+  const existingAlert = await Alert.findOne({ content_id: content.id });
+
+  if (!existingAlert) {
+    const alertData = {
+      content_id: content.id,
+      content_published_at: content.published_at || new Date(),
+      analysis_id: analysis?.analysis_id,
+      alert_type: alertType,
+      risk_level: finalRiskLevel,
+      // Legacy mirror while priority still exists — only set when viral
+      ...(viralityLevel
+        ? {
+            virality_level: viralityLevel,
+            virality_detected_at: new Date(),
+            priority: String(velocity.highestPriority.priority).toUpperCase(),
+            velocity_data: velocityData
+          }
+        : {
+            virality_level: null,
+            virality_detected_at: null
+          }),
+      title,
+      description,
+      classification_explanation: analysis?.explanation || '',
+      threat_details: {
+        intent: analysis?.intent || 'Monitor',
+        reasons: analysis?.reasons || [],
+        highlights: analysis?.highlights || [],
+        risk_score: aiRiskScore,
+        violated_policies: analysis?.violated_policies || [],
+        legal_sections: analysis?.legal_sections || []
+      },
+      violated_policies: analysis?.violated_policies || [],
+      legal_sections: analysis?.legal_sections || [],
+      llm_analysis: analysis?.llm_analysis || null,
+      content_url: content.content_url,
+      platform: content.platform,
+      author: content.author,
+      author_handle: content.author_handle,
+      content_ref_id: content.id,
+      source_id: source?.id || content.source_id || null,
+      source_category: source?.category || null,
+      matched_keywords_normalized: (analysis?.triggered_keywords || []).map((k) => String(k).trim().toLowerCase()).filter(Boolean)
+    };
+
+    const newAlert = new Alert(alertData);
+    await newAlert.save();
+
+    if (settings.enable_email_alerts && settings.alert_emails?.length > 0) {
+      await sendAlertEmail(settings.smtp_config, settings.alert_emails, {
+        risk_level: finalRiskLevel,
+        platform: content.platform,
+        author: content.author,
+        content_url: content.content_url,
+        description,
+        triggered_keywords: analysis?.triggered_keywords || [],
+        created_at: newAlert.created_at
+      });
+    }
+
+    if (content.engagement) {
+      await updateEngagementHistory(content.id, content.engagement);
+    }
+    return { analysis, velocity, alert: newAlert };
+  }
+
+  // Existing alert: AI may refresh risk; virality only moves upward; never touch risk from velocity.
+  const setDoc = {
+    risk_level: finalRiskLevel,
+    analysis_id: analysis?.analysis_id || existingAlert.analysis_id,
+    title,
+    description,
+    classification_explanation: analysis?.explanation || existingAlert.classification_explanation || '',
+    'threat_details.intent': analysis?.intent || existingAlert.threat_details?.intent || 'Monitor',
+    'threat_details.reasons': analysis?.reasons || existingAlert.threat_details?.reasons || [],
+    'threat_details.highlights': analysis?.highlights || existingAlert.threat_details?.highlights || [],
+    'threat_details.risk_score': aiRiskScore,
+    violated_policies: analysis?.violated_policies || existingAlert.violated_policies || [],
+    legal_sections: analysis?.legal_sections || existingAlert.legal_sections || [],
+    matched_keywords_normalized: (analysis?.triggered_keywords || []).map((k) => String(k).trim().toLowerCase()).filter(Boolean)
+  };
+
+  if (isViralityUpgrade(existingAlert.virality_level, viralityLevel)) {
+    setDoc.virality_level = viralityLevel;
+    setDoc.velocity_data = velocityData;
+    setDoc.priority = String(velocity.highestPriority.priority).toUpperCase();
+    if (!existingAlert.virality_detected_at) {
+      setDoc.virality_detected_at = new Date();
+    }
+  }
+
+  await Alert.updateOne({ id: existingAlert.id }, { $set: setDoc }, { runValidators: false });
+
+  if (content.engagement) {
+    await updateEngagementHistory(content.id, content.engagement);
+  }
+
+  const updated = await Alert.findOne({ id: existingAlert.id });
+  return { analysis, velocity, alert: updated };
+};
+
 const scanSourceOnce = async (source, options = {}) => {
   if (!source) throw new Error('Source is required');
 
@@ -2056,138 +2232,10 @@ const scanSourceOnce = async (source, options = {}) => {
 
   // Queue analysis in background — don't block the monitoring loop
   if (newContent.length > 0) {
-    const contentIds = newContent.map(c => ({ id: c.id, content_id: c.content_id }));
     setImmediate(async () => {
       for (const content of newContent) {
         try {
-          // 1. Unified Analysis (Returns Data, updates Content)
-          const analysis = await performFullAnalysis(content, settings, keywords, {
-            skipAlert: true,
-            requireLLM: isStrictAnalysisMode()
-          });
-
-          // 2. Velocity Check (Returns Data if viral)
-          const velocity = await checkVelocity(content, settings);
-
-    // 3. Consolidated Alert Creation
-    // We always create ONE alert per post (User Requirement).
-    // Priority: Critical Risk > Viral High > High Risk > Viral Medium > Medium Risk > Low Risk
-
-    let alertType = 'ai_risk'; // Default
-    let finalRiskLevel = analysis?.content_risk_level || 'low';
-    let titlePrefix = '';
-    let description = '';
-    let viralPriority = null;
-
-    // Determine Alert Type & Level
-    if (velocity) {
-      alertType = 'velocity';
-      viralPriority = velocity.highestPriority.priority;
-      titlePrefix = `🔥 VIRAL: `;
-
-      // Logic: Viral High overrides Low/Medium Risk. Critical Risk overrides Viral.
-      if (viralPriority === 'HIGH' && finalRiskLevel !== 'critical') finalRiskLevel = 'high';
-      if (viralPriority === 'MEDIUM' && finalRiskLevel === 'low') finalRiskLevel = 'medium';
-    } else if (analysis?.is_keyword_match) {
-      alertType = 'keyword_risk';
-    }
-
-    // Build Title
-    const intent = analysis?.intent || 'Unknown';
-    const intentStr = (intent !== 'Neutral' && intent !== 'Unknown' && intent !== 'Normal' && intent !== 'Monitor') ? intent + ' - ' : '';
-    let title = `${titlePrefix}${finalRiskLevel.toUpperCase()} Risk: ${intentStr}${content.author}`;
-
-    // Build Description
-    const parts = [];
-    if (velocity) {
-      parts.push(`**Viral Status:** ${velocity.highestPriority.priority} (${velocity.triggeredMetrics.map(m => m.metric).join(', ')})`);
-    }
-
-    if (analysis?.detailedDescription) {
-      parts.push(analysis.detailedDescription);
-    } else if (analysis?.reasons?.length > 0) {
-      parts.push(`**Analysis:**\n${analysis.reasons.map(r => `• ${r}`).join('\n')}`);
-    } else {
-      parts.push(`**Analysis:** ${analysis?.explanation || 'Routine content analysis complete.'}`);
-    }
-    description = parts.join('\n\n');
-
-    // Create Final Alert Object
-    const alertData = {
-      content_id: content.id,
-      content_published_at: content.published_at || new Date(),
-      analysis_id: analysis?.analysis_id, // Link to Analysis Doc
-      alert_type: alertType,
-      risk_level: finalRiskLevel,
-      priority: viralPriority || 'LOW',
-      title: title,
-      description: description,
-      classification_explanation: analysis?.explanation || '',
-      threat_details: {
-        intent: analysis?.intent || 'Monitor',
-        reasons: analysis?.reasons || [],
-        highlights: analysis?.highlights || [],
-        risk_score: Math.max(Number(analysis?.risk_score) || 0, velocity ? (velocity.highestPriority.priority === 'HIGH' ? 80 : 45) : 0),
-        violated_policies: analysis?.violated_policies || [],
-        legal_sections: analysis?.legal_sections || []
-      },
-      velocity_data: velocity ? {
-        metric: velocity.triggeredMetrics.map(m => m.metric).join(', '),
-        current_value: Math.max(...velocity.triggeredMetrics.map(m => m.value)),
-        previous_value: 0,
-        velocity: Math.max(...velocity.triggeredMetrics.map(m => m.value)),
-        time_window_minutes: velocity.threshold.time_window_minutes,
-        threshold_triggered: velocity.highestPriority.thresholdTriggered,
-        post_age_minutes: Math.round(velocity.postAgeMinutes),
-        triggered_metrics: velocity.triggeredMetrics
-      } : undefined,
-      violated_policies: analysis?.violated_policies || [],
-      legal_sections: analysis?.legal_sections || [],
-      llm_analysis: analysis?.llm_analysis || null,
-      content_url: content.content_url,
-      platform: content.platform,
-      author: content.author,
-      author_handle: content.author_handle,
-      content_ref_id: content.id,
-      source_id: source?.id || null,
-      source_category: source?.category || null,
-      matched_keywords_normalized: (analysis?.triggered_keywords || []).map((k) => String(k).trim().toLowerCase()).filter(Boolean)
-    };
-
-    // Check for existing alert to avoid duplicates
-    // Actually user wants "no need to raise again new alert", implies updating or just created once.
-    // Since this is "New Content" loop, it's usually the first time we see it.
-    // But scan might run multiple times.
-    let existingAlert = await Alert.findOne({ content_id: content.id });
-
-    if (existingAlert) {
-      // Update if upgrading to Viral or Higher Risk
-      /* Skipping update logic for simplicity as requested "new post fetched... analyzed... alert" flow usually implies fresh content */
-      //(() => {})(`[Monitor] Alert already exists for ${content.id}, skipping duplicate creation.`);
-    } else {
-      const newAlert = new Alert(alertData);
-      await newAlert.save();
-      //(() => {})(`[Monitor] Unified Alert Created: ${newAlert.id} | ${title}`);
-
-      // Send Email
-      if (settings.enable_email_alerts && settings.alert_emails?.length > 0) {
-        const emailData = {
-          risk_level: finalRiskLevel,
-          platform: content.platform,
-          author: content.author,
-          content_url: content.content_url,
-          description: description,
-          triggered_keywords: analysis?.triggered_keywords || [],
-          created_at: newAlert.created_at
-        };
-        await sendAlertEmail(settings.smtp_config, settings.alert_emails, emailData);
-      }
-    }
-
-    // Update engagement history
-    if (content.engagement) {
-      await updateEngagementHistory(content.id, content.engagement);
-    }
+          await finalizeMonitoredContent(content, settings, keywords, { source });
         } catch (bgErr) {
           (() => {})(`[Analysis:BG] Error analyzing content ${content.content_id || content.id}: ${bgErr.message}`);
         }
@@ -2585,70 +2633,21 @@ const rescanContent = async () => {
 
     let alertCount = 0;
     for (const content of recentContent) {
-      // Look up source for category
-      const contentSource = content.source_id ? await Source.findOne({ id: content.source_id }).select('category').lean() : null;
-      // Unified Analysis
-      const analysis = await performFullAnalysis(content, settings, keywords, {
-        skipAlert: true,
-        requireLLM: isStrictAnalysisMode()
-      });
-      const velocity = await checkVelocity(content, settings);
+      const contentSource = content.source_id
+        ? await Source.findOne({ id: content.source_id }).select('id category').lean()
+        : null;
 
-      let alertType = 'ai_risk';
-      let finalRiskLevel = analysis?.content_risk_level || 'low';
-      let viralPriority = null;
+      const existingBefore = await Alert.findOne({ content_id: content.id }).select('id').lean();
+      const result = await finalizeMonitoredContent(content, settings, keywords, { source: contentSource });
 
-      if (velocity) {
-        alertType = 'velocity';
-        viralPriority = velocity.highestPriority.priority;
-        if (viralPriority === 'HIGH' && finalRiskLevel !== 'critical') finalRiskLevel = 'high';
-        if (viralPriority === 'MEDIUM' && finalRiskLevel === 'low') finalRiskLevel = 'medium';
-      } else if (analysis?.is_keyword_match) {
-        alertType = 'keyword_risk';
-      }
-
-      const alertData = {
-        content_id: content.id,
-        content_published_at: content.published_at || new Date(),
-        analysis_id: analysis?.analysis_id,
-        alert_type: alertType,
-        risk_level: finalRiskLevel,
-        priority: viralPriority || 'LOW',
-        title: (() => {
-          const scanIntent = analysis?.intent || 'Unknown';
-          const scanIntentStr = (scanIntent !== 'Neutral' && scanIntent !== 'Unknown' && scanIntent !== 'Normal' && scanIntent !== 'Monitor') ? scanIntent + ' - ' : '';
-          return `${(viralPriority ? '🔥 VIRAL: ' : '')}${finalRiskLevel.toUpperCase()} Risk: ${scanIntentStr}${content.author}`;
-        })(),
-        description: (() => {
-          const parts = [];
-          if (velocity) {
-            parts.push(`**Viral Status:** ${velocity.highestPriority.priority} (${velocity.triggeredMetrics.map(m => m.metric).join(', ')})`);
-          }
-          if (analysis?.detailedDescription) {
-            parts.push(analysis.detailedDescription);
-          } else {
-            parts.push(analysis?.explanation || 'Rescan analysis.');
-          }
-          return parts.join('\n\n');
-        })(),
-        threat_details: {
-          reasons: analysis?.reasons || [],
-          risk_score: Math.max(Number(analysis?.risk_score) || 0, velocity ? (viralPriority === 'HIGH' ? 80 : 45) : 0),
-        },
-        violated_policies: analysis?.violated_policies || [],
-        legal_sections: analysis?.legal_sections || [],
-        content_url: content.content_url,
-        platform: content.platform,
-        author: content.author,
-        content_ref_id: content.id,
-        source_category: contentSource?.category || null,
-        matched_keywords_normalized: (analysis?.triggered_keywords || []).map((k) => String(k).trim().toLowerCase()).filter(Boolean)
-      };
-
-      let existingAlert = await Alert.findOne({ content_id: content.id });
-      if (!existingAlert && (finalRiskLevel !== 'low' || velocity)) {
-        await new Alert(alertData).save();
-        alertCount++;
+      if (!existingBefore && result?.alert) {
+        const risk = normalizeAlertRiskLevel(result.alert.risk_level || result?.analysis?.content_risk_level || 'low');
+        const hasVirality = Boolean(result.alert.virality_level);
+        if (risk === 'low' && !hasVirality) {
+          await Alert.deleteOne({ content_id: content.id });
+        } else {
+          alertCount += 1;
+        }
       }
     }
 
@@ -2966,6 +2965,7 @@ const startMonitoring = async () => {
 module.exports = {
   startMonitoring,
   performFullAnalysis,
+  finalizeMonitoredContent,
   rescanContent,
   scanSourceOnce,
   __private: {

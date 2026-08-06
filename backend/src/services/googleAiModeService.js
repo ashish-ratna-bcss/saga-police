@@ -109,7 +109,7 @@ const queryAiMode = async (prompt, sessionToken = null) => {
 /**
  * Generate a social intelligence analysis using Google AI Mode
  * @param {string} query - Original user query
- * @param {Array} socialMediaResults - Results from X, Reddit, etc.
+ * @param {Array} socialMediaResults - Results from X, YouTube, Facebook, Instagram, etc.
  * @param {Object} platformStats - Count of results per platform
  * @returns {Promise<{analysis: string, webSources: Array}>}
  */

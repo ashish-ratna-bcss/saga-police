@@ -155,8 +155,8 @@ const getCacheKey = (prefix, params) => {
 const readCache = async (key) => cacheService.get(key);
 const writeCache = async (key, value, ttl = 20) => cacheService.set(key, value, ttl);
 const clearAlertCache = async () => {
-  await cacheService.invalidatePrefix('alerts:list:v3');
-  await cacheService.invalidatePrefix('alerts:stats:v3');
+  await cacheService.invalidatePrefix('alerts:list:v4');
+  await cacheService.invalidatePrefix('alerts:stats:v4');
   await cacheService.invalidatePrefix('dashboard:v2');
   await cacheService.invalidatePrefix('alert_summary');
   await cacheService.invalidatePrefix('unread_count');
@@ -198,6 +198,7 @@ const getAlerts = async (req, res) => {
     const {
       status,
       risk_level,
+      virality_level,
       search,
       platform,
       startDate,
@@ -233,8 +234,18 @@ const getAlerts = async (req, res) => {
     // For now, let's pass it to the aggregation match if we use aggregation.
 
 
-    // Risk Level Filter
+    // Risk Level Filter (AI severity — independent of virality)
     if (risk_level && risk_level !== 'all') query.risk_level = risk_level;
+
+    // Virality Level Filter (engagement spread — null means not viral and is excluded)
+    if (virality_level && virality_level !== 'all') {
+      const v = String(virality_level).toLowerCase();
+      if (v === 'any' || v === 'viral') {
+        query.virality_level = { $in: ['low', 'medium', 'high'] };
+      } else {
+        query.virality_level = v;
+      }
+    }
 
     // Platform Filter
     if (platform && platform !== 'all') query.platform = platform;
@@ -293,7 +304,7 @@ const getAlerts = async (req, res) => {
     // to avoid expensive $lookup pipelines that blow the 32 MB sort memory limit.
     const Source = require('../models/Source');
 
-    const cacheKey = getCacheKey('alerts:list:v3', {
+    const cacheKey = getCacheKey('alerts:list:v4', {
       ...req.query,
       includeStats,
       cursor: cursor || ''
@@ -583,7 +594,9 @@ const updateAlert = async (req, res) => {
     const updatedAlert = await Alert.findOneAndUpdate(
       { id: req.params.id },
       updateDoc,
-      { new: true }
+      // Partial $set/$push — do not run full-document validators so any
+      // historical platform values outside the current enum cannot block status edits.
+      { new: true, runValidators: false }
     );
 
     await clearAlertCache();
@@ -663,10 +676,18 @@ const updateAlert = async (req, res) => {
 // @route   GET /api/alerts/stats
 // @access  Private
 const buildAlertStats = async (params = {}) => {
-  const { risk_level, search, platform, startDate, endDate, alert_type, keyword, category } = params;
+  const { risk_level, virality_level, search, platform, startDate, endDate, alert_type, keyword, category } = params;
   const query = {};
 
   if (risk_level && risk_level !== 'all') query.risk_level = risk_level;
+  if (virality_level && virality_level !== 'all') {
+    const v = String(virality_level).toLowerCase();
+    if (v === 'any' || v === 'viral') {
+      query.virality_level = { $in: ['low', 'medium', 'high'] };
+    } else {
+      query.virality_level = v;
+    }
+  }
   if (platform && platform !== 'all') query.platform = platform;
   if (alert_type && alert_type !== 'all') {
     if (alert_type === 'risk') query.alert_type = { $in: ['keyword_risk', 'ai_risk', null] };
@@ -762,12 +783,35 @@ const buildAlertStats = async (params = {}) => {
     if (item._id && Object.prototype.hasOwnProperty.call(stats, item._id)) stats[item._id] = item.count;
   });
   stats.escalated_pending_report = pendingResult?.[0]?.count || 0;
+
+  // Virality breakdown (independent dimension) for filter visibility / chips
+  const viralityQuery = { ...query };
+  delete viralityQuery.virality_level;
+  const viralityResult = await Alert.aggregate([
+    { $match: viralityQuery },
+    {
+      $group: {
+        _id: { $ifNull: ['$virality_level', null] },
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+  const virality = { low: 0, medium: 0, high: 0, total: 0 };
+  viralityResult.forEach((row) => {
+    const level = row._id;
+    if (level === 'low' || level === 'medium' || level === 'high') {
+      virality[level] = row.count;
+      virality.total += row.count;
+    }
+  });
+  stats.virality = virality;
+
   return stats;
 };
 
 const getAlertStats = async (req, res) => {
   try {
-    const statsCacheKey = getCacheKey('alerts:stats:v3', req.query || {});
+    const statsCacheKey = getCacheKey('alerts:stats:v4', req.query || {});
     const cachedStats = await readCache(statsCacheKey);
     if (cachedStats) return res.status(200).json(cachedStats);
 
@@ -1846,9 +1890,15 @@ const getDashboardStats = async (req, res) => {
         { $group: { _id: '$platform', count: { $sum: 1 } } }
       ]),
 
-      // Velocity/viral alerts by platform
+      // Viral alerts by platform (any non-null virality_level)
       Alert.aggregate([
-        { $match: { ...dateMatch, alert_type: 'velocity', status: 'active' } },
+        {
+          $match: {
+            ...dateMatch,
+            status: 'active',
+            virality_level: { $in: ['low', 'medium', 'high'] }
+          }
+        },
         { $group: { _id: '$platform', count: { $sum: 1 } } }
       ]),
 

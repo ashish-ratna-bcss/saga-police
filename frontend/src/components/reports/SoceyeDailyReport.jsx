@@ -667,7 +667,7 @@ const OverviewTab = ({ report, fileTag }) => {
   // Headline KPIs — at-a-glance for the SP.
   const headline = [
     { label: 'Alerts',     value: alerts.total_count,        tone: 'red',   trend: alerts.trend_percentage },
-    { label: 'HIGH',       value: alerts.priority_scoring?.high, tone: 'red' },
+    { label: 'HIGH Risk',  value: alerts.priority_scoring?.high ?? alerts.risk_scoring?.high, tone: 'red' },
     { label: 'Viral',      value: summary.viral_posts_count, tone: 'orange' },
     { label: 'Grievances', value: griev.total_count,         tone: 'blue',  trend: griev.trend_percentage },
     { label: 'Events',     value: events.total_count,        tone: 'teal',  trend: events.trend_percentage },
@@ -849,8 +849,8 @@ const OverviewTab = ({ report, fileTag }) => {
       >
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
           <Metric label="Alerts Received" value={fmtNum(alerts.total_count)} tone="red" />
-          <Metric label="HIGH" value={fmtNum(alerts.priority_scoring?.high)} tone="red" />
-          <Metric label="MEDIUM" value={fmtNum(alerts.priority_scoring?.medium)} tone="amber" />
+          <Metric label="HIGH Risk" value={fmtNum(alerts.priority_scoring?.high ?? alerts.risk_scoring?.high)} tone="red" />
+          <Metric label="MEDIUM Risk" value={fmtNum(alerts.priority_scoring?.medium ?? alerts.risk_scoring?.medium)} tone="amber" />
           <Metric label="Escalated" value={fmtNum(alerts.escalated_count)} tone="orange" />
         </div>
         <div className="mt-3 border-t border-slate-100 pt-3 grid md:grid-cols-2 gap-2">

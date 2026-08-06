@@ -241,8 +241,10 @@ const collectAlerts = async (start, end, prevStart, prevEnd) => {
   }));
 
   alerts.forEach(a => {
-    const p = (a.priority || '').toLowerCase();
-    if (p === 'high') high++; else if (p === 'medium') medium++; else low++;
+    const risk = String(a.risk_level || 'low').toLowerCase();
+    if (risk === 'high' || risk === 'critical') high++;
+    else if (risk === 'medium') medium++;
+    else low++;
     if (a.source_category) byCategory[a.source_category] = (byCategory[a.source_category] || 0) + 1;
     if (a.platform) byPlatform[a.platform] = (byPlatform[a.platform] || 0) + 1;
     const st = (a.status || 'active').toLowerCase();
@@ -255,11 +257,16 @@ const collectAlerts = async (start, end, prevStart, prevEnd) => {
       const t = new Date(a.created_at).getTime();
       const idx = Math.max(0, Math.min(HOURS - 1, Math.floor((t - start.getTime()) / bucketMs)));
       hourly[idx].count++;
-      if (p === 'high') hourly[idx].high++;
+      if (risk === 'high' || risk === 'critical') hourly[idx].high++;
     }
   });
-  const top5Critical = alerts.filter(a => (a.priority || '').toLowerCase() === 'high').slice(0, 5).map(a => ({
+  const top5Critical = alerts.filter(a => {
+    const risk = String(a.risk_level || '').toLowerCase();
+    return risk === 'high' || risk === 'critical';
+  }).slice(0, 5).map(a => ({
     alert_id: a.id, title: a.title || 'Untitled Alert', priority: a.priority || 'HIGH',
+    risk_level: a.risk_level || 'high',
+    virality_level: a.virality_level || null,
     category: a.source_category || 'Unknown', risk_score: a.threat_details?.risk_score || 75,
     created_at: a.created_at, platform: a.platform || 'Unknown', status: a.status || 'active'
   }));
@@ -290,16 +297,18 @@ const collectAlerts = async (start, end, prevStart, prevEnd) => {
     .sort((a, b) => b.alert_count - a.alert_count || b.threat_score - a.threat_score)
     .slice(0, 10)
     .map(p => ({ ...p, influence_score: Math.min(100, 40 + p.alert_count * 8) }));
-  const viralPosts = alerts.filter(a => a.velocity_data?.threshold_triggered).slice(0, 10).map(a => ({
+  const viralPosts = alerts.filter(a => a.virality_level || a.velocity_data?.threshold_triggered).slice(0, 10).map(a => ({
     post_id: a.content_id || a.id, content_preview: (a.title || 'Post content preview').substring(0, 100),
     platform: a.platform || 'Unknown',
+    virality_level: a.virality_level || null,
+    virality_detected_at: a.virality_detected_at || null,
     engagement: { views: a.velocity_data?.current_value || 1000, likes: Math.floor(Math.random() * 500), shares: Math.floor(Math.random() * 200), comments: Math.floor(Math.random() * 100) },
     virality_score: a.velocity_data?.velocity ? Math.min(a.velocity_data.velocity * 10, 100) : Math.floor(Math.random() * 60) + 40,
     ai_explanation: 'High engagement velocity detected. Content spreading rapidly across platform with significant user interaction.'
   }));
   const alertSummaries = alerts.slice(0, 50).map(a => ({
     alert_id: a.id, title: a.title || 'Untitled Alert', category: a.source_category || 'General',
-    ai_summary: `Alert triggered for ${a.source_category || 'suspicious activity'}. Risk level: ${a.risk_level || 'medium'}. Priority: ${a.priority || 'MEDIUM'}.`,
+    ai_summary: `Alert triggered for ${a.source_category || 'suspicious activity'}. Risk level: ${a.risk_level || 'medium'}. Virality: ${a.virality_level || 'none'}.`,
     threat_level: a.risk_level || 'medium', related_keywords: a.matched_keywords_normalized || [],
     related_profiles: [a.author || 'Unknown'], timestamp: a.created_at,
     status: a.status || 'active', analyst_remarks: a.threat_details?.reasons?.join('; ') || 'Pending review'
@@ -307,7 +316,7 @@ const collectAlerts = async (start, end, prevStart, prevEnd) => {
   // Raw alert IDs so frontend can hydrate full alert cards via /api/alerts/bulk
   const top_alert_ids = alerts.slice(0, 50).map(a => a.id).filter(Boolean);
   const viral_alert_ids = alerts
-    .filter(a => a.velocity_data?.threshold_triggered)
+    .filter(a => a.virality_level || a.velocity_data?.threshold_triggered)
     .slice(0, 20)
     .map(a => a.id)
     .filter(Boolean);
@@ -317,6 +326,17 @@ const collectAlerts = async (start, end, prevStart, prevEnd) => {
     trend_percentage: calcTrend(alerts.length, prevAlertCount),
     top_5_critical: top5Critical,
     priority_scoring: { high, medium, low },
+    risk_scoring: { high, medium, low },
+    by_virality: (() => {
+      const v = { high: 0, medium: 0, low: 0 };
+      alerts.forEach((a) => {
+        const level = a.virality_level ? String(a.virality_level).toLowerCase() : null;
+        if (level === 'high') v.high++;
+        else if (level === 'medium') v.medium++;
+        else if (level === 'low') v.low++;
+      });
+      return v;
+    })(),
     by_category: Object.entries(byCategory).sort((a, b) => b[1] - a[1]).map(([c, n]) => ({ category: c, count: n })),
     by_platform: Object.entries(byPlatform).map(([p, n]) => ({ platform: p, count: n })),
     by_status: Object.entries(byStatus).map(([s, n]) => ({ status: s, count: n })),
@@ -324,7 +344,7 @@ const collectAlerts = async (start, end, prevStart, prevEnd) => {
     resolved_count: resolved,
     resolution_rate: alerts.length > 0 ? Math.round((resolved / alerts.length) * 100) : 0,
     hourly_distribution: hourly.map(h => ({ start: h.start, count: h.count, high: h.high })),
-    ai_intelligence_summary: `${alerts.length} total alerts: ${high} HIGH, ${medium} MEDIUM, ${low} LOW priority. ${escalated} escalated. Top categories: ${Object.entries(byCategory).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c]) => c).join(', ')}.`,
+    ai_intelligence_summary: `${alerts.length} total alerts: ${high} HIGH, ${medium} MEDIUM, ${low} LOW risk. ${escalated} escalated. Top categories: ${Object.entries(byCategory).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c]) => c).join(', ')}.`,
     top_profiles: topProfiles, viral_posts: viralPosts, alert_summaries: alertSummaries,
     top_alert_ids, viral_alert_ids
   };

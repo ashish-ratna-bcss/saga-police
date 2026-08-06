@@ -21,13 +21,6 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
-// Reddit SVG icon (official Snoo shape)
-const RedditIcon = ({ size = 24, className = '', ...props }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={size} height={size} className={className} fill="currentColor" {...props}>
-        <path d="M14.238 15.348c.085.084.085.221 0 .306-.465.462-1.194.687-2.231.687l-.008-.002-.008.002c-1.036 0-1.766-.225-2.231-.688-.085-.084-.085-.221 0-.305.084-.084.222-.084.307 0 .379.377 1.008.561 1.924.561l.008.002.008-.002c.915 0 1.544-.184 1.924-.561.085-.084.223-.084.307 0zm-3.44-2.418c0-.507-.414-.919-.922-.919-.509 0-.922.412-.922.919 0 .506.414.918.922.918.508 0 .922-.412.922-.918zm4.04-.919c-.509 0-.922.412-.922.919 0 .506.414.918.922.918.508 0 .922-.412.922-.918 0-.507-.414-.919-.922-.919zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5.8 11.333c.02.14.03.283.03.428 0 2.19-2.547 3.964-5.69 3.964-3.142 0-5.69-1.774-5.69-3.964 0-.145.01-.288.03-.428A1.473 1.473 0 0 1 5.5 12c0-.378.145-.722.382-.982-.02-.12-.035-.244-.035-.372 0-.946.476-1.818 1.268-2.464C7.96 7.428 9.862 6.9 12 6.9c2.137 0 4.04.528 4.886 1.282.79.646 1.266 1.518 1.266 2.464 0 .128-.015.252-.035.372.237.26.383.604.383.982 0 .556-.312 1.04-.77 1.29l.07.043z"/>
-    </svg>
-);
-
 /* ── 3D Globe Animation (CSS-only) ────────────────────────────── */
 const SearchGlobe = () => (
     <div className="relative w-28 h-28 flex items-center justify-center">
@@ -84,13 +77,12 @@ const PLATFORMS = {
     all: { label: 'All Platforms', icon: Globe, color: 'from-slate-600 to-slate-800', bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-300' },
     x: { label: 'X (Twitter)', icon: XLogo, color: 'from-gray-900 to-black', bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-900 dark:text-gray-100', border: 'border-gray-300' },
     youtube: { label: 'YouTube', icon: Youtube, color: 'from-red-500 to-red-700', bg: 'bg-red-50 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-300', border: 'border-red-200' },
-    reddit: { label: 'Reddit', icon: RedditIcon, color: 'from-orange-500 to-orange-700', bg: 'bg-orange-50 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-200' },
     facebook: { label: 'Facebook', icon: Facebook, color: 'from-blue-500 to-blue-700', bg: 'bg-blue-50 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-200' },
     instagram: { label: 'Instagram', icon: Instagram, color: 'from-purple-500 via-pink-500 to-orange-400', bg: 'bg-pink-50 dark:bg-pink-900/30', text: 'text-pink-700 dark:text-pink-300', border: 'border-pink-200' },
 };
 
-const PROFILE_PLATFORMS = ['x', 'youtube', 'reddit', 'facebook', 'instagram'];
-const CONTENT_PLATFORMS = ['x', 'youtube', 'reddit', 'facebook'];
+const PROFILE_PLATFORMS = ['x', 'youtube', 'facebook', 'instagram'];
+const CONTENT_PLATFORMS = ['x', 'youtube', 'facebook'];
 
 const formatIST = (dateStr) => {
     if (!dateStr) return '';
@@ -196,7 +188,7 @@ const ContentCard = memo(({ item, index, getContentUrl, onMonitor, highlightQuer
     const shares = item.metrics?.retweets || item.metrics?.shares || 0;
     const contentText = item.text || item.description || item.title || '';
     const thumbnail = item.thumbnails?.medium?.url || item.thumbnails?.default?.url || null;
-    const isMonitorDisabled = p === 'reddit';
+    const isMonitorDisabled = false;
 
     React.useEffect(() => {
         const el = textRef.current;
@@ -498,7 +490,7 @@ const GlobalSearch = () => {
 
                 const combined = [];
                 const errors = {};
-                // Process in fixed order: x, youtube, reddit, facebook, instagram
+                // Process in fixed order: x, youtube, facebook, instagram
                 settled.forEach((result, idx) => {
                     const p = platformKeys[idx];
                     if (result.status === 'fulfilled') {
@@ -612,8 +604,6 @@ const GlobalSearch = () => {
             identifier = cleanHandle(contentItem.channelId || contentItem.channel_id || contentItem.author_handle || contentItem.author || contentItem.id);
         } else if (sourcePlatform === 'x' || sourcePlatform === 'instagram') {
             identifier = cleanHandle(contentItem.author_handle || contentItem.screen_name || contentItem.author || contentItem.id);
-        } else if (sourcePlatform === 'reddit') {
-            identifier = cleanHandle(contentItem.author_handle || contentItem.author || contentItem.screen_name || contentItem.id);
         } else if (sourcePlatform === 'facebook') {
             identifier = cleanHandle(contentItem.author_handle || contentItem.author || contentItem.page_id || contentItem.id);
         } else {
@@ -754,7 +744,6 @@ const GlobalSearch = () => {
         const p = item._platform;
         if (p === 'x') return `https://x.com/${item.screen_name}`;
         if (p === 'youtube') return item.customUrl || `https://youtube.com/channel/${item.id}`;
-        if (p === 'reddit') return `https://www.reddit.com/user/${item.screen_name}`;
         if (p === 'facebook') return item.url || `https://facebook.com/${item.id}`;
         if (p === 'instagram') return `https://instagram.com/${item.screen_name}`;
         return '#';
@@ -767,14 +756,12 @@ const GlobalSearch = () => {
         if (p === 'youtube') return `https://youtube.com/watch?v=${item.id?.videoId || item.id}`;
         if (p === 'facebook') return `https://facebook.com/${item.id}`;
         if (p === 'instagram') return `https://instagram.com/p/${item.id}`;
-        if (p === 'reddit') return item.url || `https://reddit.com`;
         return '#';
     };
 
     const getHandle = (item) => {
         const p = item._platform;
         if (p === 'x' || p === 'instagram') return `@${item.screen_name || ''}`;
-        if (p === 'reddit') return `u/${item.screen_name || ''}`;
         if (p === 'facebook') return item.screen_name || item.id || '';
         if (p === 'youtube') return item.customUrl || '';
         return item.screen_name || '';
@@ -782,7 +769,6 @@ const GlobalSearch = () => {
 
     const getFollowerLabel = (p) => {
         if (p === 'youtube') return 'subscribers';
-        if (p === 'reddit') return 'karma';
         return 'followers';
     };
 
@@ -983,7 +969,7 @@ const GlobalSearch = () => {
         const cfg = PLATFORMS[p] || PLATFORMS.all;
         const profileUrl = getProfileUrl(item);
         const followers = getFollowerCount(item);
-        const isMonitorDisabled = p === 'reddit';
+        const isMonitorDisabled = false;
 
         return (
             <div key={`${p}-${item.id}-${index}`} className={`group relative bg-card rounded-xl border border-border hover:shadow-lg transition-all duration-200 overflow-hidden`}>
@@ -1331,7 +1317,7 @@ const GlobalSearch = () => {
                             </div>
                             <h3 className="text-lg font-semibold text-foreground mb-2">Search across platforms</h3>
                             <p className="text-sm text-muted-foreground text-center max-w-md">
-                                Find users, channels, and pages or discover content by keywords across X, YouTube, Reddit, Facebook{searchType === 'profiles' ? ', and Instagram' : ''}.
+                                Find users, channels, and pages or discover content by keywords across X, YouTube, Facebook{searchType === 'profiles' ? ', and Instagram' : ''}.
                             </p>
                             <div className="flex gap-3 mt-6">
                                 {(searchType === 'content' ? CONTENT_PLATFORMS : PROFILE_PLATFORMS).map(p => {
@@ -1463,7 +1449,7 @@ const GlobalSearch = () => {
                                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
                                             <div className="flex items-center gap-1.5 flex-wrap">
                                                 <Badge variant="outline" className="text-[11px]">{historySelectedRecord.search_type}</Badge>
-                                                <Badge variant="outline" className="text-[11px]">{PLATFORMS[historySelectedRecord.platform]?.label || historySelectedRecord.platform}</Badge>
+                                                <Badge variant="outline" className="text-[11px]">{PLATFORMS[historySelectedRecord.platform]?.label || (historySelectedRecord.platform ? String(historySelectedRecord.platform).charAt(0).toUpperCase() + String(historySelectedRecord.platform).slice(1) : 'Unknown')}</Badge>
                                                 <span className="px-2 py-0.5 rounded-full text-[11px] bg-muted text-muted-foreground">{Number(historySelectedFilteredResults.length || 0).toLocaleString()} results</span>
                                             </div>
                                             <div className="flex items-center gap-2">

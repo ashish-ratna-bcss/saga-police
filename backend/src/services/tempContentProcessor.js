@@ -238,8 +238,8 @@ async function processOneItem(item, settings, keywords) {
 }
 
 async function markSourceCheckedFromTemp(item) {
-  // Grievance/telegram items do not map to the Sources table last_checked semantics.
-  if (item.module === 'grievance' || item.module === 'telegram') return;
+  // Grievance items do not map to the Sources table last_checked semantics.
+  if (item.module === 'grievance') return;
 
   const now = new Date();
 
@@ -314,12 +314,6 @@ async function runCycle() {
   lastCycleBacklogLikely = false;
 
   try {
-    // Telegram sync records are control items, not analyzable social posts.
-    await TempContent.updateMany(
-      { status: 'pending', module: 'telegram' },
-      { $set: { status: 'done', processed_at: new Date(), error_message: null } }
-    );
-
     const settings = await Settings.findOne({ id: 'global_settings' });
     if (!settings) return 0;
     const keywords = await Keyword.find({ is_active: true });

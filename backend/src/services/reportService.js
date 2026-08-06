@@ -99,7 +99,7 @@ const createReportFromAlert = async (alertId) => {
  * Get all reports with filtering and pagination.
  */
 const getAllReports = async (filters = {}) => {
-    const { platform, status, search, startDate, endDate, page = 1, limit = 20, keyword, alert_type, risk_level, category } = filters;
+    const { platform, status, search, startDate, endDate, page = 1, limit = 20, keyword, alert_type, risk_level, virality_level, category } = filters;
     const query = {};
 
     if (platform && platform !== 'all') query.platform = platform;
@@ -117,6 +117,7 @@ const getAllReports = async (filters = {}) => {
     const needsJoinsForFiltering = (category && category !== 'all') ||
         (keyword && keyword !== 'all') ||
         (risk_level && risk_level !== 'all') ||
+        (virality_level && virality_level !== 'all') ||
         (alert_type && alert_type !== 'all');
 
     const normalizedSearch = String(search || '').trim();
@@ -217,6 +218,10 @@ const getAllReports = async (filters = {}) => {
 
         if (risk_level && risk_level !== 'all') {
             dataPipeline.push({ $match: { 'alert_data.risk_level': risk_level } });
+        }
+
+        if (virality_level && virality_level !== 'all') {
+            dataPipeline.push({ $match: { 'alert_data.virality_level': String(virality_level).toLowerCase() } });
         }
 
         if (alert_type && alert_type !== 'all') {

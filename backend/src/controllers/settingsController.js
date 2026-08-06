@@ -50,8 +50,7 @@ const getSettings = async (req, res) => {
         }
       },
       events: { x: 60, instagram: 60, facebook: 60, youtube: 60, enabled: true },
-      grievances: { x: 60, facebook: 60, enabled: true },
-      telegram: { sync_interval: 5, enabled: true }
+      grievances: { x: 60, facebook: 60, enabled: true }
     };
     if (!doc.api_config) {
       doc.api_config = defaultApiConfig;
@@ -77,7 +76,7 @@ const getSettings = async (req, res) => {
           }
         }
       }
-      for (const mod of ['events', 'grievances', 'telegram']) {
+      for (const mod of ['events', 'grievances']) {
         if (!doc.api_config[mod]) {
           doc.api_config[mod] = defaultApiConfig[mod];
         } else {
@@ -175,8 +174,7 @@ const getAllSettingsData = async (req, res) => {
       const defaultApiConfig = {
         monitoring: { enabled: true, frequencies: { x: { ...defaultCategoryFreqs }, instagram: { ...defaultCategoryFreqs }, facebook: { ...defaultCategoryFreqs }, youtube: { ...defaultCategoryFreqs } } },
         events: { x: 60, instagram: 60, facebook: 60, youtube: 60, enabled: true },
-        grievances: { x: 60, facebook: 60, enabled: true },
-        telegram: { sync_interval: 5, enabled: true }
+        grievances: { x: 60, facebook: 60, enabled: true }
       };
       if (!doc.api_config) {
         doc.api_config = defaultApiConfig;
@@ -192,7 +190,7 @@ const getAllSettingsData = async (req, res) => {
             }
           }
         }
-        for (const mod of ['events', 'grievances', 'telegram']) {
+        for (const mod of ['events', 'grievances']) {
           if (!doc.api_config[mod]) doc.api_config[mod] = defaultApiConfig[mod];
           else { for (const key of Object.keys(defaultApiConfig[mod])) { if (doc.api_config[mod][key] === undefined) doc.api_config[mod][key] = defaultApiConfig[mod][key]; } }
         }

@@ -9,7 +9,7 @@ const globalsearch = {
   title: 'Global Search',
   icon: 'Globe',
   summary:
-    'One query run across X, YouTube, Reddit, Facebook and Instagram at once — to find an account or a post anywhere, pull it into monitoring, and keep a record of what you searched.',
+    'One query run across X, YouTube, Facebook and Instagram at once — to find an account or a post anywhere, pull it into monitoring, and keep a record of what you searched.',
   sections: [
     // ══════════════════════════════════════════ START HERE
     {
@@ -40,7 +40,7 @@ const globalsearch = {
             { n: 2, x: 22.3, y: 15.4, side: 'top', at: 24, label: 'Profiles / Content', text: 'Profiles finds accounts; Content finds individual posts.' },
             { n: 3, x: 87.3, y: 8.1, side: 'top', at: 84, label: 'History, PDF, Excel', text: 'PDF and Excel appear once a search has returned something. History opens your saved searches.' },
             { n: 4, x: 15.6, y: 26.6, side: 'left', at: 30, label: 'A result', text: 'Picture, name and handle, with a blue tick where the platform verifies the account.' },
-            { n: 5, x: 10.4, y: 37.4, side: 'left', at: 44, label: 'Follower count', text: 'Labelled to suit the platform — subscribers on YouTube, karma on Reddit.' },
+            { n: 5, x: 10.4, y: 37.4, side: 'left', at: 44, label: 'Follower count', text: 'Labelled to suit the platform — subscribers on YouTube, followers elsewhere.' },
             { n: 6, x: 22.5, y: 37.5, side: 'bottom', at: 24, label: 'Monitor', text: 'Adds the account to monitoring. The arrow beside it opens the real account in a new tab.' },
           ],
         },
@@ -73,7 +73,6 @@ const globalsearch = {
           rows: [
             ['**X (Twitter)**', 'Yes', 'Yes', 'followers'],
             ['**YouTube**', 'Yes', 'Yes', 'subscribers'],
-            ['**Reddit**', 'Yes', 'Yes', 'karma'],
             ['**Facebook**', 'Yes', 'Yes', 'followers'],
             ['**Instagram**', 'Yes', '—', 'followers'],
           ],
@@ -155,7 +154,7 @@ const globalsearch = {
             ['Picture and name', 'The account as it appears on the platform. A blue tick means the platform verifies it.'],
             ['Handle', 'The account identifier. Your search terms are highlighted wherever they match.'],
             ['Description', 'The account bio, where the platform provides one.'],
-            ['Follower count', 'Labelled to suit the platform — subscribers on YouTube, karma on Reddit, followers elsewhere.'],
+            ['Follower count', 'Labelled to suit the platform — subscribers on YouTube, followers elsewhere.'],
             ['**Arrow icon**', 'Opens the real account in a new tab.'],
             ['**Monitor**', 'Adds the account to monitoring — see the next section.'],
           ],
@@ -173,7 +172,7 @@ const globalsearch = {
           markers: [
             { n: 1, x: 25.4, y: 15.3, side: 'top', at: 22, label: 'Content selected', text: 'Searches the text of posts instead of account names.' },
             { n: 2, x: 32.8, y: 15.3, side: 'top', at: 40, label: 'Last 20', text: 'How many results per platform — 20 to 100. This selector only exists in Content mode.' },
-            { n: 3, x: 9.5, y: 35, side: 'left', at: 38, label: 'No Instagram here', text: 'The platform list in Content mode offers All, X, YouTube, Reddit and Facebook only — Instagram has no content search.' },
+            { n: 3, x: 9.5, y: 35, side: 'left', at: 38, label: 'No Instagram here', text: 'The platform list in Content mode offers All, X, YouTube and Facebook only — Instagram has no content search.' },
             { n: 4, x: 50.8, y: 39.1, side: 'top', at: 56, label: 'A post', text: 'The post text with your search terms highlighted, its author, and how long ago it was posted.' },
             { n: 5, x: 7.4, y: 86.1, side: 'bottom', at: 12, label: 'Read more', text: 'Longer posts are clipped — expand them in place, or use View to open the original.' },
           ],
@@ -222,13 +221,6 @@ const globalsearch = {
             { text: 'Set the **Category** — it arrives as **Others**, and the category decides how often the account is checked.' },
             { text: 'Fill in any person details you have, then click **Update Source**.' },
           ],
-        },
-        {
-          type: 'callout',
-          tone: 'warn',
-          title: 'Reddit results cannot be monitored',
-          text:
-            'The **Monitor** button is greyed out on every Reddit result, on both profile and content cards. Monitoring supports X, Instagram, Facebook and YouTube only — Reddit is searchable here but cannot be added as a monitored profile.',
         },
       ],
     },
@@ -331,7 +323,6 @@ const globalsearch = {
             ['No Instagram option for my search', 'You are on **Content**. Instagram supports profile search only. Switch to **Profiles** to search Instagram.'],
             ['My platform choice reset to All Platforms', 'You had Instagram selected and switched to Content, which is not supported — so it fell back to All Platforms.'],
             ['Only 20 profile results came back', 'That is the fixed limit for Profiles searches. The **Last N** selector applies to Content searches only.'],
-            ['The **Monitor** button is greyed out', 'It is a Reddit result. Reddit can be searched but not monitored.'],
             ['My export is missing results', 'A platform filter pill is active — exports follow what is on screen. Click **All** and export again.'],
             ['**Search cancelled** appeared', 'A second search was started before the first finished. Only the newest search runs.'],
             ['A search is missing from History', 'The results saved separately from the search itself, and that save can fail quietly. Re-run the search if you need it recorded.'],

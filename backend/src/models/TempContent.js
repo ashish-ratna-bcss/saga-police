@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 
 const tempContentSchema = new mongoose.Schema({
   tenant_name: { type: String, required: true, index: true },
-  module: { type: String, enum: ['profile', 'event', 'grievance', 'telegram', 'media_backfill'], required: true },
-  platform: { type: String, enum: ['x', 'instagram', 'facebook', 'youtube', 'telegram'], required: true },
+  module: { type: String, enum: ['profile', 'event', 'grievance', 'media_backfill'], required: true },
+  platform: { type: String, enum: ['x', 'instagram', 'facebook', 'youtube'], required: true },
 
   source_id: { type: String, default: null },
   source_identifier: { type: String, default: null },

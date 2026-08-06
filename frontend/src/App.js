@@ -45,7 +45,6 @@ const POIDetail = lazy(() => import('./pages/POI/POIDetail'));
 //const DeepfakeAnalysis = lazy(() => import('./pages/Deepfake/DeepfakeAnalysis'));
 const AccessManagement = lazy(() => import('./pages/AccessManagement'));
 const DeepfakeAnalysis = lazy(() => import('./pages/Deepfake/DeepfakeAnalysis'));
-const Telegram = lazy(() => import('./pages/Telegram'));
 const AnalysisTools = lazy(() => import('./pages/AnalysisTools'));
 const OSINTLayout = lazy(() => import('./pages/osint/OSINTLayout'));
 const OSINTDashboard = lazy(() => import('./pages/osint/OSINTDashboard'));
@@ -131,7 +130,6 @@ function App() {
                     <Route path="person-of-interest" element={<PersonOfInterest />} />
                     <Route path="person-of-interest/:id" element={<POIDetail />} />
                     <Route path="deepfake-analysis" element={<DeepfakeAnalysis />} />
-                    <Route path="telegram" element={<Telegram />} />
                     <Route path="analysis-tools" element={<AnalysisTools />} />
                     <Route path="system-health" element={<SystemHealth />} />
                     <Route path="analysis-tools/osint-tools" element={<OSINTLayout />}>

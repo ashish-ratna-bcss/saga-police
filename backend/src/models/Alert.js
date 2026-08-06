@@ -43,13 +43,26 @@ const alertSchema = new mongoose.Schema({
     enum: ['keyword_risk', 'ai_risk', 'velocity', 'new_post'],
     default: 'keyword_risk'
   },
-  // Priority classification for velocity alerts
+  // Priority classification — LEGACY (was used as velocity band). Kept until all consumers migrate.
+  // Prefer virality_level for engagement spread. Do not use for AI danger.
   priority: {
     type: String,
     enum: ['LOW', 'MEDIUM', 'HIGH'],
     default: 'MEDIUM'
   },
-  // Velocity-specific data
+  // Independent virality dimension (engagement spread). null = not viral (below low threshold).
+  virality_level: {
+    type: String,
+    enum: ['low', 'medium', 'high', null],
+    default: null,
+    lowercase: true
+  },
+  // First time virality_level became non-null (or first detection timestamp).
+  virality_detected_at: {
+    type: Date,
+    default: null
+  },
+  // Velocity-specific metric snapshot (product rename to virality_data deferred)
   velocity_data: {
     metric: { type: String },
     current_value: { type: Number },
@@ -179,6 +192,9 @@ alertSchema.index({ status: 1, platform: 1, content_published_at: -1 });
 alertSchema.index({ status: 1, alert_type: 1, content_published_at: -1 });
 alertSchema.index({ status: 1, platform: 1, alert_type: 1, content_published_at: -1 });
 alertSchema.index({ status: 1, risk_level: 1, content_published_at: -1 });
+alertSchema.index({ virality_level: 1, content_published_at: -1 });
+alertSchema.index({ status: 1, virality_level: 1, content_published_at: -1 });
+alertSchema.index({ status: 1, risk_level: 1, virality_level: 1, content_published_at: -1 });
 alertSchema.index({ alert_type: 1, content_published_at: -1 });
 alertSchema.index({ content_id: 1 });
 alertSchema.index({ source_id: 1 });

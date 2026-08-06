@@ -115,7 +115,7 @@ fatal: not a git repository (or any of the parent directories): .git
 Code here was placed by direct file copy (scp/rsync or manual edit), not by `git clone`/`git pull`. There is no git-based deployment trail for the running backend or frontend — confirmed identical to the developer's local working copy only because file checksums were compared byte-for-byte during this session, not because of any git history.
 
 ### Environment variables (names only — values masked)
-`backend/.env`: `MONGODB_URI, DB_NAME, CORS_ORIGINS, PORT, OLLAMA_*`(11 vars), `RAPIDAPI_*`(7 vars), `YOUTUBE_API_KEY, ML_SERVICE_URL, DEEPFAKE_ML_URL, MEDIA_ANALYZER_URL, GATEWAY_API_KEY, TELEGRAM_API_ID/HASH, GROQ_API_KEY/MODEL, SMTP_*`(6 vars), `FRONTEND_URL, JWT_SECRET, RAG_API_URL`.
+`backend/.env`: `MONGODB_URI, DB_NAME, CORS_ORIGINS, PORT, OLLAMA_*`(11 vars), `RAPIDAPI_*`(7 vars), `YOUTUBE_API_KEY, ML_SERVICE_URL, DEEPFAKE_ML_URL, MEDIA_ANALYZER_URL, GATEWAY_API_KEY, GROQ_API_KEY/MODEL, SMTP_*`(6 vars), `FRONTEND_URL, JWT_SECRET, RAG_API_URL`.
 `frontend/.env`: `REACT_APP_BACKEND_URL, ENABLE_HEALTH_CHECK, REACT_APP_RAG_API_URL, REACT_APP_OSINT_API_URL`.
 
 ### Auth / WebSocket

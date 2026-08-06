@@ -184,20 +184,31 @@ const collectAlertsData = async (start, end) => {
         medium: 0,
         low: 0
     };
+    const byRiskLevel = { high: 0, medium: 0, low: 0 };
+    const byVirality = { high: 0, medium: 0, low: 0 };
     
     const byCategory = {};
     const byPlatform = {};
     let escalatedCount = 0;
 
     alerts.forEach(alert => {
-        const priority = (alert.priority || '').toLowerCase();
-        if (priority === 'high') {
-            byPriority.high++;
-        } else if (priority === 'medium') {
+        // Severity = AI risk_level (independent of virality)
+        const risk = String(alert.risk_level || 'low').toLowerCase();
+        if (risk === 'high' || risk === 'critical') {
+            byRiskLevel.high++;
+            byPriority.high++; // legacy mirror — was misused as virality band
+        } else if (risk === 'medium') {
+            byRiskLevel.medium++;
             byPriority.medium++;
         } else {
+            byRiskLevel.low++;
             byPriority.low++;
         }
+
+        const viral = alert.virality_level ? String(alert.virality_level).toLowerCase() : null;
+        if (viral === 'high') byVirality.high++;
+        else if (viral === 'medium') byVirality.medium++;
+        else if (viral === 'low') byVirality.low++;
         
         if (alert.source_category) {
             byCategory[alert.source_category] = (byCategory[alert.source_category] || 0) + 1;
@@ -216,16 +227,21 @@ const collectAlertsData = async (start, end) => {
         alert_id: alert.id,
         title: alert.title || 'Untitled Alert',
         priority: alert.priority || 'MEDIUM',
+        risk_level: alert.risk_level || 'low',
+        virality_level: alert.virality_level || null,
+        virality_detected_at: alert.virality_detected_at || null,
         category: alert.source_category || 'Unknown',
         platform: alert.platform || 'Unknown',
         author: alert.author || 'Unknown',
-        risk_score: alert.risk_level === 'high' ? 85 : alert.risk_level === 'medium' ? 60 : 35,
+        risk_score: alert.threat_details?.risk_score ?? (alert.risk_level === 'high' ? 85 : alert.risk_level === 'medium' ? 60 : 35),
         created_at: alert.created_at
     }));
 
     return {
         total_active: totalActive,
         by_priority: byPriority,
+        by_risk_level: byRiskLevel,
+        by_virality: byVirality,
         by_category: Object.entries(byCategory)
             .sort((a, b) => b[1] - a[1])
             .map(([category, count]) => ({ category, count })),
@@ -414,9 +430,9 @@ const collectSummaryStatistics = async (start, end) => {
         }
     });
 
-    const viralPosts = await Content.countDocuments({
+    const viralPosts = await Alert.countDocuments({
         created_at: { $gte: start, $lt: end },
-        'velocity_data.threshold_triggered': true
+        virality_level: { $in: ['low', 'medium', 'high'] }
     });
 
     return {
@@ -434,7 +450,7 @@ Daily Intelligence Report Summary for ${data.date_key}
 Total Dial 100 Calls: ${data.dial100_calls.total_received}
 Total Grievances: ${data.grievances.total_generated}
 Total Events Fetched: ${data.events.total_fetched} (${data.events.relevant_count} relevant)
-Active Alerts: ${data.alerts.total_active} (${data.alerts.by_priority.high} HIGH priority)
+Active Alerts: ${data.alerts.total_active} (${(data.alerts.by_risk_level || data.alerts.by_priority).high} HIGH risk)
 Profiles Monitoring: ${data.profiles.total_monitoring}
 Content Processed: ${data.summary_statistics.total_content_processed}
 Threat Rate: ${data.summary_statistics.threat_rate_percentage}%
@@ -474,8 +490,12 @@ ${data.events.top_events.slice(0, 5).map((e, i) => `${i + 1}. ${e.event_name}: $
     const alertsAnalysis = `
 Alerts Analysis:
 - Total active: ${data.alerts.total_active}
-- HIGH priority: ${data.alerts.by_priority.high}
-- MEDIUM priority: ${data.alerts.by_priority.medium}
+- HIGH risk: ${(data.alerts.by_risk_level || data.alerts.by_priority).high}
+- MEDIUM risk: ${(data.alerts.by_risk_level || data.alerts.by_priority).medium}
+- LOW risk: ${(data.alerts.by_risk_level || data.alerts.by_priority).low}
+- HIGH viral: ${(data.alerts.by_virality || { high: 0 }).high}
+- MEDIUM viral: ${(data.alerts.by_virality || { medium: 0 }).medium}
+- LOW viral: ${(data.alerts.by_virality || { low: 0 }).low}
 - Escalated: ${data.alerts.escalated_count}
 
 Top Categories:
@@ -494,7 +514,7 @@ ${data.top_concepts.map((c, i) => `${i + 1}. ${c.concept}: ${c.count} mentions (
 
     const recommendations = `
 Recommendations:
-1. Monitor ${data.alerts.by_priority.high} HIGH priority alerts requiring immediate attention
+1. Monitor ${(data.alerts.by_risk_level || data.alerts.by_priority).high} HIGH risk alerts requiring immediate attention
 2. Review ${data.grievances.total_generated} grievances for public sentiment analysis
 3. Track ${data.events.relevant_count} relevant events for potential escalation
 4. Investigate ${data.profiles.high_risk_profiles.length} high-risk profiles

@@ -4,7 +4,6 @@ const SOURCE_WEIGHTS = {
     'News': 1.0,
     'Youtube': 0.8,
     'X (Twitter)': 0.7,
-    'Reddit': 0.4,
     'Facebook': 0.5
 };
 

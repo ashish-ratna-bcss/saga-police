@@ -26,7 +26,7 @@ const ALERT_STATUS_TABS = [
   { value: 'reports', label: 'Reports' }
 ];
 
-const ALERTS_CACHE_KEY = 'alertsCache_v2';
+const ALERTS_CACHE_KEY = 'alertsCache_v3';
 const ALERTS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 const SOURCE_CATEGORY_OPTIONS = [
@@ -39,7 +39,7 @@ const SOURCE_CATEGORY_OPTIONS = [
   { value: 'others', label: 'Others' }
 ];
 
-const PLATFORM_DISPLAY_ORDER = ['x', 'youtube', 'facebook', 'instagram', 'whatsapp', 'telegram'];
+const PLATFORM_DISPLAY_ORDER = ['x', 'youtube', 'facebook', 'instagram', 'whatsapp'];
 
 export default function Alerts() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -56,7 +56,21 @@ export default function Alerts() {
   const [frequentEngagersOpen, setFrequentEngagersOpen] = useState(false);
   const [pendingAnalysisCount, setPendingAnalysisCount] = useState(0);
   const [viewMode, setViewMode] = useState('grid');
-  const [alertCategory, setAlertCategory] = useState('all'); // 'all', 'risk', 'viral', 'new_post'
+  const [alertCategory, setAlertCategory] = useState('all'); // legacy — mirrors active exclusive dim
+  const [riskFilter, setRiskFilter] = useState('all'); // 'all' | 'low' | 'medium' | 'high'
+  const [viralityFilter, setViralityFilter] = useState('all'); // 'all' | 'low' | 'medium' | 'high'
+
+  // Mutual exclusivity: only one dimension filters at a time
+  const selectRiskFilter = useCallback((value) => {
+    setRiskFilter(value);
+    if (value !== 'all') setViralityFilter('all');
+    setAlertCategory(value === 'all' ? 'all' : value);
+  }, []);
+  const selectViralityFilter = useCallback((value) => {
+    setViralityFilter(value);
+    if (value !== 'all') setRiskFilter('all');
+    setAlertCategory(value === 'all' ? 'all' : `viral_${value}`);
+  }, []);
   const [totalResults, setTotalResults] = useState(0);
   const [alertStats, setAlertStats] = useState(null);
   const [downloadStates, setDownloadStates] = useState({});
@@ -168,7 +182,6 @@ export default function Alerts() {
       facebook: 'Facebook',
       instagram: 'Instagram',
       whatsapp: 'WhatsApp',
-      telegram: 'Telegram',
       unknown: 'Unknown'
     };
     return labels[normalized] || normalized.charAt(0).toUpperCase() + normalized.slice(1);
@@ -202,11 +215,6 @@ export default function Alerts() {
         rowClass: 'bg-emerald-200/60 hover:bg-emerald-300/60',
         stickyClass: 'bg-emerald-200/75'
       },
-      telegram: {
-        iconClass: 'text-cyan-700',
-        rowClass: 'bg-cyan-200/60 hover:bg-cyan-300/60',
-        stickyClass: 'bg-cyan-200/75'
-      },
       unknown: {
         iconClass: 'text-amber-700',
         rowClass: 'bg-amber-200/60 hover:bg-amber-300/60',
@@ -232,7 +240,6 @@ export default function Alerts() {
       case 'instagram':
         return <Instagram className={iconClass} />;
       case 'whatsapp':
-      case 'telegram':
         return <MessageSquare className={iconClass} />;
       default:
         return <AlertTriangle className={iconClass} />;
@@ -358,7 +365,7 @@ export default function Alerts() {
   const buildCacheKey = useCallback(() => {
     return [
       'tab', activeTab,
-      'cat', alertCategory,
+      'cat', riskFilter, viralityFilter,
       'q', debouncedSearchQuery || '',
       'platform', platformFilter,
       'keyword', keywordFilter,
@@ -368,7 +375,7 @@ export default function Alerts() {
       'igContent', instagramContentFilter,
       'igStories', instagramStoriesStatusFilter
     ].join('|');
-  }, [activeTab, alertCategory, debouncedSearchQuery, platformFilter, keywordFilter, sourceCategoryFilter, dateRange.start, dateRange.end, instagramContentFilter, instagramStoriesStatusFilter]);
+  }, [activeTab, riskFilter, viralityFilter, debouncedSearchQuery, platformFilter, keywordFilter, sourceCategoryFilter, dateRange.start, dateRange.end, instagramContentFilter, instagramStoriesStatusFilter]);
 
   const readCache = useCallback((key) => {
     try {
@@ -571,7 +578,7 @@ export default function Alerts() {
       setNextCursor(cached.nextCursor || null);
       if (cached.alertStats) setAlertStats(cached.alertStats);
     }
-  }, [activeTab, alertCategory, debouncedSearchQuery, platformFilter, keywordFilter, sourceCategoryFilter, dateRange, buildCacheKey, readCache, hasAnyAlertFeature]);
+  }, [activeTab, riskFilter, viralityFilter, debouncedSearchQuery, platformFilter, keywordFilter, sourceCategoryFilter, dateRange, buildCacheKey, readCache, hasAnyAlertFeature]);
 
   useEffect(() => {
     if (platformFilter !== 'instagram') {
@@ -671,12 +678,10 @@ export default function Alerts() {
         params.cursor = cursorOverride || nextCursor;
       }
 
-      if (alertCategory === 'viral') {
-        params.alert_type = 'velocity';
-      } else if (alertCategory === 'risk') {
-        params.alert_type = 'risk';
-      } else if (['high', 'medium', 'low', 'critical'].includes(alertCategory)) {
-        params.risk_level = alertCategory;
+      if (riskFilter !== 'all') {
+        params.risk_level = riskFilter;
+      } else if (viralityFilter !== 'all') {
+        params.virality_level = viralityFilter;
       }
 
       const response = await AlertService.list(params, { signal: controller.signal });
@@ -744,7 +749,7 @@ export default function Alerts() {
       isFirstLoadRef.current = false;
       isFetchingRef.current = false;
     }
-  }, [activeTab, debouncedSearchQuery, platformFilter, keywordFilter, alertCategory, dateRange, sourceCategoryFilter, buildCacheKey, writeCache, nextCursor, hasAnyAlertFeature, visibleStatusTabs, isInstagramStoryView]);
+  }, [activeTab, debouncedSearchQuery, platformFilter, keywordFilter, riskFilter, viralityFilter, dateRange, sourceCategoryFilter, buildCacheKey, writeCache, nextCursor, hasAnyAlertFeature, visibleStatusTabs, isInstagramStoryView]);
 
   const fetchCapturedStories = useCallback(async () => {
     const requestId = ++capturedStoriesReqIdRef.current;
@@ -1170,16 +1175,13 @@ export default function Alerts() {
         category: sourceCategoryFilter !== 'all' ? sourceCategoryFilter : undefined,
         startDate: dateRange.start || undefined,
         endDate: dateRange.end || undefined,
-        alert_type: alertCategory === 'viral' ? 'velocity' : undefined,
         keyword: keywordFilter !== 'all' ? keywordFilter : undefined
       };
 
-      if (alertCategory === 'viral') {
-        params.alert_type = 'velocity';
-      } else if (alertCategory === 'risk') {
-        params.alert_type = 'risk';
-      } else if (['high', 'medium', 'low', 'critical'].includes(alertCategory)) {
-        params.risk_level = alertCategory;
+      if (riskFilter !== 'all') {
+        params.risk_level = riskFilter;
+      } else if (viralityFilter !== 'all') {
+        params.virality_level = viralityFilter;
       }
 
       const response = await AlertService.getStats(params);
@@ -1187,7 +1189,7 @@ export default function Alerts() {
     } catch (error) {
       console.error('Failed to fetch alert stats:', error);
     }
-  }, [debouncedSearchQuery, platformFilter, keywordFilter, alertCategory, dateRange, sourceCategoryFilter]);
+  }, [debouncedSearchQuery, platformFilter, keywordFilter, riskFilter, viralityFilter, dateRange, sourceCategoryFilter]);
 
   // Initial load or Filter change
   // Debounce Search Query - but skip if it's a URL (for investigation)
@@ -1202,7 +1204,7 @@ export default function Alerts() {
   // Fetch Logic Triggered by Filters (Debounced Search, Tab Switch, etc.)
   useEffect(() => {
     if (!hasAnyAlertFeature) return;
-    const key = `${activeTab}|${alertCategory}|${debouncedSearchQuery}|${platformFilter}|${keywordFilter}|${sourceCategoryFilter}|${dateRange.start}|${dateRange.end}`;
+    const key = `${activeTab}|${riskFilter}|${viralityFilter}|${debouncedSearchQuery}|${platformFilter}|${keywordFilter}|${sourceCategoryFilter}|${dateRange.start}|${dateRange.end}`;
     const keyChanged = lastFetchKeyRef.current !== key;
 
     // Always update the key ref so transitions are detected correctly
@@ -1218,7 +1220,7 @@ export default function Alerts() {
       setHasMore(true);
       fetchAlerts(false);
     }
-  }, [activeTab, alertCategory, debouncedSearchQuery, platformFilter, keywordFilter, dateRange, sourceCategoryFilter, fetchAlerts, hasAnyAlertFeature, isInstagramStoryView]);
+  }, [activeTab, riskFilter, viralityFilter, debouncedSearchQuery, platformFilter, keywordFilter, dateRange, sourceCategoryFilter, fetchAlerts, hasAnyAlertFeature, isInstagramStoryView]);
 
   // Initial data load when component mounts or when cache is empty
   useEffect(() => {
@@ -1292,9 +1294,8 @@ export default function Alerts() {
         keyword: keywordFilter !== 'all' ? keywordFilter : undefined
       };
 
-      if (alertCategory === 'viral') params.alert_type = 'velocity';
-      else if (alertCategory === 'risk') params.alert_type = 'risk';
-      else if (['high', 'medium', 'low', 'critical'].includes(alertCategory)) params.risk_level = alertCategory;
+      if (riskFilter !== 'all') params.risk_level = riskFilter;
+      else if (viralityFilter !== 'all') params.virality_level = viralityFilter;
 
       const response = await AlertService.list({ ...params, includeStats: true });
       const mappedNew = response.data.alerts || [];
@@ -1330,7 +1331,7 @@ export default function Alerts() {
     } catch (e) {
       console.error("Polling error:", e); // Silent fail
     }
-  }, [activeTab, platformFilter, debouncedSearchQuery, alertCategory, keywordFilter, sourceCategoryFilter, hasAnyAlertFeature, isInstagramStoryView]);
+  }, [activeTab, platformFilter, debouncedSearchQuery, riskFilter, viralityFilter, keywordFilter, sourceCategoryFilter, hasAnyAlertFeature, isInstagramStoryView]);
 
   // Scroll Anchoring Effect
   React.useLayoutEffect(() => {
@@ -1625,19 +1626,12 @@ export default function Alerts() {
         }
       }
 
-      // Alert category filter (risk level or viral)
-      if (alertCategory !== 'all') {
-        if (alertCategory === 'viral') {
-          // For viral, check if has high engagement metrics
-          const isViral = alert.viral_score > 70 || alert.engagement_velocity > 100;
-          if (!isViral) return false;
-        } else {
-          // For risk levels (high, medium, low)
-          const riskLevel = alert.risk_level?.toLowerCase() || alert.severity?.toLowerCase();
-          if (riskLevel !== alertCategory) {
-            return false;
-          }
-        }
+      // Risk / Virality filters (mutually exclusive)
+      if (riskFilter !== 'all') {
+        const riskLevel = alert.risk_level?.toLowerCase() || alert.severity?.toLowerCase();
+        if (riskLevel !== riskFilter) return false;
+      } else if (viralityFilter !== 'all') {
+        if ((alert.virality_level || '').toLowerCase() !== viralityFilter) return false;
       }
 
       // Keyword filter
@@ -1680,7 +1674,7 @@ export default function Alerts() {
 
       return true;
     });
-  }, [platformFilter, debouncedSearchQuery, alertCategory, keywordFilter, dateRange, activeTab, toStartOfSelectedDay, toEndOfSelectedDay]);
+  }, [platformFilter, debouncedSearchQuery, riskFilter, viralityFilter, keywordFilter, dateRange, activeTab, toStartOfSelectedDay, toEndOfSelectedDay]);
 
   const allFilteredAlerts = useMemo(() => {
     const filteredInvestigated = filterInvestigatedAlerts(investigatedAlerts);
@@ -2236,26 +2230,54 @@ export default function Alerts() {
               {/* Divider */}
               <div className="border-t border-border/50" />
 
-              {/* Category Quick Filters */}
-              <div className="flex items-center gap-1.5 text-sm overflow-x-auto no-scrollbar">
-                {[
-                  { value: 'all', label: 'All' },
-                  { value: 'high', label: 'High Risk' },
-                  { value: 'medium', label: 'Medium Risk' },
-                  { value: 'low', label: 'Low Risk' },
-                  { value: 'viral', label: 'Viral' }
-                ].map((cat) => (
-                  <button
-                    key={cat.value}
-                    onClick={() => setAlertCategory(cat.value)}
-                    className={`px-3 py-1 font-medium transition-all rounded-full text-xs ${alertCategory === cat.value
-                      ? 'bg-secondary text-secondary-foreground shadow-sm border border-border'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                      }`}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
+              {/* Risk + Virality Quick Filters (mutually exclusive dimensions) */}
+              <div className="flex flex-col gap-2.5 text-sm">
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                  <span className="text-[11px] font-semibold tracking-wide text-muted-foreground shrink-0 min-w-[5.5rem]">
+                    <span aria-hidden="true">🛡</span> Risk
+                  </span>
+                  {[
+                    { value: 'all', label: 'All', dot: '🟡' },
+                    { value: 'low', label: 'Low', dot: '🟢' },
+                    { value: 'medium', label: 'Medium', dot: '🟠' },
+                    { value: 'high', label: 'High', dot: '🔴' }
+                  ].map((cat) => (
+                    <button
+                      key={`risk-${cat.value}`}
+                      onClick={() => selectRiskFilter(cat.value)}
+                      className={`px-3 py-1 font-medium transition-all rounded-full text-xs inline-flex items-center gap-1 ${riskFilter === cat.value
+                        ? 'bg-secondary text-secondary-foreground shadow-sm border border-border'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                        }`}
+                    >
+                      <span aria-hidden="true">{cat.dot}</span>
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                  <span className="text-[11px] font-semibold tracking-wide text-muted-foreground shrink-0 min-w-[5.5rem]">
+                    <span aria-hidden="true">📈</span> Virality
+                  </span>
+                  {[
+                    { value: 'all', label: 'All', dot: '🟡' },
+                    { value: 'low', label: 'Low', dot: '🟢' },
+                    { value: 'medium', label: 'Medium', dot: '🟠' },
+                    { value: 'high', label: 'High', dot: '🔴' }
+                  ].map((cat) => (
+                    <button
+                      key={`virality-${cat.value}`}
+                      onClick={() => selectViralityFilter(cat.value)}
+                      className={`px-3 py-1 font-medium transition-all rounded-full text-xs inline-flex items-center gap-1 ${viralityFilter === cat.value
+                        ? 'bg-secondary text-secondary-foreground shadow-sm border border-border'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                        }`}
+                    >
+                      <span aria-hidden="true">{cat.dot}</span>
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {platformFilter === 'instagram' && (
@@ -2396,6 +2418,8 @@ export default function Alerts() {
               dateRange={dateRange}
               searchQuery={debouncedSearchQuery}
               keywordFilter={keywordFilter}
+              riskFilter={riskFilter}
+              viralityFilter={viralityFilter}
               viewHandle={searchParams.get('handle')}
               onClearHandle={clearHandleParam}
             />

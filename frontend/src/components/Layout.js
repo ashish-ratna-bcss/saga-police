@@ -88,7 +88,6 @@ const Layout = () => {
     { name: 'AI Assistant', href: '/ai-assistant', icon: Bot },
     //{ name: 'Deepfake Analysis', href: '/deepfake-analysis', icon: Scan },
     //{ name: 'Access Management', href: '/access-management', icon: Shield, roles: ['superadmin'] },
-    //{ name: 'Telegram', href: '/telegram', icon: MessageSquare },
     { name: 'Settings', href: '/settings', icon: Settings },
     { name: 'System Health', href: '/system-health', icon: Activity },
     { name: 'Help', href: '/help', icon: HelpCircle },
@@ -106,7 +105,6 @@ const Layout = () => {
   const isFullWidthPage = (location.pathname.includes('/person-of-interest/') && location.pathname.split('/').length > 2) ||
     location.pathname.startsWith('/reports/generate/') ||
     location.pathname === '/sources' ||
-    location.pathname === '/telegram' ||
     location.pathname === '/settings' ||
     location.pathname === '/help';
 

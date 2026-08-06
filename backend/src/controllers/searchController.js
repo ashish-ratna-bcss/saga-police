@@ -2,7 +2,6 @@ const rapidApiXService = require('../services/rapidApiXService');
 const rapidApiFacebookService = require('../services/rapidApiFacebookService');
 const rapidApiInstagramService = require('../services/rapidApiInstagramService');
 const youtubeService = require('../services/youtube.service');
-const redditService = require('../services/redditService');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const googleSearchService = require('../services/googleSearchService');
 const rankingService = require('../services/rankingService');
@@ -127,8 +126,6 @@ const searchProfiles = async (req, res) => {
             results = await withTimeout(rapidApiXService.searchUsers(query, parsedLimit), timeout, 'X search');
         } else if (platform === 'youtube') {
             results = await withTimeout(youtubeService.searchChannels(query, parsedLimit), timeout, 'YouTube search');
-        } else if (platform === 'reddit') {
-            results = await withTimeout(redditService.searchUsers(query, parsedLimit), timeout, 'Reddit search');
         } else if (platform === 'facebook') {
             results = await withTimeout(rapidApiFacebookService.searchPages(query, { throwOnCooldown: true, limit: parsedLimit }), timeout, 'Facebook search');
         } else if (platform === 'instagram') {
@@ -136,7 +133,7 @@ const searchProfiles = async (req, res) => {
         } else if (platform === 'all') {
             results = await globalSearchService.searchProfiles(query, parsedLimit);
         } else {
-            return res.status(400).json({ error: 'Invalid platform. Use "x", "youtube", "reddit", "facebook", "instagram", or "all".' });
+            return res.status(400).json({ error: 'Invalid platform. Use "x", "youtube", "facebook", "instagram", or "all".' });
         }
 
         res.json(Array.isArray(results) ? results : []);
@@ -171,8 +168,6 @@ const searchContent = async (req, res) => {
             results = await withTimeout(rapidApiXService.searchTweets(query, parsedLimit), timeout, 'X content search');
         } else if (platform === 'youtube') {
             results = await withTimeout(youtubeService.searchVideos(query, parsedLimit), timeout, 'YouTube search');
-        } else if (platform === 'reddit') {
-            results = await withTimeout(redditService.searchPosts(query, parsedLimit), timeout, 'Reddit search');
         } else if (platform === 'facebook') {
             results = await withTimeout(
                 rapidApiFacebookService.searchPosts(query, parsedLimit, {
@@ -185,7 +180,7 @@ const searchContent = async (req, res) => {
         } else if (platform === 'all') {
             results = await globalSearchService.searchContent(query, parsedLimit);
         } else {
-            return res.status(400).json({ error: 'Invalid platform. Use "x", "youtube", "reddit", "facebook", or "all".' });
+            return res.status(400).json({ error: 'Invalid platform. Use "x", "youtube", "facebook", or "all".' });
         }
 
         res.json(Array.isArray(results) ? results : []);
@@ -237,7 +232,7 @@ const saveSearchHistory = async (req, res) => {
         if (!['profiles', 'content'].includes(normalizedSearchType)) {
             return res.status(400).json({ error: 'searchType must be profiles or content' });
         }
-        if (!['all', 'x', 'youtube', 'reddit', 'facebook', 'instagram'].includes(normalizedPlatform)) {
+        if (!['all', 'x', 'youtube', 'facebook', 'instagram'].includes(normalizedPlatform)) {
             return res.status(400).json({ error: 'Invalid platform' });
         }
 
@@ -294,7 +289,7 @@ const getSearchHistory = async (req, res) => {
             filter.search_type = String(searchType).toLowerCase();
         }
 
-        if (platform && ['all', 'x', 'youtube', 'reddit', 'facebook', 'instagram'].includes(String(platform).toLowerCase())) {
+        if (platform && ['all', 'x', 'youtube', 'facebook', 'instagram'].includes(String(platform).toLowerCase())) {
             filter.platform = String(platform).toLowerCase();
         }
 
@@ -492,7 +487,7 @@ const glanceSearch = async (req, res) => {
                     timeRange,
                     searchDuration: '0.0s',
                     totalResults: 0,
-                    platformBreakdown: { x: 0, youtube: 0, reddit: 0, web: 0 },
+                    platformBreakdown: { x: 0, youtube: 0, web: 0 },
                     aiAnalysis: response,
                     webSources: [],
                     results: [],
@@ -510,7 +505,7 @@ const glanceSearch = async (req, res) => {
                 timeRange,
                 searchDuration: '0.0s',
                 totalResults: 0,
-                platformBreakdown: { x: 0, youtube: 0, reddit: 0, web: 0 },
+                platformBreakdown: { x: 0, youtube: 0, web: 0 },
                 aiAnalysis: `## Need more details 🤔\n\nYour query "${query}" is a bit short. Try being more specific!\n\n**Example searches:**\n- "What's trending in technology?"\n- "Latest news about [topic]"\n- "Analyze sentiment on #hashtag"\n- "[City name] news today"\n\n💡 *The more specific your question, the better my analysis!*`,
                 webSources: [],
                 results: [],
@@ -962,7 +957,7 @@ module.exports = {
 };
 
 /**
- * Fetch post/content by URL - supports YouTube, X/Twitter, Facebook, Instagram, Reddit
+ * Fetch post/content by URL - supports YouTube, X/Twitter, Facebook, Instagram
  * Parses the URL, fetches content from the platform, and checks if source is monitored
  */
 async function fetchPostByUrl(req, res) {
@@ -979,7 +974,7 @@ async function fetchPostByUrl(req, res) {
         if (!parsedUrl) {
             return res.status(400).json({
                 error: 'Unsupported URL format',
-                message: 'Please provide a valid YouTube, X/Twitter, Facebook, Instagram, or Reddit post URL'
+                message: 'Please provide a valid YouTube, X/Twitter, Facebook, or Instagram post URL'
             });
         }
 
@@ -1164,33 +1159,6 @@ async function fetchPostByUrl(req, res) {
                 }
             } catch (error) {
                 (() => {})('[URL Search] Facebook fetch error:', error.message);
-            }
-        } else if (platform === 'reddit') {
-            try {
-                const post = await redditService.fetchPostById(postId);
-                if (post) {
-                    postData = {
-                        id: post.id,
-                        platform: 'reddit',
-                        text: post.text,
-                        url: post.url || url,
-                        author: post.author,
-                        author_handle: post.author_handle,
-                        author_avatar: post.author_avatar,
-                        published_at: post.created_at,
-                        metrics: post.metrics,
-                        media: post.media || []
-                    };
-
-                    if (post.author_handle) {
-                        sourceData = await Source.findOne({
-                            platform: 'reddit',
-                            identifier: { $regex: new RegExp(`^@?${post.author_handle}$`, 'i') }
-                        });
-                    }
-                }
-            } catch (error) {
-                (() => {})('[URL Search] Reddit fetch error:', error.message);
             }
         }
 

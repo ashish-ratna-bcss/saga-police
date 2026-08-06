@@ -52,7 +52,6 @@ const settingsSchema = new mongoose.Schema({
   rapidapi_instagram_key: { type: String },
   rapidapi_instagram_keys: { type: String },
   rapidapi_instagram_host: { type: String },
-  telegram_session: { type: String },
 
   // ─── API Configuration (per-module, per-platform intervals in minutes) ───
   api_config: {
@@ -109,10 +108,6 @@ const settingsSchema = new mongoose.Schema({
     grievances: {
       x: { type: Number, default: 60 },
       facebook: { type: Number, default: 60 },
-      enabled: { type: Boolean, default: true }
-    },
-    telegram: {
-      sync_interval: { type: Number, default: 5 },
       enabled: { type: Boolean, default: true }
     }
   },

@@ -80,6 +80,18 @@ const dailyIntelligenceReportSchema = new mongoose.Schema({
             medium: { type: Number, default: 0 },
             low: { type: Number, default: 0 }
         },
+        // Severity dimension (AI risk). Preferred over by_priority for charts.
+        by_risk_level: {
+            high: { type: Number, default: 0 },
+            medium: { type: Number, default: 0 },
+            low: { type: Number, default: 0 }
+        },
+        // Virality dimension (engagement). null-level alerts are excluded from counts.
+        by_virality: {
+            high: { type: Number, default: 0 },
+            medium: { type: Number, default: 0 },
+            low: { type: Number, default: 0 }
+        },
         by_category: [{
             category: String,
             count: Number
@@ -93,6 +105,9 @@ const dailyIntelligenceReportSchema = new mongoose.Schema({
             alert_id: String,
             title: String,
             priority: String,
+            risk_level: String,
+            virality_level: String,
+            virality_detected_at: Date,
             category: String,
             platform: String,
             author: String,
@@ -172,7 +187,6 @@ const dailyIntelligenceReportSchema = new mongoose.Schema({
 });
 
 dailyIntelligenceReportSchema.index({ report_date: -1 });
-dailyIntelligenceReportSchema.index({ date_key: 1 });
 dailyIntelligenceReportSchema.index({ status: 1, report_date: -1 });
 dailyIntelligenceReportSchema.index({ generated_at: -1 });
 

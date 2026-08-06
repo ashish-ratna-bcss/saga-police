@@ -43,7 +43,7 @@ const CardsMetric = ({ label, value, icon }) => (
 
 const REPORT_STATUS_FILTERS = ['sent_to_intermediary', 'closed', 'all'];
 
-const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateRange, searchQuery: sharedSearch, keywordFilter: sharedKeyword, alertCategory: sharedCategory, sourceCategoryFilter: sharedSourceCategory, viewHandle, onClearHandle }) => {
+const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateRange, searchQuery: sharedSearch, keywordFilter: sharedKeyword, riskFilter: sharedRisk = 'all', viralityFilter: sharedVirality = 'all', alertCategory: sharedCategory, sourceCategoryFilter: sharedSourceCategory, viewHandle, onClearHandle }) => {
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -60,7 +60,8 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
     const [platformFilter, setPlatformFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('sent_to_intermediary');
     const [keywordFilter, setKeywordFilter] = useState('all');
-    const [alertCategory, setAlertCategory] = useState('all');
+    const [riskFilter, setRiskFilter] = useState('all');
+    const [viralityFilter, setViralityFilter] = useState('all');
     const [sourceCategoryFilter, setSourceCategoryFilter] = useState('all');
 
     // Expanded closing remarks tracker
@@ -93,7 +94,26 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
     }, [sharedKeyword]);
 
     useEffect(() => {
-        if (sharedCategory) setAlertCategory(sharedCategory);
+        if (sharedRisk) setRiskFilter(sharedRisk);
+    }, [sharedRisk]);
+
+    useEffect(() => {
+        if (sharedVirality) setViralityFilter(sharedVirality);
+    }, [sharedVirality]);
+
+    useEffect(() => {
+        // Legacy single-dimension category prop (risk level or viral_*)
+        if (!sharedCategory || sharedCategory === 'all') return;
+        if (['high', 'medium', 'low', 'critical'].includes(sharedCategory)) {
+            setRiskFilter(sharedCategory === 'critical' ? 'high' : sharedCategory);
+            setViralityFilter('all');
+        } else if (String(sharedCategory).startsWith('viral_')) {
+            setViralityFilter(String(sharedCategory).replace('viral_', ''));
+            setRiskFilter('all');
+        } else if (sharedCategory === 'viral') {
+            setViralityFilter('high');
+            setRiskFilter('all');
+        }
     }, [sharedCategory]);
 
     useEffect(() => {
@@ -122,7 +142,7 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
     // Reset to page 1 when any filter changes
     useEffect(() => {
         setCurrentPage(1);
-    }, [platformFilter, statusFilter, debouncedSearch, dateRange, keywordFilter, alertCategory, sourceCategoryFilter, viewHandle]);
+    }, [platformFilter, statusFilter, debouncedSearch, dateRange, keywordFilter, riskFilter, viralityFilter, sourceCategoryFilter, viewHandle]);
 
     // Profile Details
     const [selectedProfile, setSelectedProfile] = useState(null);
@@ -338,15 +358,11 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
                 endDate: dateRange.to ? endOfDay(dateRange.to).toISOString() : undefined
             };
 
-            // Map alertCategory to risk_level or alert_type
-            if (alertCategory !== 'all') {
-                if (alertCategory === 'viral') {
-                    params.alert_type = 'velocity';
-                } else if (alertCategory === 'risk') {
-                    params.alert_type = 'risk';
-                } else if (['high', 'medium', 'low', 'critical'].includes(alertCategory)) {
-                    params.risk_level = alertCategory;
-                }
+            // Risk / Virality filters (mutually exclusive)
+            if (riskFilter !== 'all') {
+                params.risk_level = riskFilter;
+            } else if (viralityFilter !== 'all') {
+                params.virality_level = viralityFilter;
             }
 
             const response = await api.get('/reports', { params });
@@ -365,7 +381,7 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
         } finally {
             setLoading(false);
         }
-    }, [platformFilter, statusFilter, debouncedSearch, dateRange, keywordFilter, alertCategory, sourceCategoryFilter, viewHandle, currentPage]);
+    }, [platformFilter, statusFilter, debouncedSearch, dateRange, keywordFilter, riskFilter, viralityFilter, sourceCategoryFilter, viewHandle, currentPage]);
 
     useEffect(() => {
         fetchReports();
@@ -378,7 +394,8 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
         statusFilter !== 'sent_to_intermediary' ||
         (searchQuery || '').trim() !== '' ||
         keywordFilter !== 'all' ||
-        alertCategory !== 'all' ||
+        riskFilter !== 'all' ||
+        viralityFilter !== 'all' ||
         sourceCategoryFilter !== 'all';
 
     const clearFilters = () => {
@@ -387,7 +404,8 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
         setStatusFilter('sent_to_intermediary');
         setSearchQuery('');
         setKeywordFilter('all');
-        setAlertCategory('all');
+        setRiskFilter('all');
+        setViralityFilter('all');
         setSourceCategoryFilter('all');
         setCurrentPage(1);
         if (typeof onClearHandle === 'function') {

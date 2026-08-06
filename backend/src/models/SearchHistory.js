@@ -37,7 +37,7 @@ const searchHistorySchema = new mongoose.Schema({
   },
   platform: {
     type: String,
-    enum: ['all', 'x', 'youtube', 'reddit', 'facebook', 'instagram'],
+    enum: ['all', 'x', 'youtube', 'facebook', 'instagram'],
     required: true
   },
   total_results: {
