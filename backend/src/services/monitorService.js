@@ -18,6 +18,13 @@ const { archiveContentMedia, archiveTwitterMedia, archiveFacebookMedia } = requi
 const { enqueueMediaLocationExtraction } = require('./mediaLocationService');
 const logger = require('../utils/logger');
 const { getAnalyzableContentText, hasAnalyzableContent } = require('../utils/contentText');
+const {
+  extractInstagramEngagement,
+  extractYouTubeEngagement,
+  engagementFromXMetricsBag,
+  mergeEngagement,
+  buildEngagement
+} = require('../utils/engagementMetrics');
 const isStrictAnalysisMode = () => String(process.env.ANALYSIS_STRICT_LLM_MODE || 'true').toLowerCase() === 'true';
 const shouldSkipContentAnalysis = (content) => !hasAnalyzableContent(content);
 
@@ -595,29 +602,25 @@ const monitorYoutubeSource = async (source, apiKey) => {
 
         const snippet = videoData.snippet;
         const stats = videoData.statistics || {};
-        const engagement = {
-          views: parseInt(stats.viewCount || 0) || 0,
-          likes: parseInt(stats.likeCount || 0) || 0,
-          comments: parseInt(stats.commentCount || 0) || 0,
-          retweets: 0
-        };
+        const engagement = extractYouTubeEngagement(stats);
 
         const existing = await Content.findOne({ platform: 'youtube', content_id: videoId });
 
         if (existing) {
           // Refresh engagement so velocity can still see a video that goes viral
           // after we first stored it. Media/archive state is left untouched.
+          const merged = mergeEngagement(existing.engagement, engagement);
           const updatedDoc = await Content.findOneAndUpdate(
             { id: existing.id },
             {
-              $set: { engagement },
+              $set: { engagement: merged },
               $push: {
                 engagement_history: {
                   $each: [{
                     timestamp: new Date(),
-                    views: engagement.views,
-                    likes: engagement.likes,
-                    comments: engagement.comments
+                    ...(merged.views !== undefined ? { views: merged.views } : {}),
+                    ...(merged.likes !== undefined ? { likes: merged.likes } : {}),
+                    ...(merged.comments !== undefined ? { comments: merged.comments } : {})
                   }],
                   $slice: -50
                 }
@@ -873,11 +876,17 @@ const monitorXSource = async (source) => {
             (tweet.is_repost !== undefined && existing.is_repost !== tweet.is_repost);
 
           if (shouldUpdate || true) { // Always update metrics if found
-            const newEngagement = {
-              likes: parseInt(tweet.metrics?.like || tweet.metrics?.likes) || 0,
-              retweets: parseInt(tweet.metrics?.retweet || tweet.metrics?.retweets) || 0,
-              replies: parseInt(tweet.metrics?.reply || tweet.metrics?.replies) || 0,
-              views: parseInt(tweet.metrics?.view || tweet.metrics?.views) || 0
+            const newEngagement = mergeEngagement(
+              existing.engagement,
+              engagementFromXMetricsBag(tweet.metrics || {})
+            );
+
+            const historyPoint = {
+              timestamp: new Date(),
+              ...(newEngagement.views !== undefined ? { views: newEngagement.views } : {}),
+              ...(newEngagement.likes !== undefined ? { likes: newEngagement.likes } : {}),
+              ...(newEngagement.comments !== undefined ? { comments: newEngagement.comments } : {}),
+              ...(newEngagement.retweets !== undefined ? { retweets: newEngagement.retweets } : {})
             };
 
             const updatedDoc = await Content.findOneAndUpdate(
@@ -910,10 +919,7 @@ const monitorXSource = async (source) => {
                 },
                 $push: {
                   engagement_history: {
-                    $each: [{
-                      timestamp: new Date(),
-                      ...newEngagement
-                    }],
+                    $each: [historyPoint],
                     $slice: -50
                   }
                 }
@@ -964,12 +970,7 @@ const monitorXSource = async (source) => {
           author_handle: source.identifier,
           published_at: new Date(tweet.created_at),
           location: tweet.location || null,
-          engagement: {
-            likes: parseInt(tweet.metrics.like) || 0,
-            retweets: parseInt(tweet.metrics.retweet) || 0,
-            replies: parseInt(tweet.metrics.reply) || 0,
-            views: parseInt(tweet.metrics.views) || 0
-          }
+          engagement: engagementFromXMetricsBag(tweet.metrics || {})
         });
 
         await content.save();
@@ -1480,23 +1481,8 @@ const monitorInstagramSource = async (source, accessToken) => {
           }
         }
 
-        // Engagement extraction with deep fallbacks
-        const likes = Number(pickFirst(post.edge_media_preview_like?.count, post.edge_liked_by?.count, post.likes?.count, post.like_count, 0)) || 0;
-        const comments = Number(pickFirst(post.edge_media_to_comment?.count, post.comment_count, post.comments?.count, 0)) || 0;
-        const views = Number(
-          pickFirst(
-            post.video_view_count,
-            post.view_count,
-            post.play_count,
-            post.video_play_count,
-            post.clips_view_count,
-            post.media?.view_count,
-            post.statistics?.view_count,
-            post.reel_play_count,
-            post.reel_view_count,
-            0
-          )
-        ) || 0;
+        // Engagement extraction — only fields actually present on the API node
+        const extractedEngagement = extractInstagramEngagement(post);
 
         if (content) {
           const existingMedia = Array.isArray(content.media) ? content.media : [];
@@ -1509,7 +1495,7 @@ const monitorInstagramSource = async (source, accessToken) => {
           const needsArchive = hasS3Gaps(mediaForSave);
 
           // ── UPDATE existing content (metrics refresh, like X monitoring) ──
-          const newEngagement = { likes, comments, views, retweets: 0 };
+          const newEngagement = mergeEngagement(content.engagement, extractedEngagement);
 
           const updatedDoc = await Content.findOneAndUpdate(
             { id: content.id },
@@ -1527,9 +1513,9 @@ const monitorInstagramSource = async (source, accessToken) => {
                 engagement_history: {
                   $each: [{
                     timestamp: new Date(),
-                    likes,
-                    comments,
-                    views
+                    ...(newEngagement.likes !== undefined ? { likes: newEngagement.likes } : {}),
+                    ...(newEngagement.comments !== undefined ? { comments: newEngagement.comments } : {}),
+                    ...(newEngagement.views !== undefined ? { views: newEngagement.views } : {})
                   }],
                   $slice: -50 // Keep last 50 history entries
                 }
@@ -1578,12 +1564,7 @@ const monitorInstagramSource = async (source, accessToken) => {
             author_handle: handle || source.identifier,
             published_at: createdAt,
             location: location || null,
-            engagement: {
-              likes,
-              comments,
-              views,
-              retweets: 0
-            }
+            engagement: extractedEngagement
           });
           await content.save();
           newContent.push(content);
@@ -1692,12 +1673,7 @@ const monitorInstagramSource = async (source, accessToken) => {
             author: profile?.fullName || source.display_name,
             author_handle: handle || source.identifier,
             published_at: createdAt,
-            engagement: {
-              likes: 0,
-              comments: 0,
-              views: Number(pickFirst(story.view_count, story.viewer_count, story.seen_count, 0)) || 0,
-              retweets: 0
-            }
+            engagement: extractInstagramEngagement(story)
           });
           await storyContent.save();
           newContent.push(storyContent);
@@ -2150,19 +2126,20 @@ const monitorFacebookSource = async (source, accessToken, options = {}) => {
         const incomingMedia = normalizeFacebookMediaItems(post.media);
 
         if (content) {
-          // Update existing content engagement
+          // Update existing content engagement — sparse, semantically correct fields
+          const extracted = buildEngagement({
+            likes: post.engagement?.likes,
+            comments: post.engagement?.comments,
+            shares: post.engagement?.shares,
+            views: post.engagement?.views
+          });
           if (!Array.isArray(content.engagement_history)) content.engagement_history = [];
-          content.engagement = {
-            likes: post.engagement.likes,
-            comments: post.engagement.comments,
-            views: post.engagement.views,
-            retweets: post.engagement.shares // mapping shares to retweets
-          };
+          content.engagement = mergeEngagement(content.engagement, extracted);
           content.engagement_history.push({
             timestamp: new Date(),
-            likes: post.engagement.likes,
-            comments: post.engagement.comments,
-            views: post.engagement.views
+            ...(content.engagement.likes !== undefined ? { likes: content.engagement.likes } : {}),
+            ...(content.engagement.comments !== undefined ? { comments: content.engagement.comments } : {}),
+            ...(content.engagement.views !== undefined ? { views: content.engagement.views } : {})
           });
 
           if (mediaNeedsRefresh(content.media, incomingMedia)) {
@@ -2208,12 +2185,12 @@ const monitorFacebookSource = async (source, accessToken, options = {}) => {
             published_at: toJsDate(post.created_at),
             location: post.location || null,
             raw_data: post,
-            engagement: {
-              likes: post.engagement.likes,
-              comments: post.engagement.comments,
-              views: post.engagement.views,
-              retweets: post.engagement.shares
-            }
+            engagement: buildEngagement({
+              likes: post.engagement?.likes,
+              comments: post.engagement?.comments,
+              shares: post.engagement?.shares,
+              views: post.engagement?.views
+            })
           });
           await content.save();
           newContent.push(content);

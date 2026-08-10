@@ -1554,13 +1554,14 @@ const normalizeTweet = (tweetResult, fallbackHandle = 'unknown') => {
         quoted_content: quotedContent,
         location,
         raw_data: tweetResult,
-        metrics: {
-            like: (targetLegacy.favorite_count || 0).toString(),
-            retweet: (targetLegacy.retweet_count || 0).toString(),
-            reply: (targetLegacy.reply_count || 0).toString(),
-            views: (tweet.views?.count || 0).toString(),
-            quote: (targetLegacy.quote_count || 0).toString()
-        }
+        // Sparse metrics — only keys actually present on the API payload (no invented 0s).
+        metrics: (() => {
+            const { extractXEngagement, xEngagementToMetricsBag } = require('../utils/engagementMetrics');
+            return xEngagementToMetricsBag(extractXEngagement({
+                legacy: targetLegacy,
+                views: tweet.views
+            }));
+        })()
     };
 };
 

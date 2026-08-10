@@ -93,13 +93,12 @@ const fetchUserTweets = async (handle, limit = 10) => {
                 url: `https://x.com/${cleanHandle}/status/${tweet.id}`,
                 created_at: tweet.created_at,
                 media: mediaUrl,
-                metrics: {
-                    like: (tweet.public_metrics?.like_count || 0).toString(),
-                    retweet: (tweet.public_metrics?.retweet_count || 0).toString(),
-                    reply: (tweet.public_metrics?.reply_count || 0).toString(),
-                    views: (tweet.public_metrics?.impression_count || 0).toString(),
-                    quote: (tweet.public_metrics?.quote_count || 0).toString()
-                }
+                metrics: (() => {
+                    const { extractXEngagement, xEngagementToMetricsBag } = require('../utils/engagementMetrics');
+                    return xEngagementToMetricsBag(extractXEngagement({
+                        publicMetrics: tweet.public_metrics
+                    }));
+                })()
             });
         }
 

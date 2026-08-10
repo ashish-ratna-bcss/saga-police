@@ -274,11 +274,10 @@ router.post('/channels/:id/sync', mockUser, async (req, res) => {
                     threat_intent: intent || 'Neutral',
                     threat_reasons: reasons || [],
                     risk_factors: evidence,
-                    engagement: {
-                        views: video.statistics.viewCount,
-                        likes: video.statistics.likeCount,
-                        comments: video.statistics.commentCount
-                    }
+                    engagement: (() => {
+                        const { extractYouTubeEngagement } = require('../utils/engagementMetrics');
+                        return extractYouTubeEngagement(video.statistics || {});
+                    })()
                 });
                 await newContent.save();
                 newCount++;

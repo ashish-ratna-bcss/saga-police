@@ -285,11 +285,17 @@ const contentSchema = new mongoose.Schema({
     default: 'neutral'
   },
 
+  // Sparse platform engagement. Only set fields the API actually returned.
+  // Missing key = unavailable (do NOT invent 0). Explicit 0 from the API is kept.
   engagement: {
-    views: { type: Number, default: 0 },
-    likes: { type: Number, default: 0 },
-    comments: { type: Number, default: 0 },
-    retweets: { type: Number, default: 0 }
+    views: { type: Number },       // X impressions / YT+FB+IG views / IG plays
+    likes: { type: Number },
+    comments: { type: Number },    // FB / IG / YT
+    replies: { type: Number },     // X
+    retweets: { type: Number },    // X reposts (legacy FB shares may still live here)
+    shares: { type: Number },      // FB / IG
+    quotes: { type: Number },      // X
+    saves: { type: Number }        // IG
   },
   retweet_network: {
     last_synced_at: { type: Date, default: null },

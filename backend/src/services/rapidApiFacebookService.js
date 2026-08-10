@@ -465,12 +465,10 @@ const fetchPagePosts = async (pageIdOrUrl, limit = 10, pageName = null, options 
                 // Deduplicate
                 return [...new Set(m.filter(Boolean))];
             })(),
-            engagement: {
-                likes: post.likes || post.reactions?.likes || post.reactions_count || post.reaction_count || 0,
-                comments: post.comments || post.comments_count || post.comment_count || 0,
-                shares: post.shares || post.shares_count || post.share_count || post.reshare_count || 0,
-                views: post.views || post.view_count || 0
-            },
+            engagement: (() => {
+                const { extractFacebookEngagement } = require('../utils/engagementMetrics');
+                return extractFacebookEngagement(post);
+            })(),
             location: (() => {
                 const p = post.place || post.location || post.checkin;
                 if (!p || typeof p !== 'object') return null;
@@ -688,12 +686,11 @@ const normalizeRawPost = (post) => {
         author_url: authorUrl,
         url: post.url || post.post_url || `https://facebook.com/${post.post_id || post.id}`,
         location,
-        metrics: {
-            likes: post.reactions_count || post.reaction_count || post.likes || 0,
-            comments: post.comments_count || post.comment_count || post.comments || 0,
-            shares: post.reshare_count || post.shares_count || post.shares || 0,
-            views: post.views || post.view_count || 0
-        },
+        metrics: (() => {
+            const { extractFacebookEngagement } = require('../utils/engagementMetrics');
+            // Keep search normalizer key name `metrics` for callers, but use sparse real fields.
+            return extractFacebookEngagement(post);
+        })(),
         platform: 'facebook'
     };
 };

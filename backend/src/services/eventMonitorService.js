@@ -8,6 +8,10 @@ const rapidApiInstagramService = require('./rapidApiInstagramService');
 const { archiveTwitterMedia, archiveContentMedia } = require('./contentS3Service');
 const { scoreContentDoc } = require('../utils/relevanceScorer');
 const { classifyOneAsync } = require('./llmRelevanceSweeper');
+const {
+  engagementFromXMetricsBag,
+  buildEngagement
+} = require('../utils/engagementMetrics');
 const logger = require('../utils/logger');
 
 const normalizeText = (text) => String(text || '').toLowerCase();
@@ -319,12 +323,7 @@ const scanEventOnce = async ({ event, settings }) => {
             author: t.author || t.author_handle || 'Unknown',
             author_handle: t.author_handle || 'unknown',
             published_at: t.created_at ? new Date(t.created_at) : new Date(),
-            engagement: {
-              views: Number(t.metrics?.views || 0),
-              likes: Number(t.metrics?.likes || 0),
-              retweets: Number(t.metrics?.retweets || 0),
-              comments: Number(t.metrics?.reply || 0)
-            },
+            engagement: engagementFromXMetricsBag(t.metrics || {}),
             media: t.media || [],
             quoted_content: t.quoted_content,
             raw_data: t.raw_data,
@@ -448,12 +447,12 @@ const scanEventOnce = async ({ event, settings }) => {
             author_handle: p.author_handle || 'unknown',
             author_avatar: p.author_avatar || '',
             published_at: p.created_at ? new Date(p.created_at) : new Date(),
-            engagement: {
-              views: Number(p.metrics?.views || 0),
-              likes: Number(p.metrics?.likes || 0),
-              comments: Number(p.metrics?.comments || 0),
-              retweets: Number(p.metrics?.shares || 0)
-            },
+            engagement: buildEngagement({
+              views: p.metrics?.views,
+              likes: p.metrics?.likes,
+              comments: p.metrics?.comments,
+              shares: p.metrics?.shares
+            }),
             media: normalizedMedia,
             raw_data: p
           }
@@ -509,11 +508,13 @@ const scanEventOnce = async ({ event, settings }) => {
             author: p.author || 'Unknown',
             author_handle: p.author_handle || 'unknown',
             published_at: p.created_at ? new Date(p.created_at) : new Date(),
-            engagement: {
-              views: Number(p.metrics?.views || 0),
-              likes: Number(p.metrics?.likes || 0),
-              comments: Number(p.metrics?.comments || 0)
-            },
+            engagement: buildEngagement({
+              views: p.metrics?.views,
+              likes: p.metrics?.likes,
+              comments: p.metrics?.comments,
+              shares: p.metrics?.shares,
+              saves: p.metrics?.saves
+            }),
             media: p.media || []
           }
         });

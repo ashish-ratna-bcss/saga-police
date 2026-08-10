@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle, Repeat, Heart, BarChart2, MoreHorizontal, Share, CheckCircle2, ThumbsUp, Eye, ExternalLink, MessageSquare, Zap, Info, X, AlertTriangle, Shield, ShieldCheck, Download, Loader2, FileText, Share2, Check, XCircle, AlertCircle, FilePlus, ChevronDown, ChevronRight, Image, Video, Pause, Play, Plus, Twitter, Instagram, Facebook, Users, Trash2, Clock, Globe, Network, UserPlus, CalendarDays, Search, Tags, MapPin, HelpCircle } from 'lucide-react';
+import { MessageCircle, Repeat, Heart, BarChart2, MoreHorizontal, Share, CheckCircle2, ThumbsUp, Eye, ExternalLink, MessageSquare, Zap, Info, X, AlertTriangle, Shield, ShieldCheck, Download, Loader2, FileText, Share2, Check, XCircle, AlertCircle, FilePlus, ChevronDown, ChevronRight, Image, Video, Pause, Play, Plus, Twitter, Instagram, Facebook, Users, Trash2, Clock, Globe, Network, UserPlus, CalendarDays, Search, Tags, MapPin, HelpCircle, Bookmark, Quote } from 'lucide-react';
 import { formatDistanceToNow, format, startOfDay, startOfWeek, endOfDay } from 'date-fns';
 
 import { ScrollArea } from './ui/scroll-area';
@@ -815,12 +815,97 @@ export const DownloadMenu = ({
     );
 };
 
-// Helper for formatting numbers (e.g., 1.2k)
+// Helper for formatting numbers (e.g., 1.2k). Caller must pass a real metric.
 const formatMetric = (num) => {
-    if (!num) return '0';
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-    return num.toString();
+    const n = Number(num);
+    if (!Number.isFinite(n)) return '';
+    if (n === 0) return '0';
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return String(n);
+};
+
+const isPresentMetric = (value) =>
+    value !== undefined && value !== null && value !== '' && Number.isFinite(Number(value));
+
+/**
+ * Platform-aware engagement metrics for Alert cards.
+ * Only includes fields that exist on Content.engagement (real API data).
+ * Legacy Facebook shares that were stored as retweets are labeled Shares.
+ */
+const buildPlatformEngagementItems = (platform, engagement = {}) => {
+    const e = engagement && typeof engagement === 'object' ? engagement : {};
+    const p = String(platform || '').trim().toLowerCase();
+    const normalized = p === 'twitter' ? 'x' : p;
+
+    const items = [];
+    const push = (key, label, value, Icon, hoverClass) => {
+        if (!isPresentMetric(value)) return;
+        items.push({ key, label, value: Number(value), Icon, hoverClass });
+    };
+
+    if (normalized === 'youtube') {
+        push('views', 'Views', e.views, Eye, 'hover:text-foreground');
+        push('likes', 'Likes', e.likes, ThumbsUp, 'hover:text-blue-500');
+        push('comments', 'Comments', e.comments, MessageSquare, 'hover:text-blue-500');
+        return items;
+    }
+
+    if (normalized === 'facebook') {
+        // Historical FB shares were persisted as engagement.retweets — display as Shares only.
+        const shares = isPresentMetric(e.shares) ? e.shares : e.retweets;
+        push('views', 'Views', e.views, Eye, 'hover:text-foreground');
+        push('likes', 'Likes', e.likes, ThumbsUp, 'hover:text-blue-500');
+        push('comments', 'Comments', e.comments, MessageCircle, 'hover:text-blue-500');
+        push('shares', 'Shares', shares, Share2, 'hover:text-emerald-500');
+        return items;
+    }
+
+    if (normalized === 'instagram') {
+        push('views', 'Plays', e.views, Play, 'hover:text-foreground');
+        push('likes', 'Likes', e.likes, Heart, 'hover:text-pink-600');
+        push('comments', 'Comments', e.comments, MessageCircle, 'hover:text-blue-500');
+        push('shares', 'Shares', e.shares, Share2, 'hover:text-emerald-500');
+        push('saves', 'Saves', e.saves, Bookmark, 'hover:text-amber-500');
+        return items;
+    }
+
+    // X / default Twitter terminology
+    push('views', 'Views', e.views, Eye, 'hover:text-foreground');
+    push('likes', 'Likes', e.likes, Heart, 'hover:text-pink-600');
+    push('replies', 'Replies', e.replies, MessageCircle, 'hover:text-blue-500');
+    push('retweets', 'Reposts', e.retweets, Repeat, 'hover:text-emerald-500');
+    push('quotes', 'Quotes', e.quotes, Quote, 'hover:text-blue-500');
+    return items;
+};
+
+const PlatformEngagementBar = ({ platform, engagement, className = '' }) => {
+    const items = buildPlatformEngagementItems(platform, engagement);
+    if (items.length === 0) return null;
+
+    return (
+        <div className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 py-1.5 px-1 ${className}`}>
+            {items.map(({ key, label, value, Icon, hoverClass }) => (
+                <div
+                    key={key}
+                    className={`flex items-center gap-1 text-muted-foreground ${hoverClass || ''}`.trim()}
+                    title={label}
+                >
+                    <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span className="text-[11px] font-medium tabular-nums text-foreground">
+                        {formatMetric(value)}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">{label}</span>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+const formatEngagementForShare = (platform, engagement) => {
+    const items = buildPlatformEngagementItems(platform, engagement);
+    if (items.length === 0) return '';
+    return items.map((m) => `${formatMetric(m.value)} ${m.label}`).join(' · ');
 };
 
 // Helper for highlighting text matches
@@ -3245,8 +3330,7 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
         const handle = content?.is_repost ? (content.original_author) : (content?.author_handle || source?.handle || 'unknown');
         const description = content?.text || alert.description || '';
         const link = cardOpenUrl || '';
-        const views = metrics.views || 0;
-        const reposts = metrics.retweets || 0;
+        const engagementLine = formatEngagementForShare(alert?.platform || content?.platform, metrics);
 
         // Extract detected content
         let riskInfo = '';
@@ -3260,7 +3344,7 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
 
         // Construct message - simplified format without media links
         return {
-            text: `${greeting} sir,\n\n*Posted by:* ${name} (@${handle.replace('@', '')})\n\n*Description:*\n${description}${riskInfo}\n\n*Tweet URL:* ${link}\n\n*Engagement:*\nViews: ${views} | Reposts: ${reposts}`
+            text: `${greeting} sir,\n\n*Posted by:* ${name} (@${handle.replace('@', '')})\n\n*Description:*\n${description}${riskInfo}\n\n*Tweet URL:* ${link}${engagementLine ? `\n\n*Engagement:*\n${engagementLine}` : ''}`
         };
     };
 
@@ -4125,45 +4209,17 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                         </div>
                     )}
 
-                    {/* Metadata Line */}
+                    {/* Metadata Line — timestamps only; engagement is platform-aware below */}
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground py-2.5 border-y border-border/50">
                         <span>{timeStr}</span>
                         <span className="text-border">·</span>
                         <span>{dateStr}</span>
-                        <span className="text-border">·</span>
-                        <span className="font-semibold text-foreground">{formatMetric(metrics.views || 0)}</span>
-                        <span className="ml-0.5">Views</span>
                     </div>
 
-                    {/* Engagement Stats Bar */}
-                    <div className="flex justify-between items-center py-1.5 px-1">
-                        <div className="group flex items-center gap-1 cursor-pointer text-muted-foreground hover:text-blue-500 transition-colors p-1.5">
-                            <div className="p-1 rounded-full group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-colors">
-                                <MessageCircle className="h-4 w-4" />
-                            </div>
-                            <span className="text-[11px] group-hover:text-blue-500">{metrics.replies > 0 ? formatMetric(metrics.replies) : ''}</span>
-                        </div>
-
-                        <div className="group flex items-center gap-1 cursor-pointer text-muted-foreground hover:text-emerald-500 transition-colors p-1.5">
-                            <div className="p-1 rounded-full group-hover:bg-emerald-50 dark:group-hover:bg-emerald-900/20 transition-colors">
-                                <Repeat className="h-4 w-4" />
-                            </div>
-                            <span className="text-[11px] group-hover:text-emerald-500">{metrics.retweets > 0 ? formatMetric(metrics.retweets) : ''}</span>
-                        </div>
-
-                        <div className="group flex items-center gap-1 cursor-pointer text-muted-foreground hover:text-pink-600 transition-colors p-1.5">
-                            <div className="p-1 rounded-full group-hover:bg-pink-50 dark:group-hover:bg-pink-900/20 transition-colors">
-                                <Heart className="h-4 w-4" />
-                            </div>
-                            <span className="text-[11px] group-hover:text-pink-600">{metrics.likes > 0 ? formatMetric(metrics.likes) : ''}</span>
-                        </div>
-
-                        <div className="group flex items-center gap-1 cursor-pointer text-muted-foreground hover:text-blue-500 transition-colors p-1.5">
-                            <div className="p-1 rounded-full group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-colors">
-                                <Share className="h-4 w-4" />
-                            </div>
-                        </div>
-                    </div>
+                    <PlatformEngagementBar
+                        platform={alert?.platform || content?.platform}
+                        engagement={metrics}
+                    />
                 </div>{/* End of p-4 pl-5 content wrapper */}
 
                 <WhatsAppShareModal
@@ -4391,7 +4447,7 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
         const name = source?.name || alert.author || 'Unknown';
         const description = content?.text || alert.description || '';
         const link = mediaUrl || alert.content_url || '';
-        const views = metrics.views || 0;
+        const engagementLine = formatEngagementForShare('youtube', metrics);
 
         // Extract detected content
         let riskInfo = '';
@@ -4405,7 +4461,7 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
 
         // Construct message for YouTube
         return {
-            text: `${greeting} sir,\n\nThis was posted by ${name} YouTube channel\n\nDescription: ${description}${riskInfo}\n\nLink: ${link}\n\nViews:${views}`
+            text: `${greeting} sir,\n\nThis was posted by ${name} YouTube channel\n\nDescription: ${description}${riskInfo}\n\nLink: ${link}${engagementLine ? `\n\n${engagementLine}` : ''}`
         };
     };
 
@@ -5109,10 +5165,12 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
 
                         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-2">
                             <span className="font-medium text-foreground/80 hover:underline"><HighlightText text={source?.name || alert.author} highlight={searchQuery} /></span>
-                            <span className="text-border">•</span>
-                            <span>{formatMetric(metrics.views || 0)} views</span>
-                            <span className="text-border">•</span>
-                            <span>{dateStr || '—'}</span>
+                            {dateStr && (
+                                <>
+                                    <span className="text-border">•</span>
+                                    <span>{dateStr}</span>
+                                </>
+                            )}
                         </div>
 
                         <div className={`text-xs text-muted-foreground mb-2 ${!isExpanded ? 'line-clamp-3' : ''} leading-relaxed`}>
@@ -5150,9 +5208,6 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
                             {timeStr && <span>{timeStr}</span>}
                             {timeStr && dateStr && <span className="text-border">·</span>}
                             {dateStr && <span>{dateStr}</span>}
-                            {(timeStr || dateStr) && <span className="text-border">·</span>}
-                            <span className="font-semibold text-foreground">{formatMetric(metrics.views || 0)}</span>
-                            <span className="ml-0.5">Views</span>
                         </div>
 
                         {/* Risk Factors */}
@@ -5183,7 +5238,7 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
                                         </span>
                                     )}
                                     {highlights.length > 0 && (
-                                        <div className="flex items-center gap-1">
+                                        <div className="flex items-center gap-2">
                                             <span className="text-[10px] text-muted-foreground">Flagged:</span>
                                             {highlights.slice(0, 2).map((phrase, idx) => (
                                                 <span key={idx} className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-1.5 py-0.5 rounded-full text-[10px] font-medium">
@@ -5209,18 +5264,9 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
                             </div>
                         )}
 
-                        <div className="flex items-center justify-between text-muted-foreground pt-2 border-t border-border/50">
-                            <div className="flex gap-4">
-                                <div className="flex items-center gap-1 text-[11px]">
-                                    <ThumbsUp className="h-3 w-3" />
-                                    <span>{formatMetric(metrics.likes || 0)}</span>
-                                </div>
-                                <div className="flex items-center gap-1 text-[11px]">
-                                    <MessageSquare className="h-3 w-3" />
-                                    <span>{formatMetric(metrics.comments || 0)}</span>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-1 text-[11px] font-medium">
+                        <div className="flex items-center justify-between gap-3 pt-2 border-t border-border/50">
+                            <PlatformEngagementBar platform="youtube" engagement={metrics} className="py-0 px-0" />
+                            <div className="flex items-center gap-1 text-[11px] font-medium shrink-0 text-muted-foreground">
                                 <AlertTriangleIcon level={alert.risk_level} />
                                 <span className={`${alert.risk_level === 'high' || alert.risk_level === 'critical' ? 'text-red-500' : alert.risk_level === 'low' ? 'text-emerald-500' : 'text-amber-500'}`}>Risk: {content?.risk_score || alert.threat_details?.risk_score || 0}%</span>
                             </div>
