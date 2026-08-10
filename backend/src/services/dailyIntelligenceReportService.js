@@ -6,6 +6,7 @@ const Content = require('../models/Content');
 const POI = require('../models/POI');
 const Event = require('../models/Event');
 const Keyword = require('../models/Keyword');
+const logger = require('../utils/logger');
 
 const getLast24HoursWindow = () => {
     const end = new Date();
@@ -591,7 +592,7 @@ const generateDailyIntelligenceReport = async (targetDate = null) => {
         return report;
 
     } catch (error) {
-        (() => {})('Error generating daily intelligence report:', error);
+        logger.error('Error generating daily intelligence report:', error);
         
         if (existing) {
             existing.status = 'failed';

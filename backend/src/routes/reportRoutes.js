@@ -1,4 +1,5 @@
 const express = require('express');
+const logger = require('../utils/logger');
 const router = express.Router();
 const reportService = require('../services/reportService');
 const { renderReportPdf } = require('../services/reportPdfService');
@@ -121,7 +122,7 @@ router.post('/:id/pdf', async (req, res) => {
         res.setHeader('Content-Length', pdf.length);
         return res.end(pdf);
     } catch (error) {
-        (() => {})('PDF generation failed:', error);
+        logger.error('PDF generation failed:', error);
         return res.status(500).json({ error: error.message || 'PDF generation failed' });
     }
 });

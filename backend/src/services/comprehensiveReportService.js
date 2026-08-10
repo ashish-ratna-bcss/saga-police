@@ -7,6 +7,7 @@ const Content = require('../models/Content');
 const POI = require('../models/POI');
 const Event = require('../models/Event');
 const Report = require('../models/Report');
+const logger = require('../utils/logger');
 
 const getDateRange = (targetDate) => {
   const end = targetDate ? new Date(targetDate) : new Date();
@@ -502,7 +503,7 @@ const generateComprehensiveReport = async (targetDate = null) => {
     await report.save();
     return report;
   } catch (error) {
-    (() => {})('Error generating comprehensive report:', error);
+    logger.error('Error generating comprehensive report:', error);
     if (existing) { existing.status = 'failed'; await existing.save(); }
     throw error;
   }
@@ -644,7 +645,7 @@ const generateLiveSoceyeReport = async (windowHours = 24, options = {}) => {
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
     } catch (err) {
-      (() => {})('[soceye-snapshot] persist failed:', err.message);
+      logger.error('[soceye-snapshot] persist failed:', err.message);
     }
   }
 

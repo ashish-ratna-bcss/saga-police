@@ -1,4 +1,5 @@
 const translate = require('google-translate-api-x');
+const logger = require('../utils/logger');
 
 /**
  * Service to handle text translation using Google Translate API.
@@ -17,7 +18,7 @@ class TranslationService {
         }
 
         try {
-            (() => {})(`[TranslationService] Translating to ${target}...`);
+            logger.info(`[TranslationService] Translating to ${target}...`);
 
             // Add a timeout to prevent hanging the backend
             const translatePromise = translate(text, { to: target, from: source });
@@ -33,7 +34,7 @@ class TranslationService {
 
             throw new Error('Empty response from Google Translate');
         } catch (error) {
-            (() => {})('[TranslationService] Error:', error.message);
+            logger.error('[TranslationService] Error:', error.message);
             throw new Error(`Translation failed: ${error.message}`);
         }
     }

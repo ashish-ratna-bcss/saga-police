@@ -8,12 +8,14 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const { MEDIA_ANALYZER_URL } = require('../config/mediaAnalyzer');
+const logger = require('../utils/logger');
 
 const STORAGE_DIR = process.env.REPORT_STORAGE_DIR || path.join(__dirname, '..', '..', 'storage');
 const PUBLIC_BASE = (process.env.PUBLIC_BACKEND_URL || `http://localhost:${process.env.PORT || 8000}`).replace(/\/+$/, '');
 
 const STORIES_FOLDER = 'instagram-stories';
-const MEDIA_DOWNLOAD_URL = process.env.MEDIA_ANALYZER_URL || 'http://localhost:8005';
+const MEDIA_DOWNLOAD_URL = MEDIA_ANALYZER_URL;
 
 const downloadViaPythonService = async (mediaUrl) => {
   try {
@@ -84,10 +86,10 @@ const archiveStoryMedia = async (mediaUrl, storyPk, mediaType = 'image', suffix 
     const filename = `${storyPk}${suffix}.${ext}`;
 
     const result = await uploadStoryToS3(buffer, filename, contentType);
-    (() => {})(`[StoryS3] ✅ Archived story ${storyPk}${suffix} → ${result.key}`);
+    logger.info(`[StoryS3] ✅ Archived story ${storyPk}${suffix} → ${result.key}`);
     return result;
   } catch (error) {
-    (() => {})(`[StoryS3] ❌ Failed to archive story ${storyPk}${suffix}:`, error.message);
+    logger.error(`[StoryS3] ❌ Failed to archive story ${storyPk}${suffix}:`, error.message);
     return null;
   }
 };
@@ -96,11 +98,11 @@ const deleteStoryFromS3 = async (s3Key) => {
   if (!s3Key) return false;
   try {
     await fs.promises.unlink(path.join(STORAGE_DIR, s3Key));
-    (() => {})(`[StoryS3] 🗑️ Deleted ${s3Key}`);
+    logger.info(`[StoryS3] 🗑️ Deleted ${s3Key}`);
     return true;
   } catch (error) {
     if (error.code === 'ENOENT') return true;
-    (() => {})(`[StoryS3] ❌ Delete failed for ${s3Key}:`, error.message);
+    logger.error(`[StoryS3] ❌ Delete failed for ${s3Key}:`, error.message);
     return false;
   }
 };

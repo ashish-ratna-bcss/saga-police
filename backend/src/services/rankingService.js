@@ -1,4 +1,5 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const logger = require('../utils/logger');
 const SOURCE_WEIGHTS = {
     'Web': 1.0,
     'News': 1.0,
@@ -86,7 +87,7 @@ const rankAndProcess = async (rawResults, query, apiKey) => {
         candidates.sort((a, b) => (b.finalScore || b.baseScore) - (a.finalScore || a.baseScore));
 
     } catch (e) {
-        (() => {})("AI Ranking Error:", e.message);
+        logger.error("AI Ranking Error:", e.message);
         // Fallback: use base scores
     }
 

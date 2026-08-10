@@ -1,4 +1,5 @@
 const AuditLog = require('../models/AuditLog');
+const logger = require('../utils/logger');
 
 const createAuditLog = async (user, action, resourceType, resourceId = null, details = null) => {
   try {
@@ -12,7 +13,7 @@ const createAuditLog = async (user, action, resourceType, resourceId = null, det
       details: details || {}
     });
   } catch (error) {
-    (() => {})(`Failed to create audit log: ${error.message}`);
+    logger.error(`Failed to create audit log: ${error.message}`);
   }
 };
 

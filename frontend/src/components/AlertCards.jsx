@@ -1801,6 +1801,40 @@ const ImageWithFallback = ({ src, fallbackUrls = [], alt = '', className = '', p
     );
 };
 
+// Small circular profile/author avatar with a static icon fallback.
+// Routes every remote avatar through the shared backend media proxy (same
+// mechanism ImageWithFallback uses above) instead of hotlinking CDN hosts
+// like scontent.cdninstagram.com directly — direct hotlinking is what causes
+// the 403s, since Instagram's CDN rejects requests missing its own referer.
+// On failure we swap to a local icon once and never issue another request
+// for that avatar, so a dead/expired URL can't spam the console.
+const AvatarWithFallback = ({ src, alt = '', className = '' }) => {
+    const [failed, setFailed] = useState(false);
+    const proxiedSrc = React.useMemo(() => (src ? proxyMediaUrl(src) : ''), [src]);
+
+    React.useEffect(() => {
+        setFailed(false);
+    }, [proxiedSrc]);
+
+    if (failed || !proxiedSrc) {
+        return (
+            <div className={`${className} flex items-center justify-center bg-muted text-muted-foreground`}>
+                <Users className="h-1/2 w-1/2" />
+            </div>
+        );
+    }
+
+    return (
+        <img
+            src={proxiedSrc}
+            alt={alt}
+            className={className}
+            referrerPolicy="no-referrer"
+            onError={() => setFailed(true)}
+        />
+    );
+};
+
 // URL Card Component for link previews
 const URLCard = ({ card }) => {
     if (!card || !card.expanded_url) return null;
@@ -3828,16 +3862,13 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                                 className="flex-shrink-0 cursor-pointer"
                                 onClick={handleProfileClick}
                             >
-                                <div className="h-9 w-9 rounded-full bg-muted overflow-hidden ring-1 ring-border">
-                                    <img
-                                        src={content?.is_repost
-                                            ? (content.original_author_avatar || `https://unavatar.io/twitter/${content.original_author}`)
-                                            : (source?.profile_image_url || 'https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png')}
-                                        alt={content?.is_repost ? (content.original_author_name || content.original_author) : source?.name}
-                                        className="h-full w-full object-cover"
-                                        onError={(e) => { e.target.src = 'https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png'; }}
-                                    />
-                                </div>
+                                <AvatarWithFallback
+                                    src={content?.is_repost
+                                        ? (content.original_author_avatar || `https://unavatar.io/twitter/${content.original_author}`)
+                                        : (source?.profile_image_url || 'https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png')}
+                                    alt={content?.is_repost ? (content.original_author_name || content.original_author) : source?.name}
+                                    className="h-9 w-9 rounded-full bg-muted overflow-hidden ring-1 ring-border object-cover"
+                                />
                             </div>
                             <div className="flex flex-col min-w-0 flex-1 cursor-pointer" onClick={handleProfileClick}>
                                 <div className="flex items-center gap-1 group">
@@ -4001,10 +4032,10 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
 
                             <div className="p-3">
                                 <div className="flex items-center gap-1 mb-1">
-                                    <div className="h-5 w-5 rounded-full bg-muted overflow-hidden mr-1">
-                                        <img src={content.quoted_content.profile_image_url || 'https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png'}
-                                            className="h-full w-full object-cover" />
-                                    </div>
+                                    <AvatarWithFallback
+                                        src={content.quoted_content.profile_image_url || 'https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png'}
+                                        className="h-5 w-5 rounded-full bg-muted overflow-hidden mr-1 object-cover"
+                                    />
                                     <span className="font-semibold text-sm text-foreground truncate">{content.quoted_content.author_name}</span>
                                     <span className="text-xs text-muted-foreground truncate">@{content.quoted_content.author_handle}</span>
                                     {(() => {
@@ -4898,14 +4929,11 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
                     <div className="flex justify-between items-start gap-2 mb-3">
                         <div className="flex gap-2.5 min-w-0 flex-1">
                             <div className="flex-shrink-0">
-                                <div className="h-9 w-9 rounded-full bg-muted overflow-hidden ring-1 ring-border">
-                                    <img
-                                        src={channelAvatar}
-                                        alt={source?.name || alert.author || 'YouTube'}
-                                        className="h-full w-full object-cover"
-                                        onError={(e) => { e.target.src = 'https://www.gravatar.com/avatar/?d=mp'; }}
-                                    />
-                                </div>
+                                <AvatarWithFallback
+                                    src={channelAvatar}
+                                    alt={source?.name || alert.author || 'YouTube'}
+                                    className="h-9 w-9 rounded-full bg-muted overflow-hidden ring-1 ring-border object-cover"
+                                />
                             </div>
                             <div className="flex flex-col min-w-0 flex-1">
                                 <span className="font-semibold text-sm text-foreground leading-5 truncate">{source?.name || alert.author || 'YouTube'}</span>
@@ -4972,7 +5000,7 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
                                 src={youtubeNoCookieEmbedUrl}
                                 title={alert.title || 'YouTube video'}
                                 className="absolute inset-0 w-full h-full"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                 referrerPolicy="strict-origin-when-cross-origin"
                                 loading="lazy"
                                 allowFullScreen
@@ -4986,7 +5014,7 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
                                 src={youtubeEmbedUrl || mediaUrl}
                                 title={alert.title || 'YouTube video'}
                                 className="absolute inset-0 w-full h-full"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                 referrerPolicy="strict-origin-when-cross-origin"
                                 loading="lazy"
                                 allowFullScreen

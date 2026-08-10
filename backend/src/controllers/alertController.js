@@ -17,6 +17,7 @@ const cheerio = require('cheerio');
 const { v4: uuidv4 } = require('uuid');
 const Source = require('../models/Source');
 const POI = require('../models/POI');
+const logger = require('../utils/logger');
 
 const escapeRegex = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -124,7 +125,7 @@ const archiveAlertMediaForContent = async (contentDetails = {}) => {
       await Content.updateOne({ id: contentId }, { $set: patch });
     }
   } catch (error) {
-    (() => {})(`[Alerts] Media archive retry failed for ${platform}:${contentDetails.content_id || contentId} - ${error.message}`);
+    logger.error(`[Alerts] Media archive retry failed for ${platform}:${contentDetails.content_id || contentId} - ${error.message}`);
   }
 };
 
@@ -415,6 +416,7 @@ const getAlerts = async (req, res) => {
       nextCursor = `p:${pageNum + 1}`;
     }
     if (!cursor) total = await Alert.countDocuments(query);
+    logger.debug(`[Alerts] retrieved ${alerts.length} alert(s) for page=${pageNum} status=${query.status || 'any'} total=${total ?? 'n/a'}`);
 
     // Join content + source for only visible rows
     const contentIds = Array.from(new Set(alerts.map((a) => a.content_id || a.content_ref_id).filter(Boolean)));
@@ -464,6 +466,8 @@ const getAlerts = async (req, res) => {
       .select('id profile_image_url is_verified display_name identifier category')
       .lean();
     const sourceMap = new Map(sources.map((s) => [s.id, s]));
+    const sourcesWithAvatar = sources.filter((s) => s.profile_image_url).length;
+    logger.debug(`[Alerts] profile image extraction: ${sourcesWithAvatar}/${sources.length} source(s) have a profile_image_url`);
 
     // Fetch analysis for all content IDs
     const Analysis = require('../models/Analysis');
@@ -477,21 +481,8 @@ const getAlerts = async (req, res) => {
     // Use a map of content_id -> last analysis (most recent)
     analyses.forEach(a => {
       const current = analysisMap.get(a.content_id);
-      const hasForensics = a.forensic_results && Array.isArray(a.forensic_results) && a.forensic_results.length > 0;
-
-      if (!current) {
+      if (!current || new Date(a.analyzed_at) > new Date(current.analyzed_at)) {
         analysisMap.set(a.content_id, a);
-      } else {
-        const currentHasForensics = current.forensic_results && Array.isArray(current.forensic_results) && current.forensic_results.length > 0;
-
-        // Prefer one with forensics, or if both/neither, take the more recent one
-        if (hasForensics && !currentHasForensics) {
-          analysisMap.set(a.content_id, a);
-        } else if (hasForensics === currentHasForensics) {
-          if (new Date(a.analyzed_at) > new Date(current.analyzed_at)) {
-            analysisMap.set(a.content_id, a);
-          }
-        }
       }
     });
 
@@ -516,6 +507,7 @@ const getAlerts = async (req, res) => {
     });
 
     queueAlertMediaArchival(hydrated);
+    logger.debug(`[Alerts] sending ${hydrated.length} hydrated alert(s) to client for rendering (with_avatar=${hydrated.filter((a) => a.source_meta?.profile_image_url).length})`);
 
     const responsePayload = {
       alerts: hydrated,
@@ -539,7 +531,7 @@ const getAlerts = async (req, res) => {
     res.status(200).json(responsePayload);
 
   } catch (error) {
-    (() => {})('Error fetching alerts:', error);
+    logger.error('Error fetching alerts:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -624,7 +616,7 @@ const updateAlert = async (req, res) => {
           });
         }
       } catch (fbError) {
-        (() => {})('[AlertController] Feedback recording failed:', fbError);
+        logger.error('[AlertController] Feedback recording failed:', fbError);
         // Don't block the response
       }
     }
@@ -656,10 +648,10 @@ const updateAlert = async (req, res) => {
             review_status: reviewStatus,
             current_risk: oldLevel
           });
-          (() => {})(`[AlertController] Risk level feedback sent: ${oldLevel} → ${newLevel} (as ${reviewStatus})`);
+          logger.info(`[AlertController] Risk level feedback sent: ${oldLevel} → ${newLevel} (as ${reviewStatus})`);
         }
       } catch (fbError) {
-        (() => {})('[AlertController] Risk level feedback recording failed:', fbError);
+        logger.error('[AlertController] Risk level feedback recording failed:', fbError);
       }
     }
 
@@ -667,7 +659,7 @@ const updateAlert = async (req, res) => {
 
     res.status(200).json(updatedAlert);
   } catch (error) {
-    (() => {})('[AlertController] updateAlert error:', error.message, error.stack);
+    logger.error('[AlertController] updateAlert error:', error.message, error.stack);
     res.status(500).json({ message: error.message });
   }
 };
@@ -861,7 +853,7 @@ const markAllAsRead = async (req, res) => {
     await clearAlertCache();
     res.status(200).json({ message: 'All alerts marked as read' });
   } catch (error) {
-    (() => {})('[AlertController] markAllAsRead error:', error.message, error.stack);
+    logger.error('[AlertController] markAllAsRead error:', error.message, error.stack);
     res.status(500).json({ message: error.message });
   }
 };
@@ -927,15 +919,7 @@ const getAlertById = async (req, res) => {
                 }
               }
             },
-            // Sort to prefer records WITH forensic_results, and then by latest timestamp
-            {
-              $addFields: {
-                hasForensics: {
-                  $cond: { if: { $gt: [{ $size: { $ifNull: ['$forensic_results', []] } }, 0] }, then: 1, else: 0 }
-                }
-              }
-            },
-            { $sort: { hasForensics: -1, analyzed_at: -1, created_at: -1 } },
+            { $sort: { analyzed_at: -1, created_at: -1 } },
             { $limit: 1 }
           ],
           as: 'analysis_data'
@@ -1230,7 +1214,7 @@ const fetchSocialPageMetadata = async (url, platform = '') => {
       metrics: {}
     };
   } catch (error) {
-    (() => {})(`[Investigation] Social metadata fetch failed for ${platform}:${url} - ${error.message}`);
+    logger.error(`[Investigation] Social metadata fetch failed for ${platform}:${url} - ${error.message}`);
     return null;
   }
 };
@@ -1287,7 +1271,7 @@ const enrichInvestigationMedia = async ({ platform, resolvedUrl, metadata }) => 
       content_type: metadata?.content_type || (scrapedMedia.some((item) => item.type === 'video') ? 'video' : 'post')
     };
   } catch (error) {
-    (() => {})(`[Investigation] Media enrichment scrape failed for ${normalizedPlatform}:${resolvedUrl} - ${error.message}`);
+    logger.error(`[Investigation] Media enrichment scrape failed for ${normalizedPlatform}:${resolvedUrl} - ${error.message}`);
     return metadata;
   }
 };
@@ -1400,7 +1384,7 @@ const fetchFacebookPostDetail = async (resolvedUrl, contentId = '') => {
       };
     } catch (error) {
       if (error?.code === 'FB_RAPIDAPI_COOLDOWN' || error?.response?.status === 429) {
-        (() => {})('[Investigation] Facebook API cooldown/rate-limit hit during investigate');
+        logger.info('[Investigation] Facebook API cooldown/rate-limit hit during investigate');
       }
     }
   }
@@ -1410,7 +1394,7 @@ const fetchFacebookPostDetail = async (resolvedUrl, contentId = '') => {
 
 const fetchGenericLinkMetadata = async (url) => {
   try {
-    (() => {})(`[Investigation] Fetching generic metadata for: ${url}`);
+    logger.info(`[Investigation] Fetching generic metadata for: ${url}`);
     const response = await axios.get(url, {
       timeout: 10000,
       validateStatus: () => true,
@@ -1435,7 +1419,7 @@ const fetchGenericLinkMetadata = async (url) => {
       created_at: new Date()
     };
   } catch (error) {
-    (() => {})(`[Investigation] Generic metadata fetch failed for ${url}:`, error.message);
+    logger.error(`[Investigation] Generic metadata fetch failed for ${url}:`, error.message);
     return null;
   }
 };
@@ -1445,7 +1429,7 @@ const investigateLink = async (req, res) => {
     const { url } = req.body;
     const Source = require('../models/Source');
 
-    (() => {})(`[Investigation] ENTRY: POST /api/alerts/investigate with URL: ${url}`);
+    logger.info(`[Investigation] ENTRY: POST /api/alerts/investigate with URL: ${url}`);
     if (!url) return res.status(400).json({ message: 'URL is required' });
 
     // Resolve shortened links (t.co, bit.ly etc)
@@ -1453,7 +1437,7 @@ const investigateLink = async (req, res) => {
     if (url.includes('t.co') || url.includes('bit.ly') || url.includes('tinyurl.com')) {
       const resolved = await resolveShortenedUrl(url);
       if (resolved !== url) {
-        (() => {})(`[Investigation] Resolved ${url} to ${resolved}`);
+        logger.info(`[Investigation] Resolved ${url} to ${resolved}`);
         resolvedUrl = resolved;
       }
     }
@@ -1466,14 +1450,14 @@ const investigateLink = async (req, res) => {
       for (const candidate of candidates) {
         const canonicalUrl = await resolveUrlViaGetRedirects(candidate);
         if (canonicalUrl && canonicalUrl !== resolvedUrl) {
-          (() => {})(`[Investigation] Canonicalized Facebook share URL ${resolvedUrl} -> ${canonicalUrl}`);
+          logger.info(`[Investigation] Canonicalized Facebook share URL ${resolvedUrl} -> ${canonicalUrl}`);
           resolvedUrl = canonicalUrl;
           break;
         }
       }
     }
 
-    (() => {})(`[Investigation] Starting on-demand check for: ${resolvedUrl} (User: ${req.user?.email || 'unknown'})`);
+    logger.info(`[Investigation] Starting on-demand check for: ${resolvedUrl} (User: ${req.user?.email || 'unknown'})`);
 
     let platform = '';
     let contentId = '';
@@ -1484,11 +1468,11 @@ const investigateLink = async (req, res) => {
     platform = target.platform;
     contentId = target.contentId;
     if (platform) {
-      (() => {})(`[Investigation] Detected ${platform} link, content ID: ${contentId || 'N/A'}`);
+      logger.info(`[Investigation] Detected ${platform} link, content ID: ${contentId || 'N/A'}`);
     }
 
     if (!platform) {
-      (() => {})(`[Investigation] URL not a primary social link: ${resolvedUrl}. Attempting generic fetch...`);
+      logger.info(`[Investigation] URL not a primary social link: ${resolvedUrl}. Attempting generic fetch...`);
       platform = 'web';
     }
 
@@ -1541,7 +1525,7 @@ const investigateLink = async (req, res) => {
         metadata = await enrichInvestigationMedia({ platform, resolvedUrl, metadata });
       }
     } catch (fetchError) {
-      (() => {})(`[Investigation] Metadata fetch failed for ${platform}:${contentId}: ${fetchError.message}. Falling back to generic metadata fetch.`);
+      logger.error(`[Investigation] Metadata fetch failed for ${platform}:${contentId}: ${fetchError.message}. Falling back to generic metadata fetch.`);
     }
 
     if (!metadata) {
@@ -1557,7 +1541,7 @@ const investigateLink = async (req, res) => {
           created_at: genericMetadata.created_at || new Date(),
           content_type: genericMetadata.content_type || 'post'
         };
-        (() => {})(`[Investigation] Using generic metadata fallback for ${platform}:${contentId}`);
+        logger.info(`[Investigation] Using generic metadata fallback for ${platform}:${contentId}`);
       }
     }
 
@@ -1573,15 +1557,15 @@ const investigateLink = async (req, res) => {
     }
 
     if (!metadata) {
-      (() => {})(`[Investigation] ❌ CRITICAL: No metadata returned for ${platform}:${contentId}. URL was: ${resolvedUrl}`);
+      logger.info(`[Investigation] ❌ CRITICAL: No metadata returned for ${platform}:${contentId}. URL was: ${resolvedUrl}`);
       return res.status(404).json({
         message: `Could not fetch details for this ${platform} link. The post might be private, deleted, or API-limited.`,
         debug: { platform, contentId, resolvedUrl }
       });
     }
 
-    (() => {})(`[Investigation] Successfully fetched metadata for ${platform}:${contentId}. Content length: ${metadata.text?.length || 0}`);
-    (() => {})(`[Investigation] Calling analyzeContent for ID: ${contentId}`);
+    logger.info(`[Investigation] Successfully fetched metadata for ${platform}:${contentId}. Content length: ${metadata.text?.length || 0}`);
+    logger.info(`[Investigation] Calling analyzeContent for ID: ${contentId}`);
 
     // 3. Analyze Content
     let analysis;
@@ -1595,16 +1579,15 @@ const investigateLink = async (req, res) => {
             ...metadata,
             media: metadata.media || (platform === 'youtube' ? [{ url: resolvedUrl, type: 'video' }] : [])
           },
-          analysisId: manualAnalysisId,
-          skipForensics: true
+          analysisId: manualAnalysisId
         });
       }, {
         timeoutMs: Math.max(5000, Number(process.env.INVESTIGATION_QUEUE_JOB_TIMEOUT_MS || 55000)),
         label: `${platform}:${contentId}`
       });
-      (() => {})(`[Investigation] Analysis completed for ID: ${contentId}. Risk: ${analysis.risk_level}`);
+      logger.info(`[Investigation] Analysis completed for ID: ${contentId}. Risk: ${analysis.risk_level}`);
     } catch (analysisError) {
-      (() => {})(`[Investigation] Analysis failed for ID: ${contentId}: ${analysisError.message}`);
+      logger.error(`[Investigation] Analysis failed for ID: ${contentId}: ${analysisError.message}`);
       // Fallback analysis object
       analysis = {
         risk_level: 'low',
@@ -1637,9 +1620,9 @@ const investigateLink = async (req, res) => {
           threat_reasons: analysis.reasons || [],
           engagement: metadata.metrics || metadata.statistics || {}
         });
-        (() => {})(`[Investigation] Created new Content record: ${contentRecord.id}`);
+        logger.info(`[Investigation] Created new Content record: ${contentRecord.id}`);
       } else {
-        (() => {})(`[Investigation] Found existing Content record: ${contentRecord.id}`);
+        logger.info(`[Investigation] Found existing Content record: ${contentRecord.id}`);
         const nextMedia = Array.isArray(metadata.media) && metadata.media.length > 0
           ? metadata.media
           : contentRecord.media;
@@ -1667,7 +1650,7 @@ const investigateLink = async (req, res) => {
         );
       }
     } catch (contentError) {
-      (() => {})(`[Investigation] Failed to save Content record:`, contentError.message);
+      logger.error(`[Investigation] Failed to save Content record:`, contentError.message);
       // Continue anyway, we can still create the alert
     }
 
@@ -1685,7 +1668,7 @@ const investigateLink = async (req, res) => {
         authorHandle ? `@${authorHandle}` : null
       ].filter(Boolean));
       const identifiersToCheck = Array.from(handleVariants);
-      (() => {})(`[Investigation] Checking monitoring status for platform: ${platformKeys.join(',')}, identifier: ${normalizedHandle}`);
+      logger.info(`[Investigation] Checking monitoring status for platform: ${platformKeys.join(',')}, identifier: ${normalizedHandle}`);
 
       existingSource = await Source.findOne({
         platform: { $in: platformKeys },
@@ -1694,12 +1677,12 @@ const investigateLink = async (req, res) => {
 
       if (existingSource) {
         is_monitored = true;
-        (() => {})(`[Investigation] ✓ Author is monitored. Source ID: ${existingSource.id}`);
+        logger.info(`[Investigation] ✓ Author is monitored. Source ID: ${existingSource.id}`);
       } else {
-        (() => {})(`[Investigation] ✗ Author is NOT monitored. No matching source found.`);
+        logger.info(`[Investigation] ✗ Author is NOT monitored. No matching source found.`);
       }
     } catch (sourceError) {
-      (() => {})(`[Investigation] Failed to check monitoring status:`, sourceError.message);
+      logger.error(`[Investigation] Failed to check monitoring status:`, sourceError.message);
     }
 
     // 6. Create permanent Alert record
@@ -1734,9 +1717,9 @@ const investigateLink = async (req, res) => {
         ml_analysis: analysis.ml_analysis || null,
         llm_analysis: analysis.llm_analysis || null
       });
-      (() => {})(`[Investigation] Created new Alert record: ${alertRecord.id}${existingSource ? ` linked to Source: ${existingSource.id}` : ''}`);
+      logger.info(`[Investigation] Created new Alert record: ${alertRecord.id}${existingSource ? ` linked to Source: ${existingSource.id}` : ''}`);
     } catch (alertError) {
-      (() => {})(`[Investigation] Failed to create Alert record:`, alertError.message);
+      logger.error(`[Investigation] Failed to create Alert record:`, alertError.message);
       // Return error if we can't create the alert
       return res.status(500).json({ message: 'Failed to save investigation results to database' });
     }
@@ -1780,10 +1763,10 @@ const investigateLink = async (req, res) => {
     };
 
     await clearAlertCache();
-    (() => {})(`[Investigation] Completed successfully for ${platform}:${contentId}. Risk: ${analysis.risk_level}, Monitored: ${is_monitored}`);
+    logger.info(`[Investigation] Completed successfully for ${platform}:${contentId}. Risk: ${analysis.risk_level}, Monitored: ${is_monitored}`);
     res.status(200).json(responseAlert);
   } catch (error) {
-    (() => {})('[Investigation] Critical failure:', error);
+    logger.error('[Investigation] Critical failure:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -1836,7 +1819,7 @@ const translateAlertContent = async (req, res) => {
       originalText: text
     });
   } catch (error) {
-    (() => {})('[AlertController] Translation Error:', error.message);
+    logger.error('[AlertController] Translation Error:', error.message);
     res.status(500).json({ message: error.message });
   }
 };
@@ -1957,17 +1940,17 @@ const getDashboardStats = async (req, res) => {
     await writeCache(dashCacheKey, result, 20);
     res.status(200).json(result);
   } catch (error) {
-    (() => {})('Dashboard stats error:', error);
+    logger.error('Dashboard stats error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
 // Check for similar escalated alerts
 const getSimilarEscalatedAlerts = async (req, res) => {
-  (() => {})('--- getSimilarEscalatedAlerts CALLED ---');
+  logger.info('--- getSimilarEscalatedAlerts CALLED ---');
   try {
     const { text } = req.body;
-    (() => {})('Checking text length:', text ? text.length : 'N/A');
+    logger.info('Checking text length:', text ? text.length : 'N/A');
 
     if (!text) return res.status(400).json({ message: 'Text is required' });
 
@@ -2026,11 +2009,11 @@ const getSimilarEscalatedAlerts = async (req, res) => {
       });
 
     } catch (mlErr) {
-      (() => {})('ML Service Error:', mlErr.message);
+      logger.error('ML Service Error:', mlErr.message);
       return res.status(200).json({ similarCount: 0, alerts: [], error: 'ML Service Unavailable' });
     }
   } catch (error) {
-    (() => {})('Error checking similar escalated alerts:', error);
+    logger.error('Error checking similar escalated alerts:', error);
     res.status(500).json({ message: 'Server error check similarity' });
   }
 };
@@ -2130,17 +2113,17 @@ const changeAlertCategory = async (req, res) => {
             if (changed) await poi.save();
           }
         } catch (poiErr) {
-          (() => {})('[AlertController] POI sync failed during category change:', poiErr.message);
+          logger.error('[AlertController] POI sync failed during category change:', poiErr.message);
         }
 
         await createAuditLog(req.user, 'update', 'source', source.id, { action: 'change_category', old_category: oldCategory, new_category: category, triggered_from_alert: alert.id });
         await clearAlertCache();
       } catch (bgErr) {
-        (() => {})('[AlertController] Background category sync error:', bgErr.message);
+        logger.error('[AlertController] Background category sync error:', bgErr.message);
       }
     });
   } catch (error) {
-    (() => {})('[AlertController] changeAlertCategory error:', error.message);
+    logger.error('[AlertController] changeAlertCategory error:', error.message);
     res.status(500).json({ message: error.message });
   }
 };
@@ -2168,8 +2151,7 @@ const getAlertsByIds = async (req, res) => {
           let: { alertAnalysisId: '$analysis_id', contentId: '$content_id' },
           pipeline: [
             { $match: { $expr: { $or: [{ $eq: ['$id', '$$alertAnalysisId'] }, { $eq: ['$content_id', '$$contentId'] }] } } },
-            { $addFields: { hasForensics: { $cond: { if: { $gt: [{ $size: { $ifNull: ['$forensic_results', []] } }, 0] }, then: 1, else: 0 } } } },
-            { $sort: { hasForensics: -1, analyzed_at: -1 } },
+            { $sort: { analyzed_at: -1 } },
             { $limit: 1 }
           ],
           as: 'analysis_data'
@@ -2402,7 +2384,7 @@ const getWorkflowKpi = async (req, res) => {
           }
         }
       } catch (e) {
-        (() => {})('[WorkflowKpi] user name lookup failed:', e.message);
+        logger.error('[WorkflowKpi] user name lookup failed:', e.message);
       }
     }
 
@@ -2445,7 +2427,7 @@ const getWorkflowKpi = async (req, res) => {
       byUser
     });
   } catch (err) {
-    (() => {})('[AlertController] getWorkflowKpi error:', err.message);
+    logger.error('[AlertController] getWorkflowKpi error:', err.message);
     res.status(500).json({ message: err.message });
   }
 };

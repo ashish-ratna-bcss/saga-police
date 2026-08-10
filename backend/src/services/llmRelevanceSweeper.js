@@ -13,6 +13,7 @@
 const Content = require('../models/Content');
 const Alert = require('../models/Alert');
 const { classifyTelanganaRelevance } = require('./llmService');
+const logger = require('../utils/logger');
 
 // Drop event alerts that were tied to the deleted content. We only delete
 // alerts that were created in the event-scoped flow (event_id is set), so
@@ -23,7 +24,7 @@ const purgeEventAlertsForContent = async (contentDoc) => {
   try {
     await Alert.deleteMany({ content_id: contentDoc.id, event_id: { $ne: null } });
   } catch (err) {
-    (() => {})(`[LLMSweeper] alert purge failed for ${contentDoc.id}: ${err.message}`);
+    logger.error(`[LLMSweeper] alert purge failed for ${contentDoc.id}: ${err.message}`);
   }
 };
 
@@ -100,7 +101,7 @@ const classifyOne = async (doc) => {
 // Logs but never throws into the caller's promise chain.
 const classifyOneAsync = (doc) => {
   classifyOne(doc).catch((err) => {
-    (() => {})(`[LLMSweeper] classifyOne failed for ${doc?.id}: ${err.message}`);
+    logger.error(`[LLMSweeper] classifyOne failed for ${doc?.id}: ${err.message}`);
   });
 };
 

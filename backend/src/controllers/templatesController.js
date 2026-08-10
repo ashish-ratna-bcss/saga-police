@@ -5,6 +5,7 @@ const Content = require('../models/Content');
 const Settings = require('../models/Settings');
 const templateService = require('../services/templateService');
 const { format } = require('date-fns');
+const logger = require('../utils/logger');
 
 /**
  * Parse DOCX file to HTML
@@ -296,7 +297,7 @@ const generateTemplate = async (req, res) => {
 
         res.json({ html });
     } catch (error) {
-        (() => {})('Generate template error:', error);
+        logger.error('Generate template error:', error);
         res.status(500).json({ error: error.message });
     }
 };

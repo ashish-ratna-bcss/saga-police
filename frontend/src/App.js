@@ -42,9 +42,7 @@ const IntelligenceDashboard = lazy(() => import('./pages/IntelligenceDashboard')
 const PolicyManager = lazy(() => import('./components/PolicyManager'));
 const PersonOfInterest = lazy(() => import('./pages/POI/PersonOfInterest'));
 const POIDetail = lazy(() => import('./pages/POI/POIDetail'));
-//const DeepfakeAnalysis = lazy(() => import('./pages/Deepfake/DeepfakeAnalysis'));
 const AccessManagement = lazy(() => import('./pages/AccessManagement'));
-const DeepfakeAnalysis = lazy(() => import('./pages/Deepfake/DeepfakeAnalysis'));
 const AnalysisTools = lazy(() => import('./pages/AnalysisTools'));
 const OSINTLayout = lazy(() => import('./pages/osint/OSINTLayout'));
 const OSINTDashboard = lazy(() => import('./pages/osint/OSINTDashboard'));
@@ -129,7 +127,6 @@ function App() {
                     <Route path="access-management" element={<AccessManagement />} />
                     <Route path="person-of-interest" element={<PersonOfInterest />} />
                     <Route path="person-of-interest/:id" element={<POIDetail />} />
-                    <Route path="deepfake-analysis" element={<DeepfakeAnalysis />} />
                     <Route path="analysis-tools" element={<AnalysisTools />} />
                     <Route path="system-health" element={<SystemHealth />} />
                     <Route path="analysis-tools/osint-tools" element={<OSINTLayout />}>
@@ -146,7 +143,6 @@ function App() {
                     </Route>
                     <Route path="maigret-search" element={<MaigretSearch />} />
                     <Route path="whatsmyname-search" element={<WhatsMyNameSearch />} />
-                    <Route path="deepfake/forensics" element={<DeepfakeAnalysis />} />
                     <Route path="events-report" element={<EventsReport />} />
                     <Route path="help" element={<HelpGuide />} />
                     <Route path="ai-assistant" element={<AiAssistant />} />

@@ -3,6 +3,7 @@ const Content = require('../models/Content');
 const AlertThreshold = require('../models/AlertThreshold');
 const Settings = require('../models/Settings');
 const { sendAlertEmail } = require('./emailService');
+const logger = require('../utils/logger');
 
 /**
  * Pure function to check velocity metrics without creating alerts
@@ -152,7 +153,7 @@ const checkAndCreateVelocityAlerts = async (content, settings) => {
                         }
                     }
                 );
-                (() => {})(`[ViralAlert] Upgraded to ${highestPriority.priority} for ${content.content_id} - ${metricsDisplay}`);
+                logger.info(`[ViralAlert] Upgraded to ${highestPriority.priority} for ${content.content_id} - ${metricsDisplay}`);
 
                 if (highestPriority.priority === 'HIGH' && settings.enable_email_alerts && settings.alert_emails?.length > 0) {
                     const updatedAlert = await Alert.findOne({ id: existingAlert.id });
@@ -224,13 +225,13 @@ const checkAndCreateVelocityAlerts = async (content, settings) => {
         const alert = new Alert(alertData);
 
         await alert.save();
-        (() => {})(`[ViralAlert] Created ${highestPriority.priority} alert for ${content.content_id} - ${metricsDisplay} in ${Math.round(postAgeMinutes)}min`);
+        logger.info(`[ViralAlert] Created ${highestPriority.priority} alert for ${content.content_id} - ${metricsDisplay} in ${Math.round(postAgeMinutes)}min`);
 
         if (highestPriority.priority === 'HIGH' && settings.enable_email_alerts && settings.alert_emails?.length > 0) {
             await sendViralAlertEmail(settings, alert, content);
         }
     } catch (error) {
-        (() => {})(`[ViralAlert] Error processing alerts: ${error.message}`);
+        logger.error(`[ViralAlert] Error processing alerts: ${error.message}`);
     }
 };
 
@@ -246,7 +247,7 @@ const createNewPostAlert = async (content, settings) => {
             alert_type: { $in: ['ai_risk', 'keyword_risk'] }
         });
         if (riskAlert) {
-            (() => {})(`[NewPostAlert] Skipping for ${content.content_id} - Risk Alert already handles this.`);
+            logger.info(`[NewPostAlert] Skipping for ${content.content_id} - Risk Alert already handles this.`);
             return;
         }
 
@@ -285,7 +286,7 @@ const createNewPostAlert = async (content, settings) => {
             finalScore = Math.max(finalScore, 45);
         }
 
-        (() => {})(`[NewPostAlert] Creating alert for ${content.id}. RiskLevel:${rLevel}, OriginalScore:${content.risk_score}, FinalScore:${finalScore}`);
+        logger.info(`[NewPostAlert] Creating alert for ${content.id}. RiskLevel:${rLevel}, OriginalScore:${content.risk_score}, FinalScore:${finalScore}`);
 
         const alert = new Alert({
             content_id: content.id,
@@ -312,9 +313,9 @@ const createNewPostAlert = async (content, settings) => {
         });
 
         await alert.save();
-        (() => {})(`[NewPostAlert] Created alert for ${content.content_id} from ${content.author} (Risk: ${riskLevel})`);
+        logger.info(`[NewPostAlert] Created alert for ${content.content_id} from ${content.author} (Risk: ${riskLevel})`);
     } catch (error) {
-        (() => {})(`[NewPostAlert] Error creating new post alert: ${error.message}`);
+        logger.error(`[NewPostAlert] Error creating new post alert: ${error.message}`);
     }
 };
 
@@ -338,7 +339,7 @@ const sendViralAlertEmail = async (settings, alert, content) => {
 
         await sendAlertEmail(settings.smtp_config, settings.alert_emails, alertData);
     } catch (error) {
-        (() => {})(`[ViralAlert] Failed to send email: ${error.message}`);
+        logger.error(`[ViralAlert] Failed to send email: ${error.message}`);
     }
 };
 
@@ -366,7 +367,7 @@ const updateEngagementHistory = async (contentId, engagement) => {
             }
         );
     } catch (error) {
-        (() => {})(`[ViralAlert] Error updating engagement history: ${error.message}`);
+        logger.error(`[ViralAlert] Error updating engagement history: ${error.message}`);
     }
 };
 
@@ -389,7 +390,7 @@ const seedDefaultThresholds = async () => {
             );
         }
     } catch (error) {
-        (() => {})(`[ViralAlert] Error seeding thresholds: ${error.message}`);
+        logger.error(`[ViralAlert] Error seeding thresholds: ${error.message}`);
     }
 };
 

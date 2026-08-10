@@ -21,6 +21,7 @@ const axios = require('axios');
 const exifr = require('exifr');
 
 const Content = require('../models/Content');
+const logger = require('../utils/logger');
 
 const DOWNLOAD_TIMEOUT_MS = Number(process.env.MEDIA_LOC_DOWNLOAD_TIMEOUT_MS) || 15000;
 const MAX_DOWNLOAD_BYTES = Number(process.env.MEDIA_LOC_MAX_BYTES) || 25 * 1024 * 1024; // 25MB safety cap
@@ -46,7 +47,7 @@ const drainQueue = async () => {
     try {
       await extractMediaLocationForContent(id);
     } catch (err) {
-      (() => {})(`[MediaLocation] worker error for ${id}: ${err.message}`);
+      logger.error(`[MediaLocation] worker error for ${id}: ${err.message}`);
     }
   }
   workerRunning = false;
@@ -221,7 +222,7 @@ const extractMediaLocationForContent = async (contentId) => {
 
   await Content.updateOne({ id: contentId }, { $set: update });
 
-  (() => {})(`[MediaLocation] ✅ ${contentId} → ${place.name || `${gpsHit.lat},${gpsHit.lng}`}`);
+  logger.info(`[MediaLocation] ✅ ${contentId} → ${place.name || `${gpsHit.lat},${gpsHit.lng}`}`);
   return update.location || null;
 };
 

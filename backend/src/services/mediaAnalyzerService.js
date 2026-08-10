@@ -1,8 +1,8 @@
 const axios = require('axios');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-
-const MEDIA_ANALYZER_URL = (process.env.MEDIA_ANALYZER_URL || 'http://127.0.0.1:8002').replace(/\/$/, '');
+const { MEDIA_ANALYZER_URL } = require('../config/mediaAnalyzer');
+const logger = require('../utils/logger');
 const DOWNLOADS_DIR = process.env.MEDIA_DOWNLOADS_DIR || path.join(__dirname, '../../downloads');
 const DIRECT_MEDIA_EXT_RE = /\.(mp4|webm|mkv|mov|avi|m3u8|jpg|jpeg|png|gif|webp)(\?|$)/i;
 
@@ -152,13 +152,13 @@ async function downloadVideo(mediaUrl) {
         source: 'media-analyzer'  // Flag to indicate this needs proxying
       };
     } catch (err) {
-      (() => {})('External service failed, falling back to direct download...');
+      logger.error('External service failed, falling back to direct download...');
       // Fall through to direct download
     }
   }
 
   if (isTwitter) {
-    (() => {})('Falling back to direct/RapidAPI download...');
+    logger.info('Falling back to direct/RapidAPI download...');
     return await downloadTwitterMediaDirect(normalizedUrl);
   }
 
@@ -172,7 +172,7 @@ async function downloadVideo(mediaUrl) {
   }
 
   if (isDirectMedia && canStreamProxy) {
-    (() => {})('Falling back to stream-proxy direct media download...');
+    logger.info('Falling back to stream-proxy direct media download...');
     return await downloadDirectMedia(normalizedUrl);
   }
 
@@ -214,7 +214,7 @@ async function downloadImages(imageUrls, contentId) {
         }))
       };
     } catch (err) {
-      (() => {})('External service failed for images, falling back to direct download...');
+      logger.error('External service failed for images, falling back to direct download...');
     }
   }
 
@@ -320,7 +320,7 @@ async function downloadTweetMedia(tweetId, originalUrl) {
       items: downloads
     };
   } catch (error) {
-    (() => {})('Tweet media download error:', error.message);
+    logger.error('Tweet media download error:', error.message);
     const fallbackProxy = isDirectMediaUrl(originalUrl) && isAllowedStreamHost(originalUrl)
       ? toStreamProxyUrl(originalUrl)
       : originalUrl;
@@ -399,7 +399,7 @@ async function downloadDirectMedia(url) {
       size: null
     };
   } catch (error) {
-    (() => {})('Direct media download error:', error.message);
+    logger.error('Direct media download error:', error.message);
     throw new Error(`Failed to download media: ${error.message}`);
   }
 }

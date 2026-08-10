@@ -1,5 +1,6 @@
 const { fetchInstagramPostDetail } = require('../services/rapidApiInstagramService');
 const { fetchTweetDetail } = require('../services/rapidApiXService');
+const logger = require('../utils/logger');
 
 // ── URL parsers ─────────────────────────────────────────────────────────────
 const extractInstagramShortcode = (url) => {
@@ -114,7 +115,7 @@ const lookupPostLocation = async (req, res) => {
       error: 'Facebook single-link lookup is not supported. Add the Facebook page as a source to capture posts with location.'
     });
   } catch (err) {
-    (() => {})('[Post Location Lookup] Error:', err);
+    logger.error('[Post Location Lookup] Error:', err);
     return res.status(500).json({ error: 'Lookup failed', details: err.message });
   }
 };

@@ -10,6 +10,7 @@ const mediaAnalyzerService = require('../services/mediaAnalyzerService');
 const AuditLog = require('../models/AuditLog');
 const { protect } = require('../middleware/authMiddleware');
 const { requireAnyPageAccess, requirePlatformFeatureAccess } = require('../middleware/rbacMiddleware');
+const logger = require('../utils/logger');
 
 const mediaAccessMiddleware = [
   protect,
@@ -762,7 +763,9 @@ router.get('/stream', async (req, res) => {
 
     const hostname = (parsed.hostname || '').toLowerCase();
     const initialHostFlags = classifyStreamHost(hostname);
+    logger.debug(`[MediaProxy] stream request host=${hostname} instagram=${initialHostFlags.isInstagramHost} facebook=${initialHostFlags.isFacebookHost} twitter=${initialHostFlags.isTwitterHost} youtube=${initialHostFlags.isYouTubeHost} s3=${initialHostFlags.isS3Host} url=${rawUrl}`);
     if (!initialHostFlags.isAllowed) {
+      logger.warn(`[MediaProxy] rejected disallowed host=${hostname} url=${rawUrl}`);
       return res.status(403).json({ error: 'Host not allowed' });
     }
 
@@ -801,6 +804,7 @@ router.get('/stream', async (req, res) => {
     }
 
     let upstream = await requestStream(streamUrl, streamHostFlags);
+    logger.debug(`[MediaProxy] upstream response status=${upstream.status} host=${streamHostFlags.normalizedHost} url=${streamUrl}`);
 
     // Cached S3 target may expire; clear cache and retry original URL once.
     if (streamUrl !== rawUrl && (upstream.status === 403 || upstream.status === 404 || upstream.status === 410)) {
@@ -854,10 +858,12 @@ router.get('/stream', async (req, res) => {
     // look up the original URL in the DB and serve the S3 copy.
     // ---------------------------------------------------------------
     if ((upstream.status === 403 || upstream.status === 410) && !streamHostFlags.isS3Host) {
+      logger.warn(`[MediaProxy] CDN denied media (status=${upstream.status}) host=${streamHostFlags.normalizedHost} url=${rawUrl} — checking S3 archive fallback`);
       // Drain the failed upstream stream to free the socket
       upstream.data.resume();
 
       const s3FallbackUrl = await findS3FallbackUrl(rawUrl);
+      logger.debug(`[MediaProxy] S3 fallback lookup for url=${rawUrl} -> ${s3FallbackUrl || 'none found'}`);
       if (s3FallbackUrl) {
         try {
           const s3Parsed = new URL(s3FallbackUrl);
@@ -914,6 +920,7 @@ router.get('/stream', async (req, res) => {
       }
 
       // No S3 fallback found or S3 also failed — return original 403
+      logger.warn(`[MediaProxy] no usable media for url=${rawUrl} (status=${upstream.status}) — client will fall back to placeholder`);
       return res.status(upstream.status).json({
         error: 'CDN returned ' + upstream.status + ' (media expired/unavailable)',
         hint: 'No S3 archive available for this media'

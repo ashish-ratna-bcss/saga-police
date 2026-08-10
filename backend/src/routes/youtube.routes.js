@@ -1,4 +1,5 @@
 const express = require('express');
+const logger = require('../utils/logger');
 const router = express.Router();
 const youtubeService = require('../services/youtube.service');
 const analysisService = require('../services/analysisService');
@@ -44,7 +45,7 @@ const logAction = async (user, action, resourceType, resourceId, details) => {
             details: details
         });
     } catch (error) {
-        (() => {})('Audit Log Error:', error);
+        logger.error('Audit Log Error:', error);
     }
 };
 
@@ -101,7 +102,7 @@ router.post('/channels', mockUser, async (req, res) => {
             }
 
             if (isQuotaError) {
-                (() => {})(`YouTube API Quota Exceeded for ${identifier}. Creating pending source.`);
+                logger.info(`YouTube API Quota Exceeded for ${identifier}. Creating pending source.`);
                 isPending = true;
                 // create dummy details
                 details = {
@@ -119,7 +120,7 @@ router.post('/channels', mockUser, async (req, res) => {
                     }
                 };
             } else {
-                (() => {})('YouTube API Error:', apiError);
+                logger.error('YouTube API Error:', apiError);
                 throw apiError; // Re-throw other errors
             }
         }
@@ -162,7 +163,7 @@ router.post('/channels', mockUser, async (req, res) => {
 
         res.status(201).json(newSource);
     } catch (error) {
-        (() => {})(error);
+        logger.error(error);
         res.status(500).json({ message: 'Error adding channel', error: error.message });
     }
 });
@@ -387,7 +388,7 @@ router.post('/channels/:id/sync', mockUser, async (req, res) => {
 
         res.json({ message: 'Sync completed', new_videos: newCount });
     } catch (error) {
-        (() => {})(error);
+        logger.error(error);
         res.status(500).json({ message: 'Error syncing channel', error: error.message });
     }
 });
@@ -500,7 +501,7 @@ router.post('/videos/transcribe-analyze', mockUser, async (req, res) => {
             return res.status(400).json({ message: 'Provide video_ids or youtube_urls' });
         }
 
-        (() => {})('Backend /transcribe-analyze received inputs:', JSON.stringify(inputs, null, 2));
+        logger.info('Backend /transcribe-analyze received inputs:', JSON.stringify(inputs, null, 2));
 
         const results = [];
         const errors = [];
@@ -511,16 +512,16 @@ router.post('/videos/transcribe-analyze', mockUser, async (req, res) => {
 
             try {
                 // 1. Transcribe
-                (() => {})(`Calling media-analyzer for ${youtube_url}...`);
+                logger.info(`Calling media-analyzer for ${youtube_url}...`);
                 const transcriptResponse = await mediaAnalyzerService.transcribeYoutubeUrl(youtube_url);
-                (() => {})('media-analyzer response short summary:', {
+                logger.info('media-analyzer response short summary:', {
                     id: transcriptResponse.id,
                     transcriptLength: transcriptResponse.transcript?.length,
                     duration: transcriptResponse.duration_seconds
                 });
 
                 if (!transcriptResponse.transcript) {
-                    (() => {})(`WARNING: Transcript is empty for ${youtube_url}`);
+                    logger.info(`WARNING: Transcript is empty for ${youtube_url}`);
                     // Provide fallback to avoid Mongoose validation error
                     transcriptResponse.transcript = "[No speech detected or transcript empty]";
                 }
@@ -609,7 +610,7 @@ router.post('/videos/transcribe-analyze', mockUser, async (req, res) => {
                                     };
                                 }
                             } catch (e) {
-                                (() => {})('Failed to fetch video details for content creation', e);
+                                logger.error('Failed to fetch video details for content creation', e);
                             }
                             await content.save();
                         }
@@ -666,7 +667,7 @@ router.post('/videos/transcribe-analyze', mockUser, async (req, res) => {
                         await content.save();
 
                     } catch (syncErr) {
-                        (() => {})('Failed to sync Gemini results to Content/Analysis:', syncErr);
+                        logger.error('Failed to sync Gemini results to Content/Analysis:', syncErr);
                         // Don't fail the whole request, but log it.
                     }
 
@@ -694,7 +695,7 @@ router.post('/videos/transcribe-analyze', mockUser, async (req, res) => {
                 });
 
             } catch (videoErr) {
-                (() => {})(`Error processing video ${videoId}:`, videoErr);
+                logger.error(`Error processing video ${videoId}:`, videoErr);
                 errors.push({ video_id: videoId, error: videoErr.message });
             }
         }
@@ -732,58 +733,8 @@ async function syncCommentsForVideo(content) {
             }
         }
     } catch (e) {
-        (() => {})("Comment Sync Error", e);
+        logger.error("Comment Sync Error", e);
     }
 }
-
-// --- VIDEO DOWNLOAD ---
-
-// Download video for alert/content
-router.post('/download-video', mockUser, async (req, res) => {
-    try {
-        const { youtube_url, content_url, media_url, content_id } = req.body;
-        const mediaUrl = media_url || content_url || youtube_url;
-        
-        if (!mediaUrl) {
-            return res.status(400).json({ error: 'media_url is required' });
-        }
-        
-        (() => {})(`Initiating video download for: ${mediaUrl}`);
-        
-        const result = await mediaAnalyzerService.downloadVideo(mediaUrl);
-        
-        // Log the action
-        await logAction(req.user, 'download_video', 'content', content_id || result.video_id, {
-            media_url: mediaUrl,
-            video_id: result.video_id,
-            filename: result.filename
-        });
-        
-        res.json({
-            success: true,
-            video_id: result.video_id,
-            filename: result.filename,
-            download_url: result.download_url,
-            title: result.title,
-            duration_seconds: result.duration_seconds
-        });
-    } catch (error) {
-        (() => {})('Video download error:', error);
-        res.status(error.statusCode || 500).json({ 
-            error: error.message || 'Failed to download video' 
-        });
-    }
-});
-
-// Get video download URL (if already downloaded)
-router.get('/video-url/:videoId', async (req, res) => {
-    try {
-        const { videoId } = req.params;
-        const downloadUrl = mediaAnalyzerService.getVideoDownloadUrl(videoId);
-        res.json({ download_url: downloadUrl });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to get video URL' });
-    }
-});
 
 module.exports = router;

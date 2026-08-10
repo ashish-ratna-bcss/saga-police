@@ -1,5 +1,6 @@
 const axios = require("axios");
 const mappingService = require("./mappingService");
+const logger = require('../utils/logger');
 
 /**
  * Ollama LLM-Centric Analysis (V6.0)
@@ -55,7 +56,7 @@ function enqueueLLMRequest(fn, options = {}) {
     const maxQueueSize = getMaxQueueSize();
     if (Number.isFinite(maxQueueSize) && llmQueue.length >= maxQueueSize) {
       llmStats.dropped++;
-      (() => {})(`[LLM Queue] FULL (${maxQueueSize}). Dropping request. Total dropped: ${llmStats.dropped}`);
+      logger.info(`[LLM Queue] FULL (${maxQueueSize}). Dropping request. Total dropped: ${llmStats.dropped}`);
       reject(new Error('LLM queue full — request dropped'));
       return;
     }
@@ -63,7 +64,7 @@ function enqueueLLMRequest(fn, options = {}) {
     llmQueue.push({ fn, resolve, reject, enqueuedAt: Date.now(), queueWaitMs });
     llmStats.queued++;
     if (llmQueue.length > 1) {
-      (() => {})(`[LLM Queue] ${llmQueue.length} requests queued (${llmStats.completed} completed, ${llmStats.failed} failed)`);
+      logger.error(`[LLM Queue] ${llmQueue.length} requests queued (${llmStats.completed} completed, ${llmStats.failed} failed)`);
     }
     pumpLLMWorkers();
   });
@@ -178,12 +179,12 @@ async function categorizeText(text, options = {}) {
 
   // 0. Input validation
   if (!text || typeof text !== 'string') {
-    (() => {})('[LLM] Skipped: text is null/undefined/non-string');
+    logger.info('[LLM] Skipped: text is null/undefined/non-string');
     return null;
   }
   const trimmed = text.trim();
   if (trimmed.length < MIN_TEXT_LENGTH) {
-    (() => {})(`[LLM] Skipped: text too short (${trimmed.length} chars)`);
+    logger.info(`[LLM] Skipped: text too short (${trimmed.length} chars)`);
     return null;
   }
 
@@ -211,7 +212,7 @@ async function categorizeText(text, options = {}) {
 
   // Dynamic Prompt Construction
   const { promptPrefix, categoryCount } = buildPromptPrefix();
-  (() => {})(`[LLM] Constructing prompt with ${categoryCount} allowed categories.`);
+  logger.info(`[LLM] Constructing prompt with ${categoryCount} allowed categories.`);
   const prompt = `${promptPrefix}
 
 ────────────────────────
@@ -249,7 +250,7 @@ ${analysisText}
           }
           const parsed = extractJSON(raw);
           if (!parsed) {
-            (() => {})(`[LLM] Failed to parse JSON from response (length=${raw.length}): ${raw.substring(0, 200)}`);
+            logger.error(`[LLM] Failed to parse JSON from response (length=${raw.length}): ${raw.substring(0, 200)}`);
             throw new Error('LLM response is not valid JSON');
           }
           return parsed;
@@ -257,7 +258,7 @@ ${analysisText}
           lastError = err;
           const isTimeout = err.code === 'ECONNABORTED' || err.message?.includes('timeout');
           const isOverloaded = err.response?.status === 503 || err.response?.status === 429;
-          (() => {})(`[LLM] Attempt ${attempt}/${config.maxAttempts} failed: ${err.message}${isTimeout ? ' (TIMEOUT)' : ''}${isOverloaded ? ' (OVERLOADED)' : ''}`);
+          logger.error(`[LLM] Attempt ${attempt}/${config.maxAttempts} failed: ${err.message}${isTimeout ? ' (TIMEOUT)' : ''}${isOverloaded ? ' (OVERLOADED)' : ''}`);
           if (attempt < config.maxAttempts) {
             const delay = isOverloaded ? 2000 * attempt : 1000 * attempt;
             await new Promise(r => setTimeout(r, delay));
@@ -279,7 +280,7 @@ ${analysisText}
     const availableCategories = (mappingService.mappingData.category_mappings || []).map(c => c.category_id);
     let finalCategory = result.category;
 
-    (() => {})(`[LLM] Raw Category: "${finalCategory}"`);
+    logger.info(`[LLM] Raw Category: "${finalCategory}"`);
 
     if (!availableCategories.includes(finalCategory)) {
       // Try strict case-insensitive match (trim + case)
@@ -290,7 +291,7 @@ ${analysisText}
       if (exactMatch) {
         finalCategory = exactMatch;
       } else {
-        (() => {})(`[LLM] INVALID CATEGORY: "${finalCategory}". Fallback to 'Normal'.`);
+        logger.info(`[LLM] INVALID CATEGORY: "${finalCategory}". Fallback to 'Normal'.`);
         finalCategory = 'Normal';
       }
     }
@@ -305,7 +306,7 @@ ${analysisText}
     if (isNaN(finalRiskScore) || finalRiskScore < 0) finalRiskScore = 0;
     if (finalRiskScore > 100) finalRiskScore = 100;
 
-    (() => {})(`[LLM] Result: cat=${finalCategory}, sentiment=${finalSentiment}, risk_score=${finalRiskScore}, intent="${(result.intent || '').substring(0, 50)}"`);
+    logger.info(`[LLM] Result: cat=${finalCategory}, sentiment=${finalSentiment}, risk_score=${finalRiskScore}, intent="${(result.intent || '').substring(0, 50)}"`);
 
     return {
       category: finalCategory,
@@ -315,7 +316,7 @@ ${analysisText}
       reasoning: result.reasoning || ""
     };
   } catch (err) {
-    (() => {})(`[LLM] [ollama] Analysis Failed:`, err.message);
+    logger.error(`[LLM] [ollama] Analysis Failed:`, err.message);
 
     return null;
   }
@@ -405,7 +406,7 @@ ${analysisText}
       model: config.model
     };
   } catch (err) {
-    (() => {})(`[LLM][TS-relevance] failed: ${err.message}`);
+    logger.error(`[LLM][TS-relevance] failed: ${err.message}`);
     return null;
   }
 }

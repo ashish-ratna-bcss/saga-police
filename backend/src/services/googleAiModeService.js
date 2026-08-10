@@ -1,4 +1,5 @@
 const axios = require('axios');
+const logger = require('../utils/logger');
 
 const GOOGLE_AI_MODE_HOST = 'google-ai-mode.p.rapidapi.com';
 
@@ -12,7 +13,7 @@ const queryAiMode = async (prompt, sessionToken = null) => {
     const apiKey = process.env.GOOGLE_AI_MODE_RAPIDAPI_KEY;
 
     if (!apiKey) {
-        (() => {})('[GoogleAiMode] Missing GOOGLE_AI_MODE_RAPIDAPI_KEY in .env');
+        logger.info('[GoogleAiMode] Missing GOOGLE_AI_MODE_RAPIDAPI_KEY in .env');
         return null;
     }
 
@@ -28,7 +29,7 @@ const queryAiMode = async (prompt, sessionToken = null) => {
             params.session_token = sessionToken;
         }
 
-        (() => {})(`[GoogleAiMode] Querying: "${prompt.slice(0, 50)}..."`);
+        logger.info(`[GoogleAiMode] Querying: "${prompt.slice(0, 50)}..."`);
 
         const response = await axios.get(`https://${GOOGLE_AI_MODE_HOST}/ai-mode`, {
             params,
@@ -40,7 +41,7 @@ const queryAiMode = async (prompt, sessionToken = null) => {
         });
 
         if (response.data.status !== 'OK' || !response.data.data) {
-            (() => {})('[GoogleAiMode] API returned error:', response.data);
+            logger.error('[GoogleAiMode] API returned error:', response.data);
             return null;
         }
 
@@ -88,7 +89,7 @@ const queryAiMode = async (prompt, sessionToken = null) => {
             });
         }
 
-        (() => {})(`[GoogleAiMode] Success - Response: ${fullResponse.length} chars, Sources: ${sources.length}`);
+        logger.info(`[GoogleAiMode] Success - Response: ${fullResponse.length} chars, Sources: ${sources.length}`);
 
         return {
             response: fullResponse.trim(),
@@ -98,9 +99,9 @@ const queryAiMode = async (prompt, sessionToken = null) => {
 
     } catch (error) {
         if (error.response?.status === 429) {
-            (() => {})('[GoogleAiMode] Rate limit hit. Please wait or upgrade plan.');
+            logger.info('[GoogleAiMode] Rate limit hit. Please wait or upgrade plan.');
         } else {
-            (() => {})('[GoogleAiMode] Error:', error.message);
+            logger.error('[GoogleAiMode] Error:', error.message);
         }
         return null;
     }
@@ -140,7 +141,7 @@ Please incorporate this social media sentiment into your analysis.
 IMPORTANT: Respond ONLY in ENGLISH. If source content is in another language, translate and summarize it in English.`;
     }
 
-    (() => {})(`[GoogleAiMode] Sending query: "${query.slice(0, 80)}..."`);
+    logger.info(`[GoogleAiMode] Sending query: "${query.slice(0, 80)}..."`);
 
     const result = await queryAiMode(prompt);
 

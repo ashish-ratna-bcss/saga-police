@@ -3,6 +3,7 @@ const Alert = require('../models/Alert');
 const Content = require('../models/Content');
 const Analysis = require('../models/Analysis');
 const cacheService = require('./cacheService');
+const logger = require('../utils/logger');
 
 const escapeRegex = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -86,10 +87,10 @@ const createReportFromAlert = async (alertId) => {
                 review_status: 'escalated',
                 current_risk: 'HIGH'
             });
-            (() => {})(`[ReportService] Recorded feedback for report: ${alertId}`);
+            logger.info(`[ReportService] Recorded feedback for report: ${alertId}`);
         }
     } catch (fbError) {
-        (() => {})('[ReportService] Feedback recording failed:', fbError);
+        logger.error('[ReportService] Feedback recording failed:', fbError);
     }
 
     return report;

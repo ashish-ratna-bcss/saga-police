@@ -101,10 +101,6 @@ const analysisSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     default: null
   },
-  forensic_results: {
-    type: mongoose.Schema.Types.Mixed,
-    default: null
-  },
   analyzed_at: {
     type: Date,
     default: Date.now

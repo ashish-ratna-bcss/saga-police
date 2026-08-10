@@ -1,4 +1,5 @@
 const express = require('express');
+const logger = require('../utils/logger');
 const router = express.Router();
 const axios = require('axios');
 
@@ -17,7 +18,7 @@ router.get('/search', async (req, res) => {
     const response = await axios.get(`${serviceUrl}/search`, { params: { username } });
     res.json(response.data);
   } catch (error) {
-    (() => {})('Error fetching Maigret data:', error.message);
+    logger.error('Error fetching Maigret data:', error.message);
     res.status(error.response?.status || 500).json({ error: 'Failed to fetch Maigret data', details: error.message });
   }
 });

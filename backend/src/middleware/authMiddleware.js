@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { getJwtSecret } = require('../config/security');
+const logger = require('../utils/logger');
 
 const getTokenFromHeader = (req) => {
   if (req.headers.authorization) {
@@ -30,7 +31,7 @@ const protect = async (req, res, next) => {
 
       next();
     } catch (error) {
-      (() => {})(error);
+      logger.error(error);
       return res.status(401).json({ message: 'Not authorized, token failed' });
     }
   }

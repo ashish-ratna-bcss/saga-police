@@ -2,6 +2,7 @@ const POI = require('../models/POI');
 const Source = require('../models/Source');
 const mongoose = require('mongoose');
 const { resolvePlatformIdentity } = require('../services/platformIdentityService');
+const logger = require('../utils/logger');
 
 const PROFILE_PLATFORMS = ['x', 'facebook', 'instagram', 'youtube', ];
 const SOURCE_SYNC_PLATFORMS = new Set(['x', 'facebook', 'instagram', 'youtube']);
@@ -112,7 +113,7 @@ const getAllPOIs = async (req, res) => {
             totalPages: Math.ceil(total / parseInt(limit))
         });
     } catch (error) {
-        (() => {})('[POI] Error fetching POIs:', error.message);
+        logger.error('[POI] Error fetching POIs:', error.message);
         res.status(500).json({ message: 'Failed to fetch persons of interest', error: error.message });
     }
 };
@@ -126,7 +127,7 @@ const getPOIById = async (req, res) => {
         }
         res.json(poi);
     } catch (error) {
-        (() => {})('[POI] Error fetching POI:', error.message);
+        logger.error('[POI] Error fetching POI:', error.message);
         res.status(500).json({ message: 'Failed to fetch person of interest', error: error.message });
     }
 };
@@ -272,7 +273,7 @@ const createPOI = async (req, res) => {
 
         res.status(201).json(poi);
     } catch (error) {
-        (() => {})('[POI] Error creating POI:', error.message);
+        logger.error('[POI] Error creating POI:', error.message);
         res.status(500).json({ message: 'Failed to create person of interest', error: error.message });
     }
 };
@@ -481,7 +482,7 @@ const updatePOI = async (req, res) => {
 
                         syncPromises.push(
                             Source.findOneAndUpdate(query, { $set: updateData })
-                                .catch(err => (() => {})(`[POI] Failed to sync Source ${sm.sourceId}:`, err.message))
+                                .catch(err => logger.error(`[POI] Failed to sync Source ${sm.sourceId}:`, err.message))
                         );
                     }
                 }
@@ -492,7 +493,7 @@ const updatePOI = async (req, res) => {
             }
         }
     } catch (error) {
-        (() => {})('[POI] Error updating POI:', error.message);
+        logger.error('[POI] Error updating POI:', error.message);
         res.status(500).json({ message: 'Failed to update person of interest', error: error.message });
     }
 };
@@ -502,13 +503,13 @@ const getLatestReport = async (req, res) => {
     try {
         const poi = await POI.findById(req.params.id);
         if (!poi || !poi.s3ReportUrl) {
-            (() => {})(`[POI] No report found for ID: ${req.params.id}`);
+            logger.info(`[POI] No report found for ID: ${req.params.id}`);
             return res.status(404).send('<h1>No report found</h1><p>The report for this profile has not been uploaded yet.</p>');
         }
-        (() => {})(`[POI] Redirecting to report: ${poi.s3ReportUrl}`);
+        logger.info(`[POI] Redirecting to report: ${poi.s3ReportUrl}`);
         res.redirect(poi.s3ReportUrl);
     } catch (error) {
-        (() => {})('[POI] Error redirecting to report:', error.message);
+        logger.error('[POI] Error redirecting to report:', error.message);
         res.status(500).json({ message: 'Failed to find report', error: error.message });
     }
 };
@@ -524,7 +525,7 @@ const deletePOI = async (req, res) => {
 
         res.json({ message: 'Person of interest deleted successfully' });
     } catch (error) {
-        (() => {})('[POI] Error deleting POI:', error.message);
+        logger.error('[POI] Error deleting POI:', error.message);
         res.status(500).json({ message: 'Failed to delete person of interest', error: error.message });
     }
 };
@@ -612,7 +613,7 @@ const getPoiBySourceId = async (req, res) => {
         }
         res.json(poi);
     } catch (error) {
-        (() => {})('[POI] Error finding POI by source:', error.message);
+        logger.error('[POI] Error finding POI by source:', error.message);
         res.status(500).json({ message: 'Failed to find POI', error: error.message });
     }
 };
@@ -733,7 +734,7 @@ const getPoiStats = async (_req, res) => {
 
         res.json({ byPlatform });
     } catch (error) {
-        (() => {})('[POI] Error fetching POI stats:', error.message);
+        logger.error('[POI] Error fetching POI stats:', error.message);
         res.status(500).json({ message: 'Failed to fetch POI stats', error: error.message });
     }
 };

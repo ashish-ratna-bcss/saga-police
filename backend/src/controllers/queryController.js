@@ -3,6 +3,7 @@ const Grievance = require('../models/Grievance');
 const { generateQueryCode } = require('../services/queryCodeService');
 const { archiveContentMedia } = require('../services/contentS3Service');
 const ExcelJS = require('exceljs');
+const logger = require('../utils/logger');
 
 /* ─── Helpers ─── */
 const getUser = (req) => ({
@@ -182,7 +183,7 @@ const createReport = async (req, res) => {
 
     res.status(created ? 201 : 200).json(report);
   } catch (error) {
-    (() => {})('Error creating query report:', error);
+    logger.error('Error creating query report:', error);
     res.status(500).json({ error: 'Failed to create query report' });
   }
 };
@@ -222,7 +223,7 @@ const shareReport = async (req, res) => {
 
     res.json(report);
   } catch (error) {
-    (() => {})('Error sharing query report:', error);
+    logger.error('Error sharing query report:', error);
     res.status(500).json({ error: 'Failed to share report' });
   }
 };
@@ -271,7 +272,7 @@ const closeReport = async (req, res) => {
 
     res.json(report);
   } catch (error) {
-    (() => {})('Error closing query report:', error);
+    logger.error('Error closing query report:', error);
     res.status(500).json({ error: 'Failed to close report' });
   }
 };
@@ -334,7 +335,7 @@ const getReports = async (req, res) => {
       }
     });
   } catch (error) {
-    (() => {})('Error fetching query reports:', error);
+    logger.error('Error fetching query reports:', error);
     res.status(500).json({ error: 'Failed to fetch reports' });
   }
 };
@@ -440,7 +441,7 @@ const exportReports = async (req, res) => {
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
-    (() => {})('Error exporting query reports:', error);
+    logger.error('Error exporting query reports:', error);
     res.status(500).json({ error: 'Failed to export reports' });
   }
 };
@@ -518,7 +519,7 @@ const generateReportPdf = async (req, res) => {
 
     return res.json({ pdf_url: pdfUrl });
   } catch (err) {
-    (() => {})('PDF generation error:', err);
+    logger.error('PDF generation error:', err);
     return res.status(500).json({ error: 'PDF generation failed', detail: err.message });
   }
 };

@@ -1,5 +1,6 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
+const logger = require('./logger');
 
 /**
  * Scrape Open Graph meta tags from a URL to get link preview data
@@ -61,7 +62,7 @@ const scrapeOpenGraph = async (url) => {
         return ogData;
     } catch (error) {
         // Silently fail - URL scraping is best-effort
-        (() => {})(`[OG Scraper] Failed to scrape ${url}: ${error.message}`);
+        logger.error(`[OG Scraper] Failed to scrape ${url}: ${error.message}`);
         return null;
     }
 };

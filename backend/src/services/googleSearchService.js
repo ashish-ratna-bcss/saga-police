@@ -1,5 +1,6 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
+const logger = require('../utils/logger');
 
 /**
  * Perform a Web search (via DuckDuckGo HTML) and return results
@@ -54,7 +55,7 @@ const searchWeb = async (query, limit = 10, timeFilter = null) => {
         return items;
 
     } catch (error) {
-        (() => {})('Web Search Error (Axios):', error.message);
+        logger.error('Web Search Error (Axios):', error.message);
         return [];
     }
 };

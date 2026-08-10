@@ -16,6 +16,7 @@ const intelligenceClient = require('./intelligenceClientService');
 const mappingService = require('./mappingService');
 const Keyword = require('../models/Keyword');
 const Settings = require('../models/Settings');
+const logger = require('../utils/logger');
 
 const MIN_TEXT_LENGTH = 3;
 const MAX_TEXT_LENGTH = Math.max(800, Number(process.env.OLLAMA_MAX_TEXT_LENGTH || 2500));
@@ -85,7 +86,7 @@ const classifyDirect = async (text) => {
     } catch (error) {
       lastError = error;
       const isOverloaded = error.response?.status === 503 || error.response?.status === 429;
-      (() => {})(`[Investigation-LLM] Attempt ${attempt}/${maxAttempts} failed: ${error.message}`);
+      logger.error(`[Investigation-LLM] Attempt ${attempt}/${maxAttempts} failed: ${error.message}`);
       if (attempt < maxAttempts) {
         await new Promise(r => setTimeout(r, (isOverloaded ? 2000 : 1000) * attempt));
       }
@@ -147,10 +148,10 @@ const analyzeInvestigationText = async (text, options = {}) => {
     });
 
     if (matchedKeywords.length > 0) {
-      (() => {})(`[Investigation] Layer 1: Matched ${matchedKeywords.length} keywords (max weight: ${keywordRiskScore})`);
+      logger.info(`[Investigation] Layer 1: Matched ${matchedKeywords.length} keywords (max weight: ${keywordRiskScore})`);
     }
   } catch (kwErr) {
-    (() => {})(`[Investigation] Keyword check failed: ${kwErr.message}`);
+    logger.error(`[Investigation] Keyword check failed: ${kwErr.message}`);
   }
 
   // ── Layer 2: Intelligence ──
@@ -208,7 +209,7 @@ const analyzeInvestigationText = async (text, options = {}) => {
     });
 
     if (keywordRiskScore > llmResult.risk_score) {
-      (() => {})(`[Investigation] Layer 4: Keyword weight (${keywordRiskScore}) overrides LLM score (${llmResult.risk_score})`);
+      logger.info(`[Investigation] Layer 4: Keyword weight (${keywordRiskScore}) overrides LLM score (${llmResult.risk_score})`);
       llmResult.risk_score = keywordRiskScore;
     }
   }
@@ -236,7 +237,7 @@ const analyzeInvestigationText = async (text, options = {}) => {
     ...aggregatedLegalSections.map(l => `Legal: ${l.act} ${l.section}`)
   ].filter(Boolean);
 
-  (() => {})(`[Investigation] Final: score=${finalScore}, level=${riskLevel}, cat=${llmResult.category}, keywords=${matchedKeywords.length}`);
+  logger.info(`[Investigation] Final: score=${finalScore}, level=${riskLevel}, cat=${llmResult.category}, keywords=${matchedKeywords.length}`);
 
   return {
     risk_level: riskLevel,

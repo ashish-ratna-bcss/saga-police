@@ -12,11 +12,12 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const Content = require('../models/Content');
 const { classifyContent } = require('../utils/hyderabadClassifier');
+const logger = require('../utils/logger');
 
 (async () => {
   const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
   if (!mongoUri) {
-    (() => {})('MONGODB_URI / MONGO_URI not set in env. Aborting.');
+    logger.info('MONGODB_URI / MONGO_URI not set in env. Aborting.');
     process.exit(1);
   }
   await mongoose.connect(mongoUri);
@@ -31,7 +32,7 @@ const { classifyContent } = require('../utils/hyderabadClassifier');
   if (eventId) filter.event_ids = eventId;
 
   const total = await Content.countDocuments(filter);
-  (() => {})(`Items to classify: ${total}`);
+  logger.info(`Items to classify: ${total}`);
 
   const cursor = Content.find(filter)
     .select('id text scraped_content tags location media_location')
@@ -64,17 +65,17 @@ const { classifyContent } = require('../utils/hyderabadClassifier');
         }
       );
     } catch (err) {
-      (() => {})(`[skip ${doc.id}]`, err.message);
+      logger.error(`[skip ${doc.id}]`, err.message);
     }
     done++;
     if (done % 25 === 0) {
-      (() => {})(`  ${done}/${total} (positives=${positives})`);
+      logger.info(`  ${done}/${total} (positives=${positives})`);
     }
   }
 
-  (() => {})(`Done. classified=${done}, telangana_related=${positives}`);
+  logger.info(`Done. classified=${done}, telangana_related=${positives}`);
   await mongoose.disconnect();
 })().catch((err) => {
-  (() => {})('Backfill failed:', err);
+  logger.error('Backfill failed:', err);
   process.exit(1);
 });

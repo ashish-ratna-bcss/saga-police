@@ -4,6 +4,7 @@ const Grievance = require('../models/Grievance');
 const { generateCriticismCode } = require('../services/criticismCodeService');
 const { archiveContentMedia } = require('../services/contentS3Service');
 const ExcelJS = require('exceljs');
+const logger = require('../utils/logger');
 
 /* ─── Helpers ─── */
 const getUser = (req) => ({
@@ -183,7 +184,7 @@ const createReport = async (req, res) => {
 
     res.status(created ? 201 : 200).json(report);
   } catch (error) {
-    (() => {})('Error creating criticism report:', error);
+    logger.error('Error creating criticism report:', error);
     res.status(500).json({ error: 'Failed to create criticism report' });
   }
 };
@@ -229,7 +230,7 @@ const shareReport = async (req, res) => {
 
     res.json(report);
   } catch (error) {
-    (() => {})('Error sharing criticism report:', error);
+    logger.error('Error sharing criticism report:', error);
     res.status(500).json({ error: 'Failed to share report' });
   }
 };
@@ -296,7 +297,7 @@ const generateReportPdf = async (req, res) => {
 
     return res.json({ pdf_url: pdfUrl });
   } catch (err) {
-    (() => {})('PDF generation error:', err);
+    logger.error('PDF generation error:', err);
     return res.status(500).json({ error: 'PDF generation failed', detail: err.message });
   }
 };
@@ -539,7 +540,7 @@ const getReports = async (req, res) => {
       }
     });
   } catch (error) {
-    (() => {})('Error fetching criticism reports:', error);
+    logger.error('Error fetching criticism reports:', error);
     res.status(500).json({ error: 'Failed to fetch reports' });
   }
 };
@@ -668,7 +669,7 @@ const exportReports = async (req, res) => {
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
-    (() => {})('Error exporting criticism reports:', error);
+    logger.error('Error exporting criticism reports:', error);
     res.status(500).json({ error: 'Failed to export reports' });
   }
 };

@@ -57,19 +57,21 @@ export default function Alerts() {
   const [pendingAnalysisCount, setPendingAnalysisCount] = useState(0);
   const [viewMode, setViewMode] = useState('grid');
   const [alertCategory, setAlertCategory] = useState('all'); // legacy — mirrors active exclusive dim
+  // Applied Risk/Virality filters — drive fetch/cache; only changed via Apply Filters.
   const [riskFilter, setRiskFilter] = useState('all'); // 'all' | 'low' | 'medium' | 'high'
   const [viralityFilter, setViralityFilter] = useState('all'); // 'all' | 'low' | 'medium' | 'high'
+  // Draft Risk/Virality dropdown values — local UI state only, independent of each other.
+  const [draftRiskFilter, setDraftRiskFilter] = useState('all');
+  const [draftViralityFilter, setDraftViralityFilter] = useState('all');
 
-  // Mutual exclusivity: only one dimension filters at a time
-  const selectRiskFilter = useCallback((value) => {
-    setRiskFilter(value);
-    if (value !== 'all') setViralityFilter('all');
-    setAlertCategory(value === 'all' ? 'all' : value);
-  }, []);
-  const selectViralityFilter = useCallback((value) => {
-    setViralityFilter(value);
-    if (value !== 'all') setRiskFilter('all');
-    setAlertCategory(value === 'all' ? 'all' : `viral_${value}`);
+  const applyRiskViralityFilters = useCallback(() => {
+    setRiskFilter(draftRiskFilter);
+    setViralityFilter(draftViralityFilter);
+  }, [draftRiskFilter, draftViralityFilter]);
+
+  const resetRiskViralityFilters = useCallback(() => {
+    setDraftRiskFilter('all');
+    setDraftViralityFilter('all');
   }, []);
   const [totalResults, setTotalResults] = useState(0);
   const [alertStats, setAlertStats] = useState(null);
@@ -501,65 +503,6 @@ export default function Alerts() {
       console.error('Failed to fetch reports for alerts:', error);
     }
   }, []);
-
-  const handleDownloadMedia = async (alert, contentData) => {
-    const mediaUrl = alert?.content_url || contentData?.url || contentData?.link;
-    if (!mediaUrl) {
-      updateDownloadState(alert.id, { error: 'No media URL available' });
-      setTimeout(() => updateDownloadState(alert.id, { error: null }), 3000);
-      return;
-    }
-
-    updateDownloadState(alert.id, {
-      downloading: true,
-      progress: 0,
-      status: 'Initializing...',
-      error: null
-    });
-
-    try {
-      updateDownloadState(alert.id, { progress: 10, status: 'Fetching media info...' });
-
-      const downloadPromise = api.post('/media/download', {
-        media_url: mediaUrl,
-        content_id: contentData?.id || alert.content_id
-      });
-
-      let progress = 10;
-      const progressInterval = setInterval(() => {
-        progress += Math.random() * 15;
-        if (progress < 85) {
-          updateDownloadState(alert.id, { progress: Math.min(progress, 85) });
-          if (progress < 30) updateDownloadState(alert.id, { status: 'Fetching media info...' });
-          else if (progress < 50) updateDownloadState(alert.id, { status: 'Downloading media...' });
-          else if (progress < 70) updateDownloadState(alert.id, { status: 'Processing...' });
-          else updateDownloadState(alert.id, { status: 'Almost done...' });
-        }
-      }, 500);
-
-      const response = await downloadPromise;
-      clearInterval(progressInterval);
-
-      updateDownloadState(alert.id, { progress: 100, status: 'Complete!' });
-
-      if (response.data.download_url) {
-        setTimeout(() => {
-          window.open(response.data.download_url, '_blank');
-          updateDownloadState(alert.id, { downloading: false, progress: 0, status: '' });
-        }, 500);
-      } else {
-        updateDownloadState(alert.id, { downloading: false, progress: 0, status: '' });
-      }
-    } catch (error) {
-      updateDownloadState(alert.id, {
-        downloading: false,
-        progress: 0,
-        status: '',
-        error: error.response?.data?.error || 'Download failed'
-      });
-      setTimeout(() => updateDownloadState(alert.id, { error: null }), 3000);
-    }
-  };
 
   // Reset pagination when filters change
   useEffect(() => {
@@ -2230,53 +2173,60 @@ export default function Alerts() {
               {/* Divider */}
               <div className="border-t border-border/50" />
 
-              {/* Risk + Virality Quick Filters (mutually exclusive dimensions) */}
-              <div className="flex flex-col gap-2.5 text-sm">
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                  <span className="text-[11px] font-semibold tracking-wide text-muted-foreground shrink-0 min-w-[5.5rem]">
+              {/* Risk + Virality Filters (independent dimensions, applied on demand) */}
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold tracking-wide text-muted-foreground shrink-0 inline-flex items-center gap-1">
                     <span aria-hidden="true">🛡</span> Risk
                   </span>
-                  {[
-                    { value: 'all', label: 'All', dot: '🟡' },
-                    { value: 'low', label: 'Low', dot: '🟢' },
-                    { value: 'medium', label: 'Medium', dot: '🟠' },
-                    { value: 'high', label: 'High', dot: '🔴' }
-                  ].map((cat) => (
-                    <button
-                      key={`risk-${cat.value}`}
-                      onClick={() => selectRiskFilter(cat.value)}
-                      className={`px-3 py-1 font-medium transition-all rounded-full text-xs inline-flex items-center gap-1 ${riskFilter === cat.value
-                        ? 'bg-secondary text-secondary-foreground shadow-sm border border-border'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                        }`}
-                    >
-                      <span aria-hidden="true">{cat.dot}</span>
-                      {cat.label}
-                    </button>
-                  ))}
+                  <Select value={draftRiskFilter} onValueChange={setDraftRiskFilter}>
+                    <SelectTrigger className="w-[110px] h-9 text-xs">
+                      <SelectValue placeholder="All" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                  <span className="text-[11px] font-semibold tracking-wide text-muted-foreground shrink-0 min-w-[5.5rem]">
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold tracking-wide text-muted-foreground shrink-0 inline-flex items-center gap-1">
                     <span aria-hidden="true">📈</span> Virality
                   </span>
-                  {[
-                    { value: 'all', label: 'All', dot: '🟡' },
-                    { value: 'low', label: 'Low', dot: '🟢' },
-                    { value: 'medium', label: 'Medium', dot: '🟠' },
-                    { value: 'high', label: 'High', dot: '🔴' }
-                  ].map((cat) => (
-                    <button
-                      key={`virality-${cat.value}`}
-                      onClick={() => selectViralityFilter(cat.value)}
-                      className={`px-3 py-1 font-medium transition-all rounded-full text-xs inline-flex items-center gap-1 ${viralityFilter === cat.value
-                        ? 'bg-secondary text-secondary-foreground shadow-sm border border-border'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                        }`}
-                    >
-                      <span aria-hidden="true">{cat.dot}</span>
-                      {cat.label}
-                    </button>
-                  ))}
+                  <Select value={draftViralityFilter} onValueChange={setDraftViralityFilter}>
+                    <SelectTrigger className="w-[110px] h-9 text-xs">
+                      <SelectValue placeholder="All" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-2 ml-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9"
+                    onClick={resetRiskViralityFilters}
+                  >
+                    Reset
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-9"
+                    onClick={applyRiskViralityFilters}
+                  >
+                    Apply Filters
+                  </Button>
                 </div>
               </div>
 

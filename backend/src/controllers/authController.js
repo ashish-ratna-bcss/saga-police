@@ -5,6 +5,7 @@ const User = require('../models/User');
 const { createAuditLog } = require('../services/auditService');
 const { sendPasswordResetEmail } = require('../utils/mailer');
 const { getJwtSecret, getRefreshTokenSecret } = require('../config/security');
+const logger = require('../utils/logger');
 
 const generateToken = (id) => {
   return jwt.sign({ user_id: id }, getJwtSecret(), {
@@ -239,7 +240,7 @@ const forgotPassword = async (req, res) => {
 
     res.json({ message: 'If that email exists, a reset link has been sent.' });
   } catch (error) {
-    (() => {})('[Auth] forgotPassword error:', error);
+    logger.error('[Auth] forgotPassword error:', error);
     res.status(500).json({ message: 'Something went wrong. Please try again.' });
   }
 };
@@ -291,7 +292,7 @@ const resetPassword = async (req, res) => {
 
     res.json({ message: 'Password has been reset successfully. You can now log in.' });
   } catch (error) {
-    (() => {})('[Auth] resetPassword error:', error);
+    logger.error('[Auth] resetPassword error:', error);
     res.status(500).json({ message: 'Something went wrong. Please try again.' });
   }
 };
@@ -343,7 +344,7 @@ const ssoBridge = async (req, res) => {
       password_hash: user.password,
     });
   } catch (error) {
-    (() => {})('[Auth] ssoBridge error:', error);
+    logger.error('[Auth] ssoBridge error:', error);
     res.status(500).json({ message: 'SSO bridge failed' });
   }
 };

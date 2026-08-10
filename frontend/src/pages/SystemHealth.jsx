@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Activity, Server, Database, Brain, Zap, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Activity, Server, Database, Brain, RefreshCw, ShieldAlert } from 'lucide-react';
 import api from '../lib/api';
 
 const SystemHealth = () => {
@@ -159,13 +159,7 @@ const SystemHealth = () => {
                 statusObj={{ status: healthData.services.ollama.status, message: 'Local Language Model (Risk Scoring)' }}
                 latency={healthData.services.ollama.latency}
               />
-              <StatusCard 
-                title="Deepfake ML Engine"
-                icon={Zap}
-                statusObj={{ status: healthData.services.deepfake.status, message: 'Forensic analysis of media.' }}
-                latency={healthData.services.deepfake.latency}
-              />
-              <StatusCard 
+              <StatusCard
                 title="Custom Sentiment"
                 icon={Activity}
                 statusObj={{ status: healthData.services.sentiment.status, message: 'Multi-lingual emotion detection.' }}

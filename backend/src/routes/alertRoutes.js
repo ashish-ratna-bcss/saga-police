@@ -1,4 +1,5 @@
 const express = require('express');
+const logger = require('../utils/logger');
 const router = express.Router();
 const {
     getAlerts,
@@ -44,11 +45,11 @@ router.get('/dashboard-stats', getDashboardStats);
 router.get('/workflow-kpi', getWorkflowKpi);
 router.get('/unread', requireFeatureAccess('/alerts', () => 'active'), getUnreadCount);
 router.post('/investigate', requireFeatureAccess('/alerts', () => 'active'), (req, res, next) => {
-    (() => {})('[AlertRoutes] POST /investigate reached');
+    logger.info('[AlertRoutes] POST /investigate reached');
     investigateLink(req, res, next);
 });
 router.post('/public-investigate', (req, res) => {
-    (() => {})('[AlertRoutes] POST /public-investigate reached');
+    logger.info('[AlertRoutes] POST /public-investigate reached');
     investigateLink(req, res);
 });
 router.post('/translate', translateAlertContent);

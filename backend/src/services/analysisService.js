@@ -1,5 +1,4 @@
 require('dotenv').config();
-const axios = require('axios');
 const { categorizeText } = require('./llmService');
 const { getEngineName } = require('./sentimentEngineService');
 const customSentimentService = require('./customSentimentService');
@@ -7,7 +6,7 @@ const intelligenceClient = require('./intelligenceClientService');
 const mappingService = require('./mappingService');
 const LegalSection = require('../models/LegalSection');
 const PlatformPolicy = require('../models/PlatformPolicy');
-const { enqueueForensicTask } = require('./forensicQueueService');
+const logger = require('../utils/logger');
 
 const SHADOW_SAMPLE_RATE = Math.max(
   0,
@@ -61,7 +60,6 @@ const setCachedAnalysis = (text, value) => {
  *   INTELLIGENCE_ENGINE=LOCAL_OLLAMA → legacy llmService.categorizeText (+ optional CUSTOM sentiment)
  *   INTELLIGENCE_ENGINE=SHADOW → LOCAL_OLLAMA persisted; sample also hits sentiment-api (log only)
  * Pass B: Deterministic Mapping Engine for Legal & Policy Mapping
- * Pass D: Standalone Deepfake Forensics (S3-First, Async)
  */
 
 async function runPassA(text, log) {
@@ -107,53 +105,8 @@ async function runPassA(text, log) {
   return { llmResult, sentimentFromIntel: false, mode };
 }
 
-const triggerForensicAnalysis = async (content, analysisId) => {
-  const log = (msg) => (() => {})(`[ForensicQueue] ${msg}`);
-  const mlServiceUrl = process.env.DEEPFAKE_ML_URL || 'http://localhost:8001';
-
-  // Queue background alert-batch forensics at normal priority.
-  return enqueueForensicTask(async () => {
-    try {
-      log(`Starting alert-batch analysis: ${analysisId}`);
-      let mediaItems = content.media || [];
-
-      // Fallback: If no media items but platform is YouTube/Facebook, use content_url
-      if (mediaItems.length === 0 && (content.platform === 'youtube' || content.platform === 'facebook')) {
-        const url = content.content_url || content.url;
-        if (url) {
-          mediaItems = [{ url, type: 'video' }];
-        }
-      }
-
-      if (mediaItems.length === 0) return null;
-
-      // Prioritize S3 URLs if archived, fallback to platform URL
-      const payload = {
-        media_items: mediaItems.map(m => ({
-          url: m.s3_url || m.video_url || m.url,
-          type: m.type === 'video' ? 'video' : 'image'
-        })),
-        include_previews: false
-      };
-
-      log(`Triggering batch forensics for ${payload.media_items.length} items (Analysis: ${analysisId})`);
-
-      const response = await axios.post(`${mlServiceUrl}/detect/batch`, payload, {
-        timeout: 300000,
-        headers: { 'x-api-key': process.env.GATEWAY_API_KEY || '' }
-      });
-      log(`Alert-batch complete: ${analysisId}`);
-      return response.data.results || null;
-
-    } catch (err) {
-      log(`Alert-batch failed for ${analysisId}: ${err.message}`);
-      return null;
-    }
-  }, { priority: 'normal', label: `alert-batch:${analysisId}` });
-};
-
 const analyzeContent = async (text, options = {}) => {
-  const log = (msg) => (() => {})(`[AnalysisService] ${msg}`);
+  const log = (msg) => logger.info(`[AnalysisService] ${msg}`);
 
   if (!text || !text.trim()) {
     return {
@@ -316,19 +269,7 @@ const analyzeContent = async (text, options = {}) => {
       ...finalResult.legal_sections.map(l => `Legal: ${l.act} ${l.section}`)
     ].filter(Boolean);
 
-    // --- PASS D: STANDALONE FORENSICS (POST-SAVE TRIGGER) ---
-    let forensicResults = null;
-    if (!options.skipForensics && options.content && options.analysisId) {
-      forensicResults = await triggerForensicAnalysis(options.content, options.analysisId);
-    }
-
-    finalResult.forensic_results = forensicResults;
-
-    // Cache only the deterministic analysis payload (exclude content-specific forensic output).
-    setCachedAnalysis(text, {
-      ...finalResult,
-      forensic_results: null
-    });
+    setCachedAnalysis(text, finalResult);
 
     return finalResult;
 

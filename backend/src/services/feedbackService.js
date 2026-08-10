@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const logger = require('../utils/logger');
 
 const FEEDBACK_FILE_PATH = path.join(__dirname, '../../../backend_ml/data/feedback_samples.jsonl');
 
@@ -41,7 +42,7 @@ const recordFeedback = async ({ text, category, legal_sections, review_status, c
 
         const mlServiceUrl = process.env.ML_SERVICE_URL || 'http://localhost:8006';
         
-        (() => {})(`[FeedbackService] Sending feedback to server: ${mlServiceUrl}/record-feedback`);
+        logger.info(`[FeedbackService] Sending feedback to server: ${mlServiceUrl}/record-feedback`);
 
         const response = await axios.post(`${mlServiceUrl}/record-feedback`, {
             text,
@@ -54,14 +55,14 @@ const recordFeedback = async ({ text, category, legal_sections, review_status, c
         });
 
         if (response.data.status === 'success') {
-            (() => {})(`[FeedbackService] Server accepted feedback: ${response.data.message}`);
+            logger.info(`[FeedbackService] Server accepted feedback: ${response.data.message}`);
             if (response.data.retraining_triggered) {
-                (() => {})('[FeedbackService] Retraining threshold reached on server!');
+                logger.info('[FeedbackService] Retraining threshold reached on server!');
             }
         }
 
     } catch (error) {
-        (() => {})('[FeedbackService] Error sending feedback to server:', error.response?.data || error.message);
+        logger.error('[FeedbackService] Error sending feedback to server:', error.response?.data || error.message);
     }
 };
 

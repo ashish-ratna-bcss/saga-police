@@ -16,6 +16,8 @@ const fs = require('fs');
 const path = require('path');
 const { randomUUID } = require('crypto');
 const cheerio = require('cheerio');
+const { MEDIA_ANALYZER_URL } = require('../config/mediaAnalyzer');
+const logger = require('../utils/logger');
 
 // ─── Local on-prem storage ────────────────────────────────────────────────
 const STORAGE_DIR = process.env.REPORT_STORAGE_DIR || path.join(__dirname, '..', '..', 'storage');
@@ -24,7 +26,7 @@ const PUBLIC_BASE = (process.env.PUBLIC_BACKEND_URL || `http://localhost:${proce
 const CONTENT_FOLDER = 'instagram-content';
 const TWITTER_FOLDER = 'twitter-content';
 const FACEBOOK_FOLDER = 'facebook-content';
-const MEDIA_DOWNLOAD_URL = process.env.MEDIA_ANALYZER_URL || 'http://localhost:8005';
+const MEDIA_DOWNLOAD_URL = MEDIA_ANALYZER_URL;
 
 // Auto-archival of social-media images/videos to local disk has been
 // disabled by request — only PDFs / Word docs (and explicit user-uploaded
@@ -204,7 +206,7 @@ const resolveFacebookPageMedia = async (pageUrl) => {
       ) || htmlMedia.imageUrl || null
     };
   } catch (err) {
-    (() => {})(`[ContentS3] ❌ Facebook page media resolve failed for ${pageUrl}: ${err.message}`);
+    logger.error(`[ContentS3] ❌ Facebook page media resolve failed for ${pageUrl}: ${err.message}`);
     return { videoUrl: null, imageUrl: null };
   }
 };
@@ -234,7 +236,7 @@ const fetchTwitterVideoUrl = async (tweetId) => {
     }
     return null;
   } catch (err) {
-    (() => {})(`[ContentS3] ⚠️ Syndication fetch failed for ${tweetId}: ${err.message}`);
+    logger.error(`[ContentS3] ⚠️ Syndication fetch failed for ${tweetId}: ${err.message}`);
     return null;
   }
 };
@@ -268,12 +270,12 @@ const downloadMedia = async (mediaUrl) => {
     });
     const contentType = response.headers['content-type'] || 'application/octet-stream';
     if (/text\/html|application\/json|text\/plain/i.test(contentType)) {
-      (() => {})(`[ContentS3] ⚠️ Refusing non-media response ${contentType} for ${mediaUrl}`);
+      logger.info(`[ContentS3] ⚠️ Refusing non-media response ${contentType} for ${mediaUrl}`);
       return null;
     }
     return { buffer: Buffer.from(response.data), contentType };
   } catch (err) {
-    (() => {})(`[ContentS3] ❌ Download failed for ${mediaUrl}: ${err.message}`);
+    logger.error(`[ContentS3] ❌ Download failed for ${mediaUrl}: ${err.message}`);
     return null;
   }
 };
@@ -285,7 +287,7 @@ const downloadMedia = async (mediaUrl) => {
 const downloadViaPythonService = async (mediaUrl) => {
   try {
     // 1. Request the download – send both `url` and `media_url` for compatibility
-    (() => {})(`[ContentS3] 🐍 Sending to Python service: ${mediaUrl.substring(0, 80)}`);
+    logger.info(`[ContentS3] 🐍 Sending to Python service: ${mediaUrl.substring(0, 80)}`);
     const dlRes = await axios.post(`${MEDIA_DOWNLOAD_URL}/download`, {
         url: mediaUrl,
         media_url: mediaUrl
@@ -300,7 +302,7 @@ const downloadViaPythonService = async (mediaUrl) => {
 
     // 2. Retrieve the file content
     const fileUrl = `${MEDIA_DOWNLOAD_URL}${dlRes.data.download_url}`;
-    (() => {})(`[ContentS3] 📥 Fetching file from: ${fileUrl}`);
+    logger.info(`[ContentS3] 📥 Fetching file from: ${fileUrl}`);
     const fileRes = await axios({
         method: 'GET',
         url: fileUrl,
@@ -309,14 +311,14 @@ const downloadViaPythonService = async (mediaUrl) => {
     });
 
     const buffer = Buffer.from(fileRes.data);
-    (() => {})(`[ContentS3] 📦 Python service returned ${(buffer.length / 1024).toFixed(1)} KB`);
+    logger.info(`[ContentS3] 📦 Python service returned ${(buffer.length / 1024).toFixed(1)} KB`);
     return {
         buffer,
         contentType: fileRes.headers['content-type'] || 'video/mp4'
     };
   } catch (err) {
     const detail = err.response?.data?.detail || err.message;
-    (() => {})(`[ContentS3] ❌ Python Service download failed: ${detail}`);
+    logger.error(`[ContentS3] ❌ Python Service download failed: ${detail}`);
     return null;
   }
 };
@@ -411,7 +413,7 @@ const archiveMediaItem = async (mediaUrl, contentId, mediaType = 'photo', index 
         dl = await downloadMedia(effectiveMediaUrl);
         // Validate: reject tiny files (HLS playlists, error pages)
         if (dl && dl.buffer.length < MIN_VIDEO_SIZE_BYTES) {
-          (() => {})(`[ContentS3] ⚠️ Direct download too small (${dl.buffer.length} bytes), likely not a real video`);
+          logger.info(`[ContentS3] ⚠️ Direct download too small (${dl.buffer.length} bytes), likely not a real video`);
           dl = null;
         }
       }
@@ -421,11 +423,11 @@ const archiveMediaItem = async (mediaUrl, contentId, mediaType = 'photo', index 
       if (!dl && !mediaUrl.includes('facebook.com')) {
         const tweetId = String(contentId).split('_')[0];
         const postUrl = options.postUrl || (mediaUrl.includes('facebook.com') ? mediaUrl : `https://x.com/i/status/${tweetId}`);
-        (() => {})(`[ContentS3] 🎬 Using Python service for video: ${postUrl.substring(0, 80)}`);
+        logger.info(`[ContentS3] 🎬 Using Python service for video: ${postUrl.substring(0, 80)}`);
         dl = await downloadViaPythonService(postUrl);
         // Validate: reject tiny files
         if (dl && dl.buffer.length < MIN_VIDEO_SIZE_BYTES) {
-          (() => {})(`[ContentS3] ⚠️ Python service returned too small (${dl.buffer.length} bytes), discarding`);
+          logger.info(`[ContentS3] ⚠️ Python service returned too small (${dl.buffer.length} bytes), discarding`);
           dl = null;
         }
       }
@@ -433,13 +435,13 @@ const archiveMediaItem = async (mediaUrl, contentId, mediaType = 'photo', index 
       // ── Strategy 3: Syndication API to get direct MP4 URL ──
       if (!dl && mediaUrl.includes('twimg.com')) {
         const tweetId = String(contentId).split('_')[0];
-        (() => {})(`[ContentS3] 🔍 Trying syndication API for tweet ${tweetId}`);
+        logger.info(`[ContentS3] 🔍 Trying syndication API for tweet ${tweetId}`);
         const realVideoUrl = await fetchTwitterVideoUrl(tweetId);
         if (realVideoUrl && !isHlsUrl(realVideoUrl)) {
-          (() => {})(`[ContentS3] 🎥 Got real video URL: ${realVideoUrl.substring(0, 80)}`);
+          logger.info(`[ContentS3] 🎥 Got real video URL: ${realVideoUrl.substring(0, 80)}`);
           dl = await downloadMedia(realVideoUrl);
           if (dl && dl.buffer.length < MIN_VIDEO_SIZE_BYTES) {
-            (() => {})(`[ContentS3] ⚠️ Syndication video too small (${dl.buffer.length} bytes), discarding`);
+            logger.info(`[ContentS3] ⚠️ Syndication video too small (${dl.buffer.length} bytes), discarding`);
             dl = null;
           }
         }
@@ -456,18 +458,18 @@ const archiveMediaItem = async (mediaUrl, contentId, mediaType = 'photo', index 
     // Safety check: reject invalid content for video items
     if (isVideo && dl.contentType) {
       if (dl.contentType.startsWith('image/')) {
-        (() => {})(`[ContentS3] ⚠️ Expected video but got ${dl.contentType} for ${contentId}[${index}] – skipping`);
+        logger.info(`[ContentS3] ⚠️ Expected video but got ${dl.contentType} for ${contentId}[${index}] – skipping`);
         return null;
       }
       // Reject HLS playlists that slipped through
       if (dl.contentType.includes('mpegURL') || dl.contentType.includes('m3u8')) {
-        (() => {})(`[ContentS3] ⚠️ Got HLS playlist (${dl.contentType}) instead of video for ${contentId}[${index}] – skipping`);
+        logger.info(`[ContentS3] ⚠️ Got HLS playlist (${dl.contentType}) instead of video for ${contentId}[${index}] – skipping`);
         return null;
       }
     }
     // Final size guard for videos
     if (isVideo && dl.buffer.length < MIN_VIDEO_SIZE_BYTES) {
-      (() => {})(`[ContentS3] ⚠️ Video file too small (${dl.buffer.length} bytes) for ${contentId}[${index}] – skipping`);
+      logger.info(`[ContentS3] ⚠️ Video file too small (${dl.buffer.length} bytes) for ${contentId}[${index}] – skipping`);
       return null;
     }
 
@@ -480,13 +482,13 @@ const archiveMediaItem = async (mediaUrl, contentId, mediaType = 'photo', index 
     const key = `${folder}/${contentId}/${filename}`;
 
     const result = await uploadToS3(dl.buffer, key, dl.contentType);
-    (() => {})(`[ContentS3] ✅ Archived ${contentId}/${index}.${ext} (${(dl.buffer.length / 1024).toFixed(1)} KB)`);
+    logger.info(`[ContentS3] ✅ Archived ${contentId}/${index}.${ext} (${(dl.buffer.length / 1024).toFixed(1)} KB)`);
     if (resolvedFacebookPreviewUrl) {
       result.previewUrl = resolvedFacebookPreviewUrl;
     }
     return result;
   } catch (err) {
-    (() => {})(`[ContentS3] ❌ Archive failed for ${contentId}[${index}]: ${err.message}`);
+    logger.error(`[ContentS3] ❌ Archive failed for ${contentId}[${index}]: ${err.message}`);
     return null;
   }
 };
@@ -511,7 +513,7 @@ const archivePreview = async (previewUrl, contentId, index = 0, options = {}) =>
     const result = await uploadToS3(dl.buffer, key, dl.contentType);
     return result;
   } catch (err) {
-    (() => {})(`[ContentS3] ❌ Preview archive failed for ${contentId}[${index}]: ${err.message}`);
+    logger.error(`[ContentS3] ❌ Preview archive failed for ${contentId}[${index}]: ${err.message}`);
     return null;
   }
 };
@@ -633,10 +635,10 @@ const deleteContentMediaFromS3 = async (mediaArray) => {
     keys.map(key => {
       const absPath = path.join(STORAGE_DIR, key);
       return fs.promises.unlink(absPath)
-        .then(() => (() => {})(`[ContentS3] 🗑️ Deleted ${key}`))
+        .then(() => logger.info(`[ContentS3] 🗑️ Deleted ${key}`))
         .catch(err => {
           if (err.code !== 'ENOENT') {
-            (() => {})(`[ContentS3] ❌ Delete failed for ${key}: ${err.message}`);
+            logger.error(`[ContentS3] ❌ Delete failed for ${key}: ${err.message}`);
           }
         });
     })

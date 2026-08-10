@@ -1,6 +1,6 @@
 const express = require('express');
+const logger = require('../utils/logger');
 const router = express.Router();
-const mediaAnalyzerService = require('../services/mediaAnalyzerService');
 const rapidApiXService = require('../services/rapidApiXService');
 const {
     resolveSourceForRetweetNetwork,
@@ -19,40 +19,10 @@ const {
     getPendingCount,
     getAllAnalyses
 } = require('../services/engagerAnalysisService');
-const AuditLog = require('../models/AuditLog');
 const { protect } = require('../middleware/authMiddleware');
 const { requireAnyPageAccess } = require('../middleware/rbacMiddleware');
 
 router.use(protect, requireAnyPageAccess(['/x-monitor']));
-
-// Keep legacy call sites but preserve authenticated user identity.
-const mockUser = (req, res, next) => {
-    if (!req.user) {
-        req.user = {
-            id: 'unknown',
-            email: 'unknown@local',
-            full_name: 'Unknown User'
-        };
-    }
-    req.user.name = req.user.name || req.user.full_name || req.user.email || req.user.id;
-    next();
-};
-
-const logAction = async (user, action, resourceType, resourceId, details) => {
-    try {
-        await AuditLog.create({
-            user_id: user.id,
-            user_email: user.email,
-            user_name: user.name,
-            action: action,
-            resource_type: resourceType,
-            resource_id: resourceId,
-            details: details
-        });
-    } catch (error) {
-        (() => {})('Audit Log Error:', error);
-    }
-};
 
 const RAPID_ENDPOINT_ALIASES = {
     // User Endpoint
@@ -121,53 +91,6 @@ const proxyRapidEndpoint = async (endpoint, req, res) => {
         });
     }
 };
-
-// --- X / TWITTER VIDEO DOWNLOAD ---
-router.post('/download-video', mockUser, async (req, res) => {
-    try {
-        const { content_url, media_url, tweet_url, content_id } = req.body;
-        const mediaUrl = media_url || content_url || tweet_url;
-
-        if (!mediaUrl) {
-            return res.status(400).json({ error: 'media_url is required' });
-        }
-
-        (() => {})(`Initiating X video download for: ${mediaUrl}`);
-
-        const result = await mediaAnalyzerService.downloadVideo(mediaUrl);
-
-        await logAction(req.user, 'download_video', 'content', content_id || result.video_id, {
-            media_url: mediaUrl,
-            video_id: result.video_id,
-            filename: result.filename
-        });
-
-        res.json({
-            success: true,
-            video_id: result.video_id,
-            filename: result.filename,
-            download_url: result.download_url,
-            title: result.title,
-            duration_seconds: result.duration_seconds
-        });
-    } catch (error) {
-        (() => {})('X video download error:', error);
-        res.status(error.statusCode || 500).json({
-            error: error.message || 'Failed to download video'
-        });
-    }
-});
-
-// Get video download URL (if already downloaded)
-router.get('/video-url/:videoId', async (req, res) => {
-    try {
-        const { videoId } = req.params;
-        const downloadUrl = mediaAnalyzerService.getVideoDownloadUrl(videoId);
-        res.json({ download_url: downloadUrl });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to get video URL' });
-    }
-});
 
 // Generic RapidAPI proxy for any GET endpoint (provide ?endpoint=path)
 router.get('/rapid', async (req, res) => {
@@ -256,7 +179,7 @@ router.get('/tweet-engagers', async (req, res) => {
         const engagers = await getTweetEngagers({ source, tweetId: String(tweetId) });
         return res.json(engagers);
     } catch (error) {
-        (() => {})('[TweetEngagers] Error:', error.message);
+        logger.error('[TweetEngagers] Error:', error.message);
         return res.status(500).json({ error: 'Failed to fetch tweet engagers', message: error.message });
     }
 });
@@ -286,12 +209,12 @@ router.post('/engager-analysis', async (req, res) => {
         // Record is now saved as 'processing' — run heavy work in background
         const cleanHandle = String(handle).replace(/^@/, '').trim().toLowerCase();
         executeAnalysisWork(prepResult.analysisId, cleanHandle, safePeriod, prepResult.analysis).catch(err => {
-            (() => {})(`[EngagerAnalysis] Background analysis failed for ${cleanHandle}:`, err.message);
+            logger.error(`[EngagerAnalysis] Background analysis failed for ${cleanHandle}:`, err.message);
         });
 
         return res.json({ status: 'started', handle: cleanHandle });
     } catch (error) {
-        (() => {})('[EngagerAnalysis] Error:', error.message);
+        logger.error('[EngagerAnalysis] Error:', error.message);
         return res.status(500).json({ error: 'Failed to start engager analysis', message: error.message });
     }
 });

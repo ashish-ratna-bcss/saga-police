@@ -5,6 +5,7 @@ const Content = require('../models/Content');
 const Settings = require('../models/Settings');
 const Keyword = require('../models/Keyword');
 const { performFullAnalysis } = require('./monitorService');
+const logger = require('../utils/logger');
 
 const BATCH_SIZE = Number(process.env.ENGINE_TEMP_BATCH_SIZE || 40);
 const POLL_MS = Number(process.env.ENGINE_TEMP_POLL_MS || 30000);
@@ -276,14 +277,14 @@ async function processClaimedItem(item, settings, keywords) {
   } catch (err) {
     const attempts = (item.attempts || 0) + 1;
     if (String(err?.message || '').includes('Missing content_id in raw temp item')) {
-      (() => {})(`[TempProcessor] Non-retryable malformed item ${item.platform}:${item._id} — missing content_id even after normalization. Marking done.`);
+      logger.info(`[TempProcessor] Non-retryable malformed item ${item.platform}:${item._id} — missing content_id even after normalization. Marking done.`);
       await TempContent.updateOne(
         { _id: item._id },
         { $set: { status: 'done', processed_at: new Date(), error_message: err.message || 'malformed temp item: missing content_id' } }
       );
       return;
     }
-    (() => {})(`[TempProcessor] Attempt ${attempts} failed for ${item.platform}:${(item.raw_data?.id || item._id)}: ${err.message}. Will retry next cycle.`);
+    logger.error(`[TempProcessor] Attempt ${attempts} failed for ${item.platform}:${(item.raw_data?.id || item._id)}: ${err.message}. Will retry next cycle.`);
     await TempContent.updateOne(
       { _id: item._id },
       { $set: { status: 'failed', error_message: err.message || 'unknown error' } }
@@ -322,11 +323,11 @@ async function runCycle() {
     // If models are unreachable, items stay in temp DB until models come back.
     const modelsUp = await isOnPremReachable();
     if (!modelsUp && isStrictAnalysisMode()) {
-      (() => {})('[TempProcessor] On-prem models unreachable (strict mode) — items stay in temp DB (will retry next cycle)');
+      logger.info('[TempProcessor] On-prem models unreachable (strict mode) — items stay in temp DB (will retry next cycle)');
       return 0;
     }
     if (!modelsUp && !isStrictAnalysisMode()) {
-      (() => {})('[TempProcessor] On-prem models unreachable (fallback mode) — proceeding with fallback analysis path');
+      logger.info('[TempProcessor] On-prem models unreachable (fallback mode) — proceeding with fallback analysis path');
     }
 
     // --- Retry failed items indefinitely ---
@@ -374,7 +375,7 @@ async function runCycle() {
     const byModule = moduleBatches
       .map((batch) => `${batch.moduleName}:${batch.items.length}`)
       .join(', ');
-    (() => {})(`[TempProcessor] Processing ${items.length} pending temp item(s) [concurrency=${PROCESS_CONCURRENCY}] [${byModule}]`);
+    logger.info(`[TempProcessor] Processing ${items.length} pending temp item(s) [concurrency=${PROCESS_CONCURRENCY}] [${byModule}]`);
 
     let claimedCount = 0;
 
@@ -403,7 +404,7 @@ async function runCycle() {
 
 function startTempContentProcessor() {
   if (timer) return;
-  (() => {})(`[TempProcessor] Started (poll every ${Math.floor(POLL_MS / 1000)}s)`);
+  logger.info(`[TempProcessor] Started (poll every ${Math.floor(POLL_MS / 1000)}s)`);
 
   const tick = async () => {
     try {
@@ -412,7 +413,7 @@ function startTempContentProcessor() {
         claimed = await runCycle();
       }
     } catch (err) {
-      (() => {})(`[TempProcessor] cycle error: ${err.message}`);
+      logger.error(`[TempProcessor] cycle error: ${err.message}`);
     }
   };
 

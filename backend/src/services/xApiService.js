@@ -1,4 +1,5 @@
 const { TwitterApi } = require('twitter-api-v2');
+const logger = require('../utils/logger');
 
 let appClient = null;
 
@@ -25,7 +26,7 @@ const fetchUserTweets = async (handle, limit = 10) => {
     try {
         const client = getClient();
         const cleanHandle = handle.replace('@', '');
-        (() => {})(`[X API] Fetching tweets for ${cleanHandle}...`);
+        logger.info(`[X API] Fetching tweets for ${cleanHandle}...`);
 
         // 1. Get User ID (Cache Check)
         let userId = userIdCache.get(cleanHandle);
@@ -33,14 +34,14 @@ const fetchUserTweets = async (handle, limit = 10) => {
         if (!userId) {
             const user = await client.v2.userByUsername(cleanHandle);
             if (!user.data) {
-                (() => {})(`[X API] User not found: ${handle}`);
+                logger.info(`[X API] User not found: ${handle}`);
                 return [];
             }
             userId = user.data.id;
             userIdCache.set(cleanHandle, userId);
-            (() => {})(`[X API] Cached User ID for ${cleanHandle}: ${userId}`);
+            logger.info(`[X API] Cached User ID for ${cleanHandle}: ${userId}`);
         } else {
-            (() => {})(`[X API] Using cached User ID for ${cleanHandle}: ${userId}`);
+            logger.info(`[X API] Using cached User ID for ${cleanHandle}: ${userId}`);
         }
 
         // 2. Fetch User Timeline
@@ -55,16 +56,16 @@ const fetchUserTweets = async (handle, limit = 10) => {
 
         // 3. Process and Normalize Data
         if (tweets.rateLimit) {
-            (() => {})(`[X API] Rate Limit: ${tweets.rateLimit.remaining} / ${tweets.rateLimit.limit} (Reset: ${new Date(tweets.rateLimit.reset * 1000).toISOString()})`);
+            logger.info(`[X API] Rate Limit: ${tweets.rateLimit.remaining} / ${tweets.rateLimit.limit} (Reset: ${new Date(tweets.rateLimit.reset * 1000).toISOString()})`);
         }
 
         // Debug: Log structure if data is missing
         if (!tweets.data) {
-            (() => {})(`[X API] Warning: tweets.data is undefined.`);
+            logger.info(`[X API] Warning: tweets.data is undefined.`);
         }
 
         const tweetsData = (tweets.data && Array.isArray(tweets.data)) ? tweets.data : [];
-        (() => {})(`[X API] Raw tweets found: ${tweetsData.length}`);
+        logger.info(`[X API] Raw tweets found: ${tweetsData.length}`);
 
         const normalizedTweets = [];
 
@@ -105,12 +106,12 @@ const fetchUserTweets = async (handle, limit = 10) => {
         return normalizedTweets;
 
     } catch (error) {
-        (() => {})(`[X API] Error fetching tweets for ${handle}:`, error.message);
-        if (error.code) (() => {})(`[X API] Code: ${error.code}`);
-        if (error.data) (() => {})(`[X API] Data: ${JSON.stringify(error.data)}`);
+        logger.error(`[X API] Error fetching tweets for ${handle}:`, error.message);
+        if (error.code) logger.error(`[X API] Code: ${error.code}`);
+        if (error.data) logger.error(`[X API] Data: ${JSON.stringify(error.data)}`);
 
         if (error.code === 429 || error.code === 88) {
-            (() => {})('[X API] Rate limit hit. Backing off.');
+            logger.info('[X API] Rate limit hit. Backing off.');
         }
         return [];
     }

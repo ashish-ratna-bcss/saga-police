@@ -23,6 +23,20 @@ const bcrypt = require('bcryptjs');
 const { seedRecurringEvents } = require('./controllers/masterCalendarController');
 const { syncCalendarToEvents } = require('./services/calendarEventSyncService');
 const fs = require('fs');
+const logger = require('./utils/logger');
+const requestLogger = require('./middleware/requestLogger');
+
+process.on('uncaughtException', (error) => {
+  logger.error('[Process] Uncaught exception:', error.message, error.stack);
+});
+process.on('unhandledRejection', (reason) => {
+  logger.error('[Process] Unhandled rejection:', reason instanceof Error ? reason.stack : reason);
+});
+
+// Trace every DB operation (collection, method, query) issued through Mongoose.
+mongoose.set('debug', (collectionName, method, query, doc) => {
+  logger.debug(`[DB] ${collectionName}.${method}`, JSON.stringify(query), doc ? JSON.stringify(doc) : '');
+});
 
 // Fail closed on secrets before accepting traffic.
 assertJwtConfigured();
@@ -49,6 +63,7 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(mongoSanitize());
+app.use(requestLogger);
 
 // On-prem static serving for generated report files (replaces S3 hosting)
 const path = require('path');
@@ -67,7 +82,6 @@ app.use('/files', express.static(reportStorageDir, reportStaticOptions));
 app.use('/api/files', express.static(reportStorageDir, reportStaticOptions));
 
 // Routes
-app.use('/api/deepfake', require('./routes/deepfakeRoutes'));
 app.use('/api/health', require('./routes/healthRoutes'));
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/sources', require('./routes/sourceRoutes'));
@@ -112,14 +126,34 @@ app.use('/api/post-location', require('./routes/postLocationRoutes'));
 
 
 app.get('/api/verify-v2', (req, res) => res.json({ status: 'ok', version: 'v2-diagnostic', timestamp: new Date() }));
-app.get('/api/ping', (req, res) => res.json({ status: 'ok', msg: 'Deepfake integration check' }));
+app.get('/api/ping', (req, res) => res.json({ status: 'ok' }));
 app.use('/api/rbac', require('./routes/rbacRoutes'));
-//app.get('/api/ping', (req, res) => res.json({ status: 'ok', msg: 'Deepfake integration check' }));
+
+// Log every mounted route prefix once at startup so a missing/misregistered
+// route (like a 404 that should have been a hit) is obvious from the logs
+// without guessing — introspects the actual Express router stack.
+const registeredRoutes = [];
+app._router.stack.forEach((layer) => {
+  if (layer.route) {
+    registeredRoutes.push(`${Object.keys(layer.route.methods).join(',').toUpperCase()} ${layer.route.path}`);
+  } else if (layer.name === 'router') {
+    const match = layer.regexp.source.match(/\^\\\/(.*)\\\/\?\(\?=/);
+    registeredRoutes.push(`MOUNT ${match ? '/' + match[1].replace(/\\\//g, '/') : layer.regexp.source}`);
+  }
+});
+logger.info(`[Startup] ${registeredRoutes.length} routes registered:\n${registeredRoutes.join('\n')}`);
 
 // Catch-all 404 handler for debugging untracked routes
 app.use((req, res, next) => {
-  console.log(`[404] Path NOT FOUND: ${req.method} ${req.originalUrl}`);
+  logger.warn(`[404] Path NOT FOUND: ${req.method} ${req.originalUrl}`);
   res.status(404).json({ message: `Path ${req.originalUrl} not found` });
+});
+
+// Global error handler — safety net for errors passed via next(err) or thrown synchronously in middleware.
+app.use((err, req, res, next) => {
+  logger.error(`[req ${req.id || '-'}] Unhandled error on ${req.method} ${req.originalUrl}:`, err.message, err.stack);
+  if (res.headersSent) return next(err);
+  res.status(err.status || 500).json({ message: err.message || 'Internal server error' });
 });
 
 // Default Admin User
@@ -263,7 +297,7 @@ const fixIndexes = async () => {
     }
   } catch (error) {
     if (error.code !== 27) {
-      console.error('Error fixing indexes:', error.message);
+      logger.error('Error fixing indexes:', error.message);
     }
   }
 };
@@ -281,26 +315,26 @@ const ensureSearchHistoryIndexes = async () => {
       if (!isDesired) {
         try {
           await SearchHistory.collection.dropIndex(idx.name);
-          console.log(`[SearchHistory] Dropped legacy text index: ${idx.name}`);
+          logger.info(`[SearchHistory] Dropped legacy text index: ${idx.name}`);
         } catch (dropErr) {
-          console.warn(`[SearchHistory] Could not drop index ${idx.name}: ${dropErr.message}`);
+          logger.warn(`[SearchHistory] Could not drop index ${idx.name}: ${dropErr.message}`);
         }
       }
     }
 
     await SearchHistory.createIndexes();
-    console.log('[SearchHistory] Indexes ensured');
+    logger.info('[SearchHistory] Indexes ensured');
   } catch (error) {
-    console.error('[SearchHistory] Failed to ensure indexes:', error.message);
+    logger.error('[SearchHistory] Failed to ensure indexes:', error.message);
   }
 };
 
 const ensureReportIndexes = async () => {
   try {
     await Report.createIndexes();
-    console.log('[Report] Indexes ensured');
+    logger.info('[Report] Indexes ensured');
   } catch (error) {
-    console.error('[Report] Failed to ensure indexes:', error.message);
+    logger.error('[Report] Failed to ensure indexes:', error.message);
   }
 };
 
@@ -356,10 +390,10 @@ const backfillSearchHistoryResultsText = async () => {
 
     if (bulkOps.length > 0) {
       await SearchHistory.bulkWrite(bulkOps, { ordered: false });
-      console.log(`[SearchHistory] Backfilled results_search_text for ${bulkOps.length} records`);
+      logger.info(`[SearchHistory] Backfilled results_search_text for ${bulkOps.length} records`);
     }
   } catch (error) {
-    console.error('[SearchHistory] Backfill failed:', error.message);
+    logger.error('[SearchHistory] Backfill failed:', error.message);
   }
 };
 
@@ -418,7 +452,7 @@ const runGrievanceFetch = async () => {
     const result = await grievanceService.fetchAllGrievances(todayStr, todayStr);
 
   } catch (error) {
-    console.error('[Grievance Scheduler] Error during auto-fetch:', error.message);
+    logger.error('[Grievance Scheduler] Error during auto-fetch:', error.message);
   } finally {
     grievanceSchedulerRunning = false;
   }
@@ -446,9 +480,9 @@ const runAvailabilityCheckOnce = async () => {
   try {
     const { runFullAvailabilityCheck } = require('./services/availabilityCheckerService');
     const stats = await runFullAvailabilityCheck();
-    console.log('[AvailabilityChecker] Scheduled check complete:', JSON.stringify(stats));
+    logger.info('[AvailabilityChecker] Scheduled check complete:', JSON.stringify(stats));
   } catch (err) {
-    console.error('[AvailabilityChecker] Scheduled check error:', err.message);
+    logger.error('[AvailabilityChecker] Scheduled check error:', err.message);
   } finally {
     availabilityCheckerRunning = false;
   }
@@ -460,7 +494,7 @@ let llmSweepRunning = false;
 const startLlmRelevanceSweeper = () => {
   const enabled = process.env.LLM_RELEVANCE_SWEEPER !== '0' && process.env.LLM_RELEVANCE_SWEEPER !== 'false';
   if (!enabled) {
-    console.log('[LLMSweeper] disabled via LLM_RELEVANCE_SWEEPER=0');
+    logger.info('[LLMSweeper] disabled via LLM_RELEVANCE_SWEEPER=0');
     return;
   }
   const intervalMs = Math.max(60 * 1000, Number(process.env.LLM_SWEEP_INTERVAL_MS || 5 * 60 * 1000));
@@ -472,10 +506,10 @@ const startLlmRelevanceSweeper = () => {
       const { runSweep } = require('./services/llmRelevanceSweeper');
       const stats = await runSweep({ limit: batch });
       if (stats && !stats.skipped && stats.processed) {
-        console.log(`[LLMSweeper] processed=${stats.processed} kept=${stats.kept} deleted=${stats.deleted} pending=${stats.pending} failed=${stats.failed}`);
+        logger.info(`[LLMSweeper] processed=${stats.processed} kept=${stats.kept} deleted=${stats.deleted} pending=${stats.pending} failed=${stats.failed}`);
       }
     } catch (err) {
-      console.warn('[LLMSweeper] sweep error:', err.message);
+      logger.warn('[LLMSweeper] sweep error:', err.message);
     } finally {
       llmSweepRunning = false;
     }
@@ -533,13 +567,7 @@ const startServer = async () => {
   // hard-deletes the ones it confirms are off-topic.
   startLlmRelevanceSweeper();
 
-  // Retweet Sync Scheduler — DISABLED (now on-demand via Frequent Engagers button)
-  // try {
-  //   const { startRetweetSyncScheduler } = require('./services/retweetNetworkService');
-  //   startRetweetSyncScheduler();
-  // } catch (err) {
-  //   console.warn('[Server] Could not initialize Retweet Sync Scheduler:', err.message);
-  // }
+  // Retweet sync is on-demand via the Frequent Engagers button, not scheduled.
 
   const PORT = process.env.PORT || 8000;
 

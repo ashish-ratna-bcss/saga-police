@@ -21,7 +21,6 @@ const checkSystemHealth = async () => {
 
     // Check Microservices
     const ollama = await pingService(process.env.OLLAMA_BASE_URL, '/api/tags');
-    const deepfake = await pingService(process.env.DEEPFAKE_ML_URL);
     const sentiment = await pingService(process.env.CUSTOM_SENTIMENT_URL);
     const mediaAnalyzer = await pingService(process.env.MEDIA_ANALYZER_URL, '/health');
     const ragApi = await pingService(process.env.RAG_API_URL, '/api/rag/health');
@@ -101,7 +100,6 @@ const checkSystemHealth = async () => {
         database: { status: dbStatus },
         services: {
             ollama,
-            deepfake,
             sentiment,
             mediaAnalyzer,
             ragApi

@@ -2,6 +2,7 @@ const DailyProgramme = require('../models/DailyProgramme');
 const PeriscopeUpload = require('../models/PeriscopeUpload');
 const { createAuditLog } = require('../services/auditService');
 const { uploadPeriscopeToS3, getPeriscopeDownloadUrl } = require('../services/periscopeS3Service');
+const logger = require('../utils/logger');
 
 // Helper to get start and end of a day
 const getDayRange = (dateStr) => {
@@ -528,7 +529,7 @@ const uploadPeriscope = async (req, res) => {
                 req.file.originalname || `Periscope_${date}.docx`
             );
         } catch (s3Err) {
-            (() => {})('[Periscope] S3 upload failed (non-fatal):', s3Err.message);
+            logger.error('[Periscope] S3 upload failed (non-fatal):', s3Err.message);
         }
 
         // ── Store / update upload metadata ──
@@ -573,7 +574,7 @@ const uploadPeriscope = async (req, res) => {
             hasOriginalDoc: !!s3Info,
         });
     } catch (error) {
-        (() => {})('Error uploading periscope:', error);
+        logger.error('Error uploading periscope:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -634,7 +635,7 @@ const downloadPeriscopeDoc = async (req, res) => {
             originalFilename: upload.originalFilename,
         });
     } catch (error) {
-        (() => {})('Error getting download URL:', error);
+        logger.error('Error getting download URL:', error);
         res.status(500).json({ message: error.message });
     }
 };

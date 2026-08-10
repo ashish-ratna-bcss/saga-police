@@ -8,6 +8,7 @@ const rapidApiInstagramService = require('./rapidApiInstagramService');
 const { archiveTwitterMedia, archiveContentMedia } = require('./contentS3Service');
 const { scoreContentDoc } = require('../utils/relevanceScorer');
 const { classifyOneAsync } = require('./llmRelevanceSweeper');
+const logger = require('../utils/logger');
 
 const normalizeText = (text) => String(text || '').toLowerCase();
 const squeezeWhitespace = (text) => String(text || '').replace(/\s+/g, ' ').trim();
@@ -142,7 +143,7 @@ const fetchUniqueByQueries = async (queries, fetcher) => {
         merged.push(...batch);
       }
     } catch (error) {
-      (() => {})(`[EventMonitor] Query failed "${query}": ${error.message}`);
+      logger.error(`[EventMonitor] Query failed "${query}": ${error.message}`);
     }
   }
   return uniqueById(merged);
@@ -277,7 +278,7 @@ const scanEventOnce = async ({ event, settings }) => {
       tweetMediaCache.set(cleanHandle, map);
       return map;
     } catch (error) {
-      (() => {})(`[EventScan] Failed to hydrate media for @${cleanHandle}:`, error.message);
+      logger.error(`[EventScan] Failed to hydrate media for @${cleanHandle}:`, error.message);
       tweetMediaCache.set(cleanHandle, null);
       return null;
     }
@@ -348,13 +349,13 @@ const scanEventOnce = async ({ event, settings }) => {
               });
             }
           } catch (err) {
-            (() => {})(`[EventMonitor] S3 Archive failed for X ${content.content_id}:`, err.message);
+            logger.error(`[EventMonitor] S3 Archive failed for X ${content.content_id}:`, err.message);
           }
         }
       }
       trackPlatform('x', { ingested: ingested - xIngestedBefore });
     } catch (error) {
-      (() => {})(`[EventMonitor] Error monitoring X for event ${event.name}: ${error.message}`);
+      logger.error(`[EventMonitor] Error monitoring X for event ${event.name}: ${error.message}`);
       errors.push({ platform: 'x', message: error.message });
     }
   }
@@ -407,10 +408,10 @@ const scanEventOnce = async ({ event, settings }) => {
       trackPlatform('youtube', { ingested: ingested - ytIngestedBefore });
     } catch (error) {
       if (error.code === 403 || (error.message && error.message.includes('quota'))) {
-        (() => {})(`[EventMonitor] YouTube Quota Exceeded for event ${event.name}. Skipping YouTube scan.`);
+        logger.info(`[EventMonitor] YouTube Quota Exceeded for event ${event.name}. Skipping YouTube scan.`);
         errors.push({ platform: 'youtube', message: 'YouTube API quota exceeded' });
       } else {
-        (() => {})(`[EventMonitor] Error monitoring YouTube for event ${event.name}: ${error.message}`);
+        logger.error(`[EventMonitor] Error monitoring YouTube for event ${event.name}: ${error.message}`);
         errors.push({ platform: 'youtube', message: error.message });
       }
     }
@@ -476,13 +477,13 @@ const scanEventOnce = async ({ event, settings }) => {
               });
             }
           } catch (err) {
-            (() => {})(`[EventMonitor] S3 Archive failed for Facebook ${content.content_id}:`, err.message);
+            logger.error(`[EventMonitor] S3 Archive failed for Facebook ${content.content_id}:`, err.message);
           }
         }
       }
       trackPlatform('facebook', { ingested: ingested - fbIngestedBefore });
     } catch (error) {
-      (() => {})(`[EventMonitor] Error monitoring Facebook for event ${event.name}: ${error.message}`);
+      logger.error(`[EventMonitor] Error monitoring Facebook for event ${event.name}: ${error.message}`);
       errors.push({ platform: 'facebook', message: error.message });
     }
   }
@@ -535,13 +536,13 @@ const scanEventOnce = async ({ event, settings }) => {
               });
             }
           } catch (err) {
-            (() => {})(`[EventMonitor] S3 Archive failed for Instagram ${content.content_id}:`, err.message);
+            logger.error(`[EventMonitor] S3 Archive failed for Instagram ${content.content_id}:`, err.message);
           }
         }
       }
       trackPlatform('instagram', { ingested: ingested - igIngestedBefore });
     } catch (error) {
-      (() => {})(`[EventMonitor] Error monitoring Instagram for event ${event.name}: ${error.message}`);
+      logger.error(`[EventMonitor] Error monitoring Instagram for event ${event.name}: ${error.message}`);
       errors.push({ platform: 'instagram', message: error.message });
     }
   }

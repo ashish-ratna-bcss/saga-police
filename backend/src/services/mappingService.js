@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const PolicyMapping = require('../models/PolicyMapping');
+const logger = require('../utils/logger');
 
 /**
  * Deterministic Mapping Engine
@@ -36,9 +37,9 @@ class MappingService {
             }));
 
             this.isLoaded = true;
-            (() => {})(`[MappingService] Successfully loaded ${mappings.length} category mappings from MongoDB.`);
+            logger.info(`[MappingService] Successfully loaded ${mappings.length} category mappings from MongoDB.`);
         } catch (error) {
-            (() => {})('[MappingService] Error loading mapping data from DB:', error.message);
+            logger.error('[MappingService] Error loading mapping data from DB:', error.message);
             // Fallback to file if DB fails on startup? 
             // Better to keep previous cache if update fails
             if (!this.isLoaded) {
@@ -64,14 +65,14 @@ class MappingService {
             const dataPath = path.join(__dirname, '../config/mapping_data.json');
             const rawData = fs.readFileSync(dataPath, 'utf8');
             this.mappingData = JSON.parse(rawData);
-            (() => {})(`[MappingService] Loaded fallback file data.`);
+            logger.info(`[MappingService] Loaded fallback file data.`);
             this.isLoaded = true;
-        } catch (e) { (() => {})("Fallback load failed", e); }
+        } catch (e) { logger.error("Fallback load failed", e); }
     }
 
     // Method to force refresh (e.g., after Admin API update)
     async forceRefresh() {
-        (() => {})("[MappingService] Force refreshing mappings...");
+        logger.info("[MappingService] Force refreshing mappings...");
         await this.loadMappings();
     }
 
@@ -114,7 +115,7 @@ class MappingService {
                 platform: platformKey
             }));
         } else {
-            (() => {})(`[MappingService] No mapping found for category: ${category} (Country: ${country})`);
+            logger.info(`[MappingService] No mapping found for category: ${category} (Country: ${country})`);
         }
 
         // Prefer PolicyMapping.keywords when present; empty → KR_MAP fallback inside extractKeywords

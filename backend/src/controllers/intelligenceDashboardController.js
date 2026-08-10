@@ -9,6 +9,7 @@ const GrievanceWorkflowReport = require('../models/GrievanceWorkflowReport');
 const SuggestionReport = require('../models/SuggestionReport');
 const CriticismReport = require('../models/CriticismReport');
 const POI = require('../models/POI');
+const logger = require('../utils/logger');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -312,7 +313,7 @@ const getAlertsIntelligence = async (req, res) => {
       }
     });
   } catch (error) {
-    (() => {})('Alerts intelligence error:', error);
+    logger.error('Alerts intelligence error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -510,7 +511,7 @@ const getGrievancesIntelligence = async (req, res) => {
       }
     });
   } catch (error) {
-    (() => {})('Grievances intelligence error:', error);
+    logger.error('Grievances intelligence error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -705,7 +706,7 @@ const getProfilesIntelligence = async (req, res) => {
       }
     });
   } catch (error) {
-    (() => {})('Profiles intelligence error:', error);
+    logger.error('Profiles intelligence error:', error);
     res.status(500).json({ message: error.message });
   }
 };

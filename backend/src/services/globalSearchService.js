@@ -2,6 +2,7 @@ const rapidApiXService = require('./rapidApiXService');
 const rapidApiFacebookService = require('./rapidApiFacebookService');
 const rapidApiInstagramService = require('./rapidApiInstagramService');
 const youtubeService = require('./youtube.service');
+const logger = require('../utils/logger');
 
 class GlobalSearchService {
     constructor() {
@@ -24,7 +25,7 @@ class GlobalSearchService {
      */
     async searchProfiles(query, limit = 20) {
         const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
-        (() => {})(`[GlobalSearch] Searching profiles for: ${query}`);
+        logger.info(`[GlobalSearch] Searching profiles for: ${query}`);
         // X fallback: RapidAPI X -> Official X API -> Scraper
         let xResults = [];
         let xError = null;
@@ -94,7 +95,7 @@ class GlobalSearchService {
      */
     async searchContent(query, limit = 20) {
         const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
-        (() => {})(`[GlobalSearch] Searching content for: ${query}`);
+        logger.info(`[GlobalSearch] Searching content for: ${query}`);
         // X fallback: RapidAPI X -> Official X API -> Scraper
         let xResults = [];
         let xError = null;
@@ -208,7 +209,7 @@ class GlobalSearchService {
 
             return normalized;
         } catch (e) {
-            (() => {})(`Error normalizing ${platform} item:`, e.message);
+            logger.error(`Error normalizing ${platform} item:`, e.message);
             return null;
         }
     }

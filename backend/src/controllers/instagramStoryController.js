@@ -1,6 +1,7 @@
 const InstagramStory = require('../models/InstagramStory');
 const { archiveStoryMedia, deleteStoryFromS3 } = require('../services/storyS3Service');
 const axios = require('axios');
+const logger = require('../utils/logger');
 
 /**
  * GET /api/instagram-stories
@@ -71,7 +72,7 @@ const getStories = async (req, res) => {
       }
     });
   } catch (error) {
-    (() => {})('[StoryController] getStories error:', error);
+    logger.error('[StoryController] getStories error:', error);
     res.status(500).json({ message: 'Failed to fetch stories', error: error.message });
   }
 };
@@ -203,7 +204,7 @@ const storeStories = async (req, res) => {
                 results.archived++;
               }
             })
-            .catch(err => (() => {})(`[StoryController] S3 archive bg error for ${storyPk}:`, err.message));
+            .catch(err => logger.error(`[StoryController] S3 archive bg error for ${storyPk}:`, err.message));
 
           // Also archive thumbnail if different from main
           if (thumbnailUrl && thumbnailUrl !== originalUrl) {
@@ -220,7 +221,7 @@ const storeStories = async (req, res) => {
                   );
                 }
               })
-              .catch(err => (() => {})(`[StoryController] S3 thumb archive error for ${storyPk}:`, err.message));
+              .catch(err => logger.error(`[StoryController] S3 thumb archive error for ${storyPk}:`, err.message));
           }
         }
       } catch (storyError) {
@@ -237,7 +238,7 @@ const storeStories = async (req, res) => {
       ...results
     });
   } catch (error) {
-    (() => {})('[StoryController] storeStories error:', error);
+    logger.error('[StoryController] storeStories error:', error);
     res.status(500).json({ message: 'Failed to store stories', error: error.message });
   }
 };
@@ -279,7 +280,7 @@ const deleteStory = async (req, res) => {
 
     res.json({ message: 'Story deleted successfully', id: req.params.id });
   } catch (error) {
-    (() => {})('[StoryController] deleteStory error:', error);
+    logger.error('[StoryController] deleteStory error:', error);
     res.status(500).json({ message: 'Failed to delete story', error: error.message });
   }
 };
@@ -312,7 +313,7 @@ const bulkDeleteStories = async (req, res) => {
       deletedCount: result.deletedCount
     });
   } catch (error) {
-    (() => {})('[StoryController] bulkDeleteStories error:', error);
+    logger.error('[StoryController] bulkDeleteStories error:', error);
     res.status(500).json({ message: 'Failed to delete stories', error: error.message });
   }
 };
@@ -356,7 +357,7 @@ const cleanupStories = async (req, res) => {
       markedUnavailable: expiredStories.length
     });
   } catch (error) {
-    (() => {})('[StoryController] cleanupStories error:', error);
+    logger.error('[StoryController] cleanupStories error:', error);
     res.status(500).json({ message: 'Cleanup failed', error: error.message });
   }
 };

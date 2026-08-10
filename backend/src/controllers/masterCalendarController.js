@@ -1,4 +1,5 @@
 const MasterCalendarEvent = require('../models/MasterCalendarEvent');
+const logger = require('../utils/logger');
 
 // ── Seed data: recurring HCP events ───────────────────────
 const RECURRING_SEED = [
@@ -75,9 +76,9 @@ const seedRecurringEvents = async () => {
         { upsert: true, new: true }
       );
     }
-    (() => {})('[MasterCalendar] 48 HCP recurring events seeded');
+    logger.info('[MasterCalendar] 48 HCP recurring events seeded');
   } catch (err) {
-    (() => {})('[MasterCalendar] Seed error:', err.message);
+    logger.error('[MasterCalendar] Seed error:', err.message);
   }
 };
 

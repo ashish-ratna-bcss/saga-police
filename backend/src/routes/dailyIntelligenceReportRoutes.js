@@ -1,4 +1,5 @@
 const express = require('express');
+const logger = require('../utils/logger');
 const router = express.Router();
 const dailyIntelligenceReportService = require('../services/dailyIntelligenceReportService');
 const { generateDailyIntelligenceReportPdf } = require('../services/dailyIntelligenceReportPdfService');
@@ -30,7 +31,7 @@ router.post('/generate', async (req, res) => {
             report
         });
     } catch (error) {
-        (() => {})('Error generating daily intelligence report:', error);
+        logger.error('Error generating daily intelligence report:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -52,7 +53,7 @@ router.get('/latest', async (req, res) => {
             report: reports[0]
         });
     } catch (error) {
-        (() => {})('Error fetching latest report:', error);
+        logger.error('Error fetching latest report:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -70,7 +71,7 @@ router.get('/list', async (req, res) => {
             reports
         });
     } catch (error) {
-        (() => {})('Error fetching reports list:', error);
+        logger.error('Error fetching reports list:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -95,7 +96,7 @@ router.get('/by-date/:dateKey', async (req, res) => {
             report
         });
     } catch (error) {
-        (() => {})('Error fetching report by date:', error);
+        logger.error('Error fetching report by date:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -128,7 +129,7 @@ router.get('/download/:dateKey', async (req, res) => {
         
         res.send(pdfBuffer);
     } catch (error) {
-        (() => {})('Error downloading report:', error);
+        logger.error('Error downloading report:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -160,7 +161,7 @@ router.get('/preview/:dateKey', async (req, res) => {
         
         res.send(pdfBuffer);
     } catch (error) {
-        (() => {})('Error previewing report:', error);
+        logger.error('Error previewing report:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -201,7 +202,7 @@ router.get('/stats', async (req, res) => {
             stats
         });
     } catch (error) {
-        (() => {})('Error fetching report stats:', error);
+        logger.error('Error fetching report stats:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -228,7 +229,7 @@ router.delete('/:dateKey', async (req, res) => {
             message: 'Report deleted successfully'
         });
     } catch (error) {
-        (() => {})('Error deleting report:', error);
+        logger.error('Error deleting report:', error);
         res.status(500).json({
             success: false,
             error: error.message

@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const logger = require('./logger');
 
 /**
  * Create a reusable SMTP transporter from environment variables.
@@ -32,7 +33,7 @@ const createTransporter = () => {
 const sendPasswordResetEmail = async (toEmail, resetUrl, userName) => {
   const transporter = createTransporter();
   if (!transporter) {
-    (() => {})('[SMTP] Not configured — cannot send password reset email');
+    logger.info('[SMTP] Not configured — cannot send password reset email');
     return false;
   }
 
@@ -88,10 +89,10 @@ const sendPasswordResetEmail = async (toEmail, resetUrl, userName) => {
       subject: 'SOC-EYE — Password Reset Request',
       html,
     });
-    (() => {})(`[SMTP] Password reset email sent to ${toEmail}: ${info.messageId}`);
+    logger.info(`[SMTP] Password reset email sent to ${toEmail}: ${info.messageId}`);
     return true;
   } catch (err) {
-    (() => {})(`[SMTP] Failed to send reset email: ${err.message}`);
+    logger.error(`[SMTP] Failed to send reset email: ${err.message}`);
     return false;
   }
 };

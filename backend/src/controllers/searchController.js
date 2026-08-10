@@ -12,6 +12,7 @@ const Source = require('../models/Source');
 const Content = require('../models/Content');
 const SearchHistory = require('../models/SearchHistory');
 const openaiGlanceService = require('../services/openaiGlanceService');
+const logger = require('../utils/logger');
 
 const getRetryAfterSeconds = (error) => {
     const header = error?.response?.headers?.['retry-after'];
@@ -146,7 +147,7 @@ const searchProfiles = async (req, res) => {
             });
         }
 
-        (() => {})('Search Profiles Error:', error?.message || error);
+        logger.error('Search Profiles Error:', error?.message || error);
         res.status(500).json({ error: 'Failed to search profiles' });
     }
 };
@@ -195,11 +196,11 @@ const searchContent = async (req, res) => {
 
         // YouTube quota exceeded
         if (status === 403 && (error?.errors?.[0]?.reason === 'quotaExceeded' || error?.message?.includes('quota'))) {
-            (() => {})('[Search] YouTube API quota exceeded');
+            logger.info('[Search] YouTube API quota exceeded');
             return res.json([]);
         }
 
-        (() => {})('Search Content Error:', error?.message || error);
+        logger.error('Search Content Error:', error?.message || error);
         res.status(500).json({ error: 'Failed to search content' });
     }
 };
@@ -257,7 +258,7 @@ const saveSearchHistory = async (req, res) => {
 
         return res.status(201).json({ success: true, id: doc.id });
     } catch (error) {
-        (() => {})('[SearchHistory] save error:', error?.message || error);
+        logger.error('[SearchHistory] save error:', error?.message || error);
         return res.status(500).json({ error: 'Failed to save search history' });
     }
 };
@@ -379,7 +380,7 @@ const getSearchHistory = async (req, res) => {
                     matchedCounts[c.id] = c.matched_results_count;
                 }
             } catch (aggErr) {
-                (() => {})('[SearchHistory] matched count aggregation failed:', aggErr.message);
+                logger.error('[SearchHistory] matched count aggregation failed:', aggErr.message);
             }
         }
 
@@ -403,7 +404,7 @@ const getSearchHistory = async (req, res) => {
             }
         });
     } catch (error) {
-        (() => {})('[SearchHistory] list error:', error?.message || error);
+        logger.error('[SearchHistory] list error:', error?.message || error);
         return res.status(500).json({ error: 'Failed to fetch search history' });
     }
 };
@@ -423,7 +424,7 @@ const getSearchHistoryById = async (req, res) => {
 
         return res.json(item);
     } catch (error) {
-        (() => {})('[SearchHistory] detail error:', error?.message || error);
+        logger.error('[SearchHistory] detail error:', error?.message || error);
         return res.status(500).json({ error: 'Failed to fetch search history detail' });
     }
 };
@@ -590,7 +591,7 @@ const glanceSearch = async (req, res) => {
                     const distance = levenshtein(word, keyword);
                     const threshold = word.length > 7 ? 2 : 1;
                     if (distance > 0 && distance <= threshold) {
-                        (() => {})(`[Glance] Fuzzy: "${word}" → "${keyword}"`);
+                        logger.info(`[Glance] Fuzzy: "${word}" → "${keyword}"`);
                         return keyword;
                     }
                 }
@@ -600,7 +601,7 @@ const glanceSearch = async (req, res) => {
 
         correctedQuery = correctedWords.join(' ');
         if (correctedQuery !== query.toLowerCase()) {
-            (() => {})(`[Glance] Autocorrected: "${query}" → "${correctedQuery}"`);
+            logger.info(`[Glance] Autocorrected: "${query}" → "${correctedQuery}"`);
             query = correctedQuery;
             optimizedQuery = correctedQuery;
         }
@@ -610,7 +611,7 @@ const glanceSearch = async (req, res) => {
         const hashtags = query.match(/#[\w\u0C00-\u0C7F]+/g);
         if (hashtags && hashtags.length > 0) {
             optimizedQuery = hashtags.join(' ');
-            (() => {})(`[Glance] Optimized query (Hashtags): "${optimizedQuery}"`);
+            logger.info(`[Glance] Optimized query (Hashtags): "${optimizedQuery}"`);
         } else {
             // Extended stop words list - includes common typos and conversational words
             const stopWords = [
@@ -629,11 +630,11 @@ const glanceSearch = async (req, res) => {
             if (words.length > 0) {
                 // Prioritize: Take first 3-4 meaningful keywords (locations, topics)
                 optimizedQuery = words.slice(0, 4).join(' ');
-                (() => {})(`[Glance] Optimized query (Keywords): "${optimizedQuery}"`);
+                logger.info(`[Glance] Optimized query (Keywords): "${optimizedQuery}"`);
             } else {
                 // If all words were filtered, use original query but cleaner
                 optimizedQuery = query.replace(/[^\w\s#]/g, '').trim();
-                (() => {})(`[Glance] Using cleaned original query: "${optimizedQuery}"`);
+                logger.info(`[Glance] Using cleaned original query: "${optimizedQuery}"`);
             }
         }
 
@@ -650,7 +651,7 @@ const glanceSearch = async (req, res) => {
         const hasLocation = knownLocations.some(loc => lowerOptimized.includes(loc));
 
         if (!hasLocation) {
-            (() => {})(`[Glance] No location detected in "${optimizedQuery}". Prioritizing Hyderabad/Telangana.`);
+            logger.info(`[Glance] No location detected in "${optimizedQuery}". Prioritizing Hyderabad/Telangana.`);
             optimizedQuery += ' Hyderabad Telangana';
         }
 
@@ -859,7 +860,7 @@ const glanceSearch = async (req, res) => {
                     retryAfterSeconds: Math.ceil(err.retryAfterMs / 1000)
                 });
             }
-            (() => {})('[Glance] OpenAI analysis failed:', err?.message || err);
+            logger.error('[Glance] OpenAI analysis failed:', err?.message || err);
             aiAnalysis = generateFallbackAnalysis(query, allResults, totalByPlatform, effectiveTimeRange, webSources);
         }
 
@@ -877,7 +878,7 @@ const glanceSearch = async (req, res) => {
         });
 
     } catch (error) {
-        (() => {})('Glance Search Error:', error);
+        logger.error('Glance Search Error:', error);
         res.status(500).json({
             error: 'Failed to perform glance search',
             message: error.message
@@ -982,7 +983,7 @@ async function fetchPostByUrl(req, res) {
         let postData = null;
         let sourceData = null;
 
-        (() => {})(`[URL Search] Platform: ${platform}, PostId: ${postId}, Author: ${authorHandle || 'N/A'}`);
+        logger.info(`[URL Search] Platform: ${platform}, PostId: ${postId}, Author: ${authorHandle || 'N/A'}`);
 
         // Fetch post content based on platform
         if (platform === 'youtube') {
@@ -1022,7 +1023,7 @@ async function fetchPostByUrl(req, res) {
                     });
                 }
             } catch (error) {
-                (() => {})('[URL Search] YouTube fetch error:', error.message);
+                logger.error('[URL Search] YouTube fetch error:', error.message);
             }
 
         } else if (platform === 'x') {
@@ -1086,7 +1087,7 @@ async function fetchPostByUrl(req, res) {
                     });
                 }
             } else if (errorMessages.length > 0) {
-                (() => {})('[URL Search] X/Twitter fetch errors:', errorMessages.join(' | '));
+                logger.error('[URL Search] X/Twitter fetch errors:', errorMessages.join(' | '));
             }
 
         } else if (platform === 'facebook') {
@@ -1158,7 +1159,7 @@ async function fetchPostByUrl(req, res) {
                     }
                 }
             } catch (error) {
-                (() => {})('[URL Search] Facebook fetch error:', error.message);
+                logger.error('[URL Search] Facebook fetch error:', error.message);
             }
         }
 
@@ -1191,7 +1192,7 @@ async function fetchPostByUrl(req, res) {
         res.json(response);
 
     } catch (error) {
-        (() => {})('[URL Search] Error:', error);
+        logger.error('[URL Search] Error:', error);
         res.status(500).json({
             error: 'Failed to fetch post by URL',
             message: error.message

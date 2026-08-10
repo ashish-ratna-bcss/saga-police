@@ -7,8 +7,9 @@ const path = require('path');
 const rateLimit = require('express-rate-limit');
 const { protect } = require('../middleware/authMiddleware');
 const { requireAnyPageAccess } = require('../middleware/rbacMiddleware');
+const logger = require('../utils/logger');
 
-(() => {})('📦 UPLOAD ROUTES LOADED - VERSION: ONPREM-V1');
+logger.info('📦 UPLOAD ROUTES LOADED - VERSION: ONPREM-V1');
 
 const router = express.Router();
 router.use(protect, requireAnyPageAccess(['/dial-100-incident-reporting', '/grievances', '/person-of-interest']));
@@ -151,7 +152,7 @@ router.post('/s3', upload.array('files', 10), async (req, res) => {
     const uploads = await Promise.all(req.files.map(file => writeBufferToDisk(file, customKey)));
     res.status(200).json({ uploads });
   } catch (error) {
-    (() => {})('[Upload] ❌ FAILURE:', error);
+    logger.error('[Upload] ❌ FAILURE:', error);
     const status = error.message === 'Invalid customKey' || error.message === 'Invalid storage path' ? 400 : 500;
     res.status(status).json({ message: 'Upload failed', error: error.message });
   }
@@ -170,7 +171,7 @@ router.get('/predict', (req, res) => {
 
     res.json({ url, key });
   } catch (error) {
-    (() => {})('[Upload Predict] Error:', error);
+    logger.error('[Upload Predict] Error:', error);
     res.status(500).json({ message: 'Prediction failed', error: error.message });
   }
 });
@@ -204,7 +205,7 @@ router.get('/proxy', async (req, res) => {
 
     response.data.pipe(res);
   } catch (error) {
-    (() => {})('Proxy download error:', error);
+    logger.error('Proxy download error:', error);
     res.status(500).send('Failed to download file');
   }
 });

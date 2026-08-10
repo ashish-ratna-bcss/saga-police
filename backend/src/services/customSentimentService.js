@@ -14,6 +14,7 @@
  * per request instead of tens of ms).
  */
 const axios = require('axios');
+const logger = require('../utils/logger');
 
 const CUSTOM_SENTIMENT_URL = (process.env.CUSTOM_SENTIMENT_URL || 'http://127.0.0.1:8003').replace(/\/$/, '');
 const MODEL_NAME = 'indictrans2+cardiff-twitter-roberta';
@@ -38,7 +39,7 @@ function enqueue(fn) {
     queue.push({ fn, resolve, reject });
     stats.queued++;
     if (queue.length > 1) {
-      (() => {})(`[CustomSentiment Queue] ${queue.length} requests queued (${stats.completed} completed, ${stats.failed} failed)`);
+      logger.error(`[CustomSentiment Queue] ${queue.length} requests queued (${stats.completed} completed, ${stats.failed} failed)`);
     }
     pumpWorkers();
   });
@@ -108,7 +109,7 @@ async function analyzeSentiment(text) {
     return await enqueue(() => requestSentiment(text));
   } catch (err) {
     const detail = err?.response?.data?.detail || err?.message || 'custom sentiment request failed';
-    (() => {})(`[CustomSentiment] ${detail}`);
+    logger.info(`[CustomSentiment] ${detail}`);
     return { sentiment: 'neutral', confidence: 0, provider: 'custom', model: MODEL_NAME, error: detail };
   }
 }

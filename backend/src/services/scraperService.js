@@ -1,12 +1,13 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const TwitterAccount = require('../models/TwitterAccount');
+const logger = require('../utils/logger');
 
 const scrapeProfile = async (targetHandle, account) => {
     return new Promise((resolve, reject) => {
         // Clean handle
         const cleanHandle = targetHandle.replace('@', '');
-        (() => {})(`[Python] Spawning scraper for ${cleanHandle} using ${account.username}...`);
+        logger.info(`[Python] Spawning scraper for ${cleanHandle} using ${account.username}...`);
 
         const scriptPath = path.resolve(__dirname, '../../scripts/scraper.py');
         const pythonProcess = spawn('python', [scriptPath, account.username, cleanHandle]);
@@ -20,27 +21,27 @@ const scrapeProfile = async (targetHandle, account) => {
 
         pythonProcess.stderr.on('data', (data) => {
             // Log stderr but don't fail immediately, sometimes Selenium logs harmless warnings
-            (() => {})(`[Python Log]: ${data.toString()}`);
+            logger.info(`[Python Log]: ${data.toString()}`);
             errorString += data.toString();
         });
 
         pythonProcess.on('close', async (code) => {
             if (code !== 0) {
-                (() => {})(`Python script exited with code ${code}`);
+                logger.info(`Python script exited with code ${code}`);
                 // Verify if dataString has content even if code is non-zero (unlikely but possible)
             }
 
             try {
                 // If the script crashed or returned empty string
                 if (!dataString.trim()) {
-                    (() => {})('[Python] No data returned.');
+                    logger.info('[Python] No data returned.');
                     resolve([]);
                     return;
                 }
 
                 // Parse the JSON output from Python
                 const tweets = JSON.parse(dataString);
-                (() => {})(`[Python] Scraped ${tweets.length} tweets.`);
+                logger.info(`[Python] Scraped ${tweets.length} tweets.`);
 
                 // Update stats
                 account.daily_stats.requests += 1;
@@ -48,8 +49,8 @@ const scrapeProfile = async (targetHandle, account) => {
 
                 resolve(tweets);
             } catch (e) {
-                (() => {})('Failed to parse Python output:', e.message);
-                (() => {})('Raw Output:', dataString);
+                logger.error('Failed to parse Python output:', e.message);
+                logger.info('Raw Output:', dataString);
                 resolve([]);
             }
         });

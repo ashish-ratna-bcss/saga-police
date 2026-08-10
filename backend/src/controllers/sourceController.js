@@ -3,6 +3,7 @@ const POI = require('../models/POI');
 const { createAuditLog } = require('../services/auditService');
 const mongoose = require('mongoose');
 const { resolvePlatformIdentity, refreshPlatformIdentity } = require('../services/platformIdentityService');
+const logger = require('../utils/logger');
 
 // Facebook slugs are case-insensitive and may be pasted with an '@' prefix or
 // trailing punctuation. Canonicalising here is what stops the same page being
@@ -228,7 +229,7 @@ const getSources = async (req, res) => {
           secondaryQuery.$or.push({ id: { $in: Array.from(poiSourceIds) } });
         }
       } catch (poiErr) {
-        (() => {})('[Sources] POI cross-search failed (non-fatal):', poiErr.message);
+        logger.error('[Sources] POI cross-search failed (non-fatal):', poiErr.message);
       }
     }    // Determine dynamic limit logic
     let queryLimit = 0; // 0 = no limit
@@ -454,7 +455,7 @@ const createSource = async (req, res) => {
               }
             }
           } catch (identityError) {
-            (() => {})(`[Source] Identity resolution failed for ${identifier}: ${identityError.message}`);
+            logger.error(`[Source] Identity resolution failed for ${identifier}: ${identityError.message}`);
           }
 
           // 2. Fetch extra profile metadata (if applicable)
@@ -641,7 +642,7 @@ const createSource = async (req, res) => {
           await newPoi.save();
         }
       } catch (err) {
-        (() => {})('[POI Link Error] Failed to auto-link/create POI for source:', err.message);
+        logger.error('[POI Link Error] Failed to auto-link/create POI for source:', err.message);
       }
     };
 
@@ -808,7 +809,7 @@ const updateSource = async (req, res) => {
           }
         }
       } catch (poiError) {
-        (() => {})('[Sync POI Error] Failed to sync source update to POI:', poiError.message);
+        logger.error('[Sync POI Error] Failed to sync source update to POI:', poiError.message);
       }
     }
 
@@ -879,11 +880,11 @@ const deleteSource = async (req, res) => {
         });
 
         if (emptied.deletedCount > 0) {
-          (() => {})(`[Source Cleanup] Removed ${emptied.deletedCount} POI profile(s) with no remaining monitored handle after deleting "${sourceLabel}"`);
+          logger.info(`[Source Cleanup] Removed ${emptied.deletedCount} POI profile(s) with no remaining monitored handle after deleting "${sourceLabel}"`);
         }
       }
     } catch (cleanupError) {
-      (() => {})('[Source Cleanup] Failed to clean up POIs:', cleanupError.message);
+      logger.error('[Source Cleanup] Failed to clean up POIs:', cleanupError.message);
     }
 
     await createAuditLog(req.user, 'delete', 'source', source.id || source._id, {});
@@ -1074,7 +1075,7 @@ const createSourcesBulk = async (req, res) => {
               await newPoi.save();
             }
           } catch (err) {
-            (() => {})('[POI Link Error] Failed to auto-link/create POI for bulk source:', err.message);
+            logger.error('[POI Link Error] Failed to auto-link/create POI for bulk source:', err.message);
           }
         };
 

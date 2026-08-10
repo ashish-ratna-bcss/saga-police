@@ -1,5 +1,6 @@
 const Content = require('../models/Content');
 const Analysis = require('../models/Analysis');
+const logger = require('../utils/logger');
 
 // @desc    Get content feed with alerts (Paginated)
 // @route   GET /api/content/feed
@@ -422,14 +423,7 @@ const getContent = async (req, res) => {
         let: { cid: '$id' },
         pipeline: [
           { $match: { $expr: { $eq: ['$content_id', '$$cid'] } } },
-          {
-            $addFields: {
-              hasForensics: {
-                $cond: { if: { $gt: [{ $size: { $ifNull: ['$forensic_results', []] } }, 0] }, then: 1, else: 0 }
-              }
-            }
-          },
-          { $sort: { hasForensics: -1, analyzed_at: -1 } },
+          { $sort: { analyzed_at: -1 } },
           { $limit: 1 }
         ],
         as: 'analysis'
@@ -585,7 +579,7 @@ const checkContentAvailability = async (req, res) => {
       ...stats
     });
   } catch (error) {
-    (() => {})('[ContentController] checkAvailability error:', error);
+    logger.error('[ContentController] checkAvailability error:', error);
     res.status(500).json({ message: 'Availability check failed', error: error.message });
   }
 };

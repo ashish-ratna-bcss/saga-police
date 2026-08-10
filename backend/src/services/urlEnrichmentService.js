@@ -1,5 +1,6 @@
 const Content = require('../models/Content');
 const { scrapeOpenGraph } = require('../utils/ogScraper');
+const logger = require('../utils/logger');
 
 const enrichUrlCards = async (contentId) => {
     try {
@@ -15,7 +16,7 @@ const enrichUrlCards = async (contentId) => {
         // Skip if we already have url_cards with images
         if (content.url_cards?.some(card => card.image)) return;
 
-        (() => {})(`[URLEnrich] Scraping ${tcoUrls.length} URLs for content ${contentId}`);
+        logger.info(`[URLEnrich] Scraping ${tcoUrls.length} URLs for content ${contentId}`);
 
         const urlCards = [];
         for (const url of tcoUrls.slice(0, 2)) { // Limit to 2 URLs per tweet
@@ -35,10 +36,10 @@ const enrichUrlCards = async (contentId) => {
         if (urlCards.length > 0) {
             content.url_cards = urlCards;
             await content.save();
-            (() => {})(`[URLEnrich] Updated ${contentId} with ${urlCards.length} URL cards`);
+            logger.info(`[URLEnrich] Updated ${contentId} with ${urlCards.length} URL cards`);
         }
     } catch (error) {
-        (() => {})(`[URLEnrich] Error enriching ${contentId}: ${error.message}`);
+        logger.error(`[URLEnrich] Error enriching ${contentId}: ${error.message}`);
     }
 };
 

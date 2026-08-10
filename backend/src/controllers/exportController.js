@@ -1,6 +1,7 @@
 const PDFDocument = require('pdfkit');
 const { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, TextRun, BorderStyle, ShadingType } = require('docx');
 const DailyProgramme = require('../models/DailyProgramme');
+const logger = require('../utils/logger');
 
 // Category labels mapping
 const defaultCategoryLabels = {
@@ -317,7 +318,7 @@ exports.generatePDF = async (req, res) => {
         doc.end();
 
     } catch (error) {
-        (() => {})('Error generating PDF:', error);
+        logger.error('Error generating PDF:', error);
         res.status(500).json({ error: 'Failed to generate PDF' });
     }
 };
@@ -714,7 +715,7 @@ exports.generateWord = async (req, res) => {
         res.send(buffer);
 
     } catch (error) {
-        (() => {})('Error generating Word document:', error);
+        logger.error('Error generating Word document:', error);
         res.status(500).json({ error: 'Failed to generate Word document' });
     }
 };

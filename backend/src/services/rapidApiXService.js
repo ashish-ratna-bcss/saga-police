@@ -1,5 +1,6 @@
 const axios = require('axios');
 const Counter = require('../models/Counter');
+const logger = require('../utils/logger');
 
 const getRapidApiHeaders = () => {
     const apiKey = process.env.RAPIDAPI_KEY;
@@ -26,14 +27,14 @@ const rapidRequestX = async (config, retryCount = 0) => {
     const rapidApiDebugLogs = String(process.env.RAPIDAPI_DEBUG_LOGS || '').toLowerCase() === 'true';
 
     if (rapidApiDebugLogs) {
-        (() => {})(`[RapidAPI DEBUG] Key: ${apiKey.substring(0, 10)}... Host: ${apiHost}`);
+        logger.info(`[RapidAPI DEBUG] Key: ${apiKey.substring(0, 10)}... Host: ${apiHost}`);
     }
 
     try {
         // Global rate-limit pause: if a 429 triggered a global pause, wait it out
         if (Date.now() < globalRateLimitPauseUntil) {
             const waitMs = globalRateLimitPauseUntil - Date.now();
-            (() => {})(`[RapidAPI] ⏸️ Global rate-limit pause active — waiting ${Math.ceil(waitMs / 1000)}s`);
+            logger.info(`[RapidAPI] ⏸️ Global rate-limit pause active — waiting ${Math.ceil(waitMs / 1000)}s`);
             await new Promise(r => setTimeout(r, waitMs));
         }
 
@@ -74,7 +75,7 @@ const rapidRequestX = async (config, retryCount = 0) => {
 
         if (status === 429 && retryCount < maxRetries) {
             const delay = baseDelay * (retryCount + 1);
-            (() => {})(`[RapidAPI] Rate limited (429). Retrying in ${delay / 1000}s... (attempt ${retryCount + 1}/${maxRetries})`);
+            logger.info(`[RapidAPI] Rate limited (429). Retrying in ${delay / 1000}s... (attempt ${retryCount + 1}/${maxRetries})`);
             await new Promise(r => setTimeout(r, delay));
             return rapidRequestX(config, retryCount + 1);
         }
@@ -82,7 +83,7 @@ const rapidRequestX = async (config, retryCount = 0) => {
         // 429 after all retries exhausted → global pause to protect other sources
         if (status === 429) {
             globalRateLimitPauseUntil = Date.now() + GLOBAL_RATE_LIMIT_PAUSE_MS;
-            (() => {})(`[RapidAPI] 🛑 Rate limit exhausted after ${maxRetries} retries. Global pause for ${GLOBAL_RATE_LIMIT_PAUSE_MS / 1000}s`);
+            logger.info(`[RapidAPI] 🛑 Rate limit exhausted after ${maxRetries} retries. Global pause for ${GLOBAL_RATE_LIMIT_PAUSE_MS / 1000}s`);
             const err = new Error('Rate limit exhausted (429)');
             err.isRateLimit = true;
             throw err;
@@ -90,13 +91,13 @@ const rapidRequestX = async (config, retryCount = 0) => {
 
         if ((isTimeoutOrNetwork || is5xx) && retryCount < maxRetries) {
             const delay = baseDelay * (retryCount + 1);
-            (() => {})(`[RapidAPI] Transient error (${error.code || status || 'network'}). Retrying in ${delay / 1000}s...`);
+            logger.error(`[RapidAPI] Transient error (${error.code || status || 'network'}). Retrying in ${delay / 1000}s...`);
             await new Promise(r => setTimeout(r, delay));
             return rapidRequestX(config, retryCount + 1);
         }
 
         if (status !== 200) {
-            (() => {})(`[RapidAPI] Request failed (${status}): ${msg}. Response Body:`, JSON.stringify(error.response?.data || 'No body'));
+            logger.error(`[RapidAPI] Request failed (${status}): ${msg}. Response Body:`, JSON.stringify(error.response?.data || 'No body'));
         }
 
         throw error;
@@ -305,7 +306,7 @@ const fetchUserProfile = async (handle) => {
         }
         
         cleanHandle = cleanHandle.replace(/^@/, '').trim().toLowerCase();
-        (() => {})(`[RapidAPI] Fetching profile for ${cleanHandle}...`);
+        logger.info(`[RapidAPI] Fetching profile for ${cleanHandle}...`);
 
         const userResponse = await rapidRequestX({
             method: 'get',
@@ -339,7 +340,7 @@ const fetchUserProfile = async (handle) => {
             screenName: result.legacy?.screen_name
         };
     } catch (error) {
-        (() => {})(`[RapidAPI] Profile fetch failed for ${handle}:`, error.message);
+        logger.error(`[RapidAPI] Profile fetch failed for ${handle}:`, error.message);
         return null;
     }
 };
@@ -432,7 +433,7 @@ const fetchUserProfileById = async (userId) => {
             screenName
         };
     } catch (error) {
-        (() => {})(`[RapidAPI] Profile-by-id fetch failed for ${userId}:`, error.message);
+        logger.error(`[RapidAPI] Profile-by-id fetch failed for ${userId}:`, error.message);
         return null;
     }
 };
@@ -456,7 +457,7 @@ const fetchUserTweets = async (handle, limit = 20) => {
         
         // Skip obvious non-handles (contain spaces, too long, etc.)
         if (!cleanHandle || cleanHandle.includes(' ') || cleanHandle.length > 50) {
-            (() => {})(`[RapidAPI] ⚠️ Invalid X handle: "${handle}" → skipping`);
+            logger.info(`[RapidAPI] ⚠️ Invalid X handle: "${handle}" → skipping`);
             return { tweets: [], userData: null };
         }
         
@@ -464,19 +465,19 @@ const fetchUserTweets = async (handle, limit = 20) => {
         const cacheKey = getTweetCacheKey(cleanHandle, limit);
         const cachedPayload = getCachedTweets(cacheKey);
         if (cachedPayload) {
-            (() => {})(`[RapidAPI] 💾 Cache hit for @${cleanHandle} — ${cachedPayload?.tweets?.length || 0} tweets (TTL ${TWEET_FETCH_CACHE_TTL_MS / 1000}s)`);
+            logger.info(`[RapidAPI] 💾 Cache hit for @${cleanHandle} — ${cachedPayload?.tweets?.length || 0} tweets (TTL ${TWEET_FETCH_CACHE_TTL_MS / 1000}s)`);
             return cachedPayload;
         }
 
         const cooldownUntil = handleFailureCooldown.get(cleanHandle);
         if (cooldownUntil && Date.now() < cooldownUntil) {
             const waitMs = cooldownUntil - Date.now();
-            (() => {})(`[RapidAPI] ⏳ @${cleanHandle} in cooldown — waiting ${Math.ceil(waitMs / 1000)}s before fetching`);
+            logger.info(`[RapidAPI] ⏳ @${cleanHandle} in cooldown — waiting ${Math.ceil(waitMs / 1000)}s before fetching`);
             await new Promise(r => setTimeout(r, waitMs));
             handleFailureCooldown.delete(cleanHandle);
         }
 
-        (() => {})(`[RapidAPI] Fetching tweets for ${cleanHandle}...`);
+        logger.info(`[RapidAPI] Fetching tweets for ${cleanHandle}...`);
 
         let userId = userIdCache.get(cleanHandle);
 
@@ -494,7 +495,7 @@ const fetchUserTweets = async (handle, limit = 20) => {
 
             if (userResponse.data?.errors || userResponse.data?.error) {
                 const errMsg = JSON.stringify(userResponse.data.errors || userResponse.data.error);
-                (() => {})(`[RapidAPI] API returned errors for ${cleanHandle}: ${errMsg}`);
+                logger.error(`[RapidAPI] API returned errors for ${cleanHandle}: ${errMsg}`);
                 // return null instead of throwing to allow other sources to proceed
                 return null;
             }
@@ -514,11 +515,11 @@ const fetchUserTweets = async (handle, limit = 20) => {
             } else if (userResponse.data?.rest_id) {
                 result = userResponse.data;
             } else {
-                (() => {})(`[RapidAPI] User structure mismatch for ${cleanHandle}. Response:`, JSON.stringify(userResponse.data).substring(0, 500));
+                logger.info(`[RapidAPI] User structure mismatch for ${cleanHandle}. Response:`, JSON.stringify(userResponse.data).substring(0, 500));
             }
 
             if (!result || !result.rest_id) {
-                (() => {})(`[RapidAPI] User identification failed for: ${handle}`);
+                logger.error(`[RapidAPI] User identification failed for: ${handle}`);
                 return null;
             }
 
@@ -626,7 +627,7 @@ const fetchUserTweets = async (handle, limit = 20) => {
                                 if (entryId.startsWith('promoted-') || entryId.startsWith('who-to-follow') || entryId.startsWith('profile-grid')) continue;
 
                                 // Unknown entry type — log for debugging
-                                (() => {})(`[RapidAPI] 🔍 Unknown entry type for @${cleanHandle}: id=${entryId}, keys=${Object.keys(entry.content || {}).join(',')}`);
+                                logger.info(`[RapidAPI] 🔍 Unknown entry type for @${cleanHandle}: id=${entryId}, keys=${Object.keys(entry.content || {}).join(',')}`);
                             }
                         }
 
@@ -673,9 +674,9 @@ const fetchUserTweets = async (handle, limit = 20) => {
                     }
 
                     if (normalizeFailures > 0) {
-                        (() => {})(`[RapidAPI] ⚠️ ${normalizeFailures} tweets failed normalization for @${cleanHandle} (page ${page})`);
+                        logger.error(`[RapidAPI] ⚠️ ${normalizeFailures} tweets failed normalization for @${cleanHandle} (page ${page})`);
                     }
-                    (() => {})(`[RapidAPI] Page ${page}: ${allRawTweets.length} raw entries → ${newTweets} new tweets for @${cleanHandle} (total: ${tweets.length})`);
+                    logger.info(`[RapidAPI] Page ${page}: ${allRawTweets.length} raw entries → ${newTweets} new tweets for @${cleanHandle} (total: ${tweets.length})`);
 
                     workingEndpoint = attempt.path;
 
@@ -685,7 +686,7 @@ const fetchUserTweets = async (handle, limit = 20) => {
                     cursor = bottomCursor;
                 } catch (endpointError) {
                     if (endpointError?.response?.status !== 404) {
-                        (() => {})(`[RapidAPI] ${attempt.path} page ${page} failed for ${cleanHandle}: ${endpointError.message}`);
+                        logger.error(`[RapidAPI] ${attempt.path} page ${page} failed for ${cleanHandle}: ${endpointError.message}`);
                     }
                     break;
                 }
@@ -694,7 +695,7 @@ const fetchUserTweets = async (handle, limit = 20) => {
             if (tweets.length > 0) break; // found a working endpoint with results
         }
 
-        (() => {})(`[RapidAPI] Fetched ${tweets.length} tweets for @${cleanHandle} (endpoint: ${workingEndpoint || 'none'}, limit: ${limit})${tweets.length > 0 ? ` — newest: ${tweets[0]?.created_at?.toISOString?.() || 'N/A'}` : ''}`);
+        logger.info(`[RapidAPI] Fetched ${tweets.length} tweets for @${cleanHandle} (endpoint: ${workingEndpoint || 'none'}, limit: ${limit})${tweets.length > 0 ? ` — newest: ${tweets[0]?.created_at?.toISOString?.() || 'N/A'}` : ''}`);
 
         const payload = {
             tweets,
@@ -706,13 +707,13 @@ const fetchUserTweets = async (handle, limit = 20) => {
 
 
     } catch (error) {
-        (() => {})(`[RapidAPI] Error fetching tweets for ${handle}:`, error.message);
+        logger.error(`[RapidAPI] Error fetching tweets for ${handle}:`, error.message);
         const cleanHandle = String(handle || '').replace('@', '').trim();
         // Only cooldown the handle for handle-specific errors (not global rate limits)
         if (cleanHandle && !error.isRateLimit) {
             handleFailureCooldown.set(cleanHandle, Date.now() + HANDLE_FAILURE_COOLDOWN_MS);
         } else if (error.isRateLimit) {
-            (() => {})(`[RapidAPI] ⚠️ Skipping handle cooldown for @${cleanHandle} — error is global rate limit, not handle-specific`);
+            logger.error(`[RapidAPI] ⚠️ Skipping handle cooldown for @${cleanHandle} — error is global rate limit, not handle-specific`);
         }
         // Return null so callers (monitorXSource) know this was an error, not "no tweets"
         return null;
@@ -747,12 +748,12 @@ const fetchAllUserTweetsSince = async (handle, sinceDate, maxTweets = 200) => {
         const cooldownUntil = handleFailureCooldown.get(cleanHandle);
         if (cooldownUntil && Date.now() < cooldownUntil) {
             const waitMs = cooldownUntil - Date.now();
-            (() => {})(`[RapidAPI] ⏳ @${cleanHandle} in cooldown — waiting ${Math.ceil(waitMs / 1000)}s before fetchAllSince`);
+            logger.info(`[RapidAPI] ⏳ @${cleanHandle} in cooldown — waiting ${Math.ceil(waitMs / 1000)}s before fetchAllSince`);
             await new Promise(r => setTimeout(r, waitMs));
             handleFailureCooldown.delete(cleanHandle);
         }
 
-        (() => {})(`[RapidAPI] Fetching all tweets for @${cleanHandle} since ${sinceDate.toISOString()}...`);
+        logger.info(`[RapidAPI] Fetching all tweets for @${cleanHandle} since ${sinceDate.toISOString()}...`);
 
         let userId = userIdCache.get(cleanHandle);
         if (!userId && isNumericIdentifier) {
@@ -768,7 +769,7 @@ const fetchAllUserTweetsSince = async (handle, sinceDate, maxTweets = 200) => {
             });
 
             if (userResponse.data?.errors || userResponse.data?.error) {
-                (() => {})(`[RapidAPI] API returned errors for ${cleanHandle}`);
+                logger.error(`[RapidAPI] API returned errors for ${cleanHandle}`);
                 return { tweets: [], userData: {} };
             }
 
@@ -781,7 +782,7 @@ const fetchAllUserTweetsSince = async (handle, sinceDate, maxTweets = 200) => {
                 userResponse.data;
 
             if (!result?.rest_id) {
-                (() => {})(`[RapidAPI] User identification failed for: ${handle}`);
+                logger.error(`[RapidAPI] User identification failed for: ${handle}`);
                 return { tweets: [], userData: {} };
             }
 
@@ -902,7 +903,7 @@ const fetchAllUserTweetsSince = async (handle, sinceDate, maxTweets = 200) => {
                     cursor = pageCursor;
                 } catch (err) {
                     if (err?.response?.status !== 404) {
-                        (() => {})(`[RapidAPI] ${endpoint.path} page ${page} failed for ${cleanHandle}: ${err.message}`);
+                        logger.error(`[RapidAPI] ${endpoint.path} page ${page} failed for ${cleanHandle}: ${err.message}`);
                     }
                     break;
                 }
@@ -911,17 +912,17 @@ const fetchAllUserTweetsSince = async (handle, sinceDate, maxTweets = 200) => {
             if (tweets.length > 0) break;
         }
 
-        (() => {})(`[RapidAPI] fetchAllUserTweetsSince: ${tweets.length} tweets for @${cleanHandle} since ${sinceDate.toISOString()}`);
+        logger.info(`[RapidAPI] fetchAllUserTweetsSince: ${tweets.length} tweets for @${cleanHandle} since ${sinceDate.toISOString()}`);
         handleFailureCooldown.delete(cleanHandle);
         return { tweets, userData: { isVerified, profileImageUrl } };
     } catch (error) {
-        (() => {})(`[RapidAPI] Error in fetchAllUserTweetsSince for ${handle}:`, error.message);
+        logger.error(`[RapidAPI] Error in fetchAllUserTweetsSince for ${handle}:`, error.message);
         const cleanHandle = String(handle || '').replace('@', '').trim();
         // Only cooldown the handle for handle-specific errors (not global rate limits)
         if (cleanHandle && !error.isRateLimit) {
             handleFailureCooldown.set(cleanHandle, Date.now() + HANDLE_FAILURE_COOLDOWN_MS);
         } else if (error.isRateLimit) {
-            (() => {})(`[RapidAPI] ⚠️ Skipping handle cooldown for @${cleanHandle} (fetchAllSince) — error is global rate limit`);
+            logger.error(`[RapidAPI] ⚠️ Skipping handle cooldown for @${cleanHandle} (fetchAllSince) — error is global rate limit`);
         }
         return null;
     }
@@ -931,7 +932,7 @@ const searchUsers = async (query, limit = 30) => {
     try {
         const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 50);
         const apiCount = Math.min(safeLimit, 20);
-        (() => {})(`[RapidAPI] Searching users for: ${query}`);
+        logger.info(`[RapidAPI] Searching users for: ${query}`);
         const cleanQuery = query.replace('@', '').trim();
 
         const extractUsersFromEntries = (entries) => {
@@ -986,11 +987,11 @@ const searchUsers = async (query, limit = 30) => {
             const users = extractUsersFromEntries(entries);
 
             if (users.length > 0) {
-                (() => {})(`[RapidAPI] Found ${users.length} users matching "${query}"`);
+                logger.info(`[RapidAPI] Found ${users.length} users matching "${query}"`);
                 return users.slice(0, safeLimit);
             }
         } catch (searchError) {
-            (() => {})(`[RapidAPI] Search endpoint failed, falling back to exact lookup:`, searchError.message);
+            logger.error(`[RapidAPI] Search endpoint failed, falling back to exact lookup:`, searchError.message);
         }
 
         // Fallback: Try exact username lookup
@@ -1023,7 +1024,7 @@ const searchUsers = async (query, limit = 30) => {
 
         return [];
     } catch (error) {
-        (() => {})(`[RapidAPI] User search failed for ${query}:`, error.message);
+        logger.error(`[RapidAPI] User search failed for ${query}:`, error.message);
         return [];
     }
 };
@@ -1081,7 +1082,7 @@ const resolveUser = (userResult) => {
     if (!screen_name || screen_name === 'unknown') {
         // Log locally if we can't find a handle in a non-null object
         if (raw.id_str || raw.rest_id) {
-            (() => {})('[RapidAPI] Could not resolve screen_name for user ID:', raw.rest_id || raw.id_str);
+            logger.info('[RapidAPI] Could not resolve screen_name for user ID:', raw.rest_id || raw.id_str);
         }
         return null;
     }
@@ -1574,7 +1575,7 @@ const searchTweets = async (query, limit = 50) => {
         weekAgo.setDate(weekAgo.getDate() - 7);
         const sinceDate = weekAgo.toISOString().split('T')[0];
 
-        (() => {})(`[RapidAPI] Searching tweets for: ${query} since:${sinceDate}`);
+        logger.info(`[RapidAPI] Searching tweets for: ${query} since:${sinceDate}`);
 
         const extractTweetsAndCursor = (responseData) => {
             const instructions = responseData?.result?.timeline?.instructions ||
@@ -1726,10 +1727,10 @@ const searchTweets = async (query, limit = 50) => {
             tweets = mergeUnique(tweets, topNoDate);
         }
 
-        (() => {})(`[RapidAPI] Found ${tweets.length} tweets for "${query}"`);
+        logger.info(`[RapidAPI] Found ${tweets.length} tweets for "${query}"`);
         return tweets.slice(0, safeLimit);
     } catch (error) {
-        (() => {})('[RapidAPI] Search Tweets Error:', error.message);
+        logger.error('[RapidAPI] Search Tweets Error:', error.message);
         return [];
     }
 };
@@ -1739,7 +1740,7 @@ const fs = require('fs');
 const path = require('path');
 
 const fetchTweetDetail = async (tweetId, options = {}) => {
-    const log = (msg) => (() => {})(`[Investigation] ${msg}`);
+    const log = (msg) => logger.info(`[Investigation] ${msg}`);
     const key = String(tweetId || '').trim();
     if (!key) {
         log('Error: Empty tweet ID provided');
@@ -1902,7 +1903,7 @@ const fetchTweetDetail = async (tweetId, options = {}) => {
         return normalized;
 
     } catch (error) {
-        (() => {})(`[RapidAPI] Final Fetch Tweet Detail Error for ${tweetId}:`, error.message);
+        logger.error(`[RapidAPI] Final Fetch Tweet Detail Error for ${tweetId}:`, error.message);
         return null;
     }
 };
@@ -2014,7 +2015,7 @@ const fetchTweetRepliers = async (tweetId, authorHandle, options = {}) => {
 
             if (repliers.length > 0) break; // first query that returns data is enough
         } catch (err) {
-            (() => {})(`[RapidAPI] Reply search failed for ${key}: ${err.message}`);
+            logger.error(`[RapidAPI] Reply search failed for ${key}: ${err.message}`);
         }
     }
 
@@ -2075,7 +2076,7 @@ const fetchTweetQuoteTweeters = async (tweetId, authorHandle, options = {}) => {
 
             if (quoters.length > 0) break;
         } catch (err) {
-            (() => {})(`[RapidAPI] Quote search failed for ${key}: ${err.message}`);
+            logger.error(`[RapidAPI] Quote search failed for ${key}: ${err.message}`);
         }
     }
 

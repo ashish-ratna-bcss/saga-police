@@ -46,7 +46,6 @@ jest.mock('./ui/popover', () => ({
 }));
 jest.mock('./ui/calendar', () => ({ Calendar: () => null }));
 jest.mock('./ReasonModal', () => () => null);
-jest.mock('./ForensicResults', () => () => null);
 
 import { normalizeMediaItem, normalizeMediaList, pickCardMediaItems, extractYouTubeVideoId, isLikelyYouTubeUrl } from './AlertCards';
 

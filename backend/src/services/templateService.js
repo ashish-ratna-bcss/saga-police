@@ -1,4 +1,5 @@
 const mammoth = require('mammoth');
+const logger = require('../utils/logger');
 
 /**
  * Clean up HTML produced by mammoth — strip invisible characters,
@@ -75,7 +76,7 @@ const parseDocxToHtml = async (buffer) => {
 
         // Log conversion warnings for debugging
         if (result.messages && result.messages.length > 0) {
-            (() => {})('[TemplateService] Mammoth warnings:', result.messages.map(m => m.message));
+            logger.info('[TemplateService] Mammoth warnings:', result.messages.map(m => m.message));
         }
 
         return sanitizeHtml(result.value);

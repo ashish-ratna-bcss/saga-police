@@ -272,7 +272,7 @@ const MediaGrid = ({ media, platformTheme, platform, contentUrl, contentId }) =>
               src={`https://www.youtube.com/embed/${youtubeId}?rel=0&modestbranding=1`}
               title={`youtube-${youtubeId}`}
               className="absolute top-0 left-0 w-full h-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               referrerPolicy="strict-origin-when-cross-origin"
               allowFullScreen
             />

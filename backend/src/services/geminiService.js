@@ -1,5 +1,6 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { z } = require('zod');
+const logger = require('../utils/logger');
 
 const GeminiResultSchema = z
   .object({
@@ -195,7 +196,7 @@ const CategorizationResultSchema = z
 async function categorizeText(text, categories, examples = []) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    (() => {})('[Gemini] GEMINI_API_KEY missing. Skipping LLM categorization.');
+    logger.info('[Gemini] GEMINI_API_KEY missing. Skipping LLM categorization.');
     return null;
   }
 
@@ -254,11 +255,11 @@ async function categorizeText(text, categories, examples = []) {
     if (parsed.success) {
       return parsed.data;
     } else {
-      (() => {})('[Gemini] Schema validation failed:', parsed.error);
+      logger.error('[Gemini] Schema validation failed:', parsed.error);
       return json; // Return raw JSON if schema fails but structure is usable
     }
   } catch (error) {
-    (() => {})('[Gemini] Categorization failed:', error.message);
+    logger.error('[Gemini] Categorization failed:', error.message);
     return null;
   }
 }

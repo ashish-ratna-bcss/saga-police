@@ -2,13 +2,11 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { ExternalLink, ShieldCheck } from 'lucide-react';
-import ForensicResults from './ForensicResults';
+import { ExternalLink } from 'lucide-react';
 
 // Reusable Reason Modal Component - Clean Table Design
 const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
     const [isContentExpanded, setIsContentExpanded] = useState(false);
-    const [showForensics, setShowForensics] = useState(false);
 
     // --- DATA EXTRACTION (Priority: LLM -> Manual/Root -> Fallback) ---
     const isExpert = !!alert?.llm_analysis;
@@ -240,23 +238,6 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
 
                     {/* Action Buttons */}
                     <div className="mt-6 flex flex-col gap-2 border-t pt-4">
-                        {(analysis?.forensic_results || content?.analysis?.forensic_results) && (
-                            <Button
-                                variant="outline"
-                                className="w-full border-blue-200 text-blue-700 hover:bg-blue-50 transition-all"
-                                onClick={() => setShowForensics(!showForensics)}
-                            >
-                                <ShieldCheck className="h-4 w-4 mr-2" />
-                                {showForensics ? 'Hide Forensic Analysis' : 'View Deep Fake Analysis'}
-                            </Button>
-                        )}
-
-                        {showForensics && (analysis?.forensic_results || content?.analysis?.forensic_results) && (
-                            <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                                <ForensicResults results={analysis?.forensic_results || content?.analysis?.forensic_results} />
-                            </div>
-                        )}
-
                         {alert?.content_url && (
                             <Button asChild className="w-full">
                                 <a href={alert.content_url} target="_blank" rel="noopener noreferrer">

@@ -1,5 +1,6 @@
 const axios = require('axios');
 const Counter = require('../models/Counter');
+const logger = require('../utils/logger');
 
 const FACEBOOK_DEFAULT_HOST = 'facebook-scraper3.p.rapidapi.com';
 
@@ -165,7 +166,7 @@ const pickUsableKey = async (options = {}) => {
         throw err;
     }
 
-    (() => {})(`[Facebook] ⏸️ All keys cooling down — waiting ${secondsLeft}s for key recovery`);
+    logger.info(`[Facebook] ⏸️ All keys cooling down — waiting ${secondsLeft}s for key recovery`);
     await new Promise(r => setTimeout(r, waitMs));
 
     // After waiting, pick the now-available key
@@ -195,7 +196,7 @@ const markKeyRateLimited = (key, retryAfterSeconds) => {
         fbState.keyIndex = (fbState.keyIndex + 1) % fbState.keys.length;
     }
 
-    (() => {})(`[Facebook] RapidAPI 429. Cooling down key for ${seconds}s.`);
+    logger.info(`[Facebook] RapidAPI 429. Cooling down key for ${seconds}s.`);
 };
 
 const rapidGet = async (path, params, options = {}, _attempt = 0) => {
@@ -228,14 +229,14 @@ const rapidGet = async (path, params, options = {}, _attempt = 0) => {
             markKeyRateLimited(key, ra);
             // Retry with next key (pickUsableKey will wait if all are cooling)
             if (_attempt < 3) {
-                (() => {})(`[Facebook] 429 on ${path} — rotating key and retrying (attempt ${_attempt + 1}/3)`);
+                logger.info(`[Facebook] 429 on ${path} — rotating key and retrying (attempt ${_attempt + 1}/3)`);
                 return rapidGet(path, params, options, _attempt + 1);
             }
         }
 
         // 403 "not subscribed" — permanently skip this key and retry with next
         if (status === 403 && msg.includes('not subscribed') && _attempt < 3) {
-            (() => {})(`[Facebook] Key ${key.substring(0, 8)}... not subscribed. Trying next key.`);
+            logger.info(`[Facebook] Key ${key.substring(0, 8)}... not subscribed. Trying next key.`);
             markKeyRateLimited(key, 86400); // cooldown for 24h
             return rapidGet(path, params, options, _attempt + 1);
         }
@@ -298,7 +299,7 @@ const resolveUsablePageId = async (pageIdOrUrl) => {
 
     const token = extractFacebookEntityToken(input);
     if (!token) {
-        (() => {})(`[Facebook] resolveUsablePageId: Could not extract token from "${input}"`);
+        logger.info(`[Facebook] resolveUsablePageId: Could not extract token from "${input}"`);
         return null;
     }
 
@@ -333,7 +334,7 @@ const resolveUsablePageId = async (pageIdOrUrl) => {
     if (id) {
         setCachedResolvedPageId(cacheKey, id);
     } else {
-        (() => {})(`[Facebook] resolveUsablePageId: Search for "${token}" returned no usable page ID (${(results || []).length} results)`);
+        logger.info(`[Facebook] resolveUsablePageId: Search for "${token}" returned no usable page ID (${(results || []).length} results)`);
         // Cache the failure for a shorter time (30min) so we don't keep searching
         fbState.pageIdCache.set(cacheKey, { id: null, expiresAt: Date.now() + 30 * 60 * 1000 });
     }
@@ -398,7 +399,7 @@ const fetchPageDetails = async (pageIdOrUrl, options = {}) => {
             throw error;
         }
         if (error?.code === 'FB_RAPIDAPI_COOLDOWN') return null;
-        (() => {})(`[Facebook] Error fetching page details for ${pageIdOrUrl}:`, error.message);
+        logger.error(`[Facebook] Error fetching page details for ${pageIdOrUrl}:`, error.message);
         return null;
     }
 };
@@ -418,7 +419,7 @@ const fetchPagePosts = async (pageIdOrUrl, limit = 10, pageName = null, options 
         // - Else: resolve via /search/pages -> facebook_id.
         const resolvedId = isNumericId(input) ? input : await resolveUsablePageId(input);
         if (!resolvedId) {
-            (() => {})(`[Facebook] fetchPagePosts: Could not resolve page ID for "${input}" — returning empty`);
+            logger.info(`[Facebook] fetchPagePosts: Could not resolve page ID for "${input}" — returning empty`);
             return [];
         }
 
@@ -495,7 +496,7 @@ const fetchPagePosts = async (pageIdOrUrl, limit = 10, pageName = null, options 
             throw error;
         }
         if (error?.code === 'FB_RAPIDAPI_COOLDOWN') return null;
-        (() => {})(`[Facebook] Error fetching posts for ${pageIdOrUrl}:`, error.message);
+        logger.error(`[Facebook] Error fetching posts for ${pageIdOrUrl}:`, error.message);
         return null;
     }
 };
@@ -533,7 +534,7 @@ const fetchPostComments = async (postId, limit = 20, options = {}) => {
         }
         if (error.response?.status === 404) return [];
         if (error?.code === 'FB_RAPIDAPI_COOLDOWN') return [];
-        (() => {})(`[Facebook] Error fetching comments for ${postId}:`, error.message);
+        logger.error(`[Facebook] Error fetching comments for ${postId}:`, error.message);
         return [];
     }
 };
@@ -595,7 +596,7 @@ const searchPages = async (query, options = {}) => {
             throw error;
         }
         if (error?.code === 'FB_RAPIDAPI_COOLDOWN') return [];
-        (() => {})(`[Facebook] Error searching pages:`, error.message);
+        logger.error(`[Facebook] Error searching pages:`, error.message);
         return [];
     }
 };
@@ -871,7 +872,7 @@ const searchPosts = async (query, limit = 50, options = {}) => {
         const allRaw = merged;
 
         if (shouldStop()) {
-            (() => {})(`[Facebook] searchPosts deadline reached (${deadlineMs}ms) for query "${query}" — returning ${allRaw.length} partial results`);
+            logger.info(`[Facebook] searchPosts deadline reached (${deadlineMs}ms) for query "${query}" — returning ${allRaw.length} partial results`);
         }
 
         return allRaw.map(normalizeRawPost).sort((a, b) => {
@@ -885,7 +886,7 @@ const searchPosts = async (query, limit = 50, options = {}) => {
             throw error;
         }
         if (error?.code === 'FB_RAPIDAPI_COOLDOWN') return [];
-        (() => {})(`[Facebook] Error searching posts:`, error.message);
+        logger.error(`[Facebook] Error searching posts:`, error.message);
         return [];
     }
 };

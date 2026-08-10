@@ -12,6 +12,7 @@
 
 const MasterCalendarEvent = require('../models/MasterCalendarEvent');
 const Event = require('../models/Event');
+const logger = require('../utils/logger');
 
 // ── Date parsing helpers ──────────────────────────────────
 
@@ -249,10 +250,10 @@ const syncCalendarToEvents = async () => {
     }
 
     if (created > 0 || statusUpdated > 0) {
-      (() => {})(`[CalendarSync] Created ${created} events, updated ${statusUpdated} statuses, skipped ${skipped} existing`);
+      logger.info(`[CalendarSync] Created ${created} events, updated ${statusUpdated} statuses, skipped ${skipped} existing`);
     }
   } catch (err) {
-    (() => {})('[CalendarSync] Error:', err.message);
+    logger.error('[CalendarSync] Error:', err.message);
   }
 };
 

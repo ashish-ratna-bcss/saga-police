@@ -548,36 +548,6 @@ const XMonitor = () => {
         }
     };
 
-    const handleDownload = async (item) => {
-        try {
-            const toastId = toast.loading('Preparing download...');
-            const tweetUrl = item.content_url || `https://twitter.com/${item.author_handle}/status/${item.source_id}`;
-
-            // Send snake_case media_url as expected by backend
-            const response = await api.post('/media/download-video', { media_url: tweetUrl });
-
-            if (response.data && response.data.download_url) {
-                // Backend returns absolute URL, use it directly
-                const fileUrl = response.data.download_url;
-
-                // Trigger download
-                const link = document.createElement('a');
-                link.href = fileUrl;
-                link.setAttribute('download', '');
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-
-                toast.success('Download started', { id: toastId });
-            } else {
-                toast.error('Download preparation failed', { id: toastId });
-            }
-        } catch (error) {
-            console.error('Download error:', error);
-            toast.error(error.response?.data?.error || 'Failed to download media. It might be restricted or text-only.', { id: toastId });
-        }
-    };
-
     const renderTweetCard = (tweet, mode = 'list') => (
         <TwitterAlertCard
             key={tweet.id}

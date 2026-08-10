@@ -270,7 +270,7 @@ const HelpGuide = () => {
             <TabsContent value="analysis" className="space-y-8 animate-in fly-in-bottom duration-300">
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold">Investigation & Forensics</h2>
+                  <h2 className="text-2xl font-bold">Investigation & Analysis</h2>
                   <Badge variant="outline" className="border-primary text-primary">Advanced Feature</Badge>
                 </div>
 
@@ -279,7 +279,7 @@ const HelpGuide = () => {
                     <div className="p-8 space-y-6">
                       <h3 className="text-xl font-bold">The "Analyze Intelligence" Modal</h3>
                       <p className="text-muted-foreground">
-                        Clicking the <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-800 border"><Activity className="w-3 h-3 mr-1" /> Analyze</span> button on any video opens the deep-dive forensics view.
+                        Clicking the <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-800 border"><Activity className="w-3 h-3 mr-1" /> Analyze</span> button on any video opens the deep-dive analysis view.
                       </p>
 
                       <div className="space-y-4">
