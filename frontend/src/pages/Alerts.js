@@ -509,6 +509,9 @@ export default function Alerts() {
     setPage(1);
     setNextCursor(null);
     setHasMore(true);
+    // Drop buffered "new alerts" from the previous filter set.
+    setPendingNewAlerts([]);
+    setNewAlertCount(0);
     if (!hasAnyAlertFeature) return;
     if (activeTab === 'reports') return;
     const cacheKey = buildCacheKey();
@@ -520,6 +523,11 @@ export default function Alerts() {
       setPage(cached.nextPage || 2);
       setNextCursor(cached.nextCursor || null);
       if (cached.alertStats) setAlertStats(cached.alertStats);
+    } else {
+      // No matching cache: clear immediately so All Platforms cards don't
+      // linger under Twitter/Facebook/etc. while the new fetch is in flight.
+      setAlerts([]);
+      setTotalResults(0);
     }
   }, [activeTab, riskFilter, viralityFilter, debouncedSearchQuery, platformFilter, keywordFilter, sourceCategoryFilter, dateRange, buildCacheKey, readCache, hasAnyAlertFeature]);
 
@@ -585,7 +593,13 @@ export default function Alerts() {
       setIsFetchingMore(false);
       return;
     }
-    if (isFetchingRef.current) return;
+    // Load-more can wait; filter/tab changes must replace the in-flight request.
+    // Previously an early return here left "All Platforms" cards visible after
+    // switching to Twitter (X) until a later refresh.
+    if (isFetchingRef.current && isLoadMore) return;
+    if (!isLoadMore && fetchAbortRef.current) {
+      fetchAbortRef.current.abort();
+    }
     isFetchingRef.current = true;
     setError(null);
     if (isFirstLoadRef.current && !isLoadMore) {
@@ -596,11 +610,8 @@ export default function Alerts() {
       setIsRefreshing(true);
     }
 
+    const requestSeq = ++fetchRequestSeqRef.current;
     try {
-      const requestSeq = ++fetchRequestSeqRef.current;
-      if (!isLoadMore && fetchAbortRef.current) {
-        fetchAbortRef.current.abort();
-      }
       const controller = new AbortController();
       if (!isLoadMore) fetchAbortRef.current = controller;
 
@@ -682,15 +693,19 @@ export default function Alerts() {
 
     } catch (error) {
       if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED') return;
+      if (requestSeq !== fetchRequestSeqRef.current) return;
       console.error(error);
       setError('Failed to load alerts');
       toast.error('Failed to load alerts');
     } finally {
-      setLoading(false);
-      setIsRefreshing(false);
-      setIsFetchingMore(false);
-      isFirstLoadRef.current = false;
-      isFetchingRef.current = false;
+      // Only the latest request may clear the in-flight lock / loading flags.
+      if (requestSeq === fetchRequestSeqRef.current) {
+        setLoading(false);
+        setIsRefreshing(false);
+        setIsFetchingMore(false);
+        isFirstLoadRef.current = false;
+        isFetchingRef.current = false;
+      }
     }
   }, [activeTab, debouncedSearchQuery, platformFilter, keywordFilter, riskFilter, viralityFilter, dateRange, sourceCategoryFilter, buildCacheKey, writeCache, nextCursor, hasAnyAlertFeature, visibleStatusTabs, isInstagramStoryView]);
 
@@ -1621,7 +1636,18 @@ export default function Alerts() {
 
   const allFilteredAlerts = useMemo(() => {
     const filteredInvestigated = filterInvestigatedAlerts(investigatedAlerts);
-    const filteredRegular = alerts.filter(a => !investigatedAlerts.some(inv => inv.id === a.id));
+    // Defense-in-depth: never render cards from another platform while a
+    // filter switch is still fetching / showing briefly stale list state.
+    const filteredRegular = alerts.filter((a) => {
+      if (investigatedAlerts.some((inv) => inv.id === a.id)) return false;
+      if (
+        platformFilter !== 'all' &&
+        normalizePlatform(a?.platform) !== normalizePlatform(platformFilter)
+      ) {
+        return false;
+      }
+      return true;
+    });
 
     const applyInstagramContentFilter = (items) => {
       if (platformFilter !== 'instagram') return items;
@@ -1784,7 +1810,7 @@ export default function Alerts() {
     const combined = [...filteredInvestigated, ...filteredRegular]
       .sort((a, b) => getAlertTime(b) - getAlertTime(a));
     return applyInstagramContentFilter(combined);
-  }, [alerts, investigatedAlerts, filterInvestigatedAlerts, platformFilter, instagramContentFilter, instagramStoriesStatusFilter, dateRange.start, dateRange.end, capturedStories, recentStories, isStories24hView, isCapturedStoriesView, toStartOfSelectedDay, toEndOfSelectedDay]);
+  }, [alerts, investigatedAlerts, filterInvestigatedAlerts, platformFilter, normalizePlatform, instagramContentFilter, instagramStoriesStatusFilter, dateRange.start, dateRange.end, capturedStories, recentStories, isStories24hView, isCapturedStoriesView, toStartOfSelectedDay, toEndOfSelectedDay]);
 
   // Detect if search query is a URL
   const isUrlQuery = (query) => {
