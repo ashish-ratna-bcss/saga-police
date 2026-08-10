@@ -5,6 +5,7 @@ const Content = require('../models/Content');
 const Settings = require('../models/Settings');
 const Keyword = require('../models/Keyword');
 const { performFullAnalysis } = require('./monitorService');
+const { hasAnalyzableContent } = require('../utils/contentText');
 const logger = require('../utils/logger');
 
 const BATCH_SIZE = Number(process.env.ENGINE_TEMP_BATCH_SIZE || 40);
@@ -231,6 +232,15 @@ async function processOneItem(item, settings, keywords) {
   const { content, shouldAnalyze } = await upsertContent(item, source);
 
   if (shouldAnalyze) {
+    if (!hasAnalyzableContent(content)) {
+      // Shared skip path also marks Content so empty media-only posts do not
+      // keep looking "unanalyzed" or create alerts.
+      await performFullAnalysis(content, settings, keywords, {
+        skipAlert: true,
+        requireLLM: false
+      });
+      return;
+    }
     await performFullAnalysis(content, settings, keywords, {
       skipAlert: false,
       requireLLM: isStrictAnalysisMode()

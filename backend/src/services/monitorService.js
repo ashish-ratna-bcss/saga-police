@@ -17,7 +17,9 @@ const rapidApiInstagramService = require('./rapidApiInstagramService');
 const { archiveContentMedia, archiveTwitterMedia, archiveFacebookMedia } = require('./contentS3Service');
 const { enqueueMediaLocationExtraction } = require('./mediaLocationService');
 const logger = require('../utils/logger');
+const { getAnalyzableContentText, hasAnalyzableContent } = require('../utils/contentText');
 const isStrictAnalysisMode = () => String(process.env.ANALYSIS_STRICT_LLM_MODE || 'true').toLowerCase() === 'true';
+const shouldSkipContentAnalysis = (content) => !hasAnalyzableContent(content);
 
 // ─── Source scan outcomes ──────────────────────────────────────────────────
 // A scan is OK when we reached the platform API and got a valid answer — even
@@ -2328,6 +2330,23 @@ const buildVelocityData = (velocity) => {
 
 const finalizeMonitoredContent = async (content, settings, keywords, { source = null } = {}) => {
   if (!content) return null;
+  if (shouldSkipContentAnalysis(content)) {
+    logger.info(
+      `[Analysis] Skipping content ${content.content_id || content.id || 'unknown'}: no analyzable text`
+    );
+    // Persist the skip marker through the shared analysis boundary.
+    await performFullAnalysis(content, settings, keywords, {
+      skipAlert: true,
+      requireLLM: false
+    });
+    return {
+      skipped: true,
+      skip_reason: 'no_analyzable_content',
+      analysis: null,
+      velocity: null,
+      alert: null
+    };
+  }
 
   const analysis = await performFullAnalysis(content, settings, keywords, {
     skipAlert: true,
@@ -2573,14 +2592,55 @@ const toAlertRiskLevel = (analysisRiskLevel) => {
   return null;
 };
 
+const markContentSkippedNoText = async (content) => {
+  if (!content?.id && !content?.content_id) return;
+  const patch = {
+    risk_score: 0,
+    risk_level: 'low',
+    threat_intent: 'Skipped',
+    threat_reasons: ['No analyzable text content'],
+    sentiment: 'neutral',
+    risk_factors: []
+  };
+  const updated = content.id
+    ? await Content.findOneAndUpdate({ id: content.id }, patch, { new: true })
+    : null;
+  if (!updated && content.content_id) {
+    await Content.findOneAndUpdate(
+      { content_id: content.content_id, platform: content.platform },
+      patch
+    );
+  }
+  Object.assign(content, patch);
+};
+
 const performFullAnalysis = async (content, settings, keywords, options = {}) => {
   try {
+    const textToAnalyze = getAnalyzableContentText(content);
+    if (!textToAnalyze) {
+      logger.info(
+        `[Analysis] Skipping content ${content?.content_id || content?.id || 'unknown'}: no analyzable text`
+      );
+      try {
+        await markContentSkippedNoText(content);
+      } catch (markErr) {
+        logger.info(
+          `[Analysis] Could not persist skip marker for ${content?.content_id || content?.id || 'unknown'}: ${markErr.message}`
+        );
+      }
+      return {
+        skipped: true,
+        skip_reason: 'no_analyzable_content',
+        content_risk_level: null,
+        risk_score: 0
+      };
+    }
+
     const high = settings.high_risk_threshold ?? settings.risk_threshold_high ?? 70;
     const medium = settings.medium_risk_threshold ?? settings.risk_threshold_medium ?? 40;
     logger.info(`[Analysis] Thresholds from settings: medium=${medium}, high=${high}`);
 
     //(() => {})(`[Analysis] Analyzing content ${content.content_id}...`);
-    const textToAnalyze = (content.text || '') + ' ' + (content.scraped_content || '');
     //(() => {})(`[Analysis] Text sample: ${textToAnalyze.substring(0, 50)}...`);
     //(() => {})(`[Analysis] Active Keywords for matching: ${keywords.length}`);
 
@@ -3342,6 +3402,7 @@ module.exports = {
     queueXTweetMediaArchive,
     hasS3Gaps,
     queueInstagramMediaArchive,
-    backfillRecentInstagramMedia
+    backfillRecentInstagramMedia,
+    shouldSkipContentAnalysis
   }
 };

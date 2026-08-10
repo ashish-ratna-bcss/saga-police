@@ -24,8 +24,17 @@ const DEFAULT_ALLOW_FAST_FAIL = String(process.env.OLLAMA_ALLOW_FAST_FAIL || 'fa
 
 // --- LLM Request Queue (serialize to avoid Ollama overload) ---
 const llmQueue = [];
+const llmWaiters = [];
 let llmActiveWorkers = 0;
-let llmStats = { queued: 0, completed: 0, failed: 0, dropped: 0 };
+let llmStats = {
+  queued: 0,
+  completed: 0,
+  failed: 0,
+  dropped: 0,
+  waited: 0,
+  waitTimedOut: 0,
+  backpressured: 0
+};
 
 let promptCache = {
   key: null,
@@ -39,13 +48,42 @@ const getMaxQueueSize = () => {
   if (!Number.isFinite(parsed) || parsed <= 0) return Infinity;
   return Math.max(1, Math.floor(parsed));
 };
+const getMaxWaiters = () => {
+  const parsed = Number(process.env.OLLAMA_MAX_WAITERS ?? 5000);
+  if (!Number.isFinite(parsed) || parsed < 0) return 5000;
+  return Math.floor(parsed); // 0 = unlimited waiters
+};
+
+function admitNextLlmWaiter() {
+  const maxQueueSize = getMaxQueueSize();
+  while (
+    llmWaiters.length > 0 &&
+    (!Number.isFinite(maxQueueSize) || llmQueue.length < maxQueueSize)
+  ) {
+    const waiter = llmWaiters.shift();
+    clearTimeout(waiter.timer);
+    waiter.admit();
+  }
+}
+
+function enqueueNowLLM(fn, resolve, reject, queueWaitMs) {
+  llmQueue.push({ fn, resolve, reject, enqueuedAt: Date.now(), queueWaitMs });
+  llmStats.queued++;
+  if (llmQueue.length > 1 || llmWaiters.length > 0) {
+    logger.info(
+      `[LLM Queue] ${llmQueue.length} queued ` +
+      `(${llmStats.completed} ok, ${llmStats.failed} fail, ${llmWaiters.length} waiting)`
+    );
+  }
+  pumpLLMWorkers();
+}
 
 function enqueueLLMRequest(fn, options = {}) {
   return new Promise((resolve, reject) => {
     const allowFastFail = options.allowFastFail === true;
     if (allowFastFail) {
       const fastFailThreshold = Math.max(1, Number(options.fastFailQueueThreshold || process.env.OLLAMA_FAST_FAIL_QUEUE_THRESHOLD || DEFAULT_FAST_FAIL_THRESHOLD));
-      const totalInFlight = llmQueue.length + llmActiveWorkers;
+      const totalInFlight = llmQueue.length + llmActiveWorkers + llmWaiters.length;
       if (totalInFlight >= fastFailThreshold) {
         llmStats.failed++;
         reject(new Error(`LLM fast-fail: in-flight ${totalInFlight} >= threshold ${fastFailThreshold}`));
@@ -54,25 +92,60 @@ function enqueueLLMRequest(fn, options = {}) {
     }
 
     const maxQueueSize = getMaxQueueSize();
-    if (Number.isFinite(maxQueueSize) && llmQueue.length >= maxQueueSize) {
-      llmStats.dropped++;
-      logger.info(`[LLM Queue] FULL (${maxQueueSize}). Dropping request. Total dropped: ${llmStats.dropped}`);
-      reject(new Error('LLM queue full — request dropped'));
+    const queueWaitMs = Math.max(0, Number(options.queueWaitMs ?? DEFAULT_QUEUE_WAIT_MS));
+
+    if (!Number.isFinite(maxQueueSize) || llmQueue.length < maxQueueSize) {
+      enqueueNowLLM(fn, resolve, reject, queueWaitMs);
       return;
     }
-    const queueWaitMs = Math.max(0, Number(options.queueWaitMs ?? DEFAULT_QUEUE_WAIT_MS));
-    llmQueue.push({ fn, resolve, reject, enqueuedAt: Date.now(), queueWaitMs });
-    llmStats.queued++;
-    if (llmQueue.length > 1) {
-      logger.error(`[LLM Queue] ${llmQueue.length} requests queued (${llmStats.completed} completed, ${llmStats.failed} failed)`);
+
+    // No-loss: wait for a free ready-queue slot instead of dropping.
+    const maxWaiters = getMaxWaiters();
+    if (maxWaiters > 0 && llmWaiters.length >= maxWaiters) {
+      llmStats.backpressured++;
+      llmStats.dropped++;
+      reject(new Error(`LLM waiter backpressure (${llmWaiters.length}/${maxWaiters})`));
+      return;
     }
-    pumpLLMWorkers();
+
+    llmStats.waited++;
+    if (llmStats.waited === 1 || llmStats.waited % 25 === 0) {
+      logger.info(
+        `[LLM Queue] FULL (${maxQueueSize}); waiting for a slot ` +
+        `(${llmWaiters.length + 1} waiter(s))`
+      );
+    }
+
+    let settled = false;
+    const admit = () => {
+      if (settled) return;
+      settled = true;
+      enqueueNowLLM(fn, resolve, reject, queueWaitMs);
+    };
+    const failWait = (err) => {
+      if (settled) return;
+      settled = true;
+      llmStats.waitTimedOut++;
+      llmStats.dropped++;
+      reject(err);
+    };
+
+    const waiter = { admit, timer: null };
+    llmWaiters.push(waiter);
+    if (queueWaitMs > 0) {
+      waiter.timer = setTimeout(() => {
+        const idx = llmWaiters.indexOf(waiter);
+        if (idx >= 0) llmWaiters.splice(idx, 1);
+        failWait(new Error(`LLM queue wait timed out after ${queueWaitMs}ms`));
+      }, queueWaitMs);
+    }
   });
 }
 
 function takeNextQueueItem() {
   while (llmQueue.length > 0) {
     const item = llmQueue.shift();
+    admitNextLlmWaiter();
     const waitedMs = Date.now() - item.enqueuedAt;
     if (item.queueWaitMs > 0 && waitedMs > item.queueWaitMs) {
       llmStats.failed++;
@@ -416,6 +489,14 @@ module.exports = {
   classifyTelanganaRelevance,
   buildPromptPrefix,
   extractJSON,
-  getLLMQueueStats: () => ({ ...llmStats, pending: llmQueue.length, busyWorkers: llmActiveWorkers, targetConcurrency: getTargetConcurrency(), maxQueueSize: getMaxQueueSize() }),
+  getLLMQueueStats: () => ({
+    ...llmStats,
+    pending: llmQueue.length,
+    waitingForSlot: llmWaiters.length,
+    busyWorkers: llmActiveWorkers,
+    targetConcurrency: getTargetConcurrency(),
+    maxQueueSize: getMaxQueueSize(),
+    maxWaiters: getMaxWaiters()
+  }),
   MAX_QUEUE_SIZE: getMaxQueueSize()
 };

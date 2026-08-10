@@ -30,27 +30,59 @@ const INTENT_MODE = String(process.env.INTELLIGENCE_INTENT_MODE || 'free').toLow
 const MAX_TEXT_CHARS = Math.max(800, Number(process.env.INTELLIGENCE_MAX_TEXT_CHARS || 4500));
 const MAX_ATTEMPTS = Math.max(1, Number(process.env.INTELLIGENCE_MAX_ATTEMPTS || 2));
 
+const parseEnvInt = (raw, fallback) => {
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+};
+
 const LANES = {
   bulk: {
-    concurrency: Math.max(1, Number(process.env.INTELLIGENCE_BULK_CONCURRENCY || 2)),
-    timeoutMs: Math.max(10000, Number(process.env.INTELLIGENCE_TIMEOUT_MS || 180000)),
-    maxQueue: Math.max(1, Number(process.env.INTELLIGENCE_BULK_MAX_QUEUE || 200))
+    concurrency: Math.max(1, parseEnvInt(process.env.INTELLIGENCE_BULK_CONCURRENCY, 2)),
+    timeoutMs: Math.max(10000, parseEnvInt(process.env.INTELLIGENCE_TIMEOUT_MS, 180000)),
+    // Ready queue size (in-flight + waiting for a worker). Not an admit drop limit.
+    maxQueue: Math.max(1, parseEnvInt(process.env.INTELLIGENCE_BULK_MAX_QUEUE, 200)),
+    // No-loss default: 0 = wait indefinitely until a slot opens.
+    // Content is already in Mongo; analysis just waits its turn.
+    queueWaitMs: Math.max(0, parseEnvInt(process.env.INTELLIGENCE_BULK_QUEUE_WAIT_MS, 0)),
+    // Soft memory backstop only. 0 = unlimited waiters. Over-cap rejects
+    // so requireLLM / retryPendingAnalyses can re-queue from DB (content kept).
+    maxWaiters: Math.max(0, parseEnvInt(process.env.INTELLIGENCE_BULK_MAX_WAITERS, 5000))
   },
   interactive: {
-    concurrency: Math.max(1, Number(process.env.INTELLIGENCE_INTERACTIVE_CONCURRENCY || 1)),
-    timeoutMs: Math.max(10000, Number(process.env.INTELLIGENCE_INTERACTIVE_TIMEOUT_MS || 100000)),
-    maxQueue: Math.max(1, Number(process.env.INTELLIGENCE_INTERACTIVE_MAX_QUEUE || 50))
+    concurrency: Math.max(1, parseEnvInt(process.env.INTELLIGENCE_INTERACTIVE_CONCURRENCY, 1)),
+    timeoutMs: Math.max(10000, parseEnvInt(process.env.INTELLIGENCE_INTERACTIVE_TIMEOUT_MS, 100000)),
+    maxQueue: Math.max(1, parseEnvInt(process.env.INTELLIGENCE_INTERACTIVE_MAX_QUEUE, 50)),
+    queueWaitMs: Math.max(0, parseEnvInt(process.env.INTELLIGENCE_INTERACTIVE_QUEUE_WAIT_MS, 0)),
+    maxWaiters: Math.max(0, parseEnvInt(process.env.INTELLIGENCE_INTERACTIVE_MAX_WAITERS, 500))
   }
 };
 
 function createLane(name, cfg) {
   const queue = [];
+  const waiters = [];
   let activeWorkers = 0;
-  const stats = { queued: 0, completed: 0, failed: 0, dropped: 0 };
+  const stats = {
+    queued: 0,
+    completed: 0,
+    failed: 0,
+    dropped: 0,
+    waited: 0,
+    waitTimedOut: 0,
+    backpressured: 0
+  };
+
+  const admitNextWaiter = () => {
+    while (waiters.length > 0 && queue.length < cfg.maxQueue) {
+      const waiter = waiters.shift();
+      clearTimeout(waiter.timer);
+      waiter.admit();
+    }
+  };
 
   const pump = () => {
     while (activeWorkers < cfg.concurrency && queue.length > 0) {
       const item = queue.shift();
+      admitNextWaiter();
       activeWorkers++;
       Promise.resolve()
         .then(item.fn)
@@ -69,21 +101,76 @@ function createLane(name, cfg) {
     }
   };
 
-  const enqueue = (fn) => new Promise((resolve, reject) => {
-    if (queue.length >= cfg.maxQueue) {
-      stats.dropped++;
-      reject(new Error(`intelligence ${name} queue full (${cfg.maxQueue})`));
-      return;
-    }
+  const enqueueNow = (fn, resolve, reject) => {
     queue.push({ fn, resolve, reject });
     stats.queued++;
-    if (queue.length > 1) {
+    if (queue.length > 1 || waiters.length > 0) {
       console.log(
         `[Intelligence/${name}] ${queue.length} queued ` +
-        `(${stats.completed} ok, ${stats.failed} fail)`
+        `(${stats.completed} ok, ${stats.failed} fail, ${waiters.length} waiting)`
       );
     }
     pump();
+  };
+
+  const enqueue = (fn) => new Promise((resolve, reject) => {
+    if (queue.length < cfg.maxQueue) {
+      enqueueNow(fn, resolve, reject);
+      return;
+    }
+
+    // Saturated ready-queue: park as a waiter (FIFO) until capacity frees.
+    // This replaces the old immediate-drop path that caused analysis loss under load.
+    if (cfg.maxWaiters > 0 && waiters.length >= cfg.maxWaiters) {
+      stats.backpressured++;
+      stats.dropped++;
+      reject(
+        new Error(
+          `intelligence ${name} waiter backpressure ` +
+          `(${waiters.length}/${cfg.maxWaiters}) — will retry from DB`
+        )
+      );
+      return;
+    }
+
+    stats.waited++;
+    if (stats.waited === 1 || stats.waited % 25 === 0) {
+      console.log(
+        `[Intelligence/${name}] queue full (${cfg.maxQueue}); ` +
+        `waiting for a slot (${waiters.length + 1} waiter(s))`
+      );
+    }
+
+    let settled = false;
+    const admit = () => {
+      if (settled) return;
+      settled = true;
+      enqueueNow(fn, resolve, reject);
+    };
+
+    const failWait = (err) => {
+      if (settled) return;
+      settled = true;
+      stats.waitTimedOut++;
+      stats.dropped++;
+      reject(err);
+    };
+
+    const waiter = { admit, timer: null };
+    waiters.push(waiter);
+
+    if (cfg.queueWaitMs > 0) {
+      waiter.timer = setTimeout(() => {
+        const idx = waiters.indexOf(waiter);
+        if (idx >= 0) waiters.splice(idx, 1);
+        failWait(
+          new Error(
+            `intelligence ${name} queue wait timed out after ${cfg.queueWaitMs}ms ` +
+            `(capacity ${cfg.maxQueue})`
+          )
+        );
+      }, cfg.queueWaitMs);
+    }
   });
 
   return {
@@ -92,9 +179,12 @@ function createLane(name, cfg) {
     getStats: () => ({
       ...stats,
       pending: queue.length,
+      waitingForSlot: waiters.length,
       activeWorkers,
       targetConcurrency: cfg.concurrency,
-      maxQueue: cfg.maxQueue
+      maxQueue: cfg.maxQueue,
+      maxWaiters: cfg.maxWaiters,
+      queueWaitMs: cfg.queueWaitMs
     })
   };
 }
