@@ -56,14 +56,10 @@ const contentSchema = new mongoose.Schema({
         s3_key: { type: String, default: null },
         s3_preview: { type: String, default: null },
         s3_preview_key: { type: String, default: null },
-        video_versions: [{
-          url: String,
-          width: Number,
-          height: Number,
-          type: String,
-          bitrate: Number,
-          bandwidth: Number
-        }]
+        video_versions: {
+          type: [mongoose.Schema.Types.Mixed],
+          default: undefined
+        }
       }
     ],
     default: []
@@ -136,14 +132,10 @@ const contentSchema = new mongoose.Schema({
         s3_key: { type: String, default: null },
         s3_preview: { type: String, default: null },
         s3_preview_key: { type: String, default: null },
-        video_versions: [{
-          url: String,
-          width: Number,
-          height: Number,
-          type: String,
-          bitrate: Number,
-          bandwidth: Number
-        }]
+        video_versions: {
+          type: [mongoose.Schema.Types.Mixed],
+          default: undefined
+        }
       }],
       created_at: Date
     },
