@@ -713,7 +713,11 @@ const fetchUserTweets = async (handle, limit = 20) => {
         if (cleanHandle && !error.isRateLimit) {
             handleFailureCooldown.set(cleanHandle, Date.now() + HANDLE_FAILURE_COOLDOWN_MS);
         } else if (error.isRateLimit) {
-            logger.error(`[RapidAPI] ⚠️ Skipping handle cooldown for @${cleanHandle} — error is global rate limit, not handle-specific`);
+            // A rate limit says nothing about this handle's identity. Rethrow so the
+            // caller classifies it as RATE_LIMIT and the platform breaker can arm —
+            // flattening it to null made callers treat a healthy account as missing.
+            logger.warn(`[RapidAPI] ⚠️ Rate limit while fetching @${cleanHandle} — propagating as rate limit, not identity failure`);
+            throw error;
         }
         // Return null so callers (monitorXSource) know this was an error, not "no tweets"
         return null;
@@ -922,7 +926,8 @@ const fetchAllUserTweetsSince = async (handle, sinceDate, maxTweets = 200) => {
         if (cleanHandle && !error.isRateLimit) {
             handleFailureCooldown.set(cleanHandle, Date.now() + HANDLE_FAILURE_COOLDOWN_MS);
         } else if (error.isRateLimit) {
-            logger.error(`[RapidAPI] ⚠️ Skipping handle cooldown for @${cleanHandle} (fetchAllSince) — error is global rate limit`);
+            logger.warn(`[RapidAPI] ⚠️ Rate limit while fetching @${cleanHandle} (fetchAllSince) — propagating as rate limit`);
+            throw error;
         }
         return null;
     }

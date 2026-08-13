@@ -395,10 +395,13 @@ const fetchPageDetails = async (pageIdOrUrl, options = {}) => {
             likes: best.likes_count || 0
         };
     } catch (error) {
-        if (options?.throwOnCooldown && (error?.code === 'FB_RAPIDAPI_COOLDOWN' || error?.response?.status === 429)) {
+        // Key exhaustion is a rate limit, not "page not found". Always propagate it
+        // so scheduled and manual scans classify identically (RATE_LIMIT) and the
+        // platform breaker arms. The per-key 24h cooldown is untouched and still
+        // does the key-level protection underneath this.
+        if (error?.code === 'FB_RAPIDAPI_COOLDOWN' || error?.response?.status === 429) {
             throw error;
         }
-        if (error?.code === 'FB_RAPIDAPI_COOLDOWN') return null;
         logger.error(`[Facebook] Error fetching page details for ${pageIdOrUrl}:`, error.message);
         return null;
     }
@@ -490,10 +493,11 @@ const fetchPagePosts = async (pageIdOrUrl, limit = 10, pageName = null, options 
         }));
 
     } catch (error) {
-        if (options?.throwOnCooldown && (error?.code === 'FB_RAPIDAPI_COOLDOWN' || error?.response?.status === 429)) {
+        // Same as fetchPageDetails: cooldown/429 must stay a rate limit on every
+        // call path, not collapse into a generic null the scheduler reads as API_ERROR.
+        if (error?.code === 'FB_RAPIDAPI_COOLDOWN' || error?.response?.status === 429) {
             throw error;
         }
-        if (error?.code === 'FB_RAPIDAPI_COOLDOWN') return null;
         logger.error(`[Facebook] Error fetching posts for ${pageIdOrUrl}:`, error.message);
         return null;
     }

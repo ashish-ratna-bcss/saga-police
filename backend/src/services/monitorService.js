@@ -17,6 +17,7 @@ const rapidApiInstagramService = require('./rapidApiInstagramService');
 const { archiveContentMedia, archiveTwitterMedia, archiveFacebookMedia } = require('./contentS3Service');
 const { enqueueMediaLocationExtraction } = require('./mediaLocationService');
 const logger = require('../utils/logger');
+const cacheService = require('./cacheService');
 const { getAnalyzableContentText, hasAnalyzableContent } = require('../utils/contentText');
 const {
   extractInstagramEngagement,
@@ -26,99 +27,24 @@ const {
   buildEngagement
 } = require('../utils/engagementMetrics');
 const isStrictAnalysisMode = () => String(process.env.ANALYSIS_STRICT_LLM_MODE || 'true').toLowerCase() === 'true';
-const shouldSkipContentAnalysis = (content) => !hasAnalyzableContent(content);
 
-// ─── Source scan outcomes ──────────────────────────────────────────────────
-// A scan is OK when we reached the platform API and got a valid answer — even
-// if that answer is "this account has no posts". Everything else means we do
-// NOT know what the source actually has, so the scheduler must count it failed.
-const SCAN_OUTCOME = {
-  OK: 'OK',
-  API_ERROR: 'API_ERROR',
-  RATE_LIMIT: 'RATE_LIMIT',
-  QUOTA_EXCEEDED: 'QUOTA_EXCEEDED',
-  AUTH_CONFIG: 'AUTH_CONFIG',
-  IDENTITY_UNRESOLVED: 'IDENTITY_UNRESOLVED',
-  TIMEOUT_NETWORK: 'TIMEOUT_NETWORK'
-};
-
-const scanResult = (items = [], outcome = SCAN_OUTCOME.OK, detail = null, stats = null) => ({
-  items,
-  outcome,
-  detail,
-  stats
-});
-
-const isYoutubeQuotaError = (error) => (
-  error?.errors?.[0]?.reason === 'quotaExceeded' ||
-  /quota/i.test(String(error?.message || ''))
-);
-
-const classifyScanError = (error) => {
-  if (!error) return SCAN_OUTCOME.API_ERROR;
-  if (error.isRateLimit || error.code === 'FB_RAPIDAPI_COOLDOWN' || error?.response?.status === 429) {
-    return SCAN_OUTCOME.RATE_LIMIT;
-  }
-  if (isYoutubeQuotaError(error)) return SCAN_OUTCOME.QUOTA_EXCEEDED;
-  if (['ECONNABORTED', 'ETIMEDOUT', 'ECONNRESET', 'EAI_AGAIN', 'ENOTFOUND'].includes(error.code) ||
-      /timeout|network|socket/i.test(String(error.message || ''))) {
-    return SCAN_OUTCOME.TIMEOUT_NETWORK;
-  }
-  return SCAN_OUTCOME.API_ERROR;
-};
-
-// ─── Per-platform quota / rate-limit circuit breaker ───────────────────────
-// Once a platform's quota or rate limit is exhausted, every further request to
-// it fails identically — so we stop calling that platform entirely and re-check
-// once every 6 hours. State is per platform: a paused YouTube must never delay
-// X, Instagram or Facebook. The platform services keep their own short-lived
-// retry/backoff/rotation; this breaker sits above them and only engages once
-// those have already given up.
-// Default 6h; the env knob is lowered only by tests, so the floor just guards
-// against a zero/negative value turning the breaker into a no-op.
-const PLATFORM_QUOTA_COOLDOWN_MS = Math.max(
-  1000,
-  Number(process.env.PLATFORM_QUOTA_COOLDOWN_MS) || 6 * 60 * 60 * 1000
-);
-
-const platformQuotaState = Object.create(null);
-
-const markPlatformQuotaLimited = (platform, outcome, detail) => {
-  const previous = platformQuotaState[platform];
-  const now = Date.now();
-  platformQuotaState[platform] = {
-    outcome,
-    detail: detail || null,
-    since: previous?.since || new Date(now),
-    last_checked_at: new Date(now),
-    retry_at: new Date(now + PLATFORM_QUOTA_COOLDOWN_MS),
-    checks: (previous?.checks || 0) + 1
-  };
-  const hours = (PLATFORM_QUOTA_COOLDOWN_MS / 3600000).toFixed(1);
-  logger.error(
-    `[Monitor:${platform}] ⛔ ${outcome} — pausing ${platform} fetch/analysis for ${hours}h ` +
-    `(re-check at ${platformQuotaState[platform].retry_at.toISOString()}, attempt #${platformQuotaState[platform].checks}). ` +
-    'Other platforms are unaffected.'
-  );
-};
-
-const clearPlatformQuotaLimit = (platform) => {
-  if (!platformQuotaState[platform]) return;
-  delete platformQuotaState[platform];
-  logger.info(`[Monitor:${platform}] ✅ Quota/rate limit cleared — resuming normal fetch and analysis`);
-};
-
-// Paused until retry_at. Once that passes we let calls through again: the next
-// real request IS the 6-hourly re-check, and if it still fails the breaker
-// simply re-arms for another 6 hours.
-const getPlatformQuotaPause = (platform) => {
-  const state = platformQuotaState[platform];
-  if (!state) return null;
-  if (Date.now() >= state.retry_at.getTime()) return null;
-  return state;
-};
-
-const getPlatformQuotaStatus = () => JSON.parse(JSON.stringify(platformQuotaState));
+const {
+  shouldSkipContentAnalysis,
+  SCAN_OUTCOME,
+  scanResult,
+  isYoutubeQuotaError,
+  classifyScanError,
+  formatCooldown,
+  markPlatformQuotaLimited,
+  clearPlatformQuotaLimit,
+  getPlatformQuotaPause,
+  getPlatformQuotaStatus,
+  ANALYSIS_STATUS,
+  isUsableAnalysis,
+  buildExistingAlertUpdate,
+  selectPendingForRetry
+} = require('./monitorScanLogic');
+const { deactivateIfDuplicateIdentity } = require('./sourceDedupeService');
 
 let lastMediaBackfillAt = 0;
 const MEDIA_BACKFILL_INTERVAL_MS = 15 * 60 * 1000;
@@ -219,7 +145,7 @@ const queueXTweetMediaArchive = ({
   archiveXTweetMedia(tweetId, media, quotedContent)
     .then(async (archived) => {
       if (archived.upload_failures > 0) {
-        logger.error(`[Monitor] X archive partial failure (${sourceTag}) for ${tweetId}: ${archived.upload_failures} media item(s)`);
+        logger.warn(`[Monitor] X archive partial failure (${sourceTag}) for ${tweetId}: ${archived.upload_failures} media item(s)`);
       }
 
       const patch = {
@@ -266,7 +192,7 @@ const queueInstagramMediaArchive = ({
     .then(async (archivedMedia) => {
       const uploadFailures = archivedMedia.filter((item) => (item?.url || item?.video_url) && !item?.s3_url).length;
       if (uploadFailures > 0) {
-        logger.error(`[Monitor] Instagram archive partial failure (${sourceTag}) for ${contentId}: ${uploadFailures} media item(s)`);
+        logger.warn(`[Monitor] Instagram archive partial failure (${sourceTag}) for ${contentId}: ${uploadFailures} media item(s)`);
       }
 
       await Content.updateOne(query, {
@@ -297,7 +223,7 @@ const queueFacebookMediaArchive = ({
     .then(async (archivedMedia) => {
       const uploadFailures = archivedMedia.filter((item) => (item?.url || item?.video_url) && !item?.s3_url).length;
       if (uploadFailures > 0) {
-        logger.error(`[Monitor] Facebook archive partial failure (${sourceTag}) for ${contentId}: ${uploadFailures} media item(s)`);
+        logger.warn(`[Monitor] Facebook archive partial failure (${sourceTag}) for ${contentId}: ${uploadFailures} media item(s)`);
       }
 
       await Content.updateOne(query, {
@@ -588,15 +514,21 @@ const monitorYoutubeSource = async (source, apiKey) => {
     let postsAttempted = 0;
     let postsSucceeded = 0;
     let postsFailed = 0;
+    let postsSkipped = 0;
     let createdCount = 0;
     let updatedCount = 0;
+    const skippedReasons = new Set();
 
     for (const videoId of videoIds) {
       postsAttempted += 1;
       try {
         const videoData = videoById.get(videoId);
         if (!videoData) {
-          postsSucceeded += 1;
+          // Listed in the uploads playlist but absent from videos.list — deleted,
+          // privated or region-blocked between the two calls. Not a failure, but
+          // it is a real drop and must not masquerade as a successful persist.
+          postsSkipped += 1;
+          skippedReasons.add('video_details_missing');
           continue;
         }
 
@@ -672,12 +604,16 @@ const monitorYoutubeSource = async (source, apiKey) => {
     // Update last checked
     await Source.findOneAndUpdate({ id: source.id }, { last_checked: new Date() });
 
-    logger.info(`[YouTube Monitor] ✅ ${source.display_name}: endpoint=playlistItems api_calls=${apiCalls} videos_returned=${videoIds.length} new=${createdCount} updated=${updatedCount} failed=${postsFailed}`);
+    logger.info(`[YouTube Monitor] ✅ ${source.display_name}: endpoint=playlistItems api_calls=${apiCalls} videos_returned=${videoIds.length} new=${createdCount} updated=${updatedCount} skipped=${postsSkipped} failed=${postsFailed}`);
+    if (postsSkipped > 0) {
+      logger.warn(`[YouTube Monitor] ⚠️ ${source.display_name}: ${postsSkipped}/${postsAttempted} video(s) not persisted [${Array.from(skippedReasons).join(', ')}]`);
+    }
 
     return scanResult(newContent, SCAN_OUTCOME.OK, null, {
       posts_attempted: postsAttempted,
       posts_succeeded: postsSucceeded,
       posts_failed: postsFailed,
+      posts_skipped: postsSkipped,
       new: createdCount,
       updated: updatedCount
     });
@@ -1084,6 +1020,13 @@ const monitorInstagramSource = async (source, accessToken) => {
     const pickFirst = (...values) => values.find(v => v !== undefined && v !== null && v !== '');
     const asArray = (value) => (Array.isArray(value) ? value : []);
     const INSTAGRAM_VIDEO_EXT_RE = /\.(mp4|webm|m3u8|mov)(\?|$)/i;
+    const INSTAGRAM_VIDEO_CDN_RE = /(video\.cdninstagram\.com|\/o1\/v\/t\d+|video[^.]*\.fbcdn\.net)/i;
+    const isInstagramVideoUrl = (rawUrl) => {
+      if (typeof rawUrl !== 'string' || !rawUrl) return false;
+      if (INSTAGRAM_VIDEO_EXT_RE.test(rawUrl)) return true;
+      if (/\.(jpe?g|png|gif|webp)(\?|$)/i.test(rawUrl)) return false;
+      return INSTAGRAM_VIDEO_CDN_RE.test(rawUrl);
+    };
 
     const unwrapStoryNode = (item) => {
       if (!item || typeof item !== 'object') return item;
@@ -1245,10 +1188,11 @@ const monitorInstagramSource = async (source, accessToken) => {
       if (typeof item === 'string') {
         const rawUrl = item.trim();
         if (!rawUrl) return null;
-        const isVideoUrl = INSTAGRAM_VIDEO_EXT_RE.test(rawUrl);
+        const isVideoUrl = isInstagramVideoUrl(rawUrl);
         return {
           type: isVideoUrl ? 'video' : 'photo',
           url: rawUrl,
+          ...(isVideoUrl ? { video_url: rawUrl } : {}),
           preview: rawUrl
         };
       }
@@ -1296,14 +1240,22 @@ const monitorInstagramSource = async (source, accessToken) => {
         mediaType === '2' ||
         directVideoUrl ||
         videoVersions.length > 0 ||
-        (typeof normalizedItem?.url === 'string' && INSTAGRAM_VIDEO_EXT_RE.test(normalizedItem.url))
+        isInstagramVideoUrl(normalizedItem?.url)
       );
 
       const url = isVideo ? pickFirst(directVideoUrl, imageUrl) : imageUrl;
       if (!url) return null;
 
       const preview = pickFirst(imageUrl, url, directVideoUrl);
-      return { type: isVideo ? 'video' : 'photo', url, preview };
+      return {
+        type: isVideo ? 'video' : 'photo',
+        url,
+        preview,
+        ...(isVideo ? { video_url: pickFirst(directVideoUrl, url) } : {}),
+        ...(isVideo && videoVersions.length ? { video_versions: videoVersions } : {}),
+        original_url: url,
+        ...(isVideo ? { original_video_url: pickFirst(directVideoUrl, url) } : {})
+      };
     };
 
     const normalizeMedia = (node) => {
@@ -1399,6 +1351,10 @@ const monitorInstagramSource = async (source, accessToken) => {
         logger.info(`[Instagram Monitor] 📦 Extracted ${posts.length} posts for @${handle}`);
       }
     } catch (postsErr) {
+      // A rate limit is a platform-wide condition, not a per-source API error.
+      // Let it reach the outer catch so classifyScanError yields RATE_LIMIT and
+      // the platform breaker arms instead of hammering every remaining source.
+      if (postsErr?.isRateLimit) throw postsErr;
       postsFetchFailed = true;
       logger.error(`[Instagram Monitor] ❌ Posts fetch failed for @${handle}: ${postsErr.message}`);
     }
@@ -1428,12 +1384,18 @@ const monitorInstagramSource = async (source, accessToken) => {
     let processedCount = 0;
     let updatedCount = 0;
     let errorCount = 0;
+    let skippedCount = 0;
 
     for (const post of posts) {
       try {
         const shortcode = pickFirst(post.shortcode, post.code);
         const contentId = String(pickFirst(post.id, post.pk, post.media_id, shortcode));
-        if (!contentId) continue;
+        if (!contentId) {
+          // No id, pk, media_id or shortcode — nothing stable to key Content on.
+          // Counted as a skip, never as a silent success.
+          skippedCount += 1;
+          continue;
+        }
 
         let content = await Content.findOne({ platform: 'instagram', content_id: contentId });
 
@@ -1698,11 +1660,15 @@ const monitorInstagramSource = async (source, accessToken) => {
     // ─── STEP 5: Update source last_checked ──────────────────────────────
     await Source.findOneAndUpdate({ id: source.id }, { last_checked: new Date() });
 
-    logger.info(`[Instagram Monitor] ✅ Scan complete for @${handle}: ${processedCount} new posts, ${storiesCount} stories, ${updatedCount} updated, ${errorCount} errors`);
+    logger.info(`[Instagram Monitor] ✅ Scan complete for @${handle}: ${processedCount} new posts, ${storiesCount} stories, ${updatedCount} updated, ${skippedCount} skipped, ${errorCount} errors`);
+    if (skippedCount > 0) {
+      logger.warn(`[Instagram Monitor] ⚠️ @${handle}: ${skippedCount}/${posts.length} post(s) not persisted [no_resolvable_content_id]`);
+    }
     return scanResult(newContent, SCAN_OUTCOME.OK, null, {
       posts_attempted: posts.length,
-      posts_succeeded: posts.length - errorCount,
+      posts_succeeded: posts.length - errorCount - skippedCount,
       posts_failed: errorCount,
+      posts_skipped: skippedCount,
       new: processedCount,
       updated: updatedCount
     });
@@ -2269,8 +2235,6 @@ const monitorFacebookSource = async (source, accessToken, options = {}) => {
  * AI analysis → independent virality check → one Alert per content (create or upward virality upgrade).
  * Velocity NEVER modifies risk_level or threat_details.risk_score.
  */
-const VIRALITY_RANK = { low: 1, medium: 2, high: 3 };
-
 const mapVelocityPriorityToVirality = (priority) => {
   if (!priority) return null;
   const p = String(priority).toUpperCase();
@@ -2278,12 +2242,6 @@ const mapVelocityPriorityToVirality = (priority) => {
   if (p === 'MEDIUM') return 'medium';
   if (p === 'LOW') return 'low';
   return null;
-};
-
-const isViralityUpgrade = (current, next) => {
-  if (!next) return false;
-  if (!current) return true;
-  return (VIRALITY_RANK[next] || 0) > (VIRALITY_RANK[current] || 0);
 };
 
 const normalizeAlertRiskLevel = (level) => {
@@ -2305,7 +2263,30 @@ const buildVelocityData = (velocity) => {
   };
 };
 
-const finalizeMonitoredContent = async (content, settings, keywords, { source = null } = {}) => {
+// Same prefixes alertController.clearAlertCache uses. Kept here rather than
+// importing the controller so the service never depends on the HTTP layer.
+const ALERT_CACHE_PREFIXES = [
+  'alerts:list:v4',
+  'alerts:stats:v4',
+  'dashboard:v2',
+  'alert_summary',
+  'unread_count'
+];
+
+const invalidateAlertListCaches = async () => {
+  try {
+    await Promise.all(ALERT_CACHE_PREFIXES.map((p) => cacheService.invalidatePrefix(p)));
+  } catch (err) {
+    logger.warn(`[Alerts] Cache invalidation after alert create failed: ${err.message}`);
+  }
+};
+
+const finalizeMonitoredContent = async (
+  content,
+  settings,
+  keywords,
+  { source = null, allowRiskRefresh = false } = {}
+) => {
   if (!content) return null;
   if (shouldSkipContentAnalysis(content)) {
     logger.info(
@@ -2358,6 +2339,18 @@ const finalizeMonitoredContent = async (content, settings, keywords, { source = 
 
   const existingAlert = await Alert.findOne({ content_id: content.id });
 
+  // A failed analysis is NOT a low-risk analysis. Never mint an alert from one —
+  // the content keeps no Analysis record, so retryPendingAnalyses reclaims it.
+  if (!existingAlert && !isUsableAnalysis(analysis)) {
+    logger.warn(
+      `[Analysis] No alert created for ${content.content_id || content.id}: analysis status=${analysis?.status || 'unknown'}`
+    );
+    if (content.engagement) {
+      await updateEngagementHistory(content.id, content.engagement);
+    }
+    return { analysis, velocity, alert: null };
+  }
+
   if (!existingAlert) {
     const alertData = {
       content_id: content.id,
@@ -2404,6 +2397,10 @@ const finalizeMonitoredContent = async (content, settings, keywords, { source = 
     const newAlert = new Alert(alertData);
     await newAlert.save();
 
+    // The alerts list is cached for 20s. Without this a freshly created alert
+    // sat invisible until the TTL lapsed, which read as "the alert never fired".
+    await invalidateAlertListCaches();
+
     if (settings.enable_email_alerts && settings.alert_emails?.length > 0) {
       await sendAlertEmail(settings.smtp_config, settings.alert_emails, {
         risk_level: finalRiskLevel,
@@ -2422,38 +2419,42 @@ const finalizeMonitoredContent = async (content, settings, keywords, { source = 
     return { analysis, velocity, alert: newAlert };
   }
 
-  // Existing alert: AI may refresh risk; virality only moves upward; never touch risk from velocity.
-  const setDoc = {
-    risk_level: finalRiskLevel,
-    analysis_id: analysis?.analysis_id || existingAlert.analysis_id,
-    title,
-    description,
-    classification_explanation: analysis?.explanation || existingAlert.classification_explanation || '',
-    'threat_details.intent': analysis?.intent || existingAlert.threat_details?.intent || 'Monitor',
-    'threat_details.reasons': analysis?.reasons || existingAlert.threat_details?.reasons || [],
-    'threat_details.highlights': analysis?.highlights || existingAlert.threat_details?.highlights || [],
-    'threat_details.risk_score': aiRiskScore,
-    violated_policies: analysis?.violated_policies || existingAlert.violated_policies || [],
-    legal_sections: analysis?.legal_sections || existingAlert.legal_sections || [],
-    matched_keywords_normalized: (analysis?.triggered_keywords || []).map((k) => String(k).trim().toLowerCase()).filter(Boolean)
-  };
+  // Existing alert: its intelligence is frozen from the first analysis. Only a
+  // genuine virality upgrade moves, and only the explicit rescan tool may
+  // re-derive risk (and then only from a usable analysis).
+  const riskRefresh = (allowRiskRefresh && isUsableAnalysis(analysis))
+    ? {
+        risk_level: finalRiskLevel,
+        analysis_id: analysis.analysis_id || existingAlert.analysis_id,
+        title,
+        description,
+        classification_explanation: analysis.explanation || existingAlert.classification_explanation || '',
+        'threat_details.intent': analysis.intent || existingAlert.threat_details?.intent || 'Monitor',
+        'threat_details.reasons': analysis.reasons || existingAlert.threat_details?.reasons || [],
+        'threat_details.highlights': analysis.highlights || existingAlert.threat_details?.highlights || [],
+        'threat_details.risk_score': aiRiskScore,
+        violated_policies: analysis.violated_policies || existingAlert.violated_policies || [],
+        legal_sections: analysis.legal_sections || existingAlert.legal_sections || [],
+        matched_keywords_normalized: (analysis.triggered_keywords || []).map((k) => String(k).trim().toLowerCase()).filter(Boolean)
+      }
+    : null;
 
-  if (isViralityUpgrade(existingAlert.virality_level, viralityLevel)) {
-    setDoc.virality_level = viralityLevel;
-    setDoc.velocity_data = velocityData;
-    setDoc.priority = String(velocity.highestPriority.priority).toUpperCase();
-    if (!existingAlert.virality_detected_at) {
-      setDoc.virality_detected_at = new Date();
-    }
+  const update = buildExistingAlertUpdate(existingAlert, {
+    viralityLevel,
+    velocityData,
+    velocityPriority: velocity?.highestPriority?.priority || null,
+    riskRefresh
+  });
+
+  if (update) {
+    await Alert.updateOne({ id: existingAlert.id }, update, { runValidators: false });
   }
-
-  await Alert.updateOne({ id: existingAlert.id }, { $set: setDoc }, { runValidators: false });
 
   if (content.engagement) {
     await updateEngagementHistory(content.id, content.engagement);
   }
 
-  const updated = await Alert.findOne({ id: existingAlert.id });
+  const updated = update ? await Alert.findOne({ id: existingAlert.id }) : existingAlert;
   return { analysis, velocity, alert: updated };
 };
 
@@ -2487,13 +2488,27 @@ const scanSourceOnce = async (source, options = {}) => {
   const pause = getPlatformQuotaPause(source.platform);
   if (pause) {
     const minsLeft = Math.ceil((pause.retry_at.getTime() - Date.now()) / 60000);
-    logger.error(`[Monitor:${source.platform}] ⛔ ${pause.outcome} pause active — skipping ${source.display_name} without an API call (re-check in ~${minsLeft} min)`);
+    logger.warn(`[Monitor:${source.platform}] ⛔ ${pause.outcome} pause active — skipping ${source.display_name} without an API call (re-check in ~${minsLeft} min)`);
     return {
       scanned: 0,
       ingested: 0,
       ok: false,
       outcome: pause.outcome,
       detail: `platform paused until ${pause.retry_at.toISOString()}`,
+      stats: null
+    };
+  }
+
+  // Same account added twice (different identifier shapes) — keep the oldest
+  // source and skip the provider call on the duplicate.
+  const duplicateOf = await deactivateIfDuplicateIdentity(source);
+  if (duplicateOf) {
+    return {
+      scanned: 0,
+      ingested: 0,
+      ok: true,
+      outcome: SCAN_OUTCOME.OK,
+      detail: `deactivated duplicate identity of ${duplicateOf.identifier}`,
       stats: null
     };
   }
@@ -2606,6 +2621,7 @@ const performFullAnalysis = async (content, settings, keywords, options = {}) =>
         );
       }
       return {
+        status: ANALYSIS_STATUS.SKIPPED_NO_TEXT,
         skipped: true,
         skip_reason: 'no_analyzable_content',
         content_risk_level: null,
@@ -2793,7 +2809,20 @@ const performFullAnalysis = async (content, settings, keywords, options = {}) =>
     content.legal_sections = analysisData.legal_sections || [];
 
     const alertRiskLevel = toAlertRiskLevel(analysisData.risk_level);
-    if (!alertRiskLevel) return false;
+    // No usable risk level means the analysis did not actually land — report it
+    // as a failure so no caller mistakes it for a genuine LOW result.
+    if (!alertRiskLevel) {
+      logger.warn(
+        `[Analysis] Unusable risk level for ${content.content_id || content.id}: ` +
+        `"${analysisData.risk_level}" — treating as analysis failure`
+      );
+      return {
+        status: ANALYSIS_STATUS.FAILED,
+        failure_reason: 'unusable_risk_level',
+        content_risk_level: null,
+        risk_score: 0
+      };
+    }
 
     const hasKeywordMatch = filteredCustomEvidence.length > 0;
     const hasAiMatch = aiEvidence.length > 0;
@@ -2845,9 +2874,11 @@ const performFullAnalysis = async (content, settings, keywords, options = {}) =>
       });
     }
 
+    // An alert already existing is NOT an analysis failure. It only means this
+    // function must not mint a second one — the analysis itself is still valid
+    // and must be returned so callers never mistake it for "no result".
     if (existingAlert) {
-      logger.info(`[Analysis] Alert already exists for ${content.content_id} (AlertID: ${existingAlert.id}), skipping...`);
-      return false;
+      logger.info(`[Analysis] Alert already exists for ${content.content_id} (AlertID: ${existingAlert.id}), not creating a duplicate`);
     }
 
     // Build detailed description with reasons
@@ -2902,7 +2933,7 @@ const performFullAnalysis = async (content, settings, keywords, options = {}) =>
       detailedDescription = analysisData.explanation || 'Threat content detected by AI analysis.';
     }
 
-    if (!options.skipAlert) {
+    if (!options.skipAlert && !existingAlert) {
       const alert = new Alert({
         content_id: content.id,
         content_published_at: content.published_at || new Date(),
@@ -2941,6 +2972,7 @@ const performFullAnalysis = async (content, settings, keywords, options = {}) =>
     // Return the enriched data object for Alert Construction
     return {
       ...analysisData,
+      status: ANALYSIS_STATUS.ANALYZED,
       analysis_id: analysis.id,
       content_risk_level: toContentRiskLevel(analysisData.risk_level),
       risk_score: analysisData.risk_score ?? 0,
@@ -2981,7 +3013,12 @@ const rescanContent = async () => {
         : null;
 
       const existingBefore = await Alert.findOne({ content_id: content.id }).select('id').lean();
-      const result = await finalizeMonitoredContent(content, settings, keywords, { source: contentSource });
+      // Explicit retroactive rescan is the ONE path allowed to re-derive risk on
+      // an existing alert — the monitoring loop must never do it.
+      const result = await finalizeMonitoredContent(content, settings, keywords, {
+        source: contentSource,
+        allowRiskRefresh: true
+      });
 
       if (!existingBefore && result?.alert) {
         const risk = normalizeAlertRiskLevel(result.alert.risk_level || result?.analysis?.content_risk_level || 'low');
@@ -3012,25 +3049,34 @@ const retryPendingAnalyses = async () => {
     const retryWindowHours = Math.max(1, Number(process.env.ANALYSIS_RETRY_WINDOW_HOURS || 48));
     const since = new Date(Date.now() - retryWindowHours * 60 * 60 * 1000);
 
-    // Pick recently created content and retry only those with no Analysis record.
-    const recent = await Content.find({
-      created_at: { $gte: since }
-    })
-      .sort({ created_at: -1 })
-      .limit(retryLimit * 3)
-      .select('id content_id platform author published_at created_at risk_level')
-      .lean();
+    const scanWidth = retryLimit * 3;
+    const projection = 'id content_id platform author published_at created_at risk_level text scraped_content quoted_content url_cards';
 
-    if (!recent.length) return 0;
+    // Two bounded reads over the same 48h window: newest-first and oldest-first.
+    const [newest, oldest] = await Promise.all([
+      Content.find({ created_at: { $gte: since } })
+        .sort({ created_at: -1 })
+        .limit(scanWidth)
+        .select(projection)
+        .lean(),
+      Content.find({ created_at: { $gte: since } })
+        .sort({ created_at: 1 })
+        .limit(scanWidth)
+        .select(projection)
+        .lean()
+    ]);
 
-    const recentIds = recent.map((c) => c.id).filter(Boolean);
-    const analyzedIds = await Analysis.distinct('content_id', { content_id: { $in: recentIds } });
-    const analyzedSet = new Set(analyzedIds);
+    if (!newest.length && !oldest.length) return 0;
 
-    const pendingIds = recent
-      .filter((c) => c?.id && !analyzedSet.has(c.id))
-      .slice(0, retryLimit)
-      .map((c) => c.id);
+    const candidateIds = Array.from(new Set([...newest, ...oldest].map((c) => c.id).filter(Boolean)));
+    const analyzedIds = await Analysis.distinct('content_id', { content_id: { $in: candidateIds } });
+
+    const pendingIds = selectPendingForRetry({
+      newest,
+      oldest,
+      analyzedIds: new Set(analyzedIds),
+      limit: retryLimit
+    });
 
     const pending = pendingIds.length > 0
       ? await Content.find({ id: { $in: pendingIds } }).sort({ created_at: 1 })
@@ -3038,12 +3084,22 @@ const retryPendingAnalyses = async () => {
 
     if (!pending.length) return 0;
 
+    // Resolve sources once so recovered alerts carry the same source metadata a
+    // monitor-created alert would.
+    const sourceIds = Array.from(new Set(pending.map((c) => c.source_id).filter(Boolean)));
+    const sources = sourceIds.length > 0
+      ? await Source.find({ id: { $in: sourceIds } }).select('id category').lean()
+      : [];
+    const sourceMap = new Map(sources.map((s) => [s.id, s]));
+
     let retried = 0;
     for (const content of pending) {
       try {
-        await performFullAnalysis(content, settings, keywords, {
-          skipAlert: false,
-          requireLLM: isStrictAnalysisMode()
+        // Canonical path — same alert construction as the monitoring loop, so a
+        // recovered alert is structurally identical to a normally-created one
+        // (source_id, source_category, matched_keywords_normalized, virality).
+        await finalizeMonitoredContent(content, settings, keywords, {
+          source: sourceMap.get(content.source_id) || null
         });
         retried += 1;
       } catch (err) {
@@ -3146,7 +3202,7 @@ const startMonitoring = async () => {
       const quotaPause = getPlatformQuotaPause(platform);
       if (quotaPause) {
         nextCheckSeconds = Math.max(60, Math.ceil((quotaPause.retry_at.getTime() - Date.now()) / 1000));
-        logger.error(
+        logger.warn(
           `[Monitor:${platform}] ⛔ Paused (${quotaPause.outcome}) since ${quotaPause.since.toISOString()} — ` +
           `no requests will be made; next re-check in ${(nextCheckSeconds / 60).toFixed(1)} min`
         );
@@ -3222,6 +3278,7 @@ const startMonitoring = async () => {
         let postsNew = 0;
         let postsUpdated = 0;
         let postsFailed = 0;
+        let postsSkipped = 0;
         const failureOutcomes = {};
 
         for (let i = 0; i < catSources.length; i += CONCURRENCY) {
@@ -3254,6 +3311,7 @@ const startMonitoring = async () => {
                 postsNew += stats.new || 0;
                 postsUpdated += stats.updated || 0;
                 postsFailed += stats.posts_failed || 0;
+                postsSkipped += stats.posts_skipped || 0;
                 if (stats.posts_failed > 0) {
                   logger.error(`[Monitor:${platform}:${cat}] PARTIAL ${source.display_name || source.identifier}: fetched ok, ${stats.posts_failed}/${stats.posts_attempted} post(s) failed to process`);
                 }
@@ -3285,7 +3343,7 @@ const startMonitoring = async () => {
         logger.info(
           `[Monitor:${platform}:${cat}] DONE: attempted=${catSources.length} successful=${succeeded} failed=${failed} ` +
           `skipped_inactive=${skippedInactive} posts_fetched=${postsFetched} new=${postsNew} updated=${postsUpdated} ` +
-          `posts_failed=${postsFailed} duration=${catSeconds}s${breakdown}`
+          `posts_failed=${postsFailed} posts_skipped=${postsSkipped} duration=${catSeconds}s${breakdown}`
         );
       }
 
@@ -3368,6 +3426,11 @@ module.exports = {
   SCAN_OUTCOME,
   getPlatformQuotaStatus,
   __private: {
+    ANALYSIS_STATUS,
+    isUsableAnalysis,
+    buildExistingAlertUpdate,
+    selectPendingForRetry,
+    formatCooldown,
     classifyScanError,
     scanResult,
     markPlatformQuotaLimited,

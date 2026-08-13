@@ -34,8 +34,24 @@ process.on('unhandledRejection', (reason) => {
 });
 
 // Trace every DB operation (collection, method, query) issued through Mongoose.
+// Payloads are capped: an unbounded JSON.stringify of a query carrying a large
+// `$nin` produced single 1.3 MB log lines and a 467 MB daily file.
+const DB_TRACE_MAX_CHARS = Math.max(200, Number(process.env.DB_TRACE_MAX_CHARS || 2000));
+const traceValue = (value) => {
+  if (value === undefined || value === null) return '';
+  let text;
+  try {
+    text = JSON.stringify(value);
+  } catch (_) {
+    return '[unserializable]';
+  }
+  if (!text) return '';
+  return text.length > DB_TRACE_MAX_CHARS
+    ? `${text.slice(0, DB_TRACE_MAX_CHARS)}…[truncated ${text.length - DB_TRACE_MAX_CHARS} chars]`
+    : text;
+};
 mongoose.set('debug', (collectionName, method, query, doc) => {
-  logger.debug(`[DB] ${collectionName}.${method}`, JSON.stringify(query), doc ? JSON.stringify(doc) : '');
+  logger.debug(`[DB] ${collectionName}.${method}`, traceValue(query), traceValue(doc));
 });
 
 // Fail closed on secrets before accepting traffic.
@@ -521,6 +537,15 @@ const startLlmRelevanceSweeper = () => {
 const startServer = async () => {
   // Connect to database
   await connectDB();
+
+  // Load DB-driven policy mappings/keywords now that Mongo is actually up.
+  // Doing this at require-time raced connectDB() and silently degraded every
+  // boot to the stale file fallback.
+  try {
+    await require('./services/mappingService').start();
+  } catch (mappingErr) {
+    logger.error(`[MappingService] Initial load failed: ${mappingErr.message}`);
+  }
 
   // Create default admin
   await createDefaultAdmin();

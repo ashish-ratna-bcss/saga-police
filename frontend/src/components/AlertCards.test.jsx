@@ -104,6 +104,26 @@ describe('AlertCards Facebook media normalization', () => {
     ]));
   });
 
+  it('prefers resolved Instagram video media over expired inline CDN videos', () => {
+    const cardMediaItems = pickCardMediaItems({
+      platform: 'instagram',
+      inlineMediaItems: [
+        { type: 'video', url: 'https://scontent.cdninstagram.com/o1/v/t16/expired', preview: 'https://scontent.cdninstagram.com/v/t51.2885-15/thumb.jpg' }
+      ],
+      fallbackInlineMedia: [],
+      resolvedFacebookMediaItems: [
+        { type: 'video', url: 'https://video.cdninstagram.com/o1/v/t16/fresh', preview: 'https://scontent.cdninstagram.com/v/t51.2885-15/thumb.jpg', fallbackUrls: ['https://video.cdninstagram.com/o1/v/t16/alt'] }
+      ]
+    });
+
+    expect(cardMediaItems).toEqual([
+      expect.objectContaining({
+        type: 'video',
+        url: 'https://video.cdninstagram.com/o1/v/t16/fresh'
+      })
+    ]);
+  });
+
   it('prefers resolved Facebook video media over stale inline image duplicates', () => {
     const cardMediaItems = pickCardMediaItems({
       platform: 'facebook',

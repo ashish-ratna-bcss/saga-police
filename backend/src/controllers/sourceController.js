@@ -3,6 +3,13 @@ const POI = require('../models/POI');
 const { createAuditLog } = require('../services/auditService');
 const mongoose = require('mongoose');
 const { resolvePlatformIdentity, refreshPlatformIdentity } = require('../services/platformIdentityService');
+const {
+  extractStableUserId,
+  collectLocalAliases,
+  findDuplicateSource,
+  duplicatePayload,
+  uniqueNonEmpty
+} = require('../services/sourceDedupeService');
 const logger = require('../utils/logger');
 
 // Facebook slugs are case-insensitive and may be pasted with an '@' prefix or
@@ -127,7 +134,26 @@ const normalizeIdentifier = (platform, identifier) => {
       return id;
   }
 };
-const rapidApiXService = require('../services/rapidApiXService');
+
+const pickClientPlatformUserId = (body = {}, poiData = {}, platform) => {
+  const direct = String(body.platform_user_id || body.platformUserId || '').trim();
+  if (direct) return direct;
+  const sm = Array.isArray(poiData?.socialMedia) ? poiData.socialMedia : [];
+  const match = sm.find((row) => String(row?.platform || '').toLowerCase().trim() === String(platform || '').toLowerCase());
+  return String(match?.platformUserId || match?.platform_user_id || '').trim();
+};
+
+const kickoffInitialScan = (source) => {
+  if (!source || !['x', 'youtube', 'facebook', 'instagram'].includes(source.platform)) return;
+  setImmediate(async () => {
+    try {
+      const { scanSourceOnce } = require('../services/monitorService');
+      await scanSourceOnce(source);
+    } catch (error) {
+      logger.error(`[Source] Initial scan failed for ${source.identifier}: ${error.message}`);
+    }
+  });
+};
 
 // @desc    Get sources
 // @route   GET /api/sources
@@ -393,97 +419,88 @@ const createSource = async (req, res) => {
       // blank so resolvePlatformIdentity below can supply the real page name.
     }
 
-    // Identity resolution (platform user id, real display name, avatar) calls the
-    // provider APIs and can take 5-15s. Do NOT block source creation on it —
-    // normalise locally, save immediately, and let the background task below
-    // backfill the details. The source is monitorable the moment it is saved.
     identifier = normalizeIdentifier(platform, identifier);
 
     if (!display_name || !String(display_name).trim()) {
       display_name = identifier;
     }
 
-    // Case-insensitive duplicate check. New entries are normalised to lowercase,
-    // but legacy rows may be mixed-case ("/MyHyderabadCity" vs "/@myhyderabadcity"),
-    // so match without regard to case rather than on the exact string.
-    const escapedIdentifier = identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const existing = await Source.findOne({
-      platform,
-      identifier: { $regex: `^${escapedIdentifier}$`, $options: 'i' }
+    const clientUserId = pickClientPlatformUserId(req.body || {}, poiData, platform);
+    const localAliases = collectLocalAliases(platform, identifier);
+    const guessedUserId = clientUserId || extractStableUserId(platform, identifier);
+
+    // Cheap local match first (@handle vs URL vs numeric id) — 0 provider calls.
+    const localExisting = await findDuplicateSource(platform, {
+      identifier,
+      platformUserId: guessedUserId,
+      aliases: localAliases
+    });
+    if (localExisting) {
+      return res.status(400).json(duplicatePayload(localExisting));
+    }
+
+    // Resolve identity only when the UI/API did not already give us a stable id.
+    // That one call also yields the canonical handle/URL so we can catch
+    // "@user" vs an existing numeric-id source.
+    let identity = null;
+    if (clientUserId) {
+      identity = {
+        platformUserId: clientUserId,
+        normalizedIdentifier: identifier,
+        resolvedDisplayName: null,
+        profileImageUrl: null,
+        isVerified: null,
+        method: 'client'
+      };
+    } else {
+      try {
+        identity = await resolvePlatformIdentity(platform, identifier);
+      } catch (identityError) {
+        logger.error(`[Source] Identity resolution failed for ${identifier}: ${identityError.message}`);
+      }
+    }
+
+    const resolvedIdentifier = normalizeIdentifier(platform, identity?.normalizedIdentifier || identifier);
+    const platformUserId = String(identity?.platformUserId || guessedUserId || '').trim();
+    const resolvedAliases = uniqueNonEmpty([
+      ...localAliases,
+      ...collectLocalAliases(platform, resolvedIdentifier),
+      resolvedIdentifier
+    ]);
+
+    const existing = await findDuplicateSource(platform, {
+      identifier: resolvedIdentifier,
+      platformUserId,
+      aliases: resolvedAliases
     });
     if (existing) {
-      return res.status(400).json({
-        message: `This profile is already being monitored as "${existing.display_name || existing.identifier}"`
-      });
+      return res.status(400).json(duplicatePayload(existing));
     }
+
+    if (identity?.resolvedDisplayName && display_name === identifier) {
+      display_name = identity.resolvedDisplayName;
+    }
+
+    identifier = resolvedIdentifier || identifier;
 
     const source = await Source.create({
       platform,
       identifier,
-      platform_user_id: '',      // backfilled in background
+      platform_user_id: platformUserId,
       display_name,
       category: category ? category.toLowerCase() : 'unknown',
       priority: priority || 'medium',
       follower_count: follower_count || '',
       joined_date: joined_date || '',
       is_active: is_active !== false,
-      is_verified: false,        // backfilled in background
+      is_verified: identity?.isVerified === true,
+      profile_image_url: identity?.profileImageUrl || undefined,
       created_by: req.user.id
     });
 
-    // We don't await profile fetching/scanning to keep responsiveness high.
-    // This allows immediate linking while data populates in background.
-    if (platform === 'x' || platform === 'youtube' || platform === 'facebook' || platform === 'instagram') {
-      const runBackgroundTask = async () => {
-        try {
-          // 1. Resolve platform identity (user id, real name, avatar, verified).
-          //    Moved off the create request so adding a source is instant.
-          try {
-            const identity = await resolvePlatformIdentity(platform, identifier);
-            if (identity) {
-              const patch = {};
-              if (identity.platformUserId) patch.platform_user_id = identity.platformUserId;
-              if (identity.profileImageUrl) patch.profile_image_url = identity.profileImageUrl;
-              if (typeof identity.isVerified === 'boolean') patch.is_verified = identity.isVerified;
-              // Only overwrite the display name if the user didn't supply a real
-              // one (i.e. it currently just mirrors the identifier).
-              if (identity.resolvedDisplayName && display_name === identifier) {
-                patch.display_name = identity.resolvedDisplayName;
-              }
-              if (Object.keys(patch).length > 0) {
-                await Source.updateOne({ id: source.id }, { $set: patch });
-              }
-            }
-          } catch (identityError) {
-            logger.error(`[Source] Identity resolution failed for ${identifier}: ${identityError.message}`);
-          }
-
-          // 2. Fetch extra profile metadata (if applicable)
-          if (platform === 'x') {
-            const profile = await rapidApiXService.fetchUserProfile(identifier);
-            if (profile) {
-              await Source.updateOne(
-                { id: source.id },
-                {
-                  $set: {
-                    is_verified: profile.isVerified,
-                    profile_image_url: profile.profileImageUrl
-                  }
-                }
-              );
-            }
-          }
-
-          // 3. Trigger initial scan to populate feed
-          const { scanSourceOnce } = require('../services/monitorService');
-          await scanSourceOnce(source);
-        } catch (error) {
-          // (() => {})(`[Background Task] Error for ${identifier}:`, error.message);
-        }
-      };
-
-      runBackgroundTask();
-    }
+    // Initial scan only — identity/profile were resolved above (or supplied by
+    // the client), so do not spend a second provider call on fetchUserProfile.
+    kickoffInitialScan(source);
 
     // Auto-create or link POI profile
     const linkOrCreatePOIFromSource = async (src, pData = {}) => {
@@ -539,46 +556,53 @@ const createSource = async (req, res) => {
                   normId = normalizeIdentifier(sm.platform, sm.handle);
                 }
 
-                // Auto-create source if it doesn't exist
+                // Auto-create source if it doesn't exist (identity-aware, any identifier shape)
                 if (normId) {
-                  const linkedIdentity = await resolvePlatformIdentity(sm.platform, normId);
-                  const linkedNormId = normalizeIdentifier(sm.platform, linkedIdentity?.normalizedIdentifier || normId);
+                  const smClientId = String(sm.platformUserId || sm.platform_user_id || '').trim();
+                  const smAliases = collectLocalAliases(sm.platform, normId);
+                  let exSource = await findDuplicateSource(sm.platform, {
+                    identifier: normId,
+                    platformUserId: smClientId || extractStableUserId(sm.platform, normId),
+                    aliases: smAliases
+                  });
 
-                  let exSource = await Source.findOne({ platform: sm.platform, identifier: linkedNormId });
+                  let linkedIdentity = null;
                   if (!exSource) {
-                    exSource = await Source.create({
-                      platform: sm.platform,
+                    if (smClientId) {
+                      linkedIdentity = {
+                        platformUserId: smClientId,
+                        normalizedIdentifier: normId,
+                        resolvedDisplayName: sm.displayName || null,
+                        profileImageUrl: sm.profileImage || null,
+                        isVerified: null,
+                        method: 'client'
+                      };
+                    } else {
+                      linkedIdentity = await resolvePlatformIdentity(sm.platform, normId);
+                    }
+
+                    const linkedNormId = normalizeIdentifier(sm.platform, linkedIdentity?.normalizedIdentifier || normId);
+                    const linkedUserId = String(linkedIdentity?.platformUserId || smClientId || '').trim();
+                    exSource = await findDuplicateSource(sm.platform, {
                       identifier: linkedNormId,
-                      platform_user_id: linkedIdentity?.platformUserId || '',
-                      display_name: sm.displayName || linkedIdentity?.resolvedDisplayName || sm.handle,
-                      category: (sm.category || src.category || 'others').toLowerCase(),
-                      priority: sm.priority || src.priority || 'medium',
-                      is_active: sm.isActive !== false,
-                      profile_image_url: linkedIdentity?.profileImageUrl || undefined,
-                      is_verified: linkedIdentity?.isVerified === true,
-                      created_by: src.created_by
+                      platformUserId: linkedUserId,
+                      aliases: uniqueNonEmpty([...smAliases, ...collectLocalAliases(sm.platform, linkedNormId), linkedNormId])
                     });
 
-                    // Kick off background scan
-                    if (['x', 'youtube', 'facebook', 'instagram'].includes(sm.platform)) {
-                      const bgTask = async () => {
-                        try {
-                          if (sm.platform === 'x') {
-                            const profile = await rapidApiXService.fetchUserProfile(normId);
-                            if (profile) {
-                              await Source.updateOne(
-                                { id: exSource.id },
-                                { $set: { is_verified: profile.isVerified, profile_image_url: profile.profileImageUrl } }
-                              );
-                            }
-                          }
-                          const { scanSourceOnce } = require('../services/monitorService');
-                          await scanSourceOnce(exSource);
-                        } catch (e) {
-                          // ignore background errors
-                        }
-                      };
-                      bgTask();
+                    if (!exSource) {
+                      exSource = await Source.create({
+                        platform: sm.platform,
+                        identifier: linkedNormId,
+                        platform_user_id: linkedUserId,
+                        display_name: sm.displayName || linkedIdentity?.resolvedDisplayName || sm.handle,
+                        category: (sm.category || src.category || 'others').toLowerCase(),
+                        priority: sm.priority || src.priority || 'medium',
+                        is_active: sm.isActive !== false,
+                        profile_image_url: linkedIdentity?.profileImageUrl || undefined,
+                        is_verified: linkedIdentity?.isVerified === true,
+                        created_by: src.created_by
+                      });
+                      kickoffInitialScan(exSource);
                     }
                   }
 
@@ -682,6 +706,18 @@ const updateSource = async (req, res) => {
     const nextIdentifier = updateData.identifier !== undefined
       ? String(updateData.identifier || '').trim()
       : oldIdentifier;
+
+    if (updateData.identifier && nextIdentifier && nextIdentifier !== oldIdentifier) {
+      const dup = await findDuplicateSource(nextPlatform, {
+        identifier: nextIdentifier,
+        platformUserId: String(updateData.platform_user_id || source.platform_user_id || extractStableUserId(nextPlatform, nextIdentifier) || '').trim(),
+        aliases: collectLocalAliases(nextPlatform, nextIdentifier),
+        excludeId: source.id
+      });
+      if (dup) {
+        return res.status(400).json(duplicatePayload(dup));
+      }
+    }
 
     const addToSet = {};
     if (
@@ -985,6 +1021,8 @@ const createSourcesBulk = async (req, res) => {
     const created = [];
     const skipped = [];
     const failed = [];
+    const seenUserIds = new Set();
+    const seenAliases = new Set();
 
     for (const raw of identifiers) {
       try {
@@ -1011,14 +1049,54 @@ const createSourcesBulk = async (req, res) => {
         }
 
         identifier = normalizeIdentifier(platform, identifier);
+        const localAliases = collectLocalAliases(platform, identifier);
+        const guessedUserId = extractStableUserId(platform, identifier);
+
+        const aliasHit = localAliases.some((a) => seenAliases.has(a.toLowerCase()));
+        if (aliasHit || (guessedUserId && seenUserIds.has(guessedUserId))) {
+          skipped.push({ identifier, reason: 'profile already exist in sources' });
+          continue;
+        }
+
+        const localExisting = await findDuplicateSource(platform, {
+          identifier,
+          platformUserId: guessedUserId,
+          aliases: localAliases
+        });
+        if (localExisting) {
+          skipped.push({
+            identifier,
+            reason: 'profile already exist in sources',
+            id: localExisting.id
+          });
+          continue;
+        }
 
         const identity = await resolvePlatformIdentity(platform, identifier);
         identifier = normalizeIdentifier(platform, identity?.normalizedIdentifier || identifier);
-        if (!display_name || !String(display_name).trim()) {
+        const platformUserId = String(identity?.platformUserId || guessedUserId || '').trim();
+        if (!display_name || !String(display_name).trim() || display_name === String(raw || '').trim()) {
           display_name = identity?.resolvedDisplayName || identifier;
         }
 
-        const existing = await Source.findOne({ platform, identifier });
+        const resolvedAliases = uniqueNonEmpty([
+          ...localAliases,
+          ...collectLocalAliases(platform, identifier),
+          identifier
+        ]);
+        if (
+          (platformUserId && seenUserIds.has(platformUserId)) ||
+          resolvedAliases.some((a) => seenAliases.has(a.toLowerCase()))
+        ) {
+          skipped.push({ identifier, reason: 'profile already exist in sources' });
+          continue;
+        }
+
+        const existing = await findDuplicateSource(platform, {
+          identifier,
+          platformUserId,
+          aliases: resolvedAliases
+        });
         if (existing) {
           skipped.push({ identifier, reason: 'profile already exist in sources', id: existing.id });
           continue;
@@ -1027,7 +1105,7 @@ const createSourcesBulk = async (req, res) => {
         const source = await Source.create({
           platform,
           identifier,
-          platform_user_id: identity?.platformUserId || '',
+          platform_user_id: platformUserId,
           display_name,
           category: category ? String(category).toLowerCase() : 'unknown',
           priority: priority || 'medium',
@@ -1035,6 +1113,9 @@ const createSourcesBulk = async (req, res) => {
           is_verified: identity?.isVerified === true,
           created_by: req.user.id
         });
+
+        if (platformUserId) seenUserIds.add(platformUserId);
+        resolvedAliases.forEach((a) => seenAliases.add(a.toLowerCase()));
 
         // Auto-create or link POI profile
         const linkOrCreatePOIFromSource = async (src) => {
@@ -1552,17 +1633,52 @@ const resolveSourceIdentity = async (req, res) => {
       identifier = normalized.identifier;
     }
 
+    identifier = normalizeIdentifier(platform, identifier);
+    const localAliases = collectLocalAliases(platform, identifier);
+    const guessedUserId = extractStableUserId(platform, identifier);
+
+    const localExisting = await findDuplicateSource(platform, {
+      identifier,
+      platformUserId: guessedUserId,
+      aliases: localAliases
+    });
+    if (localExisting) {
+      return res.status(200).json({
+        platform,
+        identifier: localExisting.identifier,
+        platformUserId: localExisting.platform_user_id || guessedUserId || '',
+        displayName: localExisting.display_name || '',
+        profileImageUrl: localExisting.profile_image_url || '',
+        isVerified: localExisting.is_verified === true,
+        method: 'existing',
+        alreadyMonitored: true,
+        existing: duplicatePayload(localExisting).existing
+      });
+    }
+
     const identity = await resolvePlatformIdentity(platform, identifier);
     const normalizedIdentifier = normalizeIdentifier(platform, identity?.normalizedIdentifier || identifier);
+    const platformUserId = String(identity?.platformUserId || guessedUserId || '').trim();
+    const existing = await findDuplicateSource(platform, {
+      identifier: normalizedIdentifier,
+      platformUserId,
+      aliases: uniqueNonEmpty([
+        ...localAliases,
+        ...collectLocalAliases(platform, normalizedIdentifier),
+        normalizedIdentifier
+      ])
+    });
 
     return res.status(200).json({
       platform,
       identifier: normalizedIdentifier,
-      platformUserId: identity?.platformUserId || '',
+      platformUserId,
       displayName: identity?.resolvedDisplayName || '',
       profileImageUrl: identity?.profileImageUrl || '',
       isVerified: identity?.isVerified === true,
-      method: identity?.method || 'unresolved'
+      method: identity?.method || 'unresolved',
+      alreadyMonitored: !!existing,
+      existing: existing ? duplicatePayload(existing).existing : null
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });

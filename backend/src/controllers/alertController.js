@@ -21,35 +21,60 @@ const logger = require('../utils/logger');
 
 const escapeRegex = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// Cache event-tagged content IDs briefly so the Alerts page can exclude them
-// without re-running a distinct() on every request.
-let _eventContentIdsCache = { ids: null, at: 0 };
-const EVENT_CONTENT_IDS_TTL_MS = 30 * 1000;
-const getEventContentIds = async () => {
-  const now = Date.now();
-  if (_eventContentIdsCache.ids && (now - _eventContentIdsCache.at) < EVENT_CONTENT_IDS_TTL_MS) {
-    return _eventContentIdsCache.ids;
-  }
-  const ids = await Content.distinct('id', { event_ids: { $exists: true, $ne: [] } });
-  _eventContentIdsCache = { ids, at: now };
-  return ids;
-};
-
-// Apply "profile-only" filter: exclude event-scoped alerts. An alert is
-// event-scoped if Alert.event_id is set OR its content has non-empty event_ids.
+// Apply "profile-only" filter: exclude event-scoped alerts.
+// Alerts raised BY the event pipeline stay on the Events board — that is
+// deliberate and unchanged (`event_id = null`).
+//
+// What was NOT deliberate: excluding every alert whose content merely happens to
+// also be tagged to an event. A post monitored from a Source vanished from the
+// Alerts board the moment any active event also matched it. That exclusion is
+// removed; source-created alerts stay visible regardless of event tagging.
+// (It also generated the multi-MB `$nin` lines in the query log.)
 const applyProfileOnlyFilter = async (query) => {
   query.event_id = null;
-  const eventContentIds = await getEventContentIds();
-  if (eventContentIds.length > 0) {
-    const existing = query.content_id;
-    if (existing && typeof existing === 'object' && existing.$in) {
-      // Intersect: keep only requested content_ids that are NOT event-tagged.
-      const eventSet = new Set(eventContentIds);
-      query.content_id = { ...existing, $in: existing.$in.filter((id) => !eventSet.has(id)) };
-    } else {
-      query.content_id = { ...(existing || {}), $nin: eventContentIds };
-    }
+  return query;
+};
+
+const WORKFLOW_STATUSES = new Set(['acknowledged', 'false_positive', 'escalated', 'resolved']);
+
+const resolveAlertDateBounds = (startDate, endDate) => {
+  const hasExplicitRange = Boolean(startDate || endDate);
+  const start = startDate ? new Date(startDate) : (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  })();
+  if (!hasExplicitRange) return { start, end: null };
+  const end = endDate ? new Date(endDate) : new Date();
+  if (endDate && /^\d{4}-\d{2}-\d{2}$/.test(String(endDate))) {
+    end.setHours(23, 59, 59, 999);
   }
+  return { start, end };
+};
+
+// Active tab: publish date only (monitoring new posts).
+// Workflow tabs (ack / FP / escalated): also match acknowledged_at / created_at
+// so older posts actioned this week still appear — otherwise the tab count
+// (all-time summary) and the dated list disagree and the grid looks empty.
+const applyAlertDateFilter = (query, { startDate, endDate, status } = {}) => {
+  const { start, end } = resolveAlertDateBounds(startDate, endDate);
+  const range = end ? { $gte: start, $lte: end } : { $gte: start };
+  const workflow = WORKFLOW_STATUSES.has(String(status || '').toLowerCase());
+
+  if (!workflow) {
+    query.content_published_at = range;
+    return query;
+  }
+
+  query.$and = query.$and || [];
+  query.$and.push({
+    $or: [
+      { content_published_at: range },
+      { acknowledged_at: range },
+      { created_at: range }
+    ]
+  });
   return query;
 };
 
@@ -156,8 +181,8 @@ const getCacheKey = (prefix, params) => {
 const readCache = async (key) => cacheService.get(key);
 const writeCache = async (key, value, ttl = 20) => cacheService.set(key, value, ttl);
 const clearAlertCache = async () => {
-  await cacheService.invalidatePrefix('alerts:list:v4');
-  await cacheService.invalidatePrefix('alerts:stats:v4');
+  await cacheService.invalidatePrefix('alerts:list:v5');
+  await cacheService.invalidatePrefix('alerts:stats:v5');
   await cacheService.invalidatePrefix('dashboard:v2');
   await cacheService.invalidatePrefix('alert_summary');
   await cacheService.invalidatePrefix('unread_count');
@@ -260,30 +285,7 @@ const getAlerts = async (req, res) => {
       }
     }
 
-    // Date Range Filter — filter by content publish date (actual post date on platform)
-    // Default to the past 7 days when no explicit range is supplied so the UI
-    // does not surface stale alerts going back years.
-    {
-      const hasExplicitRange = Boolean(startDate || endDate);
-      const start = startDate ? new Date(startDate) : (() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 6);
-        d.setHours(0, 0, 0, 0);
-        return d;
-      })();
-      const end = endDate ? new Date(endDate) : new Date();
-      // If endDate was passed as a bare YYYY-MM-DD, extend to end-of-day so
-      // alerts published later that same day are included.
-      if (endDate && /^\d{4}-\d{2}-\d{2}$/.test(String(endDate))) {
-        end.setHours(23, 59, 59, 999);
-      }
-      query.content_published_at = { $gte: start, $lte: end };
-      if (!hasExplicitRange) {
-        // Allow legacy alerts that never recorded content_published_at to
-        // still show up when no explicit filter is requested.
-        // (Removed: we intentionally hide undated legacy alerts in the default view.)
-      }
-    }
+    applyAlertDateFilter(query, { startDate, endDate, status });
 
     const includeStats = String(req.query.includeStats || '').toLowerCase() === 'true';
     const cursor = req.query.cursor;
@@ -305,7 +307,7 @@ const getAlerts = async (req, res) => {
     // to avoid expensive $lookup pipelines that blow the 32 MB sort memory limit.
     const Source = require('../models/Source');
 
-    const cacheKey = getCacheKey('alerts:list:v4', {
+    const cacheKey = getCacheKey('alerts:list:v5', {
       ...req.query,
       includeStats,
       cursor: cursor || ''
@@ -668,7 +670,7 @@ const updateAlert = async (req, res) => {
 // @route   GET /api/alerts/stats
 // @access  Private
 const buildAlertStats = async (params = {}) => {
-  const { risk_level, virality_level, search, platform, startDate, endDate, alert_type, keyword, category } = params;
+  const { risk_level, virality_level, search, platform, startDate, endDate, alert_type, keyword, category, status } = params;
   const query = {};
 
   if (risk_level && risk_level !== 'all') query.risk_level = risk_level;
@@ -685,19 +687,13 @@ const buildAlertStats = async (params = {}) => {
     if (alert_type === 'risk') query.alert_type = { $in: ['keyword_risk', 'ai_risk', null] };
     else query.alert_type = alert_type;
   }
-  {
-    const start = startDate ? new Date(startDate) : (() => {
-      const d = new Date();
-      d.setDate(d.getDate() - 6);
-      d.setHours(0, 0, 0, 0);
-      return d;
-    })();
-    const end = endDate ? new Date(endDate) : new Date();
-    if (endDate && /^\d{4}-\d{2}-\d{2}$/.test(String(endDate))) {
-      end.setHours(23, 59, 59, 999);
-    }
-    query.content_published_at = { $gte: start, $lte: end };
-  }
+  // Stats are shown across tabs; use workflow date matching so FP / escalated /
+  // acknowledged counts include recently actioned older posts.
+  applyAlertDateFilter(query, {
+    startDate,
+    endDate,
+    status: WORKFLOW_STATUSES.has(String(status || '').toLowerCase()) ? status : 'acknowledged'
+  });
   const hasKeyword = keyword && keyword !== 'all';
   const hasCategory = category && category !== 'all';
   const hasSearch = search && search.trim();
@@ -803,7 +799,7 @@ const buildAlertStats = async (params = {}) => {
 
 const getAlertStats = async (req, res) => {
   try {
-    const statsCacheKey = getCacheKey('alerts:stats:v4', req.query || {});
+    const statsCacheKey = getCacheKey('alerts:stats:v5', req.query || {});
     const cachedStats = await readCache(statsCacheKey);
     if (cachedStats) return res.status(200).json(cachedStats);
 

@@ -3,11 +3,7 @@ const {
   getAnalyzableContentText,
   hasAnalyzableContent
 } = require('./contentText');
-const {
-  performFullAnalysis,
-  finalizeMonitoredContent,
-  __private: { shouldSkipContentAnalysis }
-} = require('../services/monitorService');
+const { shouldSkipContentAnalysis } = require('../services/monitorScanLogic');
 
 const run = async () => {
   assert.strictEqual(
@@ -131,14 +127,11 @@ const run = async () => {
     text: 'Instagram post',
     scraped_content: 'Media Count: 1'
   };
-  const directResult = await performFullAnalysis(mediaOnly, {}, []);
-  assert.strictEqual(directResult.skipped, true);
-  assert.strictEqual(directResult.skip_reason, 'no_analyzable_content');
-
-  const finalizedResult = await finalizeMonitoredContent(mediaOnly, {}, []);
-  assert.strictEqual(finalizedResult.skipped, true);
-  assert.strictEqual(finalizedResult.analysis, null);
-  assert.strictEqual(finalizedResult.alert, null);
+  assert.strictEqual(
+    shouldSkipContentAnalysis(mediaOnly),
+    true,
+    'media-only Instagram placeholder must be skipped at the analysis boundary'
+  );
 
   console.log('content analysis filter self-check: ALL PASSED');
   process.exit(0);

@@ -5,6 +5,17 @@ const Settings = require('../models/Settings');
 const { sendAlertEmail } = require('./emailService');
 const logger = require('../utils/logger');
 
+// Engagement fields that count towards reach/spread, across all four supported
+// platforms. Sparse by design — a platform that never reports a field simply
+// leaves it undefined and it reads as 0 here.
+//   X         likes, retweets, replies, views
+//   Facebook  likes, comments, shares,  views
+//   Instagram likes, comments,          views
+//   YouTube   likes, comments,          views
+// Thresholds and the time window are unchanged; this only fixes which stored
+// fields are read.
+const VELOCITY_METRICS = ['likes', 'retweets', 'replies', 'comments', 'shares', 'views'];
+
 /**
  * Pure function to check velocity metrics without creating alerts
  */
@@ -25,8 +36,12 @@ const checkVelocity = async (content, settings) => {
     // Only check posts that are within the configured time window
     if (postAgeMinutes > threshold.time_window_minutes) return null;
 
-    // Check ALL metrics against the unified threshold
-    const metricsToCheck = ['likes', 'retweets', 'comments', 'views'];
+    // Check ALL metrics against the unified threshold.
+    // Must mirror the engagement fields actually persisted per platform
+    // (see models/Content.js + utils/engagementMetrics.js): X writes `replies`
+    // and Facebook writes `shares`, neither of which were being read here, so
+    // reply- and share-driven virality could never trigger.
+    const metricsToCheck = VELOCITY_METRICS;
     let highestPriority = null;
     let triggeredMetrics = [];
 
@@ -400,5 +415,6 @@ module.exports = {
     updateEngagementHistory,
     seedDefaultThresholds,
     getPriorityWeight,
-    checkVelocity
+    checkVelocity,
+    VELOCITY_METRICS
 };

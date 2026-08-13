@@ -1,5 +1,6 @@
 const VIDEO_URL_RE = /\.(mp4|webm|mov|mkv|m3u8)(\?|$)/i;
 const IMAGE_URL_RE = /\.(jpe?g|png|gif|webp)(\?|$)/i;
+const VIDEO_CDN_RE = /(video\.cdninstagram\.com|\/o1\/v\/t\d+|video[^.]*\.fbcdn\.net)/i;
 const INSTAGRAM_STORY_URL_RE = /instagram\.com\/stories\//i;
 const S3_URL_RE = /(amazonaws\.com|\bs3[.-]|bhaskar-media-storage)/i;
 const GENERATED_STORY_ID_RE = /^(?:content|alert|captured)-story-/i;
@@ -36,8 +37,15 @@ const uniqueStrings = (...values) => {
 const normalizeMediaType = (value) => String(value ?? '').trim().toLowerCase();
 const isVideoType = (value) => ['video', 'animated_gif', 'gifv', '2'].includes(normalizeMediaType(value));
 const isImageType = (value) => ['photo', 'image', '1'].includes(normalizeMediaType(value));
-const looksLikeVideoUrl = (url) => typeof url === 'string' && VIDEO_URL_RE.test(url);
 const looksLikeImageUrl = (url) => typeof url === 'string' && IMAGE_URL_RE.test(url);
+const looksLikeVideoUrl = (url) => {
+  if (typeof url !== 'string' || !url) return false;
+  if (VIDEO_URL_RE.test(url)) return true;
+  if (looksLikeImageUrl(url)) return false;
+  return VIDEO_CDN_RE.test(url);
+};
+const isImageOnlyUrl = (url) => looksLikeImageUrl(url) && !VIDEO_URL_RE.test(url);
+const keepPlayableVideoUrls = (urls) => uniqueStrings(urls).filter((url) => url && !isImageOnlyUrl(url));
 const isS3LikeUrl = (url) => typeof url === 'string' && S3_URL_RE.test(url);
 
 const normalizeHandle = (value) => {
@@ -154,13 +162,13 @@ const collectMediaVideoUrls = (entries) => {
     );
 
     const directUrls = uniqueStrings(
-      entry?.s3_url,
+      looksLikeVideoUrl(entry?.s3_url) ? entry?.s3_url : '',
       entry?.video_url,
       entry?.videoUrl,
       entry?.original_video_url,
       looksLikeVideoUrl(entry?.original_url) ? entry?.original_url : '',
-      looksLikeVideoUrl(entry?.url) || isVideoType(mediaType) ? entry?.url : '',
-      looksLikeVideoUrl(entry?.src) || isVideoType(mediaType) ? entry?.src : '',
+      looksLikeVideoUrl(entry?.url) ? entry?.url : '',
+      looksLikeVideoUrl(entry?.src) ? entry?.src : '',
       looksLikeVideoUrl(entry?.playable_url) ? entry?.playable_url : '',
       looksLikeVideoUrl(entry?.hd_url) ? entry?.hd_url : '',
       looksLikeVideoUrl(entry?.sd_url) ? entry?.sd_url : ''
@@ -176,7 +184,7 @@ const collectMediaVideoUrls = (entries) => {
     }
   });
 
-  return uniqueStrings(urls);
+  return keepPlayableVideoUrls(urls);
 };
 
 const collectMediaImageUrls = (entries) => {
@@ -353,24 +361,24 @@ export const getInstagramStoryMediaSources = (story) => {
     || Boolean(raw?.video_url)
     || Boolean(raw?.videoUrl);
 
-  const videoUrls = uniqueStrings(
+  const videoUrls = keepPlayableVideoUrls([
     story?._videoCandidateUrls,
-    story?.s3_url && (explicitVideo || looksLikeVideoUrl(story?.s3_url)) ? story?.s3_url : '',
+    looksLikeVideoUrl(story?.s3_url) ? story?.s3_url : '',
     story?.original_video_url,
     story?.video_url,
     story?.videoUrl,
-    looksLikeVideoUrl(story?.original_url) || explicitVideo ? story?.original_url : '',
-    raw?.s3_url && (isVideoType(raw?.media_type) || looksLikeVideoUrl(raw?.s3_url)) ? raw?.s3_url : '',
+    looksLikeVideoUrl(story?.original_url) ? story?.original_url : '',
+    looksLikeVideoUrl(raw?.s3_url) ? raw?.s3_url : '',
     raw?.original_video_url,
     raw?.video_url,
     raw?.videoUrl,
-    looksLikeVideoUrl(raw?.original_url) || isVideoType(raw?.media_type) ? raw?.original_url : '',
+    looksLikeVideoUrl(raw?.original_url) ? raw?.original_url : '',
     collectVariantUrls(story?.video_versions),
     collectVariantUrls(story?.videoVersions),
     collectVariantUrls(raw?.video_versions),
     collectVariantUrls(raw?.videoVersions),
     collectMediaVideoUrls(mediaEntries)
-  );
+  ]);
 
   const imageUrls = uniqueStrings(
     story?._imageCandidateUrls,
@@ -524,16 +532,17 @@ export const mapInstagramStoryToAlert = (story, index = 0) => {
   const primaryVideoUrl = cleanString(
     firstMeaningful(
       mediaSources.videoUrls[0],
-      story?.video_url,
-      story?.original_video_url,
-      isVideoType(rawMediaType) ? story?.s3_url : '',
-      isVideoType(rawMediaType) ? story?.original_url : ''
+      looksLikeVideoUrl(story?.video_url) ? story?.video_url : '',
+      looksLikeVideoUrl(story?.original_video_url) ? story?.original_video_url : '',
+      looksLikeVideoUrl(story?.s3_url) ? story?.s3_url : '',
+      looksLikeVideoUrl(story?.original_url) ? story?.original_url : ''
     )
   );
   const primaryImageUrl = mediaSources.imageUrls[0] || '';
-  const resolvedMediaType = (mediaSources.isVideoStory || isVideoType(rawMediaType) || Boolean(primaryVideoUrl)) ? 'video' : 'photo';
+  // Never feed a thumbnail/image URL to <video> — that is the "Video could not be loaded" overlay.
+  const resolvedMediaType = primaryVideoUrl ? 'video' : 'photo';
   const mediaUrl = resolvedMediaType === 'video'
-    ? (primaryVideoUrl || primaryImageUrl)
+    ? primaryVideoUrl
     : (primaryImageUrl || primaryVideoUrl);
   const previewUrl = primaryImageUrl || mediaUrl || '';
   const publicStoryUrl = mediaSources.publicStoryUrls[0] || '';
@@ -601,5 +610,6 @@ export const mapInstagramStoryToAlert = (story, index = 0) => {
 export const instagramStoryMediaUtils = {
   looksLikeVideoUrl,
   looksLikeImageUrl,
+  isImageOnlyUrl,
   normalizeHandle
 };

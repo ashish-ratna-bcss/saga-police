@@ -12,12 +12,26 @@ class MappingService {
     constructor() {
         this.mappingData = { category_mappings: [] }; // Initial empty state
         this.isLoaded = false;
+        this.refreshTimer = null;
 
-        // Initial load
-        this.loadMappings();
+        // NOTE: the DB load is deliberately NOT started here. This module is
+        // instantiated the moment a route file requires it, which happens long
+        // before connectDB() resolves — every boot then hit a 10s mongoose
+        // buffering timeout and silently fell back to the stale file copy,
+        // defeating DB-driven keywords for the first minutes of every restart.
+        // index.js calls start() once Mongo is actually connected.
+    }
 
-        // Refresh cache every 5 minutes (optional, can be triggered manually too)
-        setInterval(() => this.loadMappings(), 5 * 60 * 1000);
+    /**
+     * Begin DB-backed mapping loads. Safe to call more than once.
+     * The file fallback inside loadMappings() still covers a genuinely
+     * unavailable database.
+     */
+    async start() {
+        if (this.refreshTimer) return this.waitForLoad();
+        await this.loadMappings();
+        this.refreshTimer = setInterval(() => this.loadMappings(), 5 * 60 * 1000);
+        if (this.refreshTimer.unref) this.refreshTimer.unref();
     }
 
     async loadMappings() {
@@ -48,12 +62,28 @@ class MappingService {
         }
     }
 
-    async waitForLoad() {
+    async waitForLoad(timeoutMs = 15000) {
         if (this.isLoaded) return;
+        // Lazy self-start: any reader that arrives before index.js called start()
+        // (scripts, workers, tests) still gets a real load instead of blocking
+        // forever on a timer that nothing will ever satisfy.
+        if (!this.refreshTimer) {
+            await this.start();
+            if (this.isLoaded) return;
+        }
+        const deadline = Date.now() + Math.max(1000, Number(timeoutMs) || 15000);
         return new Promise((resolve) => {
             const check = setInterval(() => {
                 if (this.isLoaded) {
                     clearInterval(check);
+                    resolve();
+                    return;
+                }
+                if (Date.now() >= deadline) {
+                    clearInterval(check);
+                    // Last-ditch: never hang the intelligence path. File fallback
+                    // is the same safety net used when Mongo itself is down.
+                    if (!this.isLoaded) this.loadFallbackFile();
                     resolve();
                 }
             }, 100);

@@ -1,5 +1,6 @@
 const axios = require('axios');
 const Counter = require('../models/Counter');
+const logger = require('../utils/logger');
 
 const INSTAGRAM_DEFAULT_HOST = 'instagram120.p.rapidapi.com';
 
@@ -153,12 +154,12 @@ const rapidPost = async (path, data, _retryCount = 0) => {
 
         if (isServerError || isRateLimit) {
             const waitMs = isRateLimit ? 3000 : 2000;
-            (() => { })(`[Instagram] ${isRateLimit ? '429 rate-limit' : `${status} server error`} on POST ${path} — retry ${_retryCount + 1}/${MAX_RETRIES}`);
+            logger.warn(`[Instagram] ${isRateLimit ? '429 rate-limit' : `${status} server error`} on POST ${path} — retry ${_retryCount + 1}/${MAX_RETRIES}`);
             await new Promise(r => setTimeout(r, waitMs));
             if (isRateLimit && _retryCount + 1 >= MAX_RETRIES) {
                 // All retries exhausted on 429 — activate global pause
                 igGlobalRateLimitPauseUntil = Date.now() + IG_GLOBAL_RATE_LIMIT_PAUSE_MS;
-                (() => { })(`[Instagram] 🛑 429 exhausted all retries on POST ${path} — global pause ${IG_GLOBAL_RATE_LIMIT_PAUSE_MS / 1000}s`);
+                logger.warn(`[Instagram] 🛑 429 exhausted all retries on POST ${path} — global pause ${IG_GLOBAL_RATE_LIMIT_PAUSE_MS / 1000}s`);
                 const err = new Error(`[Instagram] Rate limit exhausted on POST ${path}`);
                 err.isRateLimit = true;
                 throw err;
@@ -224,11 +225,11 @@ const rapidGet = async (path, params = {}, _retryCount = 0) => {
 
         if (isServerError || isRateLimit) {
             const waitMs = isRateLimit ? 3000 : 2000;
-            (() => { })(`[Instagram] ${isRateLimit ? '429 rate-limit' : `${status} server error`} on GET ${path} — retry ${_retryCount + 1}/${MAX_RETRIES}`);
+            logger.warn(`[Instagram] ${isRateLimit ? '429 rate-limit' : `${status} server error`} on GET ${path} — retry ${_retryCount + 1}/${MAX_RETRIES}`);
             await new Promise(r => setTimeout(r, waitMs));
             if (isRateLimit && _retryCount + 1 >= MAX_RETRIES) {
                 igGlobalRateLimitPauseUntil = Date.now() + IG_GLOBAL_RATE_LIMIT_PAUSE_MS;
-                (() => { })(`[Instagram] 🛑 429 exhausted all retries on GET ${path} — global pause ${IG_GLOBAL_RATE_LIMIT_PAUSE_MS / 1000}s`);
+                logger.warn(`[Instagram] 🛑 429 exhausted all retries on GET ${path} — global pause ${IG_GLOBAL_RATE_LIMIT_PAUSE_MS / 1000}s`);
                 const err = new Error(`[Instagram] Rate limit exhausted on GET ${path}`);
                 err.isRateLimit = true;
                 throw err;
@@ -258,6 +259,7 @@ const fetchUserPosts = async (username, maxId = "") => {
         { method: 'POST', path: '/api/instagram/media', data: { username } }
     ];
     const endpoints = buildEndpointOrder(legacyEndpoints, apiEndpoints);
+    let lastRateLimitError = null;
 
     for (const ep of endpoints) {
         try {
@@ -272,9 +274,10 @@ const fetchUserPosts = async (username, maxId = "") => {
             }
         } catch (error) {
             if (error.isRateLimit) {
-                (() => { })(`[Instagram] ⚠️ Rate-limited on ${ep.path} for ${username} — will try next endpoint (global pause will auto-wait)`);
-                // Don't return null — let the loop continue; the next rapidPost call
-                // will wait out the global pause automatically before making the request
+                lastRateLimitError = error;
+                logger.warn(`[Instagram] ⚠️ Rate-limited on ${ep.path} for ${username} — trying next endpoint (global pause will auto-wait)`);
+                // Don't bail yet — a later endpoint may still succeed; the next
+                // rapidPost/rapidGet waits out the global pause on its own.
             } else {
                 (() => { })(`[Instagram] ⚠️ ${ep.path} failed for ${username}: ${error.message}`);
             }
@@ -282,7 +285,15 @@ const fetchUserPosts = async (username, maxId = "") => {
         }
     }
 
-    (() => { })(`[Instagram] ❌ All endpoints failed for posts of ${username}`);
+    // Every endpoint failed AND at least one was rate limited: this is a rate
+    // limit, not "account has no posts" and not a generic API error. Surface it
+    // so the caller classifies RATE_LIMIT and the platform breaker can arm.
+    if (lastRateLimitError) {
+        logger.warn(`[Instagram] 🛑 All endpoints rate-limited for posts of ${username} — propagating rate limit`);
+        throw lastRateLimitError;
+    }
+
+    logger.warn(`[Instagram] ❌ All endpoints failed for posts of ${username}`);
     return null;
 };
 
@@ -426,14 +437,39 @@ const fetchInstagramPostDetail = async (shortcode) => {
             const data = response?.data?.data || response?.data;
             if (!data) continue;
 
-            // Normalize a single API media item into { url, type }
+            // Normalize a single API media item into playback-ready fields
+            const collectVariantUrls = (versions) => (Array.isArray(versions) ? versions : [])
+                .map((variant) => (typeof variant === 'string' ? variant : variant?.url))
+                .filter((url) => typeof url === 'string' && url.trim());
+
             const normApiMedia = (item) => {
                 if (!item) return null;
-                const isVideo = item.media_type === 2 || Array.isArray(item.video_versions);
-                const url = isVideo
-                    ? (item.video_versions?.[0]?.url || item.image_versions2?.candidates?.[0]?.url)
-                    : item.image_versions2?.candidates?.[0]?.url;
-                return url ? { url, type: isVideo ? 'video' : 'photo' } : null;
+                const videoVersions = [
+                    ...(Array.isArray(item.video_versions) ? item.video_versions : []),
+                    ...(Array.isArray(item.videoVersions) ? item.videoVersions : [])
+                ];
+                const videoUrls = collectVariantUrls(videoVersions);
+                const videoUrl = item.video_url || item.videoUrl || videoUrls[0] || null;
+                const imageUrl = item.image_versions2?.candidates?.[0]?.url
+                    || item.image_versions?.[0]?.url
+                    || item.thumbnail_url
+                    || item.display_url
+                    || item.preview
+                    || null;
+                const isVideo = item.media_type === 2
+                    || item.media_type === '2'
+                    || Boolean(item.is_video)
+                    || Boolean(videoUrl)
+                    || videoVersions.length > 0;
+                const url = isVideo ? (videoUrl || imageUrl) : imageUrl;
+                if (!url) return null;
+                return {
+                    url,
+                    type: isVideo ? 'video' : 'photo',
+                    video_url: isVideo ? videoUrl || undefined : undefined,
+                    preview: imageUrl || undefined,
+                    video_versions: videoVersions.length ? videoVersions : undefined
+                };
             };
 
             let mediaArr = [];

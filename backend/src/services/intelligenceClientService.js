@@ -13,6 +13,7 @@
  * Two independent concurrency pools (bulk vs interactive) so investigation
  * is never queued behind ingest.
  */
+const logger = require('../utils/logger');
 const axios = require('axios');
 const crypto = require('crypto');
 const mappingService = require('./mappingService');
@@ -105,7 +106,7 @@ function createLane(name, cfg) {
     queue.push({ fn, resolve, reject });
     stats.queued++;
     if (queue.length > 1 || waiters.length > 0) {
-      console.log(
+      logger.info(
         `[Intelligence/${name}] ${queue.length} queued ` +
         `(${stats.completed} ok, ${stats.failed} fail, ${waiters.length} waiting)`
       );
@@ -135,7 +136,7 @@ function createLane(name, cfg) {
 
     stats.waited++;
     if (stats.waited === 1 || stats.waited % 25 === 0) {
-      console.log(
+      logger.info(
         `[Intelligence/${name}] queue full (${cfg.maxQueue}); ` +
         `waiting for a slot (${waiters.length + 1} waiter(s))`
       );
@@ -339,7 +340,7 @@ async function requestIntelligence(text, { laneName, timeoutMs }) {
       const status = err?.response?.status;
       const detail = err?.response?.data?.detail || err?.message || 'request failed';
       const retryable = !status || status >= 500 || err.code === 'ECONNABORTED' || err.code === 'ECONNREFUSED';
-      console.warn(
+      logger.warn(
         `[Intelligence/${laneName}] attempt ${attempt}/${MAX_ATTEMPTS} failed` +
         `${status ? ` HTTP ${status}` : ''}: ${detail}`
       );
@@ -347,7 +348,7 @@ async function requestIntelligence(text, { laneName, timeoutMs }) {
       await new Promise((r) => setTimeout(r, 1000 * attempt));
     }
   }
-  console.error(`[Intelligence/${laneName}] all attempts failed: ${lastError?.message || lastError}`);
+  logger.error(`[Intelligence/${laneName}] all attempts failed: ${lastError?.message || lastError}`);
   return null;
 }
 
@@ -359,12 +360,12 @@ async function requestIntelligence(text, { laneName, timeoutMs }) {
  */
 async function analyzeText(text, options = {}) {
   if (!text || typeof text !== 'string') {
-    console.warn('[Intelligence] Skipped: text is null/undefined/non-string');
+    logger.warn('[Intelligence] Skipped: text is null/undefined/non-string');
     return null;
   }
   const trimmed = text.trim();
   if (trimmed.length < 3) {
-    console.warn(`[Intelligence] Skipped: text too short (${trimmed.length} chars)`);
+    logger.warn(`[Intelligence] Skipped: text too short (${trimmed.length} chars)`);
     return null;
   }
 
@@ -376,7 +377,7 @@ async function analyzeText(text, options = {}) {
       requestIntelligence(trimmed, { laneName, timeoutMs: lane.timeoutMs })
     );
   } catch (err) {
-    console.error(`[Intelligence/${laneName}] ${err.message}`);
+    logger.error(`[Intelligence/${laneName}] ${err.message}`);
     return null;
   }
 }

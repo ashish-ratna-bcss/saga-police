@@ -135,4 +135,47 @@ describe('instagramStoryMedia', () => {
     expect(mediaItem.fallback_urls).toEqual(expect.arrayContaining(['https://video.cdninstagram.com/story-987654321.mp4']));
     expect(alertCard.content_url).toBe('https://www.instagram.com/stories/fallback_user/987654321/');
   });
+
+  it('does not treat a thumbnail jpg as the video source', () => {
+    const story = {
+      id: 'thumb-as-s3',
+      story_pk: '555666777',
+      author_handle: 'demo_user',
+      media_type: 'video',
+      s3_url: 'https://bhaskar-media-storage.s3.eu-north-1.amazonaws.com/instagram-stories/555666777_thumb.jpg',
+      s3_thumbnail_url: 'https://bhaskar-media-storage.s3.eu-north-1.amazonaws.com/instagram-stories/555666777_thumb.jpg',
+      original_url: apiVideoUrl,
+      video_versions: [{ url: apiFallbackVideoUrl }],
+      thumbnail_url: apiPreviewUrl,
+      published_at: '2026-03-15T08:00:00.000Z'
+    };
+
+    const mediaSources = getInstagramStoryMediaSources(story);
+    expect(mediaSources.videoUrls).not.toEqual(expect.arrayContaining([story.s3_url]));
+    expect(mediaSources.videoUrls[0]).toBe(apiVideoUrl);
+
+    const alertCard = mapInstagramStoryToAlert(story);
+    const mediaItem = alertCard.content_details.media[0];
+    expect(mediaItem.type).toBe('video');
+    expect(mediaItem.url).toBe(apiVideoUrl);
+    expect(mediaItem.url).not.toMatch(/\.jpe?g(\?|$)/i);
+    expect(mediaItem.preview).toMatch(/\.jpe?g(\?|$)/i);
+  });
+
+  it('renders a photo card instead of a broken video when only a preview exists', () => {
+    const story = {
+      id: 'preview-only',
+      story_pk: '111222333',
+      author_handle: 'demo_user',
+      media_type: 'video',
+      s3_url: 'https://bhaskar-media-storage.s3.eu-north-1.amazonaws.com/instagram-stories/111222333.jpg',
+      thumbnail_url: apiPreviewUrl,
+      published_at: '2026-03-15T08:00:00.000Z'
+    };
+
+    const alertCard = mapInstagramStoryToAlert(story);
+    const mediaItem = alertCard.content_details.media[0];
+    expect(mediaItem.type).toBe('photo');
+    expect(mediaItem.url).toMatch(/\.jpe?g(\?|$)/i);
+  });
 });

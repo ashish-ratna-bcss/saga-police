@@ -19,10 +19,44 @@ import { toast } from 'sonner';
 import ReasonModal from './ReasonModal';
 import { NEEDS_PROXY_RE, proxyMediaUrl } from '@/shared/utils/mediaProxy';
 import { AlertService } from '@/features/alerts/api/alertService';
+import { anyPlayableMediaUrlFresh } from '../utils/instagramCdnExpiry';
 
 const WHATSAPP_GROUP_LINK = 'https://chat.whatsapp.com/HGGWZCyNXBmHfp4KvYxlXu';
 let activeVideoElement = null;
+const MEDIA_RESOLVE_TTL_MS = 15 * 60 * 1000;
+const MEDIA_RESOLVE_STALE_MS = 8 * 60 * 1000;
+const MEDIA_RESOLVE_STORAGE_KEY = 'sockeye_media_resolve_v1';
 const mediaResolveCache = new Map();
+
+const readStoredResolves = () => {
+    try {
+        const raw = sessionStorage.getItem(MEDIA_RESOLVE_STORAGE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (_) {
+        return {};
+    }
+};
+
+const writeStoredResolve = (url, payload, ts) => {
+    try {
+        const stored = readStoredResolves();
+        stored[url] = { ts, payload };
+        const entries = Object.entries(stored)
+            .filter(([, entry]) => entry?.ts && Date.now() - entry.ts < MEDIA_RESOLVE_TTL_MS)
+            .sort((a, b) => b[1].ts - a[1].ts)
+            .slice(0, 80);
+        sessionStorage.setItem(MEDIA_RESOLVE_STORAGE_KEY, JSON.stringify(Object.fromEntries(entries)));
+    } catch (_) { /* private mode / quota */ }
+};
+
+const fetchResolvePayload = (url) => api.get('/media/resolve', { params: { url } })
+    .then((response) => {
+        const payload = response?.data || null;
+        return payload && payload.success ? payload : null;
+    })
+    .catch(() => null);
 
 const LEVEL_BADGE_CLASS = {
   high: 'bg-red-600 text-white',
@@ -128,24 +162,45 @@ export const AlertLocationChip = ({ content }) => {
     );
 };
 
-const resolvePostMediaFallback = async (postUrl) => {
+const resolvePostMediaFallback = async (postUrl, { force = false } = {}) => {
     if (!postUrl || typeof postUrl !== 'string') return null;
     const trimmed = postUrl.trim();
     if (!trimmed) return null;
 
-    if (!mediaResolveCache.has(trimmed)) {
-        const request = api.get('/media/resolve', {
-            params: { url: trimmed }
-        })
-            .then((response) => {
-                const payload = response?.data || null;
-                return payload && payload.success ? payload : null;
-            })
-            .catch(() => null);
-        mediaResolveCache.set(trimmed, request);
+    const memory = mediaResolveCache.get(trimmed);
+    if (!force && memory?.inflight) return memory.inflight;
+
+    if (!force && memory?.payload && Date.now() - memory.ts < MEDIA_RESOLVE_TTL_MS) {
+        if (Date.now() - memory.ts >= MEDIA_RESOLVE_STALE_MS) {
+            const inflight = fetchResolvePayload(trimmed).then((payload) => {
+                const next = payload || memory.payload;
+                mediaResolveCache.set(trimmed, { ts: payload ? Date.now() : memory.ts, payload: next });
+                if (payload) writeStoredResolve(trimmed, payload, Date.now());
+                return next;
+            });
+            mediaResolveCache.set(trimmed, { ...memory, inflight });
+        }
+        return memory.payload;
     }
 
-    return mediaResolveCache.get(trimmed);
+    if (!force && !memory) {
+        const stored = readStoredResolves()[trimmed];
+        if (stored?.payload && Date.now() - stored.ts < MEDIA_RESOLVE_TTL_MS) {
+            mediaResolveCache.set(trimmed, { ts: stored.ts, payload: stored.payload });
+            if (Date.now() - stored.ts >= MEDIA_RESOLVE_STALE_MS) {
+                void resolvePostMediaFallback(trimmed, { force: true });
+            }
+            return stored.payload;
+        }
+    }
+
+    const inflight = fetchResolvePayload(trimmed).then((payload) => {
+        mediaResolveCache.set(trimmed, { ts: Date.now(), payload });
+        if (payload) writeStoredResolve(trimmed, payload, Date.now());
+        return payload;
+    });
+    mediaResolveCache.set(trimmed, { ts: Date.now(), inflight, payload: memory?.payload || null });
+    return inflight;
 };
 
 const openWhatsAppGroupShare = async (text) => {
@@ -277,12 +332,15 @@ const isImageType = (value) => ['photo', 'image', '1'].includes(normalizeMediaTy
 
 const isLikelyVideoUrl = (url) => typeof url === 'string' && (
     url.includes('video.twimg.com') ||
+    /video\.cdninstagram\.com/i.test(url) ||
+    /\/o1\/v\/t\d+/i.test(url) ||
     /video[^.]*\.fbcdn\.net/i.test(url) ||
-    /\.fbcdn\.net\/v\/t\d+\.\d+-\d+/i.test(url) ||
+    (/\.fbcdn\.net\/v\/t\d+\.\d+-\d+/i.test(url) && !IMAGE_URL_RE.test(url)) ||
     VIDEO_URL_RE.test(url)
 );
 
 const isLikelyImageUrl = (url) => typeof url === 'string' && IMAGE_URL_RE.test(url);
+const isImageOnlyUrl = (url) => isLikelyImageUrl(url) && !VIDEO_URL_RE.test(url);
 
 const isPrivateStorageUrl = (url) => typeof url === 'string' && /(amazonaws\.com|\bs3[.-]|bhaskar-media-storage)/i.test(url);
 const toPublicExternalUrl = (url) => {
@@ -986,7 +1044,7 @@ export const normalizeMediaItem = (item) => {
         item.video?.video_versions,
         item.media_url_https,
         item.media_url
-    );
+    ).filter((candidate) => !isImageOnlyUrl(candidate));
 
     const directImageCandidates = collectResolvedUrls(
         item.s3_preview,
@@ -1033,8 +1091,8 @@ export const normalizeMediaItem = (item) => {
         item
     );
 
-    const generalVideoCandidates = generalCandidates.filter((candidate) => isLikelyVideoUrl(candidate));
-    const generalImageCandidates = generalCandidates.filter((candidate) => !isLikelyVideoUrl(candidate));
+    const generalVideoCandidates = generalCandidates.filter((candidate) => isLikelyVideoUrl(candidate) && !isImageOnlyUrl(candidate));
+    const generalImageCandidates = generalCandidates.filter((candidate) => !isLikelyVideoUrl(candidate) || isImageOnlyUrl(candidate));
 
     const hasExplicitVideoSignal =
         isVideoType(typeHint)
@@ -1056,14 +1114,18 @@ export const normalizeMediaItem = (item) => {
             || (Array.isArray(item.videoVersions) && item.videoVersions.length > 0)
         );
 
-    const hasVideoUrl = [...directVideoCandidates, ...generalVideoCandidates].some((candidate) => isLikelyVideoUrl(candidate));
+    const playableVideoCandidates = [...directVideoCandidates, ...generalVideoCandidates].filter(Boolean);
+    const hasVideoUrl = playableVideoCandidates.some((candidate) => isLikelyVideoUrl(candidate) || !isImageOnlyUrl(candidate));
     const hasExplicitImageSignal = isImageType(typeHint) || /\b(photo|image|picture)\b/.test(typeHint);
-    const type = (hasExplicitVideoSignal || (hasVideoUrl && !hasExplicitImageSignal)) ? 'video' : 'photo';
+    // Type=video with only a thumbnail URL is what renders "Video could not be loaded".
+    const type = (hasVideoUrl && (hasExplicitVideoSignal || !hasExplicitImageSignal)) ? 'video' : 'photo';
 
     const primaryCandidates = type === 'video'
-        ? [...directVideoCandidates, ...generalVideoCandidates, ...directImageCandidates, ...generalImageCandidates]
-        : [...directImageCandidates, ...generalImageCandidates, ...directVideoCandidates, ...generalVideoCandidates];
-    const url = primaryCandidates.find(Boolean) || '';
+        ? [...playableVideoCandidates, ...directImageCandidates, ...generalImageCandidates]
+        : [...directImageCandidates, ...generalImageCandidates, ...playableVideoCandidates];
+    const url = (type === 'video'
+        ? (playableVideoCandidates.find(Boolean) || primaryCandidates.find((candidate) => !isImageOnlyUrl(candidate)))
+        : primaryCandidates.find(Boolean)) || '';
 
     if (!url) return null;
 
@@ -1384,7 +1446,7 @@ const WhatsAppShareModal = ({ isOpen, onClose, initialText }) => {
     );
 };
 
-export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fallbackUrls = [], previewFallbackUrls = [], platform = '', contentUrl = '' }) => {
+export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fallbackUrls = [], previewFallbackUrls = [], platform = '', contentUrl = '', prefetchMedia = false }) => {
     const videoRef = React.useRef(null);
     const hlsRef = React.useRef(null);
     const pendingPlayRef = React.useRef(false);
@@ -1397,8 +1459,11 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
     const [posterSourceIndex, setPosterSourceIndex] = useState(0);
     const [posterFailed, setPosterFailed] = useState(false);
     const [resolvedVideoUrl, setResolvedVideoUrl] = useState('');
+    const [resolvedVideoUrls, setResolvedVideoUrls] = useState([]);
     const [resolvedPosterUrl, setResolvedPosterUrl] = useState('');
     const [attemptedPlatformResolve, setAttemptedPlatformResolve] = useState(false);
+    const [isResolvingMedia, setIsResolvingMedia] = useState(false);
+    const [playRequested, setPlayRequested] = useState(false);
     const failedUrlsRef = React.useRef(new Set());
 
     // Build ordered candidate list: proxy all S3/CDN URLs through backend to avoid CORS
@@ -1411,7 +1476,12 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
                 urls.push(u.trim());
             }
         };
-        const rawCandidates = [resolvedVideoUrl, url, ...(Array.isArray(fallbackUrls) ? fallbackUrls : [])];
+        const rawCandidates = [
+            resolvedVideoUrl,
+            ...(Array.isArray(resolvedVideoUrls) ? resolvedVideoUrls : []),
+            url,
+            ...(Array.isArray(fallbackUrls) ? fallbackUrls : [])
+        ];
         for (const raw of rawCandidates) {
             if (!raw || typeof raw !== 'string') continue;
             const proxied = proxyMediaUrl(raw.trim());
@@ -1419,7 +1489,7 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
             // NEVER add raw S3/CDN URLs — they cause CORS errors in the browser
         }
         return urls;
-    }, [resolvedVideoUrl, url, fallbackUrls]);
+    }, [resolvedVideoUrl, resolvedVideoUrls, url, fallbackUrls]);
 
     const currentUrl = allVideoUrls[activeSourceIndex] || '';
 
@@ -1554,10 +1624,12 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
     }, [hasLoadedMedia, type, currentUrl, tryNextSource, clearStallTimer, isPlaying, tryBlobLoad]);
 
     const requestVideoLoadAndPlay = React.useCallback(() => {
-        if (!currentUrl || hasLoadedMedia || videoFailed) return;
+        if (hasLoadedMedia) return;
         pendingPlayRef.current = true;
+        setPlayRequested(true);
+        if (isResolvingMedia || videoFailed || !currentUrl) return;
         loadVideoSource();
-    }, [currentUrl, hasLoadedMedia, videoFailed, loadVideoSource]);
+    }, [currentUrl, hasLoadedMedia, videoFailed, isResolvingMedia, loadVideoSource]);
 
     // Cleanup on unmount
     React.useEffect(() => {
@@ -1570,7 +1642,6 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
         };
     }, [destroyHls, clearStallTimer, revokeBlobUrl]);
 
-    // Reset when primary url/type changes externally
     React.useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
@@ -1581,16 +1652,21 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
         video.pause();
         video.removeAttribute('src');
         video.load();
-        pendingPlayRef.current = false;
         failedUrlsRef.current.clear();
         setActiveSourceIndex(0);
         setHasLoadedMedia(false);
         setIsPlaying(false);
         setVideoFailed(false);
+    }, [url, type, contentUrl, destroyHls, clearStallTimer, revokeBlobUrl]);
+
+    React.useEffect(() => {
         setResolvedVideoUrl('');
+        setResolvedVideoUrls([]);
         setResolvedPosterUrl('');
         setAttemptedPlatformResolve(false);
-    }, [url, type, contentUrl, destroyHls, clearStallTimer, revokeBlobUrl]);
+        setIsResolvingMedia(false);
+        setPlayRequested(false);
+    }, [contentUrl, type]);
 
     React.useEffect(() => {
         setPosterSourceIndex(0);
@@ -1651,13 +1727,20 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
     }, [allPosterUrls.length, posterSourceIndex]);
 
     React.useEffect(() => {
-        if (!videoFailed || !['facebook', 'instagram'].includes(String(platform || '').toLowerCase()) || !contentUrl || attemptedPlatformResolve) return;
+        const normalizedPlatform = String(platform || '').toLowerCase();
+        const shouldResolve = prefetchMedia || playRequested || videoFailed;
+        if (!['facebook', 'instagram'].includes(normalizedPlatform) || !contentUrl || !shouldResolve || attemptedPlatformResolve) return;
+        if (normalizedPlatform !== 'instagram' && !videoFailed && !prefetchMedia && !playRequested) return;
+        if (anyPlayableMediaUrlFresh([resolvedVideoUrl, url, ...(Array.isArray(fallbackUrls) ? fallbackUrls : [])])) return;
 
         let cancelled = false;
         setAttemptedPlatformResolve(true);
+        setIsResolvingMedia(true);
 
         resolvePostMediaFallback(contentUrl).then((resolved) => {
-            if (cancelled || !resolved) return;
+            if (cancelled) return;
+            setIsResolvingMedia(false);
+            if (!resolved) return;
 
             if (resolved.image_url) {
                 setResolvedPosterUrl(resolved.image_url);
@@ -1665,19 +1748,50 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
                 setPosterSourceIndex(0);
             }
 
-            if (resolved.video_url) {
-                setResolvedVideoUrl(resolved.video_url);
+            const nextVideoUrls = [
+                resolved.video_url,
+                ...(Array.isArray(resolved.video_urls) ? resolved.video_urls : []),
+                ...(Array.isArray(resolved.media)
+                    ? resolved.media.flatMap((item) => [item?.video_url, item?.url, ...(Array.isArray(item?.fallbackUrls) ? item.fallbackUrls : [])])
+                    : [])
+            ].filter((candidate) => typeof candidate === 'string' && candidate.trim());
+
+            if (nextVideoUrls.length) {
+                setResolvedVideoUrl(nextVideoUrls[0]);
+                setResolvedVideoUrls(nextVideoUrls.slice(1));
                 setVideoFailed(false);
                 setActiveSourceIndex(0);
                 setHasLoadedMedia(false);
                 setIsPlaying(false);
             }
+        }).catch(() => {
+            if (!cancelled) setIsResolvingMedia(false);
         });
 
         return () => {
             cancelled = true;
         };
-    }, [attemptedPlatformResolve, contentUrl, platform, videoFailed]);
+    }, [attemptedPlatformResolve, contentUrl, fallbackUrls, platform, playRequested, prefetchMedia, resolvedVideoUrl, url, videoFailed]);
+
+    React.useEffect(() => {
+        if (isResolvingMedia || !pendingPlayRef.current || !currentUrl || hasLoadedMedia || videoFailed) return;
+        loadVideoSource();
+    }, [currentUrl, hasLoadedMedia, isResolvingMedia, loadVideoSource, videoFailed]);
+
+    if (videoFailed && isResolvingMedia) {
+        const posterSrc = posterFailed ? '' : (proxyMediaUrl(allPosterUrls[posterSourceIndex]) || '');
+        return (
+            <div className="w-full h-full relative flex items-center justify-center bg-black" onClick={(e) => e.stopPropagation()}>
+                {posterSrc ? (
+                    <img src={posterSrc} alt="Video thumbnail" className="w-full h-full object-contain" onError={handlePosterError} />
+                ) : null}
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/35">
+                    <Loader2 className="h-5 w-5 animate-spin text-white/90" />
+                    <span className="text-[10px] text-white/80">Preparing video…</span>
+                </div>
+            </div>
+        );
+    }
 
     // Fallback: show poster image when all video sources fail
     if (videoFailed) {
@@ -1768,6 +1882,12 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
                 }}
                 onClick={(e) => e.stopPropagation()}
             />
+            {isResolvingMedia && !hasLoadedMedia && (
+                <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-1 bg-black/30">
+                    <Loader2 className="h-5 w-5 animate-spin text-white/90" />
+                    <span className="text-[10px] text-white/80">Preparing video…</span>
+                </div>
+            )}
             <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover/video:opacity-100">
                 <button
                     type="button"
@@ -3273,52 +3393,115 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
     // Share Modal State
     const [isShareModalOpen, setIsShareModalOpen] = React.useState(false);
     const [shareText, setShareText] = React.useState('');
+    const mediaViewportRef = React.useRef(null);
+    const [mediaInView, setMediaInView] = useState(false);
 
     useEffect(() => {
+        const el = mediaViewportRef.current;
+        if (!el || typeof IntersectionObserver === 'undefined') {
+            setMediaInView(true);
+            return undefined;
+        }
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    setMediaInView(true);
+                    observer.disconnect();
+                }
+            },
+            { root: null, rootMargin: '400px 0px', threshold: 0.01 }
+        );
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
+
+    const inlineVideoFresh = React.useMemo(() => (
+        String(alert?.platform || '').toLowerCase() === 'instagram'
+        && anyPlayableMediaUrlFresh((inlineMediaItems || []).flatMap((item) => [
+            item?.s3_url,
+            item?.video_url,
+            item?.url,
+            ...(Array.isArray(item?.fallbackUrls) ? item.fallbackUrls : [])
+        ]))
+    ), [alert?.platform, inlineMediaItems]);
+
+    const applyResolvedMedia = useCallback((resolved) => {
+        if (!resolved) return;
+
+        if (Array.isArray(resolved.media) && resolved.media.length > 0) {
+            setResolvedPlatformMediaItems(normalizeMediaList(resolved.media));
+            return;
+        }
+
+        const resolvedItems = [];
+        const resolvedVideoCandidates = [
+            resolved.video_url,
+            ...(Array.isArray(resolved.video_urls) ? resolved.video_urls : [])
+        ].filter(Boolean);
+        const resolvedImageCandidates = [
+            resolved.image_url,
+            ...(Array.isArray(resolved.image_urls) ? resolved.image_urls : [])
+        ].filter(Boolean);
+
+        if (resolvedVideoCandidates.length > 0) {
+            resolvedItems.push({
+                type: 'video',
+                url: resolvedVideoCandidates[0],
+                preview: resolvedImageCandidates[0] || resolvedVideoCandidates[0],
+                fallbackUrls: resolvedVideoCandidates.slice(1),
+                previewFallbackUrls: resolvedImageCandidates.slice(1)
+            });
+        } else if (resolvedImageCandidates.length > 0) {
+            resolvedItems.push({
+                type: 'photo',
+                url: resolvedImageCandidates[0],
+                preview: resolvedImageCandidates[0],
+                fallbackUrls: [],
+                previewFallbackUrls: resolvedImageCandidates.slice(1)
+            });
+        }
+
+        if (resolvedItems.length) {
+            setResolvedPlatformMediaItems(normalizeMediaList(resolvedItems));
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!mediaInView) return;
         if (!['facebook', 'instagram'].includes(String(alert?.platform || '').toLowerCase()) || !cardOpenUrl) {
             setResolvedPlatformMediaItems([]);
             return;
         }
 
+        if (inlineVideoFresh) return;
+
         let cancelled = false;
         resolvePostMediaFallback(cardOpenUrl).then((resolved) => {
-            if (cancelled || !resolved) return;
-
-            const resolvedItems = [];
-            const resolvedVideoCandidates = [
-                resolved.video_url,
-                ...(Array.isArray(resolved.video_urls) ? resolved.video_urls : [])
-            ].filter(Boolean);
-            const resolvedImageCandidates = [
-                resolved.image_url,
-                ...(Array.isArray(resolved.image_urls) ? resolved.image_urls : [])
-            ].filter(Boolean);
-
-            if (resolvedVideoCandidates.length > 0) {
-                resolvedItems.push({
-                    type: 'video',
-                    url: resolvedVideoCandidates[0],
-                    preview: resolvedImageCandidates[0] || resolvedVideoCandidates[0],
-                    fallbackUrls: resolvedVideoCandidates.slice(1),
-                    previewFallbackUrls: resolvedImageCandidates.slice(1)
-                });
-            } else if (resolvedImageCandidates.length > 0) {
-                resolvedItems.push({
-                    type: 'photo',
-                    url: resolvedImageCandidates[0],
-                    preview: resolvedImageCandidates[0],
-                    fallbackUrls: [],
-                    previewFallbackUrls: resolvedImageCandidates.slice(1)
-                });
-            }
-
-            setResolvedPlatformMediaItems(normalizeMediaList(resolvedItems));
+            if (!cancelled) applyResolvedMedia(resolved);
         });
 
         return () => {
             cancelled = true;
         };
-    }, [alert?.platform, cardOpenUrl]);
+    }, [alert?.platform, applyResolvedMedia, cardOpenUrl, inlineVideoFresh, mediaInView]);
+
+    useEffect(() => {
+        if (!mediaInView || !cardOpenUrl) return;
+        if (!['facebook', 'instagram'].includes(String(alert?.platform || '').toLowerCase())) return;
+
+        const refreshIfStale = () => {
+            if (document.visibilityState && document.visibilityState !== 'visible') return;
+            resolvePostMediaFallback(cardOpenUrl).then(applyResolvedMedia);
+        };
+
+        const onVisible = () => refreshIfStale();
+        document.addEventListener('visibilitychange', onVisible);
+        window.addEventListener('focus', onVisible);
+        return () => {
+            document.removeEventListener('visibilitychange', onVisible);
+            window.removeEventListener('focus', onVisible);
+        };
+    }, [alert?.platform, applyResolvedMedia, cardOpenUrl, mediaInView]);
 
     const generateShareText = () => {
         // Dynamic greeting
@@ -3461,7 +3644,7 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                     </div>
                 </DialogContent>
             </Dialog>
-            <div className={`bg-card dark:bg-[#0d1117] border border-border rounded-md hover:shadow-md transition-shadow duration-200 font-sans relative flex flex-col ${viewMode === 'list' ? (isStoryCard ? 'max-w-[360px] w-full self-start shadow-sm' : 'max-w-md w-full self-start shadow-sm') : 'w-full h-full shadow-sm'} ${isStoryCard ? 'mx-auto' : ''} ${isInvestigatedResult ? 'ring-1 ring-amber-300/50' : ''} ${customClass}`}>
+            <div ref={mediaViewportRef} className={`bg-card dark:bg-[#0d1117] border border-border rounded-md hover:shadow-md transition-shadow duration-200 font-sans relative flex flex-col ${viewMode === 'list' ? (isStoryCard ? 'max-w-[360px] w-full self-start shadow-sm' : 'max-w-md w-full self-start shadow-sm') : 'w-full h-full shadow-sm'} ${isStoryCard ? 'mx-auto' : ''} ${isInvestigatedResult ? 'ring-1 ring-amber-300/50' : ''} ${customClass}`}>
                 {/* Risk Level Left Border Indicator */}
                 <div className={`absolute left-0 top-0 bottom-0 w-1 ${(alert.risk_level === 'high' || alert.risk_level === 'critical') ? 'bg-red-500' :
                     (alert.risk_level === 'medium') ? 'bg-amber-500' :
@@ -4083,6 +4266,7 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                                                 previewFallbackUrls={previewFallbackUrls}
                                                 platform={alert?.platform}
                                                 contentUrl={cardOpenUrl}
+                                                prefetchMedia={mediaInView}
                                             />
                                         ) : (
                                             <ImageWithFallback

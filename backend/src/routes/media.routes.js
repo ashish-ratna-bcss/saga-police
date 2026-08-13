@@ -7,6 +7,7 @@ const fs = require('fs');
 const http = require('http');
 const https = require('https');
 const mediaAnalyzerService = require('../services/mediaAnalyzerService');
+const { resolveInstagramPlayback } = require('../services/instagramMediaResolveService');
 const AuditLog = require('../models/AuditLog');
 const { protect } = require('../middleware/authMiddleware');
 const { requireAnyPageAccess, requirePlatformFeatureAccess } = require('../middleware/rbacMiddleware');
@@ -128,7 +129,9 @@ const classifyStreamHost = (hostname = '') => {
   const isInstagramHost =
     normalizedHost === 'instagram.com' ||
     normalizedHost === 'www.instagram.com' ||
-    normalizedHost.endsWith('.cdninstagram.com');
+    normalizedHost.endsWith('.instagram.com') ||
+    normalizedHost.endsWith('.cdninstagram.com') ||
+    normalizedHost.includes('cdninstagram.com');
   const isFacebookHost =
     normalizedHost === 'facebook.com' ||
     normalizedHost === 'www.facebook.com' ||
@@ -139,7 +142,21 @@ const classifyStreamHost = (hostname = '') => {
     normalizedHost === 'www.youtube.com' ||
     normalizedHost.endsWith('.ggpht.com') ||
     normalizedHost.endsWith('.googleusercontent.com');
-  const isS3Host = normalizedHost.endsWith('.amazonaws.com');
+  const isS3Host =
+    normalizedHost.endsWith('.amazonaws.com') ||
+    normalizedHost.includes('bhaskar-media-storage');
+
+  let isLocalStorageHost = false;
+  try {
+    const publicBase = String(process.env.PUBLIC_BACKEND_URL || '').replace(/\/+$/, '');
+    if (publicBase) {
+      const pubHost = new URL(publicBase).hostname.toLowerCase();
+      if (pubHost && normalizedHost === pubHost) isLocalStorageHost = true;
+    }
+  } catch (_) { /* ignore invalid PUBLIC_BACKEND_URL */ }
+  if (normalizedHost === 'localhost' || normalizedHost === '127.0.0.1') {
+    isLocalStorageHost = true;
+  }
 
   return {
     normalizedHost,
@@ -148,7 +165,8 @@ const classifyStreamHost = (hostname = '') => {
     isFacebookHost,
     isYouTubeHost,
     isS3Host,
-    isAllowed: isTwitterHost || isInstagramHost || isFacebookHost || isYouTubeHost || isS3Host
+    isLocalStorageHost,
+    isAllowed: isTwitterHost || isInstagramHost || isFacebookHost || isYouTubeHost || isS3Host || isLocalStorageHost
   };
 };
 
@@ -287,6 +305,45 @@ const extractFacebookHtmlMedia = (html = '') => {
   };
 };
 
+const extractInstagramHtmlMedia = (html = '') => {
+  const decodeEmbeddedUrl = (value) => decodeEmbeddedFacebookUrl(value);
+  const collect = (patterns = []) => {
+    const results = [];
+    const seen = new Set();
+    patterns.forEach((pattern) => {
+      const matches = String(html || '').matchAll(pattern);
+      for (const match of matches) {
+        const value = decodeEmbeddedUrl(match?.[1] || match?.[0] || '');
+        if (!value || !/^https?:\/\//i.test(value) || seen.has(value)) continue;
+        seen.add(value);
+        results.push(value);
+      }
+    });
+    return results;
+  };
+
+  const videoCandidates = collect([
+    /(?:"|\\")video_url(?:"|\\")\s*:\s*(?:"|\\")([^"\\]*(?:\\.[^"\\]*)*)(?:"|\\")/g,
+    /(?:"|\\")video_versions(?:"|\\")\s*:\s*\[[^\]]{0,800}?url(?:"|\\")\s*:\s*(?:"|\\")([^"\\]*(?:\\.[^"\\]*)*)(?:"|\\")/g,
+    /https?:\/\/[^"'\\\s]*video\.cdninstagram\.com[^"'\\\s]*/gi,
+    /https?:\/\/[^"'\\\s]*cdninstagram\.com\/o1\/v\/[^"'\\\s]*/gi,
+    /https?:\/\/instagram\.[^"'\\\s]+\.fbcdn\.net\/[^"'\\\s]*/gi
+  ]).filter((url) => !DIRECT_IMAGE_EXT_RE.test(url));
+
+  const imageCandidates = collect([
+    /(?:"|\\")display_url(?:"|\\")\s*:\s*(?:"|\\")([^"\\]*(?:\\.[^"\\]*)*)(?:"|\\")/g,
+    /(?:"|\\")thumbnail_src(?:"|\\")\s*:\s*(?:"|\\")([^"\\]*(?:\\.[^"\\]*)*)(?:"|\\")/g,
+    /https?:\/\/[^"'\\\s]*cdninstagram\.com\/v\/t51[^"'\\\s]*\.(?:jpe?g|png|webp)[^"'\\\s]*/gi
+  ]);
+
+  return {
+    videoUrl: videoCandidates[0] || null,
+    videoUrls: videoCandidates,
+    imageUrl: imageCandidates[0] || null,
+    imageUrls: imageCandidates
+  };
+};
+
 const buildResolverHeaders = (rawUrl) => {
   let hostname = '';
   try {
@@ -334,6 +391,25 @@ router.get('/resolve', ...mediaAccessMiddleware, mockUser, async (req, res) => {
       return res.status(403).json({ error: 'Host not allowed' });
     }
 
+    if (INSTAGRAM_HOST_RE.test(hostname)) {
+      try {
+        const resolved = await resolveInstagramPlayback(rawUrl);
+        if (resolved?.video_url || resolved?.image_url || (Array.isArray(resolved?.media) && resolved.media.length)) {
+          return res.json({
+            success: true,
+            image_url: resolved.image_url || null,
+            image_urls: resolved.image_urls || [],
+            video_url: resolved.video_url || null,
+            video_urls: resolved.video_urls || [],
+            media: resolved.media || [],
+            title: null
+          });
+        }
+      } catch (error) {
+        logger.warn(`[MediaResolve] Instagram playback refresh failed: ${error.message}`);
+      }
+    }
+
     const upstream = await axios.get(rawUrl, {
       timeout: 20000,
       headers: buildResolverHeaders(rawUrl)
@@ -350,7 +426,9 @@ router.get('/resolve', ...mediaAccessMiddleware, mockUser, async (req, res) => {
 
     const extracted = FACEBOOK_HOST_RE.test(hostname)
       ? extractFacebookHtmlMedia(upstream.data)
-      : { imageUrl: null, imageUrls: [], videoUrl: null, videoUrls: [] };
+      : INSTAGRAM_HOST_RE.test(hostname)
+        ? extractInstagramHtmlMedia(upstream.data)
+        : { imageUrl: null, imageUrls: [], videoUrl: null, videoUrls: [] };
 
     const videoMeta = readMeta(
       'meta[property="og:video:secure_url"]',
@@ -707,8 +785,13 @@ const findS3FallbackUrl = async (cdnUrl) => {
 
     if (content && Array.isArray(content.media)) {
       for (const m of content.media) {
+        const versionUrls = [
+          ...(Array.isArray(m.video_versions) ? m.video_versions : []),
+          ...(Array.isArray(m.videoVersions) ? m.videoVersions : [])
+        ].map((variant) => (typeof variant === 'string' ? variant : variant?.url)).filter(Boolean);
         const matchesUrl = (m.url === cdnUrl || m.original_url === cdnUrl ||
-          m.video_url === cdnUrl || m.original_video_url === cdnUrl);
+          m.video_url === cdnUrl || m.original_video_url === cdnUrl ||
+          versionUrls.includes(cdnUrl));
         if (matchesUrl && m.s3_url) {
           setCachedS3FallbackUrl(cdnUrl, m.s3_url);
           return m.s3_url;
@@ -767,6 +850,13 @@ router.get('/stream', async (req, res) => {
     if (!initialHostFlags.isAllowed) {
       logger.warn(`[MediaProxy] rejected disallowed host=${hostname} url=${rawUrl}`);
       return res.status(403).json({ error: 'Host not allowed' });
+    }
+    if (initialHostFlags.isLocalStorageHost && !initialHostFlags.isS3Host) {
+      const localPath = parsed.pathname || '';
+      if (!/^\/(files|storage)\//i.test(localPath)) {
+        logger.warn(`[MediaProxy] rejected local non-storage path host=${hostname} path=${localPath}`);
+        return res.status(403).json({ error: 'Host not allowed' });
+      }
     }
 
     const range = req.headers.range;
@@ -839,7 +929,11 @@ router.get('/stream', async (req, res) => {
 
     const applyStreamDefaults = (sourceUrl, fallbackContentType = '') => {
       const finalContentType = String(res.getHeader('content-type') || fallbackContentType || '').toLowerCase();
-      const isVideoResponse = finalContentType.startsWith('video/') || DIRECT_VIDEO_EXT_RE.test(String(sourceUrl || ''));
+      const isVideoPath = /\/o1\/v\/t\d+/i.test(String(sourceUrl || ''))
+        || /video\.cdninstagram\.com|video[^.]*\.fbcdn\.net/i.test(String(sourceUrl || ''));
+      const isVideoResponse = finalContentType.startsWith('video/')
+        || DIRECT_VIDEO_EXT_RE.test(String(sourceUrl || ''))
+        || isVideoPath;
       const isS3 = typeof sourceUrl === 'string' && /amazonaws\.com|bhaskar-media-storage/i.test(sourceUrl);
 
       if (isVideoResponse || finalContentType.startsWith('image/')) {
@@ -947,13 +1041,20 @@ router.get('/stream', async (req, res) => {
       }
     }
 
-    // Fix content-type for Facebook video CDN (no file extensions in URL)
-    if (streamHostFlags.isFacebookHost) {
+    // Fix content-type for Facebook / Instagram video CDN (often no file extension)
+    if (streamHostFlags.isFacebookHost || streamHostFlags.isInstagramHost) {
       const upstreamCT = (upstream.headers?.['content-type'] || '').split(';')[0].trim().toLowerCase();
-      const fbHost = (streamParsed.hostname || '').toLowerCase();
-      const isVideoHost = /^video[^.]*\.fbcdn\.net$/.test(fbHost);
-      // Facebook video hosts serve video but sometimes with generic content-type
-      if (isVideoHost && (!upstreamCT || upstreamCT === 'application/octet-stream')) {
+      const mediaHost = (streamParsed.hostname || '').toLowerCase();
+      const mediaPath = String(streamParsed.pathname || '');
+      const isVideoHost =
+        /^video[^.]*\.fbcdn\.net$/.test(mediaHost)
+        || /^video\.cdninstagram\.com$/.test(mediaHost)
+        || /^instagram\./.test(mediaHost);
+      const isVideoPath = /\/o1\/v\/t\d+/i.test(mediaPath) || DIRECT_VIDEO_EXT_RE.test(mediaPath);
+      if (
+        (isVideoHost || isVideoPath)
+        && (!upstreamCT || upstreamCT === 'application/octet-stream' || upstreamCT === 'binary/octet-stream')
+      ) {
         res.setHeader('content-type', 'video/mp4');
       }
     }

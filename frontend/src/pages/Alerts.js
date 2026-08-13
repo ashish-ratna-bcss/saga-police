@@ -26,7 +26,7 @@ const ALERT_STATUS_TABS = [
   { value: 'reports', label: 'Reports' }
 ];
 
-const ALERTS_CACHE_KEY = 'alertsCache_v3';
+const ALERTS_CACHE_KEY = 'alertsCache_v5';
 const ALERTS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 const SOURCE_CATEGORY_OPTIONS = [
@@ -46,7 +46,6 @@ export default function Alerts() {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const isFirstLoadRef = useRef(true);
-  const [activeTab, setActiveTab] = useState('active'); // Always start on Active tab
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
   const [monitoredHandles, setMonitoredHandles] = useState([]);
   const [monitoredSources, setMonitoredSources] = useState([]);
@@ -81,8 +80,6 @@ export default function Alerts() {
   const pendingNewAlertsRef = useRef(pendingNewAlerts);
   pendingNewAlertsRef.current = pendingNewAlerts;
   const scrollAnchorRef = useRef({ shouldRestore: false, prevHeight: 0, prevScroll: 0 });
-  const searchParamsRef = useRef(searchParams);
-  searchParamsRef.current = searchParams;
 
   // Search & Pagination States
   const [searchQuery, setSearchQuery] = useState('');
@@ -113,6 +110,8 @@ export default function Alerts() {
   const [recentStoriesLoading, setRecentStoriesLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [nextCursor, setNextCursor] = useState(null);
+  const nextCursorRef = useRef(nextCursor);
+  nextCursorRef.current = nextCursor;
   const [hasMore, setHasMore] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
@@ -150,6 +149,25 @@ export default function Alerts() {
     [hasFeatureAccess]
   );
   const hasAnyAlertFeature = visibleStatusTabs.length > 0;
+  const statusFromUrl = searchParams.get('status');
+  const activeTab = useMemo(() => {
+    const requested = ALERT_STATUS_TABS.some((tab) => tab.value === statusFromUrl)
+      ? statusFromUrl
+      : 'active';
+    if (!hasAnyAlertFeature) return requested;
+    if (visibleStatusTabs.some((tab) => tab.value === requested)) return requested;
+    return visibleStatusTabs[0]?.value || 'active';
+  }, [statusFromUrl, visibleStatusTabs, hasAnyAlertFeature]);
+  const selectStatusTab = useCallback((tabValue) => {
+    if (!tabValue || tabValue === statusFromUrl) return;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('status', tabValue);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams, statusFromUrl]);
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
   const isStories24hView = platformFilter === 'instagram' && instagramContentFilter === 'stories_24h';
   const isCapturedStoriesView = platformFilter === 'instagram' && instagramContentFilter === 'captured_stories';
   const isInstagramStoryView = isStories24hView || isCapturedStoriesView;
@@ -405,16 +423,11 @@ export default function Alerts() {
     }
   }, []);
 
-  // Read status from URL query params (e.g., /alerts?status=acknowledged)
+  // Read non-tab filters from URL (status tab is derived from searchParams above)
   useEffect(() => {
-    const statusParam = searchParams.get('status');
     const searchParam = searchParams.get('search');
     const platformParam = searchParams.get('platform');
     const categoryParam = searchParams.get('category');
-
-    if (statusParam && ALERT_STATUS_TABS.some((tab) => tab.value === statusParam)) {
-      setActiveTab(statusParam);
-    }
 
     if (platformParam) {
       setPlatformFilter(platformParam);
@@ -435,22 +448,11 @@ export default function Alerts() {
   useEffect(() => {
     if (!hasAnyAlertFeature) return;
     const allowedValues = visibleStatusTabs.map((tab) => tab.value);
-    if (!allowedValues.includes(activeTab)) {
-      setActiveTab(allowedValues[0]);
+    const requested = searchParams.get('status');
+    if (requested && !allowedValues.includes(requested)) {
+      selectStatusTab(allowedValues[0]);
     }
-  }, [activeTab, hasAnyAlertFeature, visibleStatusTabs]);
-
-  // Sync activeTab to URL so back-navigation restores the correct tab
-  useEffect(() => {
-    const currentStatus = searchParamsRef.current.get('status');
-    if (activeTab !== currentStatus) {
-      setSearchParams(prev => {
-        const next = new URLSearchParams(prev);
-        next.set('status', activeTab);
-        return next;
-      }, { replace: true });
-    }
-  }, [activeTab, setSearchParams]);
+  }, [hasAnyAlertFeature, visibleStatusTabs, searchParams, selectStatusTab]);
 
   // Helper to clear handle param from URL
   const clearHandleParam = () => {
@@ -523,11 +525,13 @@ export default function Alerts() {
       setPage(cached.nextPage || 2);
       setNextCursor(cached.nextCursor || null);
       if (cached.alertStats) setAlertStats(cached.alertStats);
+      setLoading(false);
     } else {
       // No matching cache: clear immediately so All Platforms cards don't
       // linger under Twitter/Facebook/etc. while the new fetch is in flight.
       setAlerts([]);
       setTotalResults(0);
+      setLoading(true);
     }
   }, [activeTab, riskFilter, viralityFilter, debouncedSearchQuery, platformFilter, keywordFilter, sourceCategoryFilter, dateRange, buildCacheKey, readCache, hasAnyAlertFeature]);
 
@@ -559,13 +563,6 @@ export default function Alerts() {
     };
 
     fetchKeywords();
-
-    // Prefetch lightweight summary for instant tab counts
-    AlertService.getSummary().then(res => {
-      if (res.data) {
-        setAlertStats(prev => prev || res.data);
-      }
-    }).catch(() => { });
   }, []);
 
   // Removed mapContentToAlert as it was only for content/feed fallback which is now unified
@@ -611,6 +608,7 @@ export default function Alerts() {
     }
 
     const requestSeq = ++fetchRequestSeqRef.current;
+    const requestedStatus = activeTab !== 'reports' ? activeTab : 'active';
     try {
       const controller = new AbortController();
       if (!isLoadMore) fetchAbortRef.current = controller;
@@ -619,7 +617,7 @@ export default function Alerts() {
         page: 1,
         limit: 20,
         includeStats: !isLoadMore,
-        status: activeTab !== 'reports' ? activeTab : 'active',
+        status: requestedStatus,
         search: debouncedSearchQuery || undefined,
         platform: platformFilter !== 'all' ? platformFilter : undefined,
         category: sourceCategoryFilter !== 'all' ? sourceCategoryFilter : undefined,
@@ -628,18 +626,23 @@ export default function Alerts() {
         keyword: keywordFilter !== 'all' ? keywordFilter : undefined
       };
 
-      if (isLoadMore && (cursorOverride || nextCursor)) {
-        params.cursor = cursorOverride || nextCursor;
+      const loadMoreCursor = isLoadMore ? (cursorOverride || nextCursorRef.current) : null;
+      if (loadMoreCursor) {
+        params.cursor = loadMoreCursor;
       }
 
+      // Risk and Virality are independent dimensions — send whichever are set,
+      // together, in one request. They are never mutually exclusive.
       if (riskFilter !== 'all') {
         params.risk_level = riskFilter;
-      } else if (viralityFilter !== 'all') {
+      }
+      if (viralityFilter !== 'all') {
         params.virality_level = viralityFilter;
       }
 
       const response = await AlertService.list(params, { signal: controller.signal });
       if (requestSeq !== fetchRequestSeqRef.current) return;
+      if (activeTabRef.current !== 'reports' && requestedStatus !== activeTabRef.current) return;
 
       const newAlerts = response.data.alerts || [];
       const pagination = response.data.pagination;
@@ -707,7 +710,7 @@ export default function Alerts() {
         isFetchingRef.current = false;
       }
     }
-  }, [activeTab, debouncedSearchQuery, platformFilter, keywordFilter, riskFilter, viralityFilter, dateRange, sourceCategoryFilter, buildCacheKey, writeCache, nextCursor, hasAnyAlertFeature, visibleStatusTabs, isInstagramStoryView]);
+  }, [activeTab, debouncedSearchQuery, platformFilter, keywordFilter, riskFilter, viralityFilter, dateRange, sourceCategoryFilter, buildCacheKey, writeCache, hasAnyAlertFeature, visibleStatusTabs, isInstagramStoryView]);
 
   const fetchCapturedStories = useCallback(async () => {
     const requestId = ++capturedStoriesReqIdRef.current;
@@ -1136,9 +1139,12 @@ export default function Alerts() {
         keyword: keywordFilter !== 'all' ? keywordFilter : undefined
       };
 
+      // Risk and Virality are independent dimensions — send whichever are set,
+      // together, in one request. They are never mutually exclusive.
       if (riskFilter !== 'all') {
         params.risk_level = riskFilter;
-      } else if (viralityFilter !== 'all') {
+      }
+      if (viralityFilter !== 'all') {
         params.virality_level = viralityFilter;
       }
 
@@ -1177,19 +1183,9 @@ export default function Alerts() {
       setNextCursor(null);
       setHasMore(true);
       fetchAlerts(false);
+      fetchAlertStats();
     }
-  }, [activeTab, riskFilter, viralityFilter, debouncedSearchQuery, platformFilter, keywordFilter, dateRange, sourceCategoryFilter, fetchAlerts, hasAnyAlertFeature, isInstagramStoryView]);
-
-  // Initial data load when component mounts or when cache is empty
-  useEffect(() => {
-    if (!hasAnyAlertFeature) return;
-    if (activeTab === 'reports' || isInstagramStoryView) return;
-
-    // Only fetch if we don't have alerts loaded yet (not from cache)
-    if (alerts.length === 0 && !loading) {
-      fetchAlerts(false);
-    }
-  }, [hasAnyAlertFeature, activeTab, isInstagramStoryView, alerts.length, loading, fetchAlerts]);
+  }, [activeTab, riskFilter, viralityFilter, debouncedSearchQuery, platformFilter, keywordFilter, dateRange, sourceCategoryFilter, fetchAlerts, fetchAlertStats, hasAnyAlertFeature, isInstagramStoryView]);
 
   useEffect(() => {
     markAllRead();
@@ -1207,7 +1203,7 @@ export default function Alerts() {
     const observer = new IntersectionObserver(
       entries => {
         if (entries[0].isIntersecting && hasMore && !loading && !isFetchingRef.current) {
-          fetchAlerts(true, nextCursor);
+          fetchAlerts(true, nextCursorRef.current);
         }
       },
       { root, threshold: 0.1, rootMargin: '300px' }
@@ -1253,7 +1249,7 @@ export default function Alerts() {
       };
 
       if (riskFilter !== 'all') params.risk_level = riskFilter;
-      else if (viralityFilter !== 'all') params.virality_level = viralityFilter;
+      if (viralityFilter !== 'all') params.virality_level = viralityFilter;
 
       const response = await AlertService.list({ ...params, includeStats: true });
       const mappedNew = response.data.alerts || [];
@@ -1542,7 +1538,7 @@ export default function Alerts() {
         ? 'active'
         : visibleStatusTabs[0]?.value;
       if (fallbackTab && activeTab !== fallbackTab) {
-        setActiveTab(fallbackTab);
+        selectStatusTab(fallbackTab);
       }
 
       // Scroll to top to see the new result
@@ -1584,11 +1580,12 @@ export default function Alerts() {
         }
       }
 
-      // Risk / Virality filters (mutually exclusive)
+      // Risk / Virality filters — independent, both applied when both are set.
       if (riskFilter !== 'all') {
         const riskLevel = alert.risk_level?.toLowerCase() || alert.severity?.toLowerCase();
         if (riskLevel !== riskFilter) return false;
-      } else if (viralityFilter !== 'all') {
+      }
+      if (viralityFilter !== 'all') {
         if ((alert.virality_level || '').toLowerCase() !== viralityFilter) return false;
       }
 
@@ -2169,7 +2166,7 @@ export default function Alerts() {
               {visibleStatusTabs.map((tab) => (
                 <button
                   key={tab.value}
-                  onClick={() => setActiveTab(tab.value)}
+                  onClick={() => selectStatusTab(tab.value)}
                   data-testid={`tab-${tab.value}`}
                   className={`relative px-3 py-1.5 text-sm font-medium transition-all rounded-md ${activeTab === tab.value
                     ? 'bg-primary text-primary-foreground shadow-sm'
@@ -2365,17 +2362,12 @@ export default function Alerts() {
               const activeKeyword = (debouncedSearchQuery && !isUrlQuery(debouncedSearchQuery))
                 ? String(debouncedSearchQuery).trim()
                 : '';
-              const searchScopedCount = debouncedSearchQuery && !isUrlQuery(debouncedSearchQuery) && typeof totalResults === 'number'
-                ? totalResults
-                : null;
-
-              // Story views are sourced from dedicated story APIs, so use the filtered set length directly.
+              // Always use the list query's pagination total — never the unfiltered
+              // /alerts/summary count, which made "Showing 0 of 157" with an empty grid.
+              const visibleCount = allFilteredAlerts.length;
               const totalCount = isInstagramStoryView
-                ? allFilteredAlerts.length
-                : (Number(typeof searchScopedCount === 'number' ? searchScopedCount : (alertStats?.[activeTab] || 0)) || 0);
-              const visibleCount = isInstagramStoryView
-                ? allFilteredAlerts.length
-                : Math.min(allFilteredAlerts.length, totalCount);
+                ? visibleCount
+                : (Number(totalResults) || visibleCount);
 
               return (
                 <>
@@ -2481,7 +2473,7 @@ export default function Alerts() {
                   );
                 }
 
-                if (isFirstLoadRef.current && allFilteredAlerts.length === 0 && (loading || capturedStoriesLoading || recentStoriesLoading)) {
+                if (allFilteredAlerts.length === 0 && (loading || capturedStoriesLoading || recentStoriesLoading)) {
                   return (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
                       {[...Array(6)].map((_, i) => (

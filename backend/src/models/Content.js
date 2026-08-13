@@ -55,7 +55,15 @@ const contentSchema = new mongoose.Schema({
         s3_url: { type: String, default: null },
         s3_key: { type: String, default: null },
         s3_preview: { type: String, default: null },
-        s3_preview_key: { type: String, default: null }
+        s3_preview_key: { type: String, default: null },
+        video_versions: [{
+          url: String,
+          width: Number,
+          height: Number,
+          type: String,
+          bitrate: Number,
+          bandwidth: Number
+        }]
       }
     ],
     default: []
@@ -127,7 +135,15 @@ const contentSchema = new mongoose.Schema({
         s3_url: { type: String, default: null },
         s3_key: { type: String, default: null },
         s3_preview: { type: String, default: null },
-        s3_preview_key: { type: String, default: null }
+        s3_preview_key: { type: String, default: null },
+        video_versions: [{
+          url: String,
+          width: Number,
+          height: Number,
+          type: String,
+          bitrate: Number,
+          bandwidth: Number
+        }]
       }],
       created_at: Date
     },
@@ -307,7 +323,12 @@ const contentSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now },
     views: Number,
     likes: Number,
-    comments: Number
+    comments: Number,
+    // X pushes retweets/replies and FB pushes shares on every poll; without
+    // these the values were silently dropped by strict mode.
+    retweets: Number,
+    replies: Number,
+    shares: Number
   }],
   raw_data: {
     type: mongoose.Schema.Types.Mixed,

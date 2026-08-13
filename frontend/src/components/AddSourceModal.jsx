@@ -237,6 +237,18 @@ const AddSourceModal = ({ open, onClose, onSuccess, initialData = null, onDirtyC
 
                 const fetchedUserId = String(res?.data?.platformUserId || '');
                 updateSM(index, 'platformUserId', fetchedUserId);
+                if (res?.data?.alreadyMonitored) {
+                    const existingName = res.data.existing?.display_name || res.data.existing?.identifier || 'another source';
+                    setIdentityLookupState(prev => ({
+                        ...prev,
+                        [key]: {
+                            loading: false,
+                            error: `Already monitored as "${existingName}"`,
+                            alreadyMonitored: true
+                        }
+                    }));
+                    return;
+                }
                 setIdentityLookupState(prev => ({ ...prev, [key]: { loading: false, error: '' } }));
             } catch (err) {
                 if (identitySeqRef.current[key] !== seq) return;
@@ -427,6 +439,7 @@ const AddSourceModal = ({ open, onClose, onSuccess, initialData = null, onDirtyC
                 platform: firstSM.platform,
                 identifier: String(firstSM.handle || '').trim(),
                 display_name: String(firstSM.displayName || firstSM.handle || '').trim(),
+                platform_user_id: String(firstSM.platformUserId || '').trim(),
                 category: (firstSM.category || 'others').toLowerCase(),
                 priority: firstSM.priority || 'medium',
                 is_active: (firstSM.isActive !== undefined ? firstSM.isActive : firstSM.is_active) !== false,
@@ -469,29 +482,16 @@ const AddSourceModal = ({ open, onClose, onSuccess, initialData = null, onDirtyC
         } catch (error) {
             console.error('Submission error:', error);
             const errorMessage = error.response?.data?.message || error.message;
+            const existingFromApi = error.response?.data?.existing;
+            const alreadyMonitored = /already being monitored|profile already exist in sources/i.test(errorMessage || '');
 
-            if (errorMessage.includes('profile already exist in sources')) {
-                // Try to fetch the existing source
-                try {
-                    const sourcesResponse = await api.get('/sources', {
-                        params: {
-                            platform: formData.platform,
-                            identifier: formData.identifier
-                        }
-                    });
-                    const existingSource = sourcesResponse.data?.data?.find(s =>
-                        s.platform === formData.platform && s.identifier === formData.identifier
-                    );
-
-                    toast.success('Profile is already being monitored', {
-                        description: 'This source is already in your monitoring list.'
-                    });
-
-                    if (onSuccess) onSuccess(existingSource);
-                } catch (fetchError) {
-                    console.error('Failed to fetch existing source:', fetchError);
-                    if (onSuccess) onSuccess();
-                }
+            if (alreadyMonitored) {
+                toast.success('Profile is already being monitored', {
+                    description: existingFromApi
+                        ? `"${existingFromApi.display_name || existingFromApi.identifier}" is already in your monitoring list.`
+                        : 'This source is already in your monitoring list.'
+                });
+                if (onSuccess) onSuccess(existingFromApi);
                 setTimeout(() => {
                     onClose();
                 }, 100);
