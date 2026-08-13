@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import ReportsContent from '../components/ReportsContent';
 import AddSourceModal from '../components/AddSourceModal';
 import { useRbac } from '../contexts/RbacContext';
+import { abortAlertsListFetchOnUnmount } from '../features/alerts/alertsFetchGuard';
 import { mapInstagramStoryToAlert, mergeInstagramStoriesByIdentity } from '../utils/instagramStoryMedia';
 
 const ALERT_STATUS_TABS = [
@@ -1384,7 +1385,15 @@ export default function Alerts() {
 
   useEffect(() => {
     return () => {
-      if (fetchAbortRef.current) fetchAbortRef.current.abort();
+      // Abort the in-flight list request, but also clear lastFetchKeyRef.
+      // StrictMode (always on in index.js) simulates unmount+remount while
+      // preserving refs. Aborting without resetting the key made the remount
+      // skip GET /alerts for default Active — empty until a tab change.
+      abortAlertsListFetchOnUnmount({
+        fetchAbortRef,
+        lastFetchKeyRef,
+        isFetchingRef
+      });
     };
   }, []);
 
