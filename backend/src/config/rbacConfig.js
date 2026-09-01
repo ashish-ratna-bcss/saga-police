@@ -10,7 +10,7 @@ const ALL_PAGES = [
   { path: '/settings', name: 'Settings', icon: 'Settings' },
   { path: '/help', name: 'Help Guide', icon: 'HelpCircle' },
   { path: '/announcements', name: 'Announcements', icon: 'Megaphone' },
-  { path: '/sources', name: 'Sources', icon: 'Rss' },
+  { path: '/sources', name: 'Profiles', icon: 'UserSearch' },
   { path: '/person-of-interest', name: 'Profile', icon: 'UserSearch' },
   { path: '/access-management', name: 'Access Management', icon: 'ShieldCheck' }
 ];

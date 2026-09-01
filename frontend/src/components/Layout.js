@@ -79,6 +79,7 @@ const Layout = () => {
     //{ name: 'Instagram Monitor', href: '/instagram-monitor', icon: Instagram },
     { name: 'Grievances', href: '/grievances', icon: MessageSquare },
     { name: 'Events', href: '/events', icon: CalendarDays },
+    { name: 'Profiles', href: '/sources', icon: UserSearch },
         //{ name: 'Global Search', href: '/global-search', icon: Globe },
     
     //{ name: 'Profile', href: '/person-of-interest', icon: UserSearch },
