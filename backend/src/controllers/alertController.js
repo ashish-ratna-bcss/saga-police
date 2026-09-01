@@ -5,7 +5,7 @@ const { createAuditLog } = require('../services/auditService');
 const { fetchTweetDetail } = require('../services/rapidApiXService');
 const YouTubeService = require('../services/youtube.service');
 const { fetchInstagramPostDetail } = require('../services/rapidApiInstagramService');
-const { searchPosts: searchFacebookPosts } = require('../services/rapidApiFacebookService');
+const { resolveFacebookInvestigation } = require('../services/facebookInvestigationService');
 const { parsePostUrl } = require('../services/urlParserService');
 const { analyzeContent } = require('../services/analysisService');
 const { analyzeInvestigationText } = require('../services/investigationAnalysisService');
@@ -987,6 +987,54 @@ const resolveShortenedUrl = async (url, maxRedirects = 3) => {
   return url;
 };
 
+const resolveCanonicalFacebookPostUrl = async (url) => {
+  const candidates = buildFacebookShareCandidates(url);
+  let best = url;
+
+  for (const candidate of candidates) {
+    const redirected = await resolveUrlViaGetRedirects(candidate);
+    const redirectedPath = safeParseUrl(redirected)?.pathname || '';
+    if (redirected && !/\/share\/(?:v|r|p)\//i.test(redirectedPath)) {
+      return redirected;
+    }
+
+    try {
+      const response = await axios.get(candidate, {
+        timeout: 20000,
+        maxRedirects: 5,
+        responseType: 'text',
+        validateStatus: () => true,
+        headers: buildSocialScrapeHeaders(candidate, 'facebook')
+      });
+
+      const finalUrl = response?.request?.res?.responseUrl || response?.request?.responseURL || redirected || candidate;
+      const finalPath = safeParseUrl(finalUrl)?.pathname || '';
+      if (finalUrl && !/\/share\/(?:v|r|p)\//i.test(finalPath)) {
+        best = finalUrl;
+      }
+
+      const html = typeof response?.data === 'string' ? response.data : '';
+      if (html) {
+        const $ = cheerio.load(html);
+        const ogUrl = $('meta[property="og:url"]').attr('content')
+          || $('link[rel="canonical"]').attr('href')
+          || '';
+        if (ogUrl) {
+          const absoluteOgUrl = ogUrl.startsWith('http') ? ogUrl : new URL(ogUrl, finalUrl || candidate).href;
+          const ogPath = safeParseUrl(absoluteOgUrl)?.pathname || '';
+          if (!/\/share\/(?:v|r|p)\//i.test(ogPath)) {
+            return absoluteOgUrl;
+          }
+        }
+      }
+    } catch (error) {
+      logger.info(`[Investigation] Facebook canonical URL scrape failed for ${candidate}: ${error.message}`);
+    }
+  }
+
+  return best;
+};
+
 const resolveUrlViaGetRedirects = async (url) => {
   try {
     const response = await axios.get(url, {
@@ -1329,63 +1377,19 @@ const parseInvestigationTarget = (value) => {
   if (host.includes('facebook.com') || host.includes('fb.watch')) {
     const storyFbid = parsed.searchParams.get('story_fbid') || parsed.searchParams.get('fbid');
     const watchId = parsed.searchParams.get('v');
+    const pfbidMatch = pathname.match(/\/posts\/(pfbid[a-z0-9]+)/i);
+    const shareMatch = pathname.match(/\/share\/(?:v|r|p)\/([^/?#]+)/i);
     const pathIdMatch = pathname.match(/\/(?:posts|videos|reel|reels|photo|permalink|watch)\/(\d+)/i);
     const groupsPostMatch = pathname.match(/\/groups\/[^/]+\/posts\/(\d+)/i);
     const fallbackId = pathParts.find((p) => /^\d{8,}$/.test(p)) || '';
 
     return {
       platform: 'facebook',
-      contentId: storyFbid || watchId || pathIdMatch?.[1] || groupsPostMatch?.[1] || fallbackId
+      contentId: pfbidMatch?.[1] || storyFbid || watchId || pathIdMatch?.[1] || groupsPostMatch?.[1] || shareMatch?.[1] || fallbackId
     };
   }
 
   return { platform: '', contentId: '' };
-};
-
-const fetchFacebookPostDetail = async (resolvedUrl, contentId = '') => {
-  const normalizedTarget = normalizeUrlForCompare(resolvedUrl);
-  const queryCandidates = Array.from(new Set([
-    contentId,
-    resolvedUrl,
-    (() => {
-      const parsed = safeParseUrl(resolvedUrl);
-      if (!parsed) return '';
-      const p = parsed.pathname.split('/').filter(Boolean);
-      return p.length ? p[p.length - 1] : '';
-    })()
-  ].filter(Boolean)));
-
-  for (const query of queryCandidates) {
-    try {
-      const rows = await searchFacebookPosts(query, 20, { throwOnCooldown: true });
-      if (!Array.isArray(rows) || rows.length === 0) continue;
-
-      const best = rows.find((row) => normalizeUrlForCompare(row?.url) === normalizedTarget) || rows[0];
-      if (!best) continue;
-
-      return {
-        id: best.id || contentId || '',
-        title: best.text ? String(best.text).substring(0, 120) : `Facebook post by ${best.author || 'Unknown'}`,
-        text: best.text || '',
-        description: best.text || '',
-        author: best.author || 'Facebook User',
-        author_handle: best.author_handle || best.author || 'facebook',
-        created_at: best.created_at || new Date(),
-        platform: 'facebook',
-        content_type: 'post',
-        media: Array.isArray(best.media)
-          ? best.media.map((m) => (typeof m === 'string' ? { type: 'photo', url: m } : m)).filter((m) => m?.url)
-          : [],
-        metrics: best.metrics || {}
-      };
-    } catch (error) {
-      if (error?.code === 'FB_RAPIDAPI_COOLDOWN' || error?.response?.status === 429) {
-        logger.info('[Investigation] Facebook API cooldown/rate-limit hit during investigate');
-      }
-    }
-  }
-
-  return null;
 };
 
 const fetchGenericLinkMetadata = async (url) => {
@@ -1428,6 +1432,8 @@ const investigateLink = async (req, res) => {
     logger.info(`[Investigation] ENTRY: POST /api/alerts/investigate with URL: ${url}`);
     if (!url) return res.status(400).json({ message: 'URL is required' });
 
+    const originalUrl = url;
+
     // Resolve shortened links (t.co, bit.ly etc)
     let resolvedUrl = url;
     if (url.includes('t.co') || url.includes('bit.ly') || url.includes('tinyurl.com')) {
@@ -1440,16 +1446,11 @@ const investigateLink = async (req, res) => {
 
     const parsedInputUrl = safeParseUrl(resolvedUrl);
     const inputHost = parsedInputUrl?.hostname?.toLowerCase() || '';
-    const inputPath = parsedInputUrl?.pathname || '';
-    if ((inputHost.includes('facebook.com') || inputHost.includes('fb.watch')) && /\/share\/(?:v|r|p)\//i.test(inputPath)) {
-      const candidates = buildFacebookShareCandidates(resolvedUrl);
-      for (const candidate of candidates) {
-        const canonicalUrl = await resolveUrlViaGetRedirects(candidate);
-        if (canonicalUrl && canonicalUrl !== resolvedUrl) {
-          logger.info(`[Investigation] Canonicalized Facebook share URL ${resolvedUrl} -> ${canonicalUrl}`);
-          resolvedUrl = canonicalUrl;
-          break;
-        }
+    if (inputHost.includes('facebook.com') || inputHost.includes('fb.watch')) {
+      const canonicalUrl = await resolveCanonicalFacebookPostUrl(resolvedUrl);
+      if (canonicalUrl && canonicalUrl !== resolvedUrl) {
+        logger.info(`[Investigation] Canonicalized Facebook URL ${resolvedUrl} -> ${canonicalUrl}`);
+        resolvedUrl = canonicalUrl;
       }
     }
 
@@ -1506,25 +1507,61 @@ const investigateLink = async (req, res) => {
           metadata.title = `Instagram Post by ${metadata.author_handle}`;
         }
       } else if (platform === 'facebook') {
-        metadata = await fetchFacebookPostDetail(resolvedUrl, contentId);
+        const fbInvestigation = await resolveFacebookInvestigation({
+          originalUrl,
+          canonicalUrl: resolvedUrl,
+          contentId,
+          fetchPageMetadata: fetchSocialPageMetadata
+        });
+
+        if (fbInvestigation.status !== 'verified') {
+          logger.warn(
+            `[Investigation] Facebook post unresolved (${fbInvestigation.status}) for ${originalUrl} -> ${fbInvestigation.canonical_url}`
+          );
+          return res.status(422).json({
+            message: fbInvestigation.message,
+            status: fbInvestigation.status,
+            platform: 'facebook',
+            original_url: fbInvestigation.original_url,
+            canonical_url: fbInvestigation.canonical_url,
+            content_id: fbInvestigation.content_id || contentId,
+            partial: fbInvestigation.partial
+          });
+        }
+
+        metadata = fbInvestigation.metadata;
+        resolvedUrl = fbInvestigation.canonical_url || resolvedUrl;
+        contentId = fbInvestigation.content_id || contentId;
         if (metadata) {
           metadata.title = metadata.title || `Facebook Post by ${metadata.author}`;
           metadata.text = metadata.text || metadata.description || metadata.title;
-        } else {
-          metadata = await fetchSocialPageMetadata(resolvedUrl, 'facebook');
+          metadata.original_url = originalUrl;
+          metadata.canonical_url = resolvedUrl;
         }
       } else if (platform === 'web') {
         metadata = await fetchGenericLinkMetadata(resolvedUrl);
       }
 
-      if (metadata && platform !== 'web') {
+      if (metadata && platform !== 'web' && platform !== 'facebook') {
         metadata = await enrichInvestigationMedia({ platform, resolvedUrl, metadata });
       }
     } catch (fetchError) {
+      if (platform === 'facebook') {
+        logger.error(`[Investigation] Facebook metadata fetch failed: ${fetchError.message}`);
+        return res.status(422).json({
+          message: 'Facebook post identity could not be verified. Investigation was not analyzed to avoid mismatched content.',
+          status: 'unresolved',
+          platform: 'facebook',
+          original_url: originalUrl,
+          canonical_url: resolvedUrl,
+          content_id: contentId,
+          error: fetchError.message
+        });
+      }
       logger.error(`[Investigation] Metadata fetch failed for ${platform}:${contentId}: ${fetchError.message}. Falling back to generic metadata fetch.`);
     }
 
-    if (!metadata) {
+    if (!metadata && platform !== 'facebook') {
       const genericMetadata = await fetchGenericLinkMetadata(resolvedUrl);
       if (genericMetadata) {
         metadata = {
@@ -1614,7 +1651,14 @@ const investigateLink = async (req, res) => {
           risk_level: analysis.risk_level || 'low',
           threat_intent: analysis.intent,
           threat_reasons: analysis.reasons || [],
-          engagement: metadata.metrics || metadata.statistics || {}
+          engagement: metadata.metrics || metadata.statistics || {},
+          ...(platform === 'facebook' && metadata.original_url ? {
+            raw_data: {
+              investigation_original_url: metadata.original_url,
+              investigation_canonical_url: metadata.canonical_url || resolvedUrl,
+              investigation_verified: true
+            }
+          } : {})
         });
         logger.info(`[Investigation] Created new Content record: ${contentRecord.id}`);
       } else {
@@ -1748,6 +1792,11 @@ const investigateLink = async (req, res) => {
         engagement: metadata.metrics || metadata.statistics,
         url: resolvedUrl,
         content_url: contentRecord?.content_url || resolvedUrl,
+        ...(platform === 'facebook' && metadata.original_url ? {
+          original_url: metadata.original_url,
+          canonical_url: metadata.canonical_url || resolvedUrl,
+          investigation_verified: true
+        } : {}),
         published_at: contentRecord?.published_at || metadata.created_at || metadata.publishedAt || null,
         is_deleted: contentRecord?.is_deleted || false,
         deleted_at: contentRecord?.deleted_at || null,

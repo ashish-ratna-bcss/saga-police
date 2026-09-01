@@ -143,15 +143,27 @@ const buildExistingAlertUpdate = (existingAlert, {
   return Object.keys(setDoc).length > 0 ? { $set: setDoc } : null;
 };
 
-const selectPendingForRetry = ({ newest = [], oldest = [], analyzedIds = new Set(), limit = 100 }) => {
+const selectPendingForRetry = ({
+  newest = [],
+  oldest = [],
+  analyzedIds = new Set(),
+  limit = 100,
+  now = Date.now(),
+  liveRatio = 0.7,
+  isEligible = null
+} = {}) => {
   const analyzed = analyzedIds instanceof Set ? analyzedIds : new Set(analyzedIds || []);
+  const eligible = typeof isEligible === 'function'
+    ? isEligible
+    : () => true;
   const isPending = (c) =>
-    c?.id && !analyzed.has(c.id) && hasAnalyzableContent(c);
+    c?.id && !analyzed.has(c.id) && hasAnalyzableContent(c) && eligible(c, now);
 
   const oldestPending = oldest.filter(isPending);
   const newestPending = newest.filter(isPending);
 
-  const oldestShare = Math.min(oldestPending.length, Math.ceil(limit / 2));
+  const ratio = Math.min(0.9, Math.max(0.5, Number(liveRatio) || 0.7));
+  const liveShare = Math.min(newestPending.length, Math.ceil(limit * ratio));
 
   const picked = [];
   const seen = new Set();
@@ -165,9 +177,10 @@ const selectPendingForRetry = ({ newest = [], oldest = [], analyzedIds = new Set
     }
   };
 
-  take(oldestPending, oldestShare);
-  take(newestPending, limit - picked.length);
+  // Reserve most of the batch for live/new posts; remainder drains backlog.
+  take(newestPending, liveShare);
   take(oldestPending, limit - picked.length);
+  take(newestPending, limit - picked.length);
 
   return picked;
 };

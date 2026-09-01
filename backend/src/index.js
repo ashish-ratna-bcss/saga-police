@@ -14,6 +14,7 @@ const User = require('./models/User');
 const Settings = require('./models/Settings');
 const Source = require('./models/Source');
 const Content = require('./models/Content');
+const Analysis = require('./models/Analysis');
 const Report = require('./models/Report');
 const GrievanceSource = require('./models/GrievanceSource');
 const SearchHistory = require('./models/SearchHistory');
@@ -310,6 +311,24 @@ const fixIndexes = async () => {
       //console.log('Creating compound unique index platform_1_content_id_1 on contents collection...');
       await Content.collection.createIndex({ platform: 1, content_id: 1 }, { unique: true, name: compoundIndexName });
       //console.log('Compound index created.');
+    }
+
+    try {
+      const analysisIndexes = await Analysis.collection.indexes();
+      const uniqueAnalysis = analysisIndexes.find(
+        (idx) => idx.unique && idx.key && idx.key.content_id === 1
+      );
+      if (!uniqueAnalysis) {
+        await Analysis.collection.createIndex(
+          { content_id: 1 },
+          { unique: true, name: 'content_id_1_unique' }
+        );
+        logger.info('[Analysis] Unique content_id index ensured');
+      }
+    } catch (analysisIdxErr) {
+      logger.warn(
+        `[Analysis] Could not create unique content_id index (dupes?): ${analysisIdxErr.message}`
+      );
     }
   } catch (error) {
     if (error.code !== 27) {

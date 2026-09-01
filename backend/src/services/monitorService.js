@@ -27,6 +27,13 @@ const {
   buildEngagement
 } = require('../utils/engagementMetrics');
 const isStrictAnalysisMode = () => String(process.env.ANALYSIS_STRICT_LLM_MODE || 'true').toLowerCase() === 'true';
+const {
+  isRetryEligible,
+  liveRatio,
+  markProcessing,
+  markDone,
+  markFailure
+} = require('./analysisJobState');
 
 const {
   shouldSkipContentAnalysis,
@@ -2668,6 +2675,11 @@ const performFullAnalysis = async (content, settings, keywords, options = {}) =>
 
     // --- Layer 2: LLM Analysis ---
     const analysisId = uuidv4();
+    try {
+      await markProcessing(content);
+    } catch (markErr) {
+      logger.warn(`[Analysis] Could not mark processing for ${content.id}: ${markErr.message}`);
+    }
     const analysisData = await analyzeContent(textToAnalyze, {
       platform: content.platform,
       content_id: content.content_id,
@@ -2710,20 +2722,15 @@ const performFullAnalysis = async (content, settings, keywords, options = {}) =>
 
     logger.info(`[Analysis] Final Result for ${content.content_id}: Score=${analysisData.risk_score}, Level=${analysisData.risk_level}`);
 
-    const analysis = new Analysis({
-      id: analysisId,
-      content_id: content.id,
+    const analysisFields = {
       risk_score: Math.round(analysisData.risk_score || 0),
       risk_level: toContentRiskLevel(analysisData.risk_level),
       intent: analysisData.intent || 'unknown',
       explanation: analysisData.explanation,
       sentiment: analysisData.sentiment || 'neutral',
-
-      // REQUIRED FIELDS (Mapped from Risk Score or specific intent)
       violence_score: (analysisData.intent === 'Violence' || analysisData.category === 'Communal_Violence' || analysisData.category === 'Sexual_Violence' ? Math.round((analysisData.risk_score || 0) * 10) : 0) || 0,
       threat_score: (analysisData.category === 'threat' || analysisData.category === 'threat_incitement' || analysisData.category === 'Hate_Speech_Threat' || analysisData.category === 'Hate_Speech_Threat_Extremist' ? Math.round((analysisData.risk_score || 0) * 10) : 0) || 0,
       hate_score: (analysisData.category === 'Hate_Speech' || analysisData.category === 'Hate_Speech_Threat' || analysisData.category === 'Hate_Speech_Threat_Extremist' ? Math.round((analysisData.risk_score || 0) * 10) : 0) || 0,
-
       triggered_keywords: analysisData.triggered_keywords || [],
       legal_sections: analysisData.legal_sections || [],
       violated_policies: analysisData.violated_policies || [],
@@ -2731,9 +2738,22 @@ const performFullAnalysis = async (content, settings, keywords, options = {}) =>
       highlights: analysisData.triggered_keywords || [],
       confidence: 0,
       language: 'en',
-      llm_analysis: analysisData.llm_analysis || null // Save rich LLM data
-    });
-    await analysis.save();
+      llm_analysis: analysisData.llm_analysis || null,
+      analyzed_at: new Date()
+    };
+    const analysis = await Analysis.findOneAndUpdate(
+      { content_id: content.id },
+      {
+        $set: analysisFields,
+        $setOnInsert: { id: analysisId, content_id: content.id }
+      },
+      { upsert: true, new: true }
+    );
+    try {
+      await markDone(content);
+    } catch (markErr) {
+      logger.warn(`[Analysis] Could not mark done for ${content.id}: ${markErr.message}`);
+    }
 
     // Persist derived intelligence back onto the content record for dashboard/reporting.
     const normalizeText = (value) => String(value || '')
@@ -2987,6 +3007,11 @@ const performFullAnalysis = async (content, settings, keywords, options = {}) =>
     };
   } catch (error) {
     logger.error(`Error analyzing content ${content.id}:`, error);
+    try {
+      await markFailure(content, error);
+    } catch (markErr) {
+      logger.warn(`[Analysis] Could not persist job failure for ${content.id}: ${markErr.message}`);
+    }
     throw error;
   }
 };
@@ -3045,12 +3070,12 @@ const retryPendingAnalyses = async () => {
     if (!settings) return 0;
 
     const keywords = await Keyword.find({ is_active: true });
-    const retryLimit = Math.max(10, Number(process.env.ANALYSIS_RETRY_BATCH_SIZE || 100));
+    const retryLimit = Math.max(1, Number(process.env.ANALYSIS_RETRY_BATCH_SIZE || 4));
     const retryWindowHours = Math.max(1, Number(process.env.ANALYSIS_RETRY_WINDOW_HOURS || 48));
     const since = new Date(Date.now() - retryWindowHours * 60 * 60 * 1000);
 
-    const scanWidth = retryLimit * 3;
-    const projection = 'id content_id platform author published_at created_at risk_level text scraped_content quoted_content url_cards';
+    const scanWidth = Math.max(retryLimit * 3, 12);
+    const projection = 'id content_id platform author published_at created_at risk_level text scraped_content quoted_content url_cards analysis_job';
 
     // Two bounded reads over the same 48h window: newest-first and oldest-first.
     const [newest, oldest] = await Promise.all([
@@ -3075,7 +3100,9 @@ const retryPendingAnalyses = async () => {
       newest,
       oldest,
       analyzedIds: new Set(analyzedIds),
-      limit: retryLimit
+      limit: retryLimit,
+      liveRatio: liveRatio(),
+      isEligible: isRetryEligible
     });
 
     const pending = pendingIds.length > 0

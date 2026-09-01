@@ -1,5 +1,7 @@
 const axios = require('axios');
 const mongoose = require('mongoose');
+const Analysis = require('../models/Analysis');
+const Content = require('../models/Content');
 
 // Internal service ping helper
 const pingService = async (url, path = '') => {
@@ -21,7 +23,10 @@ const checkSystemHealth = async () => {
 
     // Check Microservices
     const ollama = await pingService(process.env.OLLAMA_BASE_URL, '/api/tags');
-    const sentiment = await pingService(process.env.CUSTOM_SENTIMENT_URL);
+    const sentiment = await pingService(
+      process.env.INTELLIGENCE_SERVICE_URL || process.env.CUSTOM_SENTIMENT_URL,
+      '/health'
+    );
     const mediaAnalyzer = await pingService(process.env.MEDIA_ANALYZER_URL, '/health');
     const ragApi = await pingService(process.env.RAG_API_URL, '/api/rag/health');
 
@@ -95,9 +100,29 @@ const checkSystemHealth = async () => {
         }
     } catch (e) {}
 
+    const since10m = new Date(Date.now() - 10 * 60 * 1000);
+    let analysisPipeline = { status: 'unknown', ingested_10m: 0, analyzed_10m: 0 };
+    try {
+      const [ingested, analyzed] = await Promise.all([
+        Content.countDocuments({ created_at: { $gte: since10m } }),
+        Analysis.countDocuments({ analyzed_at: { $gte: since10m } })
+      ]);
+      analysisPipeline = {
+        status: ingested >= 20 && analyzed === 0 ? 'degraded' : 'ok',
+        ingested_10m: ingested,
+        analyzed_10m: analyzed,
+        reason: ingested >= 20 && analyzed === 0
+          ? 'ingest without analysis persist'
+          : null
+      };
+    } catch (e) {
+      analysisPipeline = { status: 'offline', error: e.message };
+    }
+
     return {
         timestamp: new Date().toISOString(),
         database: { status: dbStatus },
+        analysis_pipeline: analysisPipeline,
         services: {
             ollama,
             sentiment,
