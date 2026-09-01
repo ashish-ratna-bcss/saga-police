@@ -817,11 +817,16 @@ const fetchSearchPostsForParams = async ({ query, safeLimit, baseParams, shouldS
 
 const extractPostFromApiResponse = (data) => {
     if (!data || typeof data !== 'object') return null;
-    if (data.post_id || data.id || data.message || data.text || data.caption) return data;
 
     const nested = data.results ?? data.post ?? data.data;
-    if (Array.isArray(nested)) return nested[0] || null;
-    if (nested && typeof nested === 'object') return nested;
+    const candidate = Array.isArray(nested) ? nested[0] : nested;
+    const rejectedType = candidate?.type || data?.type;
+    if (rejectedType === 'private_or_deleted_post') {
+        return null;
+    }
+
+    if (data.post_id || data.id || data.message || data.text || data.caption) return data;
+    if (candidate && typeof candidate === 'object') return candidate;
     return null;
 };
 
@@ -848,10 +853,14 @@ const extractFacebookPostToken = (value) => {
 
         const numericPath = pathname.match(/\/(?:posts|videos|reel|reels|photo|permalink|watch)\/(\d+)/i);
         if (numericPath?.[1]) return numericPath[1];
+
+        const shareMatch = pathname.match(/\/share\/(?:v|r|p)\/([^/?#]+)/i);
+        if (shareMatch?.[1]) return shareMatch[1];
     } catch {
         // fall through
     }
 
+    if (/^https?:\/\//i.test(input)) return '';
     return input;
 };
 
@@ -888,36 +897,89 @@ const postMatchesTarget = (post, targetUrl = '', targetContentId = '') => {
     return false;
 };
 
+const stripFacebookQuery = (value) => {
+    const input = String(value || '').trim();
+    if (!/^https?:\/\//i.test(input)) return input;
+    try {
+        const url = new URL(input);
+        url.search = '';
+        url.hash = '';
+        return url.href.replace(/\/+$/, '');
+    } catch {
+        return input;
+    }
+};
+
+const isShareToken = (value) => /^[A-Za-z0-9_-]{6,}$/.test(String(value || '').trim())
+    && !/^pfbid/i.test(String(value || '').trim())
+    && !/^\d{8,}$/.test(String(value || '').trim());
+
 // Direct post lookup via /post?url=... or /post?post_id=...
 const fetchPostByUrl = async (postUrlOrId, options = {}) => {
     const input = String(postUrlOrId || '').trim();
     if (!input) return null;
 
     const paramAttempts = [];
+    const seen = new Set();
+    const addAttempt = (params) => {
+        const key = JSON.stringify(params);
+        if (seen.has(key)) return;
+        seen.add(key);
+        paramAttempts.push(params);
+    };
+
     if (/^https?:\/\//i.test(input)) {
-        paramAttempts.push({ url: input });
+        addAttempt({ url: input });
+        addAttempt({ url: stripFacebookQuery(input) });
         const token = extractFacebookPostToken(input);
-        if (token && token !== input) {
-            paramAttempts.push({ post_id: token });
+        if (token && !isShareToken(token)) {
+            addAttempt({ post_id: token });
         }
-    } else {
-        paramAttempts.push({ post_id: input });
+    } else if (!isShareToken(input)) {
+        addAttempt({ post_id: input });
     }
 
     for (const params of paramAttempts) {
         try {
             const response = await rapidGet('/post', params, options);
+            if (response.status === 503) continue;
+
             const raw = extractPostFromApiResponse(response.data);
             if (!raw) continue;
 
             const normalized = normalizeRawPost(raw);
             if (normalized?.id || normalized?.text || (normalized?.media?.length > 0)) {
+                normalized.verification_source = 'rapidapi_post';
                 return normalized;
             }
         } catch (error) {
             if (options?.throwOnCooldown && (error?.code === 'FB_RAPIDAPI_COOLDOWN' || error?.response?.status === 429)) {
                 throw error;
             }
+        }
+    }
+
+    return null;
+};
+
+/**
+ * Try RapidAPI /post across canonical URL, pfbid, and numeric id variants.
+ */
+const fetchVerifiedFacebookPostFromApi = async ({
+    canonicalUrl = '',
+    pfbid = '',
+    numericId = '',
+    originalUrl = ''
+}, options = {}) => {
+    const lookups = Array.from(new Set(
+        [canonicalUrl, stripFacebookQuery(canonicalUrl), originalUrl, pfbid, numericId]
+            .filter(Boolean)
+    ));
+
+    for (const lookup of lookups) {
+        const post = await fetchPostByUrl(lookup, options);
+        if (post) {
+            return post;
         }
     }
 
@@ -1010,6 +1072,7 @@ module.exports = {
     fetchPageDetails,
     fetchPagePosts,
     fetchPostByUrl,
+    fetchVerifiedFacebookPostFromApi,
     fetchPostComments,
     postMatchesTarget,
     extractFacebookPostToken,

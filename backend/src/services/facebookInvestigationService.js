@@ -1,9 +1,16 @@
 const {
-  fetchPostByUrl,
+  fetchVerifiedFacebookPostFromApi,
   postMatchesTarget,
   extractFacebookPostToken,
   normalizeFacebookUrlForMatch
 } = require('./rapidApiFacebookService');
+const {
+  resolveFacebookCanonicalPost,
+  fetchFacebookPageSnapshot,
+  FACEBOOK_CRAWLER_UA,
+  isFacebookShareUrl,
+  extractPfbidFromText
+} = require('./facebookCanonicalResolver');
 const logger = require('../utils/logger');
 
 const mapPostToMetadata = (post, contentId, originalUrl, canonicalUrl) => ({
@@ -22,7 +29,8 @@ const mapPostToMetadata = (post, contentId, originalUrl, canonicalUrl) => ({
   metrics: post.metrics || {},
   canonical_url: canonicalUrl || post.url || originalUrl,
   original_url: originalUrl,
-  investigation_verified: true
+  investigation_verified: true,
+  verification_source: post.verification_source || 'rapidapi_post'
 });
 
 const pageUrlMatchesTarget = (pageUrl, originalUrl, canonicalUrl, contentId) => {
@@ -30,7 +38,7 @@ const pageUrlMatchesTarget = (pageUrl, originalUrl, canonicalUrl, contentId) => 
 
   const fakePost = {
     url: pageUrl,
-    id: extractFacebookPostToken(pageUrl)
+    id: extractFacebookPostToken(pageUrl) || extractPfbidFromText(pageUrl)
   };
   const targets = [canonicalUrl, originalUrl].filter(Boolean);
 
@@ -50,6 +58,33 @@ const postMatchesInvestigation = (post, originalUrl, canonicalUrl, contentId) =>
   return targets.some((target) => postMatchesTarget(post, target, contentId));
 };
 
+const buildPostFromCanonicalSnapshot = (snapshot, canonicalUrl, pfbid) => {
+  if (!snapshot || !pfbid || !canonicalUrl) return null;
+
+  const text = snapshot.description || snapshot.title || '';
+  const media = Array.isArray(snapshot.media) ? snapshot.media.filter((m) => m?.url) : [];
+  if (!text.trim() && media.length === 0) return null;
+
+  return {
+    id: pfbid,
+    url: canonicalUrl,
+    text,
+    author: snapshot.author || snapshot.title || 'Facebook User',
+    author_handle: snapshot.author || 'facebook',
+    media,
+    metrics: {},
+    verification_source: 'facebook_crawler_og',
+    created_at: new Date()
+  };
+};
+
+const identityIsCanonical = (canonicalUrl, pfbid, numericId = '') => {
+  if (!canonicalUrl || isFacebookShareUrl(canonicalUrl)) return false;
+  if (pfbid && extractPfbidFromText(canonicalUrl) === pfbid) return true;
+  if (numericId && String(canonicalUrl).includes(`/${numericId}`)) return true;
+  return Boolean(extractPfbidFromText(canonicalUrl));
+};
+
 /**
  * Resolve and verify a Facebook post for on-demand investigation.
  * Never uses /search/posts. Returns verified metadata or an unresolved result.
@@ -58,44 +93,77 @@ const resolveFacebookInvestigation = async ({
   originalUrl,
   canonicalUrl,
   contentId = '',
+  canonicalResolution = null,
   fetchPageMetadata = null,
-  fetchPost = fetchPostByUrl
+  fetchPostFromApi = fetchVerifiedFacebookPostFromApi,
+  resolveCanonical = resolveFacebookCanonicalPost
 }) => {
-  const resolvedCanonical = canonicalUrl || originalUrl;
+  let resolved = canonicalResolution;
+  if (!resolved) {
+    resolved = await resolveCanonical(canonicalUrl || originalUrl);
+  }
+
+  const resolvedCanonical = resolved?.canonicalUrl || canonicalUrl || originalUrl;
+  const resolvedPfbid = resolved?.pfbid || extractPfbidFromText(resolvedCanonical);
+  const resolvedNumericId = resolved?.numericId || '';
+  const resolvedContentId = resolvedPfbid || contentId || resolvedNumericId;
+
   const result = {
     status: 'unresolved',
     original_url: originalUrl,
     canonical_url: resolvedCanonical,
-    content_id: contentId || '',
+    content_id: resolvedContentId || contentId || '',
     message: '',
     metadata: null,
-    partial: null
+    partial: null,
+    resolution: resolved ? {
+      resolved_via: resolved.resolvedVia,
+      pfbid: resolvedPfbid || null,
+      numeric_id: resolvedNumericId || null
+    } : null
   };
 
-  const lookupAttempts = Array.from(new Set(
-    [resolvedCanonical, originalUrl, contentId].filter(Boolean)
-  ));
+  if (!identityIsCanonical(resolvedCanonical, resolvedPfbid, resolvedNumericId)) {
+    result.message = 'Facebook post identity could not be verified. Investigation was not analyzed to avoid mismatched content.';
+    result.partial = {
+      original_url: originalUrl,
+      canonical_url: resolvedCanonical,
+      content_id: contentId || null,
+      reason: 'canonical_unresolved'
+    };
+    return result;
+  }
 
   let matchedPost = null;
 
-  for (const lookup of lookupAttempts) {
-    try {
-      const post = await fetchPost(lookup, { throwOnCooldown: true });
-      if (!post) continue;
+  try {
+    matchedPost = await fetchPostFromApi({
+      canonicalUrl: resolvedCanonical,
+      pfbid: resolvedPfbid,
+      numericId: resolvedNumericId,
+      originalUrl
+    }, { throwOnCooldown: true });
 
-      if (!postMatchesInvestigation(post, originalUrl, resolvedCanonical, contentId)) {
-        logger.warn(
-          `[FacebookInvestigation] Rejected /post result for lookup=${lookup} (id=${post.id || 'n/a'})`
-        );
-        continue;
-      }
+    if (matchedPost && !postMatchesInvestigation(matchedPost, originalUrl, resolvedCanonical, resolvedContentId)) {
+      logger.warn(
+        `[FacebookInvestigation] Rejected RapidAPI /post result (id=${matchedPost.id || 'n/a'})`
+      );
+      matchedPost = null;
+    }
+  } catch (error) {
+    if (error?.code === 'FB_RAPIDAPI_COOLDOWN' || error?.response?.status === 429) {
+      throw error;
+    }
+  }
 
-      matchedPost = post;
-      break;
-    } catch (error) {
-      if (error?.code === 'FB_RAPIDAPI_COOLDOWN' || error?.response?.status === 429) {
-        throw error;
-      }
+  if (!matchedPost) {
+    const snapshot = resolved?.snapshot
+      || await fetchFacebookPageSnapshot(resolvedCanonical, FACEBOOK_CRAWLER_UA);
+    matchedPost = buildPostFromCanonicalSnapshot(snapshot, resolvedCanonical, resolvedPfbid);
+
+    if (matchedPost && !postMatchesInvestigation(matchedPost, originalUrl, resolvedCanonical, resolvedContentId)) {
+      logger.warn('[FacebookInvestigation] Rejected crawler snapshot post identity mismatch');
+      matchedPost = null;
     }
   }
 
@@ -104,20 +172,23 @@ const resolveFacebookInvestigation = async ({
     result.partial = {
       original_url: originalUrl,
       canonical_url: resolvedCanonical,
-      content_id: contentId || null,
+      content_id: resolvedContentId || contentId || null,
       reason: 'no_verified_post'
     };
     return result;
   }
 
   const verifiedCanonical = matchedPost.url || resolvedCanonical || originalUrl;
-  const metadata = mapPostToMetadata(matchedPost, contentId, originalUrl, verifiedCanonical);
-  const verifiedContentId = metadata.id || contentId;
+  const metadata = mapPostToMetadata(matchedPost, resolvedContentId, originalUrl, verifiedCanonical);
+  const verifiedContentId = metadata.id || resolvedContentId;
 
-  if (!metadata.text?.trim() && typeof fetchPageMetadata === 'function') {
-    const scrapeUrl = verifiedCanonical || resolvedCanonical || originalUrl;
-    const scraped = await fetchPageMetadata(scrapeUrl, 'facebook');
-    const scrapePageUrl = scraped?.canonical_url || scrapeUrl;
+  if (
+    !metadata.text?.trim()
+    && matchedPost.verification_source === 'rapidapi_post'
+    && typeof fetchPageMetadata === 'function'
+  ) {
+    const scraped = await fetchPageMetadata(verifiedCanonical, 'facebook');
+    const scrapePageUrl = scraped?.canonical_url || verifiedCanonical;
 
     if (
       scraped?.text?.trim()
@@ -130,10 +201,13 @@ const resolveFacebookInvestigation = async ({
     }
   }
 
-  if ((!metadata.media || metadata.media.length === 0) && typeof fetchPageMetadata === 'function') {
-    const scrapeUrl = verifiedCanonical || resolvedCanonical || originalUrl;
-    const scraped = await fetchPageMetadata(scrapeUrl, 'facebook');
-    const scrapePageUrl = scraped?.canonical_url || scrapeUrl;
+  if (
+    (!metadata.media || metadata.media.length === 0)
+    && matchedPost.verification_source === 'rapidapi_post'
+    && typeof fetchPageMetadata === 'function'
+  ) {
+    const scraped = await fetchPageMetadata(verifiedCanonical, 'facebook');
+    const scrapePageUrl = scraped?.canonical_url || verifiedCanonical;
 
     if (
       pageUrlMatchesTarget(scrapePageUrl, originalUrl, verifiedCanonical, verifiedContentId)
@@ -164,7 +238,7 @@ const resolveFacebookInvestigation = async ({
   result.canonical_url = verifiedCanonical;
   result.content_id = verifiedContentId;
   result.metadata = metadata;
-  result.message = 'Facebook post verified via /post';
+  result.message = `Facebook post verified via ${metadata.verification_source}`;
   return result;
 };
 
@@ -172,5 +246,7 @@ module.exports = {
   resolveFacebookInvestigation,
   mapPostToMetadata,
   pageUrlMatchesTarget,
-  postMatchesInvestigation
+  postMatchesInvestigation,
+  buildPostFromCanonicalSnapshot,
+  identityIsCanonical
 };

@@ -6,6 +6,7 @@ const { fetchTweetDetail } = require('../services/rapidApiXService');
 const YouTubeService = require('../services/youtube.service');
 const { fetchInstagramPostDetail } = require('../services/rapidApiInstagramService');
 const { resolveFacebookInvestigation } = require('../services/facebookInvestigationService');
+const { resolveFacebookCanonicalPost } = require('../services/facebookCanonicalResolver');
 const { parsePostUrl } = require('../services/urlParserService');
 const { analyzeContent } = require('../services/analysisService');
 const { analyzeInvestigationText } = require('../services/investigationAnalysisService');
@@ -1446,11 +1447,14 @@ const investigateLink = async (req, res) => {
 
     const parsedInputUrl = safeParseUrl(resolvedUrl);
     const inputHost = parsedInputUrl?.hostname?.toLowerCase() || '';
+    let facebookCanonicalResolution = null;
     if (inputHost.includes('facebook.com') || inputHost.includes('fb.watch')) {
-      const canonicalUrl = await resolveCanonicalFacebookPostUrl(resolvedUrl);
-      if (canonicalUrl && canonicalUrl !== resolvedUrl) {
-        logger.info(`[Investigation] Canonicalized Facebook URL ${resolvedUrl} -> ${canonicalUrl}`);
-        resolvedUrl = canonicalUrl;
+      facebookCanonicalResolution = await resolveFacebookCanonicalPost(resolvedUrl);
+      if (facebookCanonicalResolution?.canonicalUrl && facebookCanonicalResolution.canonicalUrl !== resolvedUrl) {
+        logger.info(
+          `[Investigation] Canonicalized Facebook URL ${resolvedUrl} -> ${facebookCanonicalResolution.canonicalUrl}`
+        );
+        resolvedUrl = facebookCanonicalResolution.canonicalUrl;
       }
     }
 
@@ -1511,6 +1515,7 @@ const investigateLink = async (req, res) => {
           originalUrl,
           canonicalUrl: resolvedUrl,
           contentId,
+          canonicalResolution: facebookCanonicalResolution,
           fetchPageMetadata: fetchSocialPageMetadata
         });
 

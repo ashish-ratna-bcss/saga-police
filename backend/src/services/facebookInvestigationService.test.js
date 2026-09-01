@@ -2,35 +2,70 @@ const assert = require('assert');
 const {
   resolveFacebookInvestigation,
   pageUrlMatchesTarget,
-  postMatchesInvestigation
+  postMatchesInvestigation,
+  buildPostFromCanonicalSnapshot,
+  identityIsCanonical
 } = require('./facebookInvestigationService');
+const {
+  extractPfbidFromText,
+  buildCanonicalPfbidUrl
+} = require('./facebookCanonicalResolver');
 
 const PFBID = 'pfbid02LnRd8kKFNy4iYMyrkC1bLbVvX12UTQvWx4KWCYGEDnNWbdpSW2bKTT2sio5fyCvRl';
 const CANONICAL = `https://www.facebook.com/Sreenivastekumatla/posts/${PFBID}`;
 const SHARE_URL = 'https://www.facebook.com/share/p/1EaP2MtgCS/';
 const NUMERIC_URL = 'https://www.facebook.com/somepage/posts/123456789012345';
+const TELUGU = 'నిజంగా అంబేద్కర్ ను గౌరవించేవాళ్ళు';
 
 const verifiedPost = {
   id: PFBID,
   url: CANONICAL,
-  text: 'Telugu political caption',
+  text: TELUGU,
   author: 'Sreenivas Tekumatla',
   author_handle: 'Sreenivastekumatla',
   media: [{ type: 'photo', url: 'https://scontent.xx.fbcdn.net/v/example.jpg' }],
-  metrics: { likes: 10 }
+  metrics: { likes: 10 },
+  verification_source: 'rapidapi_post'
 };
 
-const run = async (name, fn) => {
-  try {
-    await fn();
-    console.log(`  ok: ${name}`);
-  } catch (error) {
-    console.error(`  FAIL: ${name}`);
-    throw error;
+const canonicalResolution = {
+  canonicalUrl: CANONICAL,
+  pfbid: PFBID,
+  numericId: '122121215859044050',
+  resolvedVia: 'crawler_ua',
+  description: TELUGU,
+  author: 'Sreenivas Tekumatla',
+  title: 'Sreenivas Tekumatla',
+  media: [{ type: 'photo', url: 'https://scontent.xx.fbcdn.net/v/example.jpg' }],
+  snapshot: {
+    canonicalUrl: CANONICAL,
+    pfbid: PFBID,
+    description: TELUGU,
+    author: 'Sreenivas Tekumatla',
+    title: 'Sreenivas Tekumatla',
+    media: [{ type: 'photo', url: 'https://scontent.xx.fbcdn.net/v/example.jpg' }]
   }
 };
 
+const run = async (name, fn) => {
+  await fn();
+  console.log(`  ok: ${name}`);
+};
+
 const main = async () => {
+  await run('identityIsCanonical accepts resolved pfbid URL', async () => {
+    assert.strictEqual(identityIsCanonical(CANONICAL, PFBID), true);
+    assert.strictEqual(identityIsCanonical(SHARE_URL, PFBID), false);
+  });
+
+  await run('buildCanonicalPfbidUrl strips query params', async () => {
+    const built = buildCanonicalPfbidUrl(
+      `${CANONICAL}/?rdid=abc&share_url=x`,
+      PFBID
+    );
+    assert.strictEqual(built, CANONICAL);
+  });
+
   await run('postMatchesInvestigation accepts exact pfbid match', async () => {
     assert.strictEqual(
       postMatchesInvestigation(verifiedPost, SHARE_URL, CANONICAL, PFBID),
@@ -44,197 +79,132 @@ const main = async () => {
         { id: '999', url: 'https://www.facebook.com/other/posts/pfbidOTHER', text: 'wrong' },
         SHARE_URL,
         CANONICAL,
-        '1EaP2MtgCS'
+        PFBID
       ),
       false
     );
   });
 
-  await run('postMatchesInvestigation accepts numeric post id', async () => {
-    const numericPost = {
-      id: '123456789012345',
-      url: NUMERIC_URL,
-      text: 'numeric post'
-    };
-    assert.strictEqual(
-      postMatchesInvestigation(numericPost, NUMERIC_URL, NUMERIC_URL, '123456789012345'),
-      true
-    );
+  await run('verified via RapidAPI /post', async () => {
+    const result = await resolveFacebookInvestigation({
+      originalUrl: SHARE_URL,
+      canonicalUrl: CANONICAL,
+      contentId: PFBID,
+      canonicalResolution,
+      fetchPostFromApi: async () => verifiedPost
+    });
+
+    assert.strictEqual(result.status, 'verified');
+    assert.strictEqual(result.metadata.text, TELUGU);
+    assert.strictEqual(result.metadata.verification_source, 'rapidapi_post');
+  });
+
+  await run('verified via crawler snapshot when API unavailable', async () => {
+    const result = await resolveFacebookInvestigation({
+      originalUrl: SHARE_URL,
+      canonicalUrl: CANONICAL,
+      contentId: PFBID,
+      canonicalResolution,
+      fetchPostFromApi: async () => null
+    });
+
+    assert.strictEqual(result.status, 'verified');
+    assert.strictEqual(result.metadata.text, TELUGU);
+    assert.strictEqual(result.metadata.verification_source, 'facebook_crawler_og');
+    assert.ok(result.metadata.media.length > 0);
+  });
+
+  await run('mismatched API result rejected', async () => {
+    const result = await resolveFacebookInvestigation({
+      originalUrl: SHARE_URL,
+      canonicalUrl: CANONICAL,
+      contentId: PFBID,
+      canonicalResolution,
+      fetchPostFromApi: async () => ({
+        id: '999',
+        url: 'https://www.facebook.com/other/posts/pfbidWRONG',
+        text: 'transcription networks'
+      })
+    });
+
+    assert.strictEqual(result.status, 'verified');
+    assert.notStrictEqual(result.metadata.text, 'transcription networks');
+    assert.strictEqual(result.metadata.text, TELUGU);
+  });
+
+  await run('unresolved when canonical identity missing', async () => {
+    const result = await resolveFacebookInvestigation({
+      originalUrl: SHARE_URL,
+      canonicalUrl: SHARE_URL,
+      contentId: '1EaP2MtgCS',
+      canonicalResolution: {
+        canonicalUrl: SHARE_URL,
+        pfbid: '',
+        resolvedVia: 'unresolved'
+      },
+      fetchPostFromApi: async () => null
+    });
+
+    assert.strictEqual(result.status, 'unresolved');
+    assert.strictEqual(result.partial.reason, 'canonical_unresolved');
+  });
+
+  await run('unresolved when API and crawler both empty', async () => {
+    const result = await resolveFacebookInvestigation({
+      originalUrl: SHARE_URL,
+      canonicalUrl: CANONICAL,
+      contentId: PFBID,
+      canonicalResolution: {
+        ...canonicalResolution,
+        snapshot: { canonicalUrl: CANONICAL, pfbid: PFBID, description: '', media: [] }
+      },
+      fetchPostFromApi: async () => null
+    });
+
+    assert.strictEqual(result.status, 'unresolved');
+    assert.strictEqual(result.partial.reason, 'no_verified_post');
+  });
+
+  await run('numeric id verified via API', async () => {
+    const result = await resolveFacebookInvestigation({
+      originalUrl: NUMERIC_URL,
+      canonicalUrl: NUMERIC_URL,
+      contentId: '123456789012345',
+      canonicalResolution: {
+        canonicalUrl: NUMERIC_URL,
+        pfbid: '',
+        numericId: '123456789012345',
+        resolvedVia: 'browser_ua'
+      },
+      fetchPostFromApi: async () => ({
+        id: '123456789012345',
+        url: NUMERIC_URL,
+        text: 'numeric caption',
+        media: [{ type: 'photo', url: 'https://scontent.xx.fbcdn.net/v/numeric.jpg' }],
+        verification_source: 'rapidapi_post'
+      })
+    });
+
+    assert.strictEqual(result.status, 'verified');
+    assert.strictEqual(result.metadata.text, 'numeric caption');
   });
 
   await run('pageUrlMatchesTarget requires same verified page for og fallback', async () => {
-    assert.strictEqual(
-      pageUrlMatchesTarget(CANONICAL, SHARE_URL, CANONICAL, PFBID),
-      true
-    );
+    assert.strictEqual(pageUrlMatchesTarget(CANONICAL, SHARE_URL, CANONICAL, PFBID), true);
     assert.strictEqual(
       pageUrlMatchesTarget('https://www.facebook.com/other/posts/pfbidOTHER', SHARE_URL, CANONICAL, PFBID),
       false
     );
   });
 
-  await run('verified investigation returns metadata from /post only', async () => {
-    const fetchPost = async (lookup) => {
-      if (lookup === CANONICAL || lookup === PFBID) return verifiedPost;
-      return null;
-    };
-
-    const result = await resolveFacebookInvestigation({
-      originalUrl: SHARE_URL,
-      canonicalUrl: CANONICAL,
-      contentId: PFBID,
-      fetchPost
-    });
-
-    assert.strictEqual(result.status, 'verified');
-    assert.strictEqual(result.metadata.text, 'Telugu political caption');
-    assert.strictEqual(result.metadata.original_url, SHARE_URL);
-    assert.strictEqual(result.canonical_url, CANONICAL);
-    assert.strictEqual(result.metadata.investigation_verified, true);
-    assert.strictEqual(result.metadata.media.length, 1);
+  await run('buildPostFromCanonicalSnapshot uses same-page og content', async () => {
+    const post = buildPostFromCanonicalSnapshot(canonicalResolution.snapshot, CANONICAL, PFBID);
+    assert.strictEqual(post.text, TELUGU);
+    assert.strictEqual(post.verification_source, 'facebook_crawler_og');
   });
 
-  await run('mismatched /post result yields unresolved (never analyze unrelated content)', async () => {
-    const fetchPost = async () => ({
-      id: '999',
-      url: 'https://www.facebook.com/other/posts/pfbidWRONGPOST',
-      text: 'transcription networks scientific text'
-    });
-
-    const result = await resolveFacebookInvestigation({
-      originalUrl: SHARE_URL,
-      canonicalUrl: CANONICAL,
-      contentId: PFBID,
-      fetchPost
-    });
-
-    assert.strictEqual(result.status, 'unresolved');
-    assert.strictEqual(result.metadata, null);
-    assert.strictEqual(result.partial.reason, 'no_verified_post');
-    assert.match(result.message, /not analyzed/i);
-  });
-
-  await run('unresolved when /post returns nothing', async () => {
-    const result = await resolveFacebookInvestigation({
-      originalUrl: SHARE_URL,
-      canonicalUrl: SHARE_URL,
-      contentId: '1EaP2MtgCS',
-      fetchPost: async () => null
-    });
-
-    assert.strictEqual(result.status, 'unresolved');
-    assert.strictEqual(result.original_url, SHARE_URL);
-    assert.strictEqual(result.canonical_url, SHARE_URL);
-  });
-
-  await run('partial when verified post has no analyzable text or media', async () => {
-    const result = await resolveFacebookInvestigation({
-      originalUrl: CANONICAL,
-      canonicalUrl: CANONICAL,
-      contentId: PFBID,
-      fetchPost: async () => ({
-        id: PFBID,
-        url: CANONICAL,
-        text: '',
-        author: 'Sreenivas Tekumatla',
-        media: []
-      })
-    });
-
-    assert.strictEqual(result.status, 'partial');
-    assert.strictEqual(result.partial.reason, 'verified_empty_content');
-    assert.strictEqual(result.metadata.investigation_verified, true);
-  });
-
-  await run('og:description fallback only from matching verified page', async () => {
-    const fetchPost = async () => ({
-      id: PFBID,
-      url: CANONICAL,
-      text: '',
-      author: 'Sreenivas Tekumatla',
-      media: []
-    });
-
-    const fetchPageMetadata = async (url) => {
-      if (url === CANONICAL) {
-        return {
-          text: 'og description from verified page',
-          canonical_url: CANONICAL,
-          media: [{ type: 'photo', url: 'https://scontent.xx.fbcdn.net/v/og.jpg' }]
-        };
-      }
-      return {
-        text: 'wrong page og text',
-        canonical_url: 'https://www.facebook.com/other/posts/pfbidOTHER'
-      };
-    };
-
-    const result = await resolveFacebookInvestigation({
-      originalUrl: SHARE_URL,
-      canonicalUrl: CANONICAL,
-      contentId: PFBID,
-      fetchPost,
-      fetchPageMetadata
-    });
-
-    assert.strictEqual(result.status, 'verified');
-    assert.strictEqual(result.metadata.text, 'og description from verified page');
-    assert.strictEqual(result.metadata.og_description_fallback, true);
-    assert.strictEqual(result.metadata.media.length, 1);
-    assert.strictEqual(result.metadata.media_og_fallback, true);
-  });
-
-  await run('og:description ignored when scrape page does not match target', async () => {
-    const fetchPost = async () => ({
-      id: PFBID,
-      url: CANONICAL,
-      text: '',
-      author: 'Sreenivas Tekumatla',
-      media: []
-    });
-
-    const fetchPageMetadata = async () => ({
-      text: 'unrelated og description',
-      canonical_url: 'https://www.facebook.com/other/posts/pfbidOTHER',
-      media: [{ type: 'photo', url: 'https://scontent.xx.fbcdn.net/v/wrong.jpg' }]
-    });
-
-    const result = await resolveFacebookInvestigation({
-      originalUrl: SHARE_URL,
-      canonicalUrl: CANONICAL,
-      contentId: PFBID,
-      fetchPost,
-      fetchPageMetadata
-    });
-
-    assert.strictEqual(result.status, 'partial');
-    assert.strictEqual(result.metadata.text, '');
-    assert.strictEqual(result.metadata.media.length, 0);
-  });
-
-  await run('numeric id investigation verified via /post', async () => {
-    const fetchPost = async (lookup) => {
-      if (lookup === NUMERIC_URL || lookup === '123456789012345') {
-        return {
-          id: '123456789012345',
-          url: NUMERIC_URL,
-          text: 'numeric caption',
-          media: [{ type: 'photo', url: 'https://scontent.xx.fbcdn.net/v/numeric.jpg' }]
-        };
-      }
-      return null;
-    };
-
-    const result = await resolveFacebookInvestigation({
-      originalUrl: NUMERIC_URL,
-      canonicalUrl: NUMERIC_URL,
-      contentId: '123456789012345',
-      fetchPost
-    });
-
-    assert.strictEqual(result.status, 'verified');
-    assert.strictEqual(result.metadata.text, 'numeric caption');
-    assert.strictEqual(result.original_url, NUMERIC_URL);
+  await run('extractPfbidFromText', async () => {
+    assert.strictEqual(extractPfbidFromText(CANONICAL), PFBID);
   });
 
   console.log('facebookInvestigationService.test.js: all tests passed');
