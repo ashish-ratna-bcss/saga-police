@@ -562,6 +562,28 @@ const startServer = async () => {
   await ensureSearchHistoryIndexes();
   await backfillSearchHistoryResultsText();
 
+  // Backfill profile relevance for sources that pre-date the scorer.
+  setTimeout(async () => {
+    try {
+      const Source = require('./models/Source');
+      const { persistSourceRelevance } = require('./services/profileRelevanceService');
+      const missing = await Source.find({
+        $or: [
+          { relevance: null },
+          { 'relevance.computed_at': null },
+          { 'relevance.score': null }
+        ]
+      }).select('id').lean();
+      if (!missing.length) return;
+      logger.info(`[ProfileRelevance] Backfilling ${missing.length} source(s) without relevance`);
+      for (const source of missing) {
+        await persistSourceRelevance(source.id);
+      }
+    } catch (err) {
+      logger.warn(`[ProfileRelevance] Startup backfill failed: ${err.message}`);
+    }
+  }, 8000);
+
   // Seed default velocity alert thresholds
   await seedDefaultThresholds();
 

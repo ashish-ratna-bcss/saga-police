@@ -100,7 +100,27 @@ const sourceSchema = new mongoose.Schema({
     subscriber_count: Number,
     video_count: Number,
     view_count: Number
-  }]
+  }],
+  // Hyderabad/Telangana profile relevance (see services/profileRelevanceService.js)
+  relevance: {
+    type: {
+      score: { type: Number, default: null },
+      static_score: { type: Number, default: null },
+      profile_text_score: { type: Number, default: null },
+      handle_score: { type: Number, default: null },
+      content_avg_score: { type: Number, default: null },
+      qualifying_post_count: { type: Number, default: 0 },
+      total_post_count: { type: Number, default: 0 },
+      static_weight: { type: Number, default: null },
+      content_weight: { type: Number, default: null },
+      blend_mode: { type: String, enum: ['profile_only', 'balanced', 'posts_heavy', 'posts_dominant', null], default: null },
+      confidence: { type: String, enum: ['low', 'medium', 'high', null], default: null },
+      reason: { type: String, default: '' },
+      matched_terms: { type: [String], default: [] },
+      computed_at: { type: Date, default: null }
+    },
+    default: null
+  }
 });
 
 // Compound index to prevent duplicates
@@ -114,6 +134,7 @@ sourceSchema.index({ display_name: 1 }); // Text search on raw name
 sourceSchema.index({ is_active: 1, created_at: -1 }); // Active sources sorted
 sourceSchema.index({ platform: 1, category: 1 }); // Common filter combo
 sourceSchema.index({ platform: 1, is_active: 1 }); // Platform + active filter
+sourceSchema.index({ 'relevance.score': -1, created_at: -1 }); // Profile relevance sorting
 
 // Auto-normalize display_name before save
 sourceSchema.pre('save', function (next) {

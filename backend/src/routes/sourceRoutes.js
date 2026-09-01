@@ -13,7 +13,8 @@ const {
   createSourcesBulk, 
   getInstagramProfile,
   resolveSourceIdentity,
-  refreshSourceIdentity
+  refreshSourceIdentity,
+  recomputeSourceRelevance
 } = sourceController;
 
 const { protect } = require('../middleware/authMiddleware');
@@ -38,6 +39,7 @@ router.route('/')
   .post(requirePlatformFeatureAccess('/monitors', (req) => req.body.platform), createSource);
 
 router.post('/bulk', requirePlatformFeatureAccess('/monitors', (req) => req.body.platform), createSourcesBulk);
+router.post('/recompute-relevance', recomputeSourceRelevance);
 router.post('/scan-all', requirePlatformFeatureAccess('/monitors', (req) => req.body.platform), scanAllSources);
 router.post('/resolve-identity', requirePlatformFeatureAccess('/monitors', (req) => req.body.platform), resolveSourceIdentity);
 
@@ -84,6 +86,7 @@ router.route('/:id')
 router.post('/:id/check', manualCheck);
 router.post('/:id/scan', scanNow);
 router.post('/:id/refresh-identity', refreshSourceIdentity);
+router.post('/:id/recompute-relevance', recomputeSourceRelevance);
 router.put('/:id/toggle', toggleSourceStatus);
 router.get('/:id/instagram-profile', requirePlatformFeatureAccess('/monitors', () => 'instagram'), getInstagramProfile);
 

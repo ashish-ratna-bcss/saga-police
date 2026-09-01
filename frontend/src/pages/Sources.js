@@ -23,6 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Skeleton } from '../components/ui/skeleton';
 import { Separator } from '../components/ui/separator';
@@ -58,6 +59,221 @@ const normalizeInstagramHandle = (value) => {
 };
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
+
+const getRelevanceScore = (source) => {
+  const score = source?.relevance?.score;
+  return Number.isFinite(score) ? score : null;
+};
+
+const getRelevanceTone = (score) => {
+  if (score == null) return 'muted';
+  if (score >= 80) return 'high';
+  if (score >= 60) return 'medium';
+  return 'low';
+};
+
+const relevanceToneClasses = {
+  high: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  medium: 'bg-amber-50 text-amber-700 border-amber-200',
+  low: 'bg-slate-50 text-slate-600 border-slate-200',
+  muted: 'bg-slate-50 text-slate-400 border-slate-200'
+};
+
+const inferBlendWeights = (relevance = {}) => {
+  if (relevance.static_weight != null && relevance.content_weight != null) {
+    return {
+      staticWeight: relevance.static_weight,
+      contentWeight: relevance.content_weight,
+      blendMode: relevance.blend_mode || 'profile_only'
+    };
+  }
+
+  const qualifying = relevance.qualifying_post_count ?? 0;
+  if (qualifying >= 30) return { staticWeight: 20, contentWeight: 80, blendMode: 'posts_dominant' };
+  if (qualifying >= 10) return { staticWeight: 30, contentWeight: 70, blendMode: 'posts_heavy' };
+  if (qualifying >= 5) return { staticWeight: 35, contentWeight: 65, blendMode: 'posts_heavy' };
+  if (qualifying >= 1) return { staticWeight: 55, contentWeight: 45, blendMode: 'balanced' };
+  return { staticWeight: 100, contentWeight: 0, blendMode: 'profile_only' };
+};
+
+const getRelevanceLevelLabel = (score) => {
+  if (score >= 80) return { label: 'Highly relevant', hint: 'Strong Hyderabad / Telangana focus' };
+  if (score >= 60) return { label: 'Moderately relevant', hint: 'Some local connection' };
+  return { label: 'Low relevance', hint: 'Weak or no local connection' };
+};
+
+const buildRelevanceSummary = (relevance, finalScore) => {
+  const qualifying = relevance.qualifying_post_count ?? 0;
+  const total = relevance.total_post_count ?? 0;
+  const staticScore = Number(relevance.static_score) || 0;
+  const profileTextScore = relevance.profile_text_score;
+  const handleScore = relevance.handle_score;
+  const contentAvg = relevance.content_avg_score;
+  const { staticWeight, contentWeight } = inferBlendWeights(relevance);
+  const avgLabel = contentAvg != null ? Number(contentAvg).toFixed(0) : null;
+  const matchedTerms = Array.isArray(relevance.matched_terms) ? relevance.matched_terms : [];
+  const level = getRelevanceLevelLabel(finalScore);
+
+  let profileWhy = 'No clear Hyderabad or Telangana words in the name or handle.';
+  if (matchedTerms.length > 0) {
+    profileWhy = `Found local words in the profile: "${matchedTerms.slice(0, 3).join('", "')}".`;
+  } else if (staticScore >= 60) {
+    profileWhy = 'The account name or handle looks related to Hyderabad / Telangana.';
+  } else if (staticScore > 0) {
+    profileWhy = 'The profile has a weak local connection.';
+  }
+
+  if (profileTextScore != null && handleScore != null) {
+    if (handleScore > profileTextScore && handleScore > 0) {
+      profileWhy = `The handle looks more local than the display name (handle ${handleScore}, name ${profileTextScore}).`;
+    } else if (profileTextScore > handleScore && profileTextScore > 0) {
+      profileWhy = `The display name looks more local than the handle (name ${profileTextScore}, handle ${handleScore}).`;
+    }
+  }
+
+  let postsWhy = 'No posts in the last 30 days to check.';
+  let postsScore = null;
+  if (total > 0 && qualifying === 0) {
+    postsWhy = `Checked ${total} recent posts — none were clearly about Hyderabad / Telangana.`;
+  } else if (qualifying > 0 && avgLabel != null) {
+    postsScore = avgLabel;
+    const localPct = total > 0 ? Math.round((qualifying / total) * 100) : 100;
+    if (qualifying === total) {
+      postsWhy = `All ${total} recent posts are about Hyderabad / Telangana.`;
+    } else {
+      postsWhy = `${qualifying} of ${total} recent posts (${localPct}%) are about Hyderabad / Telangana.`;
+    }
+  }
+
+  let finalWhy = `Score is based on the profile only (${finalScore}/100).`;
+  if (contentWeight > 0 && postsScore != null) {
+    if (qualifying >= 30) {
+      finalWhy = `This account has many local posts (${qualifying}), so recent posts count more than the profile name when calculating ${finalScore}/100.`;
+    } else if (qualifying >= 5) {
+      finalWhy = `Profile name and recent posts are combined, with posts weighted a bit more → ${finalScore}/100.`;
+    } else {
+      finalWhy = `Only a few local posts found, so the profile name still matters more → ${finalScore}/100.`;
+    }
+  }
+
+  const weightNote = contentWeight > 0
+    ? `Posts ${contentWeight}% · Profile ${staticWeight}%`
+    : 'Profile only (no local posts yet)';
+
+  return {
+    level,
+    profileScore: staticScore,
+    profileWhy,
+    postsScore,
+    postsWhy,
+    finalWhy,
+    weightNote,
+    matchedTerms
+  };
+};
+
+const ProfileRelevanceBadge = ({ source }) => {
+  const relevance = source?.relevance || {};
+  const score = getRelevanceScore(source);
+  const tone = getRelevanceTone(score);
+  const summary = buildRelevanceSummary(relevance, score);
+
+  if (score == null) {
+    return <span className="text-xs text-slate-400">—</span>;
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          onClick={(e) => e.stopPropagation()}
+          className="min-w-[92px] rounded-md p-1 -m-1 text-left transition-colors hover:bg-slate-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+          aria-label={`Relevance score ${score} out of 100. Click for breakdown.`}
+        >
+          <div className="flex items-center gap-1">
+            <Badge variant="outline" className={cn('text-xs font-semibold tabular-nums', relevanceToneClasses[tone])}>
+              {score}/100
+            </Badge>
+            <ChevronDown className="h-3 w-3 text-slate-400 shrink-0" />
+          </div>
+          <div className="mt-1.5 h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+            <div
+              className={cn(
+                'h-full rounded-full',
+                tone === 'high' ? 'bg-emerald-500' : tone === 'medium' ? 'bg-amber-500' : 'bg-slate-400'
+              )}
+              style={{ width: `${Math.max(0, Math.min(100, score))}%` }}
+            />
+          </div>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="bottom"
+        align="start"
+        className="w-[21rem] p-0"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-3 py-2.5 border-b bg-gradient-to-r from-slate-50 to-white">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-sm font-bold text-slate-900">{score}/100</p>
+              <p className="text-xs font-medium text-slate-700">{summary.level.label}</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">{summary.level.hint}</p>
+            </div>
+            <div className={cn(
+              'h-10 w-10 rounded-full flex items-center justify-center text-xs font-bold border-2 shrink-0',
+              tone === 'high' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+              tone === 'medium' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+              'bg-slate-50 text-slate-600 border-slate-200'
+            )}>
+              {score}
+            </div>
+          </div>
+        </div>
+
+        <div className="px-3 py-2.5 space-y-2.5 text-[11px]">
+          <div className="rounded-lg border border-slate-100 p-2">
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <User className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                <span className="font-semibold text-slate-800">From profile name</span>
+              </div>
+              <span className="font-bold text-slate-900 tabular-nums shrink-0">{summary.profileScore}/100</span>
+            </div>
+            <p className="text-[10px] text-slate-600 leading-relaxed pl-5">{summary.profileWhy}</p>
+          </div>
+
+          <div className="rounded-lg border border-slate-100 p-2">
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <FileText className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                <span className="font-semibold text-slate-800">From recent posts</span>
+              </div>
+              <span className="font-bold text-slate-900 tabular-nums shrink-0">
+                {summary.postsScore != null ? `${summary.postsScore}/100` : '—'}
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-600 leading-relaxed pl-5">{summary.postsWhy}</p>
+          </div>
+
+          <div className="rounded-lg bg-emerald-50/50 border border-emerald-100 p-2">
+            <div className="flex items-start gap-1.5 mb-1">
+              <CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
+              <p className="font-semibold text-slate-800 leading-tight">Why {score}/100?</p>
+            </div>
+            <p className="text-[10px] text-slate-700 leading-relaxed pl-5">{summary.finalWhy}</p>
+            <p className="text-[10px] text-slate-500 mt-1 pl-5">{summary.weightNote}</p>
+          </div>
+
+          <p className="text-[9px] text-slate-400 leading-relaxed px-0.5">
+            Only posts clearly about Hyderabad / Telangana are counted. Other posts are ignored.
+          </p>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 const pickStoryVideoVariantUrl = (variants = []) => {
   const normalized = variants
@@ -774,7 +990,14 @@ const Sources = () => {
       const matchesStatus = statusFilter === 'all' || (statusFilter === 'active' ? source.is_active : !source.is_active);
       const matchesCategory = categoryFilter === 'all' || (source.category || '').toLowerCase() === categoryFilter;
       return matchesSearch && matchesPlatform && matchesType && matchesStatus && matchesCategory;
-    }).sort((a, b) => (a.display_name || '').localeCompare(b.display_name || ''));
+    }).sort((a, b) => {
+      const aScore = getRelevanceScore(a);
+      const bScore = getRelevanceScore(b);
+      if (aScore != null && bScore != null && aScore !== bScore) return bScore - aScore;
+      if (aScore != null && bScore == null) return -1;
+      if (aScore == null && bScore != null) return 1;
+      return (a.display_name || '').localeCompare(b.display_name || '');
+    });
   }, [sources, searchQuery, searchResults, platformFilter, sourceTypeFilter, statusFilter, categoryFilter]);
 
   const totalPages = Math.ceil(filteredSources.length / itemsPerPage);
@@ -1513,6 +1736,7 @@ const Sources = () => {
                     <TableHead className="w-10 pl-4"><Checkbox checked={allVisibleSelected} onCheckedChange={(checked) => handleSelectAllCurrentPage(checked === true)} aria-label="Select all" /></TableHead>
                     <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Handle</TableHead>
                     <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Display Name</TableHead>
+                    <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Relevance</TableHead>
                     <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Last Checked</TableHead>
                     <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</TableHead>
                     <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wider text-right pr-4">Actions</TableHead>
@@ -1554,6 +1778,9 @@ const Sources = () => {
                             </div>
                             <span className="text-sm font-medium text-slate-700 truncate max-w-[320px]" title={source.display_name}>{source.display_name}</span>
                           </div>
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <ProfileRelevanceBadge source={source} />
                         </TableCell>
                         <TableCell><span className="text-sm text-slate-500">{source.last_checked ? format(new Date(source.last_checked), 'd MMM yyyy, h:mm a') : 'Never'}</span></TableCell>
                         <TableCell>

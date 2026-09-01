@@ -10,6 +10,7 @@ const {
   duplicatePayload,
   uniqueNonEmpty
 } = require('../services/sourceDedupeService');
+const { persistSourceRelevance, recomputeAllSourceRelevance } = require('../services/profileRelevanceService');
 const logger = require('../utils/logger');
 
 // Facebook slugs are case-insensitive and may be pasted with an '@' prefix or
@@ -498,6 +499,11 @@ const createSource = async (req, res) => {
       created_by: req.user.id
     });
 
+    const persisted = await persistSourceRelevance(source).catch((error) => {
+      logger.warn(`[Sources] Failed to compute relevance for ${source.id}: ${error.message}`);
+      return null;
+    });
+
     // Initial scan only — identity/profile were resolved above (or supplied by
     // the client), so do not spend a second provider call on fetchUserProfile.
     kickoffInitialScan(source);
@@ -675,7 +681,7 @@ const createSource = async (req, res) => {
 
     await createAuditLog(req.user, 'create', 'source', source.id, { display_name });
 
-    res.status(201).json(source);
+    res.status(201).json(persisted || source);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -737,6 +743,22 @@ const updateSource = async (req, res) => {
       },
       { new: true, runValidators: true }
     );
+
+    let sourceForResponse = updatedSource;
+    if (
+      updatedSource &&
+      (
+        updateData.display_name !== undefined ||
+        updateData.identifier !== undefined ||
+        updateData.category !== undefined
+      )
+    ) {
+      const refreshed = await persistSourceRelevance(updatedSource).catch((error) => {
+        logger.warn(`[Sources] Failed to recompute relevance for ${updatedSource.id}: ${error.message}`);
+        return null;
+      });
+      if (refreshed) sourceForResponse = refreshed;
+    }
 
     // Sync back to POI
     if (updatedSource) {
@@ -850,7 +872,7 @@ const updateSource = async (req, res) => {
     }
 
     await createAuditLog(req.user, 'update', 'source', source.id || source._id, req.body);
-    res.status(200).json(updatedSource);
+    res.status(200).json(sourceForResponse);
   } catch (error) {
     if (error.statusCode) {
       return res.status(error.statusCode).json({ message: error.message });
@@ -1112,6 +1134,10 @@ const createSourcesBulk = async (req, res) => {
           profile_image_url: identity?.profileImageUrl || undefined,
           is_verified: identity?.isVerified === true,
           created_by: req.user.id
+        });
+
+        await persistSourceRelevance(source).catch((error) => {
+          logger.warn(`[Sources] Failed to compute relevance for ${source.id}: ${error.message}`);
         });
 
         if (platformUserId) seenUserIds.add(platformUserId);
@@ -1685,6 +1711,24 @@ const resolveSourceIdentity = async (req, res) => {
   }
 };
 
+const recomputeSourceRelevance = async (req, res) => {
+  try {
+    const sourceId = String(req.params.id || '').trim();
+    if (sourceId) {
+      const updated = await persistSourceRelevance(sourceId);
+      if (!updated) {
+        return res.status(404).json({ message: 'Source not found' });
+      }
+      return res.status(200).json(updated);
+    }
+
+    const result = await recomputeAllSourceRelevance();
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getSources,
   createSource,
@@ -1697,5 +1741,6 @@ module.exports = {
   createSourcesBulk,
   getInstagramProfile,
   resolveSourceIdentity,
-  refreshSourceIdentity
+  refreshSourceIdentity,
+  recomputeSourceRelevance
 };

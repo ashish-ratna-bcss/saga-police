@@ -27,6 +27,7 @@ const {
   buildEngagement
 } = require('../utils/engagementMetrics');
 const isStrictAnalysisMode = () => String(process.env.ANALYSIS_STRICT_LLM_MODE || 'true').toLowerCase() === 'true';
+const { refreshSourceRelevance } = require('./profileRelevanceService');
 
 const {
   shouldSkipContentAnalysis,
@@ -3316,6 +3317,7 @@ const startMonitoring = async () => {
                   logger.error(`[Monitor:${platform}:${cat}] PARTIAL ${source.display_name || source.identifier}: fetched ok, ${stats.posts_failed}/${stats.posts_attempted} post(s) failed to process`);
                 }
               }
+              refreshSourceRelevance(source.id);
             } catch (err) {
               failed++;
               completed++;
