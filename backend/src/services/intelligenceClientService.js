@@ -29,7 +29,7 @@ const INTENT_MODE = String(process.env.INTELLIGENCE_INTENT_MODE || 'free').toLow
   : 'free';
 
 const MAX_TEXT_CHARS = Math.max(800, Number(process.env.INTELLIGENCE_MAX_TEXT_CHARS || 4500));
-const MAX_ATTEMPTS = Math.max(1, Number(process.env.INTELLIGENCE_MAX_ATTEMPTS || 2));
+const MAX_ATTEMPTS = Math.max(1, Number(process.env.INTELLIGENCE_MAX_ATTEMPTS || 1));
 
 const parseEnvInt = (raw, fallback) => {
   const n = Number(raw);
@@ -38,7 +38,7 @@ const parseEnvInt = (raw, fallback) => {
 
 const LANES = {
   bulk: {
-    concurrency: Math.max(1, parseEnvInt(process.env.INTELLIGENCE_BULK_CONCURRENCY, 2)),
+    concurrency: Math.max(1, parseEnvInt(process.env.INTELLIGENCE_BULK_CONCURRENCY, 1)),
     timeoutMs: Math.max(10000, parseEnvInt(process.env.INTELLIGENCE_TIMEOUT_MS, 180000)),
     // Ready queue size (in-flight + waiting for a worker). Not an admit drop limit.
     maxQueue: Math.max(1, parseEnvInt(process.env.INTELLIGENCE_BULK_MAX_QUEUE, 200)),
@@ -339,6 +339,14 @@ async function requestIntelligence(text, { laneName, timeoutMs }) {
       lastError = err;
       const status = err?.response?.status;
       const detail = err?.response?.data?.detail || err?.message || 'request failed';
+      if (status === 429) {
+        const retryAfter = Number(err?.response?.headers?.['retry-after'] || 15);
+        const bp = new Error(`intelligence backpressure (429): ${detail}`);
+        bp.backpressure = true;
+        bp.status = 429;
+        bp.retryAfterS = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 15;
+        throw bp;
+      }
       const retryable = !status || status >= 500 || err.code === 'ECONNABORTED' || err.code === 'ECONNREFUSED';
       logger.warn(
         `[Intelligence/${laneName}] attempt ${attempt}/${MAX_ATTEMPTS} failed` +
@@ -378,6 +386,7 @@ async function analyzeText(text, options = {}) {
     );
   } catch (err) {
     logger.error(`[Intelligence/${laneName}] ${err.message}`);
+    if (err.backpressure || err.status === 429) throw err;
     return null;
   }
 }

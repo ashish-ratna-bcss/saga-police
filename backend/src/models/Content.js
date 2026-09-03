@@ -214,6 +214,13 @@ const contentSchema = new mongoose.Schema({
     default: []
   },
 
+  // Analysis job state (Pass A persist). Distinct from llm_verdict (Telangana relevance).
+  // Mixed + no default: unrelated save()s must not invent/reset this blob.
+  analysis_job: {
+    type: mongoose.Schema.Types.Mixed,
+    default: undefined
+  },
+
   // Ollama verdict on whether the post is actually about Hyderabad/
   // Telangana. Populated asynchronously after ingest by the event monitor +
   // a background sweeper. status='pending' = not yet checked (UI still
@@ -348,6 +355,7 @@ contentSchema.index({ event_ids: 1, 'location_classification.is_telangana_relate
 contentSchema.index({ event_ids: 1, 'relevance.priority': 1, 'relevance.score': -1, published_at: -1 });
 // Sweeper picks up unclassified / failed verdicts by this index.
 contentSchema.index({ event_ids: 1, 'llm_verdict.status': 1, published_at: -1 });
+contentSchema.index({ 'analysis_job.status': 1, 'analysis_job.next_retry_at': 1, created_at: -1 });
 contentSchema.index({ is_deleted: 1 });
 contentSchema.index({ published_at: -1 }); // General sort index for unfiltered listings
 

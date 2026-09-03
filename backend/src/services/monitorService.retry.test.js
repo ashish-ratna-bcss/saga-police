@@ -76,6 +76,25 @@ const run = () => {
     []
   );
 
+  // ── Cooldown / in-flight jobs are skipped ───────────────────────────────
+  const { isRetryEligible } = require('./analysisJobState');
+  const now = Date.now();
+  const cooling = [
+    doc('cool-1'),
+    { ...doc('cool-2'), analysis_job: { status: 'timeout', next_retry_at: new Date(now + 60_000) } },
+    { ...doc('cool-3'), analysis_job: { status: 'processing', started_at: new Date(now - 1_000) } },
+    { ...doc('cool-4'), analysis_job: { status: 'timeout', next_retry_at: new Date(now - 1_000) } }
+  ];
+  const cooled = selectPendingForRetry({
+    newest: cooling,
+    oldest: cooling,
+    analyzedIds: new Set(),
+    limit: 10,
+    now,
+    isEligible: isRetryEligible
+  });
+  assert.deepStrictEqual(cooled.sort(), ['cool-1', 'cool-4'], 'cooldown and in-flight jobs must wait');
+
   console.log('monitorService retry-fairness self-check: ALL PASSED');
 };
 

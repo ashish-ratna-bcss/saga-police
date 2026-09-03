@@ -815,6 +815,177 @@ const fetchSearchPostsForParams = async ({ query, safeLimit, baseParams, shouldS
     return aggregated;
 };
 
+const extractPostFromApiResponse = (data) => {
+    if (!data || typeof data !== 'object') return null;
+
+    const nested = data.results ?? data.post ?? data.data;
+    const candidate = Array.isArray(nested) ? nested[0] : nested;
+    const rejectedType = candidate?.type || data?.type;
+    if (rejectedType === 'private_or_deleted_post') {
+        return null;
+    }
+
+    if (data.post_id || data.id || data.message || data.text || data.caption) return data;
+    if (candidate && typeof candidate === 'object') return candidate;
+    return null;
+};
+
+const extractFacebookPostToken = (value) => {
+    const input = String(value || '').trim();
+    if (!input) return '';
+
+    const pfbidMatch = input.match(/(pfbid[a-z0-9]+)/i);
+    if (pfbidMatch) return pfbidMatch[1];
+
+    if (/^\d{8,}$/.test(input)) return input;
+
+    try {
+        const url = new URL(input.startsWith('http') ? input : `https://${input}`);
+        const pathname = url.pathname || '';
+        const pfbidPath = pathname.match(/\/posts\/(pfbid[a-z0-9]+)/i);
+        if (pfbidPath?.[1]) return pfbidPath[1];
+
+        const storyFbId = url.searchParams.get('story_fbid') || url.searchParams.get('fbid');
+        if (storyFbId) return storyFbId;
+
+        const watchId = url.searchParams.get('v');
+        if (watchId && /^\d+$/.test(watchId)) return watchId;
+
+        const numericPath = pathname.match(/\/(?:posts|videos|reel|reels|photo|permalink|watch)\/(\d+)/i);
+        if (numericPath?.[1]) return numericPath[1];
+
+        const shareMatch = pathname.match(/\/share\/(?:v|r|p)\/([^/?#]+)/i);
+        if (shareMatch?.[1]) return shareMatch[1];
+    } catch {
+        // fall through
+    }
+
+    if (/^https?:\/\//i.test(input)) return '';
+    return input;
+};
+
+const postMatchesTarget = (post, targetUrl = '', targetContentId = '') => {
+    if (!post) return false;
+
+    const normalizedTarget = normalizeFacebookUrlForMatch(targetUrl);
+    const normalizedPostUrl = normalizeFacebookUrlForMatch(post.url);
+    if (normalizedTarget && normalizedPostUrl && normalizedTarget === normalizedPostUrl) {
+        return true;
+    }
+
+    const targetToken = extractFacebookPostToken(targetUrl) || extractFacebookPostToken(targetContentId);
+    const postToken = extractFacebookPostToken(post.url) || extractFacebookPostToken(post.id);
+    if (targetToken && postToken && targetToken.toLowerCase() === postToken.toLowerCase()) {
+        return true;
+    }
+
+    const contentId = String(targetContentId || '').trim();
+    const postId = String(post.id || '').trim();
+    const isShareUrl = /\/share\/(?:v|r|p)\//i.test(String(targetUrl || ''));
+    if (contentId && postId && contentId === postId) {
+        if (isShareUrl && normalizedTarget && normalizedPostUrl && normalizedTarget !== normalizedPostUrl) {
+            return false;
+        }
+        return true;
+    }
+
+    // Share tokens are not stable post identifiers — never accept a loose match.
+    if (isShareUrl) {
+        return false;
+    }
+
+    return false;
+};
+
+const stripFacebookQuery = (value) => {
+    const input = String(value || '').trim();
+    if (!/^https?:\/\//i.test(input)) return input;
+    try {
+        const url = new URL(input);
+        url.search = '';
+        url.hash = '';
+        return url.href.replace(/\/+$/, '');
+    } catch {
+        return input;
+    }
+};
+
+const isShareToken = (value) => /^[A-Za-z0-9_-]{6,}$/.test(String(value || '').trim())
+    && !/^pfbid/i.test(String(value || '').trim())
+    && !/^\d{8,}$/.test(String(value || '').trim());
+
+// Direct post lookup via /post?url=... or /post?post_id=...
+const fetchPostByUrl = async (postUrlOrId, options = {}) => {
+    const input = String(postUrlOrId || '').trim();
+    if (!input) return null;
+
+    const paramAttempts = [];
+    const seen = new Set();
+    const addAttempt = (params) => {
+        const key = JSON.stringify(params);
+        if (seen.has(key)) return;
+        seen.add(key);
+        paramAttempts.push(params);
+    };
+
+    if (/^https?:\/\//i.test(input)) {
+        addAttempt({ url: input });
+        addAttempt({ url: stripFacebookQuery(input) });
+        const token = extractFacebookPostToken(input);
+        if (token && !isShareToken(token)) {
+            addAttempt({ post_id: token });
+        }
+    } else if (!isShareToken(input)) {
+        addAttempt({ post_id: input });
+    }
+
+    for (const params of paramAttempts) {
+        try {
+            const response = await rapidGet('/post', params, options);
+            if (response.status === 503) continue;
+
+            const raw = extractPostFromApiResponse(response.data);
+            if (!raw) continue;
+
+            const normalized = normalizeRawPost(raw);
+            if (normalized?.id || normalized?.text || (normalized?.media?.length > 0)) {
+                normalized.verification_source = 'rapidapi_post';
+                return normalized;
+            }
+        } catch (error) {
+            if (options?.throwOnCooldown && (error?.code === 'FB_RAPIDAPI_COOLDOWN' || error?.response?.status === 429)) {
+                throw error;
+            }
+        }
+    }
+
+    return null;
+};
+
+/**
+ * Try RapidAPI /post across canonical URL, pfbid, and numeric id variants.
+ */
+const fetchVerifiedFacebookPostFromApi = async ({
+    canonicalUrl = '',
+    pfbid = '',
+    numericId = '',
+    originalUrl = ''
+}, options = {}) => {
+    const lookups = Array.from(new Set(
+        [canonicalUrl, stripFacebookQuery(canonicalUrl), originalUrl, pfbid, numericId]
+            .filter(Boolean)
+    ));
+
+    for (const lookup of lookups) {
+        const post = await fetchPostByUrl(lookup, options);
+        if (post) {
+            return post;
+        }
+    }
+
+    return null;
+};
+
 // Search for Facebook posts — multi-pass request modes + pagination, merge & deduplicate
 const searchPosts = async (query, limit = 50, options = {}) => {
     try {
@@ -900,7 +1071,12 @@ module.exports = {
     },
     fetchPageDetails,
     fetchPagePosts,
+    fetchPostByUrl,
+    fetchVerifiedFacebookPostFromApi,
     fetchPostComments,
+    postMatchesTarget,
+    extractFacebookPostToken,
+    normalizeFacebookUrlForMatch,
     searchPages,
     searchPosts
 };
