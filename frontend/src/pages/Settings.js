@@ -26,6 +26,7 @@ import PolicyManager from '../components/PolicyManager';
 import { Badge } from '../components/ui/badge';
 import RichTextEditor from '../components/RichTextEditor';
 import { cn } from '../lib/utils';
+import { applyThemeColor } from '../utils/theme';
 
 const PLACEHOLDERS_GUIDE = [
   { key: 'SERIAL_NUMBER', desc: 'Case ID / Serial (e.g. X-2026-001)' },
@@ -449,6 +450,10 @@ const Settings = () => {
       const { settings: s, keywords: k, thresholds: t, templates: tp } = res.data;
       setSettings(s);
       setSavedSettings(JSON.parse(JSON.stringify(s)));
+      if (s.theme_color) {
+        applyThemeColor(s.theme_color);
+        localStorage.setItem('app_theme_color', s.theme_color);
+      }
       setKeywords(k);
       setThresholds(t);
       setSavedThresholds(JSON.parse(JSON.stringify(t)));
@@ -473,6 +478,10 @@ const Settings = () => {
       ]);
       setSettings(settingsRes.data);
       setSavedSettings(JSON.parse(JSON.stringify(settingsRes.data)));
+      if (settingsRes.data.theme_color) {
+        applyThemeColor(settingsRes.data.theme_color);
+        localStorage.setItem('app_theme_color', settingsRes.data.theme_color);
+      }
       setKeywords(keywordsRes.data);
     } catch (error) {
       toast.error('Failed to load settings');
@@ -520,6 +529,10 @@ const Settings = () => {
       const res = await api.put('/settings', settings);
       setSavedSettings(JSON.parse(JSON.stringify(res.data)));
       setSettings(res.data);
+      if (res.data.theme_color) {
+        applyThemeColor(res.data.theme_color);
+        localStorage.setItem('app_theme_color', res.data.theme_color);
+      }
       _settingsCache = null; // Invalidate cache on save
       toast.success('Settings saved successfully');
     } catch (error) {
@@ -983,6 +996,35 @@ const Settings = () => {
                     </div>
                   </div>
                 ))}
+              </div>
+            </Card>
+
+            <Card className="border shadow-sm">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b">
+                <div className="flex items-center gap-2">
+                  <Wand2 className="h-4 w-4 text-purple-500" />
+                  <h3 className="text-sm font-semibold">Appearance</h3>
+                </div>
+              </div>
+              <div className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-medium">Theme Color</span>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Customize the primary application color.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={settings?.theme_color || '#1e3a8a'}
+                      onChange={(e) => {
+                        const newColor = e.target.value;
+                        setSettings(prev => ({ ...prev, theme_color: newColor }));
+                        applyThemeColor(newColor);
+                      }}
+                      className="h-8 w-14 p-0 border-0 rounded cursor-pointer"
+                    />
+                  </div>
+                </div>
               </div>
             </Card>
           </div>

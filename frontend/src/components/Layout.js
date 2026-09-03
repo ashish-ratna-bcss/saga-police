@@ -119,8 +119,8 @@ const Layout = () => {
         />
       )}
 
-      {/* Top Bar - GOV themed with professional navy */}
-      <header className="fixed top-0 left-0 right-0 h-16 lg:h-20 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-950 z-50 shadow-lg select-none">
+      {/* Top Bar - Dynamic Theme Color */}
+      <header className="fixed top-0 left-0 right-0 h-16 lg:h-20 bg-primary z-50 shadow-lg select-none">
         <div className="flex items-center justify-between h-full px-4 lg:px-6 relative">
 
           {/* Left: Menu + Logo + Title */}
@@ -154,8 +154,7 @@ const Layout = () => {
                     className="hidden lg:block h-35 w-20 object-contain"
                   />
                 </div>
-                <span className="hidden sm:block text-[9px] lg:text-[10px] text-blue-200 font-medium tracking-widest uppercase drop-shadow">SOCIAL MEDIA OBSERVATION AND CYBER INTELLIGENCE
-
+                <span className="hidden sm:block text-[9px] lg:text-[10px] text-white/80 font-medium tracking-widest uppercase drop-shadow">SOCIAL MEDIA OBSERVATION AND CYBER INTELLIGENCE
 </span>
               </div>
             </div>
@@ -204,7 +203,7 @@ const Layout = () => {
             <div className="flex items-center gap-2 lg:gap-3">
               <div className="text-right hidden sm:block">
                 <div className="text-xs lg:text-sm font-semibold text-white truncate max-w-[120px] lg:max-w-none">{user?.full_name}</div>
-                <div className="text-[10px] lg:text-xs text-blue-200 font-medium uppercase tracking-wide">{user?.role}</div>
+                <div className="text-[10px] lg:text-xs text-white/80 font-medium uppercase tracking-wide">{user?.role}</div>
               </div>
               <Button
                 variant="ghost"
@@ -223,7 +222,7 @@ const Layout = () => {
 
       {/* Sidebar - Narrow icon-based nav */}
       <aside
-        className={`fixed top-16 lg:top-20 left-0 bottom-0 w-[82px] bg-gradient-to-b from-blue-950 via-blue-900 to-blue-950 shadow-xl z-40 transform transition-transform duration-300 ease-in-out select-none ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed top-16 lg:top-20 left-0 bottom-0 w-[82px] bg-primary shadow-xl z-40 transform transition-transform duration-300 ease-in-out select-none ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         data-testid="sidebar"
         role="navigation"

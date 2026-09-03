@@ -72,9 +72,17 @@ const PageLoader = () => (
 import { NotificationProvider } from './context/NotificationContext';
 import { InstagramCacheProvider } from './contexts/InstagramCacheContext';
 import { RbacProvider } from './contexts/RbacContext';
+import { applyThemeColor } from './utils/theme';
 import './App.css';
 
 function App() {
+  React.useEffect(() => {
+    const savedTheme = localStorage.getItem('app_theme_color');
+    if (savedTheme) {
+      applyThemeColor(savedTheme);
+    }
+  }, []);
+
   return (
     <AuthProvider>
       <DashboardProvider>

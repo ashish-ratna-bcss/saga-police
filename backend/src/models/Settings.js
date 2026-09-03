@@ -7,6 +7,10 @@ const settingsSchema = new mongoose.Schema({
     unique: true
   },
   // UI compatibility fields (kept in sync in controller)
+  theme_color: {
+    type: String,
+    default: '#1e3a8a'
+  },
   risk_threshold_high: {
     type: Number,
     default: 70
