@@ -1,0 +1,232 @@
+{
+  "endpoint": "PAGE_POSTS",
+  "params": {
+    "page_id": "100044541544829"
+  },
+  "status": "PASS",
+  "checkedAt": "2026-09-04T09:12:32.336Z",
+  "response": {
+    "results": [
+      {
+        "post_id": "1393461115481927",
+        "type": "post",
+        "url": "https://www.facebook.com/reel/2166091230582141/",
+        "message": "Leave your limits at the surface. #JustDoIt",
+        "message_rich": "Leave your limits at the surface. #JustDoIt",
+        "timestamp": 1757952119,
+        "comments_count": 2383,
+        "reactions_count": 7791,
+        "reshare_count": 1113,
+        "reactions": {
+          "angry": 33,
+          "care": 135,
+          "haha": 22,
+          "like": 6412,
+          "love": 1141,
+          "sad": 4,
+          "wow": 44
+        },
+        "author": {
+          "id": "100044541544829",
+          "name": "Nike",
+          "url": "https://www.facebook.com/nike",
+          "profile_picture_url": "https://scontent.fagc3-1.fna.fbcdn.net/v/t39.30808-1/284964043_10159903868513445_7696353984967674128_n.jpg?stp=cp0_dst-jpg_tt6&cstp=mx400x400&ctp=s40x40&_nc_cat=1&ccb=1-7&_nc_sid=2d3e12&_nc_ohc=UuXVgO1jGOsQ7kNvwGcRb8v&_nc_oc=AdqMaLEky6beSd8u3SMgcn6Xn4yZb799N21CXvxSQynVgEvX77EFvq5BTgDP4A-ioHczQr6feDmtB5eoNke13EyW&_nc_zt=24&_nc_ht=scontent.fagc3-1.fna&_nc_gid=GypF4orCEWQ5igfODc9AUA&_nc_ss=7d289&oh=00_AQKax2VyPp3YdjjeD9i6OZBu3_mr7JwCqFmvzHazBIX67g&oe=6AA047B0",
+          "delegate_page_id": "15087023444"
+        },
+        "authors": [
+          {
+            "id": "100044541544829",
+            "name": "Nike",
+            "url": "https://www.facebook.com/nike",
+            "profile_picture_url": "https://scontent.fagc3-1.fna.fbcdn.net/v/t39.30808-1/284964043_10159903868513445_7696353984967674128_n.jpg?stp=cp0_dst-jpg_tt6&cstp=mx400x400&ctp=s40x40&_nc_cat=1&ccb=1-7&_nc_sid=2d3e12&_nc_ohc=UuXVgO1jGOsQ7kNvwGcRb8v&_nc_oc=AdqMaLEky6beSd8u3SMgcn6Xn4yZb799N21CXvxSQynVgEvX77EFvq5BTgDP4A-ioHczQr6feDmtB5eoNke13EyW&_nc_zt=24&_nc_ht=scontent.fagc3-1.fna&_nc_gid=GypF4orCEWQ5igfODc9AUA&_nc_ss=7d289&oh=00_AQKax2VyPp3YdjjeD9i6OZBu3_mr7JwCqFmvzHazBIX67g&oe=6AA047B0",
+            "delegate_page_id": "15087023444"
+          }
+        ],
+        "author_title": null,
+        "image": null,
+        "video": "https://www.facebook.com/reel/2166091230582141/",
+        "video_view_count": 466548,
+        "album_preview": null,
+        "video_files": {
+          "video_sd_file": "https://video.fagc3-2.fna.fbcdn.net/o1/v/t2/f2/m86/AQN_d55OewP32rlaSZcqUhJpzoq0UPil1hva-6NJse7-pSsLfeyZ1i-XAv1T7deHVk1ANQ86oODPzQ4n-_IpCACCu4wxI5xY0mDCcxk.mp4?_nc_cat=108&_nc_oc=AdolbYSm5EjatcpA9VXSJk83UUtvvy1lgsBzEIjikr3MlujbJNAEeRvZk1MXRvZPayQ6zrU68G7uavtn-4X6P7_y&_nc_sid=5e9851&_nc_ht=video.fagc3-2.fna.fbcdn.net&_nc_ohc=25FJW9cE43kQ7kNvwHjBDEz&efg=eyJ2ZW5jb2RlX3RhZyI6Inhwdl9wcm9ncmVzc2l2ZS5GQUNFQk9PSy4uQzMuMzYwLmRhc2hfYmFzZWxpbmVfM192MSIsInhwdl9hc3NldF9pZCI6MjI5NzE1Mzc2NDA3MjE1NywiYXNzZXRfYWdlX2RheXMiOjM1MywidmlfdXNlY2FzZV9pZCI6MTAwOTksImR1cmF0aW9uX3MiOjMwLCJ1cmxnZW5fc291cmNlIjoid3d3In0%3D&ccb=17-1&vs=b7df3c75f2d2a904&_nc_vs=HBksFQIYUmlnX3hwdl9yZWVsc19wZXJtYW5lbnRfc3JfcHJvZC8yQzQwQTkwQUNENTkxMjlGRDNCMjIyMTcwQUI5MEU5OF92aWRlb19kYXNoaW5pdC5tcDQVAALIARIAFQIYRmlnX3hwdl9yZWVsc19wZXJtYW5lbnRfc3JfcHJvZC83Njk4NjExNTI1NjA5ODFfNDMzNjYwMzI0MTI0NzQwODA0MS5tcDQVAgLIARIAKAAYABsCiAd1c2Vfb2lsATEScHJvZ3Jlc3NpdmVfcmVjaXBlATEVAAAmuuvQofnPlAgVAigCQzMsF0A-Cn752yLRGBJkYXNoX2Jhc2VsaW5lXzNfdjERAHUCZeadAQA&_nc_gid=GypF4orCEWQ5igfODc9AUA&_nc_ss=7d289&_nc_map=urlgen_bucketless&_nc_zt=28&oh=00_AQJzuozZQ9s9CpnFpjMuI1WT8fT6EDvVGXOeMtT141amSw&oe=6A9C5E71&bitrate=264209&tag=dash_baseline_3_v1",
+          "video_hd_file": "https://video.fagc3-1.fna.fbcdn.net/o1/v/t2/f2/m86/AQNrPdap6OftBP5OG6byX9Zra9AIeTlJgFFSnCnQtKX-YrtZwceyclf7S_s9vyochvQvd5rnHPfbDksk867PaxJsnJKbOjIMokT-UHM.mp4?_nc_cat=103&_nc_oc=Adpf3GjuwekAbhare-uMF7HlNpps-YYWZrq1JkSqex4WJQ_eaoc_fr3t4dL6jiEIlMHgy4nYO9wB1-dTuNCFFxbk&_nc_sid=5e9851&_nc_ht=video.fagc3-1.fna.fbcdn.net&_nc_ohc=hN2aSw60uRsQ7kNvwG_QYgQ&efg=eyJ2ZW5jb2RlX3RhZyI6Inhwdl9wcm9ncmVzc2l2ZS5GQUNFQk9PSy4uQzMuNzIwLmRhc2hfYmFzZWxpbmVfMV92MSIsInhwdl9hc3NldF9pZCI6MjI5NzE1Mzc2NDA3MjE1NywiYXNzZXRfYWdlX2RheXMiOjM1MywidmlfdXNlY2FzZV9pZCI6MTAwOTksImR1cmF0aW9uX3MiOjMwLCJ1cmxnZW5fc291cmNlIjoid3d3In0%3D&ccb=17-1&vs=b37d5e10705536ed&_nc_vs=HBksFQIYUmlnX3hwdl9yZWVsc19wZXJtYW5lbnRfc3JfcHJvZC9DQTQ0MzA2RDlENDhCQUU2MDRGOTlGQjlENzVBNEE5Nl92aWRlb19kYXNoaW5pdC5tcDQVAALIARIAFQIYRmlnX3hwdl9yZWVsc19wZXJtYW5lbnRfc3JfcHJvZC83Njk4NjExNTI1NjA5ODFfNDMzNjYwMzI0MTI0NzQwODA0MS5tcDQVAgLIARIAKAAYABsCiAd1c2Vfb2lsATEScHJvZ3Jlc3NpdmVfcmVjaXBlATEVAAAmuuvQofnPlAgVAigCQzMsF0A-Cn752yLRGBJkYXNoX2Jhc2VsaW5lXzFfdjERAHUCZeadAQA&_nc_gid=GypF4orCEWQ5igfODc9AUA&_nc_ss=7d289&_nc_map=urlgen_bucketless&_nc_zt=28&oh=00_AQI0vO-3aRFskl9oN77Rm12pjIRec_IM-fCg0U86WAdkmw&oe=6A9C7CAC&bitrate=852289&tag=dash_baseline_1_v1"
+        },
+        "video_thumbnail": "https://scontent.fagc3-1.fna.fbcdn.net/v/t51.82787-10/549104239_18565912819020081_2330706867671026439_n.jpg?stp=dst-jpg_tt6&cstp=mx1080x1920&ctp=s960x960&_nc_cat=101&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=c44d43&_nc_ohc=5lIudps7r4gQ7kNvwH2i2jX&_nc_oc=AdpoogKBKkvTdwG2jXCHbPhyvIljqf5dCWZFlxJx8VC2V9XJ7pKCHgPcEsOVFf4zWm-jfRQ21sFahFK31r_MNBmz&_nc_zt=23&_nc_ht=scontent.fagc3-1.fna&_nc_gid=GypF4orCEWQ5igfODc9AUA&_nc_ss=7d289&oh=00_AQK6wHGZHuS2gKlUgyCQrEy-HuIkgT9O3feb0gSs7HUIHA&oe=6AA05CE4",
+        "external_url": null,
+        "attached_event": null,
+        "attached_group": null,
+        "attached_post": null,
+        "attached_post_url": null,
+        "text_format_metadata": null,
+        "comments_id": "1393461115481927",
+        "shares_id": "1393461115481927",
+        "associated_group_id": null,
+        "associated_group": null,
+        "images_count": null,
+        "top_comments": [
+          {
+            "type": "top_comment",
+            "id": "Y29tbWVudDoxMzkzNDYxMTE1NDgxOTI3Xzg0NDc2NTcwMTM3NjY2Ng==",
+            "legacy_fb_id": "844765701376666",
+            "text": "When will you make special shoes for Alperen Sengun? How about the name Air Alpi?  😃",
+            "author": {
+              "id": "pfbid0s97XvKcMLwRyaP7MUmmuBvdtCL8tZRRd7G5bW9Rr9dtUSP7amGn1XJPeZbFQTsv3l",
+              "name": "Kaya Coruk",
+              "url": "https://www.facebook.com/pfbid0s97XvKcMLwRyaP7MUmmuBvdtCL8tZRRd7G5bW9Rr9dtUSP7amGn1XJPeZbFQTsv3l",
+              "gender": "MALE",
+              "profile_image_url": "https://scontent.fagc3-1.fna.fbcdn.net/v/t39.30808-1/542137525_10163263156984721_3007644042421336990_n.jpg?stp=cp0_dst-jpg_tt6&cstp=mx960x958&ctp=s32x32&_nc_cat=103&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=e99d92&_nc_ohc=ICfP2379L0IQ7kNvwFcz5_U&_nc_oc=AdovONC7IgeorU4-gUBGpMSfpl2mPkWzrQYYm3VB9jkOAKGolLhsQiFH7aWzJZKwCVcUK1ZuNiTBgYmCV2GVWMLP&_nc_zt=24&_nc_ht=scontent.fagc3-1.fna&_nc_gid=GypF4orCEWQ5igfODc9AUA&_nc_ss=7d289&oh=00_AQIwU5MSiLgKy2pmOn8lpTwWPmVjIpCKAwxajhcw9Or6pw&oe=6AA076C2"
+            },
+            "created_time": 1761331554
+          }
+        ]
+      },
+      {
+        "post_id": "1392071868954185",
+        "type": "post",
+        "url": "https://www.facebook.com/reel/752115997659579/",
+        "message": "The longest jump is the one you didn’t doubt. #JustDoIt",
+        "message_rich": "The longest jump is the one you didn’t doubt. #JustDoIt",
+        "timestamp": 1757807583,
+        "comments_count": 774,
+        "reactions_count": 5257,
+        "reshare_count": 616,
+        "reactions": {
+          "angry": 20,
+          "care": 89,
+          "haha": 16,
+          "like": 4308,
+          "love": 794,
+          "sad": 1,
+          "wow": 29
+        },
+        "author": {
+          "id": "100044541544829",
+          "name": "Nike",
+          "url": "https://www.facebook.com/nike",
+          "profile_picture_url": "https://scontent.fagc3-1.fna.fbcdn.net/v/t39.30808-1/284964043_10159903868513445_7696353984967674128_n.jpg?stp=cp0_dst-jpg_tt6&cstp=mx400x400&ctp=s40x40&_nc_cat=1&ccb=1-7&_nc_sid=2d3e12&_nc_ohc=UuXVgO1jGOsQ7kNvwGcRb8v&_nc_oc=AdqMaLEky6beSd8u3SMgcn6Xn4yZb799N21CXvxSQynVgEvX77EFvq5BTgDP4A-ioHczQr6feDmtB5eoNke13EyW&_nc_zt=24&_nc_ht=scontent.fagc3-1.fna&_nc_gid=GypF4orCEWQ5igfODc9AUA&_nc_ss=7d289&oh=00_AQKax2VyPp3YdjjeD9i6OZBu3_mr7JwCqFmvzHazBIX67g&oe=6AA047B0",
+          "delegate_page_id": "15087023444"
+        },
+        "authors": [
+          {
+            "id": "100044541544829",
+            "name": "Nike",
+            "url": "https://www.facebook.com/nike",
+            "profile_picture_url": "https://scontent.fagc3-1.fna.fbcdn.net/v/t39.30808-1/284964043_10159903868513445_7696353984967674128_n.jpg?stp=cp0_dst-jpg_tt6&cstp=mx400x400&ctp=s40x40&_nc_cat=1&ccb=1-7&_nc_sid=2d3e12&_nc_ohc=UuXVgO1jGOsQ7kNvwGcRb8v&_nc_oc=AdqMaLEky6beSd8u3SMgcn6Xn4yZb799N21CXvxSQynVgEvX77EFvq5BTgDP4A-ioHczQr6feDmtB5eoNke13EyW&_nc_zt=24&_nc_ht=scontent.fagc3-1.fna&_nc_gid=GypF4orCEWQ5igfODc9AUA&_nc_ss=7d289&oh=00_AQKax2VyPp3YdjjeD9i6OZBu3_mr7JwCqFmvzHazBIX67g&oe=6AA047B0",
+            "delegate_page_id": "15087023444"
+          }
+        ],
+        "author_title": null,
+        "image": null,
+        "video": "https://www.facebook.com/reel/752115997659579/",
+        "video_view_count": 222153,
+        "album_preview": null,
+        "video_files": {
+          "video_sd_file": "https://video.fagc3-2.fna.fbcdn.net/o1/v/t2/f2/m86/AQMKCI1WX31qqKYh6dQ1-zJ_O0_QT_1EoQ0DDcK-8-PKJbjjOyRxJY_Tb7MB5MWdIwGG9axCfH_ZvPUTbzHSOLugG9cobk8OrClu65c.mp4?_nc_cat=111&_nc_oc=AdrRsyl7f2ZT4NcRfYHEO156-rJO4U3bCuOfbf57fnxV75RlTPZpK_9kVWi7S5NdBZRO9idck3Bp_YpC-5Rs9HdX&_nc_sid=5e9851&_nc_ht=video.fagc3-2.fna.fbcdn.net&_nc_ohc=09F7blp9n6EQ7kNvwGUIDrV&efg=eyJ2ZW5jb2RlX3RhZyI6Inhwdl9wcm9ncmVzc2l2ZS5GQUNFQk9PSy4uQzMuMzYwLmRhc2hfYmFzZWxpbmVfM192MSIsInhwdl9hc3NldF9pZCI6MTk3MzMzNjQ0MzQ2MjQ3MiwiYXNzZXRfYWdlX2RheXMiOjM1NSwidmlfdXNlY2FzZV9pZCI6MTAwOTksImR1cmF0aW9uX3MiOjMwLCJ1cmxnZW5fc291cmNlIjoid3d3In0%3D&ccb=17-1&vs=81a0ea7698d773dc&_nc_vs=HBksFQIYUmlnX3hwdl9yZWVsc19wZXJtYW5lbnRfc3JfcHJvZC9GQjQ1MEE5MENEODM5NkE0NzhDRUE3OTE1QkM3ODk5M192aWRlb19kYXNoaW5pdC5tcDQVAALIARIAFQIYR2lnX3hwdl9yZWVsc19wZXJtYW5lbnRfc3JfcHJvZC8xNDMzNTA0NDQ0NjIwNDQxXzM0MDA2MzQyOTEyNTQwNzUxNjcubXA0FQICyAESACgAGAAbAogHdXNlX29pbAExEnByb2dyZXNzaXZlX3JlY2lwZQExFQAAJpCN4Zumr4EHFQIoAkMzLBdAPgp--dsi0RgSZGFzaF9iYXNlbGluZV8zX3YxEQB1AmXmnQEA&_nc_gid=GypF4orCEWQ5igfODc9AUA&_nc_ss=7d289&_nc_map=urlgen_bucketless&_nc_zt=28&oh=00_AQLylltbfdcv6SXwVCF6BKNLebFeRPKEiCLHxz1laVz85Q&oe=6A9C6184&bitrate=278982&tag=dash_baseline_3_v1",
+          "video_hd_file": "https://video.fagc3-2.fna.fbcdn.net/o1/v/t2/f2/m86/AQMbeHcXo9hAKjLtybBL5F-u9ckGBATrpoefzASDmb2UPx3DEMR89UOccphdiplLAzwbvDVuFotIM9f2rO29fuO5_qwpsjHElCdfp80.mp4?_nc_cat=103&_nc_oc=AdpR1RaTPBh73szrX4QePYxDT_LUPti-kmhAydJP0WgCD1JelGboMR-MAjHLWXhd1WR5Pz4GcPMRSxaJRnpOjNak&_nc_sid=5e9851&_nc_ht=video.fagc3-2.fna.fbcdn.net&_nc_ohc=S4sCQwJLsIgQ7kNvwFwtkZy&efg=eyJ2ZW5jb2RlX3RhZyI6Inhwdl9wcm9ncmVzc2l2ZS5GQUNFQk9PSy4uQzMuNzIwLmRhc2hfYmFzZWxpbmVfMV92MSIsInhwdl9hc3NldF9pZCI6MTk3MzMzNjQ0MzQ2MjQ3MiwiYXNzZXRfYWdlX2RheXMiOjM1NSwidmlfdXNlY2FzZV9pZCI6MTAwOTksImR1cmF0aW9uX3MiOjMwLCJ1cmxnZW5fc291cmNlIjoid3d3In0%3D&ccb=17-1&vs=141adea0e3685e4&_nc_vs=HBksFQIYUmlnX3hwdl9yZWVsc19wZXJtYW5lbnRfc3JfcHJvZC8xRTQxOTgzNDhGQkIwNkY3RTU5QzdCMzgwODIzODk4Nl92aWRlb19kYXNoaW5pdC5tcDQVAALIARIAFQIYR2lnX3hwdl9yZWVsc19wZXJtYW5lbnRfc3JfcHJvZC8xNDMzNTA0NDQ0NjIwNDQxXzM0MDA2MzQyOTEyNTQwNzUxNjcubXA0FQICyAESACgAGAAbAogHdXNlX29pbAExEnByb2dyZXNzaXZlX3JlY2lwZQExFQAAJpCN4Zumr4EHFQIoAkMzLBdAPgp--dsi0RgSZGFzaF9iYXNlbGluZV8xX3YxEQB1AmXmnQEA&_nc_gid=GypF4orCEWQ5igfODc9AUA&_nc_ss=7d289&_nc_map=urlgen_bucketless&_nc_zt=28&oh=00_AQKhLxsB1QIRUWkRiC8QChzinyYX5AurqGicu1OayEEX_g&oe=6A9C5420&bitrate=808745&tag=dash_baseline_1_v1"
+        },
+        "video_thumbnail": "https://scontent.fagc3-2.fna.fbcdn.net/v/t51.82787-10/548838919_18565615666020081_158902364425729178_n.jpg?stp=dst-jpg_tt6&cstp=mx1080x1920&ctp=s960x960&_nc_cat=104&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=c44d43&_nc_ohc=BV5hPbGJIyoQ7kNvwFw0amB&_nc_oc=Adr7O6g3WUrXVkTQ8OxfFKrNBUzjfNILsqzh9EnZp9J_v-7Gc67x6NVHM--UfW8h4BcdbeblWOZOFT7GXckc8L8U&_nc_zt=23&_nc_ht=scontent.fagc3-2.fna&_nc_gid=GypF4orCEWQ5igfODc9AUA&_nc_ss=7d289&oh=00_AQJaPmzG4o2CONJ3pFCGMUo5SLKNWwpej7IPuiSpOhAzsA&oe=6AA0768D",
+        "external_url": null,
+        "attached_event": null,
+        "attached_group": null,
+        "attached_post": null,
+        "attached_post_url": null,
+        "text_format_metadata": null,
+        "comments_id": "1392071868954185",
+        "shares_id": "1392071868954185",
+        "associated_group_id": null,
+        "associated_group": null,
+        "images_count": null,
+        "top_comments": [
+          {
+            "type": "top_comment",
+            "id": "Y29tbWVudDoxMzkyMDcxODY4OTU0MTg1XzEyODIwNDU3Mjc0MjE1NjI=",
+            "legacy_fb_id": "1282045727421562",
+            "text": "Honestly, overcoming self-doubt is the greatest victory, and it sounds like you've got this!",
+            "author": {
+              "id": "61590586885422",
+              "name": "Ben Solez",
+              "url": "https://www.facebook.com/61590586885422",
+              "gender": "UNKNOWN",
+              "profile_image_url": "https://scontent.fagc3-2.fna.fbcdn.net/v/t39.30808-1/758691052_122126022345352896_1973877597321294727_n.jpg?stp=cp0_dst-jpg_tt6&cstp=mx1023x1015&ctp=s32x32&_nc_cat=108&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=2d3e12&_nc_ohc=nguxcXT_opUQ7kNvwFgy1j7&_nc_oc=AdoaxWcwqozL2M7OtcYpULfT1H667El2cvvbxro5N4nQn5X2y-JAlAs5p5BtKTl4D9t1MJPM3--4Un8DSILUqUT8&_nc_zt=24&_nc_ht=scontent.fagc3-2.fna&_nc_gid=GypF4orCEWQ5igfODc9AUA&_nc_ss=7d289&oh=00_AQI8mtOsMMthwfMxQLL7okcwtabHQcXqAYCtXwTVF3nhZQ&oe=6AA04A37"
+            },
+            "created_time": 1780404165
+          }
+        ]
+      },
+      {
+        "post_id": "1388501259311246",
+        "type": "post",
+        "url": "https://www.facebook.com/reel/1168298751995880/",
+        "message": "Two thoughts, you’re out. #justdoit",
+        "message_rich": "Two thoughts, you’re out. #justdoit",
+        "timestamp": 1757462067,
+        "comments_count": 453,
+        "reactions_count": 3716,
+        "reshare_count": 430,
+        "reactions": {
+          "angry": 14,
+          "care": 64,
+          "haha": 7,
+          "like": 3122,
+          "love": 492,
+          "sad": 2,
+          "wow": 15
+        },
+        "author": {
+          "id": "100044541544829",
+          "name": "Nike",
+          "url": "https://www.facebook.com/nike",
+          "profile_picture_url": "https://scontent.fagc3-1.fna.fbcdn.net/v/t39.30808-1/284964043_10159903868513445_7696353984967674128_n.jpg?stp=cp0_dst-jpg_tt6&cstp=mx400x400&ctp=s40x40&_nc_cat=1&ccb=1-7&_nc_sid=2d3e12&_nc_ohc=UuXVgO1jGOsQ7kNvwGcRb8v&_nc_oc=AdqMaLEky6beSd8u3SMgcn6Xn4yZb799N21CXvxSQynVgEvX77EFvq5BTgDP4A-ioHczQr6feDmtB5eoNke13EyW&_nc_zt=24&_nc_ht=scontent.fagc3-1.fna&_nc_gid=GypF4orCEWQ5igfODc9AUA&_nc_ss=7d289&oh=00_AQKax2VyPp3YdjjeD9i6OZBu3_mr7JwCqFmvzHazBIX67g&oe=6AA047B0",
+          "delegate_page_id": "15087023444"
+        },
+        "authors": [
+          {
+            "id": "100044541544829",
+            "name": "Nike",
+            "url": "https://www.facebook.com/nike",
+            "profile_picture_url": "https://scontent.fagc3-1.fna.fbcdn.net/v/t39.30808-1/284964043_10159903868513445_7696353984967674128_n.jpg?stp=cp0_dst-jpg_tt6&cstp=mx400x400&ctp=s40x40&_nc_cat=1&ccb=1-7&_nc_sid=2d3e12&_nc_ohc=UuXVgO1jGOsQ7kNvwGcRb8v&_nc_oc=AdqMaLEky6beSd8u3SMgcn6Xn4yZb799N21CXvxSQynVgEvX77EFvq5BTgDP4A-ioHczQr6feDmtB5eoNke13EyW&_nc_zt=24&_nc_ht=scontent.fagc3-1.fna&_nc_gid=GypF4orCEWQ5igfODc9AUA&_nc_ss=7d289&oh=00_AQKax2VyPp3YdjjeD9i6OZBu3_mr7JwCqFmvzHazBIX67g&oe=6AA047B0",
+            "delegate_page_id": "15087023444"
+          }
+        ],
+        "author_title": null,
+        "image": null,
+        "video": "https://www.facebook.com/reel/1168298751995880/",
+        "video_view_count": 139411,
+        "album_preview": null,
+        "video_files": {
+          "video_sd_file": "https://video.fagc3-2.fna.fbcdn.net/o1/v/t2/f2/m86/AQNYIpnIJ_rsoHSxMxQvW8qlA4dpkM7eeL_X3-aMjRorK2qSh9VlA9xtJb4SjSpniQlxkDm6BVUxGJAKw9pbOZ__mh1x5Kwjwp8xrSM.mp4?_nc_cat=108&_nc_oc=AdqI-Jiy-LmqQxCBXGXRtDGaQTLRHEDwX0jRk0BoRpYyyCOYMzvF3iqp24JMGD03sDCq5ZYNN2mjiESYkdRd11OT&_nc_sid=5e9851&_nc_ht=video.fagc3-2.fna.fbcdn.net&_nc_ohc=Yjx2CV-NMFYQ7kNvwEJ_xke&efg=eyJ2ZW5jb2RlX3RhZyI6Inhwdl9wcm9ncmVzc2l2ZS5GQUNFQk9PSy4uQzMuMzYwLmRhc2hfYmFzZWxpbmVfM192MSIsInhwdl9hc3NldF9pZCI6ODIwMzg3OTkzNjc3MTgxLCJhc3NldF9hZ2VfZGF5cyI6MzU5LCJ2aV91c2VjYXNlX2lkIjoxMDA5OSwiZHVyYXRpb25fcyI6MTUsInVybGdlbl9zb3VyY2UiOiJ3d3cifQ%3D%3D&ccb=17-1&vs=6cf840a3182d21db&_nc_vs=HBksFQIYUmlnX3hwdl9yZWVsc19wZXJtYW5lbnRfc3JfcHJvZC8xRTQ2RjE5MEMzQkFDNDU4QTgxQjIwNjQyRUVCNzM4OV92aWRlb19kYXNoaW5pdC5tcDQVAALIARIAFQIYRmlnX3hwdl9yZWVsc19wZXJtYW5lbnRfc3JfcHJvZC8xOTQzMTMwNzM2NDY3ODgyXzIyOTQ1NDU1NjA3MjQ3NzYzMS5tcDQVAgLIARIAKAAYABsCiAd1c2Vfb2lsATEScHJvZ3Jlc3NpdmVfcmVjaXBlATEVAAAm-rWH7-6I9QIVAigCQzMsF0AuFP3ztkWiGBJkYXNoX2Jhc2VsaW5lXzNfdjERAHUCZeadAQA&_nc_gid=GypF4orCEWQ5igfODc9AUA&_nc_ss=7d289&_nc_map=urlgen_bucketless&_nc_zt=28&oh=00_AQIFXd9LrPiCVcTKDQEn_bbDrOfClkjl8Bwj0RkPfe1diQ&oe=6A9C62C1&bitrate=318300&tag=dash_baseline_3_v1",
+          "video_hd_file": "https://video.fagc3-1.fna.fbcdn.net/o1/v/t2/f2/m86/AQMEPFPqaGYUTMlDgeqYNtgS6iV5LaDYs2MfyxTCn-BA1ioyKkVABEwrmVxe9Xu_ATfddneAhFg74TOfBsk9OOHk7za7AadYBhXiRO4.mp4?_nc_cat=110&_nc_oc=AdrnTBS-_IZzjJKUupKcij-vLoJ4fzqQAvXuYXGqyWMYq8CwXaEGEphyjGBn4LRzaHj80P-L18rLyxVTo0LYu0Z1&_nc_sid=5e9851&_nc_ht=video.fagc3-1.fna.fbcdn.net&_nc_ohc=zfC7SBV7Ev0Q7kNvwERzVhS&efg=eyJ2ZW5jb2RlX3RhZyI6Inhwdl9wcm9ncmVzc2l2ZS5GQUNFQk9PSy4uQzMuNzIwLmRhc2hfYmFzZWxpbmVfMV92MSIsInhwdl9hc3NldF9pZCI6ODIwMzg3OTkzNjc3MTgxLCJhc3NldF9hZ2VfZGF5cyI6MzU5LCJ2aV91c2VjYXNlX2lkIjoxMDA5OSwiZHVyYXRpb25fcyI6MTUsInVybGdlbl9zb3VyY2UiOiJ3d3cifQ%3D%3D&ccb=17-1&vs=ff9c75c175587178&_nc_vs=HBksFQIYUmlnX3hwdl9yZWVsc19wZXJtYW5lbnRfc3JfcHJvZC9FNjRCQ0IzMTkwMkU4QUZFQkMxNEQzMjA1MThDQjA4QV92aWRlb19kYXNoaW5pdC5tcDQVAALIARIAFQIYRmlnX3hwdl9yZWVsc19wZXJtYW5lbnRfc3JfcHJvZC8xOTQzMTMwNzM2NDY3ODgyXzIyOTQ1NDU1NjA3MjQ3NzYzMS5tcDQVAgLIARIAKAAYABsCiAd1c2Vfb2lsATEScHJvZ3Jlc3NpdmVfcmVjaXBlATEVAAAm-rWH7-6I9QIVAigCQzMsF0AuFP3ztkWiGBJkYXNoX2Jhc2VsaW5lXzFfdjERAHUCZeadAQA&_nc_gid=GypF4orCEWQ5igfODc9AUA&_nc_ss=7d289&_nc_map=urlgen_bucketless&_nc_zt=28&oh=00_AQLvkoa5DIlW4heWE3EhcdrE_kOd9Lz_QULazHFPCPDDnQ&oe=6A9C643F&bitrate=1023983&tag=dash_baseline_1_v1"
+        },
+        "video_thumbnail": "https://scontent.fagc3-1.fna.fbcdn.net/v/t51.71878-10/544903342_1488127749039210_7715950054603424720_n.jpg?stp=dst-jpg_tt6&cstp=mx640x1136&ctp=s960x960&_nc_cat=111&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=c44d43&_nc_ohc=FSEOiPtf83gQ7kNvwGMsZSn&_nc_oc=AdrafgChqjD6-fDtOw-Nic6rEYP6kcvSmOrfMa6-5RkytLd-fUEAx_e0rIk7qWAF-Vjw9jZyY3dNlorjMSfA6eR8&_nc_zt=23&_nc_ht=scontent.fagc3-1.fna&_nc_gid=GypF4orCEWQ5igfODc9AUA&_nc_ss=7d289&oh=00_AQKfn9m33VybltGpJ6OAzP3cNd0uMIoslk0kREyXmLygvg&oe=6AA057B7",
+        "external_url": null,
+        "attached_event": null,
+        "attached_group": null,
+        "attached_post": null,
+        "attached_post_url": null,
+        "text_format_metadata": null,
+        "comments_id": "1388501259311246",
+        "shares_id": "1388501259311246",
+        "associated_group_id": null,
+        "associated_group": null,
+        "images_count": null,
+        "top_comments": [
+          {
+            "type": "top_comment",
+            "id": "Y29tbWVudDoxMzg4NTAxMjU5MzExMjQ2XzEzMjc0Mzc4MDU2MDA3MDM=",
+            "legacy_fb_id": "1327437805600703",
+            "text": "Hello Nike, my name is Lewis, a nurse from Kenya, East Africa. I was wondering, why don't you start a campaign for nurses just like you do with athletes and sport's people. The campaign could go like \"Nikey Nurses,\" (NN). As you know, the primary uniform for nurses is scrubs plus a pair of comfey sneakers. Additionally, there are millions of nurses across the globe which guarantees you a ROI and increased market share within a different niche.....think about it: NN 👟.",
+            "author": {
+              "id": "100012272292579",
+              "name": "Lewis Thuranira",
+              "url": "https://www.facebook.com/100012272292579",
+              "gender": "MALE",
+              "profile_image_url": "https://scontent.fagc3-2.fna.fbcdn.net/v/t39.30808-1/319335528_5657887517660202_3012777701689555140_n.jpg?stp=c0.0.720.720a_cp0_dst-jpg_tt6&cstp=mx720x720&ctp=s32x32&_nc_cat=102&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=1d2534&_nc_ohc=isu9MrVPNHUQ7kNvwH0LiuG&_nc_oc=AdpT0ovAMle5R2jCWUFzBLpT5shS7PcGCwwioDWKqrtoD1OwEFZ5Y85grsYYXcyK9XKUjccMIDUsOg82mP2IQZyv&_nc_zt=24&_nc_ht=scontent.fagc3-2.fna&_nc_gid=GypF4orCEWQ5igfODc9AUA&_nc_ss=7d289&oh=00_AQJM0H6YWXMD7ZaFtF8um21km6PMC2LYDYCamhgQ4MLlfw&oe=6AA06EDE"
+            },
+            "created_time": 1781842458
+          }
+        ]
+      }
+    ],
+    "cursor": "Cg8Ob3JnYW5pY19jdXJzb3IJAAACREFRSFRPUThNRjdRaUpyRlVESUVQa2JOcklPUG0zd2Foc2o0LUxFOUV0ek1rMDltZkhvVDBDSWNBdUZpeTREYnRoNTY0V2R1RDJYcE1fM3ZXdV9sUkxsYzVRbWdfNXRVSDlMVEJueHU2d0ptdk9QcWY3d3RXMUxjS3hSU0pqcUM0VHBTRklNUWR3VGVpWW9tOThXRi1SNzVRcmlIelVKUXpIeVNwMENHaFJqZGNYb0RIbVRKWUQxNVhQQnN6MzBNak5fYXgwNy1NMkktMkZ3b2VPcXV6cVlucHRjZUgzbDVRXzdESjZxemV4RTJ3WTNYSC0wZFgyUHJnRGVpNl9LX2lEaDU2ZTk4eXV2YWV1Zy1NMVdfVHB2Y2JFVmFBeUpJZnlEMF9WLTcwbTlWSHJEdHBnbnpoaVVzTkk2Y0wxb3hxNzdYVDFDTk9YamwtMG9Sc1ZXME1MSUswMkh0U0dzZ0ptYlhKUFpYNXV0WGU1Yzg0OEtiNERhSFppZndKUFZlTG51aDZQY2ZCX05jd3o3cXVEcTE1M2FPUUdLY3VucktneFlVOWVSTGs2VXlkU1pwLUg5cjY0bGpjUjZCZ1NNdGdqTC1OV2U1enh4SlZWamNVeW5VbDZ6bkF4bFRXamV5YkhoNmZMdnhMVEhPdy14bVZSQ2FibGpFZWc0eEpZQllSWjlMWVpKSDFIc0R5bHJjWHBvNFlGVG54MDVKYnlzQ2ItRnRpY0dQT01Xal8xM3BJTU14SVVjR2dTYVFHczVNNUh5bTkPCWFkX2N1cnNvcg4PD2dsb2JhbF9wb3NpdGlvbgIADwZvZmZzZXQCAA8QbGFzdF9hZF9wb3NpdGlvbgL/AQ=="
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "endpoint": "SEARCH_LIST",
+  "params": {
+    "part": "snippet",
+    "q": "nike",
+    "type": "video",
+    "maxResults": 3
+  },
+  "status": "FAIL",
+  "checkedAt": "2026-09-04T10:43:33.190Z",
+  "error": "Quota exceeded for quota metric 'Search Queries' and limit 'Search Queries per day' of service 'youtube.googleapis.com' for consumer 'project_number:639618645921'."
+}

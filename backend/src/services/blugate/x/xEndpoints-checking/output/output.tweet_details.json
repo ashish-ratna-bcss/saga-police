@@ -1,0 +1,555 @@
+{
+  "endpoint": "TWEET_DETAILS",
+  "params": {
+    "pid": "2095608838837731528"
+  },
+  "status": "PASS",
+  "checkedAt": "2026-09-04T10:34:07.449Z",
+  "response": {
+    "result": {
+      "tweetResult": {
+        "result": {
+          "__typename": "Tweet",
+          "core": {
+            "user_results": {
+              "result": {
+                "__typename": "User",
+                "affiliates_highlighted_label": {
+                  "label": {
+                    "badge": {
+                      "url": "https://pbs.twimg.com/profile_images/1955359038532653056/OSHY3ewP_bigger.jpg"
+                    },
+                    "description": "X",
+                    "url": {
+                      "url": "https://twitter.com/X",
+                      "urlType": "DeepLink"
+                    },
+                    "userLabelDisplayType": "Badge",
+                    "userLabelType": "BusinessLabel"
+                  }
+                },
+                "avatar": {
+                  "image_url": "https://pbs.twimg.com/profile_images/2053244804520427520/m8mdWZCG_normal.jpg"
+                },
+                "core": {
+                  "created_at": "Tue Jun 02 20:12:29 +0000 2009",
+                  "name": "Elon Musk",
+                  "screen_name": "elonmusk"
+                },
+                "dm_permissions": {
+                  "can_dm": false
+                },
+                "follow_request_sent": false,
+                "has_graduated_access": true,
+                "id": "VXNlcjo0NDE5NjM5Nw==",
+                "is_blue_verified": true,
+                "legacy": {
+                  "default_profile": false,
+                  "default_profile_image": false,
+                  "description": "https://t.co/ZdBx5WABYx",
+                  "entities": {
+                    "description": {
+                      "urls": [
+                        {
+                          "display_url": "Terafab.AI",
+                          "expanded_url": "http://Terafab.AI",
+                          "indices": [
+                            0,
+                            23
+                          ],
+                          "url": "https://t.co/ZdBx5WABYx"
+                        }
+                      ]
+                    }
+                  },
+                  "fast_followers_count": 0,
+                  "favourites_count": 246875,
+                  "follow_request_sent": false,
+                  "followers_count": 241559120,
+                  "friends_count": 1403,
+                  "has_custom_timelines": true,
+                  "is_translator": false,
+                  "listed_count": 170467,
+                  "media_count": 4712,
+                  "needs_phone_verification": false,
+                  "normal_followers_count": 241559120,
+                  "notifications": false,
+                  "pinned_tweet_ids_str": [
+                    "2095364595326263447"
+                  ],
+                  "possibly_sensitive": false,
+                  "profile_banner_url": "https://pbs.twimg.com/profile_banners/44196397/1774145451",
+                  "profile_interstitial_type": "",
+                  "statuses_count": 108089,
+                  "time_zone": "",
+                  "translator_type": "none",
+                  "url": "",
+                  "utc_offset": 0,
+                  "want_retweets": false,
+                  "withheld_description": "",
+                  "withheld_scope": ""
+                },
+                "location": {
+                  "location": ""
+                },
+                "media_permissions": {
+                  "can_media_tag": false
+                },
+                "parody_commentary_fan_label": "None",
+                "privacy": {
+                  "protected": false
+                },
+                "professional": {
+                  "category": [],
+                  "professional_type": "Creator",
+                  "rest_id": "1679729435447275522"
+                },
+                "profile_bio": {
+                  "description": "https://t.co/ZdBx5WABYx"
+                },
+                "profile_image_shape": "Circle",
+                "relationship_perspectives": {
+                  "blocked_by": false,
+                  "blocking": false,
+                  "followed_by": false,
+                  "following": false,
+                  "muting": false
+                },
+                "rest_id": "44196397",
+                "super_follow_eligible": true,
+                "super_followed_by": false,
+                "super_following": false,
+                "verification": {
+                  "verified": false
+                }
+              }
+            }
+          },
+          "edit_control": {
+            "edit_tweet_ids": [
+              "2095608838837731528"
+            ],
+            "editable_until_msecs": "1788470656000",
+            "edits_remaining": "5",
+            "is_edit_eligible": true
+          },
+          "grok_analysis_button": true,
+          "grok_annotations": {
+            "is_image_editable_by_grok": true
+          },
+          "has_birdwatch_notes": false,
+          "is_translatable": false,
+          "legacy": {
+            "bookmark_count": 1841,
+            "bookmarked": false,
+            "conversation_id_str": "2095608838837731528",
+            "created_at": "Thu Sep 03 20:24:16 +0000 2026",
+            "display_text_range": [
+              0,
+              80
+            ],
+            "entities": {},
+            "favorite_count": 23415,
+            "favorited": false,
+            "full_text": "I’m so glad this is being done!\n\nAn important next step is making it autonomous.",
+            "id_str": "2095608838837731528",
+            "is_quote_status": true,
+            "lang": "en",
+            "quote_count": 151,
+            "quoted_status_id_str": "2094550852178419860",
+            "quoted_status_permalink": {
+              "display": "x.com/twistartups/st…",
+              "expanded": "https://twitter.com/twistartups/status/2094550852178419860",
+              "url": "https://t.co/w034SXv7cQ"
+            },
+            "reply_count": 1347,
+            "retweet_count": 2385,
+            "retweeted": false,
+            "user_id_str": "44196397"
+          },
+          "quoted_status_result": {
+            "result": {
+              "__typename": "Tweet",
+              "core": {
+                "user_results": {
+                  "result": {
+                    "__typename": "User",
+                    "affiliates_highlighted_label": {},
+                    "avatar": {
+                      "image_url": "https://pbs.twimg.com/profile_images/1735150059895902208/kKVmal3L_normal.jpg"
+                    },
+                    "core": {
+                      "created_at": "Wed Feb 10 00:44:23 +0000 2010",
+                      "name": "This Week in Startups",
+                      "screen_name": "twistartups"
+                    },
+                    "dm_permissions": {
+                      "can_dm": true
+                    },
+                    "follow_request_sent": false,
+                    "has_graduated_access": true,
+                    "id": "VXNlcjoxMTI4ODAzOTY=",
+                    "is_blue_verified": false,
+                    "legacy": {
+                      "default_profile": false,
+                      "default_profile_image": false,
+                      "description": "Your thrice weekly deep dive into startups, markets, & tech | Hosted by @jason and @lons\n\nWe're hiring! Apply: editor@launch.co or producer@launch.co!",
+                      "entities": {
+                        "description": {},
+                        "url": {
+                          "urls": [
+                            {
+                              "display_url": "thisweekinstartups.com",
+                              "expanded_url": "https://thisweekinstartups.com",
+                              "indices": [
+                                0,
+                                23
+                              ],
+                              "url": "https://t.co/eb00G3aBaP"
+                            }
+                          ]
+                        }
+                      },
+                      "fast_followers_count": 0,
+                      "favourites_count": 16928,
+                      "follow_request_sent": false,
+                      "followers_count": 105065,
+                      "friends_count": 637,
+                      "has_custom_timelines": true,
+                      "is_translator": false,
+                      "listed_count": 1867,
+                      "media_count": 10906,
+                      "needs_phone_verification": false,
+                      "normal_followers_count": 105065,
+                      "notifications": false,
+                      "pinned_tweet_ids_str": [
+                        "2094550852178419860"
+                      ],
+                      "possibly_sensitive": false,
+                      "profile_banner_url": "https://pbs.twimg.com/profile_banners/112880396/1778597955",
+                      "profile_interstitial_type": "",
+                      "statuses_count": 31854,
+                      "time_zone": "",
+                      "translator_type": "none",
+                      "url": "https://t.co/eb00G3aBaP",
+                      "utc_offset": 0,
+                      "want_retweets": false,
+                      "withheld_description": "",
+                      "withheld_scope": ""
+                    },
+                    "location": {
+                      "location": "Austin, TX"
+                    },
+                    "media_permissions": {
+                      "can_media_tag": false
+                    },
+                    "parody_commentary_fan_label": "None",
+                    "privacy": {
+                      "protected": false
+                    },
+                    "professional": {
+                      "category": [
+                        {
+                          "icon_name": "",
+                          "id": 979,
+                          "name": "Podcast"
+                        }
+                      ],
+                      "professional_type": "Business",
+                      "rest_id": "1471605613109161986"
+                    },
+                    "profile_bio": {
+                      "description": "Your thrice weekly deep dive into startups, markets, & tech | Hosted by @jason and @lons\n\nWe're hiring! Apply: editor@launch.co or producer@launch.co!"
+                    },
+                    "profile_description_language": "en",
+                    "profile_image_shape": "Square",
+                    "relationship_perspectives": {
+                      "blocked_by": false,
+                      "blocking": false,
+                      "followed_by": false,
+                      "following": false,
+                      "muting": false
+                    },
+                    "rest_id": "112880396",
+                    "super_follow_eligible": false,
+                    "super_followed_by": false,
+                    "super_following": false,
+                    "verification": {
+                      "verified": false,
+                      "verified_type": "Business"
+                    }
+                  }
+                }
+              },
+              "edit_control": {
+                "edit_tweet_ids": [
+                  "2094550852178419860"
+                ],
+                "editable_until_msecs": "1788218412000",
+                "edits_remaining": "5",
+                "is_edit_eligible": false
+              },
+              "grok_analysis_button": true,
+              "has_birdwatch_notes": false,
+              "is_translatable": false,
+              "legacy": {
+                "bookmark_count": 1245,
+                "bookmarked": false,
+                "conversation_id_str": "2094550852178419860",
+                "created_at": "Mon Aug 31 22:20:12 +0000 2026",
+                "display_text_range": [
+                  0,
+                  277
+                ],
+                "entities": {
+                  "media": [
+                    {
+                      "additional_media_info": {
+                        "monetizable": false
+                      },
+                      "display_url": "pic.x.com/9ie8Xux4u4",
+                      "expanded_url": "https://x.com/twistartups/status/2094550852178419860/video/1",
+                      "ext_media_availability": {
+                        "status": "Available"
+                      },
+                      "id_str": "2094549931432292352",
+                      "indices": [
+                        278,
+                        301
+                      ],
+                      "media_key": "13_2094549931432292352",
+                      "media_results": {
+                        "result": {
+                          "media_key": "13_2094549931432292352"
+                        }
+                      },
+                      "media_url_https": "https://pbs.twimg.com/amplify_video_thumb/2094549931432292352/img/bablGecIjcayxGbG.jpg",
+                      "original_info": {
+                        "focus_rects": [],
+                        "height": 1080,
+                        "width": 1920
+                      },
+                      "sizes": {
+                        "large": {
+                          "h": 1080,
+                          "resize": "fit",
+                          "w": 1920
+                        },
+                        "medium": {
+                          "h": 675,
+                          "resize": "fit",
+                          "w": 1200
+                        },
+                        "small": {
+                          "h": 383,
+                          "resize": "fit",
+                          "w": 680
+                        },
+                        "thumb": {
+                          "h": 150,
+                          "resize": "crop",
+                          "w": 150
+                        }
+                      },
+                      "type": "video",
+                      "url": "https://t.co/9ie8Xux4u4",
+                      "video_info": {
+                        "aspect_ratio": [
+                          16,
+                          9
+                        ],
+                        "duration_millis": 364300,
+                        "variants": [
+                          {
+                            "content_type": "application/x-mpegURL",
+                            "url": "https://video.twimg.com/amplify_video/2094549931432292352/pl/z0E7QrWdQyg2M2yX.m3u8?v=7fd"
+                          },
+                          {
+                            "bitrate": 256000,
+                            "content_type": "video/mp4",
+                            "url": "https://video.twimg.com/amplify_video/2094549931432292352/vid/avc1/480x270/khE9tDbqPM9siAOf.mp4"
+                          },
+                          {
+                            "bitrate": 832000,
+                            "content_type": "video/mp4",
+                            "url": "https://video.twimg.com/amplify_video/2094549931432292352/vid/avc1/640x360/nkaUX_ZaK_yd0r-G.mp4"
+                          },
+                          {
+                            "bitrate": 2176000,
+                            "content_type": "video/mp4",
+                            "url": "https://video.twimg.com/amplify_video/2094549931432292352/vid/avc1/1280x720/nplox-pLuOOQaojW.mp4"
+                          },
+                          {
+                            "bitrate": 10368000,
+                            "content_type": "video/mp4",
+                            "url": "https://video.twimg.com/amplify_video/2094549931432292352/vid/avc1/1920x1080/eIxUzn9zXC5N-viQ.mp4"
+                          }
+                        ]
+                      }
+                    }
+                  ],
+                  "user_mentions": [
+                    {
+                      "id_str": "3840",
+                      "indices": [
+                        86,
+                        92
+                      ],
+                      "name": "@jason",
+                      "screen_name": "Jason"
+                    }
+                  ]
+                },
+                "extended_entities": {
+                  "media": [
+                    {
+                      "additional_media_info": {
+                        "monetizable": false
+                      },
+                      "display_url": "pic.x.com/9ie8Xux4u4",
+                      "expanded_url": "https://x.com/twistartups/status/2094550852178419860/video/1",
+                      "ext_media_availability": {
+                        "status": "Available"
+                      },
+                      "id_str": "2094549931432292352",
+                      "indices": [
+                        278,
+                        301
+                      ],
+                      "media_key": "13_2094549931432292352",
+                      "media_results": {
+                        "result": {
+                          "media_key": "13_2094549931432292352"
+                        }
+                      },
+                      "media_url_https": "https://pbs.twimg.com/amplify_video_thumb/2094549931432292352/img/bablGecIjcayxGbG.jpg",
+                      "original_info": {
+                        "focus_rects": [],
+                        "height": 1080,
+                        "width": 1920
+                      },
+                      "sizes": {
+                        "large": {
+                          "h": 1080,
+                          "resize": "fit",
+                          "w": 1920
+                        },
+                        "medium": {
+                          "h": 675,
+                          "resize": "fit",
+                          "w": 1200
+                        },
+                        "small": {
+                          "h": 383,
+                          "resize": "fit",
+                          "w": 680
+                        },
+                        "thumb": {
+                          "h": 150,
+                          "resize": "crop",
+                          "w": 150
+                        }
+                      },
+                      "type": "video",
+                      "url": "https://t.co/9ie8Xux4u4",
+                      "video_info": {
+                        "aspect_ratio": [
+                          16,
+                          9
+                        ],
+                        "duration_millis": 364300,
+                        "variants": [
+                          {
+                            "content_type": "application/x-mpegURL",
+                            "url": "https://video.twimg.com/amplify_video/2094549931432292352/pl/z0E7QrWdQyg2M2yX.m3u8?v=7fd"
+                          },
+                          {
+                            "bitrate": 256000,
+                            "content_type": "video/mp4",
+                            "url": "https://video.twimg.com/amplify_video/2094549931432292352/vid/avc1/480x270/khE9tDbqPM9siAOf.mp4"
+                          },
+                          {
+                            "bitrate": 832000,
+                            "content_type": "video/mp4",
+                            "url": "https://video.twimg.com/amplify_video/2094549931432292352/vid/avc1/640x360/nkaUX_ZaK_yd0r-G.mp4"
+                          },
+                          {
+                            "bitrate": 2176000,
+                            "content_type": "video/mp4",
+                            "url": "https://video.twimg.com/amplify_video/2094549931432292352/vid/avc1/1280x720/nplox-pLuOOQaojW.mp4"
+                          },
+                          {
+                            "bitrate": 10368000,
+                            "content_type": "video/mp4",
+                            "url": "https://video.twimg.com/amplify_video/2094549931432292352/vid/avc1/1920x1080/eIxUzn9zXC5N-viQ.mp4"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "favorite_count": 5112,
+                "favorited": false,
+                "full_text": "This is the electric plane Elon dreamed of!\n\nAnders Forslund of Heart Aerospace joins @Jason to show off their electric plane, which used up just $5 worth of power for a full 20-minute trip.\n\nCould this change short-haul flights? What locations would these flights best be used https://t.co/9ie8Xux4u4",
+                "id_str": "2094550852178419860",
+                "is_quote_status": false,
+                "lang": "en",
+                "possibly_sensitive": false,
+                "possibly_sensitive_editable": true,
+                "quote_count": 100,
+                "reply_count": 209,
+                "retweet_count": 531,
+                "retweeted": false,
+                "user_id_str": "112880396"
+              },
+              "note_tweet": {
+                "is_expandable": true,
+                "note_tweet_results": {
+                  "result": {
+                    "entity_set": {
+                      "hashtags": [],
+                      "smarttags": [],
+                      "symbols": [],
+                      "timestamps": [],
+                      "urls": [],
+                      "user_mentions": [
+                        {
+                          "id_str": "3840",
+                          "indices": [
+                            86,
+                            92
+                          ],
+                          "name": "@jason",
+                          "screen_name": "Jason"
+                        }
+                      ]
+                    },
+                    "id": "Tm90ZVR3ZWV0OjIwOTQ1NTA4NTIwOTg3OTc1Njg=",
+                    "richtext": {
+                      "richtext_tags": []
+                    },
+                    "text": "This is the electric plane Elon dreamed of!\n\nAnders Forslund of Heart Aerospace joins @Jason to show off their electric plane, which used up just $5 worth of power for a full 20-minute trip.\n\nCould this change short-haul flights? What locations would these flights best be used at?"
+                  }
+                }
+              },
+              "rest_id": "2094550852178419860",
+              "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+              "unmention_data": {},
+              "views": {
+                "count": "3107098",
+                "state": "EnabledWithCount"
+              }
+            }
+          },
+          "rest_id": "2095608838837731528",
+          "source": "<a href=\"http://twitter.com/download/iphone\" rel=\"nofollow\">Twitter for iPhone</a>",
+          "unmention_data": {},
+          "views": {
+            "count": "3453729",
+            "state": "EnabledWithCount"
+          }
+        }
+      }
+    }
+  }
+}

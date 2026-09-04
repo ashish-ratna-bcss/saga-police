@@ -1,0 +1,63 @@
+{
+  "endpoint": "CHANNELS_LIST",
+  "params": {
+    "part": "snippet,statistics,contentDetails",
+    "forHandle": "@nike"
+  },
+  "status": "PASS",
+  "checkedAt": "2026-09-04T10:43:30.316Z",
+  "response": {
+    "kind": "youtube#channelListResponse",
+    "etag": "F2YE6VJvWn7unXa-qQAlPeoyn_g",
+    "pageInfo": {
+      "totalResults": 1,
+      "resultsPerPage": 5
+    },
+    "items": [
+      {
+        "kind": "youtube#channel",
+        "etag": "FWHx8CUJiW-nidswULzhOOB9354",
+        "id": "UCUFgkRb0ZHc4Rpq15VRCICA",
+        "snippet": {
+          "title": "Nike",
+          "description": "Just Do It.\n",
+          "customUrl": "@nike",
+          "publishedAt": "2006-03-08T03:18:02Z",
+          "thumbnails": {
+            "default": {
+              "url": "https://yt3.ggpht.com/dH3iizKWU0_ARwvja6SLytlC-pjB3sJyPjNTeVTV5DUoY6VNorOJDPaykjs_VR450hKgkJ1AsQ=s88-c-k-c0x00ffffff-no-rj",
+              "width": 88,
+              "height": 88
+            },
+            "medium": {
+              "url": "https://yt3.ggpht.com/dH3iizKWU0_ARwvja6SLytlC-pjB3sJyPjNTeVTV5DUoY6VNorOJDPaykjs_VR450hKgkJ1AsQ=s240-c-k-c0x00ffffff-no-rj",
+              "width": 240,
+              "height": 240
+            },
+            "high": {
+              "url": "https://yt3.ggpht.com/dH3iizKWU0_ARwvja6SLytlC-pjB3sJyPjNTeVTV5DUoY6VNorOJDPaykjs_VR450hKgkJ1AsQ=s800-c-k-c0x00ffffff-no-rj",
+              "width": 800,
+              "height": 800
+            }
+          },
+          "localized": {
+            "title": "Nike",
+            "description": "Just Do It.\n"
+          }
+        },
+        "contentDetails": {
+          "relatedPlaylists": {
+            "likes": "",
+            "uploads": "UUUFgkRb0ZHc4Rpq15VRCICA"
+          }
+        },
+        "statistics": {
+          "viewCount": "402861435",
+          "subscriberCount": "2280000",
+          "hiddenSubscriberCount": false,
+          "videoCount": "659"
+        }
+      }
+    ]
+  }
+}

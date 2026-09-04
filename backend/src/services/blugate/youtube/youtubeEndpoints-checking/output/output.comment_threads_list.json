@@ -1,0 +1,88 @@
+{
+  "endpoint": "COMMENT_THREADS_LIST",
+  "params": {
+    "part": "snippet",
+    "videoId": "Vf5vABEdVQ8",
+    "maxResults": 3
+  },
+  "status": "PASS",
+  "checkedAt": "2026-09-04T10:43:36.370Z",
+  "response": {
+    "kind": "youtube#commentThreadListResponse",
+    "etag": "jze8RFkkGwe-KlYRYtklPXAiWQc",
+    "pageInfo": {
+      "totalResults": 2,
+      "resultsPerPage": 3
+    },
+    "items": [
+      {
+        "kind": "youtube#commentThread",
+        "etag": "UbghyoSpsg5kMnCh4b43hWU1sO0",
+        "id": "UgwfCRBQthZtQkmE1g14AaABAg",
+        "snippet": {
+          "channelId": "UCUFgkRb0ZHc4Rpq15VRCICA",
+          "videoId": "Vf5vABEdVQ8",
+          "topLevelComment": {
+            "kind": "youtube#comment",
+            "etag": "d5p_A4UH3IBOWwB_EjmLywCr80g",
+            "id": "UgwfCRBQthZtQkmE1g14AaABAg",
+            "snippet": {
+              "channelId": "UCUFgkRb0ZHc4Rpq15VRCICA",
+              "videoId": "Vf5vABEdVQ8",
+              "textDisplay": "Supporting small brands!!",
+              "textOriginal": "Supporting small brands!!",
+              "authorDisplayName": "@ILoveDogs110",
+              "authorProfileImageUrl": "https://yt3.ggpht.com/W0QMYmZH9lABnJRJ2jjhYtHa0tDQYm4vqdfsc7_1x7ViAieJPyxOb13-6g3cmW1BrIdr2TRZ=s48-c-k-c0x00ffffff-no-rj",
+              "authorChannelUrl": "http://www.youtube.com/@ILoveDogs110",
+              "authorChannelId": {
+                "value": "UC---xU59-mHmrmdDT0SNa-Q"
+              },
+              "canRate": true,
+              "viewerRating": "none",
+              "likeCount": 0,
+              "publishedAt": "2026-09-04T01:53:53Z",
+              "updatedAt": "2026-09-04T01:53:58Z"
+            }
+          },
+          "canReply": true,
+          "totalReplyCount": 0,
+          "isPublic": true
+        }
+      },
+      {
+        "kind": "youtube#commentThread",
+        "etag": "mphoEnkmb2Lh-2qNueSIPIZGkpU",
+        "id": "UgzSnmesJSQkr_dLqKZ4AaABAg",
+        "snippet": {
+          "channelId": "UCUFgkRb0ZHc4Rpq15VRCICA",
+          "videoId": "Vf5vABEdVQ8",
+          "topLevelComment": {
+            "kind": "youtube#comment",
+            "etag": "vJJcQqikI9vmw9wgFKyV6PbqIUM",
+            "id": "UgzSnmesJSQkr_dLqKZ4AaABAg",
+            "snippet": {
+              "channelId": "UCUFgkRb0ZHc4Rpq15VRCICA",
+              "videoId": "Vf5vABEdVQ8",
+              "textDisplay": "Just wanted to leave a comment supporting a small brand!",
+              "textOriginal": "Just wanted to leave a comment supporting a small brand!",
+              "authorDisplayName": "@dessclips",
+              "authorProfileImageUrl": "https://yt3.ggpht.com/BlNhH5sKEAgLaFVCTJXaNpQnjHLMYAJU9dHDdHN6As7721p7NyEJZNIvFixiFM8mD7eXJqtkMw=s48-c-k-c0x00ffffff-no-rj",
+              "authorChannelUrl": "http://www.youtube.com/@dessclips",
+              "authorChannelId": {
+                "value": "UCIc5tXBLTeDygvh3iNu1gtg"
+              },
+              "canRate": true,
+              "viewerRating": "none",
+              "likeCount": 1,
+              "publishedAt": "2026-09-03T20:04:14Z",
+              "updatedAt": "2026-09-03T20:04:14Z"
+            }
+          },
+          "canReply": true,
+          "totalReplyCount": 0,
+          "isPublic": true
+        }
+      }
+    ]
+  }
+}

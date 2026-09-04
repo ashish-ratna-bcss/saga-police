@@ -1,0 +1,102 @@
+{
+  "endpoint": "PROFILE_DETAILS",
+  "params": {
+    "profile_id": "4"
+  },
+  "status": "PASS",
+  "checkedAt": "2026-09-04T09:12:39.546Z",
+  "response": {
+    "profile": {
+      "name": "Mark Zuckerberg",
+      "profile_id": "4",
+      "url": "https://www.facebook.com/zuck",
+      "image": "https://scontent-mia3-2.xx.fbcdn.net/v/t39.30808-1/632598281_10117314650513371_3238643608998008744_n.jpg?stp=dst-jpg_tt6&cstp=mx711x711&ctp=s480x480&_nc_cat=105&ccb=1-7&_nc_sid=1d2534&_nc_ohc=L6tczS5oklMQ7kNvwF2kELj&_nc_oc=Adro5bb-YM219gSbbZK_t6LDYZlIkypPKFD9X-fwwz2YJOCJKTuCtcW2SN1qa5WX0vY&_nc_zt=24&_nc_ht=scontent-mia3-2.xx&_nc_gid=BQVoMjAAF7XQ4gwzS9d8zg&_nc_ss=7d289&oh=00_AQIsHR7dEw7MrtnRioAp4Z8fbIh3euQqrsShs5NaFPnQhA&oe=6AA06D0B",
+      "intro": "Bringing the world closer together.",
+      "cover_image": "https://scontent-mia3-1.xx.fbcdn.net/v/t39.30808-6/632550896_10117314656231911_7975049830116595629_n.png?stp=dst-png&cstp=mx820x360&ctp=s820x360&_nc_cat=110&ccb=1-7&_nc_sid=cc71e4&_nc_ohc=H0cJ7cDsb1UQ7kNvwEBHWCV&_nc_oc=AdqbW_J5r9IXX3zRgdIWn6ESnOUpzMHI4oP18y9dhKFSOFyVsE5yjba9HwIsDrU-JHw&_nc_zt=23&_nc_ht=scontent-mia3-1.xx&_nc_gid=BQVoMjAAF7XQ4gwzS9d8zg&_nc_ss=7d289&oh=00_AQIG-FqoRb5wN-TxOxMmCNe2o_u7WAD4mF36QohkHIvmpg&oe=6AA05F22",
+      "gender": "MALE",
+      "about": {},
+      "about_public": [
+        {
+          "icon": {
+            "height": 40,
+            "scale": 2,
+            "uri": "https://static.xx.fbcdn.net/rsrc.php/yz/r/77rw1oPmYdg.webp",
+            "width": 40
+          },
+          "text": "Profile · Public figure",
+          "external_url": null
+        },
+        {
+          "icon": {
+            "height": 40,
+            "scale": 2,
+            "uri": "https://static.xx.fbcdn.net/rsrc.php/yw/r/i7oaHSqVo-X.webp",
+            "width": 40
+          },
+          "text": "Founder and CEO at Meta",
+          "external_url": null
+        },
+        {
+          "icon": {
+            "height": 40,
+            "scale": 2,
+            "uri": "https://static.xx.fbcdn.net/rsrc.php/yw/r/i7oaHSqVo-X.webp",
+            "width": 40
+          },
+          "text": "Works at Biohub",
+          "external_url": null
+        },
+        {
+          "icon": {
+            "height": 40,
+            "scale": 2,
+            "uri": "https://static.xx.fbcdn.net/rsrc.php/yS/r/cwcOHASuUcI.webp",
+            "width": 40
+          },
+          "text": "Studied Computer Science and Psychology at Harvard University",
+          "external_url": null
+        },
+        {
+          "icon": {
+            "height": 40,
+            "scale": 2,
+            "uri": "https://static.xx.fbcdn.net/rsrc.php/yS/r/KR82zI-UFGi.webp",
+            "width": 40
+          },
+          "text": "Lives in Palo Alto, California",
+          "external_url": null
+        },
+        {
+          "icon": {
+            "height": 40,
+            "scale": 2,
+            "uri": "https://static.xx.fbcdn.net/rsrc.php/yR/r/ipv8wYzfsyI.webp",
+            "width": 40
+          },
+          "text": "From Dobbs Ferry, New York",
+          "external_url": null
+        },
+        {
+          "icon": {
+            "height": 40,
+            "scale": 2,
+            "uri": "https://static.xx.fbcdn.net/rsrc.php/yi/r/Gpnlb20BwGE.webp",
+            "width": 40
+          },
+          "text": "Married to Priscilla Chan",
+          "external_url": null
+        }
+      ],
+      "verified": true,
+      "delegate_page_id": null,
+      "reels_profile_id": "YXBwX2NvbGxlY3Rpb246cGZiaWQwUHZtaFNSN3VVTUdGQXZyTm1nS1RXM2RTUkJOYktIYVZOV3BzeWdhM3lrcGE5SFFIaGhTTmg0dDZ0VUFGTEhzS2dhZmRFOEhNRUtOc3U0WmRna2w=",
+      "influencer_category": "Profile · Public figure",
+      "education": "Studied Computer Science and Psychology at Harvard University",
+      "current_city": "Lives in Palo Alto, California",
+      "hometown": "From Dobbs Ferry, New York",
+      "relationship": "Married to Priscilla Chan",
+      "member_since": null,
+      "reels_page_id": "YXBwX2NvbGxlY3Rpb246cGZiaWQwUHZtaFNSN3VVTUdGQXZyTm1nS1RXM2RTUkJOYktIYVZOV3BzeWdhM3lrcGE5SFFIaGhTTmg0dDZ0VUFGTEhzS2dhZmRFOEhNRUtOc3U0WmRna2w="
+    }
+  }
+}

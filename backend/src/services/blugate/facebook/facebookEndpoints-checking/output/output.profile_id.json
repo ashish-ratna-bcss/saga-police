@@ -1,0 +1,11 @@
+{
+  "endpoint": "PROFILE_ID",
+  "params": {
+    "url": "https://www.facebook.com/zuck"
+  },
+  "status": "PASS",
+  "checkedAt": "2026-09-04T09:12:35.779Z",
+  "response": {
+    "profile_id": "4"
+  }
+}

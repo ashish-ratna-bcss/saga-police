@@ -1,0 +1,40 @@
+{
+  "endpoint": "PAGE_DETAILS",
+  "params": {
+    "url": "https://www.facebook.com/nike"
+  },
+  "status": "PASS",
+  "checkedAt": "2026-09-04T09:13:11.589Z",
+  "response": {
+    "results": {
+      "name": "Nike",
+      "type": "page",
+      "page_id": "100044541544829",
+      "url": "https://www.facebook.com/nike",
+      "image": "https://scontent-gru1-2.xx.fbcdn.net/v/t39.30808-1/284964043_10159903868513445_7696353984967674128_n.jpg?stp=dst-jpg_tt6&cstp=mx400x400&ctp=s400x400&_nc_cat=1&ccb=1-7&_nc_sid=2d3e12&_nc_ohc=UuXVgO1jGOsQ7kNvwFDsVhd&_nc_oc=AdqwoNmuT9URWWfb8TRF7VS3vR9Urgj6DZgDpoxhIsAdqTf622oLLO7ycWylsB-y_E8&_nc_zt=24&_nc_ht=scontent-gru1-2.xx&_nc_gid=7h9mhk1cxxEv95RC49-23w&_nc_ss=7d289&oh=00_AQJCEMzcctmGYQcPddJX7_XOZITbvpAPEnCKzGzfdz4e0A&oe=6AA047B0",
+      "intro": null,
+      "likes": null,
+      "followers": 39000000,
+      "following": 24,
+      "categories": [
+        "Page",
+        "Sportswear shop"
+      ],
+      "phone": "+48 58 881 27 61",
+      "email": null,
+      "address": null,
+      "rating": null,
+      "services": null,
+      "price_range": null,
+      "website": "nike.com",
+      "delegate_page": {
+        "id": "15087023444",
+        "pamv_comms_data": null
+      },
+      "cover_image": "https://scontent-gru2-2.xx.fbcdn.net/v/t39.30808-6/285211224_10159903868008445_5477337468887983165_n.png?stp=dst-png&cstp=mx851x315&ctp=s851x315&_nc_cat=102&ccb=1-7&_nc_sid=cc71e4&_nc_ohc=-La7rmdrZdQQ7kNvwEDHUKr&_nc_oc=Adoy1Bbt_izNGz-HlC_bgAd9fRiZ3_6pmZ0BTXjMGSZrO2HFJO_jPqswjqy73J3ZUX0&_nc_zt=23&_nc_ht=scontent-gru2-2.xx&_nc_gid=7h9mhk1cxxEv95RC49-23w&_nc_ss=7d289&oh=00_AQLo5TnCYLi4As605KH1zENa6FEh23l00BhkxsBT7zYqEA&oe=6AA061A2",
+      "verified": true,
+      "other_accounts": [],
+      "reels_page_id": "YXBwX2NvbGxlY3Rpb246cGZiaWQwMjU1Z1VXVDVGWUFueW1ETU5TQTkzUmpybm9peHZTNmdiZ2pqVlNYZnNTZXRSWnNtdThkYnBFSkxla1F4UGZwTkZnTFJuQ21ranZOdkJtSENrdURNYkQzYm15QVZXOERMcVVWTkhMbA=="
+    }
+  }
+}

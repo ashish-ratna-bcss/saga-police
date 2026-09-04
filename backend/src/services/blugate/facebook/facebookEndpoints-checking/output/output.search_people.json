@@ -1,0 +1,104 @@
+{
+  "endpoint": "SEARCH_PEOPLE",
+  "params": {
+    "query": "mark zuckerberg"
+  },
+  "status": "PASS",
+  "checkedAt": "2026-09-04T09:12:59.159Z",
+  "response": {
+    "results": [
+      {
+        "type": "search_profile",
+        "profile_id": "pfbid02ZAozxqX9YzwoV9mdJUZsY9DDtYHziMA6hBxfgsAHP3gHnRqY5tTW1fbLjvwLggzkl",
+        "url": "https://www.facebook.com/mark.raptors.2025",
+        "name": "Mark Raptors",
+        "is_verified": false,
+        "profile_picture": {
+          "uri": "https://scontent-mia5-2.xx.fbcdn.net/v/t39.30808-1/788033384_122210510678769618_7018890246497611805_n.jpg?stp=dst-jpg_s120x120_tt6&_nc_cat=100&ccb=1-7&_nc_sid=e99d92&_nc_ohc=JiGfXE17FuMQ7kNvwHlwZd0&_nc_oc=AdrMN2ckqZ79Tii3Uz2KrZN9dxUiOKyoEaoNZGjHG8IZ1uH_mthYnDv6qTkYH0P5vWc&_nc_zt=24&_nc_ht=scontent-mia5-2.xx&_nc_gid=CztpV_4EwQ0TGRuRo78kjQ&_nc_ss=73289&oh=00_AQLJw7R2A2PErix_7ky7jU9p9Jh4H-90gBcTJ0GD5sNFjg&oe=6AA04667",
+          "width": 120,
+          "height": 120,
+          "scale": 2
+        }
+      },
+      {
+        "type": "search_profile",
+        "profile_id": "pfbid02WQVPa5vtsD8ePUiC64FcGse317sU6ys9iaXueWV9HRXoQ6kVDmwF4kaU8KfLHvwzl",
+        "url": "https://www.facebook.com/people/MasterChef-Junior-Mbazima/pfbid02WQVPa5vtsD8ePUiC64FcGse317sU6ys9iaXueWV9HRXoQ6kVDmwF4kaU8KfLHvwzl/",
+        "name": "MasterChef Junior Mbazima",
+        "is_verified": false,
+        "profile_picture": {
+          "uri": "https://scontent-mia3-3.xx.fbcdn.net/v/t39.30808-1/728213223_122184738254894562_6725414194105840318_n.jpg?stp=c0.0.750.750a_dst-jpg_s120x120_tt6&_nc_cat=108&ccb=1-7&_nc_sid=e99d92&_nc_ohc=5TtdqYnefhgQ7kNvwH3mPnb&_nc_oc=AdoHUuWRTurw6Lr7ZsjFWFyWqs8lpWE6y394RGxdVI0q7yjXGqqkyOTAXbG-vJH4xic&_nc_zt=24&_nc_ht=scontent-mia3-3.xx&_nc_gid=CztpV_4EwQ0TGRuRo78kjQ&_nc_ss=73289&oh=00_AQLVZWDav6pVw1eO4wdjk0TTP1T5In_oF8HRSxV5mcbYeA&oe=6AA07396",
+          "width": 120,
+          "height": 120,
+          "scale": 2
+        }
+      },
+      {
+        "type": "search_profile",
+        "profile_id": "pfbid03mpiemrjSXChjyjKeDEM3ULKjFWLfrRE3akk4EcHNgAR6YUF8SfHCigpSWiZfvHzl",
+        "url": "https://www.facebook.com/swapan.sarkar.9674",
+        "name": "Rafat Hasan",
+        "is_verified": false,
+        "profile_picture": {
+          "uri": "https://scontent-mia5-1.xx.fbcdn.net/v/t39.30808-1/492035557_2436257976734412_1673261820678593049_n.jpg?stp=dst-jpg_p120x120_tt6&_nc_cat=101&ccb=1-7&_nc_sid=e99d92&_nc_ohc=bS3jYwKpIjoQ7kNvwEMJ5Kq&_nc_oc=Adqh372tSRBB4MiIigWYpZuCzNVqEcxg4Tk3uubIUSCnNXzArMYbQgAdMBT2K7qdpb4&_nc_zt=24&_nc_ht=scontent-mia5-1.xx&_nc_gid=CztpV_4EwQ0TGRuRo78kjQ&_nc_ss=73289&oh=00_AQJ-IpX1OGb2v6aOGoqdXk4cPVtQfzDU2PX6O9f4uLfkeQ&oe=6AA0564E",
+          "width": 122,
+          "height": 120,
+          "scale": 2
+        }
+      },
+      {
+        "type": "search_profile",
+        "profile_id": "pfbid02fiyH567XNHWMfwwAjubbiaHtTVm82HyHuniYQ6JD6yp4RbmptDgBDDGqFnWnoYqkl",
+        "url": "https://www.facebook.com/people/Jak-Zyz/pfbid02fiyH567XNHWMfwwAjubbiaHtTVm82HyHuniYQ6JD6yp4RbmptDgBDDGqFnWnoYqkl/",
+        "name": "Jak Zyz",
+        "is_verified": false,
+        "profile_picture": {
+          "uri": "https://scontent-mia3-2.xx.fbcdn.net/v/t39.30808-1/734298760_1026530723640000_6975655700419013282_n.jpg?stp=dst-jpg_s120x120_tt6&_nc_cat=105&ccb=1-7&_nc_sid=e99d92&_nc_ohc=iI_XdHYzQvUQ7kNvwFBtj-g&_nc_oc=AdqpjYIxU_AvGGbpUPseMG5avSE1K0RlBGm3NOChFH5MOIIreJHzanefhQZ7kuFWAu8&_nc_zt=24&_nc_ht=scontent-mia3-2.xx&_nc_gid=CztpV_4EwQ0TGRuRo78kjQ&_nc_ss=73289&oh=00_AQLTVixfv4AB0atUSh2IutH-TJCVk5YU23Ks9GyVjoRxVw&oe=6AA07048",
+          "width": 120,
+          "height": 120,
+          "scale": 2
+        }
+      },
+      {
+        "type": "search_profile",
+        "profile_id": "pfbid0175Ceq3BnDQ2dJeeBwJfTqmKvwjxzKbEM7QzpQejDYhXgjsQzQPLeryyKMDU2Xnul",
+        "url": "https://www.facebook.com/himalayan.roy.79",
+        "name": "Hidoy Roy",
+        "is_verified": false,
+        "profile_picture": {
+          "uri": "https://scontent-mia3-1.xx.fbcdn.net/v/t39.30808-1/487546464_1409483103822387_7341483658457792761_n.jpg?stp=dst-jpg_s120x120_tt6&_nc_cat=111&ccb=1-7&_nc_sid=e99d92&_nc_ohc=3NQFcx9IiWIQ7kNvwEGFyiu&_nc_oc=AdpOgIcJMgqz1AaqgeXqIQvoNOnWqwSf1xQzoPH4boj4tCxI1hiuYODC9temqPIlI4k&_nc_zt=24&_nc_ht=scontent-mia3-1.xx&_nc_gid=CztpV_4EwQ0TGRuRo78kjQ&_nc_ss=73289&oh=00_AQLX9ifQqVTT_8qA1OUbjBfnLknXJwzBTJ6xVgDbmbiYrw&oe=6AA06698",
+          "width": 120,
+          "height": 120,
+          "scale": 2
+        }
+      },
+      {
+        "type": "search_profile",
+        "profile_id": "pfbid0rugQQA8yK9PGpjfxqYWaeveXprtZ2s6DB9wgnLFQ1bm5q8ZL735tzD8BnaD1zWiul",
+        "url": "https://www.facebook.com/people/Sanju-Rawat/pfbid0rugQQA8yK9PGpjfxqYWaeveXprtZ2s6DB9wgnLFQ1bm5q8ZL735tzD8BnaD1zWiul/",
+        "name": "Sanju Rawat",
+        "is_verified": false,
+        "profile_picture": {
+          "uri": "https://scontent-mia5-1.xx.fbcdn.net/v/t39.30808-1/784951823_1637728698157748_77893621204041142_n.jpg?stp=dst-jpg_p120x120_tt6&_nc_cat=106&ccb=1-7&_nc_sid=e99d92&_nc_ohc=vdVRHfW5PAgQ7kNvwGYQmwT&_nc_oc=Adq_sty0tuVbcEctpEWAa379dEOz5jpcYvQtzcPcWnRoYnBfYv_58shp0ys_yip_Dto&_nc_zt=24&_nc_ht=scontent-mia5-1.xx&_nc_gid=CztpV_4EwQ0TGRuRo78kjQ&_nc_ss=73289&oh=00_AQJ9maDd1JpFm6ozyuh4bF9H5oG132gL8tpmaXgYrfeJEw&oe=6AA063A2",
+          "width": 120,
+          "height": 121,
+          "scale": 2
+        }
+      },
+      {
+        "type": "search_profile",
+        "profile_id": "pfbid023JxUSvw7U7FRk6WkedDmmCshMPFctRrWnvvKWdbqFU1w4gZFW3K8XtvUaFoZuTBVl",
+        "url": "https://www.facebook.com/people/Mark-Zuckerberg/pfbid023JxUSvw7U7FRk6WkedDmmCshMPFctRrWnvvKWdbqFU1w4gZFW3K8XtvUaFoZuTBVl/",
+        "name": "Mark Zuckerberg",
+        "is_verified": false,
+        "profile_picture": {
+          "uri": "https://scontent-mia3-3.xx.fbcdn.net/v/t39.30808-1/271564972_127940759714356_2643912525878895947_n.jpg?stp=c0.65.720.720a_dst-jpg_s120x120_tt6&_nc_cat=107&ccb=1-7&_nc_sid=e99d92&_nc_ohc=EfPfD4LerUUQ7kNvwGxQIEu&_nc_oc=AdoUm3hI3T5mH7sTLWH5CHXRnT_wa7ATOyfSGcnZJv5hZuOuX0Ot_lUznYyX5whbnZY&_nc_zt=24&_nc_ht=scontent-mia3-3.xx&_nc_gid=CztpV_4EwQ0TGRuRo78kjQ&_nc_ss=73289&oh=00_AQK-SyGA-ntySPq2KQZzzOgbFC9xZjFbQXtH8Bm2FokF0g&oe=6AA0620E",
+          "width": 120,
+          "height": 120,
+          "scale": 2
+        }
+      }
+    ],
+    "cursor": "{\"page_number\": 0, \"flow_cursors_serialized\": {\"INTERNAL_DEBUG_MODULE\": \"{}\", \"SEARCH_CONTROLS_INTERCEPT\": \"{}\", \"INTEGRITY\": \"{\\\"has_more_results\\\":false,\\\"processed_unicorn_ids\\\":[],\\\"is_end_of_serp\\\":false}\", \"SPELLER\": \"{}\", \"SOCIAL_RAG\": \"{}\", \"XE_LINK_GROWTH_UPSELL_PEOPLE_TAB\": \"{}\", \"PEOPLE_TAB_UNICORN_CACHE\": \"{}\", \"PEOPLE_TAB\": \"{\\\"has_more_results\\\": true, \\\"browse_cursor_serialized\\\": \\\"AbqAcXtM9N0mAX1o8uuAnDAmMsRyMsAtHSvx6pRZuCHlNeXtKcP-EhMmxpXiAKS0PvNvOEIUatew3hodfVovpiPe8SNp_JWzTx5U9WsWs-LtiPzpXShiyJPtYElIp2IT2sMGRuk3y-iBlYB5w6s1infLSdy5-en_rENlJCqTsYKOeVthQdNALUgwU5o_duGsiEF8beH9HBePZSBTXKFSaJ55-4qvmvMWt1mDZZDS_8qMSXHgZDYo6buypUmnz6NNNCFDaLw5CUvxDQd6FlLxQO1DujxMon9opeGyoMAUoYQ5ZKMC9vDQrG7qA7v5BCCkSDXmAA9MNGIEup4l7KoWp9lN5GlU53tlg5yy5dAW_d-Jhon8IsvzF0hPkz6sswx15LGOgMZo_QrEjcBIRh0A6iPMy2Aq5bY7oLrDThkih8CFXDo-PMMIpP3V1Z5_tr2IjiPTo-Mf49KsnLGzX8gMs9s5YsQTXKFKq1obyYxp8-ixMKeeWY2VhPyVjNEipHCjQh813i6ociMTXguXkUAy-YcNn-qjoQiOP5QAsuWQ2zjTig\\\", \\\"processed_unicorn_ids\\\": [], \\\"is_end_of_serp\\\": false}\"}, \"result_ids_shown\": [], \"unit_id_logging_fields\": {\"num_total_modules\": 1, \"num_total_results\": 7, \"num_total_vertical_results\": 7}, \"entity_ids_shown_by_type\": {}, \"processed_unicorn_ids\": [], \"completed_flows\": [\"INTERNAL_DEBUG_MODULE\", \"SEARCH_CONTROLS_INTERCEPT\", \"INTEGRITY\", \"SPELLER\", \"SOCIAL_RAG\", \"XE_LINK_GROWTH_UPSELL_PEOPLE_TAB\", \"PEOPLE_TAB_UNICORN_CACHE\"]}"
+  }
+}

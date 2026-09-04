@@ -1,0 +1,85 @@
+{
+  "endpoint": "VIDEOS_LIST",
+  "params": {
+    "part": "snippet,statistics,contentDetails",
+    "id": "Vf5vABEdVQ8"
+  },
+  "status": "PASS",
+  "checkedAt": "2026-09-04T10:43:33.734Z",
+  "response": {
+    "kind": "youtube#videoListResponse",
+    "etag": "KFywTevpp-v-UWg_bSJnaBUxs0o",
+    "items": [
+      {
+        "kind": "youtube#video",
+        "etag": "BZk95pZRKhNkJtC3pD_NBssSer8",
+        "id": "Vf5vABEdVQ8",
+        "snippet": {
+          "publishedAt": "2026-09-03T17:24:37Z",
+          "channelId": "UCUFgkRb0ZHc4Rpq15VRCICA",
+          "title": "CREASED Tour rolled through Asia making stops in Japan, China, and Korea.",
+          "description": "Catch the full video on YouTube now.",
+          "thumbnails": {
+            "default": {
+              "url": "https://i.ytimg.com/vi/Vf5vABEdVQ8/default.jpg",
+              "width": 120,
+              "height": 90
+            },
+            "medium": {
+              "url": "https://i.ytimg.com/vi/Vf5vABEdVQ8/mqdefault.jpg",
+              "width": 320,
+              "height": 180
+            },
+            "high": {
+              "url": "https://i.ytimg.com/vi/Vf5vABEdVQ8/hqdefault.jpg",
+              "width": 480,
+              "height": 360
+            },
+            "standard": {
+              "url": "https://i.ytimg.com/vi/Vf5vABEdVQ8/sddefault.jpg",
+              "width": 640,
+              "height": 480
+            },
+            "maxres": {
+              "url": "https://i.ytimg.com/vi/Vf5vABEdVQ8/maxresdefault.jpg",
+              "width": 1280,
+              "height": 720
+            }
+          },
+          "channelTitle": "Nike",
+          "tags": [
+            "nike commercial",
+            "nike"
+          ],
+          "categoryId": "17",
+          "liveBroadcastContent": "none",
+          "defaultLanguage": "en",
+          "localized": {
+            "title": "CREASED Tour rolled through Asia making stops in Japan, China, and Korea.",
+            "description": "Catch the full video on YouTube now."
+          },
+          "defaultAudioLanguage": "en"
+        },
+        "contentDetails": {
+          "duration": "PT32S",
+          "dimension": "2d",
+          "definition": "hd",
+          "caption": "false",
+          "licensedContent": false,
+          "contentRating": {},
+          "projection": "rectangular"
+        },
+        "statistics": {
+          "viewCount": "1969",
+          "likeCount": "74",
+          "favoriteCount": "0",
+          "commentCount": "2"
+        }
+      }
+    ],
+    "pageInfo": {
+      "totalResults": 1,
+      "resultsPerPage": 1
+    }
+  }
+}

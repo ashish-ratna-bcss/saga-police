@@ -1,0 +1,174 @@
+{
+  "endpoint": "PLAYLIST_ITEMS_LIST",
+  "params": {
+    "part": "snippet,contentDetails",
+    "playlistId": "UUUFgkRb0ZHc4Rpq15VRCICA",
+    "maxResults": 3
+  },
+  "status": "PASS",
+  "checkedAt": "2026-09-04T10:43:35.805Z",
+  "response": {
+    "kind": "youtube#playlistItemListResponse",
+    "etag": "f7W9uy5RzyOtnHk3GAURP8Lbxvc",
+    "nextPageToken": "EAAaHlBUOkNBTWlFRUV3TWtFek1VRkJSakpDTVVReE16Yw",
+    "items": [
+      {
+        "kind": "youtube#playlistItem",
+        "etag": "wdRz-pKF2-ziugnrGctNthffYcY",
+        "id": "VVVVRmdrUmIwWkhjNFJwcTE1VlJDSUNBLlZmNXZBQkVkVlE4",
+        "snippet": {
+          "publishedAt": "2026-09-03T17:24:37Z",
+          "channelId": "UCUFgkRb0ZHc4Rpq15VRCICA",
+          "title": "CREASED Tour rolled through Asia making stops in Japan, China, and Korea.",
+          "description": "Catch the full video on YouTube now.",
+          "thumbnails": {
+            "default": {
+              "url": "https://i.ytimg.com/vi/Vf5vABEdVQ8/default.jpg",
+              "width": 120,
+              "height": 90
+            },
+            "medium": {
+              "url": "https://i.ytimg.com/vi/Vf5vABEdVQ8/mqdefault.jpg",
+              "width": 320,
+              "height": 180
+            },
+            "high": {
+              "url": "https://i.ytimg.com/vi/Vf5vABEdVQ8/hqdefault.jpg",
+              "width": 480,
+              "height": 360
+            },
+            "standard": {
+              "url": "https://i.ytimg.com/vi/Vf5vABEdVQ8/sddefault.jpg",
+              "width": 640,
+              "height": 480
+            },
+            "maxres": {
+              "url": "https://i.ytimg.com/vi/Vf5vABEdVQ8/maxresdefault.jpg",
+              "width": 1280,
+              "height": 720
+            }
+          },
+          "channelTitle": "Nike",
+          "playlistId": "UUUFgkRb0ZHc4Rpq15VRCICA",
+          "position": 0,
+          "resourceId": {
+            "kind": "youtube#video",
+            "videoId": "Vf5vABEdVQ8"
+          },
+          "videoOwnerChannelTitle": "Nike",
+          "videoOwnerChannelId": "UCUFgkRb0ZHc4Rpq15VRCICA"
+        },
+        "contentDetails": {
+          "videoId": "Vf5vABEdVQ8",
+          "videoPublishedAt": "2026-09-03T17:24:37Z"
+        }
+      },
+      {
+        "kind": "youtube#playlistItem",
+        "etag": "1mrrle7F5liCijd0OR2RegYtM7I",
+        "id": "VVVVRmdrUmIwWkhjNFJwcTE1VlJDSUNBLmp4M3lpSDFNMGxj",
+        "snippet": {
+          "publishedAt": "2026-09-02T16:00:06Z",
+          "channelId": "UCUFgkRb0ZHc4Rpq15VRCICA",
+          "title": "Sabrina vs. The Rider | Nike",
+          "description": "No Moment is too small to win.\n\nGrab the Sabrina 4 \"The Switch\" launching 9.5",
+          "thumbnails": {
+            "default": {
+              "url": "https://i.ytimg.com/vi/jx3yiH1M0lc/default.jpg",
+              "width": 120,
+              "height": 90
+            },
+            "medium": {
+              "url": "https://i.ytimg.com/vi/jx3yiH1M0lc/mqdefault.jpg",
+              "width": 320,
+              "height": 180
+            },
+            "high": {
+              "url": "https://i.ytimg.com/vi/jx3yiH1M0lc/hqdefault.jpg",
+              "width": 480,
+              "height": 360
+            },
+            "standard": {
+              "url": "https://i.ytimg.com/vi/jx3yiH1M0lc/sddefault.jpg",
+              "width": 640,
+              "height": 480
+            },
+            "maxres": {
+              "url": "https://i.ytimg.com/vi/jx3yiH1M0lc/maxresdefault.jpg",
+              "width": 1280,
+              "height": 720
+            }
+          },
+          "channelTitle": "Nike",
+          "playlistId": "UUUFgkRb0ZHc4Rpq15VRCICA",
+          "position": 1,
+          "resourceId": {
+            "kind": "youtube#video",
+            "videoId": "jx3yiH1M0lc"
+          },
+          "videoOwnerChannelTitle": "Nike",
+          "videoOwnerChannelId": "UCUFgkRb0ZHc4Rpq15VRCICA"
+        },
+        "contentDetails": {
+          "videoId": "jx3yiH1M0lc",
+          "videoPublishedAt": "2026-09-02T16:00:06Z"
+        }
+      },
+      {
+        "kind": "youtube#playlistItem",
+        "etag": "SWg62-oVkv7yMjt4W0Tqo4BPNe4",
+        "id": "VVVVRmdrUmIwWkhjNFJwcTE1VlJDSUNBLnc3dEx1bnpPNzRR",
+        "snippet": {
+          "publishedAt": "2026-08-27T16:00:36Z",
+          "channelId": "UCUFgkRb0ZHc4Rpq15VRCICA",
+          "title": "Sabrina vs. Sabrina | Nike",
+          "description": "When it's you against you first, everyone else is light work.\n\nNike Sabrina 4, available now.",
+          "thumbnails": {
+            "default": {
+              "url": "https://i.ytimg.com/vi/w7tLunzO74Q/default.jpg",
+              "width": 120,
+              "height": 90
+            },
+            "medium": {
+              "url": "https://i.ytimg.com/vi/w7tLunzO74Q/mqdefault.jpg",
+              "width": 320,
+              "height": 180
+            },
+            "high": {
+              "url": "https://i.ytimg.com/vi/w7tLunzO74Q/hqdefault.jpg",
+              "width": 480,
+              "height": 360
+            },
+            "standard": {
+              "url": "https://i.ytimg.com/vi/w7tLunzO74Q/sddefault.jpg",
+              "width": 640,
+              "height": 480
+            },
+            "maxres": {
+              "url": "https://i.ytimg.com/vi/w7tLunzO74Q/maxresdefault.jpg",
+              "width": 1280,
+              "height": 720
+            }
+          },
+          "channelTitle": "Nike",
+          "playlistId": "UUUFgkRb0ZHc4Rpq15VRCICA",
+          "position": 2,
+          "resourceId": {
+            "kind": "youtube#video",
+            "videoId": "w7tLunzO74Q"
+          },
+          "videoOwnerChannelTitle": "Nike",
+          "videoOwnerChannelId": "UCUFgkRb0ZHc4Rpq15VRCICA"
+        },
+        "contentDetails": {
+          "videoId": "w7tLunzO74Q",
+          "videoPublishedAt": "2026-08-27T16:00:36Z"
+        }
+      }
+    ],
+    "pageInfo": {
+      "totalResults": 659,
+      "resultsPerPage": 3
+    }
+  }
+}

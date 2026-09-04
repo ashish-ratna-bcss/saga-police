@@ -1,0 +1,111 @@
+{
+  "endpoint": "SEARCH_PAGES",
+  "params": {
+    "query": "nike"
+  },
+  "status": "PASS",
+  "checkedAt": "2026-09-04T09:12:51.962Z",
+  "response": {
+    "results": [
+      {
+        "type": "page",
+        "profile_url": "https://www.facebook.com/people/Nike-show/100071219001975/",
+        "url": "https://www.facebook.com/people/Nike-show/100071219001975/",
+        "image": {
+          "uri": "https://scontent-phl2-1.xx.fbcdn.net/v/t1.30497-1/453178253_471506465671661_2781666950760530985_n.png?stp=dst-png_s120x120&_nc_cat=110&ccb=1-7&_nc_sid=3e70f4&_nc_ohc=hfMDTZAvt4kQ7kNvwHZWv5Z&_nc_oc=AdpObMpR9xH7E6QlcVeOjyVGwOyxVq5IvTyJVHcas7xhFaWqxG1O6SpjR5PcBbTA82k&_nc_zt=24&_nc_ht=scontent-phl2-1.xx&_nc_ss=73289&oh=00_AQJh9eXGIHlgOtqATftDXUNNoJKWtEm19Wd0BtxV3Y3j7w&oe=6AC2143A",
+          "width": 120,
+          "height": 120,
+          "scale": 2
+        },
+        "name": "Nike show",
+        "facebook_id": "100071219001975",
+        "is_verified": false
+      },
+      {
+        "type": "page",
+        "profile_url": "https://www.facebook.com/people/nikes-nike/61588522499608/",
+        "url": "https://www.facebook.com/people/nikes-nike/61588522499608/",
+        "image": {
+          "uri": "https://scontent-phl2-1.xx.fbcdn.net/v/t39.30808-1/639233294_122095448427284083_3828237583439911933_n.png?stp=dst-png_s120x120&_nc_cat=107&ccb=1-7&_nc_sid=2d3e12&_nc_ohc=DH7-XQ8Aq2UQ7kNvwFqvqqL&_nc_oc=AdrpJzqu0ScF6tHO6JLGSlERRzxoWvOtiDA4ZO6M7boF9qqvdNlB4maCawBYmpBdfIU&_nc_zt=24&_nc_ht=scontent-phl2-1.xx&_nc_gid=Bdozka8ne_Bmtq5okF1LXw&_nc_ss=73289&oh=00_AQL7sCMx74PKMoJqkEJE3et2CLBm0CgaDJcBsGDpPUF0EQ&oe=6AA04658",
+          "width": 120,
+          "height": 120,
+          "scale": 2
+        },
+        "name": "nikes nike",
+        "facebook_id": "61588522499608",
+        "is_verified": false
+      },
+      {
+        "type": "page",
+        "profile_url": "https://www.facebook.com/people/Nike-ardila/61591596830030/",
+        "url": "https://www.facebook.com/people/Nike-ardila/61591596830030/",
+        "image": {
+          "uri": "https://scontent-phl2-1.xx.fbcdn.net/v/t39.30808-1/731105173_122117097003348126_1030859949746139387_n.jpg?stp=c0.0.736.736a_dst-jpg_s120x120_tt6&_nc_cat=108&ccb=1-7&_nc_sid=2d3e12&_nc_ohc=Xr8VQhaEicMQ7kNvwFV-kwr&_nc_oc=AdpSc3u4vazBDWhBmlt_e1d-nzQzE3xfsftUPj88AU3xT3X-4VCPUVLq-s8e0w-Jg-c&_nc_zt=24&_nc_ht=scontent-phl2-1.xx&_nc_gid=Bdozka8ne_Bmtq5okF1LXw&_nc_ss=73289&oh=00_AQIjmddcebkLfsmEnXUviwP7FV9t8468bj_0iEBgJOsbCQ&oe=6AA050E9",
+          "width": 120,
+          "height": 120,
+          "scale": 2
+        },
+        "name": "Nike ardila",
+        "facebook_id": "61591596830030",
+        "is_verified": false
+      },
+      {
+        "type": "page",
+        "profile_url": "https://www.facebook.com/people/NI-KE/61573662029957/",
+        "url": "https://www.facebook.com/people/NI-KE/61573662029957/",
+        "image": {
+          "uri": "https://scontent-phl2-1.xx.fbcdn.net/v/t39.30808-1/665099982_122096182910788734_4199861973001333773_n.png?stp=dst-png_s120x120&_nc_cat=111&ccb=1-7&_nc_sid=2d3e12&_nc_ohc=UYsOuyovuy8Q7kNvwG2aDnf&_nc_oc=AdoGEylqYHP3twBrTSmDiCy8qUqsHuoEzuCMk8Q7TTR1IfIxB3zxo17fNMATK82OK_M&_nc_zt=24&_nc_ht=scontent-phl2-1.xx&_nc_gid=Bdozka8ne_Bmtq5okF1LXw&_nc_ss=73289&oh=00_AQKM8XrJGmUh2T-OZ3wj4yaYVnKZjjn9ruG565omjgNn4g&oe=6AA0478A",
+          "width": 120,
+          "height": 120,
+          "scale": 2
+        },
+        "name": "NI KE",
+        "facebook_id": "61573662029957",
+        "is_verified": false
+      },
+      {
+        "type": "page",
+        "profile_url": "https://www.facebook.com/people/nike-k/61590168192175/",
+        "url": "https://www.facebook.com/people/nike-k/61590168192175/",
+        "image": {
+          "uri": "https://scontent-phl2-1.xx.fbcdn.net/v/t39.30808-1/708513780_122099620425338939_7585120596702426033_n.png?stp=dst-png_s120x120&_nc_cat=109&ccb=1-7&_nc_sid=2d3e12&_nc_ohc=isdnHtdgCU8Q7kNvwGDygSv&_nc_oc=Adrp5T50JBI1LpYYMvl_edCH4K-MQKml-YNWhAdmpezrqK5rDGk9kfnmG-_FpbgjPF0&_nc_zt=24&_nc_ht=scontent-phl2-1.xx&_nc_gid=Bdozka8ne_Bmtq5okF1LXw&_nc_ss=73289&oh=00_AQKhXFIgiVkfNWrtOb01xvA_TxSAhNpUY-mlPDjTS0koYA&oe=6AA06726",
+          "width": 120,
+          "height": 120,
+          "scale": 2
+        },
+        "name": "nike. k",
+        "facebook_id": "61590168192175",
+        "is_verified": false
+      },
+      {
+        "type": "page",
+        "profile_url": "https://www.facebook.com/people/NIKE-NIKE/61576398325296/",
+        "url": "https://www.facebook.com/people/NIKE-NIKE/61576398325296/",
+        "image": {
+          "uri": "https://scontent-phl2-1.xx.fbcdn.net/v/t39.30808-1/660447365_122094699116879944_7248125716505063108_n.png?stp=dst-png_s120x120&_nc_cat=105&ccb=1-7&_nc_sid=2d3e12&_nc_ohc=SOybwDLp3bUQ7kNvwEfkTfz&_nc_oc=Adrqz6OpcOjzx27DIRvCOVCfBa16EDmJkx-VRsHkgzb5Cq0aKM32yLNRzapb65_Xgeg&_nc_zt=24&_nc_ht=scontent-phl2-1.xx&_nc_gid=Bdozka8ne_Bmtq5okF1LXw&_nc_ss=73289&oh=00_AQIdsY2gDpX_tzhdziMAxJhJwhyKB1xjAJbqMpc_EKvbTg&oe=6AA06DBE",
+          "width": 120,
+          "height": 120,
+          "scale": 2
+        },
+        "name": "NIKE NIKE",
+        "facebook_id": "61576398325296",
+        "is_verified": false
+      },
+      {
+        "type": "page",
+        "profile_url": "https://www.facebook.com/people/N-I-K-E-/100079674505029/",
+        "url": "https://www.facebook.com/people/N-I-K-E-/100079674505029/",
+        "image": {
+          "uri": "https://scontent-phl2-1.xx.fbcdn.net/v/t1.30497-1/453178253_471506465671661_2781666950760530985_n.png?stp=dst-png_s120x120&_nc_cat=110&ccb=1-7&_nc_sid=3e70f4&_nc_ohc=hfMDTZAvt4kQ7kNvwHZWv5Z&_nc_oc=AdpObMpR9xH7E6QlcVeOjyVGwOyxVq5IvTyJVHcas7xhFaWqxG1O6SpjR5PcBbTA82k&_nc_zt=24&_nc_ht=scontent-phl2-1.xx&_nc_ss=73289&oh=00_AQJh9eXGIHlgOtqATftDXUNNoJKWtEm19Wd0BtxV3Y3j7w&oe=6AC2143A",
+          "width": 120,
+          "height": 120,
+          "scale": 2
+        },
+        "name": "N I K E �",
+        "facebook_id": "100079674505029",
+        "is_verified": false
+      }
+    ],
+    "cursor": "{\"page_number\": 0, \"flow_cursors_serialized\": {\"INTERNAL_DEBUG_MODULE\": \"{}\", \"SEARCH_CONTROLS_INTERCEPT\": \"{}\", \"INTEGRITY\": \"{\\\"has_more_results\\\":false,\\\"processed_unicorn_ids\\\":[],\\\"is_end_of_serp\\\":false}\", \"SPELLER\": \"{}\", \"PAGES_TAB\": \"{\\\"has_more_results\\\": true, \\\"browse_cursor_serialized\\\": \\\"Abq0KFDMH2lWB-OpUeM7zlNoRf1C0DasYJjMteEgUqg-jPeIlcAJAsyVysVvrP1gJb9Am-SzRDBGGrNduvtPLTBzzPd3EyZBK9-1R6K77dg6jq-8IvW4bm8VEhXqzocaNjD2W5gJus6ugL3J0hIQ0HV0xfMn8iZiA3MmMiE36ZGq9NwA2C5CJVyp-cap59OOVwzmpHmoYG1lZeQDCv0OapccTVgcq3lFVM6fWpmYod2iRPcgI3O6AigZ7HSn_FgPaEwDmOeLymYpeCn4wZHt7rEpD85hJcMHtuw58T4qu0TiABYvN419athyt613tfEjtT0TeiArBNfYw_sh7FmxozLghXoRQRo5nsTq2UwtQGklSINbZac3JbQIaCuhM0o-LBe0rgD7kC6XdQDm7G-X5Rbr_TUF0GFHpDiZptYIAZjKkmrSCJ1NPzb86a2e7k231RTL4k_lkivd_CyTYa-pbx2Y69wJhtyYoIGGyyflZtXFkbFB31r2eoXQ6t0WiP1mM08QZVCjUHf1bdIcaPI0582_eXky3vZVMAgiQ4HY-vkIVA\\\", \\\"processed_unicorn_ids\\\": [], \\\"is_end_of_serp\\\": false}\"}, \"result_ids_shown\": [], \"unit_id_logging_fields\": {\"num_total_modules\": 1, \"num_total_results\": 7, \"num_total_vertical_results\": 7}, \"entity_ids_shown_by_type\": {}, \"processed_unicorn_ids\": [], \"completed_flows\": [\"INTERNAL_DEBUG_MODULE\", \"SEARCH_CONTROLS_INTERCEPT\", \"INTEGRITY\", \"SPELLER\"]}"
+  }
+}
