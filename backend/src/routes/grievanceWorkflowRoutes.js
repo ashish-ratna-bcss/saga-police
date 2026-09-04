@@ -1,13 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/authMiddleware');
-const {
-  loadUserPermissions,
-  hasPageAccess,
-  hasFeatureAccess,
-  denyPageAccess,
-  denyFeatureAccess
-} = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 const {
   createReport,
   shareReport,
@@ -23,30 +16,10 @@ const {
   addCommunicationLog
 } = require('../controllers/grievanceWorkflowController');
 
-const requireWorkflowPageAccess = (req, res, next) => {
-  if (hasPageAccess(req, '/unified-reports') || hasPageAccess(req, '/grievances')) {
-    return next();
-  }
-  return denyPageAccess(res, ['/grievances', '/unified-reports']);
-};
+router.use(authorize({ pages: ['/grievances', '/unified-reports'] }));
 
-const requireWorkflowReportFeature = (req, res, next) => {
-  if (hasPageAccess(req, '/unified-reports')) {
-    return next();
-  }
-  if (!hasPageAccess(req, '/grievances')) {
-    return denyPageAccess(res, ['/grievances', '/unified-reports']);
-  }
-  if (!hasFeatureAccess(req, '/grievances', 'reports')) {
-    return denyFeatureAccess(res, '/grievances', 'reports');
-  }
-  return next();
-};
-
-/* ── Dashboard stats (lightweight, no feature gate needed) ── */
+/* ── Dashboard stats (lightweight) ── */
 router.get('/dashboard-stats', getDashboardStats);
-
-router.use(protect, loadUserPermissions, requireWorkflowPageAccess, requireWorkflowReportFeature);
 
 /* ── Reports ── */
 router.get('/reports/export', exportReports); // before :id

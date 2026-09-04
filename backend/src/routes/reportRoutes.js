@@ -5,29 +5,9 @@ const reportService = require('../services/reportService');
 const { renderReportPdf } = require('../services/reportPdfService');
 const Alert = require('../models/Alert');
 const cacheService = require('../services/cacheService');
-const { protect } = require('../middleware/authMiddleware');
-const {
-    loadUserPermissions,
-    hasPageAccess,
-    hasFeatureAccess,
-    denyPageAccess,
-    denyFeatureAccess
-} = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
-const requireReportsAccess = (req, res, next) => {
-    if (hasPageAccess(req, '/reports') || hasPageAccess(req, '/unified-reports')) {
-        return next();
-    }
-    if (hasPageAccess(req, '/alerts') && hasFeatureAccess(req, '/alerts', 'reports')) {
-        return next();
-    }
-    if (!hasPageAccess(req, '/reports') && !hasPageAccess(req, '/unified-reports') && hasPageAccess(req, '/alerts')) {
-        return denyFeatureAccess(res, '/alerts', 'reports');
-    }
-    return denyPageAccess(res, ['/reports', '/unified-reports', '/alerts']);
-};
-
-router.use(protect, loadUserPermissions, requireReportsAccess);
+router.use(authorize({ pages: ['/reports', '/unified-reports', '/alerts'] }));
 
 /**
  * Get all generated reports.

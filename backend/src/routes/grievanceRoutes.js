@@ -25,30 +25,12 @@ const {
     revertGrievance,
     enrichGrievanceContext
 } = require('../controllers/grievanceController');
-const { protect } = require('../middleware/authMiddleware');
-const { GRIEVANCE_FEATURE_ALIASES } = require('../config/rbacConfig');
-const { requireAnyPageAccess, requireFeatureAccess } = require('../middleware/rbacMiddleware');
-
-const normalizeGrievanceFeature = (value) => {
-    if (!value || typeof value !== 'string') return null;
-    const normalized = value.toLowerCase();
-    if (normalized === 'total') return 'all';
-    if (normalized === 'converted_to_fir') return 'fir';
-    return normalized;
-};
-
-const resolveGrievanceFeatureFromQuery = (req) => (
-    normalizeGrievanceFeature(req.query.status_filter || req.query.tab || req.query.status || req.query.navbarStatus) || 'all'
-);
-
-const resolveGrievanceFeatureFromBody = (req) => (
-    normalizeGrievanceFeature(req.body.status || req.body.workflow_status || req.body.targetStatus || req.body.next_status)
-);
+const { authorize } = require('../middleware/auth.middleware');
 
 // Public webhook route (must remain unauthenticated)
 router.post('/whatsapp/webhook', ingestWhatsAppWebhook);
 
-router.use(protect, requireAnyPageAccess(['/grievances']));
+router.use(authorize({ pages: ['/grievances'] }));
 
 // Stats route (must be before :id routes)
 router.get('/stats', getStats);
@@ -75,23 +57,23 @@ router.post('/fetch-all', fetchAllGrievances);
 
 // Grievance routes
 router.route('/')
-    .get(requireFeatureAccess('/grievances', resolveGrievanceFeatureFromQuery, { aliases: GRIEVANCE_FEATURE_ALIASES }), getGrievances);
+    .get(getGrievances);
 
 router.route('/:id')
     .get(getGrievance);
 
 // Classification actions
-router.put('/:id/acknowledge', requireFeatureAccess('/grievances', () => 'pending'), acknowledgeGrievance);
-router.put('/:id/complaint', requireFeatureAccess('/grievances', () => 'pending'), markAsComplaint);
-router.put('/:id/status', requireFeatureAccess('/grievances', resolveGrievanceFeatureFromBody, { aliases: GRIEVANCE_FEATURE_ALIASES, allowWhenMissing: true }), updateComplaintStatus);
-router.put('/:id/workflow', requireFeatureAccess('/grievances', resolveGrievanceFeatureFromBody, { aliases: GRIEVANCE_FEATURE_ALIASES, allowWhenMissing: true }), updateWorkflowStatus);
-router.post('/:id/convert-to-fir', requireFeatureAccess('/grievances', () => 'fir'), convertToFir);
-router.post('/:id/escalate', requireFeatureAccess('/grievances', () => 'pending'), escalateGrievance);
+router.put('/:id/acknowledge', authorize({ pages: ['/grievances'] }), acknowledgeGrievance);
+router.put('/:id/complaint', authorize({ pages: ['/grievances'] }), markAsComplaint);
+router.put('/:id/status', authorize({ pages: ['/grievances'] }), updateComplaintStatus);
+router.put('/:id/workflow', authorize({ pages: ['/grievances'] }), updateWorkflowStatus);
+router.post('/:id/convert-to-fir', authorize({ pages: ['/grievances'] }), convertToFir);
+router.post('/:id/escalate', authorize({ pages: ['/grievances'] }), escalateGrievance);
 router.post('/:id/enrich-context', enrichGrievanceContext);
-router.put('/:id/revert', requireFeatureAccess('/grievances', () => 'all'), revertGrievance);
+router.put('/:id/revert', authorize({ pages: ['/grievances'] }), revertGrievance);
 
 // Report generation and sharing
-router.get('/:id/report', requireFeatureAccess('/grievances', () => 'reports'), generateReport);
-router.post('/:id/share', requireFeatureAccess('/grievances', () => 'reports'), recordShare);
+router.get('/:id/report', authorize({ pages: ['/grievances'] }), generateReport);
+router.post('/:id/share', authorize({ pages: ['/grievances'] }), recordShare);
 
 module.exports = router;

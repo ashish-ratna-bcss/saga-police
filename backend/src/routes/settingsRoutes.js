@@ -2,10 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { getSettings, updateSettings, getAllSettingsData } = require('../controllers/settingsController');
 const { addAccount, getAccounts, deleteAccount, resetBrowser } = require('../controllers/accountController');
-const { protect } = require('../middleware/authMiddleware');
-const { requireAnyPageAccess } = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
-router.use(protect, requireAnyPageAccess(['/settings']));
+router.use(authorize({ pages: ['/settings'] }));
 
 // Combined endpoint — returns settings + keywords + thresholds + templates in one call
 router.get('/all', getAllSettingsData);

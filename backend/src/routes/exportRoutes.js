@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const exportController = require('../controllers/exportController');
-const { protect } = require('../middleware/authMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
 // Export routes
-router.get('/pdf', protect, exportController.generatePDF);
-router.get('/word', protect, exportController.generateWord);
+router.get('/pdf', authorize(), exportController.generatePDF);
+router.get('/word', authorize(), exportController.generateWord);
 
 module.exports = router;

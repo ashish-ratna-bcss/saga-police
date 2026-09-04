@@ -6,10 +6,9 @@ const {
     updateEvent,
     deleteEvent
 } = require('../controllers/ongoingEventController');
-const { protect } = require('../middleware/authMiddleware');
-const { requireAnyPageAccess } = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
-router.use(protect, requireAnyPageAccess(['/events']));
+router.use(authorize({ pages: ['/events'] }));
 
 router.get('/', getEvents);
 router.post('/', createEvent);

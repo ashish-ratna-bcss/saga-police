@@ -5,10 +5,9 @@ const {
   getTrends,
   getUnifiedReportsAnalytics
 } = require('../controllers/analyticsController');
-const { protect } = require('../middleware/authMiddleware');
-const { requireAnyPageAccess } = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
-router.use(protect, requireAnyPageAccess(['/analytics', '/unified-reports', '/intel-processed']));
+router.use(authorize({ pages: ['/analytics', '/unified-reports', '/intel-processed'] }));
 
 router.get('/overview', getAnalyticsOverview);
 router.get('/trends', getTrends);

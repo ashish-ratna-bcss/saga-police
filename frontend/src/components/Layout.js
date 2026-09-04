@@ -1,15 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { useRbac } from '../contexts/RbacContext';
 import AccessDenied from './AccessDenied';
 import {
-  Shield, LayoutDashboard, Rss, AlertTriangle, BarChart3,
-  Settings, FileText, LogOut, Menu, X, Moon, Sun, ChevronRight, HelpCircle, Youtube, Twitter, Facebook, Instagram, Globe, CalendarDays, BellOff, MessageSquare, PhoneCall, Monitor, UserSearch, Search, Wrench, Bot, Activity
+  LayoutDashboard, AlertTriangle, BarChart3,
+  Settings, LogOut, Menu, HelpCircle, CalendarDays, MessageSquare,
+  UserSearch, Wrench, Bot, Activity, Users, ShieldCheck, BellOff,
 } from 'lucide-react';
 import { Button } from './ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from 'sonner';
+
+const SIDEBAR_ICONS = {
+  LayoutDashboard,
+  AlertTriangle,
+  MessageSquare,
+  CalendarDays,
+  UserSearch,
+  Wrench,
+  BarChart3,
+  Bot,
+  Users,
+  ShieldCheck,
+  Settings,
+  Activity,
+  HelpCircle,
+};
+
+const SIDEBAR_WIDTH = 64;
 
 const Layout = () => {
   const { user, logout } = useAuth();
@@ -17,34 +37,24 @@ const Layout = () => {
   const { unreadCount, markAllRead } = useNotification();
   const location = useLocation();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [darkMode, setDarkMode] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
-  // Handle responsive breakpoints
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 1024;
       setIsMobile(mobile);
-      // On desktop, sidebar should be open by default
-      if (!mobile) {
-        setSidebarOpen(true);
-      }
+      setSidebarOpen(!mobile);
     };
-
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Close sidebar on route change (mobile only)
   useEffect(() => {
-    if (isMobile) {
-      setSidebarOpen(false);
-    }
+    if (isMobile) setSidebarOpen(false);
   }, [location.pathname, isMobile]);
 
-  // Prevent body scroll when mobile menu is open
   useEffect(() => {
     if (isMobile && sidebarOpen) {
       document.body.style.overflow = 'hidden';
@@ -56,53 +66,28 @@ const Layout = () => {
     };
   }, [isMobile, sidebarOpen]);
 
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-    document.documentElement.classList.toggle('dark');
-  };
-
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const allNavigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Alerts', href: '/alerts', icon: AlertTriangle },
-    //{ name: 'Reports', href: '/reports', icon: FileText },
-    // { name: 'Sources', href: '/sources', icon: Rss },
-    // { name: 'Reports', href: '/reports', icon: FileText },
-    //{ name: 'SM Handles', href: '/monitors', icon: Monitor },
-    //{ name: 'YouTube Monitor', href: '/youtube-monitor', icon: Youtube },
-    //{ name: 'X Monitor', href: '/x-monitor', icon: Twitter },
-    //{ name: 'Facebook Monitor', href: '/facebook-monitor', icon: Facebook },
-    //{ name: 'Instagram Monitor', href: '/instagram-monitor', icon: Instagram },
-    { name: 'Grievances', href: '/grievances', icon: MessageSquare },
-    { name: 'Events', href: '/events', icon: CalendarDays },
-    { name: 'Profiles', href: '/sources', icon: UserSearch },
-        //{ name: 'Global Search', href: '/global-search', icon: Globe },
-    
-    //{ name: 'Profile', href: '/person-of-interest', icon: UserSearch },
-    //{ name: 'Policy Manager', href: '/policies', icon: Shield },
-    { name: 'Analysis Tools', href: '/analysis-tools', icon: Wrench },
-    { name: 'Reports', href: '/intelligence-dashboard', icon: BarChart3 },
-    { name: 'AI Assistant', href: '/ai-assistant', icon: Bot },
-    //{ name: 'Access Management', href: '/access-management', icon: Shield, roles: ['superadmin'] },
-    { name: 'Settings', href: '/settings', icon: Settings },
-    { name: 'System Health', href: '/system-health', icon: Activity },
-    { name: 'Help', href: '/help', icon: HelpCircle },
-
-  ];
-
-  const roleFilteredNavigation = user?.role === 'dial100'
-    ? allNavigation.filter((item) => item.href === '/dial-100-incident-reporting')
-    : allNavigation.filter((item) => !item.roles || item.roles.includes(user?.role));
-  const navigation = roleFilteredNavigation.filter((item) => hasAccess(item.href));
+  const navigation = useMemo(
+    () =>
+      (Array.isArray(user?.sidebar) ? user.sidebar : [])
+        .map((item) => ({
+          name: item.name,
+          href: item.path || item.href,
+          icon: SIDEBAR_ICONS[item.icon] || Settings,
+        }))
+        .filter((item) => item.href && hasAccess(item.href)),
+    [user?.sidebar, hasAccess]
+  );
 
   const normalizedPath = normalizeRoutePath(location.pathname);
   const isRouteAllowed = location.pathname === '/' || hasAccess(normalizedPath);
   const showAccessDenied = !rbacLoading && !isRouteAllowed;
-  const isFullWidthPage = (location.pathname.includes('/person-of-interest/') && location.pathname.split('/').length > 2) ||
+  const isFullWidthPage =
+    (location.pathname.includes('/person-of-interest/') && location.pathname.split('/').length > 2) ||
     location.pathname.startsWith('/reports/generate/') ||
     location.pathname === '/sources' ||
     location.pathname === '/settings' ||
@@ -110,63 +95,63 @@ const Layout = () => {
 
   return (
     <div className="h-screen w-full flex flex-col bg-background overflow-hidden relative print:h-auto print:overflow-visible">
-      {/* Mobile Overlay Backdrop */}
       {isMobile && sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300"
+          className="fixed inset-0 bg-black/50 z-40"
           onClick={() => setSidebarOpen(false)}
           aria-hidden="true"
         />
       )}
 
-      {/* Top Bar - Dynamic Theme Color */}
-      <header className="fixed top-0 left-0 right-0 h-16 lg:h-20 bg-primary z-50 shadow-lg select-none">
-        <div className="flex items-center justify-between h-full px-4 lg:px-6 relative">
-
-          {/* Left: Menu + Logo + Title */}
-          <div className="flex items-center gap-3 lg:gap-4 relative z-10">
+      {/* Full-width header — menu + single logo */}
+      <header
+        className="fixed top-0 left-0 right-0 h-16 bg-primary z-50 select-none print:hidden"
+        data-testid="app-header"
+      >
+        <div className="flex items-center justify-between h-full px-3 sm:px-5">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
+              onClick={() => setSidebarOpen((v) => !v)}
               data-testid="sidebar-toggle-btn"
-              className="text-white hover:bg-white/10 h-10 w-10 lg:h-11 lg:w-11"
+              className="h-10 w-10 text-white hover:bg-white/10 shrink-0"
               aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
             >
-              <Menu className="h-5 w-5 lg:h-6 lg:w-6" />
+              <Menu className="h-5 w-5" />
             </Button>
 
-            <div className="flex items-center gap-3 lg:gap-4">
-              <div className="relative">
+            <img
+              src="/appolicelogo.png"
+              alt="Andhra Pradesh Police"
+              className="h-10 w-10 rounded-md object-contain bg-white p-0.5 ring-1 ring-white/20 shrink-0"
+            />
+
+            <div className="min-w-0 leading-tight">
+              <div className="flex items-center gap-1.5">
+                <h1 className="text-base sm:text-xl font-heading font-bold tracking-[0.12em] text-white truncate">
+                  SOCEYE
+                </h1>
                 <img
-                  src="/policelogo.jpg"
-                  alt="Logo"
-                  className="h-10 w-10 lg:h-14 lg:w-14 object-cover rounded shadow-lg"
+                  src="/EYE-01.png"
+                  alt=""
+                  className="hidden sm:block h-8 w-auto object-contain"
                 />
               </div>
-
-              <div className="flex flex-col items-start justify-start text-left leading-tight">
-                <div className="flex items-center gap-2">
-                <h1 className="text-base lg:text-2xl font-heading font-bold text-white tracking-wider uppercase drop-shadow-md">SOCEYE</h1>
-                  <img
-                    src="/EYE-01.png"
-                    alt="EYE"
-                    className="hidden lg:block h-35 w-20 object-contain"
-                  />
-                </div>
-                <span className="hidden sm:block text-[9px] lg:text-[10px] text-white/80 font-medium tracking-widest uppercase drop-shadow">SOCIAL MEDIA OBSERVATION AND CYBER INTELLIGENCE
-</span>
-              </div>
+              <p className="hidden sm:block text-[9px] lg:text-[10px] text-white/70 tracking-widest uppercase truncate">
+                Social Media Observation and Cyber Intelligence
+              </p>
             </div>
           </div>
 
-          {/* Center: AI Search Bar removed */}
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+            <img
+              src="/Logo.png"
+              alt="BCSS"
+              className="hidden md:block h-8 w-auto object-contain"
+            />
 
-          {/* Right: Logo + Theme + User */}
-          <div className="flex items-center gap-2 lg:gap-4">
-            <img src="/Logo.png" alt="BCSS Logo" className="h-8 lg:h-10 w-auto object-contain" />
-
-            <div className="hidden sm:block h-6 lg:h-8 w-px bg-white/20"></div>
+            <div className="hidden sm:block h-6 w-px bg-white/20" />
 
             {unreadCount > 0 && (
               <Button
@@ -181,91 +166,112 @@ const Layout = () => {
                   }
                 }}
                 data-testid="clear-all-notifications-btn"
-                className="text-white hover:bg-white/10 h-9 w-9 lg:h-10 lg:w-10"
-                aria-label="Clear all notifications"
+                className="h-9 w-9 text-white hover:bg-white/10"
+                aria-label="Clear notifications"
               >
-                <BellOff className="h-4 w-4 lg:h-5 lg:w-5" />
+                <BellOff className="h-4 w-4" />
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleDarkMode}
-              data-testid="theme-toggle-btn"
-              className="text-white hover:bg-white/10 h-9 w-9 lg:h-10 lg:w-10"
-              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-            >
-              {darkMode ? <Sun className="h-4 w-4 lg:h-5 lg:w-5 text-[hsl(43,96%,70%)]" /> : <Moon className="h-4 w-4 lg:h-5 lg:w-5" />}
-            </Button>
 
-            <div className="hidden sm:block h-6 lg:h-8 w-px bg-white/20"></div>
+            <div className="hidden sm:block h-6 w-px bg-white/20" />
 
-            <div className="flex items-center gap-2 lg:gap-3">
+            <div className="flex items-center gap-2">
               <div className="text-right hidden sm:block">
-                <div className="text-xs lg:text-sm font-semibold text-white truncate max-w-[120px] lg:max-w-none">{user?.full_name}</div>
-                <div className="text-[10px] lg:text-xs text-white/80 font-medium uppercase tracking-wide">{user?.role}</div>
+                <div className="text-xs lg:text-sm font-semibold text-white truncate max-w-[140px]">
+                  {user?.name}
+                </div>
+                <div className="text-[10px] text-white/70 uppercase tracking-wide">
+                  {user?.role}
+                </div>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={handleLogout}
                 data-testid="logout-btn"
-                className="text-white hover:bg-red-500/20 hover:text-red-200 h-9 w-9 lg:h-10 lg:w-10"
+                className="h-9 w-9 text-white hover:bg-red-500/20 hover:text-red-200"
                 aria-label="Logout"
               >
-                <LogOut className="h-4 w-4 lg:h-5 lg:w-5" />
+                <LogOut className="h-4 w-4" />
               </Button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Sidebar - Narrow icon-based nav */}
+      {/* Icon-only sidebar under header — no logo */}
       <aside
-        className={`fixed top-16 lg:top-20 left-0 bottom-0 w-[82px] bg-primary shadow-xl z-40 transform transition-transform duration-300 ease-in-out select-none ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
+        className={`fixed top-16 left-0 bottom-0 z-40 flex flex-col items-center bg-primary select-none transition-transform duration-300 ease-out print:hidden ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+        style={{ width: SIDEBAR_WIDTH }}
         data-testid="sidebar"
         role="navigation"
         aria-label="Main navigation"
       >
-        {/* Navigation Links */}
-        <nav className="flex flex-col items-center gap-0.5 py-3 overflow-y-auto max-h-[calc(100vh-10rem)]" style={{ scrollbarWidth: 'none' }}>
-          {navigation.map((item) => {
-            const Icon = item.icon;
-            const isActive = location.pathname === item.href;
-            return (
-              <Link
-                key={item.name}
-                to={item.href}
-                data-testid={`nav-${item.name.toLowerCase().replace(' ', '-')}`}
-                className={`relative flex flex-col items-center justify-center w-[70px] py-2.5 rounded-xl text-center transition-all duration-200 group ${
-                  isActive
-                    ? 'bg-white/[0.08] text-white'
-                    : 'text-white/50 hover:bg-white/[0.05] hover:text-white/80'
-                }`}
-              >
-                <div className="relative">
-                  <Icon className={`h-[22px] w-[22px] mb-1 ${isActive ? 'text-white' : 'text-white/50 group-hover:text-white/80'}`} />
-                  {item.name === 'Alerts' && unreadCount > 0 && (
-                    <span className="absolute -top-1.5 -right-2.5 bg-red-500 text-white text-[9px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-lg shadow-red-500/30">
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </span>
-                  )}
-                </div>
-                <span className={`text-[10px] leading-tight font-medium ${isActive ? 'text-white' : 'text-white/40 group-hover:text-white/70'}`}>{item.name}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
+        <TooltipProvider delayDuration={150} skipDelayDuration={0}>
+          <nav
+            className="flex-1 w-full overflow-y-auto overscroll-contain py-2 flex flex-col items-center gap-0.5"
+            style={{ scrollbarWidth: 'none' }}
+          >
+            {navigation.map((item) => {
+              const Icon = item.icon;
+              const isActive =
+                location.pathname === item.href ||
+                location.pathname.startsWith(`${item.href}/`);
+              return (
+                <Tooltip key={item.href}>
+                  <TooltipTrigger asChild>
+                    <Link
+                      to={item.href}
+                      aria-label={item.name}
+                      data-testid={`nav-${item.name.toLowerCase().replace(/\s+/g, '-')}`}
+                      className={`relative flex items-center justify-center w-11 h-11 rounded-xl transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-white/30 ${
+                        isActive
+                          ? 'bg-white/15 text-white'
+                          : 'text-white/45 hover:text-white/85 hover:bg-white/10'
+                      }`}
+                    >
+                      {isActive && (
+                        <span
+                          className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-[hsl(43,96%,58%)]"
+                          aria-hidden="true"
+                        />
+                      )}
+                      <span className="relative inline-flex">
+                        <Icon className="h-[20px] w-[20px]" strokeWidth={isActive ? 2.2 : 1.7} />
+                        {item.name === 'Alerts' && unreadCount > 0 && (
+                          <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[8px] font-bold min-w-[14px] h-[14px] px-0.5 flex items-center justify-center rounded-full">
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </span>
+                        )}
+                      </span>
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="right"
+                    sideOffset={10}
+                    className="border border-white/10 bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg"
+                  >
+                    {item.name}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </nav>
+        </TooltipProvider>
       </aside>
 
-      {/* Main Content */}
       <div
-        className={`flex-1 flex flex-col min-h-0 pt-16 lg:pt-20 transition-all duration-300 print:pt-0 print:pl-0 print:h-auto print:overflow-visible ${sidebarOpen && !isMobile ? 'lg:pl-[82px]' : 'pl-0'
-          }`}
+        className={`flex-1 flex flex-col min-h-0 pt-16 transition-all duration-300 print:pt-0 print:pl-0 ${
+          sidebarOpen && !isMobile ? 'pl-16' : 'pl-0'
+        }`}
       >
-        <main className={`flex-1 min-h-0 ${isFullWidthPage ? 'p-0' : 'p-4 lg:p-8'} overflow-auto scroll-smooth print:h-auto print:overflow-visible`}>
+        <main
+          className={`flex-1 min-h-0 overflow-auto scroll-smooth print:h-auto print:overflow-visible ${
+            isFullWidthPage ? 'p-0' : 'p-4 lg:p-6'
+          }`}
+        >
           {showAccessDenied ? <AccessDenied /> : <Outlet />}
         </main>
       </div>

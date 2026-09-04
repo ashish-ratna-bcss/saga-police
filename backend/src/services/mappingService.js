@@ -92,7 +92,7 @@ class MappingService {
 
     loadFallbackFile() {
         try {
-            const dataPath = path.join(__dirname, '../config/mapping_data.json');
+            const dataPath = path.join(__dirname, '../data/mapping_data.json');
             const rawData = fs.readFileSync(dataPath, 'utf8');
             this.mappingData = JSON.parse(rawData);
             logger.info(`[MappingService] Loaded fallback file data.`);

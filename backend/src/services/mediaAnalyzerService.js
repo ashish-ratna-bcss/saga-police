@@ -1,7 +1,7 @@
 const axios = require('axios');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const { MEDIA_ANALYZER_URL } = require('../config/mediaAnalyzer');
+const { MEDIA_ANALYZER_URL } = require('../config/env');
 const logger = require('../utils/logger');
 const DOWNLOADS_DIR = process.env.MEDIA_DOWNLOADS_DIR || path.join(__dirname, '../../downloads');
 const DIRECT_MEDIA_EXT_RE = /\.(mp4|webm|mkv|mov|avi|m3u8|jpg|jpeg|png|gif|webp)(\?|$)/i;

@@ -15,10 +15,9 @@ const { v4: uuidv4 } = require('uuid');
 const YouTubeTranscript = require('../models/YouTubeTranscript');
 const mediaAnalyzerService = require('../services/mediaAnalyzerService');
 const { analyzeTranscriptWithGemini, splitTranscriptIntoLines } = require('../services/geminiService');
-const { protect } = require('../middleware/authMiddleware');
-const { requireAnyPageAccess } = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
-router.use(protect, requireAnyPageAccess(['/youtube-monitor']));
+router.use(authorize({ pages: ['/youtube-monitor'] }));
 
 // Keep legacy call sites but preserve authenticated user identity.
 const mockUser = (req, res, next) => {
@@ -426,8 +425,6 @@ router.get('/videos', async (req, res) => {
                 }
             }
         ]);
-
-
 
         res.json(videos);
     } catch (error) {

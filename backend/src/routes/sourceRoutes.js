@@ -17,8 +17,7 @@ const {
   recomputeSourceRelevance
 } = sourceController;
 
-const { protect } = require('../middleware/authMiddleware');
-const { requireAnyPageAccess, requirePlatformFeatureAccess } = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
 const SOURCE_ALLOWED_PAGES = [
   '/sources',
@@ -32,16 +31,16 @@ const SOURCE_ALLOWED_PAGES = [
   '/youtube-monitor'
 ];
 
-router.use(protect, requireAnyPageAccess(SOURCE_ALLOWED_PAGES));
+router.use(authorize({ pages: SOURCE_ALLOWED_PAGES }));
 
 router.route('/')
-  .get(requirePlatformFeatureAccess('/monitors', (req) => req.query.platform), getSources)
-  .post(requirePlatformFeatureAccess('/monitors', (req) => req.body.platform), createSource);
+  .get(authorize({ pages: ['/monitors'] }), getSources)
+  .post(authorize({ pages: ['/monitors'] }), createSource);
 
-router.post('/bulk', requirePlatformFeatureAccess('/monitors', (req) => req.body.platform), createSourcesBulk);
+router.post('/bulk', authorize({ pages: ['/monitors'] }), createSourcesBulk);
 router.post('/recompute-relevance', recomputeSourceRelevance);
-router.post('/scan-all', requirePlatformFeatureAccess('/monitors', (req) => req.body.platform), scanAllSources);
-router.post('/resolve-identity', requirePlatformFeatureAccess('/monitors', (req) => req.body.platform), resolveSourceIdentity);
+router.post('/scan-all', authorize({ pages: ['/monitors'] }), scanAllSources);
+router.post('/resolve-identity', authorize({ pages: ['/monitors'] }), resolveSourceIdentity);
 
 // Get escalation counts per source (count of Reports by matching handle to source identifier)
 router.get('/escalation-counts', async (req, res) => {
@@ -88,6 +87,6 @@ router.post('/:id/scan', scanNow);
 router.post('/:id/refresh-identity', refreshSourceIdentity);
 router.post('/:id/recompute-relevance', recomputeSourceRelevance);
 router.put('/:id/toggle', toggleSourceStatus);
-router.get('/:id/instagram-profile', requirePlatformFeatureAccess('/monitors', () => 'instagram'), getInstagramProfile);
+router.get('/:id/instagram-profile', authorize({ pages: ['/monitors'] }), getInstagramProfile);
 
 module.exports = router;

@@ -2412,25 +2412,28 @@ const getWorkflowKpi = async (req, res) => {
       if (!row.email && r.email) row.email = r.email;
     }
 
-    // Resolve names from User collection (best-effort; tolerate non-ObjectId ids)
+    // Resolve names from Postgres users (Prisma)
     if (userMap.size > 0) {
       try {
-        const mongoose = require('mongoose');
-        const User = require('../models/User');
-        const ids = Array.from(userMap.keys());
-        const objectIds = ids.filter(id => mongoose.Types.ObjectId.isValid(id));
-        const users = await User.find({
-          $or: [
-            ...(objectIds.length ? [{ _id: { $in: objectIds } }] : []),
-            { email: { $in: Array.from(userMap.values()).map(u => u.email).filter(Boolean) } }
-          ]
-        }).select('full_name email').lean();
+        const prisma = require('../../prisma/client');
+        const emails = Array.from(userMap.values()).map((u) => u.email).filter(Boolean);
+        const numericIds = Array.from(userMap.keys())
+          .map((id) => Number(id))
+          .filter((id) => Number.isInteger(id) && id > 0);
+        const users = await prisma.users.findMany({
+          where: {
+            OR: [
+              ...(numericIds.length ? [{ id: { in: numericIds } }] : []),
+              ...(emails.length ? [{ email: { in: emails } }] : []),
+            ],
+          },
+          select: { id: true, name: true, email: true },
+        });
         for (const u of users) {
-          const byId = userMap.get(String(u._id));
-          if (byId && !byId.name) byId.name = u.full_name || '';
-          // Also patch by email (for rows whose changed_by isn't a Mongo id)
+          const byId = userMap.get(String(u.id));
+          if (byId && !byId.name) byId.name = u.name || '';
           for (const row of userMap.values()) {
-            if (!row.name && row.email && row.email === u.email) row.name = u.full_name || '';
+            if (!row.name && row.email && row.email === u.email) row.name = u.name || '';
           }
         }
       } catch (e) {

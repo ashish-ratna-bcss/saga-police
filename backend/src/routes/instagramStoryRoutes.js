@@ -1,13 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/authMiddleware');
-const {
-  loadUserPermissions,
-  hasPageAccess,
-  hasFeatureAccess,
-  denyPageAccess,
-  denyFeatureAccess
-} = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 const {
   getStories,
   storeStories,
@@ -18,15 +11,7 @@ const {
   getStoryStats
 } = require('../controllers/instagramStoryController');
 
-const requireInstagramMonitorAccess = (req, res, next) => {
-  if (hasPageAccess(req, '/alerts')) return next();
-  if (hasPageAccess(req, '/instagram-monitor')) return next();
-  if (hasPageAccess(req, '/monitors') && hasFeatureAccess(req, '/monitors', 'instagram')) return next();
-  if (hasPageAccess(req, '/monitors')) return denyFeatureAccess(res, '/monitors', 'instagram');
-  return denyPageAccess(res, ['/alerts', '/instagram-monitor', '/monitors']);
-};
-
-router.use(protect, loadUserPermissions, requireInstagramMonitorAccess);
+router.use(authorize({ pages: ['/alerts', '/instagram-monitor', '/monitors'] }));
 
 router.get('/', getStories);
 router.get('/stats', getStoryStats);

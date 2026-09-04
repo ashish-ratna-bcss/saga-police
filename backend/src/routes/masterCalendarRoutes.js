@@ -6,10 +6,9 @@ const {
   updateEvent,
   deleteEvent
 } = require('../controllers/masterCalendarController');
-const { protect } = require('../middleware/authMiddleware');
-const { requireAnyPageAccess } = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
-router.use(protect, requireAnyPageAccess(['/master-calendar', '/events']));
+router.use(authorize({ pages: ['/master-calendar', '/events'] }));
 
 router.get('/', listEvents);
 router.post('/', createEvent);

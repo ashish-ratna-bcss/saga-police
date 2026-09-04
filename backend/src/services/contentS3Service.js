@@ -16,7 +16,7 @@ const fs = require('fs');
 const path = require('path');
 const { randomUUID } = require('crypto');
 const cheerio = require('cheerio');
-const { MEDIA_ANALYZER_URL } = require('../config/mediaAnalyzer');
+const { MEDIA_ANALYZER_URL } = require('../config/env');
 const logger = require('../utils/logger');
 
 // ─── Local on-prem storage ────────────────────────────────────────────────

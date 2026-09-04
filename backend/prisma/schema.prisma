@@ -1,0 +1,1211 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model alert_status_history {
+  id               BigInt             @id @default(autoincrement())
+  alert_id         BigInt
+  from_status      alert_status_enum?
+  to_status        alert_status_enum
+  changed_by       Int?
+  changed_by_email String?
+  notes            String             @default("")
+  at               DateTime           @default(now()) @db.Timestamptz(6)
+  alerts           alerts             @relation(fields: [alert_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users            users?             @relation(fields: [changed_by], references: [id], onUpdate: NoAction)
+
+  @@index([alert_id, at(sort: Desc)], map: "idx_alert_status_history_alert")
+  @@index([at(sort: Desc), to_status], map: "idx_alert_status_history_at_to")
+}
+
+model alert_thresholds {
+  id                  Int                  @id @default(autoincrement())
+  platform            source_platform_enum @unique
+  low_threshold       Int                  @default(100)
+  medium_threshold    Int                  @default(500)
+  high_threshold      Int                  @default(1000)
+  time_window_minutes Int                  @default(60)
+  is_active           Boolean              @default(true)
+  config              Json                 @default("{}")
+  created_at          DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime             @default(now()) @db.Timestamptz(6)
+}
+
+model alerts {
+  id                          BigInt                 @id @default(autoincrement())
+  content_id                  BigInt
+  source_id                   Int?
+  content_ref_id              String?
+  source_category             String?
+  matched_keywords_normalized String[]               @default([])
+  event_id                    Int?
+  analysis_id                 BigInt?
+  alert_type                  alert_type_enum        @default(keyword_risk)
+  priority                    priority_legacy_enum   @default(MEDIUM)
+  virality_level              virality_level_enum?
+  virality_detected_at        DateTime?              @db.Timestamptz(6)
+  risk_level                  risk_level_alert_enum
+  title                       String
+  description                 String
+  content_url                 String
+  platform                    source_platform_enum
+  author                      String
+  author_handle               String?
+  status                      alert_status_enum      @default(active)
+  content_published_at        DateTime?              @db.Timestamptz(6)
+  created_at                  DateTime               @default(now()) @db.Timestamptz(6)
+  acknowledged_by             Int?
+  acknowledged_at             DateTime?              @db.Timestamptz(6)
+  is_read                     Boolean                @default(false)
+  is_priority                 Boolean                @default(false)
+  priority_reason             String                 @default("")
+  notes                       String?
+  is_investigation            Boolean                @default(false)
+  complaint_text              String?
+  classification_explanation  String?
+  velocity_data               Json?
+  threat_details              Json?
+  violated_policies           Json                   @default("[]")
+  legal_sections              Json                   @default("[]")
+  ml_analysis                 Json?
+  llm_analysis                Json?
+  alert_status_history        alert_status_history[]
+  users                       users?                 @relation(fields: [acknowledged_by], references: [id], onUpdate: NoAction)
+  analyses                    analyses?              @relation(fields: [analysis_id], references: [id], onUpdate: NoAction)
+  contents                    contents               @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  events                      events?                @relation(fields: [event_id], references: [id], onUpdate: NoAction)
+  sources                     sources?               @relation(fields: [source_id], references: [id], onUpdate: NoAction)
+  reports                     reports[]
+
+  @@index([content_id], map: "idx_alerts_content_id")
+  @@index([matched_keywords_normalized], map: "idx_alerts_matched_keywords_gin", type: Gin)
+  @@index([platform, content_published_at(sort: Desc)], map: "idx_alerts_platform_published")
+  @@index([risk_level, content_published_at(sort: Desc)], map: "idx_alerts_risk_published")
+  @@index([source_id], map: "idx_alerts_source_id")
+  @@index([status, created_at(sort: Desc)], map: "idx_alerts_status_created")
+  @@index([status, platform, content_published_at(sort: Desc)], map: "idx_alerts_status_platform_published")
+  @@index([status, content_published_at(sort: Desc)], map: "idx_alerts_status_published")
+  @@index([status, alert_type, content_published_at(sort: Desc)], map: "idx_alerts_status_type_published")
+  @@index([virality_level, content_published_at(sort: Desc)], map: "idx_alerts_virality_published")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model analyses {
+  id                 BigInt          @id @default(autoincrement())
+  content_id         BigInt          @unique
+  risk_score         Int             @default(0)
+  violence_score     Int             @default(0)
+  threat_score       Int             @default(0)
+  hate_score         Int             @default(0)
+  sentiment          sentiment_enum
+  risk_level         risk_level_enum
+  triggered_keywords String[]        @default([])
+  topic              String?
+  context            String?
+  summary            String?
+  explanation        String?
+  intent             String?
+  confidence         Decimal?        @db.Decimal(6, 3)
+  language           String?
+  reasons            String[]        @default([])
+  highlights         String[]        @default([])
+  flagged_lines      Json            @default("[]")
+  legal_sections     Json            @default("[]")
+  violated_policies  Json            @default("[]")
+  layers             Json?
+  threat_model       Json?
+  llm_analysis       Json?
+  analyzed_at        DateTime        @default(now()) @db.Timestamptz(6)
+  alerts             alerts[]
+  contents           contents        @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([analyzed_at(sort: Desc)], map: "idx_analyses_analyzed_at")
+}
+
+model audit_logs {
+  id            BigInt   @id @default(autoincrement())
+  user_id       Int?
+  action        String
+  resource_type String?
+  resource_id   String?
+  details       Json     @default("{}")
+  ip            String?
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  users         users?   @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([created_at(sort: Desc)], map: "idx_audit_logs_created")
+  @@index([user_id, created_at(sort: Desc)], map: "idx_audit_logs_user")
+}
+
+model comments {
+  id            BigInt               @id @default(autoincrement())
+  content_id    BigInt
+  platform      source_platform_enum @default(youtube)
+  comment_id    String
+  author        String?
+  author_handle String?
+  text          String?
+  published_at  DateTime?            @db.Timestamptz(6)
+  risk_score    Int                  @default(0)
+  risk_level    risk_level_enum      @default(low)
+  threat_score  Int                  @default(0)
+  created_at    DateTime             @default(now()) @db.Timestamptz(6)
+  raw_data      Json?
+  contents      contents             @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([platform, comment_id], map: "comments_platform_comment_id_uq")
+  @@index([content_id], map: "idx_comments_content")
+}
+
+model comprehensive_reports {
+  id         Int       @id @default(autoincrement())
+  start_date DateTime? @db.Timestamptz(6)
+  end_date   DateTime? @db.Timestamptz(6)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  created_by Int?
+  payload    Json
+  users      users?    @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+}
+
+model content_event_links {
+  content_id BigInt
+  event_id   Int
+  linked_at  DateTime @default(now()) @db.Timestamptz(6)
+  contents   contents @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  events     events   @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([content_id, event_id])
+  @@index([event_id, content_id], map: "idx_content_event_links_event")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an index with non-default null sort order and requires additional setup for migrations. Visit https://pris.ly/d/default-index-null-ordering for more info.
+model contents {
+  id                      BigInt                   @id @default(autoincrement())
+  source_id               Int?
+  platform                source_platform_enum
+  content_type            content_type_enum        @default(post)
+  content_id              String
+  content_url             String
+  text                    String                   @default("")
+  scraped_content         String?
+  author                  String
+  author_handle           String
+  published_at            DateTime                 @db.Timestamptz(6)
+  is_media_archived       Boolean                  @default(false)
+  is_deleted              Boolean                  @default(false)
+  deleted_at              DateTime?                @db.Timestamptz(6)
+  is_expired              Boolean                  @default(false)
+  expired_at              DateTime?                @db.Timestamptz(6)
+  last_availability_check DateTime?                @db.Timestamptz(6)
+  availability_status     availability_status_enum @default(available)
+  is_repost               Boolean                  @default(false)
+  original_author         String?
+  original_author_name    String?
+  original_author_avatar  String?
+  risk_score              Int                      @default(0)
+  risk_level              risk_level_enum          @default(low)
+  threat_intent           String?
+  sentiment               sentiment_enum           @default(neutral)
+  relevance_score         Int?
+  relevance_priority      relevance_priority_enum?
+  is_locality_related     Boolean?
+  views                   Int?
+  likes                   Int?
+  comments_count          Int?
+  replies                 Int?
+  retweets                Int?
+  shares                  Int?
+  quotes                  Int?
+  saves                   Int?
+  duration                String?
+  tags                    String[]                 @default([])
+  category_id             String?
+  created_at              DateTime                 @default(now()) @db.Timestamptz(6)
+  media                   Json                     @default("[]")
+  quoted_content          Json?
+  url_cards               Json                     @default("[]")
+  location                Json?
+  media_location          Json?
+  analysis_job            Json?
+  llm_verdict             Json?
+  relevance_meta          Json?
+  location_classification Json?
+  thumbnails              Json?
+  threat_reasons          Json                     @default("[]")
+  risk_factors            Json                     @default("[]")
+  retweet_network         Json?
+  engagement_history      Json                     @default("[]")
+  raw_data                Json?
+  alerts                  alerts[]
+  analyses                analyses?
+  comments                comments[]
+  content_event_links     content_event_links[]
+  sources                 sources?                 @relation(fields: [source_id], references: [id], onUpdate: NoAction)
+  engager_analyses        engager_analyses[]
+  retweet_relationships   retweet_relationships[]
+
+  @@unique([platform, content_id], map: "contents_platform_content_id_uq")
+  @@index([content_id], map: "idx_contents_content_id")
+  @@index([platform, risk_level], map: "idx_contents_platform_risk")
+  @@index([platform, source_id, published_at(sort: Desc)], map: "idx_contents_platform_source_published")
+  @@index([published_at(sort: Desc)], map: "idx_contents_published")
+  @@index([relevance_priority, relevance_score(sort: Desc)], map: "idx_contents_relevance_priority_score")
+  @@index([source_id, published_at(sort: Desc)], map: "idx_contents_source_published")
+  @@index([source_id, risk_level], map: "idx_contents_source_risk")
+}
+
+model counters {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  seq        BigInt   @default(0)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model criticism_contacts {
+  id         Int      @id @default(autoincrement())
+  name       String
+  phone      String?
+  department String?
+  is_active  Boolean  @default(true)
+  meta       Json     @default("{}")
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model criticism_reports {
+  id               Int                     @id @default(autoincrement())
+  unique_code      String?                 @unique
+  grievance_id     BigInt
+  platform         grievance_platform_enum @default(x)
+  profile_id       String?
+  profile_link     String?
+  post_link        String?
+  post_date        DateTime?               @db.Timestamptz(6)
+  post_description String?
+  category         String                  @default("Others")
+  remarks          String?
+  message          String?
+  created_by       Int?
+  created_at       DateTime                @default(now()) @db.Timestamptz(6)
+  posted_by        Json?
+  engagement       Json?
+  informed_to      Json?
+  media_urls       Json                    @default("[]")
+  media_s3_urls    Json                    @default("[]")
+  meta             Json                    @default("{}")
+  users            users?                  @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  grievances       grievances              @relation(fields: [grievance_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([grievance_id], map: "idx_criticism_reports_grievance")
+}
+
+model daily_intelligence_reports {
+  id          Int      @id @default(autoincrement())
+  report_date DateTime @unique @db.Date
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  created_by  Int?
+  payload     Json
+  users       users?   @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+}
+
+model daily_programmes {
+  id                Int                             @id @default(autoincrement())
+  programme_date    DateTime                        @db.Date
+  category          daily_programme_category_enum
+  category_label    String                          @default("")
+  sl_no             Int                             @default(1)
+  zone              String                          @default("")
+  program_name      String                          @default("")
+  location          String                          @default("")
+  organizer         String                          @default("")
+  expected_members  Int                             @default(0)
+  programme_time    String                          @default("")
+  gist              String                          @default("")
+  permission        daily_programme_permission_enum @default(By_Information)
+  comments          String                          @default("Required L&O and Traffic BB")
+  is_high_priority  Boolean                         @default(false)
+  created_by        Int?
+  created_at        DateTime                        @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime                        @default(now()) @db.Timestamptz(6)
+  payload           Json                            @default("{}")
+  users             users?                          @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  periscope_uploads periscope_uploads[]
+
+  @@unique([programme_date, category, sl_no], map: "daily_programmes_date_category_sl_uq")
+  @@index([programme_date, category], map: "idx_daily_programmes_date_category")
+}
+
+model dial100_incidents {
+  id                                               Int       @id @default(autoincrement())
+  incident_date                                    DateTime  @db.Date
+  category                                         String
+  sl_no                                            Int       @default(0)
+  incident_details                                 String    @default("")
+  incident_category                                String    @default("")
+  location                                         String    @default("")
+  date_time                                        DateTime? @db.Timestamptz(6)
+  ps_jurisdiction                                  String    @default("")
+  zone_jurisdiction                                String    @default("")
+  caller_name                                      String    @default("")
+  caller_number                                    String    @default("")
+  ps_type_of_vehicle                               String    @default("")
+  pc_bc                                            String    @default("")
+  assigned_to                                      String    @default("")
+  assigned_time                                    DateTime? @db.Timestamptz(6)
+  received_time                                    DateTime? @db.Timestamptz(6)
+  accepted_time                                    DateTime? @db.Timestamptz(6)
+  reached_time                                     DateTime? @db.Timestamptz(6)
+  response_time_for_accepting_call                 Int       @default(0)
+  response_time_acceptance_to_vehicle_reached_mins Int       @default(0)
+  response_time_assigned_to_vehicle_reached        Int       @default(0)
+  pc_remarks                                       String    @default("")
+  sho_remarks                                      String    @default("")
+  remarks                                          String    @default("")
+  status                                           String    @default("Pending")
+  priority                                         String    @default("Normal")
+  created_by                                       Int?
+  created_at                                       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                                       DateTime  @default(now()) @db.Timestamptz(6)
+  media_files                                      Json      @default("[]")
+  payload                                          Json      @default("{}")
+  users                                            users?    @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+
+  @@unique([incident_date, category, sl_no], map: "dial100_date_category_sl_uq")
+  @@index([incident_date, category], map: "idx_dial100_date_category")
+}
+
+model engager_analyses {
+  id          BigInt    @id @default(autoincrement())
+  content_id  BigInt?
+  status      String    @default("pending")
+  error       String?
+  analyzed_at DateTime? @db.Timestamptz(6)
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime  @default(now()) @db.Timestamptz(6)
+  result      Json      @default("{}")
+  contents    contents? @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([status, analyzed_at], map: "idx_engager_analyses_status")
+}
+
+model event_keywords {
+  id       Int                   @id @default(autoincrement())
+  event_id Int
+  keyword  String
+  language keyword_language_enum @default(all)
+  events   events                @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([event_id, keyword, language], map: "event_keywords_event_keyword_uq")
+  @@index([event_id], map: "idx_event_keywords_event")
+}
+
+model events {
+  id                       Int                     @id @default(autoincrement())
+  name                     String
+  description              String                  @default("")
+  start_date               DateTime?               @db.Timestamptz(6)
+  end_date                 DateTime?               @db.Timestamptz(6)
+  location                 String                  @default("")
+  platforms                source_platform_enum[]  @default([youtube, x])
+  high_risk_threshold      Int?
+  medium_risk_threshold    Int?
+  polling_interval_minutes Int?
+  status                   event_status_enum       @default(paused)
+  auto_archive             Boolean                 @default(false)
+  last_polled_at           DateTime?               @db.Timestamptz(6)
+  created_by               Int?
+  origin                   event_origin_enum       @default(manual)
+  master_calendar_event_id Int?
+  created_at               DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime                @default(now()) @db.Timestamptz(6)
+  alerts                   alerts[]
+  content_event_links      content_event_links[]
+  event_keywords           event_keywords[]
+  users                    users?                  @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  master_calendar_events   master_calendar_events? @relation(fields: [master_calendar_event_id], references: [id], onUpdate: NoAction)
+  temp_content             temp_content[]
+
+  @@index([status], map: "idx_events_status")
+}
+
+model grievance_settings {
+  id                     Int           @id @default(autoincrement())
+  settings_key           String        @unique @default("grievance_settings")
+  max_sources            Int           @default(5)
+  fetch_interval_minutes Int           @default(15)
+  auto_fetch_enabled     Boolean       @default(true)
+  ai_analysis_enabled    Boolean       @default(true)
+  default_priority       priority_enum @default(medium)
+  official_contacts      Json          @default("[]")
+  report_settings        Json          @default("{}")
+  config                 Json          @default("{}")
+  updated_by             Int?
+  updated_at             DateTime      @default(now()) @db.Timestamptz(6)
+  users                  users?        @relation(fields: [updated_by], references: [id], onUpdate: NoAction)
+}
+
+model grievance_sources {
+  id                Int                     @id @default(autoincrement())
+  handle            String
+  platform          grievance_platform_enum @default(x)
+  display_name      String
+  profile_image_url String?
+  x_user_id         String?
+  is_active         Boolean                 @default(true)
+  is_verified       Boolean                 @default(false)
+  department        String                  @default("General")
+  designation       String?
+  contact_number    String?
+  total_grievances  Int                     @default(0)
+  stats             Json                    @default("{}")
+  created_by        Int?
+  created_at        DateTime                @default(now()) @db.Timestamptz(6)
+  last_checked      DateTime?               @db.Timestamptz(6)
+  users             users?                  @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  grievances        grievances[]
+
+  @@unique([platform, handle], map: "grievance_sources_platform_handle_uq")
+  @@index([platform, is_active], map: "idx_grievance_sources_active")
+}
+
+model grievance_workflow_reports {
+  id           Int                     @id @default(autoincrement())
+  unique_code  String?                 @unique
+  grievance_id BigInt
+  platform     grievance_platform_enum @default(x)
+  status       String?
+  category     String?
+  created_by   Int?
+  created_at   DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime                @default(now()) @db.Timestamptz(6)
+  payload      Json                    @default("{}")
+  users        users?                  @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  grievances   grievances              @relation(fields: [grievance_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([grievance_id], map: "idx_grievance_workflow_reports_grievance")
+}
+
+model grievances {
+  id                         BigInt                         @id @default(autoincrement())
+  complaint_code             String?
+  tweet_id                   String                         @unique
+  tweet_url                  String                         @default("")
+  tagged_account             String
+  tagged_account_normalized  String                         @default("")
+  grievance_source_id        Int?
+  platform                   grievance_platform_enum        @default(x)
+  complainant_phone          String?
+  source_ref                 String?
+  whatsapp_message_sid       String?
+  author_handle              String
+  author_display_name        String?
+  author_profile_image_url   String?
+  author_is_verified         Boolean                        @default(false)
+  author_follower_count      Int                            @default(0)
+  content_text               String
+  content_full_text          String?
+  post_date                  DateTime                       @db.Timestamptz(6)
+  detected_date              DateTime                       @default(now()) @db.Timestamptz(6)
+  workflow_status            grievance_workflow_status_enum @default(received)
+  classification             grievance_classification_enum  @default(unclassified)
+  escalation_count           Int                            @default(0)
+  fir_number                 String?
+  fir_converted_at           DateTime?                      @db.Timestamptz(6)
+  fir_converted_by           Int?
+  is_active                  Boolean                        @default(true)
+  created_at                 DateTime                       @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime                       @default(now()) @db.Timestamptz(6)
+  posted_by                  Json?
+  content                    Json?
+  context                    Json?
+  engagement                 Json?
+  workflow_history           Json                           @default("[]")
+  workflow_timestamps        Json                           @default("{}")
+  escalation_history         Json                           @default("[]")
+  acknowledgment             Json?
+  complaint                  Json?
+  criticism                  Json?
+  grievance_workflow         Json?
+  query_workflow             Json?
+  suggestion                 Json?
+  analysis                   Json?
+  raw_data                   Json?
+  criticism_reports          criticism_reports[]
+  grievance_workflow_reports grievance_workflow_reports[]
+  users                      users?                         @relation(fields: [fir_converted_by], references: [id], onUpdate: NoAction)
+  grievance_sources          grievance_sources?             @relation(fields: [grievance_source_id], references: [id], onUpdate: NoAction)
+  query_reports              query_reports[]
+  suggestion_reports         suggestion_reports[]
+
+  @@index([is_active, workflow_status, post_date(sort: Desc)], map: "idx_grievances_active_workflow")
+  @@index([is_active, classification, post_date(sort: Desc)], map: "idx_grievances_classification")
+  @@index([platform, workflow_status, post_date(sort: Desc)], map: "idx_grievances_platform_workflow")
+  @@index([grievance_source_id, created_at(sort: Desc)], map: "idx_grievances_source")
+  @@index([tagged_account_normalized, post_date(sort: Desc)], map: "idx_grievances_tagged")
+  @@index([workflow_status, post_date(sort: Desc)], map: "idx_grievances_workflow_post")
+}
+
+model instagram_stories {
+  id            BigInt                @id @default(autoincrement())
+  source_id     Int?
+  story_pk      String                @unique(map: "instagram_stories_story_pk_uq")
+  author        String
+  author_handle String
+  author_avatar String?
+  media_type    story_media_type_enum @default(image)
+  original_url  String
+  s3_url        String?
+  s3_key        String?
+  published_at  DateTime?             @db.Timestamptz(6)
+  expires_at    DateTime?             @db.Timestamptz(6)
+  is_expired    Boolean               @default(false)
+  risk_score    Int                   @default(0)
+  risk_level    risk_level_enum       @default(low)
+  created_at    DateTime              @default(now()) @db.Timestamptz(6)
+  media         Json                  @default("[]")
+  raw_data      Json?
+  sources       sources?              @relation(fields: [source_id], references: [id], onUpdate: NoAction)
+
+  @@index([source_id, published_at(sort: Desc)], map: "idx_instagram_stories_source")
+}
+
+model keywords {
+  id         Int                   @id @default(autoincrement())
+  keyword    String                @unique
+  category   keyword_category_enum
+  language   keyword_language_enum @default(en)
+  is_active  Boolean               @default(true)
+  weight     Int                   @default(50)
+  created_at DateTime              @default(now()) @db.Timestamptz(6)
+}
+
+model legal_sections {
+  id            Int      @id @default(autoincrement())
+  act           String   @default("BNS 2023")
+  section       String   @unique
+  description   String
+  keywords      String[] @default([])
+  mapped_intent String
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model master_calendar_events {
+  id               Int      @id @default(autoincrement())
+  sl_no            Int
+  occasion         String
+  event_date       String
+  monitoring_range String   @default("")
+  keywords         String   @default("")
+  remarks          String   @default("")
+  is_recurring     Boolean  @default(true)
+  created_by       String   @default("system")
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @default(now()) @db.Timestamptz(6)
+  events           events[]
+
+  @@index([is_recurring, sl_no], map: "idx_master_calendar_recurring_sl")
+}
+
+model ongoing_events {
+  id         Int       @id @default(autoincrement())
+  name       String
+  status     String    @default("active")
+  start_date DateTime? @db.Timestamptz(6)
+  end_date   DateTime? @db.Timestamptz(6)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  payload    Json      @default("{}")
+}
+
+model page_permissions {
+  id                                       Int      @id @default(autoincrement())
+  user_id                                  Int      @unique
+  allowed_pages                            String[] @default([])
+  permissions                              Json?
+  updated_by                               Int?
+  updated_at                               DateTime @default(now()) @db.Timestamptz(6)
+  users_page_permissions_updated_byTousers users?   @relation("page_permissions_updated_byTousers", fields: [updated_by], references: [id], onUpdate: NoAction)
+  users_page_permissions_user_idTousers    users    @relation("page_permissions_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model periscope_uploads {
+  id                 Int               @id @default(autoincrement())
+  daily_programme_id Int?
+  file_name          String?
+  file_url           String?
+  uploaded_by        Int?
+  uploaded_at        DateTime          @default(now()) @db.Timestamptz(6)
+  meta               Json              @default("{}")
+  daily_programmes   daily_programmes? @relation(fields: [daily_programme_id], references: [id], onUpdate: NoAction)
+  users              users?            @relation(fields: [uploaded_by], references: [id], onUpdate: NoAction)
+}
+
+model platform_policies {
+  id          Int      @id @default(autoincrement())
+  platform    String
+  policy_name String
+  policy_id   String   @unique
+  description String
+  keywords    String[] @default([])
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model poi_fir_details {
+  id                      Int    @id @default(autoincrement())
+  poi_id                  Int
+  fir_no                  String @default("")
+  ps_limits               String @default("")
+  district_commisionerate String @default("")
+  pois                    pois   @relation(fields: [poi_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model poi_social_accounts {
+  id                      Int                      @id @default(autoincrement())
+  poi_id                  Int
+  platform                poi_social_platform_enum
+  source_id               Int?
+  platform_user_id        String                   @default("")
+  handle                  String?
+  previous_handles        String[]                 @default([])
+  profile_image           String?
+  display_name            String?
+  display_name_normalized String                   @default("")
+  follower_count          String                   @default("")
+  created_date            String                   @default("")
+  category                String                   @default("others")
+  priority                String                   @default("medium")
+  is_active               Boolean                  @default(true)
+  linked_at               DateTime                 @default(now()) @db.Timestamptz(6)
+  pois                    pois                     @relation(fields: [poi_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sources                 sources?                 @relation(fields: [source_id], references: [id], onUpdate: NoAction)
+
+  @@index([platform, handle], map: "idx_poi_social_handle")
+  @@index([poi_id], map: "idx_poi_social_poi")
+  @@index([source_id], map: "idx_poi_social_source")
+}
+
+model pois {
+  id                                Int                   @id @default(autoincrement())
+  name                              String
+  real_name                         String                @default("")
+  alias_names                       String[]              @default([])
+  mobile_numbers                    String[]              @default([])
+  email_ids                         String[]              @default([])
+  last_used_ip                      String                @default("")
+  software_hardware_identifiers     String                @default("")
+  current_address                   String                @default("")
+  ps_limits                         String                @default("")
+  district_commisionerate           String                @default("")
+  linked_incidents                  String                @default("")
+  whatsapp_numbers                  String[]              @default([])
+  fir_no                            String                @default("")
+  brief_summary                     String                @default("")
+  escalated_to_intermediaries_count Int                   @default(0)
+  profile_image                     String                @default("")
+  status                            poi_status_enum       @default(active)
+  created_by                        Int?
+  created_at                        DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at                        DateTime              @default(now()) @db.Timestamptz(6)
+  previously_deleted_profiles       Json                  @default("{}")
+  custom_fields                     Json                  @default("[]")
+  poi_fir_details                   poi_fir_details[]
+  poi_social_accounts               poi_social_accounts[]
+  users                             users?                @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+
+  @@index([status], map: "idx_pois_status")
+}
+
+model policy_mappings {
+  id         Int      @id @default(autoincrement())
+  name       String
+  is_active  Boolean  @default(true)
+  mapping    Json     @default("{}")
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model query_reports {
+  id           Int                     @id @default(autoincrement())
+  unique_code  String?                 @unique
+  grievance_id BigInt
+  platform     grievance_platform_enum @default(x)
+  category     String?
+  remarks      String?
+  message      String?
+  created_by   Int?
+  created_at   DateTime                @default(now()) @db.Timestamptz(6)
+  payload      Json                    @default("{}")
+  users        users?                  @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  grievances   grievances              @relation(fields: [grievance_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([grievance_id], map: "idx_query_reports_grievance")
+}
+
+model reports {
+  id                  Int                  @id @default(autoincrement())
+  serial_number       String               @unique
+  alert_id            BigInt
+  title               String               @default("NOTICE: U/Sec:69(A) & 79(3) Information Technology Amendment Act 2008 and 94 BNSS")
+  content_summary     String?
+  platform            source_platform_enum
+  pdf_url             String?
+  status              report_status_enum   @default(sent_to_intermediary)
+  generated_at        DateTime             @default(now()) @db.Timestamptz(6)
+  closing_remarks     String               @default("")
+  target_user_details Json?
+  media_links         Json                 @default("[]")
+  legal_sections      Json                 @default("[]")
+  violated_policies   Json                 @default("[]")
+  edited_content      Json                 @default("{}")
+  alerts              alerts               @relation(fields: [alert_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([alert_id], map: "idx_reports_alert")
+  @@index([platform, status, generated_at(sort: Desc)], map: "idx_reports_platform_status")
+  @@index([status, generated_at(sort: Desc)], map: "idx_reports_status_generated")
+}
+
+model retweet_relationships {
+  id                BigInt    @id @default(autoincrement())
+  content_id        BigInt?
+  original_tweet_id String?
+  retweeter_handle  String?
+  retweeter_user_id String?
+  observed_at       DateTime  @default(now()) @db.Timestamptz(6)
+  meta              Json      @default("{}")
+  contents          contents? @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([content_id], map: "idx_retweet_relationships_content")
+}
+
+model search_history {
+  id           BigInt   @id @default(autoincrement())
+  user_id      Int?
+  query        String
+  platform     String?
+  results_text String?
+  meta         Json     @default("{}")
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  users        users?   @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([user_id, created_at(sort: Desc)], map: "idx_search_history_user")
+}
+
+model settings {
+  id                          Int      @id @default(autoincrement())
+  settings_key                String   @unique @default("global_settings")
+  theme_color                 String   @default("#1e3a8a")
+  risk_threshold_high         Int      @default(70)
+  risk_threshold_medium       Int      @default(40)
+  monitoring_interval_minutes Int      @default(5)
+  enable_email_alerts         Boolean  @default(true)
+  velocity_alerts_enabled     Boolean  @default(true)
+  alert_for_every_post        Boolean  @default(false)
+  alert_emails                String[] @default([])
+  youtube_api_key             String?
+  x_bearer_token              String?
+  facebook_access_token       String?
+  rapidapi_key                String?
+  rapidapi_instagram_key      String?
+  rapidapi_instagram_host     String?
+  api_config                  Json     @default("{}")
+  extra                       Json     @default("{}")
+  updated_at                  DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model soceye_report_snapshots {
+  id           Int      @id @default(autoincrement())
+  window_hours Int
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  created_by   Int?
+  payload      Json
+  users        users?   @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an index with non-default null sort order and requires additional setup for migrations. Visit https://pris.ly/d/default-index-null-ordering for more info.
+model sources {
+  id                         Int                   @id @default(autoincrement())
+  platform                   source_platform_enum
+  identifier                 String
+  platform_user_id           String                @default("")
+  old_identifiers            String[]              @default([])
+  display_name               String
+  display_name_normalized    String                @default("")
+  profile_image_url          String?
+  category                   String                @default("unknown")
+  priority                   priority_enum         @default(medium)
+  is_active                  Boolean               @default(true)
+  is_verified                Boolean               @default(false)
+  created_by                 Int?
+  created_at                 DateTime              @default(now()) @db.Timestamptz(6)
+  risk_level                 risk_level_enum       @default(low)
+  last_checked               DateTime?             @db.Timestamptz(6)
+  last_identity_refresh_at   DateTime?             @db.Timestamptz(6)
+  follower_count             String                @default("")
+  joined_date                String                @default("")
+  relevance_score            Int?
+  relevance_static_score     Int?
+  relevance_content_avg      Decimal?              @db.Decimal(5, 1)
+  relevance_qualifying_posts Int                   @default(0)
+  relevance_total_posts      Int                   @default(0)
+  relevance_confidence       confidence_enum?
+  relevance_blend_mode       blend_mode_enum?
+  relevance_computed_at      DateTime?             @db.Timestamptz(6)
+  youtube_metadata           Json?
+  statistics                 Json?
+  history                    Json                  @default("[]")
+  relevance_meta             Json?
+  alerts                     alerts[]
+  contents                   contents[]
+  instagram_stories          instagram_stories[]
+  poi_social_accounts        poi_social_accounts[]
+  users                      users?                @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  temp_content               temp_content[]
+
+  @@unique([platform, identifier], map: "sources_platform_identifier_uq")
+  @@index([is_active, created_at(sort: Desc)], map: "idx_sources_active_created")
+  @@index([category], map: "idx_sources_category")
+  @@index([display_name_normalized], map: "idx_sources_display_name_normalized")
+  @@index([platform, is_active], map: "idx_sources_platform_active")
+  @@index([platform, platform_user_id], map: "idx_sources_platform_user_id")
+  @@index([relevance_score(sort: Desc)], map: "idx_sources_relevance_score")
+}
+
+model suggestion_reports {
+  id           Int                     @id @default(autoincrement())
+  unique_code  String?                 @unique
+  grievance_id BigInt
+  platform     grievance_platform_enum @default(x)
+  category     String?
+  remarks      String?
+  message      String?
+  created_by   Int?
+  created_at   DateTime                @default(now()) @db.Timestamptz(6)
+  payload      Json                    @default("{}")
+  users        users?                  @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  grievances   grievances              @relation(fields: [grievance_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([grievance_id], map: "idx_suggestion_reports_grievance")
+}
+
+model temp_content {
+  id                  BigInt               @id @default(autoincrement())
+  tenant_name         String
+  module              temp_module_enum
+  platform            source_platform_enum
+  source_id           Int?
+  source_identifier   String?
+  source_category     String?
+  source_display_name String?
+  event_id            Int?
+  event_name          String?
+  event_keywords      String[]             @default([])
+  raw_data            Json
+  status              temp_status_enum     @default(pending)
+  attempts            Int                  @default(0)
+  error_message       String?
+  created_at          DateTime             @default(now()) @db.Timestamptz(6)
+  processed_at        DateTime?            @db.Timestamptz(6)
+  events              events?              @relation(fields: [event_id], references: [id], onUpdate: NoAction)
+  sources             sources?             @relation(fields: [source_id], references: [id], onUpdate: NoAction)
+
+  @@index([status, created_at], map: "idx_temp_content_status")
+  @@index([tenant_name, status, created_at], map: "idx_temp_content_tenant_status")
+}
+
+model templates {
+  id         Int                   @id @default(autoincrement())
+  name       String
+  platform   source_platform_enum?
+  body       String?
+  is_active  Boolean               @default(true)
+  meta       Json                  @default("{}")
+  created_at DateTime              @default(now()) @db.Timestamptz(6)
+}
+
+model twitter_accounts {
+  id          Int                         @id @default(autoincrement())
+  username    String                      @unique
+  password    String
+  email       String?
+  cookies     Json                        @default("[]")
+  status      twitter_account_status_enum @default(active)
+  last_used   DateTime?                   @db.Timestamptz(6)
+  daily_stats Json                        @default("{}")
+  proxy       String?
+  created_at  DateTime                    @default(now()) @db.Timestamptz(6)
+}
+
+model roles {
+  id               Int      @id @default(autoincrement())
+  name             String
+  slug             String   @unique
+  allowed_pages    String[] @default([])
+  assignable_by    String[] @default(["superadmin"])
+  can_manage_users Boolean  @default(false)
+  can_manage_roles Boolean  @default(false)
+  is_system        Boolean  @default(false)
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  users            users[]
+}
+
+model users {
+  id                                                  Int                          @id @default(autoincrement())
+  name                                                String
+  username                                            String                       @unique
+  email                                               String                       @unique
+  password                                            String
+  role_id                                             Int
+  created_by                                          Int?
+  ui_mode                                             String                       @default("light")
+  theme_color                                         String                       @default("#1e3a8a")
+  created_at                                          DateTime                     @default(now()) @db.Timestamptz(6)
+  updated_at                                          DateTime                     @default(now()) @updatedAt @db.Timestamptz(6)
+  roles                                               roles                        @relation(fields: [role_id], references: [id], onUpdate: NoAction)
+  creator                                             users?                       @relation("user_creator", fields: [created_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  created_users                                       users[]                      @relation("user_creator")
+  alert_status_history                                alert_status_history[]
+  alerts                                              alerts[]
+  audit_logs                                          audit_logs[]
+  comprehensive_reports                               comprehensive_reports[]
+  criticism_reports                                   criticism_reports[]
+  daily_intelligence_reports                          daily_intelligence_reports[]
+  daily_programmes                                    daily_programmes[]
+  dial100_incidents                                   dial100_incidents[]
+  events                                              events[]
+  grievance_settings                                  grievance_settings[]
+  grievance_sources                                   grievance_sources[]
+  grievance_workflow_reports                          grievance_workflow_reports[]
+  grievances                                          grievances[]
+  page_permissions_page_permissions_updated_byTousers page_permissions[]           @relation("page_permissions_updated_byTousers")
+  page_permissions_page_permissions_user_idTousers    page_permissions?            @relation("page_permissions_user_idTousers")
+  periscope_uploads                                   periscope_uploads[]
+  pois                                                pois[]
+  query_reports                                       query_reports[]
+  search_history                                      search_history[]
+  soceye_report_snapshots                             soceye_report_snapshots[]
+  sources                                             sources[]
+  suggestion_reports                                  suggestion_reports[]
+}
+
+model youtube_transcripts {
+  id               BigInt   @id @default(autoincrement())
+  transcript_id    String
+  platform         String   @default("youtube")
+  video_id         String   @unique(map: "youtube_transcripts_video_id_uq")
+  youtube_url      String
+  title            String?
+  duration_seconds Int?
+  language         String?
+  transcript       String?
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  meta             Json     @default("{}")
+}
+
+enum alert_status_enum {
+  active
+  acknowledged
+  resolved
+  false_positive
+  escalated
+}
+
+enum alert_type_enum {
+  keyword_risk
+  ai_risk
+  velocity
+  new_post
+}
+
+enum availability_status_enum {
+  available
+  deleted
+  expired
+  unknown
+}
+
+enum blend_mode_enum {
+  profile_only
+  balanced
+  posts_heavy
+  posts_dominant
+}
+
+enum confidence_enum {
+  low
+  medium
+  high
+}
+
+enum content_type_enum {
+  post
+  reel
+  story
+  highlight
+  video
+  tweet
+}
+
+enum daily_programme_category_enum {
+  category1
+  category2
+  category3
+  category4
+}
+
+enum daily_programme_permission_enum {
+  By_Information         @map("By Information")
+  Permitted
+  Applied_for_Permission @map("Applied for Permission")
+  Rejected
+}
+
+enum event_origin_enum {
+  manual
+  master_calendar
+}
+
+enum event_status_enum {
+  planned
+  active
+  archived
+  paused
+}
+
+enum grievance_classification_enum {
+  unclassified
+  acknowledged
+  complaint
+}
+
+enum grievance_platform_enum {
+  x
+  facebook
+  whatsapp
+}
+
+enum grievance_workflow_status_enum {
+  received
+  reviewed
+  action_taken
+  closed
+  converted_to_fir
+}
+
+enum keyword_category_enum {
+  violence
+  threat
+  hate
+  other
+}
+
+enum keyword_language_enum {
+  en
+  hi
+  te
+  all
+}
+
+enum poi_social_platform_enum {
+  x
+  facebook
+  instagram
+  youtube
+  whatsapp
+}
+
+enum poi_status_enum {
+  active
+  archived
+}
+
+enum priority_enum {
+  low
+  medium
+  high
+}
+
+enum priority_legacy_enum {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum relevance_priority_enum {
+  high
+  medium
+  hidden
+}
+
+enum report_status_enum {
+  generated
+  printed
+  sent
+  sent_to_intermediary
+  awaiting_reply
+  closed
+}
+
+enum risk_level_alert_enum {
+  low
+  medium
+  high
+}
+
+enum risk_level_enum {
+  low
+  medium
+  high
+  critical
+}
+
+enum sentiment_enum {
+  positive
+  neutral
+  negative
+}
+
+enum source_platform_enum {
+  youtube
+  x
+  instagram
+  facebook
+}
+
+enum story_media_type_enum {
+  image
+  video
+}
+
+enum temp_module_enum {
+  profile
+  event
+  grievance
+  media_backfill
+}
+
+enum temp_status_enum {
+  pending
+  processing
+  done
+  failed
+}
+
+enum twitter_account_status_enum {
+  active
+  locked
+  cooldown
+  suspended
+}
+
+enum virality_level_enum {
+  low
+  medium
+  high
+}

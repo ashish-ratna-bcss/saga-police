@@ -5,14 +5,13 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
-const { protect } = require('../middleware/authMiddleware');
-const { requireAnyPageAccess } = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 const logger = require('../utils/logger');
 
 logger.info('📦 UPLOAD ROUTES LOADED - VERSION: ONPREM-V1');
 
 const router = express.Router();
-router.use(protect, requireAnyPageAccess(['/dial-100-incident-reporting', '/grievances', '/person-of-interest']));
+router.use(authorize({ pages: ['/dial-100-incident-reporting', '/grievances', '/person-of-interest'] }));
 
 const uploadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

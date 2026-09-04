@@ -2,29 +2,44 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import api from '../lib/api';
 import { AlertService } from '@/features/alerts/api/alertService';
 import { toast } from 'sonner';
+import { sessionCache, DASHBOARD_CACHE_KEY } from '../lib/sessionCache';
 
 const DashboardContext = createContext(null);
 
-const CACHE_DURATION = 30 * 1000; // 30 seconds
+const CACHE_DURATION = 60 * 1000; // 1 minute in-memory / session
 const CACHE_KEY = 'dashboardCache_v2';
 
+const readLocalDashboard = () => {
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (!cached) return null;
+    const parsed = JSON.parse(cached);
+    if (parsed?.data && parsed?.ts) return parsed;
+  } catch (error) {
+    console.error('Failed to read dashboard cache:', error);
+  }
+  return null;
+};
+
 export const DashboardProvider = ({ children }) => {
-  const [dashboardData, setDashboardData] = useState(null);
-  const [lastFetchTime, setLastFetchTime] = useState(null);
+  const [dashboardData, setDashboardData] = useState(() => {
+    const mem = sessionCache.get(DASHBOARD_CACHE_KEY);
+    if (mem?.data) return mem.data;
+    return readLocalDashboard()?.data || null;
+  });
+  const [lastFetchTime, setLastFetchTime] = useState(() => {
+    const mem = sessionCache.get(DASHBOARD_CACHE_KEY);
+    if (mem?.ts) return mem.ts;
+    return readLocalDashboard()?.ts || null;
+  });
   const [loading, setLoading] = useState(false);
 
-  // Restore from localStorage on mount
+  // Hydrate session memory from localStorage once on mount (state already seeded above)
   useEffect(() => {
-    try {
-      const cached = localStorage.getItem(CACHE_KEY);
-      if (!cached) return;
-      const parsed = JSON.parse(cached);
-      if (parsed?.data && parsed?.ts) {
-        setDashboardData(parsed.data);
-        setLastFetchTime(parsed.ts);
-      }
-    } catch (error) {
-      console.error('Failed to read dashboard cache:', error);
+    const local = readLocalDashboard();
+    if (!local?.data || !local?.ts) return;
+    if (!sessionCache.get(DASHBOARD_CACHE_KEY)) {
+      sessionCache.set(DASHBOARD_CACHE_KEY, { data: local.data, ts: local.ts }, CACHE_DURATION);
     }
   }, []);
 
@@ -155,9 +170,11 @@ export const DashboardProvider = ({ children }) => {
       };
 
       setDashboardData(newData);
-      setLastFetchTime(Date.now());
+      const ts = Date.now();
+      setLastFetchTime(ts);
+      sessionCache.set(DASHBOARD_CACHE_KEY, { data: newData, ts }, CACHE_DURATION);
       try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ data: newData, ts: Date.now() }));
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ data: newData, ts }));
       } catch (error) {
         console.error('Failed to write dashboard cache:', error);
       }

@@ -39,15 +39,12 @@ export const OSINT_BASE_URL = getServiceUrl(
 
 const api = axios.create({
   baseURL: API_URL,
+  // Auth is an httpOnly cookie set by the backend on login — send it on every request.
+  withCredentials: true,
 });
 
-// Request interceptor to add token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
-    }
     config.headers['ngrok-skip-browser-warning'] = '69420';
     return config;
   },
@@ -62,9 +59,11 @@ api.interceptors.response.use(
   (error) => {
     const url = error?.config?.url || '';
     const isUploadRequest = url.includes('/uploads/cloudinary');
-    if (error.response && error.response.status === 401 && !isUploadRequest) {
-      // Token expired or invalid
-      localStorage.removeItem('token');
+    const isAuthCheck = url.includes('/me') && !url.includes('/me/permissions') && !url.includes('/users');
+    // Also treat exact trailing /me or /api/me as auth check
+    const isMeCheck = /\/me\/?$/.test(url) || url === 'me' || url.endsWith('/me');
+    const onLoginPage = typeof window !== 'undefined' && window.location.pathname === '/login';
+    if (error.response && error.response.status === 401 && !isUploadRequest && !(isAuthCheck || isMeCheck) && !onLoginPage) {
       window.location.href = '/login';
     }
     return Promise.reject(error);

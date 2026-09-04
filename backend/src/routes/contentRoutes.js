@@ -1,8 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getContent, getContentFeed, getContentDetail, getContentStats, checkContentAvailability, getUnavailableContent } = require('../controllers/contentController');
-const { protect } = require('../middleware/authMiddleware');
-const { requireAnyPageAccess, requirePlatformFeatureAccess } = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
 const CONTENT_ALLOWED_PAGES = [
   '/content',
@@ -14,13 +13,13 @@ const CONTENT_ALLOWED_PAGES = [
   '/youtube-monitor'
 ];
 
-router.use(protect, requireAnyPageAccess(CONTENT_ALLOWED_PAGES));
+router.use(authorize({ pages: CONTENT_ALLOWED_PAGES }));
 
-router.get('/', requirePlatformFeatureAccess('/monitors', (req) => req.query.platform), getContent);
-router.get('/feed', requirePlatformFeatureAccess('/monitors', (req) => req.query.platform), getContentFeed);
-router.get('/stats', requirePlatformFeatureAccess('/monitors', (req) => req.query.platform), getContentStats);
-router.get('/unavailable', requirePlatformFeatureAccess('/monitors', (req) => req.query.platform), getUnavailableContent);
-router.post('/check-availability', requirePlatformFeatureAccess('/monitors', (req) => req.body.platform), checkContentAvailability);
+router.get('/', authorize({ pages: ['/monitors'] }), getContent);
+router.get('/feed', authorize({ pages: ['/monitors'] }), getContentFeed);
+router.get('/stats', authorize({ pages: ['/monitors'] }), getContentStats);
+router.get('/unavailable', authorize({ pages: ['/monitors'] }), getUnavailableContent);
+router.post('/check-availability', authorize({ pages: ['/monitors'] }), checkContentAvailability);
 router.get('/:id', getContentDetail);
 
 module.exports = router;

@@ -1,7 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const { protect } = require('../middleware/authMiddleware');
-const { requireAnyPageAccess } = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 const {
     parseTemplate,
     uploadTemplate,
@@ -15,7 +14,7 @@ const {
 } = require('../controllers/templatesController');
 
 const router = express.Router();
-router.use(protect, requireAnyPageAccess(['/settings']));
+router.use(authorize({ pages: ['/settings'] }));
 
 // Configure multer for file upload (store in memory)
 const upload = multer({

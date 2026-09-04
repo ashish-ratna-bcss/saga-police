@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const ragController = require('../controllers/ragController');
-const { protect } = require('../middleware/authMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
 // All RAG routes require authentication
-router.use(protect);
+router.use(authorize());
 
 router.get('/health', ragController.health);
 router.get('/collections', ragController.collections);

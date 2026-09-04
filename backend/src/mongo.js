@@ -1,15 +1,14 @@
+/**
+ * MongoDB connection (legacy app data). Postgres/Prisma lives under /prisma.
+ */
 const mongoose = require('mongoose');
-const logger = require('../utils/logger');
+const logger = require('./utils/logger');
+const { getMongoUri } = require('./config/env');
 
 const MAX_RETRY_DELAY_MS = 30000;
 
-// Retries with backoff instead of killing the process on a transient connection
-// failure (e.g. a flaky SSH tunnel to a remote Mongo host). Previously this
-// called process.exit(1) on the first failed attempt, and since app.listen()
-// only runs after this resolves, nodemon would crash and sit dead waiting for
-// a file change — nothing listens on PORT until someone notices and restarts.
-const connectDB = async () => {
-  const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/blura_hub';
+const connectMongo = async () => {
+  const uri = getMongoUri();
   let attempt = 0;
 
   for (;;) {
@@ -30,4 +29,4 @@ const connectDB = async () => {
   mongoose.connection.on('reconnected', () => logger.info('[DB] Reconnected to MongoDB'));
 };
 
-module.exports = connectDB;
+module.exports = connectMongo;

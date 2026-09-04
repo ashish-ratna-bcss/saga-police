@@ -19,10 +19,9 @@ const {
     getPendingCount,
     getAllAnalyses
 } = require('../services/engagerAnalysisService');
-const { protect } = require('../middleware/authMiddleware');
-const { requireAnyPageAccess } = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
-router.use(protect, requireAnyPageAccess(['/x-monitor']));
+router.use(authorize({ pages: ['/x-monitor'] }));
 
 const RAPID_ENDPOINT_ALIASES = {
     // User Endpoint

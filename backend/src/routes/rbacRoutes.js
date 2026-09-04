@@ -1,31 +1,47 @@
+/**
+ * @deprecated Legacy /api/rbac mount — prefer flat /api/users, /api/roles, /api/me/permissions
+ */
 const express = require('express');
-const router = express.Router();
 const {
-    getAllPages,
-    getAllUsers,
-    createUser,
-    getUserPermissions,
-    updateUserPermissions,
-    getMyPermissions,
-    updateUser,
-    deleteUser
-} = require('../controllers/rbacController');
-const { protect, authorize } = require('../middleware/authMiddleware');
-const { loadUserPermissions, requireAnyPageAccess } = require('../middleware/rbacMiddleware');
+  getAllPages,
+  getAllUsers,
+  createUser,
+  getUserPermissions,
+  updateUserPermissions,
+  getMyPermissions,
+  updateUser,
+  deleteUser,
+} = require('../modules/user/user.controller');
+const { authorize } = require('../middleware/auth.middleware');
 
-// All routes require authentication
-router.use(protect);
+const router = express.Router();
 
-// Current user's own permissions (any authenticated user)
+router.use(authorize());
+
 router.get('/my-permissions', getMyPermissions);
+router.get('/pages', authorize({ manageUsers: true }), getAllPages);
+router.get('/users', authorize({ manageUsers: true }), getAllUsers);
+router.post('/users', authorize({ manageUsers: true }), createUser);
+router.put('/users/:id', authorize({ manageUsers: true }), updateUser);
+router.delete('/users/:id', authorize({ manageUsers: true }), deleteUser);
+router.get('/permissions/:id', authorize({ manageUsers: true }), getUserPermissions);
+router.put('/permissions/:id', authorize({ manageUsers: true }), updateUserPermissions);
 
-// Admin-only routes
-router.get('/pages', authorize('superadmin'), loadUserPermissions, requireAnyPageAccess(['/access-management']), getAllPages);
-router.get('/users', authorize('superadmin'), loadUserPermissions, requireAnyPageAccess(['/access-management']), getAllUsers);
-router.post('/users', authorize('superadmin'), loadUserPermissions, requireAnyPageAccess(['/access-management']), createUser);
-router.put('/users/:userId', authorize('superadmin'), loadUserPermissions, requireAnyPageAccess(['/access-management']), updateUser);
-router.delete('/users/:userId', authorize('superadmin'), loadUserPermissions, requireAnyPageAccess(['/access-management']), deleteUser);
-router.get('/permissions/:userId', authorize('superadmin'), loadUserPermissions, requireAnyPageAccess(['/access-management']), getUserPermissions);
-router.put('/permissions/:userId', authorize('superadmin'), loadUserPermissions, requireAnyPageAccess(['/access-management']), updateUserPermissions);
+router.put('/users/:userId', authorize({ manageUsers: true }), (req, res, next) => {
+  req.params.id = req.params.userId;
+  return updateUser(req, res, next);
+});
+router.delete('/users/:userId', authorize({ manageUsers: true }), (req, res, next) => {
+  req.params.id = req.params.userId;
+  return deleteUser(req, res, next);
+});
+router.get('/permissions/:userId', authorize({ manageUsers: true }), (req, res, next) => {
+  req.params.id = req.params.userId;
+  return getUserPermissions(req, res, next);
+});
+router.put('/permissions/:userId', authorize({ manageUsers: true }), (req, res, next) => {
+  req.params.id = req.params.userId;
+  return updateUserPermissions(req, res, next);
+});
 
 module.exports = router;

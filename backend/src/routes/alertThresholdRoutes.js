@@ -7,11 +7,10 @@ const {
     deleteAlertThreshold,
     bulkUpdateThresholds
 } = require('../controllers/alertThresholdController');
-const { protect } = require('../middleware/authMiddleware');
-const { requireAnyPageAccess } = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
 // Apply auth to all routes
-router.use(protect, requireAnyPageAccess(['/settings']));
+router.use(authorize({ pages: ['/settings'] }));
 
 // GET all thresholds, POST new threshold
 router.route('/')

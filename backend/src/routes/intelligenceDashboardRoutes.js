@@ -5,10 +5,9 @@ const {
   getGrievancesIntelligence,
   getProfilesIntelligence
 } = require('../controllers/intelligenceDashboardController');
-const { protect } = require('../middleware/authMiddleware');
-const { requireAnyPageAccess } = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
-router.use(protect, requireAnyPageAccess(['/analytics', '/unified-reports', '/intelligence-dashboard']));
+router.use(authorize({ pages: ['/analytics', '/unified-reports', '/intelligence-dashboard'] }));
 
 router.get('/alerts', getAlertsIntelligence);
 router.get('/grievances', getGrievancesIntelligence);

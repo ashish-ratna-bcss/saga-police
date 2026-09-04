@@ -1,9 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { getAuditLogs } = require('../controllers/auditController');
-const { protect } = require('../middleware/authMiddleware');
-const { requireAnyPageAccess } = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
-router.get('/', protect, requireAnyPageAccess(['/audit-logs']), getAuditLogs);
+router.get('/', authorize({ pages: ['/audit-logs'] }), getAuditLogs);
 
 module.exports = router;

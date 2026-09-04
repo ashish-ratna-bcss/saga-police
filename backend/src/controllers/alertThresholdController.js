@@ -23,7 +23,7 @@ const getAlertThresholds = async (req, res) => {
 // @access  Private (Admin/Analyst)
 const createAlertThreshold = async (req, res) => {
     try {
-        if (!['superadmin', 'analyst'].includes(req.user.role)) {
+        if (!['superadmin', 'admin'].includes(req.user.role)) {
             return res.status(403).json({ message: 'Insufficient permissions' });
         }
 
@@ -57,7 +57,7 @@ const createAlertThreshold = async (req, res) => {
 // @access  Private (Admin/Analyst)
 const updateAlertThreshold = async (req, res) => {
     try {
-        if (!['superadmin', 'analyst'].includes(req.user.role)) {
+        if (!['superadmin', 'admin'].includes(req.user.role)) {
             return res.status(403).json({ message: 'Insufficient permissions' });
         }
 
@@ -91,7 +91,7 @@ const updateAlertThreshold = async (req, res) => {
 // @access  Private (Admin/Analyst)
 const deleteAlertThreshold = async (req, res) => {
     try {
-        if (!['superadmin', 'analyst'].includes(req.user.role)) {
+        if (!['superadmin', 'admin'].includes(req.user.role)) {
             return res.status(403).json({ message: 'Insufficient permissions' });
         }
 
@@ -115,7 +115,7 @@ const deleteAlertThreshold = async (req, res) => {
 // @access  Private (Admin/Analyst)
 const bulkUpdateThresholds = async (req, res) => {
     try {
-        if (!['superadmin', 'analyst'].includes(req.user.role)) {
+        if (!['superadmin', 'admin'].includes(req.user.role)) {
             return res.status(403).json({ message: 'Insufficient permissions' });
         }
 

@@ -8,8 +8,6 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import Layout from './components/Layout';
 import Login from './pages/Login';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
 
 // Lazy load heavy pages
 const Dashboard = lazy(() => import('./pages/DashboardNew'));
@@ -43,6 +41,8 @@ const PolicyManager = lazy(() => import('./components/PolicyManager'));
 const PersonOfInterest = lazy(() => import('./pages/POI/PersonOfInterest'));
 const POIDetail = lazy(() => import('./pages/POI/POIDetail'));
 const AccessManagement = lazy(() => import('./pages/AccessManagement'));
+const UsersManagement = lazy(() => import('./pages/UsersManagement'));
+const RolesManagement = lazy(() => import('./pages/RolesManagement'));
 const AnalysisTools = lazy(() => import('./pages/AnalysisTools'));
 const OSINTLayout = lazy(() => import('./pages/osint/OSINTLayout'));
 const OSINTDashboard = lazy(() => import('./pages/osint/OSINTDashboard'));
@@ -72,17 +72,11 @@ const PageLoader = () => (
 import { NotificationProvider } from './context/NotificationContext';
 import { InstagramCacheProvider } from './contexts/InstagramCacheContext';
 import { RbacProvider } from './contexts/RbacContext';
-import { applyThemeColor } from './utils/theme';
 import './App.css';
 
 function App() {
-  React.useEffect(() => {
-    const savedTheme = localStorage.getItem('app_theme_color');
-    if (savedTheme) {
-      applyThemeColor(savedTheme);
-    }
-  }, []);
-
+  // Theme (ui_mode + theme_color) comes from GET /me via AuthContext — do not
+  // apply a stale global/localStorage color here or Settings will fight with it.
   return (
     <AuthProvider>
       <DashboardProvider>
@@ -94,8 +88,6 @@ function App() {
               <Suspense fallback={<PageLoader />}>
                 <Routes>
                   <Route path="/login" element={<Login />} />
-                  <Route path="/forgot-password" element={<ForgotPassword />} />
-                  <Route path="/reset-password/:token" element={<ResetPassword />} />
                   <Route
                     path="/"
                     element={
@@ -133,6 +125,8 @@ function App() {
                     <Route path="dial-100-incident-reporting" element={<Dial100IncidentReporting />} />
                     <Route path="audit-logs" element={<AuditLogs />} />
                     <Route path="access-management" element={<AccessManagement />} />
+                    <Route path="users-management" element={<UsersManagement />} />
+                    <Route path="roles-management" element={<RolesManagement />} />
                     <Route path="person-of-interest" element={<PersonOfInterest />} />
                     <Route path="person-of-interest/:id" element={<POIDetail />} />
                     <Route path="analysis-tools" element={<AnalysisTools />} />

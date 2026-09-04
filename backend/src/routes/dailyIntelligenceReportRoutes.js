@@ -3,23 +3,9 @@ const logger = require('../utils/logger');
 const router = express.Router();
 const dailyIntelligenceReportService = require('../services/dailyIntelligenceReportService');
 const { generateDailyIntelligenceReportPdf } = require('../services/dailyIntelligenceReportPdfService');
-const { protect } = require('../middleware/authMiddleware');
-const {
-    loadUserPermissions,
-    hasPageAccess,
-    denyPageAccess
-} = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
-const requireReportsAccess = (req, res, next) => {
-    if (hasPageAccess(req, '/reports') || 
-        hasPageAccess(req, '/unified-reports') || 
-        hasPageAccess(req, '/daily-intelligence')) {
-        return next();
-    }
-    return denyPageAccess(res, ['/reports', '/unified-reports', '/daily-intelligence']);
-};
-
-router.use(protect, loadUserPermissions, requireReportsAccess);
+router.use(authorize({ pages: ['/reports', '/unified-reports', '/daily-intelligence'] }));
 
 router.post('/generate', async (req, res) => {
     try {

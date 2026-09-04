@@ -1,10 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const searchController = require('../controllers/searchController');
-const { protect } = require('../middleware/authMiddleware');
-const { requireAnyPageAccess } = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
-router.use(protect, requireAnyPageAccess(['/global-search']));
+router.use(authorize({ pages: ['/global-search'] }));
 
 router.get('/profiles', searchController.searchProfiles);
 router.get('/content', searchController.searchContent);

@@ -28,7 +28,7 @@ const AccessManagement = () => {
         full_name: '',
         email: '',
         password: '',
-        role: 'level-1'
+        role: 'user'
     });
     const [creatingUser, setCreatingUser] = useState(false);
 
@@ -38,7 +38,7 @@ const AccessManagement = () => {
         full_name: '',
         email: '',
         password: '',
-        role: 'level-1'
+        role: 'user'
     });
     const [updatingUser, setUpdatingUser] = useState(false);
     const [deletingUser, setDeletingUser] = useState(false);
@@ -49,8 +49,8 @@ const AccessManagement = () => {
             try {
                 setLoadingUsers(true);
                 const [usersRes, pagesRes] = await Promise.all([
-                    api.get('/rbac/users'),
-                    api.get('/rbac/pages')
+                    api.get('/users'),
+                    api.get('/pages')
                 ]);
                 setUsers(usersRes.data);
                 setPages(pagesRes.data);
@@ -70,7 +70,7 @@ const AccessManagement = () => {
         if (!userId) return;
         try {
             setLoadingPerms(true);
-            const res = await api.get(`/rbac/permissions/${userId}`);
+            const res = await api.get(`/users/${userId}/permissions`);
             setPermissions(res.data.permissions || {});
             setHasCustomPermissions(res.data.has_custom_permissions || false);
             setIsDirty(false);
@@ -85,7 +85,7 @@ const AccessManagement = () => {
     const handleUserChange = (e) => {
         const userId = e.target.value;
         setSelectedUserId(userId);
-        const foundUser = users.find(u => u.id === userId);
+        const foundUser = users.find(u => String(u.id) === String(userId));
         setSelectedUser(foundUser || null);
         if (userId) {
             fetchUserPermissions(userId);
@@ -173,7 +173,7 @@ const AccessManagement = () => {
 
         try {
             setSaving(true);
-            await api.put(`/rbac/permissions/${selectedUserId}`, {
+            await api.put(`/users/${selectedUserId}/permissions`, {
                 permissions: permissions
             });
             setHasCustomPermissions(true);
@@ -191,11 +191,11 @@ const AccessManagement = () => {
         e.preventDefault();
         try {
             setCreatingUser(true);
-            await api.post('/rbac/users', newUserForm);
+            await api.post('/users', newUserForm);
 
             toast.success(`User ${newUserForm.full_name} created successfully!`);
 
-            const usersRes = await api.get('/rbac/users');
+            const usersRes = await api.get('/users');
             setUsers(usersRes.data);
 
             setShowCreateModal(false);
@@ -203,7 +203,7 @@ const AccessManagement = () => {
                 full_name: '',
                 email: '',
                 password: '',
-                role: 'level-1'
+                role: 'user'
             });
         } catch (error) {
             const msg = error.response?.data?.message || 'Failed to create user. Email may already exist.';
@@ -236,11 +236,11 @@ const AccessManagement = () => {
                 delete payload.password;
             }
 
-            await api.put(`/rbac/users/${selectedUser.id}`, payload);
+            await api.put(`/users/${selectedUser.id}`, payload);
             toast.success(`User updated successfully!`);
 
             // Refresh user list
-            const usersRes = await api.get('/rbac/users');
+            const usersRes = await api.get('/users');
             setUsers(usersRes.data);
 
             // Update selected user state
@@ -268,11 +268,11 @@ const AccessManagement = () => {
         if (window.confirm(`Are you sure you want to delete ${selectedUser.full_name}? This action cannot be undone.`)) {
             try {
                 setDeletingUser(true);
-                await api.delete(`/rbac/users/${selectedUser.id}`);
+                await api.delete(`/users/${selectedUser.id}`);
                 toast.success('User deleted successfully.');
 
                 // Refresh user list and deselect
-                const usersRes = await api.get('/rbac/users');
+                const usersRes = await api.get('/users');
                 setUsers(usersRes.data);
                 setSelectedUserId('');
                 setSelectedUser(null);
@@ -298,13 +298,15 @@ const AccessManagement = () => {
     const getRoleColor = (role) => {
         switch (role) {
             case 'superadmin': return 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800';
+            case 'admin': return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800';
+            case 'user': return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
             case 'level-2': return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800';
             default: return 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-slate-800 dark:text-gray-300 dark:border-slate-600';
         }
     };
 
-    // Only superadmin can access this page
-    if (user?.role !== 'superadmin') {
+    // Users Management — admin + superadmin
+    if (!user?.can_manage_users && user?.role !== 'superadmin' && user?.role !== 'admin') {
         return <Navigate to="/dashboard" replace />;
     }
 
@@ -670,9 +672,13 @@ const AccessManagement = () => {
                                         value={newUserForm.role}
                                         onChange={(e) => setNewUserForm({ ...newUserForm, role: e.target.value })}
                                     >
-                                        <option value="level-1">Level 1</option>
-                                        <option value="level-2">Level 2</option>
-                                        <option value="superadmin">Super Admin</option>
+                                        <option value="user">User</option>
+                                        {user?.role === 'superadmin' && (
+                                          <option value="admin">Admin</option>
+                                        )}
+                                        {user?.role === 'superadmin' && (
+                                          <option value="superadmin" disabled>Super Admin (seed only)</option>
+                                        )}
                                     </select>
                                 </div>
                                 <div className="flex gap-3 pt-4">
@@ -761,9 +767,13 @@ const AccessManagement = () => {
                                             value={editUserForm.role}
                                             onChange={(e) => setEditUserForm({ ...editUserForm, role: e.target.value })}
                                         >
-                                            <option value="level-1">Level 1</option>
-                                            <option value="level-2">Level 2</option>
-                                            <option value="superadmin">Super Admin</option>
+                                            <option value="user">User</option>
+                                            {user?.role === 'superadmin' && (
+                                              <option value="admin">Admin</option>
+                                            )}
+                                            {user?.role === 'superadmin' && (
+                                              <option value="superadmin">Super Admin</option>
+                                            )}
                                         </select>
                                     </div>
                                     <div className="flex gap-3 pt-4">

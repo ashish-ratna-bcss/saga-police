@@ -2,15 +2,9 @@ const express = require('express');
 const router = express.Router();
 const service = require('../services/comprehensiveReportService');
 const { generateComprehensiveReportPdf } = require('../services/comprehensiveReportPdfService');
-const { protect } = require('../middleware/authMiddleware');
-const { loadUserPermissions, hasPageAccess, denyPageAccess } = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
-const requireAccess = (req, res, next) => {
-  if (hasPageAccess(req, '/reports') || hasPageAccess(req, '/unified-reports') || hasPageAccess(req, '/intelligence-dashboard')) return next();
-  return denyPageAccess(res, ['/reports', '/unified-reports', '/intelligence-dashboard']);
-};
-
-router.use(protect, loadUserPermissions, requireAccess);
+router.use(authorize({ pages: ['/reports', '/unified-reports', '/intelligence-dashboard'] }));
 
 router.post('/generate', async (req, res) => {
   try {

@@ -2,15 +2,16 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
-const connectDB = require('./config/db');
-const { assertJwtConfigured, shouldSeedDefaultAdmin, isProduction } = require('./config/security');
+const connectDB = require('./mongo');
+const { assertJwtConfigured, shouldSeedDefaultAdmin, isProduction } = require('./config/env');
 const { startMonitoring } = require('./services/monitorService');
 const { startTempContentProcessor } = require('./services/tempContentProcessor');
 const { seedDefaultThresholds } = require('./services/velocityAlertService');
 const grievanceService = require('./services/grievanceService');
-const User = require('./models/User');
+const prisma = require('../prisma/client');
 const Settings = require('./models/Settings');
 const Source = require('./models/Source');
 const Content = require('./models/Content');
@@ -25,7 +26,18 @@ const { seedRecurringEvents } = require('./controllers/masterCalendarController'
 const { syncCalendarToEvents } = require('./services/calendarEventSyncService');
 const fs = require('fs');
 const logger = require('./utils/logger');
-const requestLogger = require('./middleware/requestLogger');
+
+const requestLogger = (req, res, next) => {
+  req.id = crypto.randomUUID();
+  const start = Date.now();
+  logger.debug(`[req ${req.id}] --> ${req.method} ${req.originalUrl}`);
+  res.on('finish', () => {
+    const durationMs = Date.now() - start;
+    const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
+    logger[level](`[req ${req.id}] <-- ${req.method} ${req.originalUrl} ${res.statusCode} ${durationMs}ms`);
+  });
+  next();
+};
 
 process.on('uncaughtException', (error) => {
   logger.error('[Process] Uncaught exception:', error.message, error.stack);
@@ -73,10 +85,12 @@ if (isProduction() && !process.env.CORS_ORIGINS) {
 app.use(cors({
   origin: process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
-    : '*',
+    // Cookies require the actual request origin to be echoed back, not '*'.
+    : true,
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning', 'x-requested-with']
 }));
+app.use(cookieParser());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(mongoSanitize());
@@ -100,7 +114,7 @@ app.use('/api/files', express.static(reportStorageDir, reportStaticOptions));
 
 // Routes
 app.use('/api/health', require('./routes/healthRoutes'));
-app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api', require('./modules').router);
 app.use('/api/sources', require('./routes/sourceRoutes'));
 app.use('/api/content', require('./routes/contentRoutes'));
 app.use('/api/alerts', require('./routes/alertRoutes'));
@@ -144,7 +158,10 @@ app.use('/api/post-location', require('./routes/postLocationRoutes'));
 
 app.get('/api/verify-v2', (req, res) => res.json({ status: 'ok', version: 'v2-diagnostic', timestamp: new Date() }));
 app.get('/api/ping', (req, res) => res.json({ status: 'ok' }));
+// Legacy alias — prefer flat /api/users, /api/roles, /api/me/permissions
 app.use('/api/rbac', require('./routes/rbacRoutes'));
+// Legacy alias — prefer /api/login, /api/me, /api/logout
+app.use('/api/auth', require('./routes/authRoutes'));
 
 // Log every mounted route prefix once at startup so a missing/misregistered
 // route (like a 404 that should have been a hit) is obvious from the logs
@@ -160,13 +177,10 @@ app._router.stack.forEach((layer) => {
 });
 logger.info(`[Startup] ${registeredRoutes.length} routes registered:\n${registeredRoutes.join('\n')}`);
 
-// Catch-all 404 handler for debugging untracked routes
-app.use((req, res, next) => {
+app.use((req, res) => {
   logger.warn(`[404] Path NOT FOUND: ${req.method} ${req.originalUrl}`);
   res.status(404).json({ message: `Path ${req.originalUrl} not found` });
 });
-
-// Global error handler — safety net for errors passed via next(err) or thrown synchronously in middleware.
 app.use((err, req, res, next) => {
   logger.error(`[req ${req.id || '-'}] Unhandled error on ${req.method} ${req.originalUrl}:`, err.message, err.stack);
   if (res.headersSent) return next(err);
@@ -180,23 +194,37 @@ const createDefaultAdmin = async () => {
       return;
     }
 
-    const adminEmail = 'admin@blurahub.com';
-    const adminExists = await User.findOne({ email: adminEmail });
+    const { ensureSystemRoles, getRoleBySlug } = require('./modules/role/role.service');
+    const { ROLE_SLUGS } = require('./modules/role/role.utils');
+
+    await ensureSystemRoles();
+    const superadminRole = await getRoleBySlug(ROLE_SLUGS.SUPERADMIN);
+    if (!superadminRole) {
+      logger.error('[Startup] superadmin role missing after seed');
+      return;
+    }
+
+    const adminUsername = 'admin';
+    const adminExists = await prisma.users.findUnique({ where: { username: adminUsername } });
 
     if (!adminExists) {
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash('admin123', salt);
 
-      await User.create({
-        email: adminEmail,
-        password: hashedPassword,
-        full_name: 'System Administrator',
-        role: 'superadmin'
+      await prisma.users.create({
+        data: {
+          name: 'System Administrator',
+          username: adminUsername,
+          email: 'admin@blurahub.com',
+          password: hashedPassword,
+          role_id: superadminRole.id,
+          ui_mode: 'light',
+        },
       });
-      //console.log('Default admin user created: admin@blurahub.com / admin123');
+      logger.info('[Startup] Default superadmin created: admin / admin123');
     }
   } catch (error) {
-    //console.error(`Error creating default admin: ${error.message}`);
+    logger.error(`[Startup] Error creating default admin: ${error.message}`);
   }
 };
 

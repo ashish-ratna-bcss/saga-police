@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { getOsintToolsConfig } = require('../controllers/osintToolsController');
-const { protect } = require('../middleware/authMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
-router.use(protect);
+router.use(authorize());
 
 router.get('/config', getOsintToolsConfig);
 

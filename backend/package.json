@@ -5,22 +5,30 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
+    "dev": "node prisma/ensureSchema.js && nodemon src/index.js",
     "lint": "eslint src/**/*.js",
     "index:retweet-optimize": "node src/scripts/optimize_retweet_indexes.js",
     "index:alert-optimize": "node src/scripts/optimize_alert_indexes.js",
-    "media:backfill:facebook": "node scripts/backfill_facebook_media.js"
+    "media:backfill:facebook": "node scripts/backfill_facebook_media.js",
+    "prisma:generate": "prisma generate",
+    "prisma:pull": "prisma db pull",
+    "prisma:push": "prisma db push",
+    "prisma:studio": "prisma studio",
+    "db:ensure": "node prisma/ensureSchema.js",
+    "db:apply-schema": "psql \"$DATABASE_URL\" -f ../postgres-schema/schema.sql"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.983.0",
     "@aws-sdk/lib-storage": "^3.983.0",
     "@aws-sdk/s3-request-presigner": "^3.996.0",
     "@google/generative-ai": "^0.21.0",
+    "@prisma/client": "^6.19.0",
     "agent-twitter-client": "^0.0.18",
     "axios": "^1.13.2",
     "bcryptjs": "^2.4.3",
     "cheerio": "^1.1.2",
     "cloudinary": "^2.6.1",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "date-fns": "^4.1.0",
     "docx": "^9.5.1",
@@ -53,6 +61,7 @@
   },
   "devDependencies": {
     "eslint": "^8.57.0",
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.1.0",
+    "prisma": "^6.19.0"
   }
 }

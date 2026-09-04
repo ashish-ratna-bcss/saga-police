@@ -1,13 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/authMiddleware');
-const {
-  loadUserPermissions,
-  hasPageAccess,
-  hasFeatureAccess,
-  denyPageAccess,
-  denyFeatureAccess
-} = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 const {
   createReport,
   shareReport,
@@ -21,27 +14,7 @@ const {
   generateReportPdf
 } = require('../controllers/criticismController');
 
-const requireCriticismPageAccess = (req, res, next) => {
-  if (hasPageAccess(req, '/unified-reports') || hasPageAccess(req, '/grievances')) {
-    return next();
-  }
-  return denyPageAccess(res, ['/grievances', '/unified-reports']);
-};
-
-const requireCriticismReportFeature = (req, res, next) => {
-  if (hasPageAccess(req, '/unified-reports')) {
-    return next();
-  }
-  if (!hasPageAccess(req, '/grievances')) {
-    return denyPageAccess(res, ['/grievances', '/unified-reports']);
-  }
-  if (!hasFeatureAccess(req, '/grievances', 'reports')) {
-    return denyFeatureAccess(res, '/grievances', 'reports');
-  }
-  return next();
-};
-
-router.use(protect, loadUserPermissions, requireCriticismPageAccess, requireCriticismReportFeature);
+router.use(authorize({ pages: ['/grievances', '/unified-reports'] }));
 
 /* ── Reports ── */
 router.get('/reports/export', exportReports); // must be before :id

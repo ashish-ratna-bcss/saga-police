@@ -410,12 +410,9 @@ const Announcements = () => {
             formData.append('date', selectedDate);
 
             // Use native axios to bypass api.js default Content-Type which strips the boundary
-            const token = localStorage.getItem('token');
             const baseUrl = `${BACKEND_URL}/api`;
             const res = await axios.post(`${baseUrl}/daily-programmes/upload-periscope`, formData, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
+                withCredentials: true
             });
 
             toast.success(`${res.data.message}`);
@@ -523,11 +520,8 @@ const Announcements = () => {
     // Export handlers
     const handleExportPDF = async () => {
         try {
-            const token = localStorage.getItem('token');
             const response = await fetch(`${api.defaults.baseURL}/export/pdf?date=${selectedDate}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
+                credentials: 'include'
             });
 
             if (!response.ok) {
@@ -552,11 +546,8 @@ const Announcements = () => {
 
     const handleExportWord = async () => {
         try {
-            const token = localStorage.getItem('token');
             const response = await fetch(`${api.defaults.baseURL}/export/word?date=${selectedDate}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
+                credentials: 'include'
             });
 
             if (!response.ok) {
@@ -581,13 +572,10 @@ const Announcements = () => {
 
     const handleShareWhatsApp = async () => {
         try {
-            const token = localStorage.getItem('token');
             const toastId = toast.loading('Generating PDF for sharing...');
 
             const response = await fetch(`${api.defaults.baseURL}/export/pdf?date=${selectedDate}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
+                credentials: 'include'
             });
 
             if (!response.ok) {

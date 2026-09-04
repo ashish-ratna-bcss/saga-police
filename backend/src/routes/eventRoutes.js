@@ -20,10 +20,9 @@ const {
   generateEventReportPdf
 } = require('../controllers/eventController');
 
-const { protect, authorize } = require('../middleware/authMiddleware');
-const { requireAnyPageAccess } = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
-router.use(protect, requireAnyPageAccess(['/events']));
+router.use(authorize({ pages: ['/events'] }));
 
 router.get('/', listEvents);
 router.get('/report', getEventsReport);
@@ -31,16 +30,16 @@ router.get('/:id', getEvent);
 router.get('/:id/dashboard', getEventDashboard);
 router.get('/:id/content', getEventContent);
 
-router.post('/', authorize('superadmin', 'analyst', 'level-1'), createEvent);
+router.post('/', createEvent);
 router.get('/monitoring-interval', getMonitoringInterval);
-router.put('/monitoring-interval', authorize('superadmin', 'analyst', 'level-1'), updateMonitoringInterval);
-router.post('/generate-keywords', authorize('superadmin', 'analyst', 'level-1'), generateKeywords);
-router.put('/:id', authorize('superadmin', 'analyst', 'level-1'), updateEvent);
-router.post('/:id/archive', authorize('superadmin', 'analyst', 'level-1'), archiveEvent);
-router.post('/:id/pause', authorize('superadmin', 'analyst', 'level-1'), pauseEvent);
-router.post('/:id/resume', authorize('superadmin', 'analyst', 'level-1'), resumeEvent);
-router.post('/:id/run', authorize('superadmin', 'analyst', 'level-1'), runEventScan);
-router.post('/:id/generate-report-pdf', authorize('superadmin', 'analyst', 'level-1'), generateEventReportPdf);
-router.delete('/:id', authorize('superadmin', 'analyst', 'level-1'), deleteEvent);
+router.put('/monitoring-interval', updateMonitoringInterval);
+router.post('/generate-keywords', generateKeywords);
+router.put('/:id', updateEvent);
+router.post('/:id/archive', archiveEvent);
+router.post('/:id/pause', pauseEvent);
+router.post('/:id/resume', resumeEvent);
+router.post('/:id/run', runEventScan);
+router.post('/:id/generate-report-pdf', generateEventReportPdf);
+router.delete('/:id', deleteEvent);
 
 module.exports = router;

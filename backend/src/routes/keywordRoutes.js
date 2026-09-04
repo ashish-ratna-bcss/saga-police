@@ -1,12 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { getKeywords, createKeyword, deleteKeyword } = require('../controllers/keywordController');
-const { protect } = require('../middleware/authMiddleware');
-const { requireAnyPageAccess } = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 
-router.get('/', protect, requireAnyPageAccess(['/settings', '/alerts']), getKeywords);
-router.post('/', protect, requireAnyPageAccess(['/settings']), createKeyword);
-router.post('/scan', protect, requireAnyPageAccess(['/settings']), require('../controllers/keywordController').triggerRescan);
-router.delete('/:id', protect, requireAnyPageAccess(['/settings']), deleteKeyword);
+router.get('/', authorize({ pages: ['/settings', '/alerts'] }), getKeywords);
+router.post('/', authorize({ pages: ['/settings'] }), createKeyword);
+router.post('/scan', authorize({ pages: ['/settings'] }), require('../controllers/keywordController').triggerRescan);
+router.delete('/:id', authorize({ pages: ['/settings'] }), deleteKeyword);
 
 module.exports = router;

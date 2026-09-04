@@ -8,7 +8,7 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const { MEDIA_ANALYZER_URL } = require('../config/mediaAnalyzer');
+const { MEDIA_ANALYZER_URL } = require('../config/env');
 const logger = require('../utils/logger');
 
 const STORAGE_DIR = process.env.REPORT_STORAGE_DIR || path.join(__dirname, '..', '..', 'storage');

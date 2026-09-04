@@ -9,13 +9,11 @@ const https = require('https');
 const mediaAnalyzerService = require('../services/mediaAnalyzerService');
 const { resolveInstagramPlayback } = require('../services/instagramMediaResolveService');
 const AuditLog = require('../models/AuditLog');
-const { protect } = require('../middleware/authMiddleware');
-const { requireAnyPageAccess, requirePlatformFeatureAccess } = require('../middleware/rbacMiddleware');
+const { authorize } = require('../middleware/auth.middleware');
 const logger = require('../utils/logger');
 
 const mediaAccessMiddleware = [
-  protect,
-  requireAnyPageAccess([
+  authorize({ pages: [
     '/alerts',
     '/grievances',
     '/content',
@@ -24,7 +22,7 @@ const mediaAccessMiddleware = [
     '/facebook-monitor',
     '/instagram-monitor',
     '/youtube-monitor'
-  ])
+  ] })
 ];
 
 // Keep legacy call sites but preserve authenticated user identity.
@@ -458,7 +456,7 @@ router.get('/resolve', ...mediaAccessMiddleware, mockUser, async (req, res) => {
 });
 
 // Generic media download for any platform
-router.post('/download', ...mediaAccessMiddleware, requirePlatformFeatureAccess('/monitors', (req) => req.body.platform), mockUser, async (req, res) => {
+router.post('/download', ...mediaAccessMiddleware, authorize({ pages: ['/monitors'] }), mockUser, async (req, res) => {
   try {
     const { media_url, media_urls, media_items, content_url, url, content_id } = req.body;
     const mediaUrl = media_url || content_url || url;
@@ -608,7 +606,7 @@ router.post('/download', ...mediaAccessMiddleware, requirePlatformFeatureAccess(
 });
 
 // Download images only (for separate image download option)
-router.post('/download-images', ...mediaAccessMiddleware, requirePlatformFeatureAccess('/monitors', (req) => req.body.platform), mockUser, async (req, res) => {
+router.post('/download-images', ...mediaAccessMiddleware, authorize({ pages: ['/monitors'] }), mockUser, async (req, res) => {
   try {
     const { image_urls, content_id } = req.body;
 
@@ -640,7 +638,7 @@ router.post('/download-images', ...mediaAccessMiddleware, requirePlatformFeature
 });
 
 // Download videos only (for separate video download option, supports up to 30 min)
-router.post('/download-video', ...mediaAccessMiddleware, requirePlatformFeatureAccess('/monitors', (req) => req.body.platform), mockUser, async (req, res) => {
+router.post('/download-video', ...mediaAccessMiddleware, authorize({ pages: ['/monitors'] }), mockUser, async (req, res) => {
   try {
     const { media_url, video_urls, content_id } = req.body;
 

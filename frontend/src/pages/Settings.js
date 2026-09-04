@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../lib/api';
-import { Save, Plus, Trash2, TrendingUp, ShieldAlert, BrainCircuit, Wand2, FileText, Upload, Star, ChevronDown, ChevronUp, Eye, Pencil, Copy, Check, X, HelpCircle, AlertTriangle, Clock, Activity, MessageSquare, Radio, Settings2, Zap, Bot, Youtube, Facebook, Instagram, Gauge, Loader2 } from 'lucide-react';
+import { Save, Plus, Trash2, TrendingUp, ShieldAlert, BrainCircuit, Wand2, FileText, Upload, Star, ChevronDown, ChevronUp, Eye, Pencil, Copy, Check, X, HelpCircle, AlertTriangle, Clock, Activity, MessageSquare, Radio, Settings2, Zap, Bot, Youtube, Facebook, Instagram, Gauge, Loader2, Moon, Sun, Palette } from 'lucide-react';
 
 const XLogo = ({ className }) => (
   <svg viewBox="0 0 24 24" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -27,7 +27,136 @@ import { Badge } from '../components/ui/badge';
 import RichTextEditor from '../components/RichTextEditor';
 import { cn } from '../lib/utils';
 import { applyThemeColor } from '../utils/theme';
+import { useAuth } from '../contexts/AuthContext';
 
+const THEME_PRESETS = ['#1e3a8a', '#0f766e', '#7c2d12', '#4c1d95', '#1f2937', '#166534'];
+
+const ThemeTab = () => {
+  const { user, updateUiMode, updateThemeColor } = useAuth();
+  const [colorMode, setColorMode] = useState(user?.ui_mode === 'dark' ? 'dark' : 'light');
+  const [themeColor, setThemeColor] = useState(user?.theme_color || '#1e3a8a');
+  const [savingMode, setSavingMode] = useState(false);
+  const [savingColor, setSavingColor] = useState(false);
+
+  useEffect(() => {
+    setColorMode(user?.ui_mode === 'dark' ? 'dark' : 'light');
+    setThemeColor(user?.theme_color || '#1e3a8a');
+  }, [user?.ui_mode, user?.theme_color]);
+
+  const setMode = async (mode) => {
+    if (mode === colorMode || savingMode) return;
+    const prev = colorMode;
+    setColorMode(mode);
+    document.documentElement.classList.toggle('dark', mode === 'dark');
+    setSavingMode(true);
+    try {
+      await updateUiMode(mode);
+    } catch (error) {
+      setColorMode(prev);
+      document.documentElement.classList.toggle('dark', prev === 'dark');
+      toast.error(error.response?.data?.message || 'Failed to update color mode');
+    } finally {
+      setSavingMode(false);
+    }
+  };
+
+  const setColor = async (hex) => {
+    if (!hex || savingColor) return;
+    const prev = themeColor;
+    setThemeColor(hex);
+    applyThemeColor(hex);
+    setSavingColor(true);
+    try {
+      await updateThemeColor(hex);
+    } catch (error) {
+      setThemeColor(prev);
+      applyThemeColor(prev);
+      toast.error(error.response?.data?.message || 'Failed to update theme color');
+    } finally {
+      setSavingColor(false);
+    }
+  };
+
+  return (
+    <Card className="border shadow-sm">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b">
+        <Palette className="h-4 w-4 text-primary" />
+        <h3 className="text-sm font-semibold">Theme</h3>
+        {(savingMode || savingColor) && (
+          <Loader2 className="h-3.5 w-3.5 ml-auto animate-spin text-muted-foreground" />
+        )}
+      </div>
+      <div className="p-4 space-y-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <span className="text-xs font-medium">Color mode</span>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Saves automatically for your account.
+            </p>
+          </div>
+          <div className="flex items-center gap-1 rounded-lg border p-1 bg-muted/40">
+            <Button
+              type="button"
+              variant={colorMode === 'light' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-8 px-3 text-xs"
+              disabled={savingMode}
+              onClick={() => setMode('light')}
+            >
+              <Sun className="h-3.5 w-3.5 mr-1.5" /> Light
+            </Button>
+            <Button
+              type="button"
+              variant={colorMode === 'dark' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-8 px-3 text-xs"
+              disabled={savingMode}
+              onClick={() => setMode('dark')}
+            >
+              <Moon className="h-3.5 w-3.5 mr-1.5" /> Dark
+            </Button>
+          </div>
+        </div>
+
+        <Separator />
+
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <span className="text-xs font-medium">Primary color</span>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Saves automatically for your account.
+            </p>
+          </div>
+          <input
+            type="color"
+            value={themeColor}
+            disabled={savingColor}
+            onChange={(e) => setColor(e.target.value)}
+            className="h-8 w-14 p-0 border-0 rounded cursor-pointer disabled:opacity-50"
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {THEME_PRESETS.map((hex) => (
+            <button
+              key={hex}
+              type="button"
+              title={hex}
+              disabled={savingColor}
+              className={`h-8 w-8 rounded-full border-2 transition-transform hover:scale-105 disabled:opacity-50 ${
+                themeColor.toLowerCase() === hex
+                  ? 'border-foreground ring-2 ring-offset-2 ring-foreground/30'
+                  : 'border-transparent'
+              }`}
+              style={{ backgroundColor: hex }}
+              onClick={() => setColor(hex)}
+            />
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+};
 const PLACEHOLDERS_GUIDE = [
   { key: 'SERIAL_NUMBER', desc: 'Case ID / Serial (e.g. X-2026-001)' },
   { key: 'DATE', desc: 'Current date (dd.mm.yyyy)' },
@@ -115,7 +244,7 @@ const PlaceholderSidebar = ({ onClose }) => {
 let _settingsCache = null;
 let _settingsCacheTime = 0;
 const SETTINGS_CACHE_TTL = 60_000; // 1 minute
-const VALID_TABS = ['general', 'sources', 'keywords', 'templates', 'access', 'policies'];
+const VALID_TABS = ['general', 'sources', 'keywords', 'templates', 'access', 'policies', 'theme'];
 
 const Settings = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -450,10 +579,6 @@ const Settings = () => {
       const { settings: s, keywords: k, thresholds: t, templates: tp } = res.data;
       setSettings(s);
       setSavedSettings(JSON.parse(JSON.stringify(s)));
-      if (s.theme_color) {
-        applyThemeColor(s.theme_color);
-        localStorage.setItem('app_theme_color', s.theme_color);
-      }
       setKeywords(k);
       setThresholds(t);
       setSavedThresholds(JSON.parse(JSON.stringify(t)));
@@ -478,10 +603,6 @@ const Settings = () => {
       ]);
       setSettings(settingsRes.data);
       setSavedSettings(JSON.parse(JSON.stringify(settingsRes.data)));
-      if (settingsRes.data.theme_color) {
-        applyThemeColor(settingsRes.data.theme_color);
-        localStorage.setItem('app_theme_color', settingsRes.data.theme_color);
-      }
       setKeywords(keywordsRes.data);
     } catch (error) {
       toast.error('Failed to load settings');
@@ -529,10 +650,6 @@ const Settings = () => {
       const res = await api.put('/settings', settings);
       setSavedSettings(JSON.parse(JSON.stringify(res.data)));
       setSettings(res.data);
-      if (res.data.theme_color) {
-        applyThemeColor(res.data.theme_color);
-        localStorage.setItem('app_theme_color', res.data.theme_color);
-      }
       _settingsCache = null; // Invalidate cache on save
       toast.success('Settings saved successfully');
     } catch (error) {
@@ -635,6 +752,7 @@ const Settings = () => {
           <TabsTrigger value="templates" className="text-xs px-5 py-2 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:font-semibold">Report Templates</TabsTrigger>
           <TabsTrigger value="access" className="text-xs px-5 py-2 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:font-semibold">Access Management</TabsTrigger>
           <TabsTrigger value="policies" className="text-xs px-5 py-2 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:font-semibold">Policy Manager</TabsTrigger>
+          <TabsTrigger value="theme" className="text-xs px-5 py-2 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:font-semibold">Theme</TabsTrigger>
         </TabsList>
 
       {/* Unsaved changes dialog */}
@@ -998,35 +1116,6 @@ const Settings = () => {
                 ))}
               </div>
             </Card>
-
-            <Card className="border shadow-sm">
-              <div className="flex items-center justify-between px-4 py-2.5 border-b">
-                <div className="flex items-center gap-2">
-                  <Wand2 className="h-4 w-4 text-purple-500" />
-                  <h3 className="text-sm font-semibold">Appearance</h3>
-                </div>
-              </div>
-              <div className="p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-medium">Theme Color</span>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Customize the primary application color.</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={settings?.theme_color || '#1e3a8a'}
-                      onChange={(e) => {
-                        const newColor = e.target.value;
-                        setSettings(prev => ({ ...prev, theme_color: newColor }));
-                        applyThemeColor(newColor);
-                      }}
-                      className="h-8 w-14 p-0 border-0 rounded cursor-pointer"
-                    />
-                  </div>
-                </div>
-              </div>
-            </Card>
           </div>
 
           {/* Save */}
@@ -1364,6 +1453,10 @@ const Settings = () => {
 
         <TabsContent value="policies" className="mt-2">
           <PolicyManager />
+        </TabsContent>
+
+        <TabsContent value="theme" className="space-y-4">
+          <ThemeTab />
         </TabsContent>
 
         {/* Template Preview Dialog */}
