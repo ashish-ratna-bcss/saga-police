@@ -2,6 +2,7 @@
  * Ensure Postgres has tables matching prisma/schema.prisma.
  * Handles the roles + users.role_id migration without force-reset.
  * Migrates legacy fat social_media_profiles → profiles + accounts.
+ * Creates catalog / events / settings tables when missing.
  */
 require('dotenv').config();
 
@@ -11,7 +12,28 @@ const { PrismaClient } = require('@prisma/client');
 const { ACCESS_FEATURES } = require('../src/modules/auth/access_features');
 
 const BACKEND_ROOT = path.join(__dirname, '..');
-const EXPECTED_TABLES = 18;
+
+/** Must match every `model` in prisma/schema.prisma (BASE TABLEs only). */
+const REQUIRED_TABLES = [
+  'roles',
+  'users',
+  'platforms',
+  'social_media_profiles',
+  'social_media_accounts',
+  'social_media_posts',
+  'social_media_alerts',
+  'social_media_grievances',
+  'social_media_grievance_reports',
+  'social_media_grievance_contacts',
+  'keywords',
+  'social_media_occasion_calendar',
+  'social_media_events',
+  'social_media_event_media',
+  'alert_config',
+  'alert_thresholds',
+  'report_templates',
+  'policy_mappings',
+];
 
 async function countPublicTables(prisma) {
   const rows = await prisma.$queryRaw`
@@ -21,6 +43,14 @@ async function countPublicTables(prisma) {
       AND table_type = 'BASE TABLE'
   `;
   return rows[0]?.count ?? 0;
+}
+
+async function missingRequiredTables(prisma) {
+  const missing = [];
+  for (const name of REQUIRED_TABLES) {
+    if (!(await tableExists(prisma, name))) missing.push(name);
+  }
+  return missing;
 }
 
 async function hasRolesTable(prisma) {
@@ -445,216 +475,218 @@ async function ensureCatalogColumns(prisma) {
     END $$;
   `);
 
-  if (!(await tableExists(prisma, 'social_media_accounts'))) return;
+  // Account-dependent catalog tables (skip until profiles split / accounts exist)
+  if (await tableExists(prisma, 'social_media_accounts')) {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE social_media_accounts
+      ADD COLUMN IF NOT EXISTS preview_data JSONB NOT NULL DEFAULT '{}'::jsonb
+    `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE social_media_accounts
+      ADD COLUMN IF NOT EXISTS monitoring_logs JSONB NOT NULL DEFAULT '[]'::jsonb
+    `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE social_media_accounts
+      ADD COLUMN IF NOT EXISTS last_fetched_history JSONB NOT NULL DEFAULT '[]'::jsonb
+    `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE social_media_accounts
+      ADD COLUMN IF NOT EXISTS poll_interval_minutes INTEGER NOT NULL DEFAULT 30
+    `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE social_media_accounts
+      ADD COLUMN IF NOT EXISTS last_fetched_at TIMESTAMPTZ NULL
+    `);
 
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_accounts
-    ADD COLUMN IF NOT EXISTS preview_data JSONB NOT NULL DEFAULT '{}'::jsonb
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_accounts
-    ADD COLUMN IF NOT EXISTS monitoring_logs JSONB NOT NULL DEFAULT '[]'::jsonb
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_accounts
-    ADD COLUMN IF NOT EXISTS last_fetched_history JSONB NOT NULL DEFAULT '[]'::jsonb
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_accounts
-    ADD COLUMN IF NOT EXISTS poll_interval_minutes INTEGER NOT NULL DEFAULT 30
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_accounts
-    ADD COLUMN IF NOT EXISTS last_fetched_at TIMESTAMPTZ NULL
-  `);
+    if (await tableExists(prisma, 'social_media_posts')) {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE social_media_posts
+        ADD COLUMN IF NOT EXISTS analysis_status analysis_status_enum NOT NULL DEFAULT 'pending'
+      `);
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE social_media_posts
+        ADD COLUMN IF NOT EXISTS analysis_attempts INTEGER NOT NULL DEFAULT 0
+      `);
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE social_media_posts
+        ADD COLUMN IF NOT EXISTS analysis_error TEXT NULL
+      `);
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE social_media_posts
+        ADD COLUMN IF NOT EXISTS analysis_result JSONB NOT NULL DEFAULT '{}'::jsonb
+      `);
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE social_media_posts
+        ADD COLUMN IF NOT EXISTS analyzed_at TIMESTAMPTZ NULL
+      `);
+      await prisma.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS social_media_posts_analysis_status_fetched_at_idx
+        ON social_media_posts (analysis_status, fetched_at)
+      `);
 
-  if (!(await tableExists(prisma, 'social_media_posts'))) return;
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS social_media_alerts (
+          id BIGSERIAL PRIMARY KEY,
+          post_id BIGINT NOT NULL REFERENCES social_media_posts(id) ON DELETE CASCADE,
+          account_id INTEGER NULL,
+          platform TEXT NOT NULL,
+          external_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT NULL,
+          content_url TEXT NULL,
+          author TEXT NULL,
+          author_handle TEXT NULL,
+          alert_type TEXT NOT NULL DEFAULT 'ai_risk',
+          risk_level TEXT NOT NULL,
+          risk_score INTEGER NOT NULL DEFAULT 0,
+          sentiment TEXT NULL,
+          status TEXT NOT NULL DEFAULT 'active',
+          is_read BOOLEAN NOT NULL DEFAULT false,
+          matched_keywords JSONB NOT NULL DEFAULT '[]'::jsonb,
+          analysis_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
+          posted_at TIMESTAMPTZ NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          CONSTRAINT social_media_alerts_platform_external_id_key UNIQUE (platform, external_id)
+        )
+      `);
+      await prisma.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS social_media_alerts_status_created_at_idx
+        ON social_media_alerts (status, created_at)
+      `);
+      await prisma.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS social_media_alerts_risk_level_created_at_idx
+        ON social_media_alerts (risk_level, created_at)
+      `);
+      await prisma.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS social_media_alerts_post_id_idx
+        ON social_media_alerts (post_id)
+      `);
+      await prisma.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS social_media_alerts_account_id_idx
+        ON social_media_alerts (account_id)
+      `);
+    }
 
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_posts
-    ADD COLUMN IF NOT EXISTS analysis_status analysis_status_enum NOT NULL DEFAULT 'pending'
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_posts
-    ADD COLUMN IF NOT EXISTS analysis_attempts INTEGER NOT NULL DEFAULT 0
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_posts
-    ADD COLUMN IF NOT EXISTS analysis_error TEXT NULL
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_posts
-    ADD COLUMN IF NOT EXISTS analysis_result JSONB NOT NULL DEFAULT '{}'::jsonb
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_posts
-    ADD COLUMN IF NOT EXISTS analyzed_at TIMESTAMPTZ NULL
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS social_media_posts_analysis_status_fetched_at_idx
-    ON social_media_posts (analysis_status, fetched_at)
-  `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS social_media_grievances (
+        id BIGSERIAL PRIMARY KEY,
+        account_id INTEGER NOT NULL REFERENCES social_media_accounts(id) ON DELETE CASCADE,
+        platform TEXT NOT NULL,
+        external_id TEXT NOT NULL,
+        complaint_code TEXT NULL,
+        tagged_account TEXT NOT NULL,
+        workflow_status TEXT NOT NULL DEFAULT 'received',
+        classification TEXT NOT NULL DEFAULT 'unclassified',
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        author_name TEXT NULL,
+        author_handle TEXT NULL,
+        content_url TEXT NULL,
+        text TEXT NULL,
+        posted_by JSONB NOT NULL DEFAULT '{}'::jsonb,
+        content JSONB NOT NULL DEFAULT '{}'::jsonb,
+        engagement JSONB NOT NULL DEFAULT '{}'::jsonb,
+        context JSONB NOT NULL DEFAULT '{}'::jsonb,
+        posted_at TIMESTAMPTZ NULL,
+        detected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT social_media_grievances_platform_external_id_key UNIQUE (platform, external_id)
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS social_media_grievances_account_id_posted_at_idx
+      ON social_media_grievances (account_id, posted_at)
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS social_media_grievances_workflow_status_posted_at_idx
+      ON social_media_grievances (workflow_status, posted_at)
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS social_media_grievances_platform_posted_at_idx
+      ON social_media_grievances (platform, posted_at)
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS social_media_grievances_is_active_posted_at_idx
+      ON social_media_grievances (is_active, posted_at)
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS social_media_grievances_tagged_account_idx
+      ON social_media_grievances (tagged_account)
+    `);
 
-  await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS social_media_alerts (
-      id BIGSERIAL PRIMARY KEY,
-      post_id BIGINT NOT NULL REFERENCES social_media_posts(id) ON DELETE CASCADE,
-      account_id INTEGER NULL,
-      platform TEXT NOT NULL,
-      external_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      description TEXT NULL,
-      content_url TEXT NULL,
-      author TEXT NULL,
-      author_handle TEXT NULL,
-      alert_type TEXT NOT NULL DEFAULT 'ai_risk',
-      risk_level TEXT NOT NULL,
-      risk_score INTEGER NOT NULL DEFAULT 0,
-      sentiment TEXT NULL,
-      status TEXT NOT NULL DEFAULT 'active',
-      is_read BOOLEAN NOT NULL DEFAULT false,
-      matched_keywords JSONB NOT NULL DEFAULT '[]'::jsonb,
-      analysis_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
-      posted_at TIMESTAMPTZ NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      CONSTRAINT social_media_alerts_platform_external_id_key UNIQUE (platform, external_id)
-    )
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS social_media_alerts_status_created_at_idx
-    ON social_media_alerts (status, created_at)
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS social_media_alerts_risk_level_created_at_idx
-    ON social_media_alerts (risk_level, created_at)
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS social_media_alerts_post_id_idx
-    ON social_media_alerts (post_id)
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS social_media_alerts_account_id_idx
-    ON social_media_alerts (account_id)
-  `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS social_media_grievance_reports (
+        id TEXT PRIMARY KEY,
+        report_type TEXT NOT NULL,
+        unique_code TEXT NOT NULL,
+        grievance_id TEXT NOT NULL,
+        platform TEXT NOT NULL DEFAULT 'x',
+        status TEXT NOT NULL DEFAULT 'PENDING',
+        category TEXT NOT NULL DEFAULT 'Others',
+        complaint_phone TEXT NOT NULL DEFAULT '',
+        profile_id TEXT NULL,
+        profile_link TEXT NULL,
+        post_link TEXT NULL,
+        post_date TIMESTAMPTZ NULL,
+        post_description TEXT NULL,
+        remarks TEXT NULL,
+        message TEXT NULL,
+        posted_by JSONB NOT NULL DEFAULT '{}'::jsonb,
+        engagement JSONB NOT NULL DEFAULT '{}'::jsonb,
+        informed_to JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_by JSONB NOT NULL DEFAULT '{}'::jsonb,
+        media_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
+        media_s3_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
+        status_history JSONB NOT NULL DEFAULT '[]'::jsonb,
+        meta JSONB NOT NULL DEFAULT '{}'::jsonb,
+        shared_at TIMESTAMPTZ NULL,
+        shared_via TEXT NULL,
+        action_taken_at TIMESTAMPTZ NULL,
+        closed_at TIMESTAMPTZ NULL,
+        escalated_at TIMESTAMPTZ NULL,
+        report_pdf_url TEXT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT social_media_grievance_reports_unique_code_key UNIQUE (unique_code),
+        CONSTRAINT social_media_grievance_reports_type_grievance_key UNIQUE (report_type, grievance_id)
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS social_media_grievance_reports_type_status_created_at_idx
+      ON social_media_grievance_reports (report_type, status, created_at)
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS social_media_grievance_reports_grievance_id_idx
+      ON social_media_grievance_reports (grievance_id)
+    `);
 
-  await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS social_media_grievances (
-      id BIGSERIAL PRIMARY KEY,
-      account_id INTEGER NOT NULL REFERENCES social_media_accounts(id) ON DELETE CASCADE,
-      platform TEXT NOT NULL,
-      external_id TEXT NOT NULL,
-      complaint_code TEXT NULL,
-      tagged_account TEXT NOT NULL,
-      workflow_status TEXT NOT NULL DEFAULT 'received',
-      classification TEXT NOT NULL DEFAULT 'unclassified',
-      is_active BOOLEAN NOT NULL DEFAULT true,
-      author_name TEXT NULL,
-      author_handle TEXT NULL,
-      content_url TEXT NULL,
-      text TEXT NULL,
-      posted_by JSONB NOT NULL DEFAULT '{}'::jsonb,
-      content JSONB NOT NULL DEFAULT '{}'::jsonb,
-      engagement JSONB NOT NULL DEFAULT '{}'::jsonb,
-      context JSONB NOT NULL DEFAULT '{}'::jsonb,
-      posted_at TIMESTAMPTZ NULL,
-      detected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      CONSTRAINT social_media_grievances_platform_external_id_key UNIQUE (platform, external_id)
-    )
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS social_media_grievances_account_id_posted_at_idx
-    ON social_media_grievances (account_id, posted_at)
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS social_media_grievances_workflow_status_posted_at_idx
-    ON social_media_grievances (workflow_status, posted_at)
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS social_media_grievances_platform_posted_at_idx
-    ON social_media_grievances (platform, posted_at)
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS social_media_grievances_is_active_posted_at_idx
-    ON social_media_grievances (is_active, posted_at)
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS social_media_grievances_tagged_account_idx
-    ON social_media_grievances (tagged_account)
-  `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS social_media_grievance_contacts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        department TEXT NOT NULL DEFAULT '',
+        designation TEXT NOT NULL DEFAULT '',
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS social_media_grievance_contacts_is_active_name_idx
+      ON social_media_grievance_contacts (is_active, name)
+    `);
 
-  await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS social_media_grievance_reports (
-      id TEXT PRIMARY KEY,
-      report_type TEXT NOT NULL,
-      unique_code TEXT NOT NULL,
-      grievance_id TEXT NOT NULL,
-      platform TEXT NOT NULL DEFAULT 'x',
-      status TEXT NOT NULL DEFAULT 'PENDING',
-      category TEXT NOT NULL DEFAULT 'Others',
-      complaint_phone TEXT NOT NULL DEFAULT '',
-      profile_id TEXT NULL,
-      profile_link TEXT NULL,
-      post_link TEXT NULL,
-      post_date TIMESTAMPTZ NULL,
-      post_description TEXT NULL,
-      remarks TEXT NULL,
-      message TEXT NULL,
-      posted_by JSONB NOT NULL DEFAULT '{}'::jsonb,
-      engagement JSONB NOT NULL DEFAULT '{}'::jsonb,
-      informed_to JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_by JSONB NOT NULL DEFAULT '{}'::jsonb,
-      media_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
-      media_s3_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
-      status_history JSONB NOT NULL DEFAULT '[]'::jsonb,
-      meta JSONB NOT NULL DEFAULT '{}'::jsonb,
-      shared_at TIMESTAMPTZ NULL,
-      shared_via TEXT NULL,
-      action_taken_at TIMESTAMPTZ NULL,
-      closed_at TIMESTAMPTZ NULL,
-      escalated_at TIMESTAMPTZ NULL,
-      report_pdf_url TEXT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      CONSTRAINT social_media_grievance_reports_unique_code_key UNIQUE (unique_code),
-      CONSTRAINT social_media_grievance_reports_type_grievance_key UNIQUE (report_type, grievance_id)
-    )
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS social_media_grievance_reports_type_status_created_at_idx
-    ON social_media_grievance_reports (report_type, status, created_at)
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS social_media_grievance_reports_grievance_id_idx
-    ON social_media_grievance_reports (grievance_id)
-  `);
+    // Unique-code sequences (replaces social_media_grievance_report_counters table)
+    await prisma.$executeRawUnsafe(`CREATE SEQUENCE IF NOT EXISTS social_media_grievance_report_seq_g`);
+    await prisma.$executeRawUnsafe(`CREATE SEQUENCE IF NOT EXISTS social_media_grievance_report_seq_s`);
+    await prisma.$executeRawUnsafe(`CREATE SEQUENCE IF NOT EXISTS social_media_grievance_report_seq_c`);
+    await prisma.$executeRawUnsafe(`CREATE SEQUENCE IF NOT EXISTS social_media_grievance_report_seq_q`);
+    await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS social_media_grievance_report_counters`);
+  }
 
-  await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS social_media_grievance_contacts (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      phone TEXT NOT NULL,
-      department TEXT NOT NULL DEFAULT '',
-      designation TEXT NOT NULL DEFAULT '',
-      is_active BOOLEAN NOT NULL DEFAULT true,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS social_media_grievance_contacts_is_active_name_idx
-    ON social_media_grievance_contacts (is_active, name)
-  `);
-
-  // Unique-code sequences (replaces social_media_grievance_report_counters table)
-  await prisma.$executeRawUnsafe(`CREATE SEQUENCE IF NOT EXISTS social_media_grievance_report_seq_g`);
-  await prisma.$executeRawUnsafe(`CREATE SEQUENCE IF NOT EXISTS social_media_grievance_report_seq_s`);
-  await prisma.$executeRawUnsafe(`CREATE SEQUENCE IF NOT EXISTS social_media_grievance_report_seq_c`);
-  await prisma.$executeRawUnsafe(`CREATE SEQUENCE IF NOT EXISTS social_media_grievance_report_seq_q`);
-  await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS social_media_grievance_report_counters`);
-
+  // Keywords / events do not depend on accounts — always ensure
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS keywords (
       id SERIAL PRIMARY KEY,
@@ -717,13 +749,7 @@ async function ensureCatalogColumns(prisma) {
     )
   `);
 
-  // Migrate legacy columns → Profiles-style monitoring fields
-  await prisma.$executeRawUnsafe(`
-    DO $$ BEGIN
-      CREATE TYPE monitoring_status_enum AS ENUM ('started', 'stopped');
-    EXCEPTION WHEN duplicate_object THEN NULL;
-    END $$
-  `);
+  // Migrate legacy event columns → Profiles-style monitoring fields
   await prisma.$executeRawUnsafe(`
     ALTER TABLE social_media_events
     ADD COLUMN IF NOT EXISTS monitoring_status monitoring_status_enum NOT NULL DEFAULT 'stopped'
@@ -740,13 +766,12 @@ async function ensureCatalogColumns(prisma) {
     ALTER TABLE social_media_events
     ADD COLUMN IF NOT EXISTS last_fetched_history JSONB NOT NULL DEFAULT '[]'::jsonb
   `);
-  // Copy legacy status / last_polled_at when still present
   await prisma.$executeRawUnsafe(`
     DO $$
     BEGIN
       IF EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'social_media_events' AND column_name = 'status'
+        WHERE table_schema = 'public' AND table_name = 'social_media_events' AND column_name = 'status'
       ) THEN
         UPDATE social_media_events
         SET monitoring_status = CASE
@@ -758,7 +783,7 @@ async function ensureCatalogColumns(prisma) {
       END IF;
       IF EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'social_media_events' AND column_name = 'last_polled_at'
+        WHERE table_schema = 'public' AND table_name = 'social_media_events' AND column_name = 'last_polled_at'
       ) THEN
         UPDATE social_media_events
         SET last_fetched_at = last_polled_at
@@ -823,7 +848,10 @@ async function ensureCatalogColumns(prisma) {
 }
 
 async function ensureSettingsTables(prisma) {
-  // Drop legacy JSON blob table if present
+  // UUID defaults for settings rows
+  await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
+
+  // Drop legacy Mongo-era JSON blob table if present
   await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS app_settings`);
 
   await prisma.$executeRawUnsafe(`
@@ -834,6 +862,11 @@ async function ensureSettingsTables(prisma) {
       velocity_alerts_enabled BOOLEAN NOT NULL DEFAULT true,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
+  `);
+  await prisma.$executeRawUnsafe(`
+    INSERT INTO alert_config (id)
+    VALUES ('default')
+    ON CONFLICT (id) DO NOTHING
   `);
 
   await prisma.$executeRawUnsafe(`
@@ -849,6 +882,16 @@ async function ensureSettingsTables(prisma) {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  for (const platform of ['x', 'facebook', 'youtube', 'instagram']) {
+    await prisma.$executeRawUnsafe(
+      `
+      INSERT INTO alert_thresholds (platform)
+      VALUES ($1)
+      ON CONFLICT (platform) DO NOTHING
+      `,
+      platform
+    );
+  }
 
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS report_templates (
@@ -865,6 +908,10 @@ async function ensureSettingsTables(prisma) {
   await prisma.$executeRawUnsafe(`
     CREATE INDEX IF NOT EXISTS report_templates_platform_is_default_idx
     ON report_templates (platform, is_default)
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS report_templates_created_at_idx
+    ON report_templates (created_at)
   `);
 
   await prisma.$executeRawUnsafe(`
@@ -920,18 +967,21 @@ async function main() {
     const afterMigrate = await countPublicTables(prisma);
     const rolesOk = await hasRolesTable(prisma);
     const roleIdOk = await hasUsersRoleId(prisma);
-    const hasAccounts = await tableExists(prisma, 'social_media_accounts');
     const stillLegacy =
       (await tableExists(prisma, 'social_media_profiles')) &&
       (await columnExists(prisma, 'social_media_profiles', 'platform_id'));
+    const missing = await missingRequiredTables(prisma);
 
-    if (afterMigrate >= EXPECTED_TABLES && rolesOk && roleIdOk && hasAccounts && !stillLegacy) {
-      console.log(`[postgres] schema ready (${afterMigrate} tables)`);
+    if (missing.length === 0 && rolesOk && roleIdOk && !stillLegacy) {
+      console.log(
+        `[postgres] schema ready (${REQUIRED_TABLES.length} required tables, ${afterMigrate} public)`
+      );
       return;
     }
 
     console.log(
-      `[postgres] found ${afterMigrate}/${EXPECTED_TABLES} tables (roles=${rolesOk}, accounts=${hasAccounts}) — syncing Prisma schema…`
+      `[postgres] missing [${missing.join(', ') || 'none'}] ` +
+        `(roles=${rolesOk}, legacy=${stillLegacy}, public=${afterMigrate}) — syncing Prisma schema…`
     );
 
     execSync('npx prisma db push --skip-generate --accept-data-loss', {
@@ -945,7 +995,15 @@ async function main() {
       env: process.env,
     });
 
+    // Re-run idempotent ensures after push (settings seeds, event column cleanup)
+    await ensureCatalogColumns(prisma);
+    await ensureSettingsTables(prisma);
+
     const after = await countPublicTables(prisma);
+    const stillMissing = await missingRequiredTables(prisma);
+    if (stillMissing.length) {
+      console.warn(`[postgres] still missing after push: ${stillMissing.join(', ')}`);
+    }
     console.log(`[postgres] schema synced (${after} tables)`);
   } catch (error) {
     console.error('[postgres] schema ensure failed:', error.message);
