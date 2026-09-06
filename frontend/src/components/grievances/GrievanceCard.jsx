@@ -2,11 +2,19 @@ import React, { useEffect, useRef, useState } from 'react';
 import { format, formatDistanceToNowStrict } from 'date-fns';
 import {
     Heart, MessageCircle, Repeat2, BarChart3, Bookmark,
-    BadgeCheck, Download, Loader2
+    BadgeCheck, Download, Loader2, FileText, ChevronDown
 } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 import { normalizeMediaList } from '../AlertCards';
 import { cn } from '../../lib/utils';
 import { decodeHtmlEntities } from '../../utils/decodeHtml';
@@ -294,72 +302,71 @@ const InlineMediaTile = ({ item, getProxiedMediaUrl, className = '', objectFit =
 
 const ActionButtons = ({ grievance, onAction, isDownloading = false, showDownload = true }) => {
     return (
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
             {showDownload && (
                 <Button
+                    type="button"
                     variant="ghost"
                     size="icon"
                     disabled={isDownloading}
-                    className="h-7 w-7 text-blue-700 bg-blue-100 hover:bg-blue-200 ring-1 ring-blue-200 disabled:opacity-70 transition-all duration-150 active:scale-95 active:translate-y-[1px]"
-                    title={isDownloading ? 'Video is downloading...' : 'Download Media'}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onAction?.('download', { grievance });
-                    }}
+                    title={isDownloading ? 'Video is downloading...' : 'Download media'}
+                    className="h-8 w-8 text-blue-700 bg-blue-50 hover:bg-blue-100 ring-1 ring-blue-200 disabled:opacity-70"
+                    onClick={() => onAction?.('download', { grievance })}
                 >
                     {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 </Button>
             )}
-            <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-amber-800 bg-amber-100 hover:bg-amber-200 ring-1 ring-amber-200 font-extrabold text-[11px] transition-all duration-150 active:scale-95 active:translate-y-[1px]"
-                title="Grievance"
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onAction?.('classify_grievance', { grievance });
-                }}
-            >
-                G
-            </Button>
-            <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-purple-800 bg-purple-100 hover:bg-purple-200 ring-1 ring-purple-200 font-extrabold text-[11px] transition-all duration-150 active:scale-95 active:translate-y-[1px]"
-                title="Suggestion"
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onAction?.('classify_suggestion', { grievance });
-                }}
-            >
-                S
-            </Button>
-            <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-red-800 bg-red-100 hover:bg-red-200 ring-1 ring-red-200 font-extrabold text-[11px] transition-all duration-150 active:scale-95 active:translate-y-[1px]"
-                title="Criticism"
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onAction?.('classify_criticism', { grievance });
-                }}
-            >
-                C
-            </Button>
-            {/* 
-            <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-sky-800 bg-sky-100 hover:bg-sky-200 ring-1 ring-sky-200 font-extrabold text-[11px] transition-all duration-150 active:scale-95 active:translate-y-[1px]"
-                title="Query"
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onAction?.('classify_query', { grievance });
-                }}
-            >
-                Q
-            </Button> 
-            */}
+
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1.5 px-2.5 text-xs font-semibold"
+                    >
+                        <FileText className="h-3.5 w-3.5" />
+                        Report
+                        <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 z-[300]">
+                    <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                        Create a report from this post
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                        className="gap-2 cursor-pointer"
+                        onSelect={() => onAction?.('classify_grievance', { grievance })}
+                    >
+                        <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                        <div className="min-w-0">
+                            <p className="text-sm font-medium">Grievance</p>
+                            <p className="text-[11px] text-muted-foreground">Formal complaint report</p>
+                        </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                        className="gap-2 cursor-pointer"
+                        onSelect={() => onAction?.('classify_suggestion', { grievance })}
+                    >
+                        <span className="h-2 w-2 rounded-full bg-violet-500 shrink-0" />
+                        <div className="min-w-0">
+                            <p className="text-sm font-medium">Suggestion</p>
+                            <p className="text-[11px] text-muted-foreground">Suggestion report</p>
+                        </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                        className="gap-2 cursor-pointer"
+                        onSelect={() => onAction?.('classify_criticism', { grievance })}
+                    >
+                        <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+                        <div className="min-w-0">
+                            <p className="text-sm font-medium">Criticism</p>
+                            <p className="text-[11px] text-muted-foreground">Criticism report</p>
+                        </div>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
         </div>
     );
 };
@@ -367,33 +374,48 @@ const ActionButtons = ({ grievance, onAction, isDownloading = false, showDownloa
 const WorkflowMeta = ({ grievance, onAction }) => {
     const gWorkflow = grievance?.grievance_workflow || {};
     const hasGrievanceWorkflow = !!gWorkflow?.unique_code;
-    const currentStatus = ['PENDING', 'ESCALATED', 'CLOSED'].includes(gWorkflow?.status)
-        ? gWorkflow.status
+    const rawStatus = String(gWorkflow?.status || 'PENDING').toUpperCase();
+    const currentStatus = ['PENDING', 'ESCALATED', 'CLOSED'].includes(rawStatus)
+        ? rawStatus
         : 'PENDING';
 
     const hasCriticismCode = !!grievance?.criticism?.unique_code;
 
     const qWorkflow = grievance?.query_workflow || {};
     const hasQueryWorkflow = !!qWorkflow?.unique_code;
-    const queryStatus = ['PENDING', 'CLOSED'].includes(qWorkflow?.status) ? qWorkflow.status : 'PENDING';
+    const queryStatus = ['PENDING', 'CLOSED'].includes(String(qWorkflow?.status || '').toUpperCase())
+        ? String(qWorkflow.status).toUpperCase()
+        : 'PENDING';
 
     const suggestion = grievance?.suggestion || {};
     const hasSuggestion = !!suggestion?.unique_code;
 
     if (!hasGrievanceWorkflow && !hasCriticismCode && !hasQueryWorkflow && !hasSuggestion) return null;
 
+    const statusTone = {
+        PENDING: 'text-amber-800',
+        ESCALATED: 'text-orange-800',
+        CLOSED: 'text-emerald-800',
+    };
+
     return (
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 w-full">
             {hasGrievanceWorkflow && (
-                <div className="inline-flex items-center rounded-full bg-amber-50 ring-1 ring-amber-200 overflow-hidden">
+                <div className="inline-flex items-center gap-1.5 max-w-full rounded-md border border-amber-200 bg-amber-50 pl-1.5 pr-1 py-0.5">
+                    <span className="shrink-0 rounded bg-amber-200/80 px-1 py-0.5 text-[9px] font-bold uppercase text-amber-900">
+                        G
+                    </span>
                     <button
                         type="button"
                         onClick={(e) => {
                             e.stopPropagation();
-                            onAction?.('open_g_report', { grievance, uniqueCode: gWorkflow.unique_code });
+                            onAction?.('open_g_report', {
+                                grievance,
+                                uniqueCode: gWorkflow.unique_code,
+                            });
                         }}
-                        className="px-2 py-0.5 text-[10px] font-mono font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
-                        title="Open grievance report"
+                        className="min-w-0 text-[10px] font-mono font-semibold text-amber-950 hover:underline truncate"
+                        title={`Open ${gWorkflow.unique_code}`}
                     >
                         {gWorkflow.unique_code}
                     </button>
@@ -402,27 +424,36 @@ const WorkflowMeta = ({ grievance, onAction }) => {
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => {
                             e.stopPropagation();
-                            onAction?.('update_g_workflow_status', { grievance, status: e.target.value });
+                            onAction?.('update_g_workflow_status', {
+                                grievance,
+                                status: e.target.value,
+                            });
                         }}
-                        className="h-5 pl-1 pr-1 border-l border-amber-200 bg-transparent text-[10px] font-semibold text-amber-800 outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
+                        className={cn(
+                            'shrink-0 h-5 rounded border-0 bg-transparent pl-1 pr-0 text-[10px] font-semibold outline-none cursor-pointer',
+                            statusTone[currentStatus] || statusTone.PENDING
+                        )}
+                        aria-label="Report status"
                     >
-                        <option value="PENDING">PENDING</option>
-                        <option value="ESCALATED">ESCALATED</option>
-                        <option value="CLOSED">CLOSED</option>
+                        <option value="PENDING">Pending</option>
+                        <option value="ESCALATED">Escalated</option>
+                        <option value="CLOSED">Closed</option>
                     </select>
                 </div>
             )}
 
             {hasQueryWorkflow && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 ring-1 ring-sky-200 px-2 py-0.5 text-[10px] font-mono font-semibold text-sky-800">
-                    {qWorkflow.unique_code}
-                    <span className={cn(
-                        "rounded-full px-1.5 text-[9px] font-bold",
-                        queryStatus === 'CLOSED' ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
-                    )}>
-                        {queryStatus}
+                <div className="inline-flex items-center gap-1.5 max-w-full rounded-md border border-sky-200 bg-sky-50 pl-1.5 pr-1.5 py-0.5">
+                    <span className="shrink-0 rounded bg-sky-200/80 px-1 py-0.5 text-[9px] font-bold uppercase text-sky-900">
+                        Q
                     </span>
-                </span>
+                    <span className="min-w-0 text-[10px] font-mono font-semibold text-sky-950 truncate">
+                        {qWorkflow.unique_code}
+                    </span>
+                    <span className={cn('shrink-0 text-[10px] font-semibold', queryStatus === 'CLOSED' ? statusTone.CLOSED : statusTone.PENDING)}>
+                        {queryStatus === 'CLOSED' ? 'Closed' : 'Pending'}
+                    </span>
+                </div>
             )}
 
             {hasSuggestion && (
@@ -430,26 +461,42 @@ const WorkflowMeta = ({ grievance, onAction }) => {
                     type="button"
                     onClick={(e) => {
                         e.stopPropagation();
-                        onAction?.('open_s_report', { grievance, uniqueCode: suggestion.unique_code });
+                        onAction?.('open_s_report', {
+                            grievance,
+                            uniqueCode: suggestion.unique_code,
+                        });
                     }}
-                    className="inline-flex rounded-full bg-purple-50 ring-1 ring-purple-200 px-2 py-0.5 text-[10px] font-mono font-semibold text-purple-800 hover:bg-purple-100 transition-colors"
+                    className="inline-flex items-center gap-1.5 max-w-full rounded-md border border-violet-200 bg-violet-50 pl-1.5 pr-1.5 py-0.5 hover:bg-violet-100/80"
                     title="Open suggestion report"
                 >
-                    {suggestion.unique_code}
+                    <span className="shrink-0 rounded bg-violet-200/80 px-1 py-0.5 text-[9px] font-bold uppercase text-violet-900">
+                        S
+                    </span>
+                    <span className="min-w-0 text-[10px] font-mono font-semibold text-violet-950 truncate">
+                        {suggestion.unique_code}
+                    </span>
                 </button>
             )}
 
-            {!hasGrievanceWorkflow && !hasQueryWorkflow && !hasSuggestion && hasCriticismCode && (
+            {hasCriticismCode && (
                 <button
                     type="button"
                     onClick={(e) => {
                         e.stopPropagation();
-                        onAction?.('open_c_report', { grievance, uniqueCode: grievance.criticism.unique_code });
+                        onAction?.('open_c_report', {
+                            grievance,
+                            uniqueCode: grievance.criticism.unique_code,
+                        });
                     }}
-                    className="inline-flex rounded-full bg-slate-100 ring-1 ring-slate-300 px-2 py-0.5 text-[10px] font-mono font-semibold text-slate-700 hover:bg-slate-200 transition-colors"
+                    className="inline-flex items-center gap-1.5 max-w-full rounded-md border border-rose-200 bg-rose-50 pl-1.5 pr-1.5 py-0.5 hover:bg-rose-100/80"
                     title="Open criticism report"
                 >
-                    {grievance.criticism.unique_code}
+                    <span className="shrink-0 rounded bg-rose-200/80 px-1 py-0.5 text-[9px] font-bold uppercase text-rose-900">
+                        C
+                    </span>
+                    <span className="min-w-0 text-[10px] font-mono font-semibold text-rose-950 truncate">
+                        {grievance.criticism.unique_code}
+                    </span>
                 </button>
             )}
         </div>
@@ -736,12 +783,12 @@ const XLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState = {}, 
                     )}
                     <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                            <div className="flex items-center gap-1 flex-wrap">
-                                <span className="font-bold text-[15px] text-[#0f1419] truncate max-w-[140px]">{user.display_name || handle}</span>
+                            <div className="flex items-center gap-1 flex-wrap min-w-0">
+                                <span className="font-bold text-[15px] text-[#0f1419] truncate">{user.display_name || handle}</span>
                                 {user.is_verified && <BadgeCheck className="h-4 w-4 text-[#1d9bf0] shrink-0" />}
-                                <span className="text-[14px] text-[#536471] truncate max-w-[120px]">@{handle}</span>
+                                {handle ? <span className="text-[14px] text-[#536471] truncate">@{handle}</span> : null}
                                 <span className="text-[#536471]">·</span>
-                                <span className="text-[15px] text-[#536471] hover:underline cursor-pointer" title={formatFullDate(grievance.post_date)}>{timeAgo(grievance.post_date)}</span>
+                                <span className="text-[15px] text-[#536471] hover:underline cursor-pointer whitespace-nowrap" title={formatFullDate(grievance.post_date)}>{timeAgo(grievance.post_date)}</span>
                             </div>
                             <WorkflowMeta grievance={grievance} onAction={onAction} />
                         </div>
@@ -863,20 +910,22 @@ const FacebookLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
                 />
             )}
 
-            <div className={cn(hasParentPost ? "pl-4" : "")}> 
+            <div className={cn(hasParentPost ? "pl-4" : "")}>
                 <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                        <Avatar className="h-10 w-10 ring-1 ring-slate-200">
+                        <Avatar className="h-10 w-10 ring-1 ring-slate-200 shrink-0">
                             <AvatarImage src={user.profile_image_url} />
                             <AvatarFallback className="text-sm bg-[#1877F2] text-white">{(user.display_name || '?')[0]?.toUpperCase()}</AvatarFallback>
                         </Avatar>
-                        <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                                <span className="font-semibold text-[15px] text-[#050505]">{user.display_name || user.handle}</span>
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="font-semibold text-[15px] text-[#050505] truncate">{user.display_name || user.handle}</span>
                                 {user.is_verified && <BadgeCheck className="h-4 w-4 text-[#1877F2] shrink-0" />}
                             </div>
                             <div className="flex items-center gap-1.5 text-[13px] text-[#65676b]">
-                                <span>{timeAgo(grievance.post_date)}</span><span>·</span><GlobeIcon className="h-3 w-3" />
+                                <span className="whitespace-nowrap">{timeAgo(grievance.post_date)}</span>
+                                <span>·</span>
+                                <GlobeIcon className="h-3 w-3 shrink-0" />
                             </div>
                             <WorkflowMeta grievance={grievance} onAction={onAction} />
                         </div>
@@ -982,7 +1031,8 @@ const WhatsAppLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*                 MAIN GRIEVANCE CARD                     */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-export const GrievanceCard = ({ grievance, onAction, getProxiedMediaUrl, downloadState = {}, isActioned = false, isSelected = false, compact = false }) => {
+
+export const GrievanceCard = ({ grievance, onAction, getProxiedMediaUrl, downloadState = {}, isActioned = false, isSelected = false }) => {
     const platform = (grievance.platform || 'x').toLowerCase();
     const isX = platform === 'x' || platform === 'twitter';
     const isFB = platform === 'facebook';
@@ -992,12 +1042,15 @@ export const GrievanceCard = ({ grievance, onAction, getProxiedMediaUrl, downloa
 
     return (
         <Card id={`grievance-card-${grievance.id}`} className={cn(
-            "overflow-hidden shadow-sm border transition-shadow",
-            isActioned ? "animate-card-action-blink border-green-400 z-10" : "border-slate-200 dark:border-slate-700 hover:shadow-md"
+            "overflow-hidden border transition-shadow bg-card",
+            isSelected && "ring-2 ring-primary/30",
+            isActioned
+                ? "animate-card-action-blink border-green-400 z-10"
+                : "border-border shadow-sm hover:shadow-md"
         )}>
 
             {(isDownloading || downloadState?.error) && (
-                <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-700 bg-blue-50/40 dark:bg-blue-950/20">
+                <div className="px-4 py-2 border-b border-border bg-blue-50/40 dark:bg-blue-950/20">
                     {isDownloading && (
                         <>
                             <div className="flex items-center justify-between text-[11px] font-semibold text-blue-700 mb-1">
@@ -1015,18 +1068,26 @@ export const GrievanceCard = ({ grievance, onAction, getProxiedMediaUrl, downloa
                 </div>
             )}
 
-            {/* Platform-native Content */}
             <CardContent className={cn('p-4', isWA && 'p-3')}>
                 {isX && <XLayout grievance={grievance} getProxiedMediaUrl={getProxiedMediaUrl} onAction={onAction} downloadState={downloadState} isActioned={isActioned} />}
                 {isFB && <FacebookLayout grievance={grievance} getProxiedMediaUrl={getProxiedMediaUrl} onAction={onAction} downloadState={downloadState} isActioned={isActioned} />}
                 {isWA && <WhatsAppLayout grievance={grievance} getProxiedMediaUrl={getProxiedMediaUrl} onAction={onAction} downloadState={downloadState} />}
             </CardContent>
 
-            {/* Footer */}
-            <div className="bg-slate-50/80 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-700 px-4 py-1.5 flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
-                <span>Detected {timeAgo(grievance.detected_date || grievance.created_at)} ago</span>
-                <button type="button" className="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1 transition-all duration-150 active:scale-95 active:translate-y-[1px]" onClick={() => onAction?.('view', { grievance })}>
-                    Details <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="m9 18 6-6-6-6" /></svg>
+            <div className="bg-muted/40 border-t border-border px-4 py-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
+                <span>
+                    {grievance.tagged_account ? `Watched ${grievance.tagged_account} · ` : ''}
+                    Detected {timeAgo(grievance.detected_date || grievance.created_at)} ago
+                </span>
+                <button
+                    type="button"
+                    className="text-foreground/70 hover:text-foreground flex items-center gap-1 transition-colors"
+                    onClick={() => onAction?.('view', { grievance })}
+                >
+                    Details
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
+                        <path d="m9 18 6-6-6-6" />
+                    </svg>
                 </button>
             </div>
         </Card>

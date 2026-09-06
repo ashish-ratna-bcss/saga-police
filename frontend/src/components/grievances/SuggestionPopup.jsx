@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../../lib/api';
 import { toast } from 'sonner';
 import {
-    X, GripHorizontal, Send, UserPlus, MessageSquare,
+    Send, UserPlus, MessageSquare,
     Loader2, Check, Copy
 } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -10,6 +10,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { ScrollArea } from '../ui/scroll-area';
 import { cn } from '../../lib/utils';
+import { ReportPopupShell, ReportPrimaryButton } from './ReportPopupShell';
 
 /* ─── Greeting based on time of day ─── */
 const getGreeting = () => {
@@ -98,7 +99,10 @@ const buildSuggestionMessage = (g) => {
 export const SuggestionPopup = ({ grievance, onClose, userName = '', onReportCreated }) => {
     /* ─── Position & Size ─── */
     const popupRef = useRef(null);
-    const [pos, setPos] = useState({ x: 20, y: Math.max(20, (window.innerHeight - 620) / 2) });
+    const [pos, setPos] = useState(() => ({
+        x: Math.max(24, (window.innerWidth - 720) / 2),
+        y: Math.max(24, (window.innerHeight - 620) / 2),
+    }));
     const [size, setSize] = useState({ width: 720, height: 620 });
     const [dragging, setDragging] = useState(false);
     const [resizing, setResizing] = useState(false);
@@ -305,90 +309,95 @@ export const SuggestionPopup = ({ grievance, onClose, userName = '', onReportCre
     );
 
     /* ━━━━━ RENDER ━━━━━ */
+    const stepMeta = {
+        compose: {
+            subtitle: 'Step 1 of 3 — Write the message for this suggestion report',
+        },
+        contacts: {
+            subtitle: 'Step 2 of 3 — Choose a contact and share on WhatsApp',
+        },
+        done: {
+            subtitle: 'Step 3 of 3 — Suggestion report finished',
+        },
+    };
+
     return (
-        <>
-            <div className="fixed inset-0 bg-black/30 z-[9998]" onClick={onClose} />
-
-            <div
-                ref={popupRef}
-                className="fixed z-[9999] bg-white rounded-xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden select-none"
-                style={{ left: pos.x, top: pos.y, width: size.width, height: size.height }}
-            >
-                {/* ─── Title Bar ─── */}
-                <div
-                    className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-purple-600 to-purple-700 text-white cursor-move shrink-0"
-                    onMouseDown={(e) => {
-                        setDragging(true);
-                        setDragOffset({ x: e.clientX - pos.x, y: e.clientY - pos.y });
-                    }}
-                >
-                    <div className="flex items-center gap-3">
-                        < GripHorizontal className="h-5 w-5 opacity-60" />
-                        <span className="font-bold text-base">Suggestion Report</span>
-                        {uniqueCode && (
-                            <span className="ml-2 px-3 py-1 bg-yellow-300 rounded font-mono font-bold text-sm text-purple-800">{uniqueCode}</span>
-                        )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-2 mr-4 text-sm">
-                            <span className={cn('px-3 py-1 rounded-full font-semibold', step === 'compose' ? 'bg-white text-purple-700' : 'bg-white/20')}>1. Compose</span>
-                            <span className={cn('px-3 py-1 rounded-full font-semibold', step === 'contacts' ? 'bg-white text-purple-700' : 'bg-white/20')}>2. Share</span>
-                            <span className={cn('px-3 py-1 rounded-full font-semibold', step === 'done' ? 'bg-white text-purple-700' : 'bg-white/20')}>3. Done</span>
-                        </div>
-                        <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded transition-colors"><X className="h-5 w-5" /></button>
-                    </div>
-                </div>
-
+        <ReportPopupShell
+            theme="suggestion"
+            title="Create Suggestion Report"
+            subtitle={stepMeta[step]?.subtitle}
+            uniqueCode={uniqueCode}
+            steps={[
+                { id: 'compose', label: 'Write message' },
+                { id: 'contacts', label: 'Share' },
+                { id: 'done', label: 'Done' },
+            ]}
+            activeStep={step}
+            onClose={onClose}
+            popupRef={popupRef}
+            style={{ left: pos.x, top: pos.y, width: size.width, height: size.height }}
+            onHeaderMouseDown={(e) => {
+                setDragging(true);
+                setDragOffset({ x: e.clientX - pos.x, y: e.clientY - pos.y });
+            }}
+        >
                 {/* ─── Content ─── */}
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 overflow-hidden h-full">
                     {/* ═══ STEP 1: COMPOSE ═══ */}
                     {step === 'compose' && (
                         <div className="flex flex-col h-full">
                             <ScrollArea className="flex-1 p-4">
-                                <div className="h-full min-h-0 flex flex-col">
-                                    {/* Category */}
-                                    <div className="mb-3 shrink-0">
-                                        <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
+                                <div className="h-full min-h-0 flex flex-col gap-4">
+                                    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                                        This creates a <strong className="text-foreground">Suggestion</strong> report from the social post,
+                                        then lets you share it on WhatsApp.
+                                    </div>
+
+                                    <div className="shrink-0">
+                                        <label className="block text-sm font-medium text-foreground mb-1.5">
+                                            What is this about?
+                                        </label>
                                         <select
                                             value={category}
                                             onChange={(e) => setCategory(e.target.value)}
-                                            className="w-full h-9 px-3 rounded-md border border-slate-200 bg-white text-sm focus:ring-2 focus:ring-purple-300 focus:border-purple-400 outline-none"
+                                            className="w-full h-10 px-3 rounded-md border border-border bg-background text-sm outline-none focus:ring-2 focus:ring-violet-300"
                                         >
                                             {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
                                         </select>
                                     </div>
 
-                                    {/* Message */}
                                     <div className="flex-1 min-h-0 flex flex-col">
                                         <div className="flex items-center justify-between mb-1.5 shrink-0">
-                                            <label className="text-xs font-semibold text-slate-700">Message Preview (editable)</label>
-                                            <button onClick={handleCopyMessage} className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                                            <label className="text-sm font-medium text-foreground">
+                                                Message to share
+                                            </label>
+                                            <button type="button" onClick={handleCopyMessage} className="text-xs text-primary hover:underline flex items-center gap-1">
                                                 <Copy className="h-3 w-3" /> Copy
                                             </button>
                                         </div>
-                                        <p className="text-[11px] text-slate-500 mb-1.5">
-                                            Text above "Suggestion Details" will be saved as remarks.
+                                        <p className="text-xs text-muted-foreground mb-2">
+                                            You can edit this. Put your own notes at the top — post details below are filled automatically.
                                         </p>
                                         <Textarea
                                             value={message}
                                             onChange={(e) => setMessage(e.target.value)}
-                                            className="text-sm font-mono resize-none bg-white flex-1 min-h-[320px]"
+                                            className="text-sm resize-none bg-background flex-1 min-h-[280px] leading-relaxed"
                                         />
                                     </div>
                                 </div>
                             </ScrollArea>
 
-                            <div className="shrink-0 p-3 border-t bg-slate-50 flex justify-end gap-2">
+                            <div className="shrink-0 p-3 border-t border-border bg-muted/20 flex justify-end gap-2">
                                 <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-                                <Button
+                                <ReportPrimaryButton
+                                    theme="suggestion"
                                     size="sm"
-                                    className="bg-purple-600 hover:bg-purple-700 text-white gap-2"
                                     onClick={handleSubmit}
                                     disabled={submitting}
                                 >
                                     {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                                    Submit & Continue
-                                </Button>
+                                    Save & choose who to share with
+                                </ReportPrimaryButton>
                             </div>
                         </div>
                     )}
@@ -398,7 +407,7 @@ export const SuggestionPopup = ({ grievance, onClose, userName = '', onReportCre
                         <div className="flex flex-col h-full">
                             <div className="shrink-0 p-3 border-b bg-slate-50">
                                 <div className="flex items-center justify-between mb-2">
-                                    <h3 className="text-sm font-semibold text-slate-900">Select Contact to Share</h3>
+                                    <h3 className="text-sm font-semibold text-slate-900">Who should receive this on WhatsApp?</h3>
                                     <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setShowAddContact(!showAddContact)}>
                                         <UserPlus className="h-3.5 w-3.5" /> Add Contact
                                     </Button>
@@ -532,7 +541,7 @@ export const SuggestionPopup = ({ grievance, onClose, userName = '', onReportCre
                                     className="gap-1.5 text-slate-600 border-slate-300 hover:bg-slate-100"
                                     onClick={() => setStep('done')}
                                 >
-                                    Skip & Next →
+                                    Save without sharing →
                                 </Button>
                             </div>
                         </div>
@@ -559,7 +568,7 @@ export const SuggestionPopup = ({ grievance, onClose, userName = '', onReportCre
                                 <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setSelectedContact(null); setStep('contacts'); }}>
                                     <MessageSquare className="h-4 w-4" /> Share with {selectedContact ? 'another' : 'someone'}
                                 </Button>
-                                <Button size="sm" onClick={onClose} className="bg-purple-600 hover:bg-purple-700 text-white">Done</Button>
+                                <Button size="sm" onClick={onClose}>Close</Button>
                             </div>
                         </div>
                     )}
@@ -572,8 +581,7 @@ export const SuggestionPopup = ({ grievance, onClose, userName = '', onReportCre
                         <path d="M14 14L14 11M14 14L11 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                     </svg>
                 </div>
-            </div>
-        </>
+        </ReportPopupShell>
     );
 };
 

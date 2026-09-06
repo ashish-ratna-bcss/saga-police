@@ -185,7 +185,7 @@ const Surveillance = () => {
                   Refresh
                 </Button>
                 <Button size="sm" asChild>
-                  <Link to="/sources">Manage Sources</Link>
+                  <Link to="/social-profiles">Manage Sources</Link>
                 </Button>
               </div>
             </div>
@@ -329,7 +329,7 @@ const Surveillance = () => {
                     : 'No sources match your current filters.'}
                 </p>
                 <Button size="sm" asChild>
-                  <Link to="/sources">Add Sources</Link>
+                  <Link to="/social-profiles">Add Sources</Link>
                 </Button>
               </CardContent>
             </Card>

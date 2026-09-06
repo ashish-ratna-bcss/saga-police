@@ -1,4 +1,3 @@
-const axios = require('axios');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
@@ -10,25 +9,12 @@ const { archiveTwitterMedia } = require('./contentS3Service');
 const { generateComplaintCode } = require('./complaintCodeService');
 const { syncLegacyFieldsFromWorkflow } = require('./grievanceWorkflowService');
 const logger = require('../utils/logger');
+const callXApi = require('./blugate/x/blugate.x.api_client');
 
 /**
  * Grievance Service
- * Handles fetching mentions from X, processing grievances, and generating reports
+ * Handles fetching mentions from X (Blugate), processing grievances, and generating reports
  */
-
-const getRapidApiHeaders = () => {
-    const apiKey = process.env.RAPIDAPI_KEY;
-    const apiHost = process.env.RAPIDAPI_HOST;
-
-    if (!apiKey || !apiHost) {
-        throw new Error('RAPIDAPI_KEY or RAPIDAPI_HOST is not configured');
-    }
-
-    return {
-        'x-rapidapi-key': apiKey,
-        'x-rapidapi-host': apiHost
-    };
-};
 
 const extractMediaFromLegacy = (legacy) => {
     const media = [];
@@ -135,35 +121,19 @@ const fetchTweetById = async (tweetId, cache = null, handle = null) => {
 
     let snapshot = null;
 
-    // Attempt 1: provider-specific tweet endpoint (if available)
-    const endpointAttempts = [
-        { path: '/tweet', params: { id: key } },
-        { path: '/tweet', params: { tweet_id: key } },
-        { path: '/tweet-details', params: { id: key } },
-        { path: '/tweet-details', params: { tweet_id: key } }
-    ];
-
-    for (const attempt of endpointAttempts) {
-        try {
-            const res = await axios.get(`https://${process.env.RAPIDAPI_HOST}${attempt.path}`, {
-                params: attempt.params,
-                headers: getRapidApiHeaders(),
-                timeout: 5000
-            });
-
-            const tweetResult = res.data?.result?.tweet ||
-                res.data?.result?.tweet_results?.result ||
-                res.data?.tweet_results?.result ||
-                res.data?.result;
-
-            snapshot = extractTweetSnapshot(tweetResult);
-            if (snapshot) break;
-        } catch (e) {
-            // continue
-        }
+    try {
+        const data = await callXApi('TWEET_DETAILS', { pid: key });
+        const tweetResult =
+            data?.result?.tweetResult?.result ||
+            data?.result?.tweet ||
+            data?.result?.tweet_results?.result ||
+            data?.tweet_results?.result ||
+            data?.result;
+        snapshot = extractTweetSnapshot(tweetResult);
+    } catch (e) {
+        // fall through to search
     }
 
-    // Attempt 2: search fallback — use from:handle if available, then url operator
     if (!snapshot) {
         const cleanHandle = handle ? String(handle).replace(/^@/, '').trim() : null;
         const searchQueries = [];
@@ -173,13 +143,12 @@ const fetchTweetById = async (tweetId, cache = null, handle = null) => {
         for (const searchQuery of searchQueries) {
             if (snapshot) break;
             try {
-                const res = await axios.get(`https://${process.env.RAPIDAPI_HOST}/search`, {
-                    params: { query: searchQuery, type: 'Latest', count: 20 },
-                    headers: getRapidApiHeaders(),
-                    timeout: 15000
+                const data = await callXApi('SEARCH', {
+                    query: searchQuery,
+                    type: 'Latest',
+                    count: '20',
                 });
-
-                const entries = getTimelineEntriesFromSearchResponse(res.data);
+                const entries = getTimelineEntriesFromSearchResponse(data);
                 for (const entry of entries) {
                     if (entry.entryId?.startsWith('cursor-')) continue;
                     let tweetResult = entry.content?.itemContent?.tweet_results?.result;
@@ -313,18 +282,15 @@ const fetchUserProfile = async (handle) => {
     try {
         const cleanHandle = handle.replace('@', '').trim();
 
-        const userResponse = await axios.get(`https://${process.env.RAPIDAPI_HOST}/user`, {
-            params: { username: cleanHandle },
-            headers: getRapidApiHeaders()
-        });
+        const userResponse = await callXApi('USER', { username: cleanHandle });
 
         let result = null;
-        if (userResponse.data?.result?.data?.user?.result) {
-            result = userResponse.data.result.data.user.result;
-        } else if (userResponse.data?.data?.user?.result) {
-            result = userResponse.data.data.user.result;
-        } else if (userResponse.data?.result) {
-            result = userResponse.data.result;
+        if (userResponse?.result?.data?.user?.result) {
+            result = userResponse.result.data.user.result;
+        } else if (userResponse?.data?.user?.result) {
+            result = userResponse.data.user.result;
+        } else if (userResponse?.result) {
+            result = userResponse.result;
         }
 
         if (!result) return null;
@@ -389,24 +355,21 @@ const searchMentions = async (handle, limit = 50, startDate = null, endDate = nu
         
 
 
-        const response = await axios.get(`https://${process.env.RAPIDAPI_HOST}/search`, {
-            params: {
-                query: searchQuery,
-                type: 'Latest',
-                count: adjustedLimit
-            },
-            headers: getRapidApiHeaders()
+        const responseData = await callXApi('SEARCH', {
+            query: searchQuery,
+            type: 'Latest',
+            count: String(adjustedLimit),
         });
 
         
         // Log raw response structure for debugging
-        if (response.data) {
+        if (responseData) {
         }
 
         // Parse the timeline entries - handle multiple response structures
-        const instructions = response.data?.result?.timeline?.instructions || 
-                           response.data?.timeline?.instructions ||
-                           response.data?.data?.search_by_raw_query?.search_timeline?.timeline?.instructions ||
+        const instructions = responseData?.result?.timeline?.instructions || 
+                           responseData?.timeline?.instructions ||
+                           responseData?.data?.search_by_raw_query?.search_timeline?.timeline?.instructions ||
                            [];
         
         const timelineEntries = instructions.find(i => i.type === 'TimelineAddEntries')?.entries || 

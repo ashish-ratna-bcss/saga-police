@@ -1,17 +1,15 @@
 import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
-import { TooltipProvider } from "./components/ui/tooltip";
-import { AuthProvider } from './contexts/AuthContext';
-import { DashboardProvider } from './contexts/DashboardContext';
+import { AuthProvider } from './context/auth.context';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
-import Layout from './components/Layout';
+import Layout from './layout';
 import Login from './pages/Login';
 
 // Lazy load heavy pages
 const Dashboard = lazy(() => import('./pages/DashboardNew'));
-const Sources = lazy(() => import('./pages/Sources'));
+const SocialProfiles = lazy(() => import('./pages/SocialProfiles'));
 const ContentFeed = lazy(() => import('./pages/ContentFeed'));
 const YouTubeMonitor = lazy(() => import('./pages/YouTubeMonitor'));
 const XMonitor = lazy(() => import('./pages/XMonitor'));
@@ -69,94 +67,82 @@ const PageLoader = () => (
   </div>
 );
 
-import { NotificationProvider } from './context/NotificationContext';
-import { InstagramCacheProvider } from './contexts/InstagramCacheContext';
-import { RbacProvider } from './contexts/RbacContext';
 import './App.css';
 
 function App() {
-  // Theme (ui_mode + theme_color) comes from GET /me via AuthContext — do not
-  // apply a stale global/localStorage color here or Settings will fight with it.
   return (
     <AuthProvider>
-      <DashboardProvider>
-        <NotificationProvider>
-          <BrowserRouter>
-            <RbacProvider>
-            <InstagramCacheProvider>
-              <Toaster position="top-right" expand={true} richColors />
-              <Suspense fallback={<PageLoader />}>
-                <Routes>
-                  <Route path="/login" element={<Login />} />
-                  <Route
-                    path="/"
-                    element={
-                      <ProtectedRoute>
-                        <Layout />
-                      </ProtectedRoute>
-                    }
-                  >
-                    <Route index element={<Navigate to="/dashboard" replace />} />
-                    <Route path="dashboard" element={<Dashboard />} />
-                    <Route path="sources" element={<Sources />} />
-                    <Route path="content" element={<ContentFeed />} />
-                    <Route path="youtube-monitor" element={<YouTubeMonitor />} />
-                    <Route path="x-monitor" element={<XMonitor />} />
-                    <Route path="facebook-monitor" element={<FacebookMonitor />} />
-                    <Route path="instagram-monitor" element={<InstagramMonitor />} />
-                    <Route path="instagram-monitor/:sourceId" element={<InstagramProfile />} />
-                    <Route path="monitors" element={<UnifiedMonitors />} />
-                    <Route path="grievances" element={<Grievances />} />
-                    <Route path="alerts" element={<Alerts />} />
-                    <Route path="analytics" element={<Analytics />} />
-                    <Route path="global-search" element={<GlobalSearch />} />
-                    <Route path="events" element={<ErrorBoundary label="Events page"><Events /></ErrorBoundary>} />
-                    <Route path="announcements" element={<Announcements />} />
-                    <Route path="unified-reports" element={<UnifiedReports />} />
-                    <Route path="settings" element={<Settings />} />
-                    <Route path="intelligence-dashboard" element={<IntelligenceDashboard />} />
-                    <Route path="policies" element={<PolicyManager />} />
-                    <Route path="active-threats" element={<ActiveThreats />} />
-                    <Route path="surveillance" element={<Surveillance />} />
-                    <Route path="intel-processed" element={<IntelProcessed />} />
-                    <Route path="case-reports" element={<CaseReports />} />
-                    <Route path="reports" element={<Reports />} />
-                    <Route path="reports/generate/:id" element={<GenerateReport />} />
-                    <Route path="dial-100-incident-reporting" element={<Dial100IncidentReporting />} />
-                    <Route path="audit-logs" element={<AuditLogs />} />
-                    <Route path="access-management" element={<AccessManagement />} />
-                    <Route path="users-management" element={<UsersManagement />} />
-                    <Route path="roles-management" element={<RolesManagement />} />
-                    <Route path="person-of-interest" element={<PersonOfInterest />} />
-                    <Route path="person-of-interest/:id" element={<POIDetail />} />
-                    <Route path="analysis-tools" element={<AnalysisTools />} />
-                    <Route path="system-health" element={<SystemHealth />} />
-                    <Route path="analysis-tools/osint-tools" element={<OSINTLayout />}>
-                      <Route index element={<OSINTDashboard />} />
-                      <Route path="email" element={<EmailTools />} />
-                      <Route path="username" element={<UsernameTools />} />
-                      <Route path="phone" element={<PhoneToolsPage />} />
-                      <Route path="image" element={<ImageIntel />} />
-                      <Route path="infrastructure" element={<InfrastructureIntel />} />
-                      <Route path="ai-assistant" element={<AIAssistantPage />} />
-                      <Route path="ask-ai" element={<AskAIPage />} />
-                      <Route path="master-prompt" element={<MasterPromptPage />} />
-                      <Route path="other-links" element={<OtherLinksPage />} />
-                    </Route>
-                    <Route path="maigret-search" element={<MaigretSearch />} />
-                    <Route path="whatsmyname-search" element={<WhatsMyNameSearch />} />
-                    <Route path="events-report" element={<EventsReport />} />
-                    <Route path="help" element={<HelpGuide />} />
-                    <Route path="ai-assistant" element={<AiAssistant />} />
-                    <Route path="post-location-lookup" element={<PostLocationLookup />} />
-                  </Route>
-                </Routes>
-              </Suspense>
-            </InstagramCacheProvider>
-            </RbacProvider>
-          </BrowserRouter>
-        </NotificationProvider>
-      </DashboardProvider>
+      <BrowserRouter>
+        <Toaster position="top-right" expand={true} richColors />
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="sources" element={<Navigate to="/social-profiles" replace />} />
+              <Route path="social-profiles" element={<SocialProfiles />} />
+              <Route path="content" element={<ContentFeed />} />
+              <Route path="youtube-monitor" element={<YouTubeMonitor />} />
+              <Route path="x-monitor" element={<XMonitor />} />
+              <Route path="facebook-monitor" element={<FacebookMonitor />} />
+              <Route path="instagram-monitor" element={<InstagramMonitor />} />
+              <Route path="instagram-monitor/:sourceId" element={<InstagramProfile />} />
+              <Route path="monitors" element={<UnifiedMonitors />} />
+              <Route path="grievances" element={<Grievances />} />
+              <Route path="alerts" element={<Alerts />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="global-search" element={<GlobalSearch />} />
+              <Route path="events" element={<ErrorBoundary label="Events page"><Events /></ErrorBoundary>} />
+              <Route path="announcements" element={<Announcements />} />
+              <Route path="unified-reports" element={<UnifiedReports />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="intelligence-dashboard" element={<IntelligenceDashboard />} />
+              <Route path="policies" element={<PolicyManager />} />
+              <Route path="active-threats" element={<ActiveThreats />} />
+              <Route path="surveillance" element={<Surveillance />} />
+              <Route path="intel-processed" element={<IntelProcessed />} />
+              <Route path="case-reports" element={<CaseReports />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="reports/generate/:id" element={<GenerateReport />} />
+              <Route path="dial-100-incident-reporting" element={<Dial100IncidentReporting />} />
+              <Route path="audit-logs" element={<AuditLogs />} />
+              <Route path="access-management" element={<AccessManagement />} />
+              <Route path="users-management" element={<UsersManagement />} />
+              <Route path="roles-management" element={<RolesManagement />} />
+              <Route path="person-of-interest" element={<PersonOfInterest />} />
+              <Route path="person-of-interest/:id" element={<POIDetail />} />
+              <Route path="analysis-tools" element={<AnalysisTools />} />
+              <Route path="system-health" element={<SystemHealth />} />
+              <Route path="analysis-tools/osint-tools" element={<OSINTLayout />}>
+                <Route index element={<OSINTDashboard />} />
+                <Route path="email" element={<EmailTools />} />
+                <Route path="username" element={<UsernameTools />} />
+                <Route path="phone" element={<PhoneToolsPage />} />
+                <Route path="image" element={<ImageIntel />} />
+                <Route path="infrastructure" element={<InfrastructureIntel />} />
+                <Route path="ai-assistant" element={<AIAssistantPage />} />
+                <Route path="ask-ai" element={<AskAIPage />} />
+                <Route path="master-prompt" element={<MasterPromptPage />} />
+                <Route path="other-links" element={<OtherLinksPage />} />
+              </Route>
+              <Route path="maigret-search" element={<MaigretSearch />} />
+              <Route path="whatsmyname-search" element={<WhatsMyNameSearch />} />
+              <Route path="events-report" element={<EventsReport />} />
+              <Route path="help" element={<HelpGuide />} />
+              <Route path="ai-assistant" element={<AiAssistant />} />
+              <Route path="post-location-lookup" element={<PostLocationLookup />} />
+            </Route>
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
     </AuthProvider>
   );
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../lib/api';
-import { Save, Plus, Trash2, TrendingUp, ShieldAlert, BrainCircuit, Wand2, FileText, Upload, Star, ChevronDown, ChevronUp, Eye, Pencil, Copy, Check, X, HelpCircle, AlertTriangle, Clock, Activity, MessageSquare, Radio, Settings2, Zap, Bot, Youtube, Facebook, Instagram, Gauge, Loader2, Moon, Sun, Palette } from 'lucide-react';
+import { Save, Plus, Trash2, TrendingUp, ShieldAlert, BrainCircuit, FileText, Upload, Star, ChevronDown, ChevronUp, Eye, Pencil, Copy, Check, X, HelpCircle, AlertTriangle, Clock, Activity, MessageSquare, Radio, Settings2, Zap, Bot, Youtube, Facebook, Instagram, Gauge, Loader2, Moon, Sun, Palette } from 'lucide-react';
 
 const XLogo = ({ className }) => (
   <svg viewBox="0 0 24 24" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -20,14 +20,13 @@ import { Separator } from '../components/ui/separator';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { toast } from 'sonner';
 import DOMPurify from 'dompurify';
-import Sources from './Sources';
 import AccessManagement from './AccessManagement';
 import PolicyManager from '../components/PolicyManager';
 import { Badge } from '../components/ui/badge';
 import RichTextEditor from '../components/RichTextEditor';
 import { cn } from '../lib/utils';
 import { applyThemeColor } from '../utils/theme';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../context/auth.context';
 
 const THEME_PRESETS = ['#1e3a8a', '#0f766e', '#7c2d12', '#4c1d95', '#1f2937', '#166534'];
 
@@ -244,7 +243,7 @@ const PlaceholderSidebar = ({ onClose }) => {
 let _settingsCache = null;
 let _settingsCacheTime = 0;
 const SETTINGS_CACHE_TTL = 60_000; // 1 minute
-const VALID_TABS = ['general', 'sources', 'keywords', 'templates', 'access', 'policies', 'theme'];
+const VALID_TABS = ['general', 'keywords', 'templates', 'access', 'policies', 'theme'];
 
 const Settings = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -253,9 +252,10 @@ const Settings = () => {
   const [loading, setLoading] = useState(true);
   const [monPlatformTab, setMonPlatformTab] = useState('x');
   const [monCategory, setMonCategory] = useState('political');
-  const [newKeyword, setNewKeyword] = useState({ category: 'violence', language: 'en', keyword: '' });
-  const [transliterationEnabled, setTransliterationEnabled] = useState(true);
-  const [suggestions, setSuggestions] = useState([]);
+  const [newKeyword, setNewKeyword] = useState('');
+  const [editingKeywordId, setEditingKeywordId] = useState(null);
+  const [keywordSaving, setKeywordSaving] = useState(false);
+  const [keywordRescanning, setKeywordRescanning] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [thresholds, setThresholds] = useState([]);
 
@@ -330,7 +330,7 @@ const Settings = () => {
       setSearchParams(prev => {
         const next = new URLSearchParams(prev);
         next.set('tab', newTab);
-        if (newTab !== 'sources') next.delete('platform');
+        next.delete('platform');
         return next;
       }, { replace: true });
     }
@@ -358,75 +358,6 @@ const Settings = () => {
 
 
 
-  // Transliteration logic
-  const handleKeywordChange = async (e) => {
-    const val = e.target.value;
-    setNewKeyword(prev => ({ ...prev, keyword: val }));
-
-    if (transliterationEnabled &&
-      newKeyword.language !== 'en' &&
-      newKeyword.language !== 'all') {
-
-      const words = val.split(' ');
-      const lastWord = words[words.length - 1];
-      const isSpace = val.endsWith(' ');
-
-      if (isSpace && words.length > 1) {
-        const wordToConvert = words[words.length - 2];
-        if (wordToConvert) {
-          const langCode = newKeyword.language === 'te' ? 'te-t-i0-und' : 'hi-t-i0-und';
-          try {
-            const response = await fetch(
-              `https://inputtools.google.com/request?text=${encodeURIComponent(wordToConvert)}&itc=${langCode}&num=1&cp=0&cs=1&ie=utf-8&oe=utf-8`
-            );
-            const data = await response.json();
-            if (data[0] === 'SUCCESS' && data[1] && data[1][0] && data[1][0][1]) {
-              const transliteratedWord = data[1][0][1][0];
-              const newVal = val.substring(0, val.lastIndexOf(wordToConvert)) + transliteratedWord + ' ';
-              setNewKeyword(prev => ({ ...prev, keyword: newVal }));
-            }
-          } catch (err) { }
-        }
-        setSuggestions([]);
-        return;
-      }
-
-      if (lastWord && lastWord.length > 0) {
-        const langCode = newKeyword.language === 'te' ? 'te-t-i0-und' : 'hi-t-i0-und';
-        try {
-          const response = await fetch(
-            `https://inputtools.google.com/request?text=${encodeURIComponent(lastWord)}&itc=${langCode}&num=5&cp=0&cs=1&ie=utf-8&oe=utf-8`
-          );
-          const data = await response.json();
-          if (data[0] === 'SUCCESS' && data[1] && data[1][0] && data[1][0][1]) {
-            setSuggestions(data[1][0][1]);
-          } else {
-            setSuggestions([]);
-          }
-        } catch (err) {
-          setSuggestions([]);
-        }
-      } else {
-        setSuggestions([]);
-      }
-    } else {
-      setSuggestions([]);
-    }
-  };
-
-  const handleSuggestionClick = (suggestion) => {
-    const val = newKeyword.keyword;
-    const words = val.split(' ');
-    words.pop();
-    words.push(suggestion);
-    const newVal = words.join(' ') + ' ';
-    setNewKeyword(prev => ({ ...prev, keyword: newVal }));
-    setSuggestions([]);
-
-    setTimeout(() => {
-      document.querySelector('input[name="keywordInput"]')?.focus();
-    }, 10);
-  };
 
   useEffect(() => {
     // Use cached data if fresh (instant back-navigation)
@@ -657,26 +588,68 @@ const Settings = () => {
     }
   };
 
-  const handleAddKeyword = async (e) => {
+  const resetKeywordForm = () => {
+    setNewKeyword('');
+    setEditingKeywordId(null);
+  };
+
+  const handleSaveKeyword = async (e) => {
     e.preventDefault();
+    const value = String(newKeyword || '').trim();
+    if (!value) {
+      toast.error('Enter a keyword');
+      return;
+    }
+    setKeywordSaving(true);
     try {
-      await api.post('/keywords', newKeyword);
-      toast.success('Keyword added successfully');
+      if (editingKeywordId) {
+        await api.put(`/keywords/${editingKeywordId}`, { keyword: value });
+        toast.success('Keyword updated');
+      } else {
+        await api.post('/keywords', { keyword: value });
+        toast.success('Keyword added');
+      }
+      resetKeywordForm();
       setDialogOpen(false);
-      setNewKeyword({ category: 'violence', language: 'en', keyword: '' });
       fetchData();
     } catch (error) {
-      toast.error('Failed to add keyword');
+      toast.error(error?.response?.data?.message || 'Failed to save keyword');
+    } finally {
+      setKeywordSaving(false);
     }
   };
 
+  const handleEditKeyword = (kw) => {
+    setEditingKeywordId(kw.id);
+    setNewKeyword(kw.keyword || '');
+    setDialogOpen(true);
+  };
+
   const handleDeleteKeyword = async (id) => {
+    if (!window.confirm('Delete this keyword?')) return;
     try {
       await api.delete(`/keywords/${id}`);
-      toast.success('Keyword deleted successfully');
+      toast.success('Keyword deleted');
+      if (editingKeywordId === id) resetKeywordForm();
       fetchData();
     } catch (error) {
-      toast.error('Failed to delete keyword');
+      toast.error(error?.response?.data?.message || 'Failed to delete keyword');
+    }
+  };
+
+  const handleCatalogRescan = async () => {
+    setKeywordRescanning(true);
+    try {
+      const res = await api.post('/keywords/catalog-rescan');
+      const r = res.data?.result || {};
+      toast.success(
+        `Rescan done · matched ${r.posts_matched || 0}/${r.posts_scanned || 0} posts · ` +
+          `${r.alerts_created || 0} new alerts · ${r.alerts_skipped_existing || 0} already existed`
+      );
+    } catch (error) {
+      toast.error(error?.response?.data?.message || 'Rescan failed');
+    } finally {
+      setKeywordRescanning(false);
     }
   };
 
@@ -747,7 +720,6 @@ const Settings = () => {
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="h-10 p-1 bg-muted/50 rounded-lg">
           <TabsTrigger value="general" className="text-xs px-5 py-2 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:font-semibold">Configuration</TabsTrigger>
-          <TabsTrigger value="sources" className="text-xs px-5 py-2 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:font-semibold">Profiles</TabsTrigger>
           <TabsTrigger value="keywords" className="text-xs px-5 py-2 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:font-semibold">Keywords</TabsTrigger>
           <TabsTrigger value="templates" className="text-xs px-5 py-2 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:font-semibold">Report Templates</TabsTrigger>
           <TabsTrigger value="access" className="text-xs px-5 py-2 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:font-semibold">Access Management</TabsTrigger>
@@ -774,7 +746,7 @@ const Settings = () => {
               setShowUnsavedDialog(false);
               if (pendingTabRef.current) {
                 const t = pendingTabRef.current;
-                setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('tab', t); if (t !== 'sources') next.delete('platform'); return next; }, { replace: true });
+                setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('tab', t); next.delete('platform'); return next; }, { replace: true });
                 pendingTabRef.current = null;
               }
             }}>Discard</Button>
@@ -784,7 +756,7 @@ const Settings = () => {
               setShowUnsavedDialog(false);
               if (pendingTabRef.current) {
                 const t = pendingTabRef.current;
-                setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('tab', t); if (t !== 'sources') next.delete('platform'); return next; }, { replace: true });
+                setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('tab', t); next.delete('platform'); return next; }, { replace: true });
                 pendingTabRef.current = null;
               }
             }}>Save & Continue</Button>
@@ -1128,121 +1100,125 @@ const Settings = () => {
 
 
 
-        <TabsContent value="sources" className="mt-2">
-          <Sources />
-        </TabsContent>
-
         {/* Keywords */}
         <TabsContent value="keywords" className="space-y-4">
           <Card className="p-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Keywords</h3>
-                <div className="flex gap-2">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold">Keywords</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Phrases matched in monitored posts to raise catalog alerts.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
                   <Button
-                    variant="outline" size="sm" className="h-7 px-2 text-xs"
-                    onClick={async () => {
-                      try { await api.post('/keywords/scan'); toast.success('Scan started'); }
-                      catch { toast.error('Scan failed'); }
-                    }}
-                  >Scan</Button>
-                  <Dialog open={dialogOpen} onOpenChange={(open) => {
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-3 text-xs"
+                    disabled={keywordRescanning || keywords.length === 0}
+                    onClick={handleCatalogRescan}
+                  >
+                    {keywordRescanning ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    ) : null}
+                    Rescan
+                  </Button>
+                <Dialog
+                  open={dialogOpen}
+                  onOpenChange={(open) => {
                     setDialogOpen(open);
-                    if (!open) { setNewKeyword({ category: 'violence', language: 'en', keyword: '' }); setTransliterationEnabled(true); setSuggestions([]); }
-                  }}>
-                    <DialogTrigger asChild>
-                      <Button size="sm" className="h-7 px-2 text-xs"><Plus className="h-3 w-3 mr-1" /> Add</Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[400px]">
-                      <DialogHeader>
-                        <DialogTitle className="text-base">Add Keyword</DialogTitle>
-                        <DialogDescription className="text-[10px]">
-                          Enter a specific keyword or phrase to monitor for potential violations.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <form onSubmit={handleAddKeyword} className="space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label className="text-xs">Category</Label>
-                            <Select value={newKeyword.category} onValueChange={(v) => setNewKeyword({ ...newKeyword, category: v })}>
-                              <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="violence">Violence</SelectItem>
-                                <SelectItem value="threat">Threat</SelectItem>
-                                <SelectItem value="hate">Hate</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label className="text-xs">Language</Label>
-                            <Select value={newKeyword.language} onValueChange={(v) => setNewKeyword({ ...newKeyword, language: v })}>
-                              <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="en">English</SelectItem>
-                                <SelectItem value="hi">Hindi</SelectItem>
-                                <SelectItem value="te">Telugu</SelectItem>
-                                <SelectItem value="all">All</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <div>
-                          <Label className="text-xs">Keyword</Label>
-                          {newKeyword.language !== 'en' && newKeyword.language !== 'all' && (
-                            <div className="flex items-center gap-2 mt-1 mb-1">
-                              <Switch checked={transliterationEnabled} onCheckedChange={setTransliterationEnabled} className="scale-75" />
-                              <span className="text-[10px] text-muted-foreground flex items-center gap-1"><Wand2 className="h-3 w-3" /> Auto-transliterate</span>
-                            </div>
-                          )}
-                          <div className="relative">
-                            <Input name="keywordInput" value={newKeyword.keyword} onChange={handleKeywordChange} placeholder="Enter keyword" required className="h-8 text-xs" autoComplete="off" />
-                            {suggestions.length > 0 && (
-                              <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg">
-                                {suggestions.map((s, i) => (
-                                  <button key={i} type="button" onClick={() => handleSuggestionClick(s)} className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent">{s}</button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <Button type="submit" className="w-full h-8 text-xs">Add</Button>
-                      </form>
-                    </DialogContent>
-                  </Dialog>
+                    if (!open) resetKeywordForm();
+                  }}
+                >
+                  <DialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      className="h-8 px-3 text-xs"
+                      onClick={() => {
+                        resetKeywordForm();
+                        setDialogOpen(true);
+                      }}
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1" /> Add
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[420px]">
+                    <DialogHeader>
+                      <DialogTitle className="text-base">
+                        {editingKeywordId ? 'Edit keyword' : 'Add keyword'}
+                      </DialogTitle>
+                      <DialogDescription className="text-xs">
+                        One phrase per entry. Matching posts can create alerts.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleSaveKeyword} className="flex items-center gap-2">
+                      <Input
+                        value={newKeyword}
+                        onChange={(e) => setNewKeyword(e.target.value)}
+                        placeholder="Enter keyword"
+                        required
+                        className="h-9 text-sm flex-1"
+                        autoComplete="off"
+                        autoFocus
+                      />
+                      <Button type="submit" className="h-9 text-xs shrink-0" disabled={keywordSaving}>
+                        {keywordSaving ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : editingKeywordId ? (
+                          'Update'
+                        ) : (
+                          'Add'
+                        )}
+                      </Button>
+                    </form>
+                  </DialogContent>
+                </Dialog>
                 </div>
               </div>
 
-              <Tabs defaultValue="violence" className="space-y-2">
-                <TabsList className="h-8 p-1">
-                  <TabsTrigger value="violence" className="text-xs px-3">Violence</TabsTrigger>
-                  <TabsTrigger value="threat" className="text-xs px-3">Threat</TabsTrigger>
-                  <TabsTrigger value="hate" className="text-xs px-3">Hate</TabsTrigger>
-                </TabsList>
-                {['violence', 'threat', 'hate'].map(category => {
-                  const catKw = keywords.filter(k => k.category === category);
-                  return (
-                    <TabsContent key={category} value={category}>
-                      {catKw.length === 0 ? (
-                        <p className="text-xs text-muted-foreground text-center py-6">No keywords</p>
-                      ) : (
-                        <ScrollArea className="h-[200px]">
-                          <div className="flex flex-wrap gap-2 pr-2">
-                            {catKw.map(kw => (
-                              <div key={kw.id} className="group inline-flex items-center gap-1.5 px-2 py-1 rounded border bg-secondary/30 text-xs">
-                                <Badge variant="outline" className="text-[10px] px-1 py-0">{kw.language?.toUpperCase() || 'EN'}</Badge>
-                                <span>{kw.keyword}</span>
-                                <button onClick={() => handleDeleteKeyword(kw.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive">
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              </div>
-                            ))}
+              <div className="border rounded-md overflow-hidden">
+                <div className="grid grid-cols-[1fr_auto] gap-2 px-3 py-2 bg-muted/40 text-[11px] font-medium text-muted-foreground border-b">
+                  <span>Keyword</span>
+                  <span className="pr-1">Actions</span>
+                </div>
+                {keywords.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-10">No keywords yet</p>
+                ) : (
+                  <ScrollArea className="h-[320px]">
+                    <ul className="divide-y">
+                      {keywords.map((kw) => (
+                        <li key={kw.id} className="grid grid-cols-[1fr_auto] items-center gap-2 px-3 py-2.5 text-sm">
+                          <span className="truncate font-medium">{kw.keyword}</span>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              title="Edit"
+                              onClick={() => handleEditKeyword(kw)}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              title="Delete"
+                              onClick={() => handleDeleteKeyword(kw.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
-                        </ScrollArea>
-                      )}
-                    </TabsContent>
-                  );
-                })}
-              </Tabs>
+                        </li>
+                      ))}
+                    </ul>
+                  </ScrollArea>
+                )}
+              </div>
             </div>
           </Card>
         </TabsContent>

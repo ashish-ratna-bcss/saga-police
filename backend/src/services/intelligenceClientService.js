@@ -208,7 +208,13 @@ function buildPolicyPack() {
     .filter((c) => c.id);
 
   if (categories.length === 0) {
-    throw new Error('No PolicyMapping categories loaded — cannot build policy_pack');
+    // Policy Manager empty — still allow sentiment/intelligence with a minimal pack
+    categories.push({
+      id: 'Normal',
+      definition: 'Harmless or neutral content. Use when nothing else applies.',
+      severity: 'Low',
+      keywords: []
+    });
   }
 
   const hasNormal = categories.some((c) => c.id === 'Normal');

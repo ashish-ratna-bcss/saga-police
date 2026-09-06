@@ -2,6 +2,8 @@ const express = require('express');
 const authRoutes = require('./auth/auth.routes');
 const userRoutes = require('./user/user.routes');
 const roleRoutes = require('./role/role.routes');
+const alertRoutes = require('./alerts/alert.routes');
+const { grievanceRoutes } = require('./grievances');
 const { authorize } = require('../middleware/auth.middleware');
 const { getMyPermissions, getAllPages } = require('./user/user.controller');
 const { ensureSystemRoles, getRoleBySlug } = require('./role/role.service');
@@ -11,7 +13,7 @@ const { assertJwtConfigured, shouldSeedDefaultAdmin, isProduction } = require('.
 /**
  * Flat router mounted at `/api`:
  *   auth: /login /logout /me
- *   + /me/permissions /pages /users /roles
+ *   + /me/permissions /pages /users /roles /alerts /grievances
  */
 const router = express.Router();
 
@@ -26,6 +28,8 @@ router.get(
 
 router.use('/users', userRoutes);
 router.use('/roles', roleRoutes);
+router.use('/alerts', alertRoutes);
+router.use('/grievances', grievanceRoutes);
 
 module.exports = {
   router,

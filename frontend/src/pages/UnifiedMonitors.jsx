@@ -2,7 +2,8 @@ import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, Monitor, Twitter, Youtube, Facebook, Instagram } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { useRbac } from '../contexts/RbacContext';
+
+const hasFeatureAccess = () => true;
 
 const XMonitor = lazy(() => import('./XMonitor'));
 const FacebookMonitor = lazy(() => import('./FacebookMonitor'));
@@ -17,10 +18,9 @@ const MONITORS = [
 ];
 
 const UnifiedMonitors = () => {
-  const { hasFeatureAccess } = useRbac();
   const allowedMonitors = useMemo(
     () => MONITORS.filter((monitor) => hasFeatureAccess('/monitors', monitor.id)),
-    [hasFeatureAccess]
+    []
   );
 
   const [activeTab, setActiveTab] = useState(allowedMonitors[0]?.id || 'x');

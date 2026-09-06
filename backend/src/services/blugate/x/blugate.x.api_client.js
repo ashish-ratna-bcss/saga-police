@@ -38,7 +38,8 @@ const callXApi = async (endpointKey, params = {}) => {
         method: endpoint.method,
         url: requestUrl,
         params,
-        headers: requestHeaders
+        headers: requestHeaders,
+        timeout: Number(process.env.X_API_TIMEOUT_MS) || 45000,
     });
 
     return response.data;

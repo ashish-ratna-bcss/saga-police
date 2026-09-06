@@ -29,11 +29,24 @@ import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
-import { useInstagramCache } from '../contexts/InstagramCacheContext';
 import {
   proxyInstagramMediaUrl as proxyUrl,
   buildInstagramMediaCandidates as buildMediaCandidates,
 } from '@/shared/utils/mediaProxy';
+
+// Temporary stub until instagram cache context is restored
+const useInstagramCache = () => ({
+  getProfile: () => null,
+  setProfile: () => {},
+  getContent: () => null,
+  setContent: () => {},
+  getReels: () => null,
+  setReels: () => {},
+  getSources: () => null,
+  setSources: () => {},
+  invalidateAll: () => {},
+  invalidateSource: () => {},
+});
 
 const INSTAGRAM_VIDEO_EXT_RE = /\.(mp4|webm|m3u8|mov)(\?|$)/i;
 

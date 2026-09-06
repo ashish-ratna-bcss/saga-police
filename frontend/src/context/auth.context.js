@@ -1,5 +1,5 @@
 import { useState, useEffect, createContext, useContext } from 'react';
-import api from '../lib/api';
+import { authApi } from '../api/auth.api';
 import { toast } from 'sonner';
 import { sessionCache, AUTH_ME_CACHE_KEY } from '../lib/sessionCache';
 import { applyThemeColor } from '../utils/theme';
@@ -26,12 +26,6 @@ const cacheUser = (me) => {
   sessionCache.set(AUTH_ME_CACHE_KEY, me, 10 * 60 * 1000);
 };
 
-/**
- * Flow:
- * 1) POST /login → cookie + ui_mode / theme_color
- * 2) GET /me → full profile including ui_mode + theme_color (auto-applied)
- * 3) PATCH /me/ui-mode and PATCH /me/theme-color for Theme tab (instant save)
- */
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => sessionCache.get(AUTH_ME_CACHE_KEY));
   const [loading, setLoading] = useState(!sessionCache.get(AUTH_ME_CACHE_KEY));
@@ -45,7 +39,7 @@ export const AuthProvider = ({ children }) => {
       }
     }
 
-    const response = await api.get('/me');
+    const response = await authApi.getMe();
     const me = response.data;
     cacheUser(me);
     setUser(me);
@@ -57,7 +51,7 @@ export const AuthProvider = ({ children }) => {
     const initAuth = async () => {
       try {
         await fetchMe();
-      } catch (error) {
+      } catch {
         sessionCache.clear(AUTH_ME_CACHE_KEY);
         setUser(null);
       } finally {
@@ -70,7 +64,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     try {
-      const loginRes = await api.post('/login', { username, password });
+      const loginRes = await authApi.login(username, password);
       if (loginRes.data?.ui_mode || loginRes.data?.theme_color) {
         applyUserTheme({
           ui_mode: loginRes.data.ui_mode,
@@ -83,16 +77,15 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       sessionCache.clear(AUTH_ME_CACHE_KEY);
       setUser(null);
-      const message = error.response?.data?.message || 'Login failed';
-      toast.error(message);
+      toast.error(error.response?.data?.message || 'Login failed');
       throw error;
     }
   };
 
   const logout = async () => {
     try {
-      await api.post('/logout');
-    } catch (error) {
+      await authApi.logout();
+    } catch {
       // best-effort
     }
     sessionCache.clear();
@@ -101,7 +94,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateUiMode = async (ui_mode) => {
-    const response = await api.patch('/me/ui-mode', { ui_mode });
+    const response = await authApi.updateUiMode(ui_mode);
     const me = response.data;
     cacheUser(me);
     setUser(me);
@@ -110,7 +103,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateThemeColor = async (theme_color) => {
-    const response = await api.patch('/me/theme-color', { theme_color });
+    const response = await authApi.updateThemeColor(theme_color);
     const me = response.data;
     cacheUser(me);
     setUser(me);

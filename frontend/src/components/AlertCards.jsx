@@ -2249,78 +2249,60 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
         onAddSource({ platform: 'x', identifier: rt.handle, display_name: rt.name || rt.handle, category: 'unknown' });
     };
 
-    // Load latest analysis when dialog opens
+    // Load live analysis when dialog opens
     const loadLatest = useCallback(async () => {
         const hc = handleCleanRef.current;
         if (!hc) return;
         setLoading(true);
         setError('');
         try {
-            const res = await api.get('/x/engager-analysis/latest', { params: { handle: hc } });
+            const res = await api.get(`/alerts/engagers/${encodeURIComponent(hc)}`, {
+                params: { period_days: 30, store: 'catalog' },
+            });
             setAnalysis(res.data);
         } catch (err) {
-            if (err?.response?.status !== 404) {
-                setError(err?.response?.data?.error || 'Failed to load analysis');
-            }
+            setError(err?.response?.data?.message || err?.response?.data?.error || 'Failed to load engagers');
             setAnalysis(null);
         } finally { setLoading(false); }
     }, []);
 
-    // Load analysis history
+    // History not stored (live-only)
     const loadHistory = useCallback(async () => {
-        const hc = handleCleanRef.current;
-        if (!hc) return;
-        try {
-            const res = await api.get('/x/engager-analysis/history', { params: { handle: hc } });
-            setHistory(res.data?.analyses || []);
-        } catch { setHistory([]); }
+        setHistory([]);
     }, []);
 
-    // Load a specific past analysis
-    const loadAnalysisById = async (id) => {
-        setLoading(true);
-        setError('');
-        try {
-            const res = await api.get(`/x/engager-analysis/${id}`);
-            setAnalysis(res.data);
-            setShowHistory(false);
-            setActiveTab('hierarchy');
-            setEngagerPage(1);
-            setRetweetSearch('');
-        } catch (err) {
-            setError(err?.response?.data?.error || 'Failed to load analysis');
-        } finally { setLoading(false); }
+    const loadAnalysisById = async () => {
+        // no-op — analyses are not persisted
+        await loadLatest();
     };
 
-    // Trigger a new analysis
+    // Re-run live analysis
     const runAnalysis = async () => {
         if (!handleClean) return;
         setAnalyzing(true);
         setError('');
         try {
-            const res = await api.post('/x/engager-analysis', { handle: handleClean, period_days: 30, source_id: sourceId || undefined });
+            const res = await api.get(`/alerts/engagers/${encodeURIComponent(handleClean)}`, {
+                params: { period_days: 30, store: 'catalog' },
+            });
             setAnalysis(res.data);
-            setActiveTab('hierarchy');
-            setEngagerPage(1);
-            setRetweetSearch('');
-            toast.success(`Analysis complete for @${handleClean}`);
-            loadHistory();
+            toast.success(`Loaded ${res.data?.unique_retweeters || 0} engagers for @${handleClean}`);
         } catch (err) {
-            setError(err?.response?.data?.error || 'Analysis failed');
-            toast.error('Engager analysis failed');
-        } finally { setAnalyzing(false); }
+            setError(err?.response?.data?.message || 'Failed to analyze engagers');
+        } finally {
+            setAnalyzing(false);
+        }
     };
 
     useEffect(() => {
         if (open && handleCleanRef.current) {
             loadLatest();
-            loadHistory();
             setShowHistory(false);
             setActiveTab('hierarchy');
             setEngagerPage(1);
             setRetweetSearch('');
         }
-    }, [open, loadLatest, loadHistory]);
+    }, [open, loadLatest]);
 
     const engagers = analysis?.engagers || [];
     const tweets = analysis?.tweets || [];
@@ -2721,44 +2703,44 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
 
     const retriggerAnalysis = async (handle) => {
         try {
-            const res = await api.post('/x/engager-analysis', { handle, period_days: 30 });
-            const status = res.data?.status;
-            if (status === 'already_processing') {
-                toast.warning(`Analysis for @${handle} is already in progress.`);
-                return;
-            }
-            if (status === 'blocked') {
-                toast.warning(`Another analysis (@${res.data?.blocked_by}) is still processing. Please wait.`);
-                return;
-            }
-            toast.success(`Re-analysis started for @${handle}`);
-            // Optimistically update the local state to show "processing" immediately
-            setAnalyses(prev => prev.map(a => a.handle?.toLowerCase() === handle.toLowerCase() ? { ...a, status: 'processing', error: null, analyzed_at: new Date().toISOString() } : a));
+            toast.loading(`Loading engagers for @${handle}…`, { id: `eng-${handle}` });
+            const res = await api.get(`/alerts/engagers/${encodeURIComponent(handle)}`, {
+                params: { period_days: 30, store: 'catalog' },
+            });
+            toast.success(`Found ${res.data?.unique_retweeters || 0} engagers`, { id: `eng-${handle}` });
+            openDetail(handle, res.data);
         } catch {
-            toast.error('Failed to start analysis');
+            toast.error('Failed to load engagers', { id: `eng-${handle}` });
         }
     };
 
     const loadAnalyses = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/x/engager-analysis-all');
+            const res = await api.get('/alerts/engagers', { params: { store: 'catalog' } });
             setAnalyses(res.data?.analyses || []);
         } catch { setAnalyses([]); }
         finally { setLoading(false); }
     };
 
-    const openDetail = async (handle) => {
+    const openDetail = async (handle, preloaded = null) => {
         setSelectedHandle(handle);
         setDetailLoading(true);
         setActiveTab('hierarchy');
         setEngagerPage(1);
         setRetweetSearch('');
         try {
-            const res = await api.get('/x/engager-analysis/latest', { params: { handle } });
-            setSelectedAnalysis(res.data);
+            if (preloaded) {
+                setSelectedAnalysis(preloaded);
+            } else {
+                const res = await api.get(`/alerts/engagers/${encodeURIComponent(handle)}`, {
+                    params: { period_days: 30, store: 'catalog' },
+                });
+                setSelectedAnalysis(res.data);
+            }
         } catch {
             setSelectedAnalysis(null);
+            toast.error('Failed to load engagers');
         } finally { setDetailLoading(false); }
     };
 
@@ -2768,6 +2750,7 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
         loadAnalyses();
     };
 
+    // Live list — no background job polling
     useEffect(() => {
         if (open) {
             loadAnalyses();
@@ -2777,15 +2760,6 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
             setListPage(1);
         }
     }, [open]);
-
-    // Auto-poll every 5s while any analysis is processing
-    useEffect(() => {
-        if (!open || selectedHandle) return;
-        const hasProcessing = analyses.some(a => a.status === 'processing');
-        if (!hasProcessing) return;
-        const iv = setInterval(loadAnalyses, 5000);
-        return () => clearInterval(iv);
-    }, [open, selectedHandle, analyses]);
 
     // Analysis detail view computed values
     const analysis = selectedAnalysis;
@@ -2820,25 +2794,34 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-[65vw] w-[65vw] max-h-[82vh] p-0 gap-0 overflow-hidden">
+            <DialogContent className={`${selectedHandle ? 'max-w-[65vw] w-[65vw] max-h-[82vh]' : 'max-w-xl w-[min(92vw,36rem)] max-h-[80vh]'} p-0 gap-0 overflow-hidden`}>
                 {!selectedHandle ? (
-                    /* ═══ LIST VIEW — all analyzed handles ═══ */
+                    /* ═══ LIST VIEW ═══ */
                     <>
-                        <div className="px-5 pt-4 pb-3 border-b border-border">
-                            <div className="flex items-center justify-between">
-                                <div>
+                        <div className="px-4 pt-4 pb-3 border-b border-border">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
                                     <h2 className="text-sm font-semibold">Frequent Engagers</h2>
-                                    <p className="text-[10px] text-muted-foreground mt-0.5">All analyzed Twitter accounts and their engager data</p>
+                                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                                        Who repeatedly retweets analyzed X accounts
+                                    </p>
                                 </div>
                                 {analyses.length > 0 && (
-                                    <div className="relative w-52">
+                                    <div className="relative w-40 shrink-0">
                                         <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                                        <input type="text" placeholder="Search accounts…" value={listSearch}
+                                        <input
+                                            type="text"
+                                            placeholder="Search…"
+                                            value={listSearch}
                                             onChange={(e) => { setListSearch(e.target.value); setListPage(1); }}
-                                            className="w-full pl-6 pr-6 py-1 text-[11px] rounded border bg-background placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary"
+                                            className="w-full pl-6 pr-6 py-1.5 text-[11px] rounded-md border bg-background placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary"
                                         />
                                         {listSearch && (
-                                            <button onClick={() => { setListSearch(''); setListPage(1); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                                            <button
+                                                type="button"
+                                                onClick={() => { setListSearch(''); setListPage(1); }}
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                            >
                                                 <X className="h-3 w-3" />
                                             </button>
                                         )}
@@ -2846,94 +2829,139 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                 )}
                             </div>
                         </div>
-                        <ScrollArea className="flex-1" style={{ maxHeight: 'calc(82vh - 80px)' }}>
-                            <div className="p-4">
+
+                        <div className="overflow-y-auto" style={{ maxHeight: 'min(70vh, 560px)' }}>
+                            <div className="p-3 space-y-2">
                                 {loading ? (
-                                    <div className="h-48 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-blue-500" /></div>
+                                    <div className="h-36 flex items-center justify-center">
+                                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                    </div>
                                 ) : analyses.length === 0 ? (
-                                    <div className="h-48 flex flex-col items-center justify-center gap-3 text-muted-foreground">
-                                        <Users className="h-10 w-10 opacity-25" />
+                                    <div className="py-12 px-4 text-center text-muted-foreground">
+                                        <Users className="h-8 w-8 mx-auto mb-2 opacity-25" />
                                         <p className="text-sm">No analyses yet</p>
-                                        <p className="text-xs text-muted-foreground">Click the engagers button on any Twitter alert card to start an analysis.</p>
+                                        <p className="text-[11px] mt-1">
+                                            Use the engagers action on an X alert card to start.
+                                        </p>
+                                    </div>
+                                ) : filteredAnalyses.length === 0 ? (
+                                    <div className="py-10 text-center text-xs text-muted-foreground">
+                                        No accounts match “{listSearch}”
                                     </div>
                                 ) : (
                                     <>
-                                        <div className="border rounded-lg overflow-hidden">
-                                            <table className="w-full text-xs">
-                                                <thead className="bg-muted/50">
-                                                    <tr>
-                                                        <th className="text-left px-3 py-2 font-semibold">Account</th>
-                                                        <th className="text-center px-3 py-2 font-semibold">Status</th>
-                                                        <th className="text-center px-3 py-2 font-semibold">Tweets</th>
-                                                        <th className="text-center px-3 py-2 font-semibold">Engagers</th>
-                                                        <th className="text-center px-3 py-2 font-semibold">Last Analyzed</th>
-                                                        <th className="text-center px-3 py-2 font-semibold w-16"></th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {pagedAnalyses.map(a => (
-                                                        <tr key={a.id || a._id || a.handle_lower}
-                                                            className={`border-t transition-colors ${a.status === 'completed' ? 'cursor-pointer hover:bg-accent/50' : ''} ${a.status === 'processing' ? 'bg-yellow-50 dark:bg-yellow-950/10' : a.status === 'failed' ? 'bg-red-50/50 dark:bg-red-950/5' : ''}`}
-                                                            onClick={() => a.status === 'completed' ? openDetail(a.handle) : null}
-                                                        >
-                                                            <td className="px-3 py-2">
-                                                                <div className="flex items-center gap-2">
-                                                                    {a.avatar ? (
-                                                                        <img src={a.avatar} alt="" className="h-6 w-6 rounded-full object-cover shrink-0" />
-                                                                    ) : (
-                                                                        <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-[9px] font-bold shrink-0">
-                                                                            {(a.display_name || a.handle || '?')[0].toUpperCase()}
-                                                                        </div>
+                                        {pagedAnalyses.map((a) => {
+                                            const rowEngagers = Array.isArray(a.engagers) ? a.engagers : [];
+                                            const canOpen = true;
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    key={a.id || a._id || a.handle_lower || a.handle}
+                                                    onClick={() => openDetail(a.handle)}
+                                                    className="w-full text-left rounded-lg border bg-card px-3 py-2.5 transition-colors hover:border-primary/40 hover:bg-accent/40 cursor-pointer"
+                                                >
+                                                    <div className="flex items-start gap-2.5">
+                                                        {a.avatar ? (
+                                                            <img src={a.avatar} alt="" className="h-9 w-9 rounded-full object-cover shrink-0" />
+                                                        ) : (
+                                                            <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-xs font-bold shrink-0">
+                                                                {(a.display_name || a.handle || '?')[0].toUpperCase()}
+                                                            </div>
+                                                        )}
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <div className="min-w-0">
+                                                                    <p className="text-sm font-semibold truncate">@{a.handle}</p>
+                                                                    {a.display_name && a.display_name !== a.handle && (
+                                                                        <p className="text-[11px] text-muted-foreground truncate">{a.display_name}</p>
                                                                     )}
-                                                                    <div>
-                                                                        <span className="font-medium">@{a.handle}</span>
-                                                                        {a.display_name && a.display_name !== a.handle && <span className="text-[10px] text-muted-foreground ml-1.5">{a.display_name}</span>}
-                                                                    </div>
                                                                 </div>
-                                                            </td>
-                                                            <td className="px-3 py-2 text-center">
-                                                                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${a.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400' :
-                                                                    a.status === 'processing' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400' :
-                                                                        a.status === 'failed' ? 'bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400' :
-                                                                            'bg-gray-100 text-gray-600'
-                                                                    }`}>
-                                                                    {a.status === 'processing' && <Loader2 className="h-2.5 w-2.5 animate-spin inline mr-0.5" />}
-                                                                    {a.status}
+                                                                <span className="shrink-0 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                                                                    Live
                                                                 </span>
-                                                            </td>
-                                                            <td className="px-3 py-2 text-center font-medium">{a.tweets_analyzed || '-'}</td>
-                                                            <td className="px-3 py-2 text-center font-medium">{a.unique_retweeters || '-'}</td>
-                                                            <td className="px-3 py-2 text-center text-muted-foreground">
-                                                                {a.analyzed_at ? format(new Date(a.analyzed_at), 'MMM d, h:mm a') : '-'}
-                                                            </td>
-                                                            <td className="px-3 py-2 text-center">
-                                                                {a.status === 'failed' && (
-                                                                    <Button size="sm" variant="outline" className="h-5 text-[9px] px-1.5" onClick={(e) => { e.stopPropagation(); retriggerAnalysis(a.handle); }}>
-                                                                        Retry
-                                                                    </Button>
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
+                                                            </div>
+
+                                                            <p className="text-[11px] text-muted-foreground mt-1">
+                                                                {a.tweets_analyzed || 0} catalog posts · click to load retweet profiles live
+                                                            </p>
+
+                                                            {rowEngagers.length > 0 ? (
+                                                                <ul className="mt-2 space-y-1.5">
+                                                                    {rowEngagers.map((e) => {
+                                                                        const already = isMonitored(e.handle);
+                                                                        return (
+                                                                            <li
+                                                                                key={e.handle || e.user_id}
+                                                                                className="flex items-center gap-2 rounded-md bg-muted/40 px-2 py-1.5"
+                                                                                onClick={(ev) => ev.stopPropagation()}
+                                                                            >
+                                                                                {e.avatar ? (
+                                                                                    <img src={e.avatar} alt="" className="h-6 w-6 rounded-full object-cover shrink-0" />
+                                                                                ) : (
+                                                                                    <div className="h-6 w-6 rounded-full bg-background border flex items-center justify-center text-[9px] font-bold shrink-0">
+                                                                                        {(e.name || e.handle || '?')[0].toUpperCase()}
+                                                                                    </div>
+                                                                                )}
+                                                                                <div className="min-w-0 flex-1">
+                                                                                    <a
+                                                                                        href={`https://x.com/${e.handle}`}
+                                                                                        target="_blank"
+                                                                                        rel="noopener noreferrer"
+                                                                                        className="text-[12px] font-medium hover:underline truncate block"
+                                                                                    >
+                                                                                        @{e.handle}
+                                                                                    </a>
+                                                                                    <p className="text-[10px] text-muted-foreground truncate">
+                                                                                        {e.name && e.name !== e.handle ? `${e.name} · ` : ''}
+                                                                                        {e.tweets_retweeted != null ? `${e.tweets_retweeted} retweet${e.tweets_retweeted === 1 ? '' : 's'}` : 'retweeter'}
+                                                                                        {e.frequency ? ` · ${e.frequency}` : ''}
+                                                                                    </p>
+                                                                                </div>
+                                                                                {onAddSource && !already ? (
+                                                                                    <Button
+                                                                                        type="button"
+                                                                                        size="sm"
+                                                                                        variant="outline"
+                                                                                        className="h-6 px-2 text-[10px] gap-0.5 shrink-0"
+                                                                                        onClick={(ev) => {
+                                                                                            ev.stopPropagation();
+                                                                                            handleAddSource(e);
+                                                                                        }}
+                                                                                    >
+                                                                                        <UserPlus className="h-3 w-3" />
+                                                                                        Add
+                                                                                    </Button>
+                                                                                ) : already ? (
+                                                                                    <span className="inline-flex items-center gap-0.5 text-[10px] text-emerald-600 shrink-0">
+                                                                                        <Check className="h-3 w-3" /> Monitored
+                                                                                    </span>
+                                                                                ) : null}
+                                                                            </li>
+                                                                        );
+                                                                    })}
+                                                                </ul>
+                                                            ) : null}
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+
                                         {listTotalPages > 1 && (
-                                            <div className="flex items-center justify-between pt-3">
-                                                <span className="text-[9px] text-muted-foreground">{filteredAnalyses.length} account{filteredAnalyses.length !== 1 ? 's' : ''} · Page {listPage}/{listTotalPages}</span>
+                                            <div className="flex items-center justify-between pt-1 pb-1">
+                                                <span className="text-[10px] text-muted-foreground">
+                                                    {filteredAnalyses.length} accounts · Page {listPage}/{listTotalPages}
+                                                </span>
                                                 <div className="flex gap-1">
-                                                    <Button size="sm" variant="outline" className="h-6 text-[9px] px-2" disabled={listPage <= 1} onClick={() => setListPage(p => p - 1)}>Prev</Button>
-                                                    <Button size="sm" variant="outline" className="h-6 text-[9px] px-2" disabled={listPage >= listTotalPages} onClick={() => setListPage(p => p + 1)}>Next</Button>
+                                                    <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" disabled={listPage <= 1} onClick={() => setListPage((p) => p - 1)}>Prev</Button>
+                                                    <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" disabled={listPage >= listTotalPages} onClick={() => setListPage((p) => p + 1)}>Next</Button>
                                                 </div>
                                             </div>
-                                        )}
-                                        {listSearchTerm && filteredAnalyses.length === 0 && (
-                                            <div className="h-24 flex items-center justify-center text-xs text-muted-foreground">No accounts match "{listSearch}"</div>
                                         )}
                                     </>
                                 )}
                             </div>
-                        </ScrollArea>
+                        </div>
                     </>
                 ) : (
                     /* ═══ DETAIL VIEW — specific handle analysis ═══ */
@@ -3119,7 +3147,7 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
     );
 };
 
-export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSource, onTriggerEngagerAnalysis, monitoredHandles = [], viewMode = 'list', searchQuery, hideActions = false, report = null, isInvestigatedResult = false, customClass = '' }) => {
+export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSource, monitoredHandles = [], viewMode = 'list', searchQuery, hideActions = false, report = null, isInvestigatedResult = false, customClass = '' }) => {
     const [showReasonModal, setShowReasonModal] = useState(false);
     const [showFullTextModal, setShowFullTextModal] = useState(false);
     const [downloading, setDownloading] = useState(false);
@@ -4049,24 +4077,14 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                                 if (!canOpenRetweetNetwork || triggeringAnalysis) return;
                                 setTriggeringAnalysis(true);
                                 try {
-                                    const res = await api.post('/x/engager-analysis', {
-                                        handle: sourceHandleForRetweetNetwork,
-                                        period_days: 30,
-                                        source_id: sourceIdForRetweetNetwork || undefined
+                                    const res = await api.get(`/alerts/engagers/${encodeURIComponent(sourceHandleForRetweetNetwork)}`, {
+                                        params: { period_days: 30, store: 'catalog' },
                                     });
-                                    const status = res.data?.status;
-                                    if (status === 'already_processing') {
-                                        toast.warning(`Analysis for @${sourceHandleForRetweetNetwork} is already in progress.`, { duration: 4000 });
-                                    } else if (status === 'blocked') {
-                                        toast.warning(`Another analysis (@${res.data?.blocked_by}) is still processing. Please wait for it to complete.`, { duration: 4000 });
-                                    } else {
-                                        toast.success(`Analysis started for @${sourceHandleForRetweetNetwork}`, {
-                                            description: 'View detailed analysis in Frequent Engagers'
-                                        });
-                                        if (onTriggerEngagerAnalysis) onTriggerEngagerAnalysis();
-                                    }
+                                    toast.success(`Found ${res.data?.unique_retweeters || 0} engagers for @${sourceHandleForRetweetNetwork}`, {
+                                        description: 'Open Frequent Engagers for the full list',
+                                    });
                                 } catch (err) {
-                                    toast.error('Failed to start analysis');
+                                    toast.error(err?.response?.data?.message || 'Failed to load engagers');
                                 } finally {
                                     setTriggeringAnalysis(false);
                                 }

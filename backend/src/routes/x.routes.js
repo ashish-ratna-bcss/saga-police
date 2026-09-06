@@ -8,17 +8,6 @@ const {
     getRetweetNetworkSummary,
     getTweetEngagers
 } = require('../services/retweetNetworkService');
-const {
-    runEngagerAnalysis,
-    prepareAnalysisRecord,
-    executeAnalysisWork,
-    getLatestAnalysis,
-    getAnalysisHistory,
-    getAnalysisById,
-    getAnalyzedHandles,
-    getPendingCount,
-    getAllAnalyses
-} = require('../services/engagerAnalysisService');
 const { authorize } = require('../middleware/auth.middleware');
 
 router.use(authorize({ pages: ['/x-monitor'] }));
@@ -180,115 +169,6 @@ router.get('/tweet-engagers', async (req, res) => {
     } catch (error) {
         logger.error('[TweetEngagers] Error:', error.message);
         return res.status(500).json({ error: 'Failed to fetch tweet engagers', message: error.message });
-    }
-});
-
-// ─── On-Demand Engager Analysis ──────────────────────────────────────────────
-
-// Trigger a new engager analysis for a handle
-// Synchronously checks conflicts and creates DB record, then backgrounds heavy work
-router.post('/engager-analysis', async (req, res) => {
-    try {
-        const { handle, period_days: periodDays = 30, source_id: sourceId } = req.body;
-        if (!handle) {
-            return res.status(400).json({ error: 'handle is required' });
-        }
-        const safePeriod = Math.max(1, Math.min(Number(periodDays) || 30, 90));
-
-        // Synchronously prepare the record (checks conflicts, creates/updates DB record)
-        const prepResult = await prepareAnalysisRecord(handle, { periodDays: safePeriod, sourceId });
-
-        if (prepResult.status === 'already_processing') {
-            return res.json({ status: 'already_processing', handle: prepResult.handle });
-        }
-        if (prepResult.status === 'blocked') {
-            return res.json({ status: 'blocked', handle: prepResult.handle, blocked_by: prepResult.blocked_by });
-        }
-
-        // Record is now saved as 'processing' — run heavy work in background
-        const cleanHandle = String(handle).replace(/^@/, '').trim().toLowerCase();
-        executeAnalysisWork(prepResult.analysisId, cleanHandle, safePeriod, prepResult.analysis).catch(err => {
-            logger.error(`[EngagerAnalysis] Background analysis failed for ${cleanHandle}:`, err.message);
-        });
-
-        return res.json({ status: 'started', handle: cleanHandle });
-    } catch (error) {
-        logger.error('[EngagerAnalysis] Error:', error.message);
-        return res.status(500).json({ error: 'Failed to start engager analysis', message: error.message });
-    }
-});
-
-// Get the latest completed analysis for a handle
-router.get('/engager-analysis/latest', async (req, res) => {
-    try {
-        const { handle } = req.query;
-        if (!handle) {
-            return res.status(400).json({ error: 'handle query param is required' });
-        }
-        const analysis = await getLatestAnalysis(handle);
-        if (!analysis) {
-            return res.status(404).json({ error: 'No analysis found for this handle' });
-        }
-        return res.json(analysis);
-    } catch (error) {
-        return res.status(500).json({ error: 'Failed to fetch analysis', message: error.message });
-    }
-});
-
-// Get analysis history for a handle
-router.get('/engager-analysis/history', async (req, res) => {
-    try {
-        const { handle } = req.query;
-        if (!handle) {
-            return res.status(400).json({ error: 'handle query param is required' });
-        }
-        const history = await getAnalysisHistory(handle, 20);
-        return res.json({ handle, analyses: history });
-    } catch (error) {
-        return res.status(500).json({ error: 'Failed to fetch analysis history', message: error.message });
-    }
-});
-
-// Get a specific analysis by ID
-router.get('/engager-analysis/:id', async (req, res) => {
-    try {
-        const analysis = await getAnalysisById(req.params.id);
-        if (!analysis) {
-            return res.status(404).json({ error: 'Analysis not found' });
-        }
-        return res.json(analysis);
-    } catch (error) {
-        return res.status(500).json({ error: 'Failed to fetch analysis', message: error.message });
-    }
-});
-
-// Get all handles that have been analyzed (for history panel in alerts)
-router.get('/engager-analysis-handles', async (req, res) => {
-    try {
-        const handles = await getAnalyzedHandles();
-        return res.json({ handles });
-    } catch (error) {
-        return res.status(500).json({ error: 'Failed to fetch analyzed handles', message: error.message });
-    }
-});
-
-// Get count of currently processing analyses
-router.get('/engager-analysis-pending', async (req, res) => {
-    try {
-        const count = await getPendingCount();
-        return res.json({ count });
-    } catch (error) {
-        return res.status(500).json({ error: 'Failed to fetch pending count', message: error.message });
-    }
-});
-
-// Get ALL analysis records (one per handle) for the Frequent Engagers panel
-router.get('/engager-analysis-all', async (req, res) => {
-    try {
-        const analyses = await getAllAnalyses();
-        return res.json({ analyses });
-    } catch (error) {
-        return res.status(500).json({ error: 'Failed to fetch analyses', message: error.message });
     }
 });
 

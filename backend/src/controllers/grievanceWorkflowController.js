@@ -3,6 +3,7 @@ const CriticismContact = require('../models/CriticismContact'); // reuse same co
 const Grievance = require('../models/Grievance');
 const { generateGrievanceWorkflowCode } = require('../services/grievanceWorkflowCodeService');
 const { archiveContentMedia } = require('../services/contentS3Service');
+const { findGrievanceDocForReport } = require('../services/resolveGrievanceForReport');
 const ExcelJS = require('exceljs');
 const logger = require('../utils/logger');
 
@@ -80,7 +81,7 @@ const createReport = async (req, res) => {
 
     if (!grievance_id) return res.status(400).json({ error: 'grievance_id is required' });
 
-    const grievanceDoc = await Grievance.findOne({ id: grievance_id });
+    const grievanceDoc = await findGrievanceDocForReport(grievance_id);
     if (!grievanceDoc) return res.status(404).json({ error: 'Grievance not found' });
 
     // Re-use existing report for same grievance

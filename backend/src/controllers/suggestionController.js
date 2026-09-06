@@ -3,6 +3,7 @@ const CriticismContact = require('../models/CriticismContact');
 const Grievance = require('../models/Grievance');
 const { generateSuggestionCode } = require('../services/suggestionCodeService');
 const { archiveContentMedia } = require('../services/contentS3Service');
+const { findGrievanceDocForReport } = require('../services/resolveGrievanceForReport');
 const ExcelJS = require('exceljs');
 const logger = require('../utils/logger');
 
@@ -76,7 +77,7 @@ const createReport = async (req, res) => {
       return res.status(400).json({ error: 'grievance_id is required' });
     }
 
-    const grievanceDoc = await Grievance.findOne({ id: grievance_id });
+    const grievanceDoc = await findGrievanceDocForReport(grievance_id);
     if (!grievanceDoc) {
       return res.status(404).json({ error: 'Grievance not found' });
     }

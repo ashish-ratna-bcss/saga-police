@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/auth.context';
 import {
   Shield, Eye, EyeOff, Lock, User, ArrowRight, Loader2,
   Radio, BarChart3, Bell, Search, Activity, MapPin,
@@ -23,8 +23,20 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#071428]">
+        <Loader2 className="h-8 w-8 animate-spin text-white/70" />
+      </div>
+    );
+  }
+
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -36,7 +48,7 @@ const Login = () => {
       } else {
         navigate('/dashboard');
       }
-    } catch (error) {
+    } catch {
       // AuthContext handles toast
     } finally {
       setLoading(false);

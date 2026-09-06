@@ -10,6 +10,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { ScrollArea } from '../ui/scroll-area';
 import { cn } from '../../lib/utils';
+import { ReportPopupShell, ReportPrimaryButton } from './ReportPopupShell';
 
 /* ─── Constants ─── */
 const CATEGORIES = [
@@ -88,7 +89,10 @@ const buildGrievanceMessage = (g) => {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 export const GrievancePopup = ({ grievance, onClose, userName = '', onReportCreated }) => {
     const popupRef = useRef(null);
-    const [pos, setPos] = useState({ x: 20, y: Math.max(20, (window.innerHeight - 660) / 2) });
+    const [pos, setPos] = useState(() => ({
+        x: Math.max(24, (window.innerWidth - 760) / 2),
+        y: Math.max(24, (window.innerHeight - 660) / 2),
+    }));
     const [size, setSize] = useState({ width: 760, height: 660 });
     const [dragging, setDragging] = useState(false);
     const [resizing, setResizing] = useState(false);
@@ -469,95 +473,91 @@ export const GrievancePopup = ({ grievance, onClose, userName = '', onReportCrea
 
     /* ━━━━━ RENDER ━━━━━ */
     return (
-        <>
-            <div className="fixed inset-0 bg-black/30 z-[9998]" onClick={onClose} />
-            <div
-                ref={popupRef}
-                className="fixed z-[9999] bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden select-none"
-                style={{ left: pos.x, top: pos.y, width: size.width, height: size.height }}
-            >
-                {/* ─── Title Bar ─── */}
-                <div
-                    className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-amber-600 to-amber-700 text-white cursor-move shrink-0"
-                    onMouseDown={(e) => { setDragging(true); setDragOffset({ x: e.clientX - pos.x, y: e.clientY - pos.y }); }}
-                >
-                    <div className="flex items-center gap-3">
-                        <GripHorizontal className="h-5 w-5 opacity-60" />
-                        <span className="font-bold text-base">Grievance Report</span>
-                        {uniqueCode && <span className="ml-2 px-3 py-1 bg-yellow-300 rounded font-mono font-bold text-sm text-red-700">{uniqueCode}</span>}
-                        {reportStatus && reportStatus !== 'PENDING' && <StatusBadge status={reportStatus} />}
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-2 mr-4 text-sm">
-                            {['compose', 'action', 'details', 'done'].map((s, i) => (
-                                <span key={s} className={cn('px-3 py-1 rounded-full font-semibold',
-                                    step === s ? 'bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-400' : 'bg-white/20'
-                                )}>{i + 1}. {s === 'compose' ? 'Compose' : s === 'action' ? 'Communicate' : s === 'details' ? 'Log' : 'Done'}</span>
-                            ))}
-                        </div>
-                        <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded transition-colors"><X className="h-5 w-5" /></button>
-                    </div>
-                </div>
-
-                {/* ─── Content ─── */}
-                <div className="flex-1 overflow-hidden">
+        <ReportPopupShell
+            theme="grievance"
+            title="Create Grievance Report"
+            subtitle={
+                step === 'compose' ? 'Step 1 of 4 — Write the message for this grievance'
+                    : step === 'action' ? 'Step 2 of 4 — Share on WhatsApp or close the case'
+                    : step === 'details' ? 'Step 3 of 4 — Log communication details'
+                    : 'Step 4 of 4 — Grievance report finished'
+            }
+            uniqueCode={uniqueCode}
+            steps={[
+                { id: 'compose', label: 'Write message' },
+                { id: 'action', label: 'Share / Close' },
+                { id: 'details', label: 'Log' },
+                { id: 'done', label: 'Done' },
+            ]}
+            activeStep={step}
+            onClose={onClose}
+            popupRef={popupRef}
+            style={{ left: pos.x, top: pos.y, width: size.width, height: size.height }}
+            onHeaderMouseDown={(e) => { setDragging(true); setDragOffset({ x: e.clientX - pos.x, y: e.clientY - pos.y }); }}
+        >
+                <div className="flex-1 overflow-hidden h-full">
 
                     {/* ═══ STEP 1: COMPOSE ═══ */}
                     {step === 'compose' && (
                         <div className="flex flex-col h-full">
                             <ScrollArea className="flex-1 p-4">
-                                <div className="h-full min-h-0 flex flex-col">
-                                    {/* Category + Phone row */}
-                                    <div className="grid grid-cols-2 gap-3 mb-3 shrink-0">
+                                <div className="h-full min-h-0 flex flex-col gap-4">
+                                    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                                        This creates a <strong className="text-foreground">Grievance</strong> (formal complaint) report from the social post.
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3 shrink-0">
                                         <div>
-                                            <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
+                                            <label className="block text-sm font-medium text-foreground mb-1.5">What is this about?</label>
                                             <select
                                                 value={category}
                                                 onChange={(e) => setCategory(e.target.value)}
-                                                className="w-full h-9 px-3 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm focus:ring-2 focus:ring-amber-300 focus:border-amber-400 outline-none"
+                                                className="w-full h-10 px-3 rounded-md border border-border bg-background text-sm outline-none focus:ring-2 focus:ring-amber-300"
                                             >
                                                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Complainant Mobile No</label>
+                                            <label className="block text-sm font-medium text-foreground mb-1.5">Complainant phone</label>
                                             <Input
                                                 value={complaintPhone}
                                                 onChange={(e) => setComplaintPhone(e.target.value)}
-                                                placeholder=""
-                                                className="text-sm h-9"
+                                                placeholder="Optional"
+                                                className="text-sm h-10"
                                             />
                                         </div>
                                     </div>
 
-                                    {/* Message */}
                                     <div className="flex-1 min-h-0 flex flex-col">
-                                        <div className="flex items-center justify-between mb-1 shrink-0">
-                                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Message Preview (editable)</label>
-                                            <button onClick={handleCopy} className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                                        <div className="flex items-center justify-between mb-1.5 shrink-0">
+                                            <label className="text-sm font-medium text-foreground">Message to share</label>
+                                            <button type="button" onClick={handleCopy} className="text-xs text-primary hover:underline flex items-center gap-1">
                                                 <Copy className="h-3 w-3" /> Copy
                                             </button>
                                         </div>
+                                        <p className="text-xs text-muted-foreground mb-2">
+                                            You can edit this. Put your own notes at the top — post details below are filled automatically.
+                                        </p>
                                         <Textarea
                                             value={message}
                                             onChange={(e) => setMessage(e.target.value)}
-                                            className="text-sm font-mono resize-none bg-white dark:bg-slate-800 flex-1 h-full min-h-[360px]"
+                                            className="text-sm resize-none bg-background flex-1 min-h-[280px] leading-relaxed"
                                         />
                                     </div>
                                 </div>
                             </ScrollArea>
 
-                            <div className="shrink-0 p-3 border-t bg-slate-50 flex justify-end gap-2">
+                            <div className="shrink-0 p-3 border-t border-border bg-muted/20 flex justify-end gap-2">
                                 <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-                                <Button
+                                <ReportPrimaryButton
+                                    theme="grievance"
                                     size="sm"
-                                    className="bg-amber-600 hover:bg-amber-700 text-white gap-2"
                                     onClick={handleProceed}
                                     disabled={submitting}
                                 >
                                     {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                                    Proceed
-                                </Button>
+                                    Save & continue
+                                </ReportPrimaryButton>
                             </div>
                         </div>
                     )}
@@ -566,9 +566,9 @@ export const GrievancePopup = ({ grievance, onClose, userName = '', onReportCrea
                     {step === 'action' && !confirmClose && (
                         <div className="flex flex-col h-full">
                             {/* Action header */}
-                            <div className="shrink-0 p-3 border-b bg-slate-50 space-y-2">
+                            <div className="shrink-0 p-3 border-b bg-muted/30 space-y-2">
                                 <div className="flex items-center justify-between">
-                                    <h3 className="text-sm font-semibold text-slate-900">Share or Close Grievance</h3>
+                                    <h3 className="text-sm font-semibold text-foreground">Share on WhatsApp or close this grievance</h3>
                                     <StatusBadge status={reportStatus} />
                                 </div>
                                 <Input
@@ -1095,7 +1095,6 @@ export const GrievancePopup = ({ grievance, onClose, userName = '', onReportCrea
                     )}
                 </div>
 
-                {/* ─── Resize handle ─── */}
                 <div
                     className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize flex items-end justify-end p-0.5 opacity-50 hover:opacity-100 z-50"
                     onMouseDown={(e) => { e.stopPropagation(); setResizing(true); }}
@@ -1104,8 +1103,7 @@ export const GrievancePopup = ({ grievance, onClose, userName = '', onReportCrea
                         <path d="M6 6L0 6L6 0L6 6Z" fill="#94a3b8" />
                     </svg>
                 </div>
-            </div>
-        </>
+        </ReportPopupShell>
     );
 };
 

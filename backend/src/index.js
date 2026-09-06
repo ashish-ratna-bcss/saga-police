@@ -8,6 +8,8 @@ const mongoSanitize = require('express-mongo-sanitize');
 const connectDB = require('./mongo');
 const { assertJwtConfigured, shouldSeedDefaultAdmin, isProduction } = require('./config/env');
 const { startMonitoring } = require('./services/monitorService');
+const { startScheduler: startCatalogMonitoringScheduler } = require('./services/monitoringsocialmedia');
+const { startScheduler: startSentimentAnalysisScheduler } = require('./services/sentimentanalysis');
 const { startTempContentProcessor } = require('./services/tempContentProcessor');
 const { seedDefaultThresholds } = require('./services/velocityAlertService');
 const grievanceService = require('./services/grievanceService');
@@ -116,8 +118,8 @@ app.use('/api/files', express.static(reportStorageDir, reportStaticOptions));
 app.use('/api/health', require('./routes/healthRoutes'));
 app.use('/api', require('./modules').router);
 app.use('/api/sources', require('./routes/sourceRoutes'));
+app.use('/api/social-profiles', require('./routes/socialProfileRoutes'));
 app.use('/api/content', require('./routes/contentRoutes'));
-app.use('/api/alerts', require('./routes/alertRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/intelligence', require('./routes/intelligenceDashboardRoutes'));
 app.use('/api/keywords', require('./routes/keywordRoutes'));
@@ -133,7 +135,7 @@ app.use('/api/maigret', require('./routes/maigretRoutes'));
 app.use('/api/wmn', require('./routes/wmnRoutes'));
 app.use('/api/osint-tools', require('./routes/osintToolsRoutes'));
 
-app.use('/api/grievances', require('./routes/grievanceRoutes'));
+// /api/grievances mounted via modules/grievances
 app.use('/api/reports', require('./routes/reportRoutes'));
 app.use('/api/ongoing-events', require('./routes/ongoingEventRoutes'));
 app.use('/api/daily-programmes', require('./routes/dailyProgrammeRoutes'));
@@ -141,11 +143,11 @@ app.use('/api/export', require('./routes/exportRoutes'));
 app.use('/api/uploads', require('./routes/uploadRoutes'));
 app.use('/api/instagram-stories', require('./routes/instagramStoryRoutes'));
 app.use('/api/dial100-incidents', require('./routes/dial100IncidentRoutes'));
-app.use('/api/criticism', require('./routes/criticismRoutes'));
-app.use('/api/grievance-workflow', require('./routes/grievanceWorkflowRoutes'));
-app.use('/api/query-workflow', require('./routes/queryRoutes'));
-app.use('/api/suggestion', require('./routes/suggestionRoutes'));
-app.use('/api/suggestions', require('./routes/suggestionRoutes'));
+app.use('/api/criticism', require('./modules/grievances').criticismRoutes);
+app.use('/api/grievance-workflow', require('./modules/grievances').grievanceWorkflowRoutes);
+app.use('/api/query-workflow', require('./modules/grievances').queryRoutes);
+app.use('/api/suggestion', require('./modules/grievances').suggestionRoutes);
+app.use('/api/suggestions', require('./modules/grievances').suggestionRoutes);
 app.use('/api/policies', require('./routes/policyRoutes'));
 app.use('/api/templates', require('./routes/templatesRoutes'));
 app.use('/api/poi', require('./routes/poiRoutes'));
@@ -647,6 +649,12 @@ const startServer = async () => {
   } else {
     startMonitoring();
   }
+
+  // New catalog profile monitoring (Facebook first) — independent of Mongo monitor
+  startCatalogMonitoringScheduler();
+
+  // Catalog posts → sentiment/intelligence queue (Postgres analysis_status)
+  startSentimentAnalysisScheduler();
 
   // Start Grievance Auto-Fetch Scheduler only in legacy mode.
   if (!useEngine) {

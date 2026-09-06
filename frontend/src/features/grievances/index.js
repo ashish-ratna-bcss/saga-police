@@ -4,3 +4,4 @@
  */
 export { GrievanceCard } from '@/components/grievances/GrievanceCard';
 export { proxyMediaUrl } from '@/shared/utils/mediaProxy';
+export { default as GrievanceService } from './api/grievanceService';

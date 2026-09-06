@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../context/auth.context';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ShieldCheck, Check, Users, Crown, Plus, X, Save, UserPlus, ChevronDown, Edit2, Trash2, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';

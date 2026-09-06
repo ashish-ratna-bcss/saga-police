@@ -31,8 +31,21 @@ import { Badge } from '../components/ui/badge';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
-import { useInstagramCache } from '../contexts/InstagramCacheContext';
 import { proxyInstagramMediaUrl as proxyUrl } from '@/shared/utils/mediaProxy';
+
+// Temporary stub until instagram cache context is restored
+const useInstagramCache = () => ({
+  getProfile: () => null,
+  setProfile: () => {},
+  getContent: () => null,
+  setContent: () => {},
+  getReels: () => null,
+  setReels: () => {},
+  getSources: () => null,
+  setSources: () => {},
+  invalidateAll: () => {},
+  invalidateSource: () => {},
+});
 const DEFAULT_LIMIT = 18;
 
 const formatCount = (num) => {

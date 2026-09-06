@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import api, { BACKEND_URL } from '../lib/api';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../context/auth.context';
 import {
     Search, Shield, FileText, CheckCircle2, Calendar, Clock,
     AlertCircle, X, RefreshCw, Plus, Trash2, Loader2, Download,
@@ -32,6 +32,7 @@ import { format } from 'date-fns';
 import { VideoPlayer, normalizeMediaList } from '../components/AlertCards';
 import { GrievanceCard } from '../components/grievances/GrievanceCard';
 import { GrievanceTopNavbar } from '../components/grievances/GrievanceTopNavbar';
+import { ManageContactsDialog } from '../components/grievances/ManageContactsDialog';
 import { CriticismPopup } from '../components/grievances/CriticismPopup';
 import { CriticismReports } from '../components/grievances/CriticismReports';
 import { GrievancePopup } from '../components/grievances/GrievancePopup';
@@ -41,8 +42,10 @@ import { QueryPopup } from '../components/grievances/QueryPopup';
 import { QueryReports } from '../components/grievances/QueryReports';
 import { SuggestionPopup } from '../components/grievances/SuggestionPopup';
 import { SuggestionReports } from '../components/grievances/SuggestionReports';
-import { useRbac } from '../contexts/RbacContext';
 import { proxyMediaUrl } from '@/shared/utils/mediaProxy';
+import GrievanceService from '../features/grievances/api/grievanceService';
+
+const hasFeatureAccess = () => true;
 
 const DEFAULT_SOCIAL_ACTION_OVERLAY = {
     visible: false,
@@ -152,8 +155,6 @@ const DetailPopupMediaTile = ({ media, getProxiedMediaUrl, activeVideoRef, class
 /*                       MAIN COMPONENT                          */
 /* ═══════════════════════════════════════════════════════════════ */
 const Grievances = () => {
-    const { hasFeatureAccess } = useRbac();
-
     // Get logged-in user from AuthContext (full_name is the canonical field)
     const { user: authUser } = useAuth();
     const userName = authUser?.full_name || authUser?.name || authUser?.email?.split('@')[0] || 'Operator';
@@ -419,6 +420,7 @@ const Grievances = () => {
 
     /* ─── State ─── */
     const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
     const [grievances, setGrievances] = useState([]);
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -453,6 +455,7 @@ const Grievances = () => {
     const [statusChangePopup, setStatusChangePopup] = useState(null); // { grievance, targetStatus }
     const [queryPopupGrievance, setQueryPopupGrievance] = useState(null);
     const [suggestionPopupGrievance, setSuggestionPopupGrievance] = useState(null);
+    const [manageContactsOpen, setManageContactsOpen] = useState(false);
 
     // Selected grievance
     const [selectedGrievance, setSelectedGrievance] = useState(null);
@@ -963,9 +966,12 @@ const Grievances = () => {
     const fetchSources = async () => {
         setSourcesLoading(true);
         try {
-            const res = await api.get('/grievances/sources');
+            const res = await GrievanceService.listSources();
             const rows = Array.isArray(res.data) ? res.data : [];
-            setSources(rows.filter((source) => String(source?.platform || '').toLowerCase() === 'x'));
+            setSources(rows.filter((source) => {
+                const p = String(source?.platform || '').toLowerCase();
+                return p === 'x' || p === 'facebook';
+            }));
         } catch (error) {
             console.error('Failed to fetch sources', error);
         } finally {
@@ -977,10 +983,10 @@ const Grievances = () => {
         try {
             const effectivePlatform = navbarPlatform && navbarPlatform !== 'all'
                 ? navbarPlatform
-                : (platformFilter && platformFilter !== 'all' ? platformFilter : 'x');
-            const platformParam = { platform: effectivePlatform };
+                : (platformFilter && platformFilter !== 'all' ? platformFilter : undefined);
+            const platformParam = effectivePlatform ? { platform: effectivePlatform } : {};
 
-            const requests = [api.get('/grievances/stats', { params: platformParam })];
+            const requests = [GrievanceService.getStats(platformParam)];
             if (canAccessGrievanceReportsRef.current) {
                 requests.push(api.get('/grievance-workflow/reports', {
                     params: {
@@ -1042,11 +1048,12 @@ const Grievances = () => {
                 params.status_filter = navbarStatus;
             }
 
-            // Apply navbar platform filter (takes precedence)
-            params.platform = navbarPlatform && navbarPlatform !== 'all'
-                ? navbarPlatform
-                : (platformFilter && platformFilter !== 'all' ? platformFilter : 'x');
-
+            // Apply navbar platform filter (takes precedence). "all" = no platform param.
+            if (navbarPlatform && navbarPlatform !== 'all') {
+                params.platform = navbarPlatform;
+            } else if (platformFilter && platformFilter !== 'all') {
+                params.platform = platformFilter;
+            }
             // Apply handle filter
             if (selectedHandle) {
                 params.handle = selectedHandle;
@@ -1057,7 +1064,7 @@ const Grievances = () => {
             if (dateRange.to) params.to = dateRange.to.toISOString();
             if (cursor) params.cursor = cursor;
 
-            const res = await api.get('/grievances', { params });
+            const res = await GrievanceService.list(params);
             if (requestSeq !== grievancesRequestSeqRef.current) return;
 
             const data = res.data;
@@ -1139,15 +1146,16 @@ const Grievances = () => {
         }
         setAddingSource(true);
         try {
-            const res = await api.post('/grievances/sources', {
+            const platform =
+                navbarPlatform === 'facebook' ? 'facebook' : 'x';
+            const res = await GrievanceService.addSource({
                 handle: addSourceHandle.trim(),
-                platform: 'x',
+                platform,
                 department: addSourceDept || undefined,
             });
             toast.success(`Source "${res.data.display_name || addSourceHandle}" added successfully`);
-            if (String(res.data?.platform || '').toLowerCase() === 'x') {
-                setSources(prev => [res.data, ...prev]);
-            }
+            toast.info('Tip: add accounts on Social Profiles for catalog monitoring');
+            await fetchSources();
             setShowAddSource(false);
             setAddSourceHandle('');
             setAddSourceDept('');
@@ -1159,8 +1167,14 @@ const Grievances = () => {
     };
 
     const handleDeleteSource = async (source) => {
+        if (source?.store === 'catalog') {
+            toast.info('Manage catalog accounts on Social Profiles');
+            navigate('/social-profiles');
+            setDeleteConfirmSource(null);
+            return;
+        }
         try {
-            await api.delete(`/grievances/sources/${source.id}`);
+            await GrievanceService.deleteSource(source.id);
             toast.success(`Source "${source.handle}" removed`);
             setSources(prev => prev.filter(s => s.id !== source.id));
             setDeleteConfirmSource(null);
@@ -1172,7 +1186,7 @@ const Grievances = () => {
     const handleFetchForSource = async (source, startDate, endDate) => {
         setFetchingSource(source.id);
         try {
-            const res = await api.post(`/grievances/sources/${source.id}/fetch`, {
+            const res = await GrievanceService.fetchSource(source.id, {
                 start_date: startDate || undefined,
                 end_date: endDate || undefined,
             });
@@ -1192,22 +1206,45 @@ const Grievances = () => {
     const handleFetchAll = async () => {
         setFetchingSource('all');
         try {
-            const res = await api.post('/grievances/fetch-all');
-            const newCount = res.data?.newGrievances || 0;
-            toast.success(`Fetched ${newCount} new grievance${newCount !== 1 ? 's' : ''} from all sources`);
+            // Prefer current platform sources so FB/X tabs fetch the right set.
+            const targets = (
+                navbarPlatform === 'all'
+                    ? sources
+                    : sources.filter((s) => String(s.platform).toLowerCase() === navbarPlatform)
+            ).filter((s) => s?.id);
+
+            if (targets.length === 0) {
+                const res = await GrievanceService.fetchAll();
+                const newCount = res.data?.newGrievances || 0;
+                toast.success(`Fetched ${newCount} new grievance${newCount !== 1 ? 's' : ''}`);
+            } else {
+                let newCount = 0;
+                for (const source of targets) {
+                    try {
+                        const res = await GrievanceService.fetchSource(source.id, {});
+                        newCount += res.data?.newGrievances || 0;
+                    } catch (err) {
+                        console.error('Fetch failed for', source.handle, err);
+                    }
+                }
+                toast.success(`Fetched ${newCount} new grievance${newCount !== 1 ? 's' : ''}`);
+            }
             fetchGrievances();
             fetchDashboardStats();
             fetchSources();
         } catch (error) {
-            toast.error('Failed to fetch grievances');
+            toast.error(error?.response?.data?.message || 'Failed to fetch grievances');
         } finally {
             setFetchingSource(null);
         }
     };
 
     const handleUpdateGrievanceWorkflowStatus = async (grievance, status) => {
-        const reportId = grievance?.grievance_workflow?.report_id;
-        if (!reportId) {
+        const reportKey =
+            grievance?.grievance_workflow?.report_id ||
+            grievance?.grievance_workflow?.unique_code ||
+            grievance?.grievance_workflow?.id;
+        if (!reportKey) {
             toast.error('Unique ID not generated yet for this post');
             return;
         }
@@ -1218,9 +1255,9 @@ const Grievances = () => {
             return;
         }
 
-        // PENDING → direct API call
+        // PENDING → direct API call (Postgres report module)
         try {
-            const res = await api.put(`/grievance-workflow/${grievance.grievance_workflow.id}/status`, { status });
+            const res = await api.put(`/grievance-workflow/reports/${reportKey}/status`, { status });
             const nextStatus = res?.data?.status || status;
             triggerActionBlink(grievance.id);
 
@@ -1230,7 +1267,8 @@ const Grievances = () => {
                         ...item,
                         grievance_workflow: {
                             ...(item.grievance_workflow || {}),
-                            status: nextStatus
+                            status: nextStatus,
+                            report_id: res?.data?.id || item.grievance_workflow?.report_id,
                         }
                     }
                     : item
@@ -1558,7 +1596,15 @@ const Grievances = () => {
     // Handler for updating a grievance report status inline
     const handleUpdateGrievanceWorkflowStatusInline = async (grievance, newStatus) => {
         try {
-            await api.put(`/grievance-workflow/${grievance.grievance_workflow.id}/status`, {
+            const reportKey =
+                grievance?.grievance_workflow?.report_id ||
+                grievance?.grievance_workflow?.unique_code ||
+                grievance?.grievance_workflow?.id;
+            if (!reportKey) {
+                toast.error('Unique ID not generated yet for this post');
+                return;
+            }
+            await api.put(`/grievance-workflow/reports/${reportKey}/status`, {
                 status: newStatus
             });
             triggerActionBlink(grievance.id);
@@ -1639,24 +1685,15 @@ const Grievances = () => {
         setSelectedHandle(null);
     };
 
-    const hasActiveFilters = platformFilter !== 'all' || dateRange.from || debouncedSearch || navbarPlatform !== 'all' || navbarStatus !== 'total' || selectedHandle;
+    const hasActiveFilters = Boolean(dateRange.from || debouncedSearch || selectedHandle);
     const isReportsTab = navbarStatus === 'reports';
+    const hasNoCatalogData = !hasActiveFilters && Number(stats?.total || 0) === 0 && grievances.length === 0;
 
     /* ═══════════════════════════════════════════════════════════════ */
     /*                           RENDER                              */
     /* ═══════════════════════════════════════════════════════════════ */
     return (
-        <div className="p-4 md:p-6 space-y-0 bg-slate-50 dark:bg-slate-950 min-h-screen flex flex-col">
-
-            {/* ─── Page Header ─── */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center px-2 pb-2">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Grievance Management</h1>
-                    <p className="text-sm text-muted-foreground">Public Grievances Reported Through Social Media</p>
-                </div>
-            </div>
-
-            {/* ─── Top Navigation Bar with Filters ─── */}
+        <div className="space-y-3 max-w-[1600px] mx-auto" data-testid="grievances-page">
             <GrievanceTopNavbar
                 activePlatform={navbarPlatform}
                 onPlatformChange={setNavbarPlatform}
@@ -1669,161 +1706,170 @@ const Grievances = () => {
                 grievances={grievances}
                 sources={sources}
                 allowedStatuses={allowedNavbarStatuses}
-                onAddSource={() => setShowAddSource(true)}
+                onAddSource={() => navigate('/social-profiles')}
                 onRemoveSource={(source) => setDeleteConfirmSource(source)}
-                onFetchSourceHistory={(source) => setFetchDateDialog(source)}
+                onFetchSourceHistory={(source) => handleFetchForSource(source)}
+                onFetchAll={handleFetchAll}
+                fetchingAll={fetchingSource === 'all'}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                onManageContacts={() => setManageContactsOpen(true)}
+            />
+
+            <ManageContactsDialog
+                open={manageContactsOpen}
+                onOpenChange={setManageContactsOpen}
             />
 
             {/* ─── Reports Tab Content ─── */}
             {isReportsTab && (
-                <div className="px-4 mt-6 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    {/* Reports navigation */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-4xl mx-auto">
+                <div className="rounded-xl border border-border bg-card overflow-x-auto animate-in fade-in duration-200">
+                    <div className="flex flex-wrap items-center gap-1 px-2 py-1.5 border-b border-border">
                         {[
-                            { id: 'grievance', label: 'Grievance Reports', icon: FileText, color: 'blue', desc: 'Track formal complaints' },
-                            { id: 'suggestion', label: 'Suggestions', icon: Building2, color: 'purple', desc: 'Community feedback' },
-                            { id: 'criticism', label: 'Criticism', icon: AlertCircle, color: 'red', desc: 'Critical alerts' },
+                            { id: 'grievance', label: 'G', title: 'Grievance', active: 'bg-amber-600 text-white', idle: 'text-muted-foreground hover:bg-amber-50 hover:text-amber-900' },
+                            { id: 'suggestion', label: 'S', title: 'Suggestion', active: 'bg-violet-600 text-white', idle: 'text-muted-foreground hover:bg-violet-50 hover:text-violet-900' },
+                            { id: 'criticism', label: 'C', title: 'Criticism', active: 'bg-rose-600 text-white', idle: 'text-muted-foreground hover:bg-rose-50 hover:text-rose-900' },
                         ].map((btn) => {
                             const isActive = activeReportSubTab === btn.id;
-                            const colors = {
-                                blue: isActive ? 'bg-blue-600 text-white ring-blue-200 border-blue-600' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-blue-50/40 dark:hover:bg-blue-950/20 border-slate-200 dark:border-slate-700',
-                                purple: isActive ? 'bg-violet-600 text-white ring-violet-200 border-violet-600' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-violet-50/40 dark:hover:bg-violet-950/20 border-slate-200 dark:border-slate-700',
-                                red: isActive ? 'bg-rose-600 text-white ring-rose-200 border-rose-600' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-rose-50/40 dark:hover:bg-rose-950/20 border-slate-200 dark:border-slate-700',
-                            };
-                            const iconColors = {
-                                blue: isActive ? 'text-white' : 'text-blue-500',
-                                purple: isActive ? 'text-white' : 'text-violet-500',
-                                red: isActive ? 'text-white' : 'text-rose-500',
-                            };
-
                             return (
                                 <button
                                     key={btn.id}
+                                    type="button"
+                                    title={btn.title}
                                     onClick={() => setActiveReportSubTab(btn.id)}
                                     className={cn(
-                                        "relative flex flex-col items-center justify-center p-3 rounded-xl transition-all duration-200 border min-h-[98px] group",
-                                        isActive
-                                            ? "shadow-md ring-2"
-                                            : "shadow-sm hover:shadow hover:border-slate-300 dark:hover:border-slate-600",
-                                        colors[btn.color]
+                                        'inline-flex items-center justify-center rounded-md px-2.5 py-1 text-xs font-bold transition-colors min-w-[2rem]',
+                                        isActive ? btn.active : btn.idle
                                     )}
                                 >
-                                    <div className={cn(
-                                        "p-2 rounded-lg mb-2 transition-colors duration-200",
-                                        isActive ? "bg-white/20" : "bg-slate-100 dark:bg-slate-700"
-                                    )}>
-                                        <btn.icon className={cn("h-5 w-5", iconColors[btn.color])} />
-                                    </div>
-                                    <div className="text-center">
-                                        <h4 className="font-semibold text-sm leading-5">{btn.label}</h4>
-                                        <p className={cn("text-[11px] font-medium opacity-80 mt-0.5")}>
-                                            {btn.desc}
-                                        </p>
-                                    </div>
+                                    {btn.label}
+                                    <span className="ml-1 font-medium hidden sm:inline">{btn.title}</span>
                                 </button>
                             );
                         })}
                     </div>
 
-                    <Separator className="max-w-5xl mx-auto opacity-50" />
-
-                    {/* Active Report View */}
-                    <div className="transition-all duration-500">
-                        {activeReportSubTab === 'grievance' && (
-                            <GrievanceWorkflowReports
-                                onStatsUpdate={setWorkflowStats}
-                                openReportCode={openGReportCode}
-                                onReportCodeHandled={() => setOpenGReportCode('')}
-                            />
-                        )}
-                        {activeReportSubTab === 'suggestion' && (
-                            <SuggestionReports
-                                openReportCode={openSReportCode}
-                                onReportCodeHandled={() => setOpenSReportCode('')}
-                            />
-                        )}
-                        {activeReportSubTab === 'criticism' && (
-                            <CriticismReports
-                                openReportCode={openCReportCode}
-                                onReportCodeHandled={() => setOpenCReportCode('')}
-                            />
-                        )}
-                    </div>
+                    {activeReportSubTab === 'grievance' && (
+                        <GrievanceWorkflowReports
+                            onStatsUpdate={setWorkflowStats}
+                            openReportCode={openGReportCode}
+                            onReportCodeHandled={() => setOpenGReportCode('')}
+                        />
+                    )}
+                    {activeReportSubTab === 'suggestion' && (
+                        <SuggestionReports
+                            openReportCode={openSReportCode}
+                            onReportCodeHandled={() => setOpenSReportCode('')}
+                        />
+                    )}
+                    {activeReportSubTab === 'criticism' && (
+                        <CriticismReports
+                            openReportCode={openCReportCode}
+                            onReportCodeHandled={() => setOpenCReportCode('')}
+                        />
+                    )}
                 </div>
             )}
 
-            {/* ─── Tab Layout + Content ─── */}
+            {/* ─── Feed ─── */}
             {!isReportsTab && (
-                <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setGrievances([]); }} className="w-full mx-2">
-                    <TabsContent value={activeTab} className="mt-4 px-2">
-                        <div className="space-y-4">
-                            {/* Grievances */}
-                            <div className="space-y-4 relative z-10">
-                                {loading ? (
-                                    <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
-                                        <Loader2 className="h-8 w-8 animate-spin text-slate-400 mb-3" />
-                                        <p className="text-sm text-muted-foreground">Loading grievances...</p>
-                                    </div>
-                                ) : grievances.length === 0 ? (
-                                    <div className="text-center p-12 bg-white dark:bg-slate-900 rounded-lg border-2 border-dashed border-slate-200 dark:border-slate-700">
-                                        <FileText className="h-12 w-12 mx-auto text-slate-300 mb-3" />
-                                        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">No grievances found</h3>
-                                        <p className="mt-1 text-sm text-slate-500">
-                                            {hasActiveFilters
-                                                ? 'Try adjusting your filters or search terms.'
-                                                : 'Add source accounts and fetch grievances to get started.'}
-                                        </p>
-                                        {hasActiveFilters && (
-                                            <Button variant="outline" size="sm" onClick={clearFilters} className="mt-3">
-                                                Clear Filters
-                                            </Button>
-                                        )}
-                                    </div>
+                <div className="rounded-xl border border-border bg-card overflow-hidden">
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-16">
+                            <Loader2 className="h-7 w-7 animate-spin text-muted-foreground mb-2" />
+                            <p className="text-sm text-muted-foreground">Loading grievances…</p>
+                        </div>
+                    ) : grievances.length === 0 ? (
+                        <div className="text-center py-14 px-6">
+                            <FileText className="h-9 w-9 mx-auto text-muted-foreground/40 mb-2" />
+                            <h3 className="text-base font-semibold">No grievances yet</h3>
+                            <p className="mt-1 text-sm text-muted-foreground max-w-md mx-auto">
+                                {hasActiveFilters
+                                    ? 'Nothing matches the current search or account filter.'
+                                    : hasNoCatalogData
+                                        ? sources.length === 0
+                                            ? 'Add official accounts on Social Profiles, then fetch mentions or Facebook comments.'
+                                            : navbarPlatform === 'facebook'
+                                                ? 'Click Fetch posts & comments to pull page activity into Postgres.'
+                                                : 'Click Fetch mentions to pull @tags into Postgres.'
+                                        : 'No matching grievances for this view.'}
+                            </p>
+                            <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
+                                {hasActiveFilters ? (
+                                    <Button variant="outline" size="sm" onClick={clearFilters}>
+                                        Clear filters
+                                    </Button>
+                                ) : sources.length === 0 ? (
+                                    <Button size="sm" onClick={() => navigate('/social-profiles')}>
+                                        Open Social Profiles
+                                    </Button>
                                 ) : (
-                                    <div className="space-y-4">
-                                        {/* Results summary */}
-                                        <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
-                                            <span>Showing {grievances.length}{pagination.total ? ` of ${pagination.total}` : ''} results</span>
-                                        </div>
-
-                                        {/* 3-column grid layout */}
-                                        <div className="columns-1 md:columns-2 xl:columns-3 gap-5 [column-fill:_balance]">
-                                            {grievances.map((grievance) => (
-                                                <div key={grievance.id} className="break-inside-avoid mb-5">
-                                                    <GrievanceCard
-                                                        grievance={grievance}
-                                                        onAction={handleAction}
-                                                        getProxiedMediaUrl={getProxiedMediaUrl}
-                                                        downloadState={downloadStates[grievance.id]}
-                                                        isSelected={selectedGrievance?.id === grievance.id && window.innerWidth >= 1280}
-                                                        isActioned={actionedGrievanceIds.includes(grievance.id)}
-                                                        compact={true}
-                                                    />
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        {/* Load More */}
-                                        {pagination.hasMore && (
-                                            <div className="flex justify-center py-4">
-                                                <Button
-                                                    variant="outline"
-                                                    onClick={() => fetchGrievances(pagination.nextCursor)}
-                                                    disabled={loadingMore}
-                                                    className="gap-2"
-                                                >
-                                                    {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronDown className="h-4 w-4" />}
-                                                    Load More
-                                                </Button>
-                                            </div>
+                                    <Button
+                                        size="sm"
+                                        onClick={handleFetchAll}
+                                        disabled={fetchingSource === 'all'}
+                                    >
+                                        {fetchingSource === 'all' ? (
+                                            <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                                        ) : (
+                                            <RefreshCw className="h-4 w-4 mr-1.5" />
                                         )}
-                                    </div>
+                                        {navbarPlatform === 'facebook' ? 'Fetch posts & comments' : 'Fetch mentions'}
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div>
+                            <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-muted/20 text-xs text-muted-foreground">
+                                <span>
+                                    Showing <span className="font-semibold text-foreground">{grievances.length}</span>
+                                    {pagination.total ? ` of ${pagination.total}` : ''} results
+                                </span>
+                                {hasActiveFilters && (
+                                    <button
+                                        type="button"
+                                        className="text-primary hover:underline"
+                                        onClick={clearFilters}
+                                    >
+                                        Clear filters
+                                    </button>
                                 )}
                             </div>
 
+                            <div className="p-3">
+                                <div className="columns-1 md:columns-2 xl:columns-3 gap-3 [column-fill:_balance]">
+                                    {grievances.map((grievance) => (
+                                        <div key={grievance.id} className="break-inside-avoid mb-3">
+                                            <GrievanceCard
+                                                grievance={grievance}
+                                                onAction={handleAction}
+                                                getProxiedMediaUrl={getProxiedMediaUrl}
+                                                downloadState={downloadStates[grievance.id]}
+                                                isSelected={selectedGrievance?.id === grievance.id}
+                                                isActioned={actionedGrievanceIds.includes(grievance.id)}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {pagination.hasMore && (
+                                    <div className="flex justify-center py-3">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => fetchGrievances(pagination.nextCursor)}
+                                            disabled={loadingMore}
+                                            className="gap-2"
+                                        >
+                                            {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronDown className="h-4 w-4" />}
+                                            Load more
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    </TabsContent>
-                </Tabs>
+                    )}
+                </div>
             )}
 
             {/* Criticism Popup */}
@@ -1944,50 +1990,35 @@ const Grievances = () => {
                 </DialogContent>
             </Dialog>
 
-            {/* Fetch Date Range Dialog */}
+            {/* Optional historical fetch — calendar only when explicitly opened */}
             <Dialog open={!!fetchDateDialog} onOpenChange={(open) => { if (!open) setFetchDateDialog(null); }}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Fetch Grievances for {fetchDateDialog?.handle}</DialogTitle>
+                        <DialogTitle>Historical fetch · {fetchDateDialog?.handle}</DialogTitle>
                         <DialogDescription>
-                            Optionally select a date range to fetch historical grievances, or fetch recent ones.
+                            Leave empty for recent, or pick a range for older mentions.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="py-4">
-                        <div className="flex justify-center">
-                            <CalendarComponent
-                                mode="range"
-                                selected={fetchDateRange}
-                                onSelect={setFetchDateRange}
-                                numberOfMonths={2}
-                            />
-                        </div>
-                        {fetchDateRange.from && (
-                            <div className="text-center text-sm text-muted-foreground mt-2">
-                                {format(fetchDateRange.from, 'LLL dd, y')}
-                                {fetchDateRange.to && ` – ${format(fetchDateRange.to, 'LLL dd, y')}`}
-                            </div>
-                        )}
+                    <div className="py-2 flex justify-center">
+                        <CalendarComponent
+                            mode="range"
+                            selected={fetchDateRange}
+                            onSelect={setFetchDateRange}
+                            numberOfMonths={1}
+                        />
                     </div>
                     <DialogFooter className="gap-2">
                         <Button variant="outline" onClick={() => { setFetchDateDialog(null); setFetchDateRange({ from: null, to: null }); }}>Cancel</Button>
-                        <Button variant="outline" onClick={() => {
-                            if (fetchDateDialog) handleFetchForSource(fetchDateDialog);
+                        <Button onClick={() => {
+                            if (!fetchDateDialog) return;
+                            handleFetchForSource(
+                                fetchDateDialog,
+                                fetchDateRange.from?.toISOString(),
+                                fetchDateRange.to?.toISOString()
+                            );
                             setFetchDateRange({ from: null, to: null });
                         }}>
-                            Fetch Recent
-                        </Button>
-                        <Button onClick={() => {
-                            if (fetchDateDialog && fetchDateRange.from) {
-                                handleFetchForSource(
-                                    fetchDateDialog,
-                                    fetchDateRange.from.toISOString(),
-                                    fetchDateRange.to?.toISOString()
-                                );
-                            }
-                            setFetchDateRange({ from: null, to: null });
-                        }} disabled={!fetchDateRange.from}>
-                            Fetch by Date
+                            Fetch
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -1184,10 +1184,9 @@ export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStats
             const res = await api.get('/grievance-workflow/reports', { params });
             setReports(res.data?.reports || []);
             setPagination(res.data?.pagination || { total: 0, pages: 1 });
-            if (res.data?.stats) {
-                setStats(res.data.stats);
-                onStatsUpdateRef.current?.(res.data.stats);
-            }
+            const nextStats = res.data?.stats || { total: 0, pending: 0, escalated: 0, closed: 0, fir: 0 };
+            setStats(nextStats);
+            onStatsUpdateRef.current?.(nextStats);
         } catch {
             toast.error('Failed to load grievance reports', {
                 description: 'Please check your connection and try again',
@@ -1564,340 +1563,159 @@ export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStats
 
     return (
         <TooltipProvider>
-            <div className="space-y-4">
-                {/* Header Section */}
-                <Card className="border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 overflow-hidden">
+            <div>
+                {/* One dense toolbar: status + filters + search + actions */}
+                <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-1.5 border-b border-border bg-muted/10">
+                    <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                        {pagination.total} records
+                    </span>
+                    <span className="hidden sm:inline w-px h-4 bg-border shrink-0" />
+                    {[
+                        { id: 'PENDING', label: 'Pending', value: stats.pending, on: 'bg-amber-100 text-amber-900' },
+                        { id: 'ESCALATED', label: 'Escalated', value: stats.escalated, on: 'bg-orange-100 text-orange-900' },
+                        { id: 'CLOSED', label: 'Closed', value: stats.closed, on: 'bg-emerald-100 text-emerald-900' },
+                        { id: 'FIR', label: 'FIR', value: stats.fir, on: 'bg-rose-100 text-rose-900' },
+                    ].map((s) => (
+                        <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => { setStatusFilter(statusFilter === s.id ? 'all' : s.id); setPage(1); }}
+                            className={cn(
+                                'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium',
+                                statusFilter === s.id ? s.on : 'text-muted-foreground hover:bg-muted'
+                            )}
+                        >
+                            {s.label}
+                            <span className="tabular-nums font-semibold">{s.value}</span>
+                        </button>
+                    ))}
 
-                    {/* ── Header Row ── */}
-                    <CardHeader className="py-3 px-5 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-lg bg-amber-500 flex items-center justify-center shadow-sm">
-                                    <FileSpreadsheet className="h-5 w-5 text-white" />
-                                </div>
-                                <div>
-                                    <CardTitle className="text-lg font-semibold text-slate-900">
-                                        Grievance Workflow Reports
-                                    </CardTitle>
-                                    <CardDescription className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
-                                        <span>{pagination.total} records</span>
-                                        {(searchTerm || platform !== 'all' || statusFilter !== 'all' || categoryFilter !== 'all' || fromDate || toDate) && (
-                                            <>
-                                                <span className="w-1 h-1 rounded-full bg-amber-400" />
-                                                <span className="text-amber-600 font-medium">Filtered</span>
-                                            </>
-                                        )}
-                                    </CardDescription>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={fetchReports}
-                                    className="gap-1.5 h-8 text-xs border-slate-200 hover:bg-slate-50"
-                                >
-                                    <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-                                    Refresh
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    onClick={handleExport}
-                                    disabled={exporting || reports.length === 0}
-                                    className="gap-1.5 h-8 text-xs bg-green-600 hover:bg-green-700 text-white"
-                                >
-                                    {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                                    Export Excel
-                                </Button>
-                            </div>
-                        </div>
-                    </CardHeader>
-
-                    {/* ── Prominent Search Bar ── */}
-                    <div className="px-5 pt-3 pb-2 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700">
-                        <div className="relative max-w-xl">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                            <Input
-                                placeholder="Search by G-ID, content, handle, phone, category..."
-                                value={searchTerm}
-                                onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-                                className="pl-9 pr-9 h-9 text-sm bg-slate-50 border-slate-200 focus:border-amber-400 focus:ring-amber-200 rounded-lg"
+                    <Select value={quickRange} onValueChange={(v) => { setQuickRange(v); setPage(1); }}>
+                        <SelectTrigger className="h-7 w-[110px] text-[11px]"><SelectValue placeholder="Date" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All time</SelectItem>
+                            <SelectItem value="24h">Last 24h</SelectItem>
+                            <SelectItem value="7d">Last 7d</SelectItem>
+                            <SelectItem value="30d">Last 30d</SelectItem>
+                            <SelectItem value="last_month">Last month</SelectItem>
+                            <SelectItem value="custom">Custom</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    {quickRange === 'custom' && (
+                        <>
+                            <input
+                                type="date"
+                                value={fromDate}
+                                onChange={(e) => { setFromDate(e.target.value); setPage(1); }}
+                                className="h-7 px-1.5 text-[11px] bg-background border border-border rounded"
                             />
-                            {searchTerm && (
-                                <button
-                                    onClick={() => { setSearchTerm(''); setPage(1); }}
-                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                                >
-                                    <X className="h-3.5 w-3.5" />
-                                </button>
-                            )}
-                        </div>
-                    </div>
+                            <input
+                                type="date"
+                                value={toDate}
+                                onChange={(e) => { setToDate(e.target.value); setPage(1); }}
+                                className="h-7 px-1.5 text-[11px] bg-background border border-border rounded"
+                            />
+                        </>
+                    )}
+                    <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setPage(1); }}>
+                        <SelectTrigger className="h-7 w-[120px] text-[11px]"><SelectValue placeholder="Category" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All categories</SelectItem>
+                            <SelectItem value="Cyber crimes">Cyber crimes</SelectItem>
+                            <SelectItem value="E-Challan">E-Challan</SelectItem>
+                            <SelectItem value="L&O">L&O</SelectItem>
+                            <SelectItem value="Others">Others</SelectItem>
+                            <SelectItem value="Query">Query</SelectItem>
+                            <SelectItem value="She Team">She Team</SelectItem>
+                            <SelectItem value="Task force">Task force</SelectItem>
+                            <SelectItem value="Traffic">Traffic</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Select value={platform} onValueChange={(v) => { setPlatform(v); setPage(1); }}>
+                        <SelectTrigger className="h-7 w-[110px] text-[11px]"><SelectValue placeholder="Platform" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All platforms</SelectItem>
+                            <SelectItem value="x">X</SelectItem>
+                            <SelectItem value="facebook">Facebook</SelectItem>
+                            <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                        </SelectContent>
+                    </Select>
 
-                    {/* ── Excel-Style Filter Strip ── */}
-                    <div className="bg-slate-50/80 border-b border-slate-200 px-5 py-3">
-                        <div className="flex items-center gap-2 mb-2">
-                            <Filter className="h-3.5 w-3.5 text-slate-500" />
-                            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Filters</span>
-                            {(searchTerm || platform !== 'all' || statusFilter !== 'all' || categoryFilter !== 'all' || fromDate || toDate || quickRange !== 'all') && (
-                                <>
-                                    <span className="ml-1 inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold">
-                                        {[searchTerm, platform !== 'all', statusFilter !== 'all', categoryFilter !== 'all', fromDate, toDate, quickRange !== 'all' && quickRange !== 'custom'].filter(Boolean).length}
-                                    </span>
-                                    <button
-                                        onClick={() => { setSearchTerm(''); setPlatform('all'); setStatusFilter('all'); setCategoryFilter('all'); setFromDate(''); setToDate(''); setQuickRange('all'); setPage(1); }}
-                                        className="ml-auto text-xs text-amber-600 hover:text-amber-800 font-medium flex items-center gap-1 transition-colors"
-                                    >
-                                        <X className="h-3 w-3" />
-                                        Clear All
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                            {/* Date Range */}
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Date Range</label>
-                                <Select value={quickRange} onValueChange={(v) => { setQuickRange(v); setPage(1); }}>
-                                    <SelectTrigger className="h-8 text-xs border-slate-200 bg-white focus:border-amber-400 focus:ring-amber-200 rounded-md">
-                                        <SelectValue placeholder="All Time" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Time</SelectItem>
-                                        <SelectItem value="24h">Last 24 Hours</SelectItem>
-                                        <SelectItem value="7d">Last 7 Days</SelectItem>
-                                        <SelectItem value="30d">Last 30 Days</SelectItem>
-                                        <SelectItem value="last_month">Last Month</SelectItem>
-                                        <SelectItem value="custom">Custom</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            {/* Date From */}
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">From Date</label>
-                                <div className="relative">
-                                    <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                                    <input
-                                        type="date"
-                                        value={fromDate}
-                                        onChange={(e) => { setFromDate(e.target.value); setQuickRange('custom'); setPage(1); }}
-                                        className="w-full h-8 pl-7 pr-2 text-xs bg-white border border-slate-200 rounded-md outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-200 transition-colors"
-                                    />
-                                </div>
-                            </div>
-                            {/* Date To */}
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">To Date</label>
-                                <div className="relative">
-                                    <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                                    <input
-                                        type="date"
-                                        value={toDate}
-                                        onChange={(e) => { setToDate(e.target.value); setQuickRange('custom'); setPage(1); }}
-                                        className="w-full h-8 pl-7 pr-2 text-xs bg-white border border-slate-200 rounded-md outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-200 transition-colors"
-                                    />
-                                </div>
-                            </div>
-                            {/* Category */}
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Category</label>
-                                <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setPage(1); }}>
-                                    <SelectTrigger className="h-8 text-xs border-slate-200 bg-white focus:border-amber-400 focus:ring-amber-200 rounded-md">
-                                        <SelectValue placeholder="All" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Categories</SelectItem>
-                                        <SelectItem value="Cyber crimes">Cyber crimes</SelectItem>
-                                        <SelectItem value="E-Challan">E-Challan</SelectItem>
-                                        <SelectItem value="L&O">L&O</SelectItem>
-                                        <SelectItem value="Others">Others</SelectItem>
-                                        <SelectItem value="Query">Query</SelectItem>
-                                        <SelectItem value="She Team">She Team</SelectItem>
-                                        <SelectItem value="Task force">Task force</SelectItem>
-                                        <SelectItem value="Traffic">Traffic</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            {/* Platform */}
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Platform</label>
-                                <Select value={platform} onValueChange={(v) => { setPlatform(v); setPage(1); }}>
-                                    <SelectTrigger className="h-8 text-xs border-slate-200 bg-white focus:border-amber-400 focus:ring-amber-200 rounded-md">
-                                        <SelectValue placeholder="All" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Platforms</SelectItem>
-                                        <SelectItem value="x">X (Twitter)</SelectItem>
-                                        <SelectItem value="facebook">Facebook</SelectItem>
-                                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            {/* Status */}
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Status</label>
-                                <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
-                                    <SelectTrigger className="h-8 text-xs border-slate-200 bg-white focus:border-amber-400 focus:ring-amber-200 rounded-md">
-                                        <SelectValue placeholder="All" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Status</SelectItem>
-                                        <SelectItem value="PENDING">Pending</SelectItem>
-                                        <SelectItem value="ESCALATED">Escalated</SelectItem>
-                                        <SelectItem value="CLOSED">Closed</SelectItem>
-                                        <SelectItem value="FIR">Converted to FIR</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-
-                        {/* ── Results Count Banner ── */}
-                        {(searchTerm || platform !== 'all' || statusFilter !== 'all' || categoryFilter !== 'all' || fromDate || toDate || quickRange !== 'all') && (
-                            <div className="mt-3 flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg">
-                                {loading ? (
-                                    <Loader2 className="h-5 w-5 text-amber-500 animate-spin flex-shrink-0" />
-                                ) : (
-                                    <div className="h-5 w-5 rounded-full bg-amber-500 flex items-center justify-center flex-shrink-0">
-                                        <Check className="h-3 w-3 text-white" />
-                                    </div>
-                                )}
-                                <div>
-                                    <span className="text-2xl font-bold text-amber-700">{loading ? '...' : pagination.total}</span>
-                                    <span className="ml-2 text-base font-medium text-amber-600">
-                                        {pagination.total === 1 ? 'result found' : 'results found'} for your filter
-                                    </span>
-                                </div>
-                            </div>
+                    <div className="relative ml-auto w-full sm:w-52">
+                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                        <Input
+                            placeholder="Search…"
+                            value={searchTerm}
+                            onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+                            className="pl-7 pr-7 h-7 text-[11px]"
+                        />
+                        {searchTerm && (
+                            <button
+                                type="button"
+                                onClick={() => { setSearchTerm(''); setPage(1); }}
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            >
+                                <X className="h-3 w-3" />
+                            </button>
                         )}
                     </div>
+                    <Button variant="ghost" size="sm" onClick={fetchReports} className="h-7 w-7 p-0" title="Refresh">
+                        <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
+                    </Button>
+                    <Button
+                        size="sm"
+                        onClick={handleExport}
+                        disabled={exporting || reports.length === 0}
+                        className="h-7 gap-1 text-[11px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                        {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                        Export
+                    </Button>
+                </div>
 
-                    {/* Stats Cards */}
-                    <div className="grid grid-cols-4 gap-2 px-4 py-2 bg-white border-b border-slate-100">
-
-                        <div
-                            className={cn(
-                                "bg-white rounded-md px-3 py-1.5 border transition-all cursor-pointer hover:bg-slate-50",
-                                statusFilter === 'PENDING' ? "border-yellow-500 ring-1 ring-yellow-500/20" : "border-slate-200"
-                            )}
-                            onClick={() => { setStatusFilter('PENDING'); setPage(1); }}
-                        >
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-[10px] text-slate-500">Pending</p>
-                                    <p className="text-lg font-bold text-yellow-600">{stats.pending}</p>
-                                </div>
-                                <div className="h-7 w-7 rounded-md bg-yellow-50 flex items-center justify-center">
-                                    <Clock className="h-3.5 w-3.5 text-yellow-600" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div
-                            className={cn(
-                                "bg-white rounded-md px-3 py-1.5 border transition-all cursor-pointer hover:bg-slate-50",
-                                statusFilter === 'ESCALATED' ? "border-orange-500 ring-1 ring-orange-500/20" : "border-slate-200"
-                            )}
-                            onClick={() => { setStatusFilter('ESCALATED'); setPage(1); }}
-                        >
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-[10px] text-slate-500">Escalated</p>
-                                    <p className="text-lg font-bold text-orange-600">{stats.escalated}</p>
-                                </div>
-                                <div className="h-7 w-7 rounded-md bg-orange-50 flex items-center justify-center">
-                                    <AlertCircle className="h-3.5 w-3.5 text-orange-600" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div
-                            className={cn(
-                                "bg-white rounded-md px-3 py-1.5 border transition-all cursor-pointer hover:bg-slate-50",
-                                statusFilter === 'CLOSED' ? "border-green-500 ring-1 ring-green-500/20" : "border-slate-200"
-                            )}
-                            onClick={() => { setStatusFilter('CLOSED'); setPage(1); }}
-                        >
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-[10px] text-slate-500">Closed</p>
-                                    <p className="text-lg font-bold text-green-600">{stats.closed}</p>
-                                </div>
-                                <div className="h-7 w-7 rounded-md bg-green-50 flex items-center justify-center">
-                                    <Check className="h-3.5 w-3.5 text-green-600" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div
-                            className={cn(
-                                "bg-white rounded-md px-3 py-1.5 border transition-all cursor-pointer hover:bg-slate-50",
-                                statusFilter === 'FIR' ? "border-red-500 ring-1 ring-red-500/20" : "border-slate-200"
-                            )}
-                            onClick={() => { setStatusFilter('FIR'); setPage(1); }}
-                        >
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-[10px] text-slate-500">FIR</p>
-                                    <p className="text-lg font-bold text-red-600">{stats.fir}</p>
-                                </div>
-                                <div className="h-7 w-7 rounded-md bg-red-50 flex items-center justify-center">
-                                    <Shield className="h-3.5 w-3.5 text-red-600" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Main Table */}
+                {/* Table flush */}
                     <CardContent className="p-0">
                         {loading ? (
-                            <div className="flex flex-col items-center justify-center py-20">
-                                <div className="relative">
-                                    <div className="h-16 w-16 rounded-full border-4 border-slate-100 border-t-amber-500 animate-spin" />
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <FileSpreadsheet className="h-6 w-6 text-slate-400" />
-                                    </div>
-                                </div>
-                                <p className="mt-4 text-sm text-slate-500">Loading grievance reports...</p>
+                            <div className="flex flex-col items-center justify-center py-10">
+                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mb-2" />
+                                <p className="text-sm text-muted-foreground">Loading reports…</p>
                             </div>
                         ) : reports.length === 0 ? (
-                            <div className="text-center py-20 px-4">
-                                <div className="h-20 w-20 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4">
-                                    <FileSpreadsheet className="h-10 w-10 text-amber-400" />
-                                </div>
-                                <h3 className="text-lg font-semibold text-slate-900 mb-2">No reports yet</h3>
-                                <p className="text-sm text-slate-500 max-w-md mx-auto">
-                                    No grievance workflow reports found. Use the <span className="font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">G</span> button on grievance cards to create new reports.
+                            <div className="text-center py-10 px-4">
+                                <p className="text-sm font-medium text-foreground">No reports yet</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    Create grievance reports from cards in the feed.
                                 </p>
                             </div>
                         ) : (
                             <>
-                                <div className="overflow-auto max-h-[60vh] relative">
-                                    <table className="w-full text-sm min-w-[2200px]">
+                                <div className="w-full overflow-x-auto overflow-y-auto max-h-[65vh] overscroll-x-contain">
+                                    <table className="text-sm border-collapse" style={{ minWidth: 2400, width: 'max-content' }}>
                                         <thead className="bg-slate-50 sticky top-0 z-20">
                                             <tr className="border-b border-slate-200">
                                                 {[
-                                                    { key: 'si_no', label: 'Sl.No', width: 'w-16' },
-                                                    { key: 'status', label: 'Status', width: 'w-28', sortable: true },
-                                                    { key: 'unique_id', label: 'Unique ID', width: 'w-32' },
-                                                    { key: 'post_date', label: 'Post Date', width: 'w-32', sortable: true },
-                                                    { key: 'phone', label: 'Phone', width: 'w-28' },
-                                                    { key: 'profile', label: 'Profile', width: 'w-44' },
-                                                    { key: 'post_link', label: 'Link', width: 'w-16' },
-                                                    { key: 'description', label: 'Description', width: 'min-w-[180px]' },
-                                                    { key: 'category', label: 'Category', width: 'w-24', sortable: true },
-                                                    { key: 'chat_history', label: 'Communication', width: 'min-w-[200px]' },
-                                                    { key: 'operator_remarks', label: 'Remarks', width: 'min-w-[150px]' },
-                                                    { key: 'informed_to', label: 'Informed to Officer', width: 'min-w-[150px]' },
-                                                    { key: 'escalated_remarks', label: 'Escalated Remarks', width: 'min-w-[160px]' },
-                                                    { key: 'escalated_to_officer_time', label: 'Escalated to Officer', width: 'w-36' },
-                                                    { key: 'closing_remarks', label: 'Closing Remarks', width: 'min-w-[160px]' },
-                                                    { key: 'fir_number', label: 'FIR Number', width: 'w-28' },
+                                                    { key: 'si_no', label: 'Sl.No', style: { width: 56, minWidth: 56 } },
+                                                    { key: 'status', label: 'Status', sortable: true, style: { width: 110, minWidth: 110 } },
+                                                    { key: 'unique_id', label: 'Unique ID', style: { width: 168, minWidth: 168 } },
+                                                    { key: 'post_date', label: 'Post Date', sortable: true, style: { width: 140, minWidth: 140 } },
+                                                    { key: 'phone', label: 'Phone', style: { width: 120, minWidth: 120 } },
+                                                    { key: 'profile', label: 'Profile', style: { width: 150, minWidth: 150 } },
+                                                    { key: 'post_link', label: 'Link', style: { width: 56, minWidth: 56 } },
+                                                    { key: 'description', label: 'Description', style: { width: 220, minWidth: 200 } },
+                                                    { key: 'category', label: 'Category', sortable: true, style: { width: 100, minWidth: 100 } },
+                                                    { key: 'chat_history', label: 'Communication', style: { width: 220, minWidth: 200 } },
+                                                    { key: 'operator_remarks', label: 'Remarks', style: { width: 160, minWidth: 150 } },
+                                                    { key: 'informed_to', label: 'Informed to Officer', style: { width: 150, minWidth: 150 } },
+                                                    { key: 'escalated_remarks', label: 'Escalated Remarks', style: { width: 180, minWidth: 160 } },
+                                                    { key: 'escalated_to_officer_time', label: 'Escalated to Officer', style: { width: 150, minWidth: 140 } },
+                                                    { key: 'closing_remarks', label: 'Closing Remarks', style: { width: 180, minWidth: 160 } },
+                                                    { key: 'fir_number', label: 'FIR Number', style: { width: 110, minWidth: 110 } },
                                                 ].map((col) => (
                                                     <th
                                                         key={col.key}
+                                                        style={col.style}
                                                         className={cn(
-                                                            "text-left py-3 px-3 font-semibold text-slate-700 text-xs",
-                                                            col.width,
+                                                            "text-left py-2 px-2.5 font-semibold text-slate-700 text-[11px] whitespace-nowrap bg-slate-50",
                                                             col.sortable && "cursor-pointer hover:bg-slate-100 transition-colors"
                                                         )}
                                                         onClick={() => col.sortable && handleSort(col.key)}
@@ -1912,273 +1730,221 @@ export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStats
                                         </thead>
                                         <tbody>
                                             {reports.map((r, idx) => {
-                                                const mediaUrls = (Array.isArray(r.media_s3_urls) && r.media_s3_urls.length > 0 ? r.media_s3_urls : r.media_urls || []);
                                                 const status = statusConfig[r.status] || statusConfig.PENDING;
-                                                const StatusIcon = status.icon;
-                                                const PlatformIcon = getPlatformIcon(r.platform);
                                                 const firInfo = parseFirFields(r);
-
-                                                // Escalation logs
-                                                const escalationLogs = (r.officer_logs || []).filter(l => l.is_escalation === true);
+                                                const escalationLogs = (r.officer_logs || []).filter((l) => l.is_escalation === true);
                                                 const firstEscalation = escalationLogs[0];
-
-                                                // Operator remarks
-                                                const operatorRemarks = (r.complainant_logs || []).filter(l => l.type === 'OperatorRemark');
-
-                                                // First officer log timestamp (for informed_to time)
-                                                const firstOfficerLog = (r.officer_logs || []).find(l => !l.is_escalation);
+                                                const operatorRemarks = (r.complainant_logs || []).filter((l) => l.type === 'OperatorRemark');
+                                                const firstOfficerLog = (r.officer_logs || []).find((l) => !l.is_escalation);
 
                                                 return (
-                                                    <motion.tr
+                                                    <tr
                                                         key={r.id}
-                                                        initial={{ opacity: 0, y: 10 }}
-                                                        animate={{ opacity: 1, y: 0 }}
-                                                        transition={{ delay: idx * 0.02 }}
                                                         className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group"
                                                     >
-                                                        {/* 1. Sl.No + Eye */}
-                                                        <td className="py-2.5 px-3">
-                                                            <div className="flex flex-col items-center gap-1">
-                                                                <span className="text-slate-400 font-mono text-xs">
+                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap">
+                                                            <div className="flex flex-col items-center gap-0.5">
+                                                                <span className="text-slate-400 font-mono text-[11px]">
                                                                     {(page - 1) * 50 + idx + 1}
                                                                 </span>
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="sm"
-                                                                            className="h-6 w-6 p-0 rounded-full hover:bg-violet-100"
-                                                                            onClick={() => {
-                                                                                setSelectedReport(r);
-                                                                                setWaPhone(r.informed_to?.phone || r.complaint_phone || '');
-                                                                                setActiveTab('details');
-                                                                            }}
-                                                                        >
-                                                                            <Eye className="h-3.5 w-3.5 text-violet-600" />
-                                                                        </Button>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent><p className="text-xs">View Details</p></TooltipContent>
-                                                                </Tooltip>
+                                                                <button
+                                                                    type="button"
+                                                                    className="h-6 w-6 inline-flex items-center justify-center rounded-full hover:bg-violet-100"
+                                                                    title="View details"
+                                                                    onClick={() => {
+                                                                        setSelectedReport(r);
+                                                                        setWaPhone(r.informed_to?.phone || r.complaint_phone || '');
+                                                                        setActiveTab('details');
+                                                                    }}
+                                                                >
+                                                                    <Eye className="h-3.5 w-3.5 text-violet-600" />
+                                                                </button>
                                                             </div>
                                                         </td>
 
-                                                        {/* 2. Status */}
-                                                        <td className="py-2.5 px-3">
+                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap">
                                                             <div className="flex items-center gap-1.5">
-                                                                <span className={cn("w-1.5 h-1.5 rounded-full", status.dot)} />
+                                                                <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', status.dot)} />
                                                                 <Badge variant="outline" className={cn('text-[9px] font-medium px-2 py-0.5', status.bg, status.text, status.border)}>
                                                                     {status.label}
                                                                 </Badge>
                                                             </div>
                                                         </td>
 
-                                                        {/* 3. Unique ID */}
-                                                        <td className="py-2.5 px-3">
-                                                            <Badge
-                                                                variant="outline"
-                                                                className="text-[9px] font-mono bg-amber-50 text-amber-700 border-amber-200 cursor-pointer hover:bg-amber-100 hover:border-amber-300 transition-colors"
+                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap">
+                                                            <button
+                                                                type="button"
+                                                                className="text-[10px] font-mono bg-amber-50 text-amber-800 border border-amber-200 rounded px-1.5 py-0.5 hover:bg-amber-100"
                                                                 onClick={() => {
                                                                     setSelectedReport(r);
                                                                     setWaPhone(r.informed_to?.phone || r.complaint_phone || '');
                                                                 }}
                                                             >
                                                                 {r.unique_code}
-                                                            </Badge>
+                                                            </button>
                                                         </td>
 
-                                                        {/* 4. Post Date */}
-                                                        <td className="py-2.5 px-3">
+                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap">
                                                             <div className="flex flex-col">
-                                                                <span className="text-slate-900 font-medium text-xs">{fmtDate(r.post_date)}</span>
+                                                                <span className="text-slate-900 font-medium text-[11px]">{fmtDate(r.post_date)}</span>
                                                                 <span className="text-[9px] text-slate-400">{fmtRelativeTime(r.post_date)}</span>
                                                             </div>
                                                         </td>
 
-                                                        {/* 5. Phone */}
-                                                        <td className="py-2.5 px-3">
+                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap">
                                                             {r.complaint_phone ? (
-                                                                <div className="flex items-center gap-1">
-                                                                    <Phone className="h-3 w-3 text-slate-400" />
-                                                                    <span className="text-xs font-mono text-slate-700">{r.complaint_phone}</span>
-                                                                </div>
+                                                                <span className="text-[11px] font-mono text-slate-700">{r.complaint_phone}</span>
                                                             ) : <span className="text-slate-400 text-xs">—</span>}
                                                         </td>
 
-                                                        {/* 6. Profile */}
-                                                        <td className="py-2.5 px-3">
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="min-w-0">
-                                                                    <p className="font-medium text-slate-900 truncate max-w-[120px] text-xs">{r.posted_by?.display_name || '—'}</p>
-                                                                    {r.profile_link && (
-                                                                        <a href={r.profile_link} target="_blank" rel="noopener noreferrer" className="text-[9px] text-blue-600 hover:underline truncate block max-w-[120px]">
-                                                                            @{r.profile_id || 'view'}
-                                                                        </a>
-                                                                    )}
-                                                                </div>
-                                                            </div>
+                                                        <td className="py-2 px-2.5 align-top" style={{ maxWidth: 150 }}>
+                                                            <p className="font-medium text-slate-900 truncate text-[11px]">{r.posted_by?.display_name || '—'}</p>
+                                                            {r.profile_id && (
+                                                                <p className="text-[9px] text-muted-foreground truncate">@{r.profile_id}</p>
+                                                            )}
                                                         </td>
 
-                                                        {/* 7. Link */}
-                                                        <td className="py-2.5 px-3">
+                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap">
                                                             {r.post_link ? (
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <a href={r.post_link} target="_blank" rel="noopener noreferrer"
-                                                                            className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors">
-                                                                            <ExternalLink className="h-3 w-3" />
-                                                                        </a>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent><p className="text-xs">View Post</p></TooltipContent>
-                                                                </Tooltip>
+                                                                <a href={r.post_link} target="_blank" rel="noopener noreferrer"
+                                                                    className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100">
+                                                                    <ExternalLink className="h-3 w-3" />
+                                                                </a>
                                                             ) : <span className="text-slate-300 text-xs">—</span>}
                                                         </td>
 
-                                                        {/* 8. Description */}
-                                                        <td className="py-2.5 px-3">
+                                                        <td className="py-2 px-2.5 align-top" style={{ maxWidth: 220 }}>
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
-                                                                    <p className="text-slate-700 line-clamp-2 text-xs cursor-help">{r.post_description || '—'}</p>
+                                                                    <p className="text-slate-700 line-clamp-2 text-[11px] cursor-help">{r.post_description || '—'}</p>
                                                                 </TooltipTrigger>
                                                                 {r.post_description && (
-                                                                    <TooltipContent side="right" className="max-w-xs"><p className="text-xs">{r.post_description}</p></TooltipContent>
+                                                                    <TooltipContent side="bottom" className="max-w-sm"><p className="text-xs whitespace-pre-wrap">{r.post_description}</p></TooltipContent>
                                                                 )}
                                                             </Tooltip>
                                                         </td>
 
-                                                        {/* 9. Category */}
-                                                        <td className="py-2.5 px-3">
+                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap">
                                                             <Badge variant="outline" className="text-[9px] font-medium px-2 py-0.5 bg-slate-50">
                                                                 {r.category || '—'}
                                                             </Badge>
                                                         </td>
 
-                                                        {/* 10. Communication */}
-                                                        <td className="py-2.5 px-3 relative">
-                                                            {(r.status === 'ESCALATED' || r.status === 'CLOSED') && (
-                                                                <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
-                                                                    <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", r.status === 'ESCALATED' ? "bg-orange-400" : "bg-green-400")} />
-                                                                    <span className={cn("relative inline-flex rounded-full h-2.5 w-2.5", r.status === 'ESCALATED' ? "bg-orange-500" : "bg-green-500")} />
-                                                                </span>
-                                                            )}
+                                                        <td className="py-2 px-2.5 align-top" style={{ maxWidth: 220 }}>
                                                             {(() => {
                                                                 const logs = [
-                                                                    ...(r.complainant_logs || []).filter(l => l.type !== 'OperatorRemark').map(l => ({ ...l, _source: 'User' })),
-                                                                    ...(r.officer_logs || []).map(l => ({ ...l, _source: 'Officer' }))
+                                                                    ...(r.complainant_logs || []).filter((l) => l.type !== 'OperatorRemark').map((l) => ({ ...l, _source: 'User' })),
+                                                                    ...(r.officer_logs || []).map((l) => ({ ...l, _source: 'Officer' })),
                                                                 ].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-                                                                if (logs.length === 0) return <span className="text-slate-300 text-[10px] italic">No Logs</span>;
+                                                                if (logs.length === 0) return <span className="text-slate-300 text-[10px]">—</span>;
+                                                                const latest = logs[logs.length - 1];
                                                                 return (
-                                                                    <div className="max-h-[80px] overflow-y-auto space-y-1.5 p-1 border rounded bg-slate-50 min-w-[200px]">
-                                                                        {logs.map((l, i) => (
-                                                                            <div key={i} className="text-[10px] bg-white p-1 rounded border border-slate-100 shadow-sm">
-                                                                                <div className="flex justify-between opacity-70 mb-0.5">
-                                                                                    <span className={cn("font-bold uppercase tracking-wider text-[8px]", l._source === 'User' ? 'text-orange-600' : 'text-blue-600')}>
-                                                                                        {l._source === 'User' ? (l.type === 'Operator' ? 'Operator' : 'User') : 'To Officer'}
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <button
+                                                                                type="button"
+                                                                                className="w-full max-w-[200px] rounded border border-border bg-muted/30 px-2 py-1 text-left hover:bg-muted/50"
+                                                                                onClick={() => {
+                                                                                    setSelectedReport(r);
+                                                                                    setActiveTab('details');
+                                                                                }}
+                                                                            >
+                                                                                <div className="flex items-center justify-between gap-2 mb-0.5">
+                                                                                    <span className={cn(
+                                                                                        'text-[8px] font-bold uppercase tracking-wider',
+                                                                                        latest._source === 'User' ? 'text-orange-600' : 'text-blue-600'
+                                                                                    )}>
+                                                                                        {latest._source}
                                                                                     </span>
-                                                                                    <span className="text-[8px]">{fmtRelativeTime(l.timestamp)}</span>
+                                                                                    <span className="text-[8px] text-muted-foreground">{logs.length} msgs</span>
                                                                                 </div>
-                                                                                <p className="line-clamp-2 text-slate-700 font-mono leading-tight">{l.content}</p>
-                                                                                {l.original_link && (
-                                                                                    <a href={l.original_link} target="_blank" rel="noopener noreferrer" className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                                                        <span className="text-[10px] text-white font-medium bg-black/50 px-2 py-1 rounded-full backdrop-blur-sm">Open original</span>
-                                                                                    </a>
-                                                                                )}
+                                                                                <p className="line-clamp-2 text-[10px] text-slate-700 leading-tight">{latest.content}</p>
+                                                                            </button>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent side="left" className="max-w-sm">
+                                                                            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                                                                                {logs.map((l, i) => (
+                                                                                    <div key={i} className="text-[10px]">
+                                                                                        <span className="font-semibold">{l._source}</span>
+                                                                                        <span className="text-muted-foreground"> · {fmtRelativeTime(l.timestamp)}</span>
+                                                                                        <p className="mt-0.5">{l.content}</p>
+                                                                                    </div>
+                                                                                ))}
                                                                             </div>
-                                                                        ))}
-                                                                    </div>
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
                                                                 );
                                                             })()}
                                                         </td>
 
-                                                        {/* 11. Remarks (Operator Remarks) */}
-                                                        <td className="py-2.5 px-3">
+                                                        <td className="py-2 px-2.5 align-top" style={{ maxWidth: 160 }}>
                                                             {operatorRemarks.length > 0 ? (
-                                                                <div className="max-h-[80px] overflow-y-auto space-y-1 p-1 border rounded bg-amber-50 min-w-[150px]">
-                                                                    {operatorRemarks.map((l, i) => (
-                                                                        <div key={i} className="text-[10px] bg-white p-1 rounded border border-amber-100">
-                                                                            <div className="flex justify-between mb-0.5">
-                                                                                <span className="text-[8px] font-bold text-amber-600 uppercase">Note</span>
-                                                                                <span className="text-[8px] text-slate-400">{fmtRelativeTime(l.timestamp)}</span>
-                                                                            </div>
-                                                                            <p className="line-clamp-2 text-slate-700 leading-tight">{l.content}</p>
-                                                                        </div>
+                                                                <div className="space-y-1">
+                                                                    {operatorRemarks.slice(0, 2).map((l, i) => (
+                                                                        <p key={i} className="line-clamp-2 text-[10px] text-slate-700 bg-amber-50 border border-amber-100 rounded px-1.5 py-1">
+                                                                            {l.content}
+                                                                        </p>
                                                                     ))}
                                                                 </div>
                                                             ) : <span className="text-slate-300 text-xs">—</span>}
                                                         </td>
 
-                                                        {/* 12. Informed to Officer */}
-                                                        <td className="py-2.5 px-3">
+                                                        <td className="py-2 px-2.5 align-top" style={{ maxWidth: 150 }}>
                                                             {r.informed_to?.name ? (
-                                                                <div className="space-y-0.5">
-                                                                    <p className="font-medium text-slate-900 text-xs">{r.informed_to.name}</p>
+                                                                <div>
+                                                                    <p className="font-medium text-slate-900 text-[11px] truncate">{r.informed_to.name}</p>
                                                                     {r.informed_to.phone && (
-                                                                        <p className="text-[9px] text-slate-500 flex items-center gap-1">
-                                                                            <Phone className="h-2 w-2" />{r.informed_to.phone}
-                                                                        </p>
+                                                                        <p className="text-[9px] text-slate-500 tabular-nums whitespace-nowrap">{r.informed_to.phone}</p>
                                                                     )}
                                                                     {firstOfficerLog?.timestamp && (
                                                                         <p className="text-[9px] text-slate-400">{fmtDate(firstOfficerLog.timestamp)}</p>
                                                                     )}
                                                                 </div>
-                                                            ) : <span className="text-slate-400 text-xs italic">—</span>}
+                                                            ) : <span className="text-slate-400 text-xs">—</span>}
                                                         </td>
 
-                                                        {/* 13. Escalated Remarks */}
-                                                        <td className="py-2.5 px-3">
+                                                        <td className="py-2 px-2.5 align-top" style={{ maxWidth: 180 }}>
                                                             {firstEscalation ? (
-                                                                <div className="space-y-0.5">
-                                                                    <Tooltip>
-                                                                        <TooltipTrigger asChild>
-                                                                            <p className="text-red-700 line-clamp-2 text-xs cursor-help bg-red-50 px-1.5 py-1 rounded border border-red-100">
-                                                                                {firstEscalation.content}
-                                                                            </p>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent side="left" className="max-w-xs"><p className="text-xs">{firstEscalation.content}</p></TooltipContent>
-                                                                    </Tooltip>
-                                                                    <p className="text-[9px] text-slate-400">{fmtDate(firstEscalation.timestamp)}</p>
+                                                                <div>
+                                                                    <p className="text-red-700 line-clamp-2 text-[11px] bg-red-50 px-1.5 py-1 rounded border border-red-100">
+                                                                        {firstEscalation.content}
+                                                                    </p>
+                                                                    <p className="text-[9px] text-slate-400 mt-0.5">{fmtDate(firstEscalation.timestamp)}</p>
                                                                 </div>
                                                             ) : <span className="text-slate-300 text-xs">—</span>}
                                                         </td>
 
-                                                        {/* 14. Escalated to Officer log */}
-                                                        <td className="py-2.5 px-3">
+                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap">
                                                             {firstEscalation?.timestamp ? (
                                                                 <div className="flex flex-col">
-                                                                    <span className="text-slate-900 text-xs">{fmtDate(firstEscalation.timestamp)}</span>
+                                                                    <span className="text-slate-900 text-[11px]">{fmtDate(firstEscalation.timestamp)}</span>
                                                                     <span className="text-[9px] text-slate-400">{fmtRelativeTime(firstEscalation.timestamp)}</span>
                                                                     {firstEscalation.recipient?.name && (
                                                                         <span className="text-[9px] text-blue-600 mt-0.5">{firstEscalation.recipient.name}</span>
                                                                     )}
                                                                 </div>
-                                                            ) : <span className="text-slate-400 text-xs italic">—</span>}
+                                                            ) : <span className="text-slate-400 text-xs">—</span>}
                                                         </td>
 
-                                                        {/* 15. Closing Remarks */}
-                                                        <td className="py-2.5 px-3">
+                                                        <td className="py-2 px-2.5 align-top" style={{ maxWidth: 180 }}>
                                                             {r.closing_remarks ? (
-                                                                <div className="space-y-0.5">
-                                                                    <Tooltip>
-                                                                        <TooltipTrigger asChild>
-                                                                            <p className="text-slate-700 line-clamp-2 text-xs cursor-help">{r.closing_remarks}</p>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent side="left" className="max-w-xs"><p className="text-xs">{r.closing_remarks}</p></TooltipContent>
-                                                                    </Tooltip>
+                                                                <div>
+                                                                    <p className="text-slate-700 line-clamp-2 text-[11px]">{r.closing_remarks}</p>
                                                                     {r.action_taken_at && r.status === 'CLOSED' && (
-                                                                        <p className="text-[9px] text-slate-400">{fmtDate(r.action_taken_at)}</p>
+                                                                        <p className="text-[9px] text-slate-400 mt-0.5">{fmtDate(r.action_taken_at)}</p>
                                                                     )}
                                                                 </div>
                                                             ) : <span className="text-slate-300 text-xs">—</span>}
                                                         </td>
 
-                                                        {/* 16. FIR Number */}
-                                                        <td className="py-2.5 px-3">
+                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap">
                                                             {firInfo.converted === 'Yes' && firInfo.firNumber ? (
                                                                 <Badge variant="outline" className="text-[9px] font-mono bg-red-50 text-red-700 border-red-200">
                                                                     {firInfo.firNumber}
                                                                 </Badge>
-                                                            ) : <span className="text-slate-400 text-xs italic">—</span>}
+                                                            ) : <span className="text-slate-400 text-xs">—</span>}
                                                         </td>
-                                                    </motion.tr>
+                                                    </tr>
                                                 );
                                             })}
                                         </tbody>
@@ -2249,7 +2015,6 @@ export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStats
                             </>
                         )}
                     </CardContent>
-                </Card>
 
                 {/* Detail Modal */}
                 <AnimatePresence>

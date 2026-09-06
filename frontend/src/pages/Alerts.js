@@ -1,23 +1,54 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { useNotification } from '../context/NotificationContext';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../lib/api';
 import { AlertService } from '@/features/alerts/api/alertService';
-import { AlertTriangle, CheckCircle, Flag, XCircle, Zap, Activity, MessageSquare, Filter, ExternalLink, Search, Calendar, Download, Loader2, ArrowUpCircle, Plus, LayoutGrid, LayoutList, Twitter, Youtube, Facebook, Instagram, Users, X, Sparkles } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Flag, XCircle, Zap, Activity, MessageSquare, Filter, ExternalLink, Search, Calendar, Download, Loader2, ArrowUpCircle, Plus, LayoutGrid, LayoutList, Twitter, Youtube, Facebook, Instagram, Users, X, Sparkles, Trash2, Pencil } from 'lucide-react';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Skeleton } from '../components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '../components/ui/dialog';
 import { Textarea } from '../components/ui/textarea';
+import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
 import { TwitterAlertCard, YoutubeAlertCard, FrequentEngagersDialog } from '../components/AlertCards';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import ReportsContent from '../components/ReportsContent';
-import AddSourceModal from '../components/AddSourceModal';
-import { useRbac } from '../contexts/RbacContext';
+import { socialProfilesApi } from '../api/socialProfiles.api';
 import { abortAlertsListFetchOnUnmount } from '../features/alerts/alertsFetchGuard';
 import { mapInstagramStoryToAlert, mergeInstagramStoriesByIdentity } from '../utils/instagramStoryMedia';
+
+const normalizeAddPlatform = (platform) => {
+  const value = String(platform || '').trim().toLowerCase();
+  if (value === 'twitter') return 'x';
+  if (value === 'fb') return 'facebook';
+  return value;
+};
+
+/** Map engager / alert "add profile" payloads to social-profiles preview data. */
+const buildCatalogPreviewData = (platform, identifier) => {
+  const raw = String(identifier || '').trim();
+  const clean = raw.replace(/^@/, '');
+  const slug = normalizeAddPlatform(platform);
+  if (!slug || !clean) return null;
+  if (slug === 'x') return { platform: slug, data: { username: clean } };
+  if (slug === 'facebook') {
+    const url = /^https?:\/\//i.test(raw) ? raw : `https://www.facebook.com/${clean}`;
+    return { platform: slug, data: { url } };
+  }
+  if (slug === 'youtube') {
+    const url = /^https?:\/\//i.test(raw)
+      ? raw
+      : `https://www.youtube.com/@${clean}`;
+    return { platform: slug, data: { channel_url: url } };
+  }
+  return { platform: slug, data: { username: clean } };
+};
+
+const markAllRead = async () => {
+  await AlertService.markAllRead();
+};
+const hasFeatureAccess = () => true;
 
 const ALERT_STATUS_TABS = [
   { value: 'active', label: 'Active' },
@@ -27,7 +58,7 @@ const ALERT_STATUS_TABS = [
   { value: 'reports', label: 'Reports' }
 ];
 
-const ALERTS_CACHE_KEY = 'alertsCache_v5';
+const ALERTS_CACHE_KEY = 'alertsCache_catalog_v1';
 const ALERTS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 const SOURCE_CATEGORY_OPTIONS = [
@@ -43,6 +74,7 @@ const SOURCE_CATEGORY_OPTIONS = [
 const PLATFORM_DISPLAY_ORDER = ['x', 'youtube', 'facebook', 'instagram', 'whatsapp'];
 
 export default function Alerts() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -54,7 +86,6 @@ export default function Alerts() {
   const [sourcesMetaLoaded, setSourcesMetaLoaded] = useState(false);
   const [profilesMatrixOpen, setProfilesMatrixOpen] = useState(false);
   const [frequentEngagersOpen, setFrequentEngagersOpen] = useState(false);
-  const [pendingAnalysisCount, setPendingAnalysisCount] = useState(0);
   const [viewMode, setViewMode] = useState('grid');
   const [alertCategory, setAlertCategory] = useState('all'); // legacy — mirrors active exclusive dim
   // Applied Risk/Virality filters — drive fetch/cache; only changed via Apply Filters.
@@ -90,6 +121,11 @@ export default function Alerts() {
   const [platformFilter, setPlatformFilter] = useState('all');
   const [keywordFilter, setKeywordFilter] = useState('all');
   const [availableKeywords, setAvailableKeywords] = useState([]);
+  const [keywordRecords, setKeywordRecords] = useState([]);
+  const [keywordManageOpen, setKeywordManageOpen] = useState(false);
+  const [keywordForm, setKeywordForm] = useState({ id: null, keyword: '' });
+  const [keywordSaving, setKeywordSaving] = useState(false);
+  const [keywordBusyId, setKeywordBusyId] = useState(null);
   const [sourceCategoryFilter, setSourceCategoryFilter] = useState('all');
   const [dateRange, setDateRange] = useState(() => {
     const toYmd = (d) => {
@@ -142,12 +178,9 @@ export default function Alerts() {
   const [topAlertsHours, setTopAlertsHours] = useState(24);
   const [topAlertsCatFilter, setTopAlertsCatFilter] = useState('all');
 
-  const { markAllRead } = useNotification();
-  const { hasFeatureAccess } = useRbac();
-
   const visibleStatusTabs = useMemo(
     () => ALERT_STATUS_TABS.filter((tab) => hasFeatureAccess('/alerts', tab.value)),
-    [hasFeatureAccess]
+    []
   );
   const hasAnyAlertFeature = visibleStatusTabs.length > 0;
   const statusFromUrl = searchParams.get('status');
@@ -478,8 +511,7 @@ export default function Alerts() {
   const [reportsMap, setReportsMap] = useState({});
 
   // Add Source Modal States
-  const [sourceModalOpen, setSourceModalOpen] = useState(false);
-  const [initialSourceData, setInitialSourceData] = useState(null);
+  const [addingProfile, setAddingProfile] = useState(false);
 
   // Fetch reports for escalated alerts to show report status
   const fetchReportsForAlerts = useCallback(async (alertsList) => {
@@ -549,22 +581,98 @@ export default function Alerts() {
     }
   }, [instagramContentFilter]);
 
-  useEffect(() => {
-    const fetchKeywords = async () => {
-      try {
-        const response = await api.get('/keywords');
-        const kws = (response.data || [])
-          .map(k => k.keyword)
-          .filter(Boolean)
-          .sort((a, b) => a.localeCompare(b));
-        setAvailableKeywords(kws);
-      } catch (error) {
-        console.error(error);
-      }
-    };
-
-    fetchKeywords();
+  const syncKeywordFilterOptions = useCallback((records) => {
+    const kws = (records || [])
+      .filter((k) => k?.is_active !== false)
+      .map((k) => k.keyword)
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+    setAvailableKeywords(kws);
   }, []);
+
+  const fetchKeywords = useCallback(async () => {
+    try {
+      const response = await AlertService.listKeywords();
+      const records = Array.isArray(response.data) ? response.data : [];
+      setKeywordRecords(records);
+      syncKeywordFilterOptions(records);
+      return records;
+    } catch (error) {
+      console.error(error);
+      return [];
+    }
+  }, [syncKeywordFilterOptions]);
+
+  useEffect(() => {
+    fetchKeywords();
+  }, [fetchKeywords]);
+
+  const resetKeywordForm = useCallback(() => {
+    setKeywordForm({ id: null, keyword: '' });
+  }, []);
+
+  const handleSaveKeyword = async (e) => {
+    e.preventDefault();
+    const value = String(keywordForm.keyword || '').trim();
+    if (!value) {
+      toast.error('Enter a keyword');
+      return;
+    }
+    setKeywordSaving(true);
+    try {
+      const payload = {
+        keyword: value,
+        rescan_catalog: true,
+      };
+      if (keywordForm.id) {
+        await AlertService.updateKeyword(keywordForm.id, payload);
+        toast.success('Keyword updated');
+      } else {
+        const res = await AlertService.addKeyword(payload);
+        const reset = res.data?.rescan?.reset || 0;
+        if (res.data?.already_exists) {
+          toast.success(
+            reset > 0
+              ? `Keyword already saved · re-queued ${reset} post(s)`
+              : 'Keyword already saved'
+          );
+        } else {
+          toast.success(
+            reset > 0
+              ? `Keyword added · re-queued ${reset} post(s)`
+              : 'Keyword added'
+          );
+        }
+      }
+      resetKeywordForm();
+      await fetchKeywords();
+      setKeywordFilter(value);
+    } catch (error) {
+      toast.error(error?.response?.data?.message || 'Failed to save keyword');
+    } finally {
+      setKeywordSaving(false);
+    }
+  };
+
+  const handleEditKeyword = (kw) => {
+    setKeywordForm({ id: kw.id, keyword: kw.keyword || '' });
+  };
+
+  const handleDeleteKeyword = async (kw) => {
+    if (!window.confirm(`Delete keyword "${kw.keyword}"?`)) return;
+    setKeywordBusyId(kw.id);
+    try {
+      await AlertService.deleteKeyword(kw.id);
+      toast.success('Keyword deleted');
+      if (keywordFilter === kw.keyword) setKeywordFilter('all');
+      if (keywordForm.id === kw.id) resetKeywordForm();
+      await fetchKeywords();
+    } catch (error) {
+      toast.error(error?.response?.data?.message || 'Failed to delete keyword');
+    } finally {
+      setKeywordBusyId(null);
+    }
+  };
 
   // Removed mapContentToAlert as it was only for content/feed fallback which is now unified
   // Removed fetchContentFeed as we now use /api/alerts for everything
@@ -1327,16 +1435,20 @@ export default function Alerts() {
   const fetchSourcesMetadata = useCallback(async () => {
     setSourcesMetaLoading(true);
     try {
-      const response = await api.get('/sources');
-      // Handle both { data: [...] } and directly [...]
-      const data = Array.isArray(response.data) ? response.data : (response.data?.data || []);
-      setMonitoredSources(data);
-      const handles = data.map(s => s.identifier).filter(Boolean);
+      const response = await socialProfilesApi.list({});
+      const data = Array.isArray(response.data?.profiles) ? response.data.profiles : [];
+      // Shape used by matrix / monitored checks (catalog accounts, not Mongo sources)
+      const normalized = data.map((row) => ({
+        ...row,
+        identifier: row.handle,
+        category: row.category || 'others',
+      }));
+      setMonitoredSources(normalized);
+      const handles = normalized.map((s) => s.handle || s.identifier).filter(Boolean);
       setMonitoredHandles(handles);
       setSourcesMetaLoaded(true);
-      console.log(`[Alerts] Fetched ${handles.length} monitored handles:`, handles);
     } catch (err) {
-      console.error('Error fetching source metadata:', err);
+      console.error('Error fetching catalog profiles:', err);
     } finally {
       setSourcesMetaLoading(false);
     }
@@ -1363,18 +1475,6 @@ export default function Alerts() {
 
     return () => clearInterval(interval);
   }, [checkForNewAlerts, fetchAlerts, fetchAlertStats, fetchSourcesMetadata, fetchCapturedStories, isCapturedStoriesView]);
-
-  // Poll pending engager analysis count
-  useEffect(() => {
-    const fetchPending = () => {
-      api.get('/x/engager-analysis-pending').then(res => {
-        setPendingAnalysisCount(res.data?.count || 0);
-      }).catch(() => {});
-    };
-    fetchPending();
-    const iv = setInterval(fetchPending, 10000);
-    return () => clearInterval(iv);
-  }, []);
 
   useEffect(() => {
     if (!hasAnyAlertFeature) return;
@@ -1434,61 +1534,30 @@ export default function Alerts() {
     setTopAlertsLoading(true);
     setTopAlertsError(null);
     try {
-      let alertIds = [];
-      let meta = {};
-
-      // Step 1: Get ranked alert IDs from per-category RAG cache (unless forced)
-      if (!forceRefresh) {
-        const cached = await api.get('/rag/top-alerts/cached', {
-          params: { hours, mode: 'by_category' },
-        }).then(r => r.data).catch(() => null);
-        if (cached?.found && Array.isArray(cached.alert_ids) && cached.alert_ids.length > 0
-            && cached.alert_ids[0].includes('-')) {
-          alertIds = cached.alert_ids;
-          meta = cached;
-        }
-      }
-
-      if (!alertIds.length) {
-        const ragData = await api.post('/rag/top-alerts/by-category', {
-          hours,
-          top_n_per_category: 50,
-        }).then(r => r.data);
-        alertIds = (ragData.alerts || []).map(a => a.id).filter(id => id && id.includes('-'));
-        meta = ragData;
-      }
-
-      if (!alertIds.length) {
-        setTopAlertsData({ alerts: [], ...meta, hours });
-        return;
-      }
-
-      // Step 2: Fetch FULL alerts (with content_details, media, engagement) from node backend
-      // Process in batches of 25 to avoid timeout on large requests
-      const BATCH = 25;
-      const fullAlerts = [];
-      for (let i = 0; i < alertIds.length; i += BATCH) {
-        const batch = alertIds.slice(i, i + BATCH);
-        const res = await AlertService.bulk(batch);
-        fullAlerts.push(...(res.data?.alerts || []));
-      }
-
-      // Preserve AI-ranked order (already grouped by category server-side)
-      const byId = Object.fromEntries(fullAlerts.map(a => [a.id, a]));
-      const ordered = alertIds.map(id => byId[id]).filter(Boolean);
-
-      setTopAlertsData({
-        alerts: ordered,
-        total_scanned: meta.total_scanned,
-        total_unique: meta.total_unique,
-        top_n: ordered.length,
-        top_n_per_category: meta.top_n_per_category || 50,
-        categories: meta.categories || {},
+      const response = await AlertService.topByCategory({
         hours,
-        date: meta.date,
+        top_n_per_category: 50,
+        ...(forceRefresh ? { _ts: Date.now() } : {}),
+      });
+      const data = response.data || {};
+      setTopAlertsData({
+        alerts: Array.isArray(data.alerts) ? data.alerts : [],
+        total_scanned: data.total_scanned || 0,
+        total_unique: data.total_unique || 0,
+        top_n: data.top_n || 0,
+        top_n_per_category: data.top_n_per_category || 50,
+        categories: data.categories || {},
+        hours: data.hours || hours,
+        date: data.date,
+        mode: data.mode || 'catalog_risk_rank',
       });
     } catch (e) {
-      setTopAlertsError(e.message);
+      const message =
+        e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        e.message ||
+        'Failed to load top alerts';
+      setTopAlertsError(message);
     } finally {
       setTopAlertsLoading(false);
     }
@@ -1848,9 +1917,81 @@ export default function Alerts() {
     }
   };
 
-  const handleOpenAddSource = (data = null) => {
-    setInitialSourceData(data);
-    setSourceModalOpen(true);
+  const handleOpenAddSource = async (data = null) => {
+    const platform = data?.platform;
+    const identifier = data?.identifier || data?.handle;
+    const built = buildCatalogPreviewData(platform, identifier);
+    if (!built) {
+      toast.error('Missing platform or handle to add');
+      return;
+    }
+    if (addingProfile) return;
+
+    const cleanHandle = String(identifier || '').replace(/^@/, '').trim();
+    const already = monitoredHandles.some(
+      (h) => h && String(h).replace(/^@/, '').toLowerCase().trim() === cleanHandle.toLowerCase()
+    );
+    if (already) {
+      toast.success(`@${cleanHandle} is already monitored`);
+      return;
+    }
+
+    setAddingProfile(true);
+    const toastId = toast.loading(`Adding @${cleanHandle} to Social Profiles…`);
+    try {
+      const previewRes = await socialProfilesApi.preview({
+        platform: built.platform,
+        data: built.data,
+      });
+      const previewData = previewRes.data?.preview_data;
+      const dataPatch = previewRes.data?.data_patch || {};
+      const displayName =
+        data?.display_name ||
+        previewRes.data?.preview?.name ||
+        cleanHandle;
+
+      const created = await socialProfilesApi.create({
+        platform: built.platform,
+        data: { ...built.data, ...dataPatch },
+        display_name: displayName,
+        preview_data: previewData,
+        poll_interval_minutes: 30,
+      });
+
+      const createdRow = created.data;
+      const newHandle = createdRow?.handle || cleanHandle;
+      setMonitoredHandles((prev) =>
+        prev.some((h) => String(h).toLowerCase() === String(newHandle).toLowerCase())
+          ? prev
+          : [...prev, newHandle]
+      );
+      if (createdRow) {
+        setMonitoredSources((prev) => {
+          if (prev.some((s) => s.id === createdRow.id)) return prev;
+          return [
+            ...prev,
+            {
+              ...createdRow,
+              identifier: createdRow.handle,
+              category: 'others',
+            },
+          ];
+        });
+      }
+
+      toast.success(`Monitoring started for @${newHandle}`, { id: toastId });
+      await fetchSourcesMetadata();
+    } catch (error) {
+      const message = error?.response?.data?.error || error.message || 'Failed to add profile';
+      if (error?.response?.status === 409 || /already exists/i.test(message)) {
+        toast.success(`@${cleanHandle} is already in Social Profiles`, { id: toastId });
+        await fetchSourcesMetadata();
+      } else {
+        toast.error(message, { id: toastId });
+      }
+    } finally {
+      setAddingProfile(false);
+    }
   };
 
   const getRiskBadge = (level) => {
@@ -1911,12 +2052,9 @@ export default function Alerts() {
               <Sparkles className="h-3.5 w-3.5" />
               Top 50 / Category · {topAlertsHours}h
             </Button>
-            <Button variant="outline" className="gap-2 shadow-sm h-9 px-3 text-xs relative" onClick={() => setFrequentEngagersOpen(true)}>
+            <Button variant="outline" className="gap-2 shadow-sm h-9 px-3 text-xs" onClick={() => setFrequentEngagersOpen(true)}>
               <Users className="h-4 w-4" />
               Frequent Engagers
-              {pendingAnalysisCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-yellow-500 text-white text-[9px] font-bold rounded-full h-4 min-w-[16px] flex items-center justify-center px-1 animate-pulse">{pendingAnalysisCount}</span>
-              )}
             </Button>
             <Dialog open={profilesMatrixOpen} onOpenChange={setProfilesMatrixOpen}>
               <DialogTrigger asChild>
@@ -1997,14 +2135,10 @@ export default function Alerts() {
             </Dialog>
 
             <Button
-              onClick={() => {
-                setInitialSourceData(null);
-                setSourceModalOpen(true);
-              }}
+              onClick={() => navigate('/social-profiles')}
               className="gap-2 shadow-sm"
             >
-              <Plus className="h-4 w-4" />
-              Add Profile
+              Manage Profiles
             </Button>
           </div>
         </div>
@@ -2104,6 +2238,98 @@ export default function Alerts() {
                   </SelectContent>
                 </Select>
 
+                <Dialog
+                  open={keywordManageOpen}
+                  onOpenChange={(open) => {
+                    setKeywordManageOpen(open);
+                    if (!open) resetKeywordForm();
+                    if (open) fetchKeywords();
+                  }}
+                >
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9 px-2 text-xs gap-1">
+                      <Filter className="h-3.5 w-3.5" />
+                      Manage Keywords
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[420px]">
+                    <DialogHeader>
+                      <DialogTitle className="text-base">Manage keywords</DialogTitle>
+                      <DialogDescription className="text-xs">
+                        Add, edit, or delete keywords used to create catalog alerts.
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    <form onSubmit={handleSaveKeyword} className="flex items-center gap-2">
+                      <Input
+                        value={keywordForm.keyword}
+                        onChange={(e) => setKeywordForm((prev) => ({ ...prev, keyword: e.target.value }))}
+                        placeholder="Enter keyword"
+                        required
+                        className="h-9 text-xs flex-1"
+                        autoComplete="off"
+                      />
+                      <Button type="submit" size="sm" className="h-9 text-xs shrink-0" disabled={keywordSaving}>
+                        {keywordSaving ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : keywordForm.id ? (
+                          'Update'
+                        ) : (
+                          <>
+                            <Plus className="h-3.5 w-3.5 mr-1" />
+                            Add
+                          </>
+                        )}
+                      </Button>
+                      {keywordForm.id ? (
+                        <Button type="button" variant="ghost" size="sm" className="h-9 text-xs shrink-0" onClick={resetKeywordForm}>
+                          Cancel
+                        </Button>
+                      ) : null}
+                    </form>
+
+                    <div className="border rounded-md max-h-[280px] overflow-y-auto">
+                      {keywordRecords.length === 0 ? (
+                        <p className="text-xs text-muted-foreground text-center py-8">No keywords yet</p>
+                      ) : (
+                        <ul className="divide-y">
+                          {keywordRecords.map((kw) => (
+                            <li key={kw.id} className="flex items-center gap-2 px-3 py-2 text-xs">
+                              <span className="min-w-0 flex-1 font-medium truncate">{kw.keyword}</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                disabled={keywordBusyId === kw.id}
+                                onClick={() => handleEditKeyword(kw)}
+                                title="Edit"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                disabled={keywordBusyId === kw.id}
+                                onClick={() => handleDeleteKeyword(kw)}
+                                title="Delete"
+                              >
+                                {keywordBusyId === kw.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
                 <div className="h-8 px-1.5 border border-input rounded-md bg-background flex items-center gap-1">
                   <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <div
@@ -2172,7 +2398,13 @@ export default function Alerts() {
           {/* Status Tabs */}
           <div className="w-full overflow-x-auto no-scrollbar">
             <div className="flex items-center gap-1 min-w-max">
-              {visibleStatusTabs.map((tab) => (
+              {visibleStatusTabs.map((tab) => {
+                const tabCount =
+                  tab.value === 'escalated'
+                    ? Number(alertStats?.escalated || 0)
+                    : Number(alertStats?.[tab.value] || 0);
+                const showCount = tab.value !== 'reports' && alertStats != null;
+                return (
                 <button
                   key={tab.value}
                   onClick={() => selectStatusTab(tab.value)}
@@ -2184,14 +2416,15 @@ export default function Alerts() {
                 >
                   <span className="flex items-center gap-1.5">
                     {tab.label}
-                    {tab.value === 'escalated' && (
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${activeTab === tab.value ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-destructive/10 text-destructive'}`}>
-                        {alertStats?.escalated_pending_report || 0}
+                    {showCount && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold tabular-nums ${activeTab === tab.value ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                        {tabCount.toLocaleString()}
                       </span>
                     )}
                   </span>
                 </button>
-              ))}
+                );
+              })}
               {!hasAnyAlertFeature && (
                 <span className="px-3 py-1.5 text-sm text-muted-foreground">
                   No alert features are assigned to your account.
@@ -2365,9 +2598,6 @@ export default function Alerts() {
           <div className="px-1 text-xs text-muted-foreground">
             {(() => {
               const activeTabLabel = visibleStatusTabs.find((t) => t.value === activeTab)?.label || activeTab;
-              const contextLabel = isCapturedStoriesView
-                ? 'Captured Stories'
-                : (isStories24hView ? 'Stories (Last 24 hrs)' : `${activeTabLabel} tab`);
               const activeKeyword = (debouncedSearchQuery && !isUrlQuery(debouncedSearchQuery))
                 ? String(debouncedSearchQuery).trim()
                 : '';
@@ -2380,7 +2610,10 @@ export default function Alerts() {
 
               return (
                 <>
-                  Showing <strong className="text-foreground">{visibleCount.toLocaleString()}</strong> of <strong className="text-foreground">{totalCount.toLocaleString()}</strong> alerts in <strong className="text-foreground">{contextLabel}</strong>{activeKeyword ? <> matching <strong className="text-foreground">"{activeKeyword}"</strong></> : null}
+                  Showing <strong className="text-foreground">{visibleCount.toLocaleString()}</strong> of{' '}
+                  <strong className="text-foreground">{totalCount.toLocaleString()}</strong> total{' '}
+                  <strong className="text-foreground">{activeTabLabel}</strong> alerts
+                  {activeKeyword ? <> matching <strong className="text-foreground">"{activeKeyword}"</strong></> : null}
                 </>
               );
             })()}
@@ -2605,7 +2838,6 @@ export default function Alerts() {
                                         report={reportsMap[alert?.id]}
                                         onAddSource={handleOpenAddSource}
                                         isInvestigatedResult={alert?.is_investigation}
-                                        onTriggerEngagerAnalysis={() => setPendingAnalysisCount(c => c + 1)}
                                       />
                                     )}
                                   </div>
@@ -2638,79 +2870,6 @@ export default function Alerts() {
         </div>
       </div>
 
-      <AddSourceModal
-        open={sourceModalOpen}
-        onClose={() => setSourceModalOpen(false)}
-        initialData={initialSourceData}
-        onSuccess={async (createdSource) => {
-          toast.success('Monitoring started for this profile');
-
-          const newHandle = createdSource?.identifier || initialSourceData?.identifier;
-          if (newHandle) {
-            setMonitoredHandles(prev => [...prev, newHandle]);
-          }
-
-          if (createdSource?.platform && createdSource?.identifier) {
-            setMonitoredSources((prev) => {
-              const alreadyExists = prev.some((source) => {
-                if (createdSource.id && source.id) {
-                  return source.id === createdSource.id;
-                }
-                return source.platform === createdSource.platform && source.identifier === createdSource.identifier;
-              });
-              if (alreadyExists) return prev;
-              return [...prev, createdSource];
-            });
-          }
-
-          // Update all alerts from this profile to mark as monitored (both investigated and regular)
-          if (initialSourceData || createdSource) {
-            const platform = createdSource?.platform || initialSourceData?.platform;
-            const identifier = createdSource?.identifier || initialSourceData?.identifier;
-            const displayName = createdSource?.display_name || initialSourceData?.display_name;
-
-            const updateMonitoredStatus = (alert) => {
-              const matchesPlatform = alert.platform === platform;
-              const matchesIdentifier = alert.author_handle === identifier;
-              const matchesDisplayName = alert.author === displayName;
-
-              return (matchesPlatform && matchesIdentifier) || (matchesPlatform && matchesDisplayName)
-                ? { ...alert, is_monitored: true, source_id: createdSource?.id || null }
-                : alert;
-            };
-
-            setInvestigatedAlerts(prev => prev.map(updateMonitoredStatus));
-            setAlerts(prev => prev.map(updateMonitoredStatus));
-
-            // Update backend alerts to link them to the source
-            try {
-              const alertsToUpdate = [...investigatedAlerts, ...alerts].filter(alert => {
-                const matchesPlatform = alert.platform === platform;
-                const matchesIdentifier = alert.author_handle === identifier;
-                const matchesDisplayName = alert.author === displayName;
-                return (matchesPlatform && matchesIdentifier) || (matchesPlatform && matchesDisplayName);
-              });
-
-              // Update each alert with source_id
-              for (const alert of alertsToUpdate) {
-                try {
-                  AlertService.update(alert.id, { source_id: createdSource?.id || null }).catch(err => {
-                    console.error(`Failed to link alert ${alert.id} to source:`, err);
-                  });
-                } catch (error) {
-                  console.error(`Failed to link alert ${alert.id} to source:`, error);
-                }
-              }
-            } catch (error) {
-              console.error('Failed to update alerts with source_id:', error);
-            }
-          }
-
-          await fetchSourcesMetadata();
-        }}
-
-      />
-
       <FrequentEngagersDialog
         open={frequentEngagersOpen}
         onOpenChange={setFrequentEngagersOpen}
@@ -2729,12 +2888,12 @@ export default function Alerts() {
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
               <div>
-                <h1 className="font-bold text-base leading-tight">AI-Ranked Top Alerts · Per Category</h1>
+                <h1 className="font-bold text-base leading-tight">Top Alerts · Per Category</h1>
                 <p className="text-[11px] text-red-100">
                   {topAlertsLoading
-                    ? 'BCSS LLM is scanning & ranking each category…'
+                    ? 'Ranking catalog alerts by risk score…'
                     : topAlertsData
-                      ? `${topAlertsData.top_n} alerts · up to ${topAlertsData.top_n_per_category || 50}/category · from ${topAlertsData.total_unique} unique · last ${topAlertsData.hours}h · ${topAlertsData.date || ''}`
+                      ? `${topAlertsData.top_n} alerts · up to ${topAlertsData.top_n_per_category || 50}/category · from ${topAlertsData.total_scanned || topAlertsData.total_unique} scanned · last ${topAlertsData.hours}h · ${topAlertsData.date || ''}`
                       : 'Ready'}
                 </p>
               </div>
@@ -2770,8 +2929,8 @@ export default function Alerts() {
             <div className="flex-1 flex flex-col items-center justify-center gap-4">
               <Loader2 className="w-10 h-10 animate-spin text-red-500" />
               <div className="text-center">
-                <p className="font-semibold text-slate-700 dark:text-slate-200 text-lg">Analysing alerts with AI…</p>
-                <p className="text-sm text-slate-500 mt-1">Scanning last {topAlertsHours}h · ranking top 50 in each category (this can take a few minutes)</p>
+                <p className="font-semibold text-slate-700 dark:text-slate-200 text-lg">Ranking catalog alerts…</p>
+                <p className="text-sm text-slate-500 mt-1">Scanning last {topAlertsHours}h · top 50 per category by risk score</p>
               </div>
             </div>
           )}
@@ -2782,7 +2941,7 @@ export default function Alerts() {
               <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl p-6 max-w-lg text-center">
                 <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-2" />
                 <p className="font-medium text-red-700 dark:text-red-300">{topAlertsError}</p>
-                <p className="text-xs text-red-500 mt-1">Is the RAG server running on port 8100?</p>
+                <p className="text-xs text-red-500 mt-1">Catalog top-alerts ranking failed. Try Refresh.</p>
               </div>
             </div>
           )}
@@ -2872,8 +3031,7 @@ export default function Alerts() {
                                   ) : (
                                     <TwitterAlertCard alert={alert} content={contentData} source={sourceData}
                                       onResolve={handleTopAlertResolve} viewMode="grid"
-                                      monitoredHandles={monitoredHandles} onAddSource={handleOpenAddSource}
-                                      onTriggerEngagerAnalysis={() => setPendingAnalysisCount(c => c + 1)} />
+                                      monitoredHandles={monitoredHandles} onAddSource={handleOpenAddSource} />
                                   )}
                                 </div>
                               );

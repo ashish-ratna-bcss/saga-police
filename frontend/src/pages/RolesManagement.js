@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../context/auth.context';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';

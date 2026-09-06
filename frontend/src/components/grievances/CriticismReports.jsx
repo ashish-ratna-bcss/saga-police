@@ -1045,206 +1045,84 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
     /* ━━━━━ RENDER ━━━━━ */
     return (
         <TooltipProvider>
-            <div className="space-y-4 p-1 sm:p-4 bg-slate-50/30 min-h-screen">
-                {/* Header Card */}
-                <Card className="border-slate-200 rounded-xl bg-white overflow-hidden">
-                    {/* ── Header Row ── */}
-                    <CardHeader className="py-3 px-5 border-b border-slate-200 bg-white">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-lg bg-red-500 flex items-center justify-center shadow-sm">
-                                    <FileSpreadsheet className="h-5 w-5 text-white" />
-                                </div>
-                                <div>
-                                    <CardTitle className="text-lg font-semibold text-slate-900">
-                                        Criticism Reports
-                                    </CardTitle>
-                                    <CardDescription className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
-                                        <span>{pagination.total} records</span>
-                                        {(searchTerm || platform !== 'all' || categoryFilter !== 'all' || fromDate || toDate || quickRange !== 'all') && (
-                                            <>
-                                                <span className="w-1 h-1 rounded-full bg-red-400" />
-                                                <span className="text-red-600 font-medium">Filtered</span>
-                                            </>
-                                        )}
-                                    </CardDescription>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={fetchReports}
-                                    className="gap-1.5 h-8 text-xs border-slate-200 hover:bg-slate-50"
-                                >
-                                    <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-                                    Refresh
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    onClick={handleExport}
-                                    disabled={exporting || reports.length === 0}
-                                    className="gap-1.5 h-8 text-xs bg-green-600 hover:bg-green-700 text-white"
-                                >
-                                    {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                                    Export Excel
-                                </Button>
-                            </div>
-                        </div>
-                    </CardHeader>
-
-                    {/* ── Excel-Style Filter Strip ── */}
-                    <div className="bg-slate-50/80 border-b border-slate-200 px-5 py-3">
-                        <div className="flex items-center gap-2 mb-2">
-                            <Filter className="h-3.5 w-3.5 text-slate-500" />
-                            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Filters</span>
-                            {(searchTerm || platform !== 'all' || categoryFilter !== 'all' || fromDate || toDate || quickRange !== 'all') && (
-                                <>
-                                    <span className="ml-1 inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold">
-                                        {[searchTerm, platform !== 'all', categoryFilter !== 'all', fromDate, toDate, quickRange !== 'all' && quickRange !== 'custom'].filter(Boolean).length}
-                                    </span>
-                                    <button
-                                        onClick={() => { setSearchTerm(''); setPlatform('all'); setCategoryFilter('all'); setFromDate(''); setToDate(''); setQuickRange('all'); setPage(1); }}
-                                        className="ml-auto text-xs text-red-600 hover:text-red-800 font-medium flex items-center gap-1 transition-colors"
-                                    >
-                                        <X className="h-3 w-3" />
-                                        Clear All
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                            {/* Search */}
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Search</label>
-                                <div className="relative">
-                                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                                    <Input
-                                        placeholder="Code, profile, description..."
-                                        value={searchTerm}
-                                        onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-                                        className="pl-7 h-8 text-xs bg-white border-slate-200 focus:border-red-400 focus:ring-red-200 rounded-md"
-                                    />
-                                </div>
-                            </div>
-                            {/* Date Range */}
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Date Range</label>
-                                <Select value={quickRange} onValueChange={(v) => { setQuickRange(v); setPage(1); }}>
-                                    <SelectTrigger className="h-8 text-xs border-slate-200 bg-white focus:border-red-400 focus:ring-red-200 rounded-md">
-                                        <SelectValue placeholder="All Time" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Time</SelectItem>
-                                        <SelectItem value="24h">Last 24 Hours</SelectItem>
-                                        <SelectItem value="7d">Last 7 Days</SelectItem>
-                                        <SelectItem value="30d">Last 30 Days</SelectItem>
-                                        <SelectItem value="last_month">Last Month</SelectItem>
-                                        <SelectItem value="custom">Custom</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            {/* Date From */}
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">From Date</label>
-                                <div className="relative">
-                                    <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                                    <input
-                                        type="date"
-                                        value={fromDate}
-                                        onChange={(e) => { setFromDate(e.target.value); setQuickRange('custom'); setPage(1); }}
-                                        className="w-full h-8 pl-7 pr-2 text-xs bg-white border border-slate-200 rounded-md outline-none focus:border-red-400 focus:ring-1 focus:ring-red-200 transition-colors"
-                                    />
-                                </div>
-                            </div>
-                            {/* Date To */}
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">To Date</label>
-                                <div className="relative">
-                                    <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                                    <input
-                                        type="date"
-                                        value={toDate}
-                                        onChange={(e) => { setToDate(e.target.value); setQuickRange('custom'); setPage(1); }}
-                                        className="w-full h-8 pl-7 pr-2 text-xs bg-white border border-slate-200 rounded-md outline-none focus:border-red-400 focus:ring-1 focus:ring-red-200 transition-colors"
-                                    />
-                                </div>
-                            </div>
-                            {/* Category */}
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Category</label>
-                                <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setPage(1); }}>
-                                    <SelectTrigger className="h-8 text-xs border-slate-200 bg-white focus:border-red-400 focus:ring-red-200 rounded-md">
-                                        <SelectValue placeholder="All" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Categories</SelectItem>
-                                        <SelectItem value="Cyber crimes">Cyber crimes</SelectItem>
-                                        <SelectItem value="E-Challan">E-Challan</SelectItem>
-                                        <SelectItem value="L&O">L&O</SelectItem>
-                                        <SelectItem value="Others">Others</SelectItem>
-                                        <SelectItem value="She Team">She Team</SelectItem>
-                                        <SelectItem value="Task force">Task force</SelectItem>
-                                        <SelectItem value="Traffic">Traffic</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            {/* Platform */}
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Platform</label>
-                                <Select value={platform} onValueChange={(v) => { setPlatform(v); setPage(1); }}>
-                                    <SelectTrigger className="h-8 text-xs border-slate-200 bg-white focus:border-red-400 focus:ring-red-200 rounded-md">
-                                        <SelectValue placeholder="All" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Platforms</SelectItem>
-                                        <SelectItem value="x">X (Twitter)</SelectItem>
-                                        <SelectItem value="facebook">Facebook</SelectItem>
-                                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-
-                        {/* ── Results Count Banner ── */}
-                        {(searchTerm || platform !== 'all' || categoryFilter !== 'all' || fromDate || toDate || quickRange !== 'all') && (
-                            <div className="mt-3 flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg">
-                                {loading ? (
-                                    <Loader2 className="h-5 w-5 text-red-500 animate-spin flex-shrink-0" />
-                                ) : (
-                                    <div className="h-5 w-5 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
-                                        <Check className="h-3 w-3 text-white" />
-                                    </div>
-                                )}
-                                <div>
-                                    <span className="text-2xl font-bold text-red-700">{loading ? '...' : pagination.total}</span>
-                                    <span className="ml-2 text-base font-medium text-red-600">
-                                        {pagination.total === 1 ? 'result found' : 'results found'} for your filter
-                                    </span>
-                                </div>
-                            </div>
-                        )}
+            <div>
+                <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-1.5 border-b border-border bg-muted/10">
+                    <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                        {pagination.total} records
+                    </span>
+                    <Select value={quickRange} onValueChange={(v) => { setQuickRange(v); setPage(1); }}>
+                        <SelectTrigger className="h-7 w-[110px] text-[11px]"><SelectValue placeholder="Date" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All time</SelectItem>
+                            <SelectItem value="24h">Last 24h</SelectItem>
+                            <SelectItem value="7d">Last 7d</SelectItem>
+                            <SelectItem value="30d">Last 30d</SelectItem>
+                            <SelectItem value="last_month">Last month</SelectItem>
+                            <SelectItem value="custom">Custom</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    {quickRange === 'custom' && (
+                        <>
+                            <input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="h-7 px-1.5 text-[11px] bg-background border border-border rounded" />
+                            <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="h-7 px-1.5 text-[11px] bg-background border border-border rounded" />
+                        </>
+                    )}
+                    <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setPage(1); }}>
+                        <SelectTrigger className="h-7 w-[120px] text-[11px]"><SelectValue placeholder="Category" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All categories</SelectItem>
+                            <SelectItem value="Cyber crimes">Cyber crimes</SelectItem>
+                            <SelectItem value="E-Challan">E-Challan</SelectItem>
+                            <SelectItem value="L&O">L&O</SelectItem>
+                            <SelectItem value="Others">Others</SelectItem>
+                            <SelectItem value="She Team">She Team</SelectItem>
+                            <SelectItem value="Task force">Task force</SelectItem>
+                            <SelectItem value="Traffic">Traffic</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Select value={platform} onValueChange={(v) => { setPlatform(v); setPage(1); }}>
+                        <SelectTrigger className="h-7 w-[110px] text-[11px]"><SelectValue placeholder="Platform" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All platforms</SelectItem>
+                            <SelectItem value="x">X</SelectItem>
+                            <SelectItem value="facebook">Facebook</SelectItem>
+                            <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <div className="relative ml-auto w-full sm:w-52">
+                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                        <Input
+                            placeholder="Search…"
+                            value={searchTerm}
+                            onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+                            className="pl-7 h-7 text-[11px]"
+                        />
                     </div>
+                    <Button variant="ghost" size="sm" onClick={fetchReports} className="h-7 w-7 p-0" title="Refresh">
+                        <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
+                    </Button>
+                    <Button
+                        size="sm"
+                        onClick={handleExport}
+                        disabled={exporting || reports.length === 0}
+                        className="h-7 gap-1 text-[11px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                        {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                        Export
+                    </Button>
+                </div>
 
-                    <CardContent className="p-0">
+                <CardContent className="p-0">
                         {loading ? (
-                            <div className="flex flex-col items-center justify-center py-20">
-                                <div className="relative">
-                                    <div className="h-16 w-16 rounded-full border-4 border-slate-100 border-t-red-500 animate-spin" />
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <FileSpreadsheet className="h-6 w-6 text-slate-400" />
-                                    </div>
-                                </div>
-                                <p className="mt-4 text-sm text-slate-500">Loading criticism reports...</p>
+                            <div className="flex flex-col items-center justify-center py-10">
+                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mb-2" />
+                                <p className="text-sm text-muted-foreground">Loading reports…</p>
                             </div>
                         ) : reports.length === 0 ? (
-                            <div className="text-center py-20 px-4">
-                                <div className="h-20 w-20 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
-                                    <FileSpreadsheet className="h-10 w-10 text-slate-400" />
-                                </div>
-                                <h3 className="text-lg font-semibold text-slate-900 mb-2">No reports yet</h3>
-                                <p className="text-sm text-slate-500 max-w-md mx-auto">
-                                    No criticism reports found. Use the <span className="font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">C</span> button on grievance cards to create new reports.
+                            <div className="text-center py-10 px-4">
+                                <p className="text-sm font-medium text-foreground">No reports yet</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    Create criticism reports from grievance cards.
                                 </p>
                             </div>
                         ) : (
@@ -1512,7 +1390,6 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
                             </>
                         )}
                     </CardContent>
-                </Card>
 
                 {/* Detail Modal */}
                 <AnimatePresence>

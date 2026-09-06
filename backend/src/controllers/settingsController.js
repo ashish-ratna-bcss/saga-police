@@ -148,7 +148,6 @@ const updateSettings = async (req, res) => {
 // @access  Private
 const getAllSettingsData = async (req, res) => {
   try {
-    const Keyword = require('../models/Keyword');
     const AlertThreshold = require('../models/AlertThreshold');
     const Template = require('../models/Template');
 
@@ -200,9 +199,10 @@ const getAllSettingsData = async (req, res) => {
       settingsDoc = doc;
     }
 
-    // Fetch keywords, thresholds, templates in parallel (single DB round-trip batch)
+    // Fetch keywords (Postgres), thresholds, templates in parallel
+    const { listKeywords } = require('../modules/alerts/alert.keyword.service');
     const [keywords, thresholds, templates] = await Promise.all([
-      Keyword.find({}).limit(1000).lean(),
+      listKeywords(),
       AlertThreshold.find({}).sort({ platform: 1 }).lean(),
       Template.find().sort({ created_at: -1 }).lean()
     ]);

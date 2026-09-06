@@ -10,8 +10,16 @@ import {
 } from 'lucide-react';
 import { Card } from '../components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { useDashboard } from '../contexts/DashboardContext';
 import WorkflowKpiCard from '../components/dashboard/WorkflowKpiCard';
+
+// Temporary stub until dashboard context is restored
+const useDashboard = () => ({
+  dashboardData: null,
+  loading: false,
+  fetchDashboardData: async () => {},
+  refreshDashboard: async () => {},
+  hasCachedData: false,
+});
 
 // Lazy load heavy components
 const TodaysEventsWidget = lazy(() => import('../components/dashboard/TodaysEventsWidget'));

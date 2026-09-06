@@ -19,14 +19,18 @@ describe('AlertService', () => {
     const signal = {};
     AlertService.list({ status: 'active', limit: 20 }, { signal });
     expect(api.get).toHaveBeenCalledWith('/alerts', {
-      params: { status: 'active', limit: 20 },
+      params: { store: 'catalog', status: 'active', limit: 20 },
       signal,
     });
   });
 
   test('update hits /alerts/:id', () => {
     AlertService.update('abc', { status: 'escalated' });
-    expect(api.put).toHaveBeenCalledWith('/alerts/abc', { status: 'escalated' });
+    expect(api.put).toHaveBeenCalledWith(
+      '/alerts/abc',
+      { store: 'catalog', status: 'escalated' },
+      { params: { store: 'catalog' } }
+    );
   });
 
   test('changeCategory uses change-category endpoint', () => {
@@ -38,7 +42,11 @@ describe('AlertService', () => {
 
   test('bulk / investigate / translate preserve bodies', () => {
     AlertService.bulk(['a', 'b']);
-    expect(api.post).toHaveBeenCalledWith('/alerts/bulk', { ids: ['a', 'b'] });
+    expect(api.post).toHaveBeenCalledWith(
+      '/alerts/bulk',
+      { store: 'catalog', ids: ['a', 'b'] },
+      { params: { store: 'catalog' } }
+    );
 
     AlertService.investigate('https://x.com/a/1');
     expect(api.post).toHaveBeenCalledWith('/alerts/investigate', {
