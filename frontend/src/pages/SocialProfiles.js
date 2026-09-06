@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Contact2, Search, Plus, Pencil, Trash2, Loader2, PlayCircle, PauseCircle,
-  Users, UserCheck, UserX, Twitter, Facebook, Instagram, Youtube, Globe2, Settings2, Square, History, BarChart3, Download,
+  Search, Plus, Pencil, Trash2, Loader2, PlayCircle, PauseCircle,
+  Twitter, Facebook, Instagram, Youtube, Globe2, Settings2, Square, History, BarChart3, Download, Timer,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { socialProfilesApi } from '../api/socialProfiles.api';
@@ -10,9 +10,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
-import { Card, CardContent } from '../components/ui/card';
 import { Switch } from '../components/ui/switch';
-import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -123,6 +121,54 @@ const formatDuration = (ms) => {
   if (h > 0) return `${h}h ${m}m ${s}s`;
   if (m > 0) return `${m}m ${s}s`;
   return `${s}s`;
+};
+
+/** Countdown like 59m 59s · under 1m shows 59s, 58s… */
+const formatCountdown = (ms) => {
+  const totalSec = Math.max(0, Math.ceil(Number(ms) / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}h ${m}m ${String(s).padStart(2, '0')}s`;
+  if (m > 0) return `${m}m ${String(s).padStart(2, '0')}s`;
+  return `${totalSec}s`;
+};
+
+/**
+ * Live monitoring phase for a started profile.
+ * - fetching: kickoff for this session / overdue
+ * - waiting: between polls, with remainingMs until next fetch
+ * - stopped: not monitoring
+ *
+ * sessionStartedAt: ignore last_fetched_at from a *previous* session after Start again.
+ */
+const getMonitoringPhase = (row, now = Date.now(), options = {}) => {
+  const isFetching = Boolean(options.isFetching);
+  const sessionStartedAt = options.sessionStartedAt || null;
+  if (row?.monitoring_status !== 'started') {
+    return { phase: 'stopped', remainingMs: null, nextAt: null };
+  }
+  if (isFetching || !row?.last_fetched_at) {
+    return { phase: 'fetching', remainingMs: null, nextAt: null };
+  }
+  const last = new Date(row.last_fetched_at).getTime();
+  if (!Number.isFinite(last)) {
+    return { phase: 'fetching', remainingMs: null, nextAt: null };
+  }
+  if (sessionStartedAt) {
+    const startMs = new Date(sessionStartedAt).getTime();
+    // Stale fetch from before this Start → still on kickoff
+    if (Number.isFinite(startMs) && last < startMs - 1500) {
+      return { phase: 'fetching', remainingMs: null, nextAt: null };
+    }
+  }
+  const intervalMs = Math.max(1, Number(row.poll_interval_minutes) || 30) * 60_000;
+  const nextAt = last + intervalMs;
+  const remainingMs = nextAt - now;
+  if (remainingMs <= 0) {
+    return { phase: 'due', remainingMs: 0, nextAt };
+  }
+  return { phase: 'waiting', remainingMs, nextAt };
 };
 
 /** Pair start→stop into readable history rows (newest first). */
@@ -262,6 +308,19 @@ const SocialProfiles = () => {
   const [togglingId, setTogglingId] = useState(null);
   const [monitoringId, setMonitoringId] = useState(null);
 
+  // Live clock while any profile is monitoring — powers Waiting countdown
+  const [monitorNow, setMonitorNow] = useState(() => Date.now());
+  const anyMonitoring = useMemo(
+    () => profiles.some((p) => p.monitoring_status === 'started'),
+    [profiles]
+  );
+  useEffect(() => {
+    if (!anyMonitoring) return undefined;
+    setMonitorNow(Date.now());
+    const id = setInterval(() => setMonitorNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [anyMonitoring]);
+
   const [manageOpen, setManageOpen] = useState(false);
   const [platformOpen, setPlatformOpen] = useState(false);
   const [editingPlatform, setEditingPlatform] = useState(null);
@@ -298,7 +357,7 @@ const SocialProfiles = () => {
   }, []);
 
   const loadProfiles = useCallback(async () => {
-    setLoading(true);
+      setLoading(true);
     try {
       const params = {};
       if (platformTab !== 'all') params.platform = platformTab;
@@ -355,10 +414,10 @@ const SocialProfiles = () => {
       setEditingProfileId(parentId || null);
       setEditingSiblingIds(siblings.map((s) => s.id));
       setProfileForm({
-        display_name: row.display_name || '',
+      display_name: row.display_name || '',
         poll_interval_minutes: minutes,
         poll_preset: resolvePollPreset(minutes),
-        notes: row.notes || '',
+      notes: row.notes || '',
         accounts: siblings.map((s) => rowToAccountSlot(s, [...platforms, ...allPlatforms])),
       });
     } catch (error) {
@@ -657,83 +716,92 @@ const SocialProfiles = () => {
   }, [stats, platforms]);
 
   return (
-    <div className="flex h-[calc(100dvh-7.5rem)] min-h-[420px] flex-col gap-4">
-      <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Contact2 className="h-5 w-5" />
+    <div className="flex h-[calc(100dvh-7.5rem)] min-h-[420px] flex-col gap-2.5 max-w-[1600px] mx-auto w-full">
+      {/* Title row — counts + actions fill the space */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 shrink-0">
+        <div className="min-w-0 shrink-0">
+          <h1 className="text-xl font-heading font-bold tracking-tight leading-none">Profile Catalog</h1>
+          <p className="text-[11px] text-muted-foreground mt-0.5 hidden sm:block">
+            Watched accounts across platforms — one table
+          </p>
           </div>
-          <div>
-            <h1 className="font-heading text-xl font-bold sm:text-2xl">Profile Catalog</h1>
-            <p className="text-sm text-muted-foreground">
-              Fields change per platform — all profiles stay in one table
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => setManageOpen(true)}>
-            <Settings2 className="h-4 w-4" /> Manage platforms
+
+        <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+          <span className="inline-flex items-baseline gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] text-muted-foreground">
+            <span className="tabular-nums font-semibold text-foreground">{stats.total}</span>
+            <span>profiles</span>
+          </span>
+          <span className="inline-flex items-baseline gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] text-emerald-800">
+            <span className="tabular-nums font-semibold">{stats.active}</span>
+            <span>active</span>
+          </span>
+          <span className="inline-flex items-baseline gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] text-muted-foreground">
+            <span className="tabular-nums font-semibold text-foreground">{stats.paused}</span>
+            <span>paused</span>
+          </span>
+          <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setManageOpen(true)}>
+            <Settings2 className="h-3.5 w-3.5" />
+            Platforms
           </Button>
-          <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={openAddPlatform}>
-            <Plus className="h-4 w-4" /> Add platform
+          <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={openAddPlatform}>
+            <Plus className="h-3.5 w-3.5" />
+            Add platform
           </Button>
-          <Button size="sm" className="h-9 gap-1.5" onClick={openAddProfile}>
-            <Plus className="h-4 w-4" /> Add profile
-          </Button>
-        </div>
+          <Button size="sm" className="h-8 gap-1.5" onClick={openAddProfile}>
+            <Plus className="h-3.5 w-3.5" />
+          Add profile
+        </Button>
+      </div>
       </div>
 
-      <div className="grid shrink-0 grid-cols-3 gap-3">
-        {[
-          { label: 'Total profiles', value: stats.total, icon: Users },
-          { label: 'Active', value: stats.active, icon: UserCheck, tone: 'text-emerald-600 bg-emerald-500/10' },
-          { label: 'Paused', value: stats.paused, icon: UserX, tone: 'text-slate-600 bg-slate-500/10' },
-        ].map((s) => (
-          <Card key={s.label}>
-            <CardContent className="flex items-center gap-3 p-4">
-              <div className={`flex h-9 w-9 items-center justify-center rounded-md ${s.tone || 'bg-muted'}`}>
-                <s.icon className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{s.label}</p>
-                <p className="text-xl font-bold tabular-nums">{s.value}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <Tabs value={platformTab} onValueChange={setPlatformTab} className="shrink-0">
-        <TabsList>
-          <TabsTrigger value="all" className="gap-1.5">
-            All <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">{tabCounts.all}</Badge>
-          </TabsTrigger>
-          {platforms.map((p) => {
+      {/* Filters + search */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden shrink-0">
+        <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-1.5 border-b border-border bg-muted/10">
+          <button
+            type="button"
+            onClick={() => setPlatformTab('all')}
+            className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+              platformTab === 'all'
+                ? 'bg-foreground text-background'
+                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+            }`}
+          >
+            All
+            <span className="tabular-nums opacity-80">{tabCounts.all}</span>
+          </button>
+            {platforms.map((p) => {
             const Icon = ICONS[p.icon] || Globe2;
-            return (
-              <TabsTrigger key={p.slug} value={p.slug} className="gap-1.5">
-                <Icon className="h-3.5 w-3.5" />
-                {p.name}
-                <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">{tabCounts[p.slug] || 0}</Badge>
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
-      </Tabs>
+            const active = platformTab === p.slug;
+              return (
+              <button
+                key={p.slug}
+                type="button"
+                onClick={() => setPlatformTab(p.slug)}
+                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                  active
+                    ? 'bg-foreground text-background'
+                    : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                }`}
+              >
+                  <Icon className="h-3.5 w-3.5" />
+                  {p.name}
+                <span className="tabular-nums opacity-80">{tabCounts[p.slug] || 0}</span>
+              </button>
+              );
+            })}
 
-      <div className="flex shrink-0 gap-2">
-        <div className="relative flex-1 sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <div className="relative ml-auto w-full sm:w-52">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search…"
-            className="h-9 pl-8"
+              placeholder="Search profiles…"
+              className="h-7 pl-7 text-[11px]"
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="h-9 w-36">
-            <SelectValue />
+            <SelectTrigger className="h-7 w-[120px] text-[11px]">
+              <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
@@ -743,31 +811,34 @@ const SocialProfiles = () => {
         </Select>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card">
-        <div className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full min-w-[720px] text-sm">
-            <thead className="sticky top-0 z-10 border-b bg-muted/95 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+        <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto max-h-[calc(100dvh-14rem)]">
+          <table className="text-sm border-collapse w-full" style={{ minWidth: 980 }}>
+            <thead className="sticky top-0 z-10 border-b bg-muted/95 text-left text-[11px] text-muted-foreground">
               <tr>
-                <th className="px-3 py-2.5 font-medium">Profile</th>
-                <th className="px-3 py-2.5 font-medium">Platform</th>
-                <th className="px-3 py-2.5 font-medium">Details</th>
-                <th className="px-3 py-2.5 font-medium">Poll every</th>
-                <th className="px-3 py-2.5 font-medium">Status</th>
-                <th className="px-3 py-2.5 font-medium">Monitoring</th>
-                <th className="px-3 py-2.5 font-medium text-right">Actions</th>
+                <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Profile</th>
+                <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Platform</th>
+                <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Details</th>
+                <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Poll</th>
+                <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Status</th>
+                <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Monitoring</th>
+                <th className="px-2.5 py-2 font-semibold whitespace-nowrap text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-16 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-3 py-12 text-center text-muted-foreground">
                     <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" /> Loading…
                   </td>
                 </tr>
               ) : profiles.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-16 text-center text-muted-foreground">
-                    No profiles yet
+                  <td colSpan={7} className="px-3 py-12 text-center">
+                    <p className="text-sm font-medium text-foreground">No profiles yet</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Add a platform account to start monitoring.</p>
+                    <Button size="sm" className="mt-3 h-8 gap-1.5" onClick={openAddProfile}>
+                      <Plus className="h-3.5 w-3.5" /> Add profile
+                      </Button>
                   </td>
                 </tr>
               ) : (
@@ -780,30 +851,47 @@ const SocialProfiles = () => {
                   const isMonitoring = row.monitoring_status === 'started';
                   const history = buildMonitoringHistory(row.monitoring_logs, row.monitoring_status);
                   const fetchStats = summarizeFetchHistory(row.last_fetched_history, history);
+                  const openSession = history.find((s) => s.state === 'running');
+                  const phase = getMonitoringPhase(row, monitorNow, {
+                    sessionStartedAt: openSession?.startedAt || null,
+                  });
                   return (
                     <tr key={row.id} className="border-b border-border/60 hover:bg-muted/25">
-                      <td className="px-3 py-2.5">
-                        <p className="font-medium">{row.display_name || row.handle}</p>
-                        <p className="text-[11px] text-muted-foreground">{row.handle}</p>
+                      <td className="px-2.5 py-2 align-top">
+                        <p className="font-medium text-[13px] leading-tight">{row.display_name || row.handle}</p>
+                        <p className="text-[11px] text-muted-foreground truncate max-w-[180px]">{row.handle}</p>
+                        {phase.phase === 'waiting' ? (
+                          <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-amber-800">
+                            <Timer className="h-2.5 w-2.5" />
+                            Waiting · <span className="tabular-nums">{formatCountdown(phase.remainingMs)}</span>
+                          </p>
+                        ) : phase.phase === 'fetching' || phase.phase === 'due' ? (
+                          <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-sky-800">
+                            <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                            Fetching…
+                          </p>
+                        ) : null}
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-2.5 py-2 align-top whitespace-nowrap">
                         <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px]">
                           <Icon className="h-3 w-3" /> {row.platform_name || row.platform}
                         </Badge>
                       </td>
-                      <td className="max-w-[240px] truncate px-3 py-2.5 text-xs text-muted-foreground">
-                        {detail || '—'}
+                      <td className="px-2.5 py-2 align-top max-w-[220px]">
+                        <p className="truncate text-[11px] text-muted-foreground" title={detail || ''}>
+                          {detail || '—'}
+                        </p>
                       </td>
-                      <td className="px-3 py-2.5">
-                        <span className="text-xs text-muted-foreground">
+                      <td className="px-2.5 py-2 align-top whitespace-nowrap">
+                        <span className="text-[11px] text-muted-foreground">
                           {formatPollInterval(row.poll_interval_minutes)}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-2.5 py-2 align-top whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => toggleProfile(row)}
-                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] ${
+                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] ${
                             row.is_active
                               ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
                               : 'bg-muted text-muted-foreground'
@@ -819,29 +907,29 @@ const SocialProfiles = () => {
                           {row.is_active ? 'Active' : 'Paused'}
                         </button>
                       </td>
-                      <td className="px-3 py-2.5">
-                        <div className="flex items-center gap-1.5">
+                      <td className="px-2.5 py-2 align-top">
+                        <div className="flex items-center gap-1 flex-wrap">
                           <Button
                             type="button"
                             size="sm"
                             variant={isMonitoring ? 'destructive' : 'default'}
-                            className="h-8 gap-1.5 px-2.5"
+                            className="h-7 gap-1 px-2 text-[11px]"
                             disabled={monitoringId === row.id}
                             onClick={() => toggleMonitoring(row)}
                           >
                             {monitoringId === row.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <Loader2 className="h-3 w-3 animate-spin" />
                             ) : isMonitoring ? (
-                              <Square className="h-3.5 w-3.5" />
+                              <Square className="h-3 w-3" />
                             ) : (
-                              <PlayCircle className="h-3.5 w-3.5" />
+                              <PlayCircle className="h-3 w-3" />
                             )}
                             {isMonitoring ? 'Stop' : 'Start'}
                           </Button>
                           <Popover>
                             <PopoverTrigger asChild>
-                              <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 px-2.5">
-                                <History className="h-3.5 w-3.5" /> History
+                              <Button type="button" variant="outline" size="sm" className="h-7 gap-1 px-2 text-[11px]">
+                                <History className="h-3 w-3" /> History
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent align="end" className="w-80 p-0">
@@ -858,43 +946,57 @@ const SocialProfiles = () => {
                                   </p>
                                 ) : (
                                   <ul className="divide-y">
-                                    {history.map((session) => (
-                                      <li key={session.id} className="px-3 py-2.5 text-xs">
-                                        <div className="mb-1 flex items-center justify-between gap-2">
-                                          <Badge
-                                            variant="outline"
-                                            className={`h-5 capitalize text-[10px] ${
-                                              session.state === 'running'
-                                                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
-                                                : session.state === 'done'
-                                                  ? 'border-slate-500/25 bg-slate-500/10 text-slate-700'
-                                                  : 'border-amber-500/30 bg-amber-500/10 text-amber-700'
-                                            }`}
-                                          >
-                                            {session.state === 'running'
-                                              ? 'Running'
+                                    {history.map((session, sessionIdx) => {
+                                      const isActive = session.state === 'running' && sessionIdx === 0;
+                                      const sessionPhase = isActive
+                                        ? phase
+                                        : { phase: session.state === 'done' ? 'stopped' : session.state };
+                                      const elapsedMs =
+                                        session.state === 'running' && session.startedAt
+                                          ? Math.max(0, monitorNow - new Date(session.startedAt).getTime())
+                                          : session.durationMs;
+                                      const badge =
+                                        sessionPhase.phase === 'waiting'
+                                          ? { label: 'Waiting', className: 'border-amber-500/30 bg-amber-500/10 text-amber-800' }
+                                          : sessionPhase.phase === 'fetching' || sessionPhase.phase === 'due'
+                                            ? { label: 'Fetching', className: 'border-sky-500/30 bg-sky-500/10 text-sky-800' }
+                                            : session.state === 'running'
+                                              ? { label: 'Running', className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700' }
                                               : session.state === 'done'
-                                                ? 'Stopped'
-                                                : 'Incomplete'}
-                                          </Badge>
-                                          <span className="font-medium tabular-nums">
-                                            {session.state === 'running'
-                                              ? `Running ${formatDuration(session.durationMs)}`
-                                              : formatDuration(session.durationMs)}
-                                          </span>
-                                        </div>
-                                        <p className="text-muted-foreground">
-                                          Started {formatWhen(session.startedAt)}
-                                        </p>
-                                        {session.stoppedAt ? (
+                                                ? { label: 'Stopped', className: 'border-slate-500/25 bg-slate-500/10 text-slate-700' }
+                                                : { label: 'Incomplete', className: 'border-amber-500/30 bg-amber-500/10 text-amber-700' };
+                                      return (
+                                        <li key={session.id} className="px-3 py-2 text-xs">
+                                          <div className="mb-0.5 flex items-center justify-between gap-2">
+                                            <Badge variant="outline" className={`h-5 capitalize text-[10px] ${badge.className}`}>
+                                              {badge.label}
+                                            </Badge>
+                                            <span className="font-semibold tabular-nums text-muted-foreground">
+                                              {formatDuration(elapsedMs)}
+                                            </span>
+                                          </div>
                                           <p className="text-muted-foreground">
-                                            Stopped {formatWhen(session.stoppedAt)}
+                                            Started {formatWhen(session.startedAt)}
                                           </p>
-                                        ) : session.state === 'running' ? (
-                                          <p className="text-emerald-700">Still monitoring…</p>
-                                        ) : null}
-                                      </li>
-                                    ))}
+                                          {session.stoppedAt ? (
+                                            <p className="text-muted-foreground">
+                                              Stopped {formatWhen(session.stoppedAt)}
+                                            </p>
+                                          ) : sessionPhase.phase === 'waiting' ? (
+                                            <p className="text-amber-800">
+                                              Next fetch in{' '}
+                                              <span className="font-semibold tabular-nums">
+                                                {formatCountdown(sessionPhase.remainingMs)}
+                                              </span>
+                                            </p>
+                                          ) : sessionPhase.phase === 'fetching' || sessionPhase.phase === 'due' ? (
+                                            <p className="text-sky-800">Fetching now…</p>
+                                          ) : session.state === 'running' ? (
+                                            <p className="text-emerald-700">Still monitoring…</p>
+                                          ) : null}
+                                        </li>
+                                      );
+                                    })}
                                   </ul>
                                 )}
                               </div>
@@ -902,8 +1004,8 @@ const SocialProfiles = () => {
                           </Popover>
                           <Popover>
                             <PopoverTrigger asChild>
-                              <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 px-2.5">
-                                <BarChart3 className="h-3.5 w-3.5" /> Stats
+                              <Button type="button" variant="outline" size="sm" className="h-7 gap-1 px-2 text-[11px]">
+                                <BarChart3 className="h-3 w-3" /> Stats
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent align="end" className="w-80 p-0">
@@ -913,19 +1015,29 @@ const SocialProfiles = () => {
                                   <Badge
                                     variant="outline"
                                     className={`h-5 text-[10px] capitalize ${
-                                      isMonitoring
-                                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
-                                        : 'border-slate-500/25 bg-slate-500/10 text-slate-600'
+                                      phase.phase === 'waiting'
+                                        ? 'border-amber-500/30 bg-amber-500/10 text-amber-800'
+                                        : phase.phase === 'fetching' || phase.phase === 'due'
+                                          ? 'border-sky-500/30 bg-sky-500/10 text-sky-800'
+                                          : isMonitoring
+                                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
+                                            : 'border-slate-500/25 bg-slate-500/10 text-slate-600'
                                     }`}
                                   >
-                                    {isMonitoring ? 'Started' : 'Stopped'}
+                                    {phase.phase === 'waiting'
+                                      ? `Waiting · ${formatCountdown(phase.remainingMs)}`
+                                      : phase.phase === 'fetching' || phase.phase === 'due'
+                                        ? 'Fetching'
+                                        : isMonitoring
+                                          ? 'Started'
+                                          : 'Stopped'}
                                   </Badge>
                                 </div>
                                 <p className="text-[11px] text-muted-foreground truncate">
                                   {row.display_name || row.handle}
                                 </p>
                                 <p className="mt-1 text-[10px] text-muted-foreground">
-                                  Totals stay after Stop — they are lifetime fetch history, not only the current run.
+                                  Totals stay after Stop — lifetime fetch history, not only the current run.
                                 </p>
                               </div>
                               <div className="grid grid-cols-2 gap-2 border-b px-3 py-2.5 text-xs">
@@ -989,18 +1101,18 @@ const SocialProfiles = () => {
                           </Popover>
                         </div>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-2.5 py-2 align-top">
                         <div className="flex justify-end gap-1">
-                          <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => openEditProfile(row)}>
-                            <Pencil className="h-3.5 w-3.5" /> Edit
+                          <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-[11px]" onClick={() => openEditProfile(row)}>
+                            <Pencil className="h-3 w-3" /> Edit
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-red-600"
+                            className="h-7 w-7 text-red-600"
                             onClick={() => setDeleteProfile(row)}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       </td>
@@ -1028,7 +1140,7 @@ const SocialProfiles = () => {
           <form onSubmit={saveProfile} className="flex min-h-0 flex-1 flex-col">
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
               <div className="grid gap-3 sm:grid-cols-[1fr_160px]">
-                <div className="space-y-1.5">
+            <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Name</Label>
                   <Input
                     className="h-9"
@@ -1057,7 +1169,7 @@ const SocialProfiles = () => {
                     }}
                   >
                     <SelectTrigger className="h-9">
-                      <SelectValue />
+                  <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {POLL_PRESETS.map((p) => (
@@ -1127,13 +1239,13 @@ const SocialProfiles = () => {
                           >
                             <SelectTrigger className="h-8 w-[140px] text-xs">
                               <SelectValue placeholder="Platform" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {platforms.map((p) => (
-                                <SelectItem key={p.slug} value={p.slug}>{p.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                </SelectTrigger>
+                <SelectContent>
+                  {platforms.map((p) => (
+                    <SelectItem key={p.slug} value={p.slug}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
                           {fetched ? (
                             <Badge
                               variant="outline"
@@ -1159,11 +1271,11 @@ const SocialProfiles = () => {
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           ) : null}
-                        </div>
+            </div>
 
                         {primaryField ? (
                           <div className="flex gap-2">
-                            <Input
+              <Input
                               className="h-9 flex-1"
                               type={primaryField.type === 'url' ? 'url' : 'text'}
                               placeholder={primaryField.placeholder || primaryField.label}
@@ -1191,13 +1303,13 @@ const SocialProfiles = () => {
                               )}
                               Fetch
                             </Button>
-                          </div>
+            </div>
                         ) : (
                           <p className="text-xs text-muted-foreground">No fields for this platform.</p>
                         )}
 
                         {fields.slice(1).map((field) => (
-                          <Input
+              <Input
                             key={field.key}
                             className="mt-2 h-9"
                             type={field.type === 'url' ? 'url' : 'text'}
@@ -1226,7 +1338,7 @@ const SocialProfiles = () => {
                             ) : (
                               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] text-muted-foreground">
                                 —
-                              </div>
+            </div>
                             )}
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-medium">{account.preview.name || 'Unknown'}</p>
@@ -1344,7 +1456,7 @@ const SocialProfiles = () => {
           <form onSubmit={savePlatform} className="space-y-4">
             <div className="space-y-1.5">
               <Label>Platform name</Label>
-              <Input
+                <Input
                 required
                 value={platformForm.name}
                 onChange={(e) => {
@@ -1356,20 +1468,20 @@ const SocialProfiles = () => {
                   }));
                 }}
                 placeholder="e.g. Telegram"
-              />
-            </div>
+                />
+              </div>
 
-            <div className="space-y-1.5">
+              <div className="space-y-1.5">
               <Label>Icon</Label>
               <Select value={platformForm.icon} onValueChange={(v) => setPlatformForm((f) => ({ ...f, icon: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
+                  <SelectContent>
                   {ICON_OPTIONS.map((o) => (
                     <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
             <div className="space-y-2">
               <Label>What should we ask when adding a profile?</Label>
@@ -1399,7 +1511,7 @@ const SocialProfiles = () => {
                     </Button>
                   );
                 })}
-              </div>
+            </div>
 
               <div className="space-y-2 pt-1">
                 {platformForm.fields.length === 0 ? (
@@ -1445,7 +1557,7 @@ const SocialProfiles = () => {
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                      </div>
+            </div>
                     </div>
                   ))
                 )}

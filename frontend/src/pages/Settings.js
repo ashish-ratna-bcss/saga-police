@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../lib/api';
-import { Save, Plus, Trash2, TrendingUp, ShieldAlert, BrainCircuit, FileText, Upload, Star, ChevronDown, ChevronUp, Eye, Pencil, Copy, Check, X, HelpCircle, AlertTriangle, Clock, Activity, MessageSquare, Radio, Settings2, Zap, Bot, Youtube, Facebook, Instagram, Gauge, Loader2, Moon, Sun, Palette } from 'lucide-react';
+import { Save, Plus, Trash2, ShieldAlert, BrainCircuit, FileText, Upload, Star, Eye, Pencil, Copy, Check, X, AlertTriangle, Zap, Youtube, Facebook, Instagram, Loader2, Moon, Sun, Palette, ChevronDown, ChevronUp } from 'lucide-react';
 
 const XLogo = ({ className }) => (
   <svg viewBox="0 0 24 24" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -20,13 +20,12 @@ import { Separator } from '../components/ui/separator';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { toast } from 'sonner';
 import DOMPurify from 'dompurify';
-import AccessManagement from './AccessManagement';
 import PolicyManager from '../components/PolicyManager';
 import { Badge } from '../components/ui/badge';
 import RichTextEditor from '../components/RichTextEditor';
-import { cn } from '../lib/utils';
 import { applyThemeColor } from '../utils/theme';
 import { useAuth } from '../context/auth.context';
+import { cn } from '../lib/utils';
 
 const THEME_PRESETS = ['#1e3a8a', '#0f766e', '#7c2d12', '#4c1d95', '#1f2937', '#166534'];
 
@@ -77,15 +76,20 @@ const ThemeTab = () => {
   };
 
   return (
-    <Card className="border shadow-sm">
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b">
-        <Palette className="h-4 w-4 text-primary" />
-        <h3 className="text-sm font-semibold">Theme</h3>
+    <div className="rounded-xl border border-border bg-card overflow-hidden w-full">
+      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border bg-muted/20">
+        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+          <Palette className="h-4 w-4 text-primary" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold leading-none">Theme</h3>
+          <p className="text-[11px] text-muted-foreground mt-1">Appearance for your account</p>
+        </div>
         {(savingMode || savingColor) && (
-          <Loader2 className="h-3.5 w-3.5 ml-auto animate-spin text-muted-foreground" />
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
         )}
       </div>
-      <div className="p-4 space-y-6">
+      <div className="p-4 space-y-5">
         <div className="flex items-center justify-between gap-4">
           <div>
             <span className="text-xs font-medium">Color mode</span>
@@ -153,7 +157,7 @@ const ThemeTab = () => {
           ))}
         </div>
       </div>
-    </Card>
+    </div>
   );
 };
 const PLACEHOLDERS_GUIDE = [
@@ -243,20 +247,12 @@ const PlaceholderSidebar = ({ onClose }) => {
 let _settingsCache = null;
 let _settingsCacheTime = 0;
 const SETTINGS_CACHE_TTL = 60_000; // 1 minute
-const VALID_TABS = ['general', 'keywords', 'templates', 'access', 'policies', 'theme'];
+const VALID_TABS = ['general', 'templates', 'policies', 'theme'];
 
 const Settings = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [settings, setSettings] = useState(null);
-  const [keywords, setKeywords] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [monPlatformTab, setMonPlatformTab] = useState('x');
-  const [monCategory, setMonCategory] = useState('political');
-  const [newKeyword, setNewKeyword] = useState('');
-  const [editingKeywordId, setEditingKeywordId] = useState(null);
-  const [keywordSaving, setKeywordSaving] = useState(false);
-  const [keywordRescanning, setKeywordRescanning] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [thresholds, setThresholds] = useState([]);
 
   // Report Templates state
@@ -339,10 +335,18 @@ const Settings = () => {
   // Single source of truth: activeTab always follows the URL (covers clicks + back/forward)
   useEffect(() => {
     const tabFromUrl = searchParams.get('tab');
+    if (tabFromUrl && !VALID_TABS.includes(tabFromUrl)) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('tab', 'general');
+        return next;
+      }, { replace: true });
+      return;
+    }
     if (tabFromUrl && VALID_TABS.includes(tabFromUrl) && tabFromUrl !== activeTab) {
       setActiveTab(tabFromUrl);
     }
-  }, [searchParams, activeTab]);
+  }, [searchParams, activeTab, setSearchParams]);
 
   // Warn on browser/tab close
   useEffect(() => {
@@ -362,10 +366,9 @@ const Settings = () => {
   useEffect(() => {
     // Use cached data if fresh (instant back-navigation)
     if (_settingsCache && Date.now() - _settingsCacheTime < SETTINGS_CACHE_TTL) {
-      const { settings: s, keywords: k, thresholds: t, templates: tp } = _settingsCache;
+      const { settings: s, thresholds: t, templates: tp } = _settingsCache;
       setSettings(s);
       setSavedSettings(JSON.parse(JSON.stringify(s)));
-      setKeywords(k);
       setThresholds(t);
       setSavedThresholds(JSON.parse(JSON.stringify(t)));
       setTemplates(tp);
@@ -507,15 +510,13 @@ const Settings = () => {
   const fetchAllSettingsData = async () => {
     try {
       const res = await api.get('/settings/all');
-      const { settings: s, keywords: k, thresholds: t, templates: tp } = res.data;
+      const { settings: s, thresholds: t, templates: tp } = res.data;
       setSettings(s);
       setSavedSettings(JSON.parse(JSON.stringify(s)));
-      setKeywords(k);
       setThresholds(t);
       setSavedThresholds(JSON.parse(JSON.stringify(t)));
       setTemplates(tp);
-      // Populate module-level cache
-      _settingsCache = { settings: s, keywords: k, thresholds: t, templates: tp };
+      _settingsCache = { settings: s, thresholds: t, templates: tp };
       _settingsCacheTime = Date.now();
     } catch (error) {
       toast.error('Failed to load settings');
@@ -523,22 +524,6 @@ const Settings = () => {
       setLoading(false);
       setThresholdsLoading(false);
       setTemplatesLoading(false);
-    }
-  };
-
-  const fetchData = async () => {
-    try {
-      const [settingsRes, keywordsRes] = await Promise.all([
-        api.get('/settings'),
-        api.get('/keywords')
-      ]);
-      setSettings(settingsRes.data);
-      setSavedSettings(JSON.parse(JSON.stringify(settingsRes.data)));
-      setKeywords(keywordsRes.data);
-    } catch (error) {
-      toast.error('Failed to load settings');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -585,71 +570,6 @@ const Settings = () => {
       toast.success('Settings saved successfully');
     } catch (error) {
       toast.error('Failed to save settings');
-    }
-  };
-
-  const resetKeywordForm = () => {
-    setNewKeyword('');
-    setEditingKeywordId(null);
-  };
-
-  const handleSaveKeyword = async (e) => {
-    e.preventDefault();
-    const value = String(newKeyword || '').trim();
-    if (!value) {
-      toast.error('Enter a keyword');
-      return;
-    }
-    setKeywordSaving(true);
-    try {
-      if (editingKeywordId) {
-        await api.put(`/keywords/${editingKeywordId}`, { keyword: value });
-        toast.success('Keyword updated');
-      } else {
-        await api.post('/keywords', { keyword: value });
-        toast.success('Keyword added');
-      }
-      resetKeywordForm();
-      setDialogOpen(false);
-      fetchData();
-    } catch (error) {
-      toast.error(error?.response?.data?.message || 'Failed to save keyword');
-    } finally {
-      setKeywordSaving(false);
-    }
-  };
-
-  const handleEditKeyword = (kw) => {
-    setEditingKeywordId(kw.id);
-    setNewKeyword(kw.keyword || '');
-    setDialogOpen(true);
-  };
-
-  const handleDeleteKeyword = async (id) => {
-    if (!window.confirm('Delete this keyword?')) return;
-    try {
-      await api.delete(`/keywords/${id}`);
-      toast.success('Keyword deleted');
-      if (editingKeywordId === id) resetKeywordForm();
-      fetchData();
-    } catch (error) {
-      toast.error(error?.response?.data?.message || 'Failed to delete keyword');
-    }
-  };
-
-  const handleCatalogRescan = async () => {
-    setKeywordRescanning(true);
-    try {
-      const res = await api.post('/keywords/catalog-rescan');
-      const r = res.data?.result || {};
-      toast.success(
-        `Rescan done · matched ${r.posts_matched || 0}/${r.posts_scanned || 0} posts · ` +
-          `${r.alerts_created || 0} new alerts · ${r.alerts_skipped_existing || 0} already existed`
-      );
-    } catch (error) {
-      toast.error(error?.response?.data?.message || 'Rescan failed');
-    } finally {
-      setKeywordRescanning(false);
     }
   };
 
@@ -711,20 +631,94 @@ const Settings = () => {
     );
   }
 
+  const riskHigh = settings?.risk_threshold_high ?? 70;
+  const riskMed = settings?.risk_threshold_medium ?? 40;
+  const riskLowMax = Math.max(0, riskMed - 1);
+  const riskMedMax = Math.max(riskMed, riskHigh - 1);
+  const lowPct = Math.min(100, Math.max(0, riskMed));
+  const medPct = Math.min(100 - lowPct, Math.max(0, riskHigh - riskMed));
+  const highPct = Math.max(0, 100 - lowPct - medPct);
+  const viralEnabled = settings?.velocity_alerts_enabled ?? true;
+  const platformRows = [
+    { platform: 'x', name: 'X', Icon: XLogo },
+    { platform: 'instagram', name: 'Instagram', Icon: Instagram },
+    { platform: 'facebook', name: 'Facebook', Icon: Facebook },
+    { platform: 'youtube', name: 'YouTube', Icon: Youtube },
+  ];
+  const thresholdFor = (platform) => {
+    const found = thresholds.find((th) => th.platform === platform);
+    if (found) return found;
+    return {
+      platform,
+      low_threshold: 100,
+      medium_threshold: 500,
+      high_threshold: 1000,
+      time_window_minutes: 60,
+    };
+  };
+
+  const saveAlerts = async () => {
+    setIsSaving(true);
+    try {
+      await handleSaveSettings();
+      await handleSaveThresholds();
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-300 p-4 md:p-6 lg:p-8 max-w-none" data-testid="settings-page">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Settings</h1>
+    <div className="space-y-3 animate-in fade-in duration-300 w-full" data-testid="settings-page">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="min-w-0 shrink-0">
+          <h1 className="text-xl font-heading font-bold tracking-tight leading-none">Settings</h1>
+          <p className="text-[11px] text-muted-foreground mt-0.5 hidden sm:block">
+            Risk bands, viral thresholds, templates, and theme
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+          {activeTab === 'general' && hasUnsavedChanges() && (
+            <>
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                <AlertTriangle className="h-3 w-3" />
+                Unsaved
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => {
+                  setSettings(JSON.parse(JSON.stringify(savedSettings)));
+                  setThresholds(JSON.parse(JSON.stringify(savedThresholds)));
+                }}
+              >
+                Discard
+              </Button>
+              <Button size="sm" className="h-8 text-xs" disabled={isSaving} onClick={saveAlerts}>
+                {isSaving ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
+                {isSaving ? 'Saving…' : 'Save changes'}
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        <TabsList className="h-10 p-1 bg-muted/50 rounded-lg">
-          <TabsTrigger value="general" className="text-xs px-5 py-2 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:font-semibold">Configuration</TabsTrigger>
-          <TabsTrigger value="keywords" className="text-xs px-5 py-2 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:font-semibold">Keywords</TabsTrigger>
-          <TabsTrigger value="templates" className="text-xs px-5 py-2 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:font-semibold">Report Templates</TabsTrigger>
-          <TabsTrigger value="access" className="text-xs px-5 py-2 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:font-semibold">Access Management</TabsTrigger>
-          <TabsTrigger value="policies" className="text-xs px-5 py-2 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:font-semibold">Policy Manager</TabsTrigger>
-          <TabsTrigger value="theme" className="text-xs px-5 py-2 rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:font-semibold">Theme</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full space-y-3">
+        <TabsList className="flex h-9 w-full justify-start p-1 bg-muted/60 rounded-lg">
+          {[
+            { value: 'general', label: 'Alerts' },
+            { value: 'templates', label: 'Report Templates' },
+            { value: 'policies', label: 'Policy Manager' },
+            { value: 'theme', label: 'Theme' },
+          ].map((tab) => (
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className="text-xs px-4 py-1.5 rounded-md flex-1 sm:flex-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm data-[state=active]:font-semibold"
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
       {/* Unsaved changes dialog */}
@@ -742,7 +736,6 @@ const Settings = () => {
             <Button variant="outline" onClick={() => {
               setSettings(JSON.parse(JSON.stringify(savedSettings)));
               setThresholds(JSON.parse(JSON.stringify(savedThresholds)));
-              setIsDirty(false);
               setShowUnsavedDialog(false);
               if (pendingTabRef.current) {
                 const t = pendingTabRef.current;
@@ -764,475 +757,241 @@ const Settings = () => {
         </DialogContent>
       </Dialog>
 
-        {/* ═══ Configuration Tab ═══ */}
-        <TabsContent value="general" className="space-y-6">
-
-          {/* Save Bar */}
-          {hasUnsavedChanges() && (
-            <div className="sticky top-0 z-10 flex items-center justify-between bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-2.5 shadow-sm">
-              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
-                <AlertTriangle className="h-4 w-4" />
-                <span className="text-sm font-medium">You have unsaved changes</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => {
-                  setSettings(JSON.parse(JSON.stringify(savedSettings)));
-                  setThresholds(JSON.parse(JSON.stringify(savedThresholds)));
-                }}>Discard</Button>
-                <Button size="sm" className="h-8 text-xs" disabled={isSaving} onClick={async () => { setIsSaving(true); try { await handleSaveSettings(); await handleSaveThresholds(); } finally { setIsSaving(false); } }}>
-                  {isSaving ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1.5" />} {isSaving ? 'Saving...' : 'Save All Changes'}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* ── Row 1: Profile Monitoring + Risk Levels + Viral Alerts ── */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* Profile Monitoring */}
-            <Card className="border shadow-sm">
-              <div className="flex items-center justify-between px-4 py-2.5 border-b">
-                <div className="flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-primary" />
-                  <h3 className="text-sm font-semibold">Profile Monitoring</h3>
+        {/* ═══ Alerts Tab ═══ */}
+        <TabsContent value="general" className="space-y-3 mt-0 w-full focus-visible:outline-none">
+          {/* Risk Levels */}
+          <section className="rounded-xl border border-border bg-card overflow-hidden w-full">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-border bg-muted/20">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="h-8 w-8 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
+                  <ShieldAlert className="h-4 w-4 text-red-600" />
                 </div>
-                <Switch className="scale-90"
-                  checked={settings?.api_config?.monitoring?.enabled !== false}
-                  onCheckedChange={(checked) => setSettings(prev => ({
-                    ...prev,
-                    api_config: { ...prev?.api_config, monitoring: { ...prev?.api_config?.monitoring, enabled: checked } }
-                  }))}
-                />
-              </div>
-              <div className="p-4 space-y-3">
-                <div className="flex gap-0.5 bg-muted/50 p-0.5 rounded-md">
-                  {[
-                    { key: 'x', label: 'X', Icon: XLogo },
-                    { key: 'instagram', label: 'Instagram', Icon: Instagram },
-                    { key: 'facebook', label: 'Facebook', Icon: Facebook },
-                    { key: 'youtube', label: 'YouTube', Icon: Youtube }
-                  ].map(({ key, label, Icon }) => (
-                    <button key={key} onClick={() => setMonPlatformTab(key)}
-                      className={cn(
-                        'flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all',
-                        monPlatformTab === key
-                          ? 'bg-primary text-primary-foreground shadow-md ring-1 ring-primary/30 font-semibold'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
-                      )}
-                    >
-                      <Icon className="h-3.5 w-3.5" /> {label}
-                    </button>
-                  ))}
-                </div>
-                <div className="space-y-1.5">
-                  {[
-                    { key: 'political', label: 'Political' },
-                    { key: 'communal', label: 'Communal' },
-                    { key: 'trouble_makers', label: 'Trouble Makers' },
-                    { key: 'defamation', label: 'Defamation' },
-                    { key: 'narcotics', label: 'Narcotics' },
-                    { key: 'history_sheeters', label: 'History Sheeters' },
-                    { key: 'others', label: 'Others' }
-                  ].map(({ key, label }) => (
-                    <div key={key} className="flex items-center justify-between">
-                      <span className="text-xs">{label}</span>
-                      <div className="flex items-center gap-1.5">
-                        <Input
-                          type="text" inputMode="numeric"
-                          value={Math.round((settings?.api_config?.monitoring?.frequencies?.[monPlatformTab]?.[key] ?? 0) / 60)}
-                          onChange={(e) => {
-                            const raw = e.target.value.replace(/[^0-9]/g, '');
-                            const hrs = raw === '' ? 0 : parseInt(raw);
-                            setSettings(prev => ({
-                              ...prev,
-                              api_config: {
-                                ...prev?.api_config,
-                                monitoring: {
-                                  ...prev?.api_config?.monitoring,
-                                  frequencies: {
-                                    ...prev?.api_config?.monitoring?.frequencies,
-                                    [monPlatformTab]: {
-                                      ...prev?.api_config?.monitoring?.frequencies?.[monPlatformTab],
-                                      [key]: hrs * 60
-                                    }
-                                  }
-                                }
-                              }
-                            }));
-                          }}
-                          className="h-7 w-16 text-xs text-center"
-                          disabled={settings?.api_config?.monitoring?.enabled === false}
-                        />
-                        <span className="text-[10px] text-muted-foreground">hrs</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </Card>
-
-            {/* Risk Levels */}
-            <Card className="border shadow-sm">
-              <div className="flex items-center gap-2 px-4 py-2.5 border-b">
-                <ShieldAlert className="h-4 w-4 text-red-500" />
-                <h3 className="text-sm font-semibold">Risk Levels</h3>
-              </div>
-              <div className="p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-red-500" /> High Risk
-                  </Label>
-                  <span className="text-[10px] text-red-500 font-medium">{settings?.risk_threshold_high ?? 70} – 100</span>
-                </div>
-                <Input
-                  type="text" inputMode="numeric"
-                  value={settings?.risk_threshold_high ?? 70}
-                  onChange={(e) => {
-                    const raw = e.target.value.replace(/[^0-9]/g, '');
-                    setSettings({ ...settings, risk_threshold_high: raw === '' ? 0 : parseInt(raw) });
-                  }}
-                  className="h-8 text-xs"
-                />
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-amber-500" /> Medium Risk
-                  </Label>
-                  <span className="text-[10px] text-amber-500 font-medium">{settings?.risk_threshold_medium ?? 40} – {(settings?.risk_threshold_high ?? 70) - 1}</span>
-                </div>
-                <Input
-                  type="text" inputMode="numeric"
-                  value={settings?.risk_threshold_medium ?? 40}
-                  onChange={(e) => {
-                    const raw = e.target.value.replace(/[^0-9]/g, '');
-                    setSettings({ ...settings, risk_threshold_medium: raw === '' ? 0 : parseInt(raw) });
-                  }}
-                  className="h-8 text-xs"
-                />
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-green-500" /> Low Risk
-                  </Label>
-                  <span className="text-[10px] text-green-500 font-medium">0 – {(settings?.risk_threshold_medium ?? 40) - 1}</span>
-                </div>
-              </div>
-            </Card>
-
-            {/* Viral Alerts */}
-            <Card className="border shadow-sm">
-              <div className="flex items-center justify-between px-4 py-2.5 border-b">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-purple-500" />
-                  <h3 className="text-sm font-semibold">Viral Alerts</h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch className="scale-90"
-                    checked={settings?.velocity_alerts_enabled ?? true}
-                    onCheckedChange={(checked) => setSettings({ ...settings, velocity_alerts_enabled: checked })}
-                  />
-                </div>
-              </div>
-              <div className="p-4">
-                <div className="rounded border overflow-hidden">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="bg-muted/30">
-                        <th className="text-left font-medium px-2 py-1.5 text-muted-foreground"></th>
-                        <th className="text-center font-medium px-1 py-1.5 text-green-600">Low</th>
-                        <th className="text-center font-medium px-1 py-1.5 text-amber-600">Med</th>
-                        <th className="text-center font-medium px-1 py-1.5 text-red-600">High</th>
-                        <th className="text-center font-medium px-1 py-1.5 text-muted-foreground">Hrs</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[
-                        { platform: 'x', name: 'X', Icon: XLogo },
-                        { platform: 'instagram', name: 'Instagram', Icon: Instagram },
-                        { platform: 'facebook', name: 'Facebook', Icon: Facebook },
-                        { platform: 'youtube', name: 'YouTube', Icon: Youtube }
-                      ].map(({ platform, name, Icon }) => {
-                        const t = thresholds.find(th => th.platform === platform);
-                        if (!t) return null;
-                        return (
-                          <tr key={platform} className="border-t">
-                            <td className="px-2 py-1.5">
-                              <div className="flex items-center gap-1.5">
-                                <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                                <span className="font-medium">{name}</span>
-                              </div>
-                            </td>
-                            <td className="px-0.5 py-1.5">
-                              <Input type="text" inputMode="numeric" value={t.low_threshold}
-                                onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); updateThreshold(platform, null, 'low_threshold', raw === '' ? 0 : raw); }}
-                                className="h-6 text-xs text-center px-1" />
-                            </td>
-                            <td className="px-0.5 py-1.5">
-                              <Input type="text" inputMode="numeric" value={t.medium_threshold}
-                                onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); updateThreshold(platform, null, 'medium_threshold', raw === '' ? 0 : raw); }}
-                                className="h-6 text-xs text-center px-1" />
-                            </td>
-                            <td className="px-0.5 py-1.5">
-                              <Input type="text" inputMode="numeric" value={t.high_threshold}
-                                onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); updateThreshold(platform, null, 'high_threshold', raw === '' ? 0 : raw); }}
-                                className="h-6 text-xs text-center px-1" />
-                            </td>
-                            <td className="px-0.5 py-1.5">
-                              <Input type="text" inputMode="numeric" value={Math.round((t.time_window_minutes ?? 0) / 60)}
-                                onChange={(e) => {
-                                  const raw = e.target.value.replace(/[^0-9]/g, '');
-                                  const hrs = raw === '' ? 0 : parseInt(raw);
-                                  updateThreshold(platform, null, 'time_window_minutes', hrs * 60);
-                                }}
-                                className="h-6 text-xs text-center px-1" />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          {/* ── Row 2: Event + Grievance ────────── */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Card className="border shadow-sm">
-              <div className="flex items-center justify-between px-4 py-2.5 border-b">
-                <div className="flex items-center gap-2">
-                  <Radio className="h-4 w-4 text-amber-500" />
-                  <h3 className="text-sm font-semibold">Events Monitoring</h3>
-                </div>
-                <Switch className="scale-90"
-                  checked={settings?.api_config?.events?.enabled !== false}
-                  onCheckedChange={(checked) => setSettings(prev => ({
-                    ...prev,
-                    api_config: { ...prev?.api_config, events: { ...prev?.api_config?.events, enabled: checked } }
-                  }))}
-                />
-              </div>
-              <div className="p-4 space-y-2">
-                {[
-                  { key: 'x', label: 'X', Icon: XLogo },
-                  { key: 'instagram', label: 'Instagram', Icon: Instagram },
-                  { key: 'facebook', label: 'Facebook', Icon: Facebook },
-                  { key: 'youtube', label: 'YouTube', Icon: Youtube }
-                ].map(({ key, label, Icon }) => (
-                  <div key={key} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-xs">{label}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Input
-                        type="text" inputMode="numeric"
-                        value={Math.round((settings?.api_config?.events?.[key] ?? 0) / 60)}
-                        onChange={(e) => {
-                          const raw = e.target.value.replace(/[^0-9]/g, '');
-                          const hrs = raw === '' ? 0 : parseInt(raw);
-                          setSettings(prev => ({
-                            ...prev,
-                            api_config: { ...prev?.api_config, events: { ...prev?.api_config?.events, [key]: hrs * 60 } }
-                          }));
-                        }}
-                        className="h-7 w-16 text-xs text-center"
-                        disabled={settings?.api_config?.events?.enabled === false}
-                      />
-                      <span className="text-[10px] text-muted-foreground">hrs</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            <Card className="border shadow-sm">
-              <div className="flex items-center justify-between px-4 py-2.5 border-b">
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-emerald-500" />
-                  <h3 className="text-sm font-semibold">Grievance Monitoring</h3>
-                </div>
-                <Switch className="scale-90"
-                  checked={settings?.api_config?.grievances?.enabled !== false}
-                  onCheckedChange={(checked) => setSettings(prev => ({
-                    ...prev,
-                    api_config: { ...prev?.api_config, grievances: { ...prev?.api_config?.grievances, enabled: checked } }
-                  }))}
-                />
-              </div>
-              <div className="p-4 space-y-2">
-                {[
-                  { key: 'x', label: 'X', Icon: XLogo },
-                  { key: 'facebook', label: 'Facebook', Icon: Facebook }
-                ].map(({ key, label, Icon }) => (
-                  <div key={key} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-xs">{label}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Input
-                        type="text" inputMode="numeric"
-                        value={Math.round((settings?.api_config?.grievances?.[key] ?? 0) / 60)}
-                        onChange={(e) => {
-                          const raw = e.target.value.replace(/[^0-9]/g, '');
-                          const hrs = raw === '' ? 0 : parseInt(raw);
-                          setSettings(prev => ({
-                            ...prev,
-                            api_config: { ...prev?.api_config, grievances: { ...prev?.api_config?.grievances, [key]: hrs * 60 } }
-                          }));
-                        }}
-                        className="h-7 w-16 text-xs text-center"
-                        disabled={settings?.api_config?.grievances?.enabled === false}
-                      />
-                      <span className="text-[10px] text-muted-foreground">hrs</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </div>
-
-          {/* Save */}
-          <div className="flex justify-end">
-            <Button disabled={isSaving} onClick={async () => { setIsSaving(true); try { await handleSaveSettings(); await handleSaveThresholds(); } finally { setIsSaving(false); } }} className="px-6">
-              {isSaving ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1.5" />} {isSaving ? 'Saving...' : 'Save All Changes'}
-            </Button>
-          </div>
-        </TabsContent>
-
-
-
-        {/* Keywords */}
-        <TabsContent value="keywords" className="space-y-4">
-          <Card className="p-4">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold">Keywords</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Phrases matched in monitored posts to raise catalog alerts.
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold leading-none">Risk Levels</h2>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Score from 0–100 · set where Medium and High begin
                   </p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 px-3 text-xs"
-                    disabled={keywordRescanning || keywords.length === 0}
-                    onClick={handleCatalogRescan}
-                  >
-                    {keywordRescanning ? (
-                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                    ) : null}
-                    Rescan
-                  </Button>
-                <Dialog
-                  open={dialogOpen}
-                  onOpenChange={(open) => {
-                    setDialogOpen(open);
-                    if (!open) resetKeywordForm();
-                  }}
-                >
-                  <DialogTrigger asChild>
-                    <Button
-                      size="sm"
-                      className="h-8 px-3 text-xs"
-                      onClick={() => {
-                        resetKeywordForm();
-                        setDialogOpen(true);
-                      }}
-                    >
-                      <Plus className="h-3.5 w-3.5 mr-1" /> Add
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[420px]">
-                    <DialogHeader>
-                      <DialogTitle className="text-base">
-                        {editingKeywordId ? 'Edit keyword' : 'Add keyword'}
-                      </DialogTitle>
-                      <DialogDescription className="text-xs">
-                        One phrase per entry. Matching posts can create alerts.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleSaveKeyword} className="flex items-center gap-2">
-                      <Input
-                        value={newKeyword}
-                        onChange={(e) => setNewKeyword(e.target.value)}
-                        placeholder="Enter keyword"
-                        required
-                        className="h-9 text-sm flex-1"
-                        autoComplete="off"
-                        autoFocus
-                      />
-                      <Button type="submit" className="h-9 text-xs shrink-0" disabled={keywordSaving}>
-                        {keywordSaving ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : editingKeywordId ? (
-                          'Update'
-                        ) : (
-                          'Add'
-                        )}
-                      </Button>
-                    </form>
-                  </DialogContent>
-                </Dialog>
-                </div>
               </div>
-
-              <div className="border rounded-md overflow-hidden">
-                <div className="grid grid-cols-[1fr_auto] gap-2 px-3 py-2 bg-muted/40 text-[11px] font-medium text-muted-foreground border-b">
-                  <span>Keyword</span>
-                  <span className="pr-1">Actions</span>
-                </div>
-                {keywords.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-10">No keywords yet</p>
-                ) : (
-                  <ScrollArea className="h-[320px]">
-                    <ul className="divide-y">
-                      {keywords.map((kw) => (
-                        <li key={kw.id} className="grid grid-cols-[1fr_auto] items-center gap-2 px-3 py-2.5 text-sm">
-                          <span className="truncate font-medium">{kw.keyword}</span>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                              title="Edit"
-                              onClick={() => handleEditKeyword(kw)}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                              title="Delete"
-                              onClick={() => handleDeleteKeyword(kw.id)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </ScrollArea>
-                )}
+              <div className="flex items-center gap-3 text-[10px] font-medium text-muted-foreground">
+                <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Low</span>
+                <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" /> Medium</span>
+                <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" /> High</span>
               </div>
             </div>
-          </Card>
+
+            <div className="p-4 space-y-4">
+              <div className="space-y-1.5">
+                <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="bg-emerald-500 transition-all duration-300" style={{ width: `${lowPct}%` }} />
+                  <div className="bg-amber-500 transition-all duration-300" style={{ width: `${medPct}%` }} />
+                  <div className="bg-red-500 transition-all duration-300" style={{ width: `${highPct}%` }} />
+                </div>
+                <div className="flex justify-between text-[10px] tabular-nums text-muted-foreground px-0.5">
+                  <span>0</span>
+                  <span>{riskMed}</span>
+                  <span>{riskHigh}</span>
+                  <span>100</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-lg border border-red-200/80 bg-red-50/50 dark:bg-red-950/20 dark:border-red-900/50 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-red-700 dark:text-red-400">High</span>
+                    <span className="text-[10px] tabular-nums font-medium text-red-600">{riskHigh} – 100</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground shrink-0">Starts at</span>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      value={riskHigh}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/[^0-9]/g, '');
+                        setSettings({ ...settings, risk_threshold_high: raw === '' ? 0 : parseInt(raw, 10) });
+                      }}
+                      className="h-8 w-20 text-xs text-center tabular-nums font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-amber-200/80 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900/50 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">Medium</span>
+                    <span className="text-[10px] tabular-nums font-medium text-amber-600">{riskMed} – {riskMedMax}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground shrink-0">Starts at</span>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      value={riskMed}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/[^0-9]/g, '');
+                        setSettings({ ...settings, risk_threshold_medium: raw === '' ? 0 : parseInt(raw, 10) });
+                      }}
+                      className="h-8 w-20 text-xs text-center tabular-nums font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-emerald-200/80 bg-emerald-50/50 dark:bg-emerald-950/20 dark:border-emerald-900/50 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Low</span>
+                    <span className="text-[10px] tabular-nums font-medium text-emerald-600">0 – {riskLowMax}</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-snug pt-1">
+                    Auto — everything below Medium.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Viral Alerts */}
+          <section className="rounded-xl border border-border bg-card overflow-hidden w-full">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-border bg-muted/20">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="h-8 w-8 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                  <Zap className="h-4 w-4 text-amber-600" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold leading-none">Viral Alerts</h2>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Engagement counts that fire a viral alert inside the time window
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={cn('text-[11px] font-medium', viralEnabled ? 'text-foreground' : 'text-muted-foreground')}>
+                  {viralEnabled ? 'On' : 'Off'}
+                </span>
+                <Switch
+                  checked={viralEnabled}
+                  onCheckedChange={(checked) => setSettings({ ...settings, velocity_alerts_enabled: checked })}
+                />
+              </div>
+            </div>
+
+            <div className={cn('overflow-x-auto', !viralEnabled && 'opacity-50 pointer-events-none')}>
+              <table className="w-full text-xs min-w-[640px]">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    <th className="text-left font-medium px-4 py-2.5 text-muted-foreground w-[180px]">Platform</th>
+                    <th className="text-center font-medium px-2 py-2.5 text-emerald-600 w-[120px]">Low</th>
+                    <th className="text-center font-medium px-2 py-2.5 text-amber-600 w-[120px]">Medium</th>
+                    <th className="text-center font-medium px-2 py-2.5 text-red-600 w-[120px]">High</th>
+                    <th className="text-center font-medium px-2 py-2.5 text-muted-foreground w-[100px]">Window (hrs)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {platformRows.map(({ platform, name, Icon }) => {
+                    const t = thresholdFor(platform);
+                    return (
+                      <tr key={platform} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-2.5">
+                            <div className="h-7 w-7 rounded-md border bg-background flex items-center justify-center">
+                              <Icon className="h-3.5 w-3.5 text-foreground" />
+                            </div>
+                            <span className="font-medium text-sm">{name}</span>
+                          </div>
+                        </td>
+                        {[
+                          ['low_threshold', t.low_threshold],
+                          ['medium_threshold', t.medium_threshold],
+                          ['high_threshold', t.high_threshold],
+                        ].map(([field, value]) => (
+                          <td key={field} className="px-2 py-2.5 text-center">
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              value={value}
+                              onChange={(e) => {
+                                const raw = e.target.value.replace(/[^0-9]/g, '');
+                                const next = raw === '' ? 0 : raw;
+                                setThresholds((prev) => {
+                                  const exists = prev.some((row) => row.platform === platform);
+                                  if (!exists) {
+                                    return [
+                                      ...prev,
+                                      {
+                                        platform,
+                                        low_threshold: 100,
+                                        medium_threshold: 500,
+                                        high_threshold: 1000,
+                                        time_window_minutes: 60,
+                                        [field]: parseInt(next, 10) || 0,
+                                      },
+                                    ];
+                                  }
+                                  return prev.map((row) =>
+                                    row.platform === platform
+                                      ? { ...row, [field]: parseInt(next, 10) || 0 }
+                                      : row
+                                  );
+                                });
+                              }}
+                              className="h-8 w-full max-w-[7rem] mx-auto text-xs text-center tabular-nums"
+                            />
+                          </td>
+                        ))}
+                        <td className="px-2 py-2.5 text-center">
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            value={Math.round((t.time_window_minutes ?? 0) / 60)}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/[^0-9]/g, '');
+                              const hrs = raw === '' ? 0 : parseInt(raw, 10);
+                              setThresholds((prev) => {
+                                const exists = prev.some((row) => row.platform === platform);
+                                if (!exists) {
+                                  return [
+                                    ...prev,
+                                    {
+                                      platform,
+                                      low_threshold: 100,
+                                      medium_threshold: 500,
+                                      high_threshold: 1000,
+                                      time_window_minutes: hrs * 60,
+                                    },
+                                  ];
+                                }
+                                return prev.map((row) =>
+                                  row.platform === platform
+                                    ? { ...row, time_window_minutes: hrs * 60 }
+                                    : row
+                                );
+                              });
+                            }}
+                            className="h-8 w-full max-w-[5rem] mx-auto text-xs text-center tabular-nums"
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </TabsContent>
 
+
+
         {/* Report Templates */}
-        <TabsContent value="templates" className="space-y-4">
-          <Card className="p-4">
-            <div className="space-y-3">
+        <TabsContent value="templates" className="space-y-4 mt-0">
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-primary" />
+                <div className="flex items-center gap-2.5">
+                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <FileText className="h-4 w-4 text-primary" />
+                  </div>
                   <div>
-                    <h3 className="text-sm font-semibold">Report Templates</h3>
-                    <p className="text-[10px] text-muted-foreground">Upload any DOCX — edit before saving. Alert data auto-fills when generating reports.</p>
+                    <h3 className="text-sm font-semibold leading-none">Report Templates</h3>
+                    <p className="text-[11px] text-muted-foreground mt-1">Upload any DOCX — edit before saving. Alert data auto-fills when generating reports.</p>
                   </div>
                 </div>
 
@@ -1420,18 +1179,14 @@ const Settings = () => {
                 </ScrollArea>
               )}
             </div>
-          </Card>
+          </div>
         </TabsContent>
 
-        <TabsContent value="access" className="mt-2">
-          <AccessManagement />
-        </TabsContent>
-
-        <TabsContent value="policies" className="mt-2">
+        <TabsContent value="policies" className="mt-0">
           <PolicyManager />
         </TabsContent>
 
-        <TabsContent value="theme" className="space-y-4">
+        <TabsContent value="theme" className="space-y-4 mt-0">
           <ThemeTab />
         </TabsContent>
 

@@ -11,7 +11,7 @@ const { PrismaClient } = require('@prisma/client');
 const { ACCESS_FEATURES } = require('../src/modules/auth/access_features');
 
 const BACKEND_ROOT = path.join(__dirname, '..');
-const EXPECTED_TABLES = 50;
+const EXPECTED_TABLES = 18;
 
 async function countPublicTables(prisma) {
   const rows = await prisma.$queryRaw`
@@ -667,6 +667,224 @@ async function ensureCatalogColumns(prisma) {
   await prisma.$executeRawUnsafe(`
     CREATE INDEX IF NOT EXISTS keywords_keyword_idx ON keywords (keyword)
   `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS social_media_occasion_calendar (
+      id SERIAL PRIMARY KEY,
+      sl_no INTEGER NOT NULL DEFAULT 0,
+      title TEXT NOT NULL,
+      date_label TEXT NOT NULL DEFAULT '',
+      monitoring_range TEXT NOT NULL DEFAULT '',
+      suggested_keywords TEXT NOT NULL DEFAULT '',
+      remarks TEXT NOT NULL DEFAULT '',
+      platforms TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+      is_recurring BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_occasion_calendar
+    ADD COLUMN IF NOT EXISTS platforms TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS social_media_occasion_calendar_is_recurring_sl_no_idx
+    ON social_media_occasion_calendar (is_recurring, sl_no)
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS social_media_events (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      start_date TIMESTAMPTZ NULL,
+      end_date TIMESTAMPTZ NULL,
+      location TEXT NOT NULL DEFAULT '',
+      platforms TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+      keywords JSONB NOT NULL DEFAULT '[]'::jsonb,
+      high_risk_threshold INTEGER NULL,
+      medium_risk_threshold INTEGER NULL,
+      polling_interval_minutes INTEGER NOT NULL DEFAULT 60,
+      monitoring_status monitoring_status_enum NOT NULL DEFAULT 'stopped',
+      monitoring_logs JSONB NOT NULL DEFAULT '[]'::jsonb,
+      last_fetched_at TIMESTAMPTZ NULL,
+      last_fetched_history JSONB NOT NULL DEFAULT '[]'::jsonb,
+      origin TEXT NOT NULL DEFAULT 'manual',
+      occasion_calendar_id INTEGER NULL REFERENCES social_media_occasion_calendar(id) ON DELETE SET NULL,
+      created_by TEXT NOT NULL DEFAULT 'system',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  // Migrate legacy columns → Profiles-style monitoring fields
+  await prisma.$executeRawUnsafe(`
+    DO $$ BEGIN
+      CREATE TYPE monitoring_status_enum AS ENUM ('started', 'stopped');
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_events
+    ADD COLUMN IF NOT EXISTS monitoring_status monitoring_status_enum NOT NULL DEFAULT 'stopped'
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_events
+    ADD COLUMN IF NOT EXISTS monitoring_logs JSONB NOT NULL DEFAULT '[]'::jsonb
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_events
+    ADD COLUMN IF NOT EXISTS last_fetched_at TIMESTAMPTZ NULL
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_events
+    ADD COLUMN IF NOT EXISTS last_fetched_history JSONB NOT NULL DEFAULT '[]'::jsonb
+  `);
+  // Copy legacy status / last_polled_at when still present
+  await prisma.$executeRawUnsafe(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'social_media_events' AND column_name = 'status'
+      ) THEN
+        UPDATE social_media_events
+        SET monitoring_status = CASE
+          WHEN lower(status) = 'active' THEN 'started'::monitoring_status_enum
+          ELSE 'stopped'::monitoring_status_enum
+        END
+        WHERE monitoring_status = 'stopped'::monitoring_status_enum
+          AND lower(status) = 'active';
+      END IF;
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'social_media_events' AND column_name = 'last_polled_at'
+      ) THEN
+        UPDATE social_media_events
+        SET last_fetched_at = last_polled_at
+        WHERE last_fetched_at IS NULL AND last_polled_at IS NOT NULL;
+      END IF;
+    END $$
+  `);
+  await prisma.$executeRawUnsafe(`ALTER TABLE social_media_events DROP COLUMN IF EXISTS status`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE social_media_events DROP COLUMN IF EXISTS auto_archive`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE social_media_events DROP COLUMN IF EXISTS archived_at`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE social_media_events DROP COLUMN IF EXISTS report_pdf_url`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE social_media_events DROP COLUMN IF EXISTS last_polled_at`);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS social_media_events_monitoring_status_created_at_idx
+    ON social_media_events (monitoring_status, created_at)
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS social_media_events_start_date_idx
+    ON social_media_events (start_date)
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS social_media_events_occasion_calendar_id_idx
+    ON social_media_events (occasion_calendar_id)
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS social_media_events_last_fetched_at_idx
+    ON social_media_events (last_fetched_at)
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS social_media_event_media (
+      id BIGSERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES social_media_events(id) ON DELETE CASCADE,
+      platform TEXT NOT NULL,
+      external_id TEXT NOT NULL,
+      url TEXT NULL,
+      text TEXT NULL,
+      author_name TEXT NULL,
+      author_handle TEXT NULL,
+      engagement JSONB NOT NULL DEFAULT '{}'::jsonb,
+      media JSONB NOT NULL DEFAULT '[]'::jsonb,
+      raw_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+      posted_at TIMESTAMPTZ NULL,
+      fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CONSTRAINT social_media_event_media_event_platform_external_key UNIQUE (event_id, platform, external_id)
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS social_media_event_media_event_id_posted_at_idx
+    ON social_media_event_media (event_id, posted_at)
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS social_media_event_media_platform_posted_at_idx
+    ON social_media_event_media (platform, posted_at)
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS social_media_event_media_fetched_at_idx
+    ON social_media_event_media (fetched_at)
+  `);
+}
+
+async function ensureSettingsTables(prisma) {
+  // Drop legacy JSON blob table if present
+  await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS app_settings`);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS alert_config (
+      id TEXT PRIMARY KEY DEFAULT 'default',
+      risk_threshold_high INTEGER NOT NULL DEFAULT 70,
+      risk_threshold_medium INTEGER NOT NULL DEFAULT 40,
+      velocity_alerts_enabled BOOLEAN NOT NULL DEFAULT true,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS alert_thresholds (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      platform TEXT NOT NULL UNIQUE,
+      low_threshold INTEGER NOT NULL DEFAULT 100,
+      medium_threshold INTEGER NOT NULL DEFAULT 500,
+      high_threshold INTEGER NOT NULL DEFAULT 1000,
+      time_window_minutes INTEGER NOT NULL DEFAULT 60,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS report_templates (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      name TEXT NOT NULL,
+      platform TEXT NOT NULL DEFAULT 'all',
+      html_content TEXT NOT NULL,
+      is_default BOOLEAN NOT NULL DEFAULT false,
+      created_by TEXT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS report_templates_platform_is_default_idx
+    ON report_templates (platform, is_default)
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS policy_mappings (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      category_id TEXT NOT NULL UNIQUE,
+      definition TEXT NOT NULL,
+      legal_sections JSONB NOT NULL DEFAULT '[]'::jsonb,
+      platform_policies JSONB NOT NULL DEFAULT '{}'::jsonb,
+      keywords TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+      severity_level TEXT NOT NULL DEFAULT 'Medium',
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS policy_mappings_is_active_category_id_idx
+    ON policy_mappings (is_active, category_id)
+  `);
 }
 
 async function main() {
@@ -696,6 +914,7 @@ async function main() {
       await ensurePlatformFields(prisma);
       await migrateCatalogSplit(prisma);
       await ensureCatalogColumns(prisma);
+      await ensureSettingsTables(prisma);
     }
 
     const afterMigrate = await countPublicTables(prisma);

@@ -10,6 +10,7 @@ const { assertJwtConfigured, shouldSeedDefaultAdmin, isProduction } = require('.
 const { startMonitoring } = require('./services/monitorService');
 const { startScheduler: startCatalogMonitoringScheduler } = require('./services/monitoringsocialmedia');
 const { startScheduler: startSentimentAnalysisScheduler } = require('./services/sentimentanalysis');
+const { startScheduler: startEventScheduler } = require('./modules/events');
 const { startTempContentProcessor } = require('./services/tempContentProcessor');
 const { seedDefaultThresholds } = require('./services/velocityAlertService');
 const grievanceService = require('./services/grievanceService');
@@ -49,8 +50,7 @@ process.on('unhandledRejection', (reason) => {
 });
 
 // Trace every DB operation (collection, method, query) issued through Mongoose.
-// Payloads are capped: an unbounded JSON.stringify of a query carrying a large
-// `$nin` produced single 1.3 MB log lines and a 467 MB daily file.
+// Only when Mongo is enabled — otherwise skip (Postgres-only default).
 const DB_TRACE_MAX_CHARS = Math.max(200, Number(process.env.DB_TRACE_MAX_CHARS || 2000));
 const traceValue = (value) => {
   if (value === undefined || value === null) return '';
@@ -65,9 +65,11 @@ const traceValue = (value) => {
     ? `${text.slice(0, DB_TRACE_MAX_CHARS)}…[truncated ${text.length - DB_TRACE_MAX_CHARS} chars]`
     : text;
 };
-mongoose.set('debug', (collectionName, method, query, doc) => {
-  logger.debug(`[DB] ${collectionName}.${method}`, traceValue(query), traceValue(doc));
-});
+if (String(process.env.MONGO_ENABLED || '').toLowerCase() === 'true') {
+  mongoose.set('debug', (collectionName, method, query, doc) => {
+    logger.debug(`[DB] ${collectionName}.${method}`, traceValue(query), traceValue(doc));
+  });
+}
 
 // Fail closed on secrets before accepting traffic.
 assertJwtConfigured();
@@ -129,7 +131,6 @@ app.use('/api/youtube', require('./routes/youtube.routes'));
 app.use('/api/x', require('./routes/x.routes'));
 app.use('/api/media', require('./routes/media.routes'));
 app.use('/api/search', require('./routes/searchRoutes'));
-app.use('/api/events', require('./routes/eventRoutes'));
 app.use('/api/alert-thresholds', require('./routes/alertThresholdRoutes'));
 app.use('/api/maigret', require('./routes/maigretRoutes'));
 app.use('/api/wmn', require('./routes/wmnRoutes'));
@@ -151,7 +152,6 @@ app.use('/api/suggestions', require('./modules/grievances').suggestionRoutes);
 app.use('/api/policies', require('./routes/policyRoutes'));
 app.use('/api/templates', require('./routes/templatesRoutes'));
 app.use('/api/poi', require('./routes/poiRoutes'));
-app.use('/api/master-calendar', require('./routes/masterCalendarRoutes'));
 app.use('/api/rag', require('./routes/ragRoutes'));
 app.use('/api/daily-intelligence-report', require('./routes/dailyIntelligenceReportRoutes'));
 app.use('/api/comprehensive-report', require('./routes/comprehensiveReportRoutes'));
@@ -584,92 +584,73 @@ const startLlmRelevanceSweeper = () => {
 };
 
 const startServer = async () => {
-  // Connect to database
-  await connectDB();
+  // Postgres is the default store. Mongo is opt-in (MONGO_ENABLED=true).
+  const mongo = await connectDB();
+  const mongoReady = Boolean(mongo?.enabled) && mongoose.connection.readyState === 1;
 
-  // Load DB-driven policy mappings/keywords now that Mongo is actually up.
-  // Doing this at require-time raced connectDB() and silently degraded every
-  // boot to the stale file fallback.
+  // Policy mappings load from Postgres — start whether or not Mongo is enabled.
   try {
     await require('./services/mappingService').start();
   } catch (mappingErr) {
     logger.error(`[MappingService] Initial load failed: ${mappingErr.message}`);
   }
 
-  // Create default admin
+  // Create default admin (Postgres / Prisma)
   await createDefaultAdmin();
 
-  // Create default settings
-  await createDefaultSettings();
+  if (mongoReady) {
+    await createDefaultSettings();
+    await fixIndexes();
+    await ensureReportIndexes();
+    await ensureSearchHistoryIndexes();
+    await backfillSearchHistoryResultsText();
 
-  // Seed sources
-  // await seedSources();
-
-  // Fix indexes
-  await fixIndexes();
-  await ensureReportIndexes();
-  await ensureSearchHistoryIndexes();
-  await backfillSearchHistoryResultsText();
-
-  // Backfill profile relevance for sources that pre-date the scorer.
-  setTimeout(async () => {
-    try {
-      const Source = require('./models/Source');
-      const { persistSourceRelevance } = require('./services/profileRelevanceService');
-      const missing = await Source.find({
-        $or: [
-          { relevance: null },
-          { 'relevance.computed_at': null },
-          { 'relevance.score': null }
-        ]
-      }).select('id').lean();
-      if (!missing.length) return;
-      logger.info(`[ProfileRelevance] Backfilling ${missing.length} source(s) without relevance`);
-      for (const source of missing) {
-        await persistSourceRelevance(source.id);
+    // Backfill profile relevance for sources that pre-date the scorer.
+    setTimeout(async () => {
+      try {
+        const Source = require('./models/Source');
+        const { persistSourceRelevance } = require('./services/profileRelevanceService');
+        const missing = await Source.find({
+          $or: [
+            { relevance: null },
+            { 'relevance.computed_at': null },
+            { 'relevance.score': null }
+          ]
+        }).select('id').lean();
+        if (!missing.length) return;
+        logger.info(`[ProfileRelevance] Backfilling ${missing.length} source(s) without relevance`);
+        for (const source of missing) {
+          await persistSourceRelevance(source.id);
+        }
+      } catch (err) {
+        logger.warn(`[ProfileRelevance] Startup backfill failed: ${err.message}`);
       }
-    } catch (err) {
-      logger.warn(`[ProfileRelevance] Startup backfill failed: ${err.message}`);
+    }, 8000);
+
+    await seedDefaultThresholds();
+
+    const useEngine = String(process.env.USE_ENGINE || 'false').toLowerCase() === 'true';
+    if (useEngine) {
+      startTempContentProcessor();
+    } else {
+      startMonitoring();
     }
-  }, 8000);
 
-  // Seed default velocity alert thresholds
-  await seedDefaultThresholds();
+    if (!useEngine) {
+      startGrievanceScheduler();
+    }
 
-  // Master calendar seed disabled — events are created manually only
-  // await seedRecurringEvents();
-
-  // Auto-creation from master calendar disabled — events are now created manually only
-  // await syncCalendarToEvents();
-
-  // Start Monitoring Service OR temp content processor (engine mode)
-  const useEngine = String(process.env.USE_ENGINE || 'false').toLowerCase() === 'true';
-  if (useEngine) {
-    startTempContentProcessor();
+    startAvailabilityChecker();
+    startLlmRelevanceSweeper();
   } else {
-    startMonitoring();
+    logger.info('[Startup] Skipping Mongo-backed monitors/seeds (Events, legacy Sources, velocity, etc.)');
   }
 
-  // New catalog profile monitoring (Facebook first) — independent of Mongo monitor
+  // Catalog profile monitoring + sentiment — Postgres / Blugate (no Mongo)
   startCatalogMonitoringScheduler();
-
-  // Catalog posts → sentiment/intelligence queue (Postgres analysis_status)
   startSentimentAnalysisScheduler();
-
-  // Start Grievance Auto-Fetch Scheduler only in legacy mode.
-  if (!useEngine) {
-    startGrievanceScheduler();
-  }
-
-  // Start Content Availability Checker
-  startAvailabilityChecker();
-
-  // Start Hyderabad/Telangana relevance sweeper — periodically asks Ollama
-  // to classify event-tagged posts that don't yet have a verdict, and
-  // hard-deletes the ones it confirms are off-topic.
-  startLlmRelevanceSweeper();
-
-  // Retweet sync is on-demand via the Frequent Engagers button, not scheduled.
+  // Events keyword monitoring — Postgres social_media_events
+  startEventScheduler();
 
   const PORT = process.env.PORT || 8000;
 
@@ -677,7 +658,11 @@ const startServer = async () => {
     console.log('\\n----------------------------------------');
     console.log(`🚀 Server Status: Online`);
     console.log(`🔌 Port: ${PORT}`);
-    console.log(`🍃 Database: MongoDB connected to '${mongoose.connection.name}'`);
+    console.log(
+      mongoReady
+        ? `🍃 Database: Postgres + MongoDB ('${mongoose.connection.name}')`
+        : `🐘 Database: Postgres only (Mongo disabled)`
+    );
     console.log(`🤖 Background Services: Active`);
     console.log('----------------------------------------\\n');
   });

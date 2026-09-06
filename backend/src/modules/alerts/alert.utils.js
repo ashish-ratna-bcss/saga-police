@@ -77,6 +77,46 @@ const mediaFromPost = (post) => {
     .filter(Boolean);
 };
 
+/** Same metric set as velocityAlertService — plus Facebook `reactions`. */
+const VELOCITY_METRICS = ['likes', 'retweets', 'replies', 'comments', 'shares', 'views', 'reactions'];
+
+const DEFAULT_VIRALITY_THRESHOLDS = {
+  low_threshold: 100,
+  medium_threshold: 500,
+  high_threshold: 1000,
+};
+
+const normalizeViralityLevel = (value) => {
+  const v = String(value || '').toLowerCase().trim();
+  if (v === 'low' || v === 'medium' || v === 'high') return v;
+  return null;
+};
+
+/**
+ * Map engagement counts → low|medium|high virality (independent of risk).
+ * Mirrors velocityAlertService.checkVelocity priority bands without the time window
+ * so list cards can show the viral badge for existing catalog posts.
+ */
+const deriveViralityFromEngagement = (engagement, thresholds = DEFAULT_VIRALITY_THRESHOLDS) => {
+  const eng = engagement && typeof engagement === 'object' ? engagement : {};
+  const rank = { low: 1, medium: 2, high: 3 };
+  let highest = null;
+
+  for (const metric of VELOCITY_METRICS) {
+    const value = Number(eng[metric]) || 0;
+    let hit = null;
+    if (value >= thresholds.high_threshold) hit = 'high';
+    else if (value >= thresholds.medium_threshold) hit = 'medium';
+    else if (value >= thresholds.low_threshold) hit = 'low';
+    if (hit && (!highest || rank[hit] > rank[highest])) highest = hit;
+  }
+
+  return highest;
+};
+
+const resolveCatalogViralityLevel = (snap, engagement) =>
+  normalizeViralityLevel(snap?.virality_level) || deriveViralityFromEngagement(engagement);
+
 /** Map a social_media_alerts row (+ joined post) into the Alerts UI shape. */
 const hydrateCatalogAlert = (row) => {
   const post = row.post || null;
@@ -99,6 +139,7 @@ const hydrateCatalogAlert = (row) => {
   }
 
   const engagement = asJson(post?.engagement, {});
+  const viralityLevel = resolveCatalogViralityLevel(snap, engagement);
   const analysis = {
     category: snap.category || null,
     intent: snap.intent || snap.category || null,
@@ -129,7 +170,7 @@ const hydrateCatalogAlert = (row) => {
     status: row.status,
     is_read: row.is_read,
     matched_keywords: highlights,
-    virality_level: null,
+    virality_level: viralityLevel,
     threat_details: {
       intent: analysis.intent,
       reasons,
@@ -254,4 +295,8 @@ module.exports = {
   isCatalogStore,
   hydrateCatalogAlert,
   buildWhere,
+  deriveViralityFromEngagement,
+  resolveCatalogViralityLevel,
+  normalizeViralityLevel,
+  DEFAULT_VIRALITY_THRESHOLDS,
 };

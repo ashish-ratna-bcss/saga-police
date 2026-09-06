@@ -8,6 +8,7 @@ const {
   listGrievances: listCatalogGrievances,
   getGrievance: getCatalogGrievance,
   getStats: getCatalogStats,
+  getReportStats,
 } = require('./grievance.controller');
 
 // Legacy Mongo handlers (opt-in via store=mongo only)
@@ -50,6 +51,7 @@ router.post('/whatsapp/webhook', ingestWhatsAppWebhook);
 router.use(authorize({ pages: ['/grievances'] }));
 
 router.get('/stats', withCatalog(getCatalogStats, getStats));
+router.get('/report-stats', getReportStats);
 router.get('/dashboard-stats', getDashboardStats);
 
 router.route('/settings').get(getSettings).put(updateSettings);

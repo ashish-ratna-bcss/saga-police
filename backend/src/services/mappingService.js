@@ -1,12 +1,12 @@
 const fs = require('fs');
 const path = require('path');
-const PolicyMapping = require('../models/PolicyMapping');
 const logger = require('../utils/logger');
+const { listActivePolicies } = require('../modules/settings/settings.service');
 
 /**
  * Deterministic Mapping Engine
  * Resolves legal sections and platform policies based on category.
- * Now dynamic: Fetches from MongoDB (cached).
+ * Dynamic: fetches from Postgres (cached).
  */
 class MappingService {
     constructor() {
@@ -36,26 +36,27 @@ class MappingService {
 
     async loadMappings() {
         try {
-            const mappings = await PolicyMapping.find({ is_active: true });
+            const mappings = await listActivePolicies();
 
-            // Transform DB format back to service internal format
-            this.mappingData.category_mappings = mappings.map(m => ({
+            this.mappingData.category_mappings = mappings.map((m) => ({
                 category_id: m.category_id,
                 definition: m.definition,
                 severity_level: m.severity_level || 'Medium',
                 keywords: m.keywords || [],
-                country: 'IN', // Default
+                country: 'IN',
                 legal_sections: m.legal_sections,
-                platform_policies: m.platform_policies instanceof Map ?
-                    Object.fromEntries(m.platform_policies) : m.platform_policies // Handle Mongoose Map
+                platform_policies:
+                    m.platform_policies && typeof m.platform_policies === 'object'
+                        ? m.platform_policies
+                        : {},
             }));
 
             this.isLoaded = true;
-            logger.info(`[MappingService] Successfully loaded ${mappings.length} category mappings from MongoDB.`);
+            logger.info(
+                `[MappingService] Successfully loaded ${mappings.length} category mappings from Postgres.`
+            );
         } catch (error) {
             logger.error('[MappingService] Error loading mapping data from DB:', error.message);
-            // Fallback to file if DB fails on startup? 
-            // Better to keep previous cache if update fails
             if (!this.isLoaded) {
                 this.loadFallbackFile();
             }

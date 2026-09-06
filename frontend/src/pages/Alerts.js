@@ -2037,30 +2037,60 @@ export default function Alerts() {
 
   return (
     <>
-      <div className="space-y-6 max-w-[1600px] mx-auto" data-testid="alerts-page">
-        {/* Page Header */}
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-          <div className="flex flex-col">
-            <h1 className="text-3xl font-heading font-bold tracking-tight">Alerts</h1>
-            <p className="text-sm text-muted-foreground mt-1">Monitor profiles in our database and Report harmful content</p>
+      <div className="space-y-2.5 max-w-[1600px] mx-auto" data-testid="alerts-page">
+        {/* Title row — actions fill the space */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <div className="min-w-0 shrink-0">
+            <h1 className="text-xl font-heading font-bold tracking-tight leading-none">Alerts</h1>
+            <p className="text-[11px] text-muted-foreground mt-0.5 hidden sm:block">
+              Monitor watched profiles and escalate harmful content
+            </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+            {alertStats != null && (
+              <span
+                title="Alerts currently in the Active queue (not yet acknowledged, escalated, or closed)"
+                className="inline-flex items-baseline gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] text-muted-foreground"
+              >
+                <span className="tabular-nums font-semibold text-foreground">
+                  {Number(alertStats.active || 0).toLocaleString()}
+                </span>
+                <span>active alerts</span>
+              </span>
+            )}
             <Button
               onClick={handleOpenTopAlerts}
-              className="gap-2 shadow-sm h-9 px-3 text-xs bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-700 hover:to-orange-600 text-white border-0"
+              size="sm"
+              title={`AI-ranked top alerts per category over the last ${topAlertsHours} hours`}
+              className="h-8 gap-1.5 text-xs bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-700 hover:to-orange-600 text-white border-0"
             >
               <Sparkles className="h-3.5 w-3.5" />
               Top 50 / Category · {topAlertsHours}h
             </Button>
-            <Button variant="outline" className="gap-2 shadow-sm h-9 px-3 text-xs" onClick={() => setFrequentEngagersOpen(true)}>
-              <Users className="h-4 w-4" />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 text-xs"
+              title="People who engage most often on monitored posts"
+              onClick={() => setFrequentEngagersOpen(true)}
+            >
+              <Users className="h-3.5 w-3.5" />
               Frequent Engagers
             </Button>
             <Dialog open={profilesMatrixOpen} onOpenChange={setProfilesMatrixOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2 shadow-sm h-9 px-3 text-xs" disabled={sourcesMetaLoading && !sourcesMetaLoaded}>
-                  <LayoutGrid className="h-4 w-4" />
-                  Total Profiles
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs"
+                  title="Breakdown of monitored profiles by platform and category"
+                  disabled={sourcesMetaLoading && !sourcesMetaLoaded}
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                  Monitored Profiles
+                  {monitoredProfilesMatrix.grandTotal > 0 && (
+                    <span className="tabular-nums opacity-80">{monitoredProfilesMatrix.grandTotal}</span>
+                  )}
                 </Button>
               </DialogTrigger>
               <DialogContent className="w-[92vw] max-w-5xl max-h-[92vh] overflow-hidden p-0">
@@ -2135,8 +2165,9 @@ export default function Alerts() {
             </Dialog>
 
             <Button
+              size="sm"
+              className="h-8 gap-1.5 text-xs"
               onClick={() => navigate('/social-profiles')}
-              className="gap-2 shadow-sm"
             >
               Manage Profiles
             </Button>
@@ -2146,40 +2177,40 @@ export default function Alerts() {
         {activeTab !== 'reports' && (
           <>
             {/* Search & Filters Row */}
-            <div className="flex flex-col md:flex-row md:items-center gap-3">
+            <div className="flex flex-col md:flex-row md:items-center gap-2">
               {/* Unified Search Input */}
               <form onSubmit={handleSearchSubmit} className="relative w-full md:flex-1">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="Search alerts or paste URL to Escalate..."
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring pl-9 pr-28"
+                  placeholder="Search alerts or paste URL to escalate…"
+                  className="flex h-8 w-full rounded-md border border-input bg-background px-3 text-xs shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring pl-8 pr-28"
                   value={searchQuery}
                   onChange={(e) => handleSearchChange(e.target.value)}
                   disabled={isInvestigating}
                 />
                 {isInvestigating && (
-                  <div className="absolute right-2 top-1.5 flex items-center gap-2 px-3 py-1 bg-muted rounded-md text-xs">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <div className="absolute right-2 top-1 flex items-center gap-2 px-2 py-0.5 bg-muted rounded-md text-[11px]">
+                    <Loader2 className="h-3 w-3 animate-spin" />
                     <span>Escalating...</span>
                   </div>
                 )}
                 {searchQuery && !isInvestigating && isUrlQuery(searchQuery) && (
                   <button
                     type="submit"
-                    className="absolute right-2 top-1 px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 shadow-sm flex items-center gap-1 transition-colors"
+                    className="absolute right-1.5 top-1 px-2.5 py-1 text-[11px] font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 shadow-sm flex items-center gap-1 transition-colors"
                   >
                     <ExternalLink className="h-3 w-3" />
                     Escalate
                   </button>
                 )}
                 {searchQuery.trim() && !isInvestigating && !isUrlQuery(searchQuery) && (
-                  <div className="absolute right-2 top-1 flex items-center gap-1">
+                  <div className="absolute right-1.5 top-1 flex items-center gap-1">
                     {debouncedSearchQuery && (
                       <button
                         type="button"
                         onClick={() => { setSearchQuery(''); setDebouncedSearchQuery(''); }}
-                        className="px-1.5 py-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
+                        className="px-1.5 py-1 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
                         title="Clear search"
                       >
                         <X className="h-3.5 w-3.5" />
@@ -2188,7 +2219,7 @@ export default function Alerts() {
                     <button
                       type="submit"
                       disabled={searchQuery.trim() === debouncedSearchQuery}
-                      className="px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 shadow-sm flex items-center gap-1 transition-colors disabled:opacity-40 disabled:cursor-default"
+                      className="px-2.5 py-1 text-[11px] font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 shadow-sm flex items-center gap-1 transition-colors disabled:opacity-40 disabled:cursor-default"
                     >
                       <Search className="h-3 w-3" />
                       Search
@@ -2198,9 +2229,9 @@ export default function Alerts() {
               </form>
 
               {/* Compact Filter Controls */}
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <Select value={platformFilter} onValueChange={setPlatformFilter}>
-                  <SelectTrigger className="w-[130px] h-9 text-xs">
+                  <SelectTrigger className="w-[120px] h-8 text-[11px]">
                     <SelectValue placeholder="Platform" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2213,7 +2244,7 @@ export default function Alerts() {
                 </Select>
 
                 <Select value={sourceCategoryFilter} onValueChange={setSourceCategoryFilter}>
-                  <SelectTrigger className="w-[140px] h-9 text-xs">
+                  <SelectTrigger className="w-[130px] h-8 text-[11px]">
                     <SelectValue placeholder="Category" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2227,7 +2258,7 @@ export default function Alerts() {
                 </Select>
 
                 <Select value={keywordFilter} onValueChange={setKeywordFilter}>
-                  <SelectTrigger className="w-[130px] h-9 text-xs">
+                  <SelectTrigger className="w-[120px] h-8 text-[11px]">
                     <SelectValue placeholder="Keyword" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2247,9 +2278,9 @@ export default function Alerts() {
                   }}
                 >
                   <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-9 px-2 text-xs gap-1">
+                    <Button variant="outline" size="sm" className="h-8 px-2 text-[11px] gap-1">
                       <Filter className="h-3.5 w-3.5" />
-                      Manage Keywords
+                      Keywords
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-[420px]">
@@ -2342,7 +2373,7 @@ export default function Alerts() {
                         openDatePicker(mainStartDateInputRef);
                       }
                     }}
-                    className="h-7 px-1.5 rounded-sm border border-transparent hover:border-input/70 focus-visible:border-input/70 flex items-center gap-1 cursor-pointer"
+                    className="h-6 px-1 rounded-sm border border-transparent hover:border-input/70 focus-visible:border-input/70 flex items-center gap-1 cursor-pointer"
                   >
                     <span className="text-[10px] text-muted-foreground">From</span>
                     <input
@@ -2351,7 +2382,7 @@ export default function Alerts() {
                       value={normalizeDateInputValue(dateRange.start)}
                       onChange={(e) => handleDateRangeChange('start', e.target.value)}
                       onClick={(e) => e.stopPropagation()}
-                      className="h-6 w-[102px] bg-transparent text-[11px] outline-none cursor-pointer"
+                      className="h-5 w-[96px] bg-transparent text-[11px] outline-none cursor-pointer"
                     />
                   </div>
                   <span className="text-muted-foreground text-[11px]">→</span>
@@ -2365,7 +2396,7 @@ export default function Alerts() {
                         openDatePicker(mainEndDateInputRef);
                       }
                     }}
-                    className="h-7 px-1.5 rounded-sm border border-transparent hover:border-input/70 focus-visible:border-input/70 flex items-center gap-1 cursor-pointer"
+                    className="h-6 px-1 rounded-sm border border-transparent hover:border-input/70 focus-visible:border-input/70 flex items-center gap-1 cursor-pointer"
                   >
                     <span className="text-[10px] text-muted-foreground">To</span>
                     <input
@@ -2374,7 +2405,7 @@ export default function Alerts() {
                       value={normalizeDateInputValue(dateRange.end)}
                       onChange={(e) => handleDateRangeChange('end', e.target.value)}
                       onClick={(e) => e.stopPropagation()}
-                      className="h-6 w-[102px] bg-transparent text-[11px] outline-none cursor-pointer"
+                      className="h-5 w-[96px] bg-transparent text-[11px] outline-none cursor-pointer"
                     />
                   </div>
                   {(dateRange.start || dateRange.end) && (
@@ -2394,10 +2425,9 @@ export default function Alerts() {
         )}
 
         {/* Status & Category Filter Bar */}
-        <div className="border border-border bg-card rounded-md p-3 space-y-2.5">
-          {/* Status Tabs */}
-          <div className="w-full overflow-x-auto no-scrollbar">
-            <div className="flex items-center gap-1 min-w-max">
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-1.5 bg-muted/10">
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar min-w-0 flex-1">
               {visibleStatusTabs.map((tab) => {
                 const tabCount =
                   tab.value === 'escalated'
@@ -2409,15 +2439,15 @@ export default function Alerts() {
                   key={tab.value}
                   onClick={() => selectStatusTab(tab.value)}
                   data-testid={`tab-${tab.value}`}
-                  className={`relative px-3 py-1.5 text-sm font-medium transition-all rounded-md ${activeTab === tab.value
+                  className={`relative px-2.5 py-1 text-xs font-medium transition-all rounded-md whitespace-nowrap ${activeTab === tab.value
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                     }`}
                 >
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1">
                     {tab.label}
                     {showCount && (
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold tabular-nums ${activeTab === tab.value ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                      <span className={`text-[10px] px-1 py-0.5 rounded font-semibold tabular-nums ${activeTab === tab.value ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
                         {tabCount.toLocaleString()}
                       </span>
                     )}
@@ -2426,77 +2456,61 @@ export default function Alerts() {
                 );
               })}
               {!hasAnyAlertFeature && (
-                <span className="px-3 py-1.5 text-sm text-muted-foreground">
+                <span className="px-2 py-1 text-xs text-muted-foreground">
                   No alert features are assigned to your account.
                 </span>
               )}
             </div>
+
+            {activeTab !== 'reports' && (
+              <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+                <Select value={draftRiskFilter} onValueChange={setDraftRiskFilter}>
+                  <SelectTrigger className="w-[100px] h-7 text-[11px]">
+                    <SelectValue placeholder="Risk" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All risk</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={draftViralityFilter} onValueChange={setDraftViralityFilter}>
+                  <SelectTrigger className="w-[110px] h-7 text-[11px]">
+                    <SelectValue placeholder="Virality" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All virality</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={resetRiskViralityFilters}
+                >
+                  Reset
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-7 px-2.5 text-[11px]"
+                  onClick={applyRiskViralityFilters}
+                >
+                  Apply
+                </Button>
+              </div>
+            )}
           </div>
 
-          {activeTab !== 'reports' && (
-            <>
-              {/* Divider */}
-              <div className="border-t border-border/50" />
-
-              {/* Risk + Virality Filters (independent dimensions, applied on demand) */}
-              <div className="flex items-center gap-4 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-semibold tracking-wide text-muted-foreground shrink-0 inline-flex items-center gap-1">
-                    <span aria-hidden="true">🛡</span> Risk
-                  </span>
-                  <Select value={draftRiskFilter} onValueChange={setDraftRiskFilter}>
-                    <SelectTrigger className="w-[110px] h-9 text-xs">
-                      <SelectValue placeholder="All" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-semibold tracking-wide text-muted-foreground shrink-0 inline-flex items-center gap-1">
-                    <span aria-hidden="true">📈</span> Virality
-                  </span>
-                  <Select value={draftViralityFilter} onValueChange={setDraftViralityFilter}>
-                    <SelectTrigger className="w-[110px] h-9 text-xs">
-                      <SelectValue placeholder="All" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-center gap-2 ml-auto">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-9"
-                    onClick={resetRiskViralityFilters}
-                  >
-                    Reset
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="h-9"
-                    onClick={applyRiskViralityFilters}
-                  >
-                    Apply Filters
-                  </Button>
-                </div>
-              </div>
-
-              {platformFilter === 'instagram' && (
-            <div className="flex items-center gap-1.5 text-sm overflow-x-auto no-scrollbar pt-1">
+          {activeTab !== 'reports' && platformFilter === 'instagram' && (
+            <div className="flex items-center gap-1.5 text-sm overflow-x-auto no-scrollbar px-2.5 py-1.5 border-t border-border">
               {[
                 { value: 'all_posts_reels', label: 'All Posts & Reels' },
                 { value: 'stories_24h', label: 'Stories (Last 24 hrs)' },
@@ -2505,7 +2519,7 @@ export default function Alerts() {
                 <button
                   key={opt.value}
                   onClick={() => setInstagramContentFilter(opt.value)}
-                  className={`px-3 py-1 font-medium transition-all rounded-full text-xs ${instagramContentFilter === opt.value
+                  className={`px-2.5 py-1 font-medium transition-all rounded-md text-[11px] ${instagramContentFilter === opt.value
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                     }`}
@@ -2514,9 +2528,9 @@ export default function Alerts() {
                 </button>
               ))}
               {instagramContentFilter === 'stories_24h' && (
-                <div className="ml-2">
+                <div className="ml-1">
                   <Select value={instagramStoriesStatusFilter} onValueChange={setInstagramStoriesStatusFilter}>
-                    <SelectTrigger className="h-8 w-[150px] text-xs">
+                    <SelectTrigger className="h-7 w-[130px] text-[11px]">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -2528,8 +2542,8 @@ export default function Alerts() {
                 </div>
               )}
               {instagramContentFilter === 'captured_stories' && (
-                <div className="ml-2">
-                  <div className="h-8 px-1.5 border border-input rounded-md bg-background flex items-center gap-1">
+                <div className="ml-1">
+                  <div className="h-7 px-1.5 border border-input rounded-md bg-background flex items-center gap-1">
                     <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <div
                       role="button"
@@ -2541,7 +2555,7 @@ export default function Alerts() {
                           openDatePicker(igStartDateInputRef);
                         }
                       }}
-                      className="h-7 px-1 rounded-sm border border-transparent hover:border-input/70 focus-visible:border-input/70 flex items-center gap-1 cursor-pointer"
+                      className="h-6 px-1 rounded-sm border border-transparent hover:border-input/70 focus-visible:border-input/70 flex items-center gap-1 cursor-pointer"
                     >
                       <span className="text-[10px] text-muted-foreground">From</span>
                       <input
@@ -2550,7 +2564,7 @@ export default function Alerts() {
                         value={normalizeDateInputValue(dateRange.start)}
                         onChange={(e) => handleDateRangeChange('start', e.target.value)}
                         onClick={(e) => e.stopPropagation()}
-                        className="h-6 w-[96px] bg-transparent text-[11px] outline-none cursor-pointer"
+                        className="h-5 w-[96px] bg-transparent text-[11px] outline-none cursor-pointer"
                       />
                     </div>
                     <span className="text-muted-foreground text-[11px]">→</span>
@@ -2564,7 +2578,7 @@ export default function Alerts() {
                           openDatePicker(igEndDateInputRef);
                         }
                       }}
-                      className="h-7 px-1 rounded-sm border border-transparent hover:border-input/70 focus-visible:border-input/70 flex items-center gap-1 cursor-pointer"
+                      className="h-6 px-1 rounded-sm border border-transparent hover:border-input/70 focus-visible:border-input/70 flex items-center gap-1 cursor-pointer"
                     >
                       <span className="text-[10px] text-muted-foreground">To</span>
                       <input
@@ -2573,7 +2587,7 @@ export default function Alerts() {
                         value={normalizeDateInputValue(dateRange.end)}
                         onChange={(e) => handleDateRangeChange('end', e.target.value)}
                         onClick={(e) => e.stopPropagation()}
-                        className="h-6 w-[96px] bg-transparent text-[11px] outline-none cursor-pointer"
+                        className="h-5 w-[96px] bg-transparent text-[11px] outline-none cursor-pointer"
                       />
                     </div>
                     {(dateRange.start || dateRange.end) && (
@@ -2589,13 +2603,11 @@ export default function Alerts() {
                 </div>
               )}
             </div>
-              )}
-            </>
           )}
         </div>
 
         {activeTab !== 'reports' && (
-          <div className="px-1 text-xs text-muted-foreground">
+          <div className="px-0.5 text-[11px] text-muted-foreground">
             {(() => {
               const activeTabLabel = visibleStatusTabs.find((t) => t.value === activeTab)?.label || activeTab;
               const activeKeyword = (debouncedSearchQuery && !isUrlQuery(debouncedSearchQuery))

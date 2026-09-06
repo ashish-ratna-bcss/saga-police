@@ -609,6 +609,61 @@ const deleteContact = async (id) => {
   }
 };
 
+/**
+ * Dashboard report KPI buckets from Postgres grievance reports.
+ * Maps catalog statuses onto the legacy alert-report labels the Dashboard UI expects.
+ */
+const getDashboardReportStats = async () => {
+  const empty = () => ({
+    total: 0,
+    sent_to_intermediary: 0,
+    awaiting_reply: 0,
+    closed: 0,
+  });
+  const byPlatform = {
+    all: empty(),
+    twitter: empty(),
+    x: empty(),
+    youtube: empty(),
+    facebook: empty(),
+    instagram: empty(),
+    whatsapp: empty(),
+  };
+
+  const grouped = await prisma.social_media_grievance_reports.groupBy({
+    by: ['platform', 'status'],
+    _count: { _all: true },
+  });
+
+  for (const row of grouped) {
+    const raw = String(row.platform || '').toLowerCase();
+    const plat = raw === 'twitter' ? 'x' : raw || 'all';
+    const status = String(row.status || '').toUpperCase();
+    const count = row._count._all;
+    const keys = new Set(['all']);
+    if (byPlatform[plat]) keys.add(plat);
+    if (plat === 'x') keys.add('twitter');
+
+    for (const key of keys) {
+      const bucket = byPlatform[key];
+      if (!bucket) continue;
+      bucket.total += count;
+      // Pending pie uses sent_to_intermediary; treat open catalog reports as pending.
+      if (status === 'PENDING' || status === 'ESCALATED') {
+        bucket.sent_to_intermediary += count;
+      }
+      if (status === 'ESCALATED') {
+        bucket.awaiting_reply += count;
+      }
+      if (status === 'CLOSED') {
+        bucket.closed += count;
+      }
+    }
+  }
+
+  return byPlatform;
+};
+
 module.exports = {
   REPORT_TYPES,
   createOrUpdateReport,
@@ -623,4 +678,5 @@ module.exports = {
   updateContact,
   deleteContact,
   nextUniqueCode,
+  getDashboardReportStats,
 };

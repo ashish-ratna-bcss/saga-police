@@ -257,6 +257,133 @@ model keywords {
   @@index([keyword])
 }
 
+/// Occasion templates (festivals / official dates) — replaces Mongo master calendar / HCP.
+model social_media_occasion_calendar {
+  id                  Int                   @id @default(autoincrement())
+  sl_no               Int                   @default(0)
+  title               String
+  date_label          String                @default("")
+  monitoring_range    String                @default("")
+  suggested_keywords  String                @default("")
+  remarks             String                @default("")
+  platforms           String[]              @default([])
+  is_recurring        Boolean               @default(true)
+  created_at          DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime              @updatedAt @db.Timestamptz(6)
+  events              social_media_events[]
+
+  @@index([is_recurring, sl_no])
+}
+
+/// Monitored keyword event (Postgres Path A — not Mongo Event).
+model social_media_events {
+  id                        Int                            @id @default(autoincrement())
+  name                      String
+  description               String                         @default("")
+  start_date                DateTime?                      @db.Timestamptz(6)
+  end_date                  DateTime?                      @db.Timestamptz(6)
+  location                  String                         @default("")
+  platforms                 String[]                       @default([])
+  /// [{ keyword, language }]
+  keywords                  Json                           @default("[]")
+  high_risk_threshold       Int?
+  medium_risk_threshold     Int?
+  polling_interval_minutes  Int                            @default(60)
+  monitoring_status         monitoring_status_enum         @default(stopped)
+  monitoring_logs           Json                           @default("[]")
+  last_fetched_at           DateTime?                      @db.Timestamptz(6)
+  last_fetched_history      Json                           @default("[]")
+  origin                    String                         @default("manual")
+  occasion_calendar_id      Int?
+  created_by                String                         @default("system")
+  created_at                DateTime                       @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime                       @updatedAt @db.Timestamptz(6)
+  occasion_calendar         social_media_occasion_calendar? @relation(fields: [occasion_calendar_id], references: [id], onDelete: SetNull)
+  media                     social_media_event_media[]
+
+  @@index([monitoring_status, created_at])
+  @@index([start_date])
+  @@index([occasion_calendar_id])
+  @@index([last_fetched_at])
+}
+
+/// Keyword-search discoveries for an event (not watched-profile social_media_posts).
+model social_media_event_media {
+  id             BigInt              @id @default(autoincrement())
+  event_id       Int
+  platform       String
+  external_id    String
+  url            String?
+  text           String?             @db.Text
+  author_name    String?
+  author_handle  String?
+  engagement     Json                @default("{}")
+  media          Json                @default("[]")
+  raw_data       Json                @default("{}")
+  posted_at      DateTime?           @db.Timestamptz(6)
+  fetched_at     DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime            @updatedAt @db.Timestamptz(6)
+  event          social_media_events @relation(fields: [event_id], references: [id], onDelete: Cascade)
+
+  @@unique([event_id, platform, external_id])
+  @@index([event_id, posted_at])
+  @@index([platform, posted_at])
+  @@index([fetched_at])
+}
+
+/// Global alert risk bands + viral toggle (single row).
+model alert_config {
+  id                       String   @id @default("default")
+  risk_threshold_high      Int      @default(70)
+  risk_threshold_medium    Int      @default(40)
+  velocity_alerts_enabled  Boolean  @default(true)
+  updated_at               DateTime @updatedAt @db.Timestamptz(6)
+}
+
+/// Viral engagement thresholds per platform (replaces Mongo AlertThreshold).
+model alert_thresholds {
+  id                   String   @id @default(uuid())
+  platform             String   @unique
+  low_threshold        Int      @default(100)
+  medium_threshold     Int      @default(500)
+  high_threshold       Int      @default(1000)
+  time_window_minutes  Int      @default(60)
+  is_active            Boolean  @default(true)
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime @updatedAt @db.Timestamptz(6)
+}
+
+/// Report DOCX/HTML templates (replaces Mongo Template).
+model report_templates {
+  id           String   @id @default(uuid())
+  name         String
+  platform     String   @default("all")
+  html_content String   @db.Text
+  is_default   Boolean  @default(false)
+  created_by   String?
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([platform, is_default])
+  @@index([created_at])
+}
+
+/// AI policy category mappings (replaces Mongo PolicyMapping).
+model policy_mappings {
+  id                String   @id @default(uuid())
+  category_id       String   @unique
+  definition        String   @db.Text
+  legal_sections    Json     @default("[]")
+  platform_policies Json     @default("{}")
+  keywords          String[] @default([])
+  severity_level    String   @default("Medium")
+  is_active         Boolean  @default(true)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([is_active, category_id])
+}
+
 enum monitoring_status_enum {
   started
   stopped

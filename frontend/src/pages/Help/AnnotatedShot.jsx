@@ -66,12 +66,12 @@ const Callouts = ({ markers, active, onPick }) => (
           <g key={m.n}>
             <line
               x1={bx} y1={by} x2={cx} y2={cy}
-              stroke={on ? '#2563eb' : '#e11d48'}
+              stroke={on ? 'hsl(var(--primary))' : '#e11d48'}
               strokeWidth={on ? 2 : 1.4}
               vectorEffect="non-scaling-stroke"
               strokeDasharray={on ? '0' : '3 2'}
             />
-            <circle cx={cx} cy={cy} r={on ? 1.1 : 0.8} fill={on ? '#2563eb' : '#e11d48'} />
+            <circle cx={cx} cy={cy} r={on ? 1.1 : 0.8} fill={on ? 'hsl(var(--primary))' : '#e11d48'} />
           </g>
         );
       })}
@@ -87,7 +87,7 @@ const Callouts = ({ markers, active, onPick }) => (
           onClick={(e) => { e.stopPropagation(); onPick(m.n); }}
           style={{ left: `${bx}%`, top: `${by}%` }}
           className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-md ring-2 ring-white transition-transform hover:scale-110 ${
-            on ? 'bg-blue-600 scale-110' : 'bg-rose-600'
+            on ? 'bg-primary scale-110' : 'bg-rose-600'
           }`}
           aria-label={`${m.n}. ${m.label}`}
         >
@@ -99,7 +99,7 @@ const Callouts = ({ markers, active, onPick }) => (
 );
 
 const Legend = ({ markers, onHover, dark }) => (
-  <ol className={`mt-3 grid gap-1.5 sm:grid-cols-2 ${dark ? 'text-slate-200' : 'text-slate-600 dark:text-slate-300'}`}>
+  <ol className={`mt-3 grid gap-1.5 sm:grid-cols-2 ${dark ? 'text-slate-200' : 'text-muted-foreground'}`}>
     {markers.map((m) => (
       <li
         key={m.n}
@@ -111,7 +111,7 @@ const Legend = ({ markers, onHover, dark }) => (
           {m.n}
         </span>
         <span>
-          <strong className={dark ? 'text-white' : 'text-slate-800 dark:text-slate-100'}>{m.label}</strong>
+          <strong className={dark ? 'text-white' : 'text-foreground'}>{m.label}</strong>
           {m.text ? ` — ${m.text}` : ''}
         </span>
       </li>
@@ -164,7 +164,7 @@ const AnnotatedShot = ({ src, alt = '', caption, markers = [], pending }) => {
         alt={alt || caption || 'Screenshot'}
         onError={() => setFailed(true)}
         onClick={handlePick}
-        className={`block w-full rounded-md border border-slate-200 dark:border-slate-700 ${picking ? 'cursor-crosshair' : ''} ${imgClass || ''}`}
+        className={`block w-full rounded-md border border-border ${picking ? 'cursor-crosshair' : ''} ${imgClass || ''}`}
       />
       {hasMarkers && <Callouts markers={markers} active={active} onPick={toggle} />}
     </div>
@@ -203,14 +203,14 @@ const AnnotatedShot = ({ src, alt = '', caption, markers = [], pending }) => {
         </div>
       ) : (
         <>
-          <div className="group relative rounded-xl bg-slate-50 dark:bg-slate-900/50">
+          <div className="group relative rounded-xl bg-muted/30">
             <Frame />
 
             <div className="absolute right-2 top-2 flex gap-1.5 opacity-70 transition-opacity group-hover:opacity-100">
               <button
                 type="button"
                 onClick={() => { setPicking((p) => !p); setPicked(null); }}
-                className={`rounded-lg p-1.5 text-white ${picking ? 'bg-blue-600' : 'bg-slate-900/70'}`}
+                className={`rounded-lg p-1.5 text-white ${picking ? 'bg-primary' : 'bg-foreground/70'}`}
                 title="Position helper — click the image to read its x/y percentage"
                 aria-label="Position helper"
               >
@@ -219,7 +219,7 @@ const AnnotatedShot = ({ src, alt = '', caption, markers = [], pending }) => {
               <button
                 type="button"
                 onClick={() => setZoom(true)}
-                className="rounded-lg bg-slate-900/70 p-1.5 text-white"
+                className="rounded-lg bg-foreground/70 p-1.5 text-white"
                 aria-label="View full size"
               >
                 <Maximize2 className="h-4 w-4" />
@@ -228,12 +228,12 @@ const AnnotatedShot = ({ src, alt = '', caption, markers = [], pending }) => {
           </div>
 
           {picking && (
-            <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm dark:border-blue-900 dark:bg-blue-950/30">
-              <span className="text-blue-800 dark:text-blue-300">
+            <div className="mt-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+              <span className="text-foreground">
                 Position helper on — click the target on the image.
               </span>
               {picked && (
-                <code className="ml-2 rounded bg-white px-2 py-0.5 font-mono text-blue-900 dark:bg-slate-900 dark:text-blue-200">
+                <code className="ml-2 rounded bg-background border border-border px-2 py-0.5 font-mono text-foreground">
                   x: {picked.x}, y: {picked.y}
                 </code>
               )}
@@ -245,7 +245,7 @@ const AnnotatedShot = ({ src, alt = '', caption, markers = [], pending }) => {
       )}
 
       {caption && !missing && (
-        <figcaption className="mt-2 text-xs text-slate-500 dark:text-slate-400">{caption}</figcaption>
+        <figcaption className="mt-2 text-xs text-muted-foreground">{caption}</figcaption>
       )}
 
       {zoom && !missing && (

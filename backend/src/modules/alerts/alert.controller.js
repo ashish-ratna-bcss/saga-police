@@ -9,6 +9,7 @@ const {
   getUnreadCount,
   markAllRead,
   listTopCatalogAlertsByCategory,
+  getCatalogWorkflowKpi,
 } = require('./alert.service');
 
 const listAlerts = async (req, res) => {
@@ -122,6 +123,61 @@ const getTopByCategory = async (req, res) => {
   }
 };
 
+const getWorkflowKpi = async (req, res) => {
+  try {
+    const format = String(req.query.format || 'json').toLowerCase();
+    const now = new Date();
+    const istTodayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(now);
+    const [yy, mm, dd] = istTodayStr.split('-').map(Number);
+    const defaultStart = new Date(Date.UTC(yy, mm - 1, dd, 0, 0, 0) - 5.5 * 3600 * 1000);
+    const defaultEnd = new Date(Date.UTC(yy, mm - 1, dd, 23, 59, 59, 999) - 5.5 * 3600 * 1000);
+
+    const parseIstBoundary = (s, endOfDay) => {
+      if (!s) return null;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s);
+      const [y, m, d] = s.split('-').map(Number);
+      const base = Date.UTC(
+        y,
+        m - 1,
+        d,
+        endOfDay ? 23 : 0,
+        endOfDay ? 59 : 0,
+        endOfDay ? 59 : 0,
+        endOfDay ? 999 : 0
+      );
+      return new Date(base - 5.5 * 3600 * 1000);
+    };
+    const start = parseIstBoundary(req.query.start, false) || defaultStart;
+    const end = parseIstBoundary(req.query.end, true) || defaultEnd;
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
+      return res.status(400).json({ message: 'Invalid date range' });
+    }
+
+    const data = await getCatalogWorkflowKpi({ start, end });
+
+    if (format === 'csv') {
+      const header = ['date', ...data.statuses, 'total'];
+      const lines = [header.join(',')];
+      for (const row of data.daily) {
+        lines.push(header.map((h) => row[h] ?? 0).join(','));
+      }
+      lines.push(
+        ['TOTAL', ...data.statuses.map((s) => data.totals[s]), data.totals.total].join(',')
+      );
+      const csv = lines.join('\n');
+      const filename = `alert-workflow-${start.toISOString().slice(0, 10)}_to_${end.toISOString().slice(0, 10)}.csv`;
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.status(200).send(csv);
+    }
+
+    return res.status(200).json(data);
+  } catch (error) {
+    logger.error('[Alerts] workflow-kpi failed:', error);
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   listAlerts,
   getAlert,
@@ -131,6 +187,7 @@ module.exports = {
   getUnread,
   putMarkAllRead,
   getTopByCategory,
+  getWorkflowKpi,
   // used by sentiment pipeline
   createAlertFromCatalogPost,
 };

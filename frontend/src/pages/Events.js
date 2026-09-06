@@ -7,22 +7,22 @@ import * as XLSX from 'xlsx';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
 import { Separator } from '../components/ui/separator';
-import { Switch } from '../components/ui/switch';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
+import { Calendar as CalendarComponent } from '../components/ui/calendar';
 import { toast } from 'sonner';
+import { format, parse } from 'date-fns';
 import {
   CalendarDays, Loader2, Play, Download, RefreshCw, ExternalLink,
-  Youtube, Facebook, Radio,Instagram, Pause, Trash2, Plus, MapPin, Clock,
-  Search, ScanLine, UserPlus, Pencil, Settings, FileSpreadsheet,
-  FileText, BarChart3, Shield, Activity, Zap, Timer, ChevronRight,
-  ChevronDown, X, AlertTriangle, Globe, ArrowUpRight
+  Youtube, Facebook, Radio, Instagram, Pause, Trash2, Plus, MapPin, Clock,
+  Search, ScanLine, UserPlus, Pencil, FileSpreadsheet,
+  FileText, BarChart3, Activity, Zap, Timer, ChevronRight,
+  ChevronDown, X, AlertTriangle, Globe, ArrowUpRight, History, Square
 } from 'lucide-react';
 import ContentCard from '../components/ContentCard';
 import AddSourceModal from '../components/AddSourceModal';
@@ -38,6 +38,148 @@ const splitKeywords = (value) => {
   if (!value) return [];
   return value.split(/\n|,|;/g).map((s) => s.trim()).filter(Boolean);
 };
+
+const formatWhen = (iso) => {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  } catch {
+    return String(iso);
+  }
+};
+
+const formatDuration = (ms) => {
+  if (ms == null || ms < 0 || Number.isNaN(ms)) return '—';
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+};
+
+/** Countdown like 59m 59s · under 1m shows 59s, 58s… */
+const formatCountdown = (ms) => {
+  const totalSec = Math.max(0, Math.ceil(Number(ms) / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}h ${m}m ${String(s).padStart(2, '0')}s`;
+  if (m > 0) return `${m}m ${String(s).padStart(2, '0')}s`;
+  return `${totalSec}s`;
+};
+
+/**
+ * Live monitoring phase for a started event.
+ * - fetching: kickoff for this session / overdue
+ * - waiting: between polls, with remainingMs until next fetch
+ * - stopped: not monitoring
+ *
+ * sessionStartedAt: ignore last_fetched_at from a *previous* session after Start again.
+ */
+const getMonitoringPhase = (event, now = Date.now(), options = {}) => {
+  const isFetching = Boolean(options.isFetching);
+  const sessionStartedAt = options.sessionStartedAt || null;
+  if (!isMonitoringStarted(event)) {
+    return { phase: 'stopped', remainingMs: null, nextAt: null };
+  }
+  if (isFetching || !event?.last_fetched_at) {
+    return { phase: 'fetching', remainingMs: null, nextAt: null };
+  }
+  const last = new Date(event.last_fetched_at).getTime();
+  if (!Number.isFinite(last)) {
+    return { phase: 'fetching', remainingMs: null, nextAt: null };
+  }
+  if (sessionStartedAt) {
+    const startMs = new Date(sessionStartedAt).getTime();
+    if (Number.isFinite(startMs) && last < startMs - 1500) {
+      return { phase: 'fetching', remainingMs: null, nextAt: null };
+    }
+  }
+  const intervalMs = Math.max(1, Number(event.polling_interval_minutes) || 60) * 60_000;
+  const nextAt = last + intervalMs;
+  const remainingMs = nextAt - now;
+  if (remainingMs <= 0) {
+    return { phase: 'due', remainingMs: 0, nextAt };
+  }
+  return { phase: 'waiting', remainingMs, nextAt };
+};
+
+/** Pair start→stop into readable history rows (newest first). Profiles pattern. */
+const buildMonitoringHistory = (logs = [], monitoringStatus) => {
+  const list = Array.isArray(logs) ? [...logs] : [];
+  const sessions = [];
+  let openStart = null;
+
+  for (const entry of list) {
+    const action = String(entry?.action || '').toLowerCase();
+    if (action === 'start') {
+      openStart = entry;
+    } else if (action === 'stop' && openStart) {
+      const startAt = openStart.at ? new Date(openStart.at).getTime() : null;
+      const stopAt = entry.at ? new Date(entry.at).getTime() : null;
+      sessions.push({
+        id: `${openStart.at}-${entry.at}`,
+        startedAt: openStart.at,
+        stoppedAt: entry.at,
+        durationMs: startAt != null && stopAt != null ? stopAt - startAt : null,
+        state: 'done',
+        startMessage: openStart.message,
+        stopMessage: entry.message,
+      });
+      openStart = null;
+    }
+  }
+
+  if (openStart) {
+    const startAt = openStart.at ? new Date(openStart.at).getTime() : null;
+    const now = Date.now();
+    sessions.push({
+      id: `${openStart.at}-running`,
+      startedAt: openStart.at,
+      stoppedAt: null,
+      durationMs: startAt != null ? now - startAt : null,
+      state: monitoringStatus === 'started' ? 'running' : 'incomplete',
+      startMessage: openStart.message,
+      stopMessage: null,
+    });
+  }
+
+  return sessions.reverse();
+};
+
+/** Totals + newest-first rows from last_fetched_history. */
+const summarizeFetchHistory = (history = [], monitoringSessions = []) => {
+  const list = Array.isArray(history) ? history : [];
+  const totals = list.reduce(
+    (acc, e) => ({
+      apiHits: acc.apiHits + (Number(e?.api_hits) || 0),
+      postsNew: acc.postsNew + (Number(e?.posts_new ?? e?.items_new) || 0),
+      postsReturned: acc.postsReturned + (Number(e?.posts_returned ?? e?.items_returned) || 0),
+      runs: acc.runs + 1,
+    }),
+    { apiHits: 0, postsNew: 0, postsReturned: 0, runs: 0 }
+  );
+  const totalRunningMs = monitoringSessions.reduce(
+    (sum, s) => sum + (Number.isFinite(s.durationMs) ? s.durationMs : 0),
+    0
+  );
+  return {
+    ...totals,
+    totalRunningMs,
+    runsNewestFirst: [...list].reverse(),
+  };
+};
+
+const isMonitoringStarted = (e) => e?.monitoring_status === 'started';
 
 
 const openPrintableReport = ({ event, stats, content, alerts }) => {
@@ -144,25 +286,27 @@ const formatMonitoringRange = (rangeStr) => {
 
 /** Build merged report rows from calendar events + enriched events (with discovered_hashtags) */
 const buildReportRows = ({ calendarEvents, events }) => {
+  const eventList = Array.isArray(events) ? events : [];
+  const calendarList = Array.isArray(calendarEvents) ? calendarEvents : [];
   const rows = [];
-  (calendarEvents || []).forEach(cal => {
-    const matchedEvent = (events || []).find(
-      e => e.origin_calendar_id === cal.id || (e.origin === 'master_calendar' && e.name?.toLowerCase() === cal.occasion?.toLowerCase())
+  calendarList.forEach(cal => {
+    const matchedEvent = eventList.find(
+      e => e.origin_calendar_id === cal.id || e.occasion_calendar_id === cal.id || (e.origin === 'master_calendar' && e.name?.toLowerCase() === (cal.occasion || cal.title || '').toLowerCase())
     );
     const newKeywords = matchedEvent?.discovered_hashtags || [];
     rows.push({
       slNo: cal.slNo,
-      eventName: cal.occasion || '',
+      eventName: cal.occasion || cal.title || '',
       eventDate: cal.date || '',
       monitoringRange: formatMonitoringRange(cal.monitoringRange),
       keywordsGiven: cal.keywords || '',
       newKeywordsFetched: newKeywords.length > 0 ? newKeywords.join(', ') : '—',
       eventId: matchedEvent?.id || null,
-      reportUrl: matchedEvent?.report_pdf_url || (matchedEvent?.id ? `${window.location.origin}/events?selected=${matchedEvent.id}` : ''),
+      reportUrl: matchedEvent?.id ? `${window.location.origin}/events?selected=${matchedEvent.id}` : '',
     });
   });
-  (events || []).filter(e => e.origin !== 'master_calendar').forEach(evt => {
-    const kwList = evt.keywords?.map(k => k.keyword).join(', ') || '';
+  eventList.filter(e => e.origin !== 'master_calendar').forEach(evt => {
+    const kwList = Array.isArray(evt.keywords) ? evt.keywords.map(k => (typeof k === 'string' ? k : k.keyword)).filter(Boolean).join(', ') : '';
     const startDate = evt.start_date ? new Date(evt.start_date) : null;
     const endDate = evt.end_date ? new Date(evt.end_date) : null;
     let monitoringRange = '—';
@@ -181,7 +325,7 @@ const buildReportRows = ({ calendarEvents, events }) => {
       keywordsGiven: kwList,
       newKeywordsFetched: newKeywords.length > 0 ? newKeywords.join(', ') : '—',
       eventId: evt.id,
-      reportUrl: evt.report_pdf_url || `${window.location.origin}/events?selected=${evt.id}`,
+      reportUrl: `${window.location.origin}/events?selected=${evt.id}`,
     });
   });
   return rows;
@@ -293,39 +437,376 @@ const openPrintableEventsList = ({ events, calendarEvents }) => {
 };
 
 
-/* ── status config ── */
+/* ── monitoring status (Profiles pattern: started | stopped) ── */
 const STATUS_CONFIG = {
-  active:   { color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800', dot: 'bg-emerald-500', label: 'Active' },
-  paused:   { color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800',      dot: 'bg-amber-500',   label: 'Paused' },
-  archived: { color: 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-slate-800 dark:text-gray-400 dark:border-slate-700',        dot: 'bg-gray-400',    label: 'Archived' },
-  planned:  { color: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950 dark:text-sky-300 dark:border-sky-800',            dot: 'bg-sky-500',     label: 'Planned' }
+  started:  { color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800', dot: 'bg-emerald-500', label: 'Live' },
+  stopped:  { color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800',      dot: 'bg-amber-500',   label: 'Stopped' },
 };
 
+
+const XLogo = ({ className = '' }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+  </svg>
+);
 
 const PLATFORM_CONFIG = {
   all:       { label: 'All Platforms', icon: Globe,     color: 'text-gray-500 dark:text-gray-400' },
-  x:         { label: 'X / Twitter',  icon: Globe,     color: 'text-gray-800 dark:text-gray-200' },
+  x:         { label: 'X / Twitter',  icon: XLogo,     color: 'text-gray-800 dark:text-gray-200' },
   youtube:   { label: 'YouTube',       icon: Youtube,   color: 'text-red-600 dark:text-red-400' },
-  facebook:  { label: 'Facebook',      icon: Facebook,  color: 'text-blue-600 dark:text-blue-400' }
+  facebook:  { label: 'Facebook',      icon: Facebook,  color: 'text-blue-600 dark:text-blue-400' },
+  instagram: { label: 'Instagram',     icon: Instagram, color: 'text-pink-600 dark:text-pink-400' },
+};
+
+const EVENT_PLATFORM_OPTIONS = [
+  { value: 'x', label: 'X', icon: XLogo, accent: 'text-foreground' },
+  { value: 'youtube', label: 'YouTube', icon: Youtube, accent: 'text-red-600' },
+  { value: 'facebook', label: 'Facebook', icon: Facebook, accent: 'text-blue-600' },
+  { value: 'instagram', label: 'Instagram', icon: Instagram, accent: 'text-pink-600' },
+];
+
+const DEFAULT_EVENT_PLATFORMS = EVENT_PLATFORM_OPTIONS.map((p) => p.value);
+
+const EventPlatformPicker = ({ value = [], onChange }) => {
+  const selected = Array.isArray(value) ? value : [];
+  const toggle = (slug) => {
+    const next = selected.includes(slug)
+      ? selected.filter((p) => p !== slug)
+      : [...selected, slug];
+    onChange?.(next);
+  };
+
+  return (
+    <div className="grid grid-cols-4 gap-1.5">
+      {EVENT_PLATFORM_OPTIONS.map(({ value: slug, label, icon: Icon, accent }) => {
+        const on = selected.includes(slug);
+        return (
+          <button
+            key={slug}
+            type="button"
+            onClick={() => toggle(slug)}
+            aria-pressed={on}
+            className={cn(
+              'relative flex h-9 items-center justify-center gap-1.5 rounded-md border text-xs font-medium transition-colors',
+              on
+                ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
+            )}
+          >
+            <Icon className={cn('h-3.5 w-3.5 shrink-0', on ? 'text-primary-foreground' : accent)} />
+            <span className="truncate">{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+const KEYWORD_LANG_FIELDS = [
+  { key: 'te', label: 'Telugu', placeholder: 'e.g. ఎన్నిక, ఓటు' },
+  { key: 'hi', label: 'Hindi', placeholder: 'e.g. चुनाव, वोट' },
+  { key: 'en', label: 'English', placeholder: 'e.g. election, vote' },
+];
+
+const EventKeywordsFields = ({ values, onChange }) => (
+  <div className="space-y-2">
+    <div>
+      <Label className="text-xs font-semibold">Keywords</Label>
+      <p className="text-[11px] text-muted-foreground mt-0.5">
+        What should we search for? Add words in any language you need.
+      </p>
+    </div>
+    <div className="space-y-2">
+      {KEYWORD_LANG_FIELDS.map(({ key, label, placeholder }) => (
+        <div key={key} className="flex items-center gap-2.5">
+          <span className="w-16 shrink-0 text-[11px] font-medium text-muted-foreground">{label}</span>
+          <Input
+            value={values[key] || ''}
+            onChange={(e) => onChange(key, e.target.value)}
+            placeholder={placeholder}
+            className="h-9 text-sm"
+          />
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const ymdToDate = (value) => {
+  if (!value) return undefined;
+  try {
+    const d = parse(String(value).slice(0, 10), 'yyyy-MM-dd', new Date());
+    return Number.isNaN(d.getTime()) ? undefined : d;
+  } catch {
+    return undefined;
+  }
+};
+
+const dateToYmd = (date) => {
+  if (!date) return '';
+  return format(date, 'yyyy-MM-dd');
+};
+
+const EventDateField = ({ value, onChange, placeholder = 'Pick a date' }) => {
+  const selected = ymdToDate(value);
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn(
+            'h-9 w-full justify-start px-3 text-left text-sm font-normal',
+            !selected && 'text-muted-foreground'
+          )}
+        >
+          <CalendarDays className="mr-2 h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          {selected ? format(selected, 'dd MMM yyyy') : placeholder}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <CalendarComponent
+          mode="single"
+          selected={selected}
+          onSelect={(date) => {
+            onChange(dateToYmd(date));
+            setOpen(false);
+          }}
+          initialFocus
+        />
+        <div className="flex items-center justify-between gap-2 border-t px-3 py-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => {
+              onChange('');
+              setOpen(false);
+            }}
+          >
+            Clear
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => {
+              onChange(dateToYmd(new Date()));
+              setOpen(false);
+            }}
+          >
+            Today
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
+const parseLabelDate = (label) => {
+  if (!label) return undefined;
+  const s = String(label).trim();
+  for (const fmt of ['d MMMM yyyy', 'dd MMMM yyyy', 'd MMM yyyy', 'dd MMM yyyy', 'd MMMM', 'dd MMMM', 'd MMM', 'dd MMM']) {
+    try {
+      const d = parse(s, fmt, new Date());
+      if (!Number.isNaN(d.getTime())) return d;
+    } catch {
+      /* try next */
+    }
+  }
+  return undefined;
+};
+
+const formatLabelDate = (date, withYear = false) => {
+  if (!date) return '';
+  return format(date, withYear ? 'd MMMM yyyy' : 'd MMMM');
+};
+
+const formatRangePart = (date) => (date ? format(date, 'd MMM') : '');
+
+const splitMonitoringRange = (range) => {
+  if (!range) return { from: '', to: '' };
+  const parts = String(range).split(/\s*[–—-]\s*/).map((p) => p.trim()).filter(Boolean);
+  return { from: parts[0] || '', to: parts[1] || '' };
+};
+
+/** Calendar that stores friendly labels like "26 January" (recurring) or "26 January 2026". */
+const OccasionDateField = ({ value, onChange, withYear = false, placeholder = 'Pick a date' }) => {
+  const selected = parseLabelDate(value);
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn(
+            'h-9 w-full justify-start px-3 text-left text-sm font-normal',
+            !selected && 'text-muted-foreground'
+          )}
+        >
+          <CalendarDays className="mr-2 h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          {selected ? formatLabelDate(selected, withYear) : placeholder}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <CalendarComponent
+          mode="single"
+          selected={selected}
+          onSelect={(date) => {
+            onChange(formatLabelDate(date, withYear));
+            setOpen(false);
+          }}
+          initialFocus
+        />
+        <div className="flex items-center justify-between gap-2 border-t px-3 py-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => {
+              onChange('');
+              setOpen(false);
+            }}
+          >
+            Clear
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => {
+              onChange(formatLabelDate(new Date(), withYear));
+              setOpen(false);
+            }}
+          >
+            Today
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 };
 
 
-const EVENT_POLL_INTERVALS = [
-  { value: 'default', label: 'Use global default' },
-  { value: '3',   label: 'Every 3 minutes' },
-  { value: '5',   label: 'Every 5 minutes' },
-  { value: '10',  label: 'Every 10 minutes' },
-  { value: '15',  label: 'Every 15 minutes' },
-  { value: '30',  label: 'Every 30 minutes' },
-  { value: '60',  label: 'Every 1 hour' },
-  { value: '120', label: 'Every 2 hours' },
-  { value: '300', label: 'Every 5 hours' }
+const POLL_PRESETS = [
+  { value: '5', label: 'Every 5 minutes', minutes: 5 },
+  { value: '15', label: 'Every 15 minutes', minutes: 15 },
+  { value: '30', label: 'Every 30 minutes', minutes: 30 },
+  { value: '60', label: 'Every 1 hour', minutes: 60 },
+  { value: '360', label: 'Every 6 hours', minutes: 360 },
+  { value: 'custom', label: 'Custom', minutes: null },
 ];
+
+const resolvePollPreset = (minutes) => {
+  const m = Number(minutes);
+  const match = POLL_PRESETS.find((p) => p.minutes === m);
+  return match ? match.value : 'custom';
+};
+
+const formatPollInterval = (minutes) => {
+  const m = Number(minutes);
+  if (!Number.isFinite(m) || m < 1) return '—';
+  if (m < 60) return `Every ${m}m`;
+  if (m % 60 === 0) {
+    const h = m / 60;
+    return h === 1 ? 'Every 1h' : `Every ${h}h`;
+  }
+  return `Every ${m}m`;
+};
+
+/** e.g. 60 → "~12× / day" */
+const fetchesPerDayHint = (minutes) => {
+  const m = Number(minutes);
+  if (!Number.isFinite(m) || m < 1) return '';
+  const n = Math.round((24 * 60) / m);
+  if (n < 1) return '<1× / day';
+  return `~${n}× / day`;
+};
+
+/** Profiles-style poll picker for event create/edit forms. */
+const EventPollIntervalField = ({ minutes, preset, onChange }) => {
+  const mins = Number(minutes);
+  const activePreset = preset || resolvePollPreset(mins);
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs font-semibold flex items-center gap-1.5">
+        <Timer className="h-3.5 w-3.5 text-muted-foreground" />
+        Monitoring interval *
+      </Label>
+      <Select
+        value={activePreset}
+        onValueChange={(v) => {
+          const p = POLL_PRESETS.find((x) => x.value === v);
+          if (v === 'custom') {
+            const keep =
+              Number.isInteger(mins) &&
+              mins >= 1 &&
+              !POLL_PRESETS.some((x) => x.minutes === mins);
+            onChange({ preset: 'custom', minutes: keep ? mins : 45 });
+          } else {
+            onChange({ preset: v, minutes: p.minutes });
+          }
+        }}
+      >
+        <SelectTrigger className="h-9 text-sm">
+          <SelectValue placeholder="Select interval" />
+        </SelectTrigger>
+        <SelectContent>
+          {POLL_PRESETS.map((p) => (
+            <SelectItem key={p.value} value={p.value}>
+              {p.minutes
+                ? `${p.label} (${fetchesPerDayHint(p.minutes)})`
+                : p.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {activePreset === 'custom' ? (
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            min={1}
+            max={10080}
+            className="h-9 w-28"
+            value={Number.isFinite(mins) ? mins : ''}
+            onChange={(e) => {
+              const raw = e.target.value;
+              onChange({
+                preset: 'custom',
+                minutes: raw === '' ? '' : Math.max(1, Math.min(10080, Number(raw) || 1)),
+              });
+            }}
+          />
+          <span className="text-xs text-muted-foreground">minutes</span>
+          {Number.isFinite(mins) && mins >= 1 && (
+            <span className="text-[11px] text-muted-foreground">{fetchesPerDayHint(mins)}</span>
+          )}
+        </div>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          While monitoring is <span className="font-medium text-foreground">Started</span>, fetch on this schedule
+          {Number.isFinite(mins) && mins >= 1 ? ` · ${formatPollInterval(mins)} · ${fetchesPerDayHint(mins)}` : ''}.
+        </p>
+      )}
+    </div>
+  );
+};
 
 
 /* ══════════════════════════════════════════════════════
    Events Control Center
    ══════════════════════════════════════════════════════ */
+const isRecurringEvent = (e) =>
+  e?.origin === 'master_calendar' || e?.origin === 'occasion_calendar';
+
 const Events = () => {
   const routeLocation = useLocation();
 
@@ -346,10 +827,14 @@ const Events = () => {
   const [contentHasMore, setContentHasMore] = useState(true);
   const [contentLoadingMore, setContentLoadingMore] = useState(false);
   const [processingAction, setProcessingAction] = useState(false);
+  const [monitoringBusyId, setMonitoringBusyId] = useState(null);
+  const monitoringBusyRef = useRef(null);
+  const [fetchingKickoffId, setFetchingKickoffId] = useState(null);
+  const kickoffPollRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [originFilter, setOriginFilter] = useState('all'); // 'all' | 'recurring' | 'manual'
   const [searchParams] = useSearchParams();
-  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all'); // 'all' | 'active' | 'paused'
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all'); // 'all' | 'started' | 'stopped'
   const [selectedMonth, setSelectedMonth] = useState(null); // null = all months
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
@@ -378,11 +863,10 @@ const Events = () => {
   const [eventFormOpen, setEventFormOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
 
 
-  // ── HCP Master Calendar state ──
+  // ── Occasion Calendar state ──
   const [hcpOpen, setHcpOpen] = useState(false);
   const [hcpTab, setHcpTab] = useState('recurring');
   const [hcpEvents, setHcpEvents] = useState([]);
@@ -391,14 +875,28 @@ const Events = () => {
   const [hcpFormOpen, setHcpFormOpen] = useState(false);
   const [hcpEditId, setHcpEditId] = useState(null);
   const [hcpSaving, setHcpSaving] = useState(false);
-  const [hcpForm, setHcpForm] = useState({ occasion: '', date: '', monitoringRange: '', keywords: '', remarks: '' });
+  const [hcpForm, setHcpForm] = useState({
+    occasion: '',
+    date: '',
+    monitoringRange: '',
+    rangeFrom: '',
+    rangeTo: '',
+    keywords: '',
+    remarks: '',
+    platforms: [],
+  });
 
 
   // ── Non-Recurring Event Form (uses real Event model) ──
   const [nrFormOpen, setNrFormOpen] = useState(false);
   const [nrEditId, setNrEditId] = useState(null);
   const [nrSaving, setNrSaving] = useState(false);
-  const [nrForm, setNrForm] = useState({ name: '', location: '', start_date: '', end_date: '', keywords_te: '', keywords_hi: '', keywords_en: '', polling_interval_minutes: 'default' });
+  const [nrForm, setNrForm] = useState({
+    name: '', location: '', start_date: '', end_date: '',
+    keywords_te: '', keywords_hi: '', keywords_en: '',
+    polling_interval_minutes: 60, poll_preset: '60',
+    platforms: DEFAULT_EVENT_PLATFORMS,
+  });
   const [nrEvents, setNrEvents] = useState([]);
   const [nrLoading, setNrLoading] = useState(false);
 
@@ -416,13 +914,9 @@ const Events = () => {
   const [keywordsTe, setKeywordsTe] = useState('');
   const [keywordsHi, setKeywordsHi] = useState('');
   const [keywordsEn, setKeywordsEn] = useState('');
-  const [eventPollInterval, setEventPollInterval] = useState('default');
-
-
-  // ── API Settings state ──
-  const [eventIntervals, setEventIntervals] = useState({ x: 60, instagram: 60, facebook: 60, youtube: 60, enabled: true });
-  const [loadingSettings, setLoadingSettings] = useState(false);
-  const [savingSettings, setSavingSettings] = useState(false);
+  const [eventPollMinutes, setEventPollMinutes] = useState(60);
+  const [eventPollPreset, setEventPollPreset] = useState('60');
+  const [selectedPlatforms, setSelectedPlatforms] = useState(DEFAULT_EVENT_PLATFORMS);
 
 
   // ── Helpers ──
@@ -462,10 +956,21 @@ const Events = () => {
   }, [nrEvents, hcpSearch]);
 
 
-  const openNrCreate = () => { setNrEditId(null); setNrForm({ name: '', location: '', start_date: '', end_date: '', keywords_te: '', keywords_hi: '', keywords_en: '', polling_interval_minutes: 'default' }); setNrFormOpen(true); };
+  const openNrCreate = () => {
+    setNrEditId(null);
+    setNrForm({
+      name: '', location: '', start_date: '', end_date: '',
+      keywords_te: '', keywords_hi: '', keywords_en: '',
+      polling_interval_minutes: 60, poll_preset: '60',
+      platforms: DEFAULT_EVENT_PLATFORMS,
+    });
+    setNrFormOpen(true);
+  };
   const openNrEdit = (evt) => {
     setNrEditId(evt.id);
     const kwByLang = (lang) => (evt.keywords || []).filter(k => k.language === lang).map(k => k.keyword).join(', ');
+    const plats = Array.isArray(evt.platforms) ? evt.platforms.filter(Boolean) : [];
+    const minutes = Number(evt.polling_interval_minutes) || 60;
     setNrForm({
       name: evt.name || '',
       location: evt.location || '',
@@ -474,7 +979,9 @@ const Events = () => {
       keywords_te: kwByLang('te'),
       keywords_hi: kwByLang('hi'),
       keywords_en: kwByLang('en'),
-      polling_interval_minutes: evt.polling_interval_minutes ? String(evt.polling_interval_minutes) : 'default'
+      polling_interval_minutes: minutes,
+      poll_preset: resolvePollPreset(minutes),
+      platforms: plats.length ? plats : DEFAULT_EVENT_PLATFORMS,
     });
     setNrFormOpen(true);
   };
@@ -483,7 +990,13 @@ const Events = () => {
   const handleNrSave = async (e) => {
     e.preventDefault();
     if (!nrForm.name) { toast.error('Event name is required'); return; }
+    if (!(nrForm.platforms || []).length) { toast.error('Select at least one platform'); return; }
     if (nrForm.start_date && nrForm.end_date && new Date(nrForm.end_date) < new Date(nrForm.start_date)) { toast.error('End date must be after start date'); return; }
+    const pollMins = Number(nrForm.polling_interval_minutes);
+    if (!Number.isFinite(pollMins) || pollMins < 1) {
+      toast.error('Monitoring interval must be at least 1 minute');
+      return;
+    }
     setNrSaving(true);
     try {
       const kw = [];
@@ -492,10 +1005,10 @@ const Events = () => {
       nrForm.keywords_en.split(/[,\n]/).filter(Boolean).forEach(k => kw.push({ keyword: k.trim(), language: 'en' }));
       const payload = {
         name: nrForm.name, location: nrForm.location,
-        keywords: kw, platforms: ['youtube', 'x', 'facebook'],
+        keywords: kw, platforms: nrForm.platforms || DEFAULT_EVENT_PLATFORMS,
         ...(nrForm.start_date ? { start_date: nrForm.start_date } : {}),
         ...(nrForm.end_date ? { end_date: nrForm.end_date } : {}),
-        ...(nrForm.polling_interval_minutes && nrForm.polling_interval_minutes !== 'default' ? { polling_interval_minutes: Number(nrForm.polling_interval_minutes) } : {})
+        polling_interval_minutes: Number(nrForm.polling_interval_minutes) || 60
       };
       if (nrEditId) {
         await api.put(`/events/${nrEditId}`, payload);
@@ -579,12 +1092,12 @@ const Events = () => {
   }, []);
 
 
-  // ── HCP Calendar fetching & CRUD ──
+  // ── Occasion Calendar fetching & CRUD ──
   const fetchHcpEvents = useCallback(async (tabOverride) => {
     const t = tabOverride || hcpTab;
     setHcpLoading(true);
     try {
-      const res = await api.get('/master-calendar', { params: { recurring: t === 'recurring' ? 'true' : 'false' } });
+      const res = await api.get('/occasion-calendar', { params: { recurring: t === 'recurring' ? 'true' : 'false' } });
       setHcpEvents(res.data || []);
     } catch { toast.error('Failed to load calendar events'); }
     finally { setHcpLoading(false); }
@@ -602,61 +1115,124 @@ const Events = () => {
     setHcpTab(t); setHcpSearch('');
     fetchHcpEvents(t);
   };
-  const openHcpCreate = () => { setHcpEditId(null); setHcpForm({ occasion: '', date: '', monitoringRange: '', keywords: '', remarks: '' }); setHcpFormOpen(true); };
-  const openHcpEdit = (evt) => { setHcpEditId(evt.id); setHcpForm({ occasion: evt.occasion || '', date: evt.date || '', monitoringRange: evt.monitoringRange || '', keywords: evt.keywords || '', remarks: evt.remarks || '' }); setHcpFormOpen(true); };
+  const emptyHcpForm = () => ({
+    occasion: '',
+    date: '',
+    monitoringRange: '',
+    rangeFrom: '',
+    rangeTo: '',
+    keywords: '',
+    remarks: '',
+    platforms: [],
+  });
 
+  const openHcpCreate = () => {
+    setHcpEditId(null);
+    setHcpForm(emptyHcpForm());
+    setHcpFormOpen(true);
+  };
+  const openHcpEdit = (evt) => {
+    const range = splitMonitoringRange(evt.monitoringRange);
+    const plats = Array.isArray(evt.platforms) ? evt.platforms.filter(Boolean) : [];
+    setHcpEditId(evt.id);
+    setHcpForm({
+      occasion: evt.occasion || '',
+      date: evt.date || '',
+      monitoringRange: evt.monitoringRange || '',
+      rangeFrom: range.from,
+      rangeTo: range.to,
+      keywords: evt.keywords || '',
+      remarks: evt.remarks || '',
+      platforms: plats.length ? plats : DEFAULT_EVENT_PLATFORMS,
+    });
+    setHcpFormOpen(true);
+  };
+
+  const updateHcpRange = (patch) => {
+    setHcpForm((prev) => {
+      const next = { ...prev, ...patch };
+      const fromDate = parseLabelDate(next.rangeFrom);
+      const toDate = parseLabelDate(next.rangeTo);
+      const parts = [];
+      if (fromDate) parts.push(formatRangePart(fromDate));
+      else if (next.rangeFrom) parts.push(next.rangeFrom);
+      if (toDate) parts.push(formatRangePart(toDate));
+      else if (next.rangeTo) parts.push(next.rangeTo);
+      next.monitoringRange = parts.join(' – ');
+      return next;
+    });
+  };
 
   const handleHcpSave = async (e) => {
     e.preventDefault();
-    if (!hcpForm.occasion || !hcpForm.date) { toast.error('Occasion and Date are required'); return; }
+    if (!hcpForm.occasion || !hcpForm.date) { toast.error('Occasion name and date are required'); return; }
+    if (!(hcpForm.platforms || []).length) { toast.error('Select at least one platform'); return; }
     setHcpSaving(true);
     try {
+      const payload = {
+        occasion: hcpForm.occasion,
+        date: hcpForm.date,
+        monitoringRange: hcpForm.monitoringRange,
+        keywords: hcpForm.keywords,
+        remarks: hcpForm.remarks,
+        platforms: hcpForm.platforms || DEFAULT_EVENT_PLATFORMS,
+      };
       if (hcpEditId) {
-        await api.put(`/master-calendar/${hcpEditId}`, hcpForm);
-        toast.success('Event updated');
+        await api.put(`/occasion-calendar/${hcpEditId}`, payload);
+        toast.success(hcpTab === 'recurring'
+          ? 'Festival updated — also updated in Events list'
+          : 'One-time occasion updated — also updated in Events list');
       } else {
-        await api.post('/master-calendar', { ...hcpForm, isRecurring: hcpTab === 'recurring' });
-        toast.success('Event created');
+        await api.post('/occasion-calendar', { ...payload, isRecurring: hcpTab === 'recurring' });
+        toast.success(hcpTab === 'recurring'
+          ? 'Festival saved — now in Events list (Stopped). Press Start to monitor.'
+          : 'One-time occasion saved — now in Events list (Stopped). Press Start to monitor.');
       }
       setHcpFormOpen(false);
-      setHcpForm({ occasion: '', date: '', monitoringRange: '', keywords: '', remarks: '' });
+      setHcpForm(emptyHcpForm());
       setHcpEditId(null);
       await fetchHcpEvents();
+      await fetchEvents(); // linked monitoring event may have been created/updated
     } catch (err) { toast.error(err?.response?.data?.message || 'Save failed'); }
     finally { setHcpSaving(false); }
   };
 
 
   const handleHcpDelete = async (id) => {
-    if (!window.confirm('Delete this event?')) return;
+    if (!window.confirm('Delete this occasion?')) return;
     try {
-      await api.delete(`/master-calendar/${id}`);
-      toast.success('Event deleted');
+      await api.delete(`/occasion-calendar/${id}`);
+      toast.success('Occasion deleted');
       await fetchHcpEvents();
+      await fetchEvents();
     } catch { toast.error('Delete failed'); }
   };
 
 
-  const fetchSettings = useCallback(async () => {
-    setLoadingSettings(true);
-    try {
-      const res = await api.get('/events/monitoring-interval');
-      setEventIntervals({
-        x: res.data?.x ?? 60,
-        instagram: res.data?.instagram ?? 60,
-        facebook: res.data?.facebook ?? 60,
-        youtube: res.data?.youtube ?? 60,
-        enabled: res.data?.enabled !== false
-      });
-    } catch {
-      // silently fail
-    } finally {
-      setLoadingSettings(false);
-    }
-  }, []);
-
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
+
+  useEffect(() => () => {
+    if (kickoffPollRef.current) clearInterval(kickoffPollRef.current);
+  }, []);
+
+  // Backfill: ensure occasions have linked monitoring events (fixes missing Events)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await Promise.all([
+          api.get('/occasion-calendar', { params: { recurring: 'true' } }),
+          api.get('/occasion-calendar', { params: { recurring: 'false' } }),
+        ]);
+        if (!cancelled) await fetchEvents();
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [fetchEvents]);
+
   useEffect(() => {
     if (selectedId) {
       fetchDashboard(selectedId);
@@ -685,7 +1261,42 @@ const Events = () => {
 
 
   // ── Derived ──
-  const selectedEvent = useMemo(() => events.find((e) => e.id === selectedId) || null, [events, selectedId]);
+  const selectedEvent = useMemo(
+    () => events.find((e) => String(e.id) === String(selectedId)) || null,
+    [events, selectedId]
+  );
+
+  const patchEventStatus = (id, next) => {
+    setEvents((prev) =>
+      prev.map((e) => (String(e.id) === String(id) ? { ...e, ...next } : e))
+    );
+  };
+
+  const selectedMonitoringHistory = useMemo(
+    () => buildMonitoringHistory(selectedEvent?.monitoring_logs, selectedEvent?.monitoring_status),
+    [selectedEvent]
+  );
+  const selectedFetchStats = useMemo(
+    () => summarizeFetchHistory(selectedEvent?.last_fetched_history, selectedMonitoringHistory),
+    [selectedEvent, selectedMonitoringHistory]
+  );
+
+  // Live clock while monitoring — powers Waiting countdown
+  const [monitorNow, setMonitorNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!isMonitoringStarted(selectedEvent)) return undefined;
+    setMonitorNow(Date.now());
+    const id = setInterval(() => setMonitorNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [selectedEvent?.id, selectedEvent?.monitoring_status, selectedEvent?.last_fetched_at]);
+
+  const selectedMonitorPhase = useMemo(() => {
+    const openSession = selectedMonitoringHistory.find((s) => s.state === 'running');
+    return getMonitoringPhase(selectedEvent, monitorNow, {
+      isFetching: String(fetchingKickoffId) === String(selectedEvent?.id) || runningScan,
+      sessionStartedAt: openSession?.startedAt || null,
+    });
+  }, [selectedEvent, monitorNow, fetchingKickoffId, runningScan, selectedMonitoringHistory]);
 
 
   // Compute events for the selected year (for month counts)
@@ -755,17 +1366,17 @@ const Events = () => {
 
     // Apply origin filter
     if (originFilter === 'recurring') {
-      result = result.filter((e) => e.origin === 'master_calendar');
+      result = result.filter(isRecurringEvent);
     } else if (originFilter === 'manual') {
-      result = result.filter((e) => e.origin !== 'master_calendar');
+      result = result.filter((e) => !isRecurringEvent(e));
     }
 
 
-    // Apply status filter
-    if (statusFilter === 'active') {
-      result = result.filter((e) => e.status === 'active');
-    } else if (statusFilter === 'paused') {
-      result = result.filter((e) => e.status === 'paused' || !e.status);
+    // Apply monitoring filter
+    if (statusFilter === 'started' || statusFilter === 'active') {
+      result = result.filter((e) => isMonitoringStarted(e));
+    } else if (statusFilter === 'stopped' || statusFilter === 'paused') {
+      result = result.filter((e) => !isMonitoringStarted(e));
     }
 
 
@@ -776,7 +1387,13 @@ const Events = () => {
     }
 
 
-    return result;
+    // Newest created first
+    return [...result].sort((a, b) => {
+      const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+      if (tb !== ta) return tb - ta;
+      return Number(b.id) - Number(a.id);
+    });
   }, [events, eventsForYear, searchQuery, selectedMonth, selectedYear, originFilter, statusFilter]);
 
 
@@ -794,8 +1411,8 @@ const Events = () => {
       : eventsForYear;
     return {
       all: base.length,
-      recurring: base.filter((e) => e.origin === 'master_calendar').length,
-      manual: base.filter((e) => e.origin !== 'master_calendar').length,
+      recurring: base.filter(isRecurringEvent).length,
+      manual: base.filter((e) => !isRecurringEvent(e)).length,
     };
   }, [events, eventsForYear, selectedMonth, selectedYear]);
 
@@ -812,8 +1429,8 @@ const Events = () => {
 
 
   const eventCounts = useMemo(() => {
-    const active = events.filter(e => e.status === 'active').length;
-    const paused = events.filter(e => e.status === 'paused').length;
+    const active = events.filter((e) => isMonitoringStarted(e)).length;
+    const paused = events.filter((e) => !isMonitoringStarted(e)).length;
     return { active, paused, total: events.length };
   }, [events]);
 
@@ -824,17 +1441,24 @@ const Events = () => {
     splitKeywords(keywordsTe).forEach((k) => kw.push({ keyword: k, language: 'te' }));
     splitKeywords(keywordsHi).forEach((k) => kw.push({ keyword: k, language: 'hi' }));
     splitKeywords(keywordsEn).forEach((k) => kw.push({ keyword: k, language: 'en' }));
-    const payload = { name, location, keywords: kw, platforms: ['youtube', 'x', 'facebook'] };
+    const payload = {
+      name,
+      location,
+      keywords: kw,
+      platforms: selectedPlatforms,
+      polling_interval_minutes: Number(eventPollMinutes) || 60,
+    };
     if (startDate) payload.start_date = startDate;
     if (endDate) payload.end_date = endDate;
-    if (eventPollInterval && eventPollInterval !== 'default') payload.polling_interval_minutes = Number(eventPollInterval);
     return payload;
   };
 
 
   const resetForm = () => {
     setName(''); setLocation(''); setStartDate(''); setEndDate('');
-    setKeywordsTe(''); setKeywordsHi(''); setKeywordsEn(''); setEventPollInterval('default');
+    setKeywordsTe(''); setKeywordsHi(''); setKeywordsEn('');
+    setEventPollMinutes(60); setEventPollPreset('60');
+    setSelectedPlatforms(DEFAULT_EVENT_PLATFORMS);
   };
 
 
@@ -851,7 +1475,11 @@ const Events = () => {
     setKeywordsTe(kws.filter(k => k.language === 'te').map(k => k.keyword).join(', '));
     setKeywordsHi(kws.filter(k => k.language === 'hi').map(k => k.keyword).join(', '));
     setKeywordsEn([...enKws, ...allLangKws].join(', '));
-    setEventPollInterval(selectedEvent.polling_interval_minutes ? String(selectedEvent.polling_interval_minutes) : 'default');
+    const minutes = Number(selectedEvent.polling_interval_minutes) || 60;
+    setEventPollMinutes(minutes);
+    setEventPollPreset(resolvePollPreset(minutes));
+    const plats = Array.isArray(selectedEvent.platforms) ? selectedEvent.platforms.filter(Boolean) : [];
+    setSelectedPlatforms(plats.length ? plats : DEFAULT_EVENT_PLATFORMS);
     setEditingEvent(selectedEvent);
     setEventFormOpen(true);
   };
@@ -860,7 +1488,13 @@ const Events = () => {
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!name) { toast.error('Event name is required'); return; }
+    if (!selectedPlatforms.length) { toast.error('Select at least one platform'); return; }
     if (startDate && endDate && new Date(endDate) < new Date(startDate)) { toast.error('End date must be after start date'); return; }
+    const pollMins = Number(eventPollMinutes);
+    if (!Number.isFinite(pollMins) || pollMins < 1) {
+      toast.error('Monitoring interval must be at least 1 minute');
+      return;
+    }
     setCreating(true);
     try {
       if (editingEvent) {
@@ -868,7 +1502,7 @@ const Events = () => {
         toast.success('Event updated successfully');
       } else {
         const res = await api.post('/events', buildPayload());
-        toast.success('Event created successfully');
+        toast.success('Event created (stopped). Press Start when you want monitoring.');
         setSelectedId(res.data?.id);
       }
       resetForm();
@@ -901,29 +1535,76 @@ const Events = () => {
   };
 
 
-  const handlePause = async (eventId) => {
+  const handleToggleMonitoring = async (eventId) => {
     const id = eventId || selectedId;
     if (!id) return;
-    setProcessingAction(true);
+    if (monitoringBusyRef.current) {
+      toast.message('Wait for the current Start/Stop to finish');
+      return;
+    }
+    monitoringBusyRef.current = String(id);
+    setMonitoringBusyId(String(id));
     try {
-      await api.post(`/events/${id}/pause`);
-      toast.success('Monitoring paused');
+      const res = await api.put(`/events/${id}/monitoring`);
+      const next = res.data || {};
+      patchEventStatus(id, next);
+      toast.success(
+        next.monitoring_status === 'started'
+          ? 'Monitoring started — fetching in background'
+          : 'Monitoring stopped'
+      );
       await fetchEvents();
-      if (id === selectedId) await fetchDashboard(selectedId);
-    } catch { toast.error('Failed to pause'); } finally { setProcessingAction(false); }
-  };
+      if (String(id) === String(selectedIdRef.current)) {
+        await fetchDashboard(id);
+      }
 
-
-  const handleResume = async (eventId) => {
-    const id = eventId || selectedId;
-    if (!id) return;
-    setProcessingAction(true);
-    try {
-      await api.post(`/events/${id}/resume`);
-      toast.success('Monitoring resumed');
-      await fetchEvents();
-      if (id === selectedId) await fetchDashboard(selectedId);
-    } catch { toast.error('Failed to resume'); } finally { setProcessingAction(false); }
+      // Background first fetch: poll this event until last_fetched_at updates
+      if (next.monitoring_status === 'started') {
+        if (kickoffPollRef.current) clearInterval(kickoffPollRef.current);
+        const startedAt = Date.now();
+        setFetchingKickoffId(String(id));
+        let tries = 0;
+        kickoffPollRef.current = setInterval(async () => {
+          tries += 1;
+          try {
+            const listRes = await api.get('/events', { params: { status: 'all' } });
+            const list = listRes.data || [];
+            setEvents(list);
+            const ev = list.find((e) => String(e.id) === String(id));
+            const fetchedAt = ev?.last_fetched_at ? new Date(ev.last_fetched_at).getTime() : 0;
+            if (fetchedAt >= startedAt - 2000 || tries >= 45) {
+              clearInterval(kickoffPollRef.current);
+              kickoffPollRef.current = null;
+              setFetchingKickoffId(null);
+              if (String(id) === String(selectedIdRef.current)) {
+                await fetchDashboard(id);
+                await fetchEventContent(id, 1, contentPlatform);
+              }
+              if (fetchedAt >= startedAt - 2000) {
+                toast.success('First fetch complete');
+              }
+            }
+          } catch {
+            if (tries >= 45) {
+              clearInterval(kickoffPollRef.current);
+              kickoffPollRef.current = null;
+              setFetchingKickoffId(null);
+            }
+          }
+        }, 2000);
+      } else {
+        if (kickoffPollRef.current) {
+          clearInterval(kickoffPollRef.current);
+          kickoffPollRef.current = null;
+        }
+        setFetchingKickoffId(null);
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to update monitoring');
+    } finally {
+      monitoringBusyRef.current = null;
+      setMonitoringBusyId(null);
+    }
   };
 
 
@@ -1057,11 +1738,18 @@ const Events = () => {
     try {
       const [reportRes, calRes] = await Promise.all([
         api.get('/events/report'),
-        api.get('/master-calendar', { params: { recurring: 'true' } })
+        api.get('/occasion-calendar', { params: { recurring: 'true' } })
       ]);
-      const enrichedEvents = reportRes.data || [];
-      const calendarEvents = calRes.data || [];
+      const enrichedEvents = Array.isArray(reportRes.data)
+        ? reportRes.data
+        : (reportRes.data?.events || []);
+      const calendarEvents = Array.isArray(calRes.data) ? calRes.data : [];
       const rows = buildReportRows({ calendarEvents, events: enrichedEvents });
+      if (!rows.length) {
+        toast.error('No events to export');
+        setExportMenuOpen(false);
+        return;
+      }
       const now = new Date();
       const generatedAt = now.toLocaleString('en-IN', { dateStyle: 'long', timeStyle: 'short' });
 
@@ -1118,8 +1806,8 @@ const Events = () => {
       const wbOut = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       saveAs(new Blob([wbOut], { type: 'application/octet-stream' }), `Events_Report_${now.toISOString().slice(0, 10)}.xlsx`);
       toast.success('Events Report Excel exported');
-    } catch {
-      toast.error('Failed to export Excel');
+    } catch (err) {
+      toast.error(err?.message || 'Failed to export Excel');
     }
     setExportMenuOpen(false);
   };
@@ -1129,11 +1817,18 @@ const Events = () => {
     try {
       const [reportRes, calRes] = await Promise.all([
         api.get('/events/report'),
-        api.get('/master-calendar', { params: { recurring: 'true' } })
+        api.get('/occasion-calendar', { params: { recurring: 'true' } })
       ]);
-      const enrichedEvents = reportRes.data || [];
-      const calendarEvents = calRes.data || [];
+      const enrichedEvents = Array.isArray(reportRes.data)
+        ? reportRes.data
+        : (reportRes.data?.events || []);
+      const calendarEvents = Array.isArray(calRes.data) ? calRes.data : [];
       const rows = buildReportRows({ calendarEvents, events: enrichedEvents });
+      if (!rows.length) {
+        toast.error('No events to export');
+        setExportMenuOpen(false);
+        return;
+      }
       const now = new Date();
       const generatedAt = now.toLocaleString('en-IN', { dateStyle: 'long', timeStyle: 'short' });
 
@@ -1154,7 +1849,6 @@ const Events = () => {
       doc.text('Events Report', 14, 20);
       doc.setFontSize(10);
       doc.text(`Report Generated: ${generatedAt}`, 14, 28);
-
 
       doc.autoTable({
         startY: 36,
@@ -1201,40 +1895,21 @@ const Events = () => {
 
       doc.save(`Events_Report_${now.toISOString().slice(0, 10)}.pdf`);
       toast.success('Events Report PDF exported');
-    } catch {
-      toast.error('Failed to export PDF');
+    } catch (err) {
+      toast.error(err?.message || 'Failed to export PDF');
     }
     setExportMenuOpen(false);
   };
 
 
-  // ── API Settings ──
-  const handleSaveSettings = async () => {
-    setSavingSettings(true);
-    try {
-      await api.put('/events/monitoring-interval', eventIntervals);
-      toast.success('Event scanning intervals updated');
-      setSettingsOpen(false);
-    } catch (err) {
-      toast.error(err?.response?.data?.message || 'Failed to save settings');
-    } finally {
-      setSavingSettings(false);
-    }
-  };
-
-
-  const openSettingsDialog = async () => {
-    setSettingsOpen(true);
-    await fetchSettings();
-  };
-
 
   // ── Status badge ──
   const StatusBadge = ({ status }) => {
-    const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.planned;
+    const key = status === 'started' || status === 'active' ? 'started' : 'stopped';
+    const cfg = STATUS_CONFIG[key];
     return (
       <Badge variant="outline" className={`text-[10px] px-2 py-0.5 border font-semibold gap-1.5 ${cfg.color}`}>
-        <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot} ${status === 'active' ? 'animate-pulse' : ''}`} />
+        <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot} ${key === 'started' ? 'animate-pulse' : ''}`} />
         {cfg.label}
       </Badge>
     );
@@ -1245,54 +1920,93 @@ const Events = () => {
   //  RENDER
   // ══════════════════════════════════════════════════════
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] dark:bg-slate-950" data-testid="events-page">
+    <div
+      className="flex h-[calc(100dvh-7.5rem)] min-h-[420px] flex-col gap-2.5 max-w-[1600px] mx-auto w-full"
+      data-testid="events-page"
+    >
+      {/* Title row — counts fill the middle (Grievances-style), actions stay right */}
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 shrink-0">
+        <div className="min-w-0 shrink-0">
+          <h1 className="text-xl font-heading font-bold tracking-tight leading-none">Events</h1>
+          <p className="text-[11px] text-muted-foreground mt-0.5 hidden sm:block">
+            Start / stop monitoring across platforms
+          </p>
+        </div>
 
+        <div className="inline-flex items-center gap-1 flex-wrap">
+          <button
+            type="button"
+            title="Events currently being monitored"
+            onClick={() => setStatusFilter(statusFilter === 'started' || statusFilter === 'active' ? 'all' : 'started')}
+            className={`inline-flex items-baseline gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors ${
+              statusFilter === 'started' || statusFilter === 'active'
+                ? 'border-emerald-400 bg-emerald-50 text-emerald-900'
+                : 'border-border bg-card text-muted-foreground hover:bg-muted/50'
+            }`}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse self-center" />
+            <span className="tabular-nums font-semibold text-foreground">{eventCounts.active}</span>
+            <span>live</span>
+          </button>
+          <button
+            type="button"
+            title="Events with monitoring stopped"
+            onClick={() => setStatusFilter(statusFilter === 'stopped' || statusFilter === 'paused' ? 'all' : 'stopped')}
+            className={`inline-flex items-baseline gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors ${
+              statusFilter === 'stopped' || statusFilter === 'paused'
+                ? 'border-amber-400 bg-amber-50 text-amber-900'
+                : 'border-border bg-card text-muted-foreground hover:bg-muted/50'
+            }`}
+          >
+            <span className="tabular-nums font-semibold text-foreground">{eventCounts.paused}</span>
+            <span>stopped</span>
+          </button>
+          <button
+            type="button"
+            title="All events in the selected year"
+            onClick={() => setStatusFilter('all')}
+            className={`inline-flex items-baseline gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors ${
+              statusFilter === 'all'
+                ? 'border-foreground/30 bg-muted text-foreground'
+                : 'border-border bg-card text-muted-foreground hover:bg-muted/50'
+            }`}
+          >
+            <span className="tabular-nums font-semibold text-foreground">{eventCounts.total}</span>
+            <span>total</span>
+          </button>
+        </div>
 
-      {/* ── Top Header Bar ── */}
-      <div className="shrink-0 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 shadow-sm">
-        <div className="px-4 sm:px-6 py-3">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-amber-400 flex items-center justify-center shadow-md">
-                <Shield className="h-4.5 w-4.5 text-black" />
-              </div>
-              <div>
-                <h1 className="text-[15px] font-bold text-gray-900 dark:text-white tracking-tight">Events</h1>
-                <div className="flex items-center gap-3 mt-0.5">
-                  <span onClick={() => setStatusFilter(statusFilter === 'active' ? 'all' : 'active')} className={`text-[11px] flex items-center gap-1.5 font-medium cursor-pointer hover:underline ${statusFilter === 'active' ? 'text-emerald-700 underline' : 'text-emerald-600'}`}>
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    {eventCounts.active} live
-                  </span>
-                  <span onClick={() => setStatusFilter(statusFilter === 'paused' ? 'all' : 'paused')} className={`text-[11px] cursor-pointer hover:underline ${statusFilter === 'paused' ? 'text-gray-700 underline font-medium' : 'text-gray-400'}`}>{eventCounts.paused} paused</span>
-                  <span onClick={() => setStatusFilter('all')} className={`text-[11px] cursor-pointer hover:underline ${statusFilter === 'all' ? 'text-gray-700 underline font-medium' : 'text-gray-400'}`}>{eventCounts.total} total</span>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs text-gray-600 dark:text-gray-400 border-gray-200 dark:border-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:border-indigo-300" onClick={openHcpCalendar}>
-                <CalendarDays className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">HCP Recurring</span>
-              </Button>
-              <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs text-gray-600 dark:text-gray-400 border-gray-200 dark:border-slate-700 hover:bg-amber-50 dark:hover:bg-slate-800 hover:border-amber-300" onClick={openHcpNonRecurring}>
-                <CalendarDays className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">HCP Non-Recurring</span>
-              </Button>
-              <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs text-gray-600 dark:text-gray-400 border-gray-200 dark:border-slate-700 hover:bg-amber-50 dark:hover:bg-slate-800 hover:border-amber-300" onClick={openSettingsDialog}>
-                <Settings className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">API Settings</span>
-              </Button>
-              <Button size="sm" className="gap-1.5 h-8 text-xs bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200 text-white shadow-md" onClick={openCreateDialog}>
-                <Plus className="h-3.5 w-3.5" />
-                New Event
-              </Button>
-            </div>
-          </div>
+        <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            title="Occasion Calendar · Recurring templates"
+            onClick={openHcpCalendar}
+          >
+            <CalendarDays className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Recurring</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            title="Occasion Calendar · One-time templates"
+            onClick={openHcpNonRecurring}
+          >
+            <CalendarDays className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">One-time</span>
+          </Button>
+          <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={openCreateDialog}>
+            <Plus className="h-3.5 w-3.5" />
+            New Event
+          </Button>
         </div>
       </div>
 
 
       {/* ── Main ── */}
-      <div className="flex-1 flex overflow-hidden w-full">
+      <div className="flex-1 min-h-0 flex overflow-hidden w-full rounded-xl border border-border bg-card">
 
 
         {/* Far-Left — Month Sidebar */}
@@ -1307,46 +2021,49 @@ const Events = () => {
 
 
         {/* Left — Events List */}
-        <div className="hidden md:flex shrink-0 border-r border-gray-200 dark:border-slate-700 flex-col bg-white dark:bg-slate-900 relative" style={{ width: sidebarWidth }}>
-          <div className="p-3 border-b border-gray-100 dark:border-slate-800">
+        <div className="hidden md:flex shrink-0 border-r border-border flex-col bg-card relative" style={{ width: sidebarWidth }}>
+          <div className="px-2.5 py-2 border-b border-border space-y-1.5">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 dark:text-gray-500" />
-              <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search events..." className="pl-8 h-8 text-xs bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus-visible:ring-amber-400/40" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search events..."
+                className="pl-8 h-8 text-xs"
+              />
               {searchQuery && (
-                <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
                   <X className="h-3 w-3" />
                 </button>
               )}
             </div>
-          </div>
 
-
-          {/* Origin filter buttons */}
-          <div className="px-3 pb-2 flex gap-1">
-            {[
-              { key: 'all',       label: 'All',           count: originCounts.all },
-              { key: 'recurring', label: 'Recurring',      count: originCounts.recurring },
-              { key: 'manual',    label: 'Non-Recurring',  count: originCounts.manual },
-            ].map((f) => (
-              <button
-                key={f.key}
-                onClick={() => setOriginFilter(f.key)}
-                className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold transition-all duration-200 border
-                  ${originFilter === f.key
-                    ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-gray-900 dark:border-white shadow-sm'
-                    : 'bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-gray-200'
+            <div className="flex gap-1 flex-wrap">
+              {[
+                { key: 'all', label: 'All', count: originCounts.all, title: 'All monitoring events this year' },
+                { key: 'recurring', label: 'Festivals', count: originCounts.recurring, title: 'From Occasion Calendar · Recurring' },
+                { key: 'manual', label: 'One-time', count: originCounts.manual, title: 'One-time occasions + New Event' },
+              ].map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  title={f.title}
+                  onClick={() => setOriginFilter(f.key)}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border transition-colors ${
+                    originFilter === f.key
+                      ? 'bg-foreground text-background border-foreground'
+                      : 'bg-background text-muted-foreground border-border hover:bg-muted'
                   }`}
-              >
-                {f.label}
-                <span className={`text-[9px] font-bold tabular-nums rounded-full px-1 min-w-[16px] text-center
-                  ${originFilter === f.key
-                    ? 'bg-white/20 dark:bg-gray-900/20'
-                    : 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-gray-400'
-                  }`}>
-                  {f.count}
-                </span>
-              </button>
-            ))}
+                >
+                  {f.label}
+                  <span className="tabular-nums opacity-80">{f.count}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
 
@@ -1355,63 +2072,65 @@ const Events = () => {
               {loadingEvents ? (
                 <div className="py-16 flex items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-amber-500" /></div>
               ) : filteredEvents.length === 0 ? (
-                <div className="py-16 text-center text-xs text-gray-400">{searchQuery ? 'No matching events' : 'No events yet'}</div>
+                <div className="py-12 px-3 text-center space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    {searchQuery
+                      ? 'No matching events'
+                      : selectedMonth !== null
+                        ? 'No events in this month'
+                        : 'No events yet'}
+                  </p>
+                  {selectedMonth !== null && eventsForYear.length > 0 && (
+                    <button
+                      type="button"
+                      className="text-[11px] text-primary underline underline-offset-2"
+                      onClick={() => setSelectedMonth(null)}
+                    >
+                      Show all {eventsForYear.length} this year
+                    </button>
+                  )}
+                </div>
               ) : (
                 filteredEvents.map((e) => {
-                  const isSelected = selectedId === e.id;
-                  // Use stored status directly — no date-based auto-computation
-                  const displayStatus = e.status || 'paused';
-                  const cfg = STATUS_CONFIG[displayStatus] || STATUS_CONFIG.planned;
-                  // Month color for the event card
+                  const isSelected = String(selectedId) === String(e.id);
+                  const isLive = isMonitoringStarted(e);
+                  const displayStatus = isLive ? 'started' : 'stopped';
+                  const cfg = STATUS_CONFIG[displayStatus];
                   const eventMonth = e.start_date ? new Date(e.start_date).getMonth() : new Date().getMonth();
                   const mTheme = selectedMonth !== null ? MONTH_THEMES[selectedMonth] : MONTH_THEMES[eventMonth];
-                  const canTogglePause = displayStatus !== 'archived';
                   return (
                     <button key={e.id} type="button" onClick={() => handleSelectEvent(e.id)}
-                      className={`w-full text-left rounded-lg px-3 py-2.5 transition-all duration-200 border
+                      className={`w-full text-left rounded-lg px-2.5 py-2 transition-all duration-200 border
                         ${isSelected
                           ? `${mTheme.cardBg} ${mTheme.cardBorder} shadow-sm`
                           : `hover:${mTheme.cardBg} border-transparent hover:${mTheme.cardBorder}`
                         }`}>
-                      <div className="flex items-start justify-between gap-2 mb-1.5">
-                        <span className={`font-semibold text-[13px] leading-snug truncate flex-1 ${isSelected ? mTheme.cardAccent : 'text-gray-800 dark:text-gray-200'}`}>{e.name}</span>
-                        <div className="flex items-center gap-1 shrink-0">
-                          {canTogglePause && (
-                            <span
-                              role="button"
-                              tabIndex={0}
-                              onClick={(ev) => { ev.stopPropagation(); e.status === 'paused' ? handleResume(e.id) : handlePause(e.id); }}
-                              onKeyDown={(ev) => { if (ev.key === 'Enter') { ev.stopPropagation(); e.status === 'paused' ? handleResume(e.id) : handlePause(e.id); } }}
-                              className={`inline-flex items-center justify-center h-5 w-5 rounded transition-colors ${e.status === 'paused' ? 'text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-950' : 'text-amber-600 hover:bg-amber-100 dark:hover:bg-amber-950'}`}
-                              title={e.status === 'paused' ? 'Resume monitoring' : 'Pause monitoring'}
-                            >
-                              {e.status === 'paused' ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-                            </span>
-                          )}
-                          <span className={`text-[8px] font-bold uppercase rounded px-1.5 py-0.5 leading-none border ${cfg.color}`}>{cfg.label}</span>
-                        </div>
+                      <div className="flex items-start justify-between gap-2 mb-0.5">
+                        <span className={`font-semibold text-[13px] leading-snug line-clamp-2 min-w-0 ${isSelected ? mTheme.cardAccent : 'text-gray-800 dark:text-gray-200'}`}>{e.name}</span>
+                        <span className={`shrink-0 text-[8px] font-bold uppercase rounded px-1.5 py-0.5 leading-none border ${cfg.color}`}>{cfg.label}</span>
                       </div>
-                      <div className="flex flex-wrap gap-1 mb-1.5">
-                        {(Array.isArray(e.platforms) ? e.platforms : []).map((p) => (
+                      <p className="text-[9px] text-muted-foreground mb-1">
+                        {isRecurringEvent(e) ? 'Festival' : e.occasion_calendar_id || e.origin_calendar_id ? 'One-time' : 'Manual'}
+                      </p>
+                      <div className="flex flex-wrap gap-1 mb-1">
+                        {(Array.isArray(e.platforms) ? e.platforms : []).slice(0, 4).map((p) => (
                           <span key={p} className="text-[9px] font-bold uppercase text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-slate-800 rounded px-1.5 py-0.5">{p}</span>
                         ))}
                       </div>
                       <div className="flex items-center gap-2 text-[10px] text-gray-400">
                         {e.location && (<span className="flex items-center gap-0.5 truncate"><MapPin className="h-2.5 w-2.5 shrink-0" />{e.location}</span>)}
                         {(e.start_date || e.end_date) && (
-                          <span className="flex items-center gap-0.5">
+                          <span className="flex items-center gap-0.5 shrink-0">
                             <Clock className="h-2.5 w-2.5 shrink-0" />
                             {e.start_date ? new Date(e.start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'Open'}
                             {' – '}
-                            {e.end_date ? new Date(e.end_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : 'Ongoing'}
+                            {e.end_date ? new Date(e.end_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'Ongoing'}
                           </span>
                         )}
-                        {!e.start_date && !e.end_date && (
-                          <span className="flex items-center gap-0.5">
-                            <Clock className="h-2.5 w-2.5 shrink-0" />
-                            Open-ended
-                          </span>
-                        )}
+                        <span className="flex items-center gap-0.5 shrink-0" title={fetchesPerDayHint(e.polling_interval_minutes || 60)}>
+                          <Timer className="h-2.5 w-2.5 shrink-0" />
+                          {formatPollInterval(e.polling_interval_minutes || 60)}
+                        </span>
                       </div>
                     </button>
                   );
@@ -1421,9 +2140,9 @@ const Events = () => {
           </ScrollArea>
 
 
-          <div className="shrink-0 px-3 py-2 border-t border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/50 text-[10px] text-gray-400 flex items-center justify-between">
-            <span>{events.length} events</span>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800" onClick={fetchEvents} disabled={loadingEvents}>
+          <div className="shrink-0 px-2.5 py-1.5 border-t border-border bg-muted/30 text-[10px] text-muted-foreground flex items-center justify-between">
+            <span>{filteredEvents.length} shown · {events.length} total</span>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={fetchEvents} disabled={loadingEvents}>
               {loadingEvents ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
             </Button>
           </div>
@@ -1454,101 +2173,269 @@ const Events = () => {
 
           {/* Dashboard Header */}
           {selectedEvent && (
-            <div className="shrink-0 px-4 sm:px-6 py-3 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2.5 mb-0.5">
-                      <h2 className="font-bold text-[15px] leading-tight truncate text-gray-900 dark:text-white">{selectedEvent.name}</h2>
-                      <StatusBadge status={selectedEvent.status} />
-                      {selectedEvent.keywords?.length > 0 && (
-                        <div className="flex items-center gap-1 flex-wrap ml-1">
-                          {selectedEvent.keywords.slice(0, 6).map((kw, i) => (
-                            <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 whitespace-nowrap">
-                              {kw.keyword}
-                            </span>
-                          ))}
-                          {selectedEvent.keywords.length > 6 && (
-                            <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">+{selectedEvent.keywords.length - 6}</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 text-[11px] text-gray-400">
-                      {selectedEvent.location && (<span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{selectedEvent.location}</span>)}
-                      {(selectedEvent.start_date || selectedEvent.end_date) ? (
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {selectedEvent.start_date ? new Date(selectedEvent.start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Open'} → {selectedEvent.end_date ? new Date(selectedEvent.end_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Ongoing'}
-                      </span>
-                      ) : (
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        Open-ended monitoring
-                      </span>
-                      )}
-                      {selectedEvent.last_polled_at && (
-                        <span className="flex items-center gap-1 text-emerald-600">
-                          <Activity className="h-3 w-3" />
-                          Last: {new Date(selectedEvent.last_polled_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+            <div className="shrink-0 px-3 sm:px-4 py-2 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 space-y-2">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h2 className="font-bold text-[15px] leading-tight text-gray-900 dark:text-white truncate min-w-0 flex-1">
+                    {selectedEvent.name}
+                  </h2>
+                  {selectedMonitorPhase.phase === 'waiting' ? (
+                    <Badge variant="outline" className="text-[10px] px-2 py-0.5 border font-semibold gap-1.5 border-amber-400 bg-amber-50 text-amber-900 shrink-0">
+                      Waiting · <span className="tabular-nums">{formatCountdown(selectedMonitorPhase.remainingMs)}</span>
+                    </Badge>
+                  ) : selectedMonitorPhase.phase === 'fetching' || selectedMonitorPhase.phase === 'due' ? (
+                    <Badge variant="outline" className="text-[10px] px-2 py-0.5 border font-semibold gap-1.5 border-sky-400 bg-sky-50 text-sky-900 shrink-0">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Fetching
+                    </Badge>
+                  ) : (
+                    <StatusBadge status={selectedEvent.monitoring_status} />
+                  )}
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="icon" onClick={handleStartEdit} className="h-8 w-8 text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800" title="Edit"><Pencil className="h-3.5 w-3.5" /></Button>
-                  <Button variant="ghost" size="icon"
-                    onClick={() => selectedEvent.status === 'paused' ? handleResume(selectedEvent.id) : handlePause(selectedEvent.id)}
-                    disabled={processingAction || selectedEvent.status === 'archived'}
-                    className={`h-8 w-8 ${selectedEvent.status === 'paused' ? 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950' : 'text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950'}`}
-                    title={selectedEvent.status === 'paused' ? 'Resume' : 'Pause'}>
-                    {processingAction ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : selectedEvent.status === 'paused' ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+                <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted-foreground">
+                  {selectedEvent.location && (
+                    <span className="inline-flex items-center gap-1 truncate max-w-[10rem]"><MapPin className="h-3 w-3 shrink-0" />{selectedEvent.location}</span>
+                  )}
+                  {(selectedEvent.start_date || selectedEvent.end_date) ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {selectedEvent.start_date ? new Date(selectedEvent.start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'Open'}
+                      {' – '}
+                      {selectedEvent.end_date ? new Date(selectedEvent.end_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'Ongoing'}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" />Open-ended</span>
+                  )}
+                  {selectedEvent.last_fetched_at && (
+                    <span className="inline-flex items-center gap-1 text-emerald-600">
+                      <Activity className="h-3 w-3" />
+                      {new Date(selectedEvent.last_fetched_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                  <span className="inline-flex items-center gap-1" title="Fetch schedule while Started">
+                    <Timer className="h-3 w-3" />
+                    {formatPollInterval(selectedEvent.polling_interval_minutes || 60)}
+                    <span className="text-muted-foreground/80">({fetchesPerDayHint(selectedEvent.polling_interval_minutes || 60)})</span>
+                  </span>
+                </div>
+                {selectedEvent.keywords?.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {selectedEvent.keywords.slice(0, 6).map((kw, i) => (
+                      <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border">
+                        {kw.keyword}
+                      </span>
+                    ))}
+                    {selectedEvent.keywords.length > 6 && (
+                      <span className="text-[10px] text-muted-foreground self-center">+{selectedEvent.keywords.length - 6}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Button
+                  size="sm"
+                  onClick={() => handleToggleMonitoring(selectedEvent.id)}
+                  disabled={String(monitoringBusyId) === String(selectedEvent.id)}
+                  className={`h-8 px-3 gap-1.5 text-xs font-semibold ${
+                    !isMonitoringStarted(selectedEvent)
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      : 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'
+                  }`}
+                >
+                  {String(monitoringBusyId) === String(selectedEvent.id)
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : !isMonitoringStarted(selectedEvent)
+                      ? <Play className="h-3.5 w-3.5" />
+                      : <Square className="h-3.5 w-3.5" />}
+                  {isMonitoringStarted(selectedEvent) ? 'Stop' : 'Start'}
+                </Button>
+                {String(fetchingKickoffId) === String(selectedEvent.id) || selectedMonitorPhase.phase === 'fetching' || selectedMonitorPhase.phase === 'due' ? (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Fetching…
+                  </span>
+                ) : selectedMonitorPhase.phase === 'waiting' ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-900">
+                    <Timer className="h-3 w-3" />
+                    Waiting
+                    <span className="font-semibold tabular-nums text-amber-950">
+                      {formatCountdown(selectedMonitorPhase.remainingMs)}
+                    </span>
+                  </span>
+                ) : null}
+
+                <Button onClick={handleRunScan} disabled={!selectedId || runningScan}
+                  size="sm" variant="outline" className="h-8 px-3 gap-1.5 text-xs">
+                  {runningScan ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                  Fetch Now
+                </Button>
+
+                <Popover onOpenChange={(open) => {
+                  if (open && selectedId) fetchEvents();
+                }}>
+                  <PopoverTrigger asChild>
+                    <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs">
+                      <History className="h-3.5 w-3.5" /> History
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-80 p-0">
+                    <div className="border-b px-3 py-2">
+                      <p className="text-sm font-medium">Monitoring history</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{selectedEvent.name}</p>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto">
+                      {selectedMonitoringHistory.length === 0 ? (
+                        <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+                          No sessions yet — press Start to begin
+                        </p>
+                      ) : (
+                        <ul className="divide-y">
+                          {selectedMonitoringHistory.map((session, sessionIdx) => {
+                            const isActive = session.state === 'running' && sessionIdx === 0;
+                            const phase = isActive ? selectedMonitorPhase : { phase: session.state === 'done' ? 'stopped' : session.state };
+                            const elapsedMs =
+                              session.state === 'running' && session.startedAt
+                                ? Math.max(0, monitorNow - new Date(session.startedAt).getTime())
+                                : session.durationMs;
+                            const badge =
+                              phase.phase === 'waiting'
+                                ? { label: 'Waiting', className: 'border-amber-500/30 bg-amber-500/10 text-amber-800' }
+                                : phase.phase === 'fetching' || phase.phase === 'due'
+                                  ? { label: 'Fetching', className: 'border-sky-500/30 bg-sky-500/10 text-sky-800' }
+                                  : session.state === 'running'
+                                    ? { label: 'Running', className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700' }
+                                    : session.state === 'done'
+                                      ? { label: 'Stopped', className: 'border-slate-500/25 bg-slate-500/10 text-slate-700' }
+                                      : { label: 'Incomplete', className: 'border-amber-500/30 bg-amber-500/10 text-amber-700' };
+                            return (
+                              <li key={session.id} className="px-3 py-2 text-xs">
+                                <div className="mb-0.5 flex items-center justify-between gap-2">
+                                  <Badge variant="outline" className={`h-5 capitalize text-[10px] ${badge.className}`}>
+                                    {badge.label}
+                                  </Badge>
+                                  <span className="font-semibold tabular-nums text-muted-foreground">
+                                    {formatDuration(elapsedMs)}
+                                  </span>
+                                </div>
+                                <p className="text-muted-foreground">Started {formatWhen(session.startedAt)}</p>
+                                {session.stoppedAt ? (
+                                  <p className="text-muted-foreground">Stopped {formatWhen(session.stoppedAt)}</p>
+                                ) : phase.phase === 'waiting' ? (
+                                  <p className="text-amber-800">
+                                    Next fetch in <span className="font-semibold tabular-nums">{formatCountdown(phase.remainingMs)}</span>
+                                  </p>
+                                ) : phase.phase === 'fetching' || phase.phase === 'due' ? (
+                                  <p className="text-sky-800">Fetching now…</p>
+                                ) : session.state === 'running' ? (
+                                  <p className="text-emerald-700">Still monitoring…</p>
+                                ) : null}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                <Popover onOpenChange={(open) => {
+                  if (open && selectedId) {
+                    fetchEvents();
+                    fetchDashboard(selectedId);
+                  }
+                }}>
+                  <PopoverTrigger asChild>
+                    <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs">
+                      <BarChart3 className="h-3.5 w-3.5" /> Stats
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-80 p-0">
+                    <div className="border-b px-3 py-2">
+                      <p className="text-sm font-medium">Fetch stats</p>
+                      <p className="text-[11px] text-muted-foreground">Lifetime totals · survive Stop</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 px-3 py-2.5 text-xs">
+                      <div>
+                        <p className="text-muted-foreground">API hits</p>
+                        <p className="font-medium tabular-nums">{selectedFetchStats.apiHits}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Items returned</p>
+                        <p className="font-medium tabular-nums">{selectedFetchStats.postsReturned}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">New items</p>
+                        <p className="font-medium tabular-nums">{selectedFetchStats.postsNew}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Run time</p>
+                        <p className="font-medium tabular-nums">{formatDuration(selectedFetchStats.totalRunningMs)}</p>
+                      </div>
+                    </div>
+                    <div className="border-t max-h-48 overflow-y-auto">
+                      {selectedFetchStats.runsNewestFirst.length === 0 ? (
+                        <p className="px-3 py-4 text-center text-xs text-muted-foreground">No fetches yet</p>
+                      ) : (
+                        <ul className="divide-y">
+                          {selectedFetchStats.runsNewestFirst.slice(0, 20).map((run, idx) => (
+                            <li key={`${run.at}-${idx}`} className="px-3 py-2 text-[11px]">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={run.ok === false ? 'text-red-600' : 'text-emerald-700'}>
+                                  {run.ok === false ? 'Failed' : 'OK'}
+                                </span>
+                                <span className="text-muted-foreground tabular-nums">{formatWhen(run.at)}</span>
+                              </div>
+                              <p className="text-muted-foreground mt-0.5">
+                                {Number(run.api_hits) || 0} hits · {Number(run.posts_returned ?? run.items_returned) || 0} returned · {Number(run.posts_new ?? run.items_new) || 0} new
+                                {run.source ? ` · ${run.source}` : ''}
+                              </p>
+                              {run.message && <p className="text-muted-foreground/80 mt-0.5 truncate">{run.message}</p>}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                <div className="ml-auto flex items-center gap-0.5">
+                  <Button variant="ghost" size="icon" onClick={handleStartEdit} className="h-8 w-8 text-muted-foreground" title="Edit">
+                    <Pencil className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={openDeleteDialog} disabled={processingAction} className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950" title="Delete"><Trash2 className="h-3.5 w-3.5" /></Button>
-
-
-                  <Separator orientation="vertical" className="h-5 mx-1" />
-
-
-                  <Button onClick={handleRunScan} disabled={!selectedId || runningScan || selectedEvent?.status === 'archived'}
-                    size="sm" className="h-8 px-3 gap-1.5 text-xs font-semibold bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200 text-white shadow-md">
-                    {runningScan ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-                    <span className="hidden sm:inline">Fetch Now</span>
+                  <Button variant="ghost" size="icon" onClick={openDeleteDialog} disabled={processingAction} className="h-8 w-8 text-muted-foreground hover:text-destructive" title="Delete">
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
-
-
                   <div className="relative">
                     <Button
                       size="sm"
+                      variant="ghost"
                       onClick={() => setExportMenuOpen(!exportMenuOpen)}
                       disabled={!dashboard && (events?.length || 0) === 0}
-                      className="h-10 rounded-xl bg-blue-600 px-4 gap-2 text-sm font-semibold text-white shadow-md transition-all hover:bg-blue-700 disabled:bg-blue-300 disabled:text-white"
+                      className="h-8 px-2 gap-1 text-xs text-muted-foreground"
                     >
-                      <Download className="h-4 w-4" />
-                      <span>Export</span>
-                      <ChevronDown className={cn('h-4 w-4 transition-transform', exportMenuOpen && 'rotate-180')} />
+                      <Download className="h-3.5 w-3.5" />
+                      Export
+                      <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', exportMenuOpen && 'rotate-180')} />
                     </Button>
                     {exportMenuOpen && (
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setExportMenuOpen(false)} />
-                        <div className="absolute right-0 top-full mt-2 z-50 w-64 rounded-2xl border border-blue-100 bg-white p-2 shadow-xl">
-                          <div className="px-2 pb-1 pt-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Selected Event</div>
-                          <button onClick={handleExportSelectedEventPdf} disabled={!dashboard} className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2.5 text-sm text-slate-600 hover:bg-blue-50 hover:text-slate-900 transition-colors disabled:opacity-40">
-                            <FileText className="h-4 w-4 text-red-500" /> Export PDF
+                        <div className="absolute right-0 top-full mt-1 z-50 w-56 rounded-lg border border-border bg-popover p-1.5 shadow-lg">
+                          <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">This event</div>
+                          <button type="button" onClick={handleExportSelectedEventPdf} disabled={!dashboard} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted disabled:opacity-40">
+                            <FileText className="h-4 w-4 text-red-500" /> PDF
                           </button>
-                          <button onClick={handleExportSelectedEventExcel} disabled={!dashboard} className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2.5 text-sm text-slate-600 hover:bg-blue-50 hover:text-slate-900 transition-colors disabled:opacity-40">
-                            <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Export Excel
+                          <button type="button" onClick={handleExportSelectedEventExcel} disabled={!dashboard} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted disabled:opacity-40">
+                            <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Excel
                           </button>
-
-
-                          <div className="my-1.5 border-t border-slate-100" />
-                          <div className="px-2 pb-1 pt-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">All Events (Global)</div>
-                          <button onClick={handleExportAllEventsPdf} disabled={(events?.length || 0) === 0} className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2.5 text-sm text-slate-600 hover:bg-blue-50 hover:text-slate-900 transition-colors disabled:opacity-40">
-                            <FileText className="h-4 w-4 text-red-500" /> Export PDF
+                          <div className="my-1 border-t border-border" />
+                          <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">All events</div>
+                          <button type="button" onClick={handleExportAllEventsPdf} disabled={(events?.length || 0) === 0} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted disabled:opacity-40">
+                            <FileText className="h-4 w-4 text-red-500" /> PDF
                           </button>
-                          <button onClick={handleExportAllEventsExcel} disabled={(events?.length || 0) === 0} className="flex items-center gap-2.5 w-full rounded-xl px-3 py-2.5 text-sm text-slate-600 hover:bg-blue-50 hover:text-slate-900 transition-colors disabled:opacity-40">
-                            <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Export Excel
+                          <button type="button" onClick={handleExportAllEventsExcel} disabled={(events?.length || 0) === 0} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted disabled:opacity-40">
+                            <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Excel
                           </button>
                         </div>
                       </>
@@ -1579,7 +2466,7 @@ const Events = () => {
                 </div>
                 <div className="hidden md:flex items-center gap-3 shrink-0 text-[11px] font-medium">
                   {[
-                    { label: 'Content', value: dashboard?.stats?.content_total || 0, icon: BarChart3, color: 'text-amber-600 dark:text-amber-400', valueClass: 'text-gray-900 dark:text-white' },
+                    { label: 'Content', value: dashboard?.stats?.content_total ?? contentItems.length ?? 0, icon: BarChart3, color: 'text-amber-600 dark:text-amber-400', valueClass: 'text-gray-900 dark:text-white' },
                     { label: 'Priority', value: (dashboard?.stats?.content_priority || 0) + (dashboard?.stats?.alerts_priority || 0), icon: AlertTriangle, color: 'text-red-500 dark:text-red-400', valueClass: 'text-red-600 dark:text-red-400' },
                     { label: 'Recent', value: dashboard?.stats?.content_recent_24h || 0, icon: Activity, color: 'text-amber-500 dark:text-amber-400', valueClass: 'text-gray-900 dark:text-white' },
                     { label: 'Platforms', value: dashboard?.stats?.platforms_active || (selectedEvent.platforms || []).length, icon: Globe, color: 'text-emerald-600 dark:text-emerald-400', valueClass: 'text-gray-900 dark:text-white' },
@@ -1606,12 +2493,12 @@ const Events = () => {
                 </div>
               </div>
             ) : !dashboard ? (
-              <div className="h-full flex flex-col items-center justify-center text-center px-8">
-                <div className="h-16 w-16 rounded-2xl bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 flex items-center justify-center mb-4">
-                  <CalendarDays className="h-8 w-8 text-amber-400" />
+              <div className="h-full flex flex-col items-center justify-center text-center px-6">
+                <div className="h-12 w-12 rounded-xl bg-muted border border-border flex items-center justify-center mb-3">
+                  <CalendarDays className="h-6 w-6 text-muted-foreground" />
                 </div>
-                <p className="text-base font-semibold text-gray-600 dark:text-gray-300">Select an event to view</p>
-                <p className="text-sm text-gray-400 mt-1 max-w-sm">Choose an event from the left panel or create a new one to start monitoring.</p>
+                <p className="text-sm font-semibold text-foreground">Select an event to view</p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-sm">Pick an event on the left, or create one with New Event.</p>
               </div>
             ) : (
               <ScrollArea className="h-full w-full">
@@ -1661,7 +2548,11 @@ const Events = () => {
                         <ScanLine className="h-7 w-7 text-amber-400" />
                       </div>
                       <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No content detected yet</p>
-                      <p className="text-xs text-gray-400 mt-1">Click "Fetch Now" to scan for new content.</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {selectedEvent?.monitoring_status !== 'started'
+                          ? 'Monitoring is stopped. Press “Start monitoring”, or use Fetch Now for a one-off scan.'
+                          : 'Waiting for the next scheduled scan — or click Fetch Now.'}
+                      </p>
                     </div>
                   ) : (
                     <>
@@ -1728,44 +2619,38 @@ const Events = () => {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Start Date</Label>
-                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-9" />
+                <EventDateField value={startDate} onChange={setStartDate} placeholder="Start date" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">End Date</Label>
-                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-9" />
+                <EventDateField value={endDate} onChange={setEndDate} placeholder="End date" />
               </div>
             </div>
 
 
-            {/* Per-event scan interval */}
+            <EventPollIntervalField
+              minutes={eventPollMinutes}
+              preset={eventPollPreset}
+              onChange={({ minutes, preset }) => {
+                setEventPollMinutes(minutes);
+                setEventPollPreset(preset);
+              }}
+            />
+
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold flex items-center gap-1.5">
-                <Timer className="h-3.5 w-3.5 text-muted-foreground" />
-                Scan Interval (per event)
-              </Label>
-              <Select value={eventPollInterval || 'default'} onValueChange={(v) => setEventPollInterval(v === 'default' ? '' : v)}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Use global default" /></SelectTrigger>
-                <SelectContent>
-                  {EVENT_POLL_INTERVALS.map(opt => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}
-                </SelectContent>
-              </Select>
-              <p className="text-[10px] text-muted-foreground">Override global interval for this event. Leave blank to use global setting.</p>
+              <Label className="text-xs font-semibold">Platforms *</Label>
+              <EventPlatformPicker value={selectedPlatforms} onChange={setSelectedPlatforms} />
             </div>
 
 
-            <div>
-              <Label className="text-xs font-semibold mb-2 block">Keywords (comma or newline separated)</Label>
-              <Tabs defaultValue="te">
-                <TabsList className="h-8 mb-2">
-                  <TabsTrigger value="te" className="text-xs h-7 px-4">Telugu</TabsTrigger>
-                  <TabsTrigger value="hi" className="text-xs h-7 px-4">Hindi</TabsTrigger>
-                  <TabsTrigger value="en" className="text-xs h-7 px-4">English</TabsTrigger>
-                </TabsList>
-                <TabsContent value="te"><Textarea value={keywordsTe} onChange={(e) => setKeywordsTe(e.target.value)} rows={3} placeholder="ఉదా: ఎన్నిక, ఓటు..." className="text-sm" /></TabsContent>
-                <TabsContent value="hi"><Textarea value={keywordsHi} onChange={(e) => setKeywordsHi(e.target.value)} rows={3} placeholder="उदा: चुनाव, वोट..." className="text-sm" /></TabsContent>
-                <TabsContent value="en"><Textarea value={keywordsEn} onChange={(e) => setKeywordsEn(e.target.value)} rows={3} placeholder="e.g. election, vote..." className="text-sm" /></TabsContent>
-              </Tabs>
-            </div>
+            <EventKeywordsFields
+              values={{ te: keywordsTe, hi: keywordsHi, en: keywordsEn }}
+              onChange={(key, value) => {
+                if (key === 'te') setKeywordsTe(value);
+                else if (key === 'hi') setKeywordsHi(value);
+                else setKeywordsEn(value);
+              }}
+            />
 
 
             <DialogFooter className="gap-2 sm:gap-0">
@@ -1798,173 +2683,105 @@ const Events = () => {
       </Dialog>
 
 
-      {/* API Settings Dialog */}
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Settings className="h-4 w-4" /> Event Scanning Settings</DialogTitle>
-            <DialogDescription>Configure per-platform scan intervals for event monitoring. Changes take effect on the next cycle.</DialogDescription>
-          </DialogHeader>
-
-
-          {loadingSettings ? (
-            <div className="py-8 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-          ) : (
-            <div className="space-y-5">
-              {/* Enabled toggle */}
-              <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30">
-                <div className="flex items-center gap-2">
-                  <Radio className="h-4 w-4 text-amber-500" />
-                  <div>
-                    <p className="text-sm font-semibold">Event Scanning</p>
-                    <p className="text-[10px] text-muted-foreground">Enable or pause all event scanning</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground">{eventIntervals.enabled ? 'Active' : 'Paused'}</span>
-                  <Switch
-                    checked={eventIntervals.enabled}
-                    onCheckedChange={(checked) => setEventIntervals(prev => ({ ...prev, enabled: checked }))}
-                  />
-                </div>
-              </div>
-
-
-              {/* Per-platform intervals */}
-              <div className="space-y-3">
-                <Label className="text-sm font-semibold flex items-center gap-2">
-                  <Timer className="h-4 w-4 text-primary" />
-                  Platform Scan Intervals
-                </Label>
-                <p className="text-xs text-muted-foreground -mt-1">
-                  Set how often each platform is scanned for event-related content (in minutes).
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { key: 'x', label: 'X (Twitter)', icon: '𝕏' },
-                    { key: 'instagram', label: 'Instagram', icon: '📷' },
-                    { key: 'facebook', label: 'Facebook', icon: '📘' },
-                    { key: 'youtube', label: 'YouTube', icon: '▶️' }
-                  ].map(({ key, label, icon }) => (
-                    <div key={key} className="flex flex-col gap-1.5">
-                      <Label className="text-[11px] font-medium flex items-center gap-1.5">
-                        <span>{icon}</span> {label}
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          type="number" min="5" max="1440"
-                          value={eventIntervals[key] ?? 60}
-                          onChange={(e) => setEventIntervals(prev => ({ ...prev, [key]: parseInt(e.target.value) || 60 }))}
-                          className="h-9 pr-12 text-sm"
-                          disabled={!eventIntervals.enabled}
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">min</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-
-              <Separator />
-
-
-              <div className="rounded-lg border border-amber-200 bg-amber-50/50 dark:bg-amber-950/10 p-3">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs font-semibold text-amber-800 dark:text-amber-400">API Rate Limits</p>
-                    <p className="text-[11px] text-amber-700/80 dark:text-amber-400/70 mt-0.5">
-                      Shorter intervals consume more API quota. For YouTube, the daily quota is limited. Set 30+ minutes to avoid quota exhaustion.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setSettingsOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveSettings} disabled={savingSettings || loadingSettings} className="gap-1.5">
-              {savingSettings ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Settings className="h-3.5 w-3.5" />}
-              Save Settings
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-
-      {/* HCP Master Calendar Dialog */}
+      {/* Occasion Calendar Dialog */}
       <Dialog open={hcpOpen} onOpenChange={setHcpOpen}>
-        <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <CalendarDays className="h-4 w-4" /> {hcpTab === 'recurring' ? 'HCP Recurring Events' : 'HCP Non-Recurring Events'}
+              <CalendarDays className="h-4 w-4 text-primary" />
+              {hcpTab === 'recurring' ? 'Occasion Calendar · Recurring' : 'Occasion Calendar · One-time'}
             </DialogTitle>
             <DialogDescription>
               {hcpTab === 'recurring'
-                ? 'Manage yearly recurring events (festivals, national days, etc.) for proactive monitoring.'
-                : 'Manage manually created non-recurring events for specific incidents or situations.'}
+                ? 'Yearly occasions you watch every year — festivals, national days, and similar.'
+                : 'One-time occasions for a specific incident or situation.'}
             </DialogDescription>
           </DialogHeader>
 
-
-          {/* Search + Add */}
-          <div className="flex items-center justify-end gap-2">
-            <div className="relative">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[180px]">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input placeholder="Search..." value={hcpSearch} onChange={(e) => setHcpSearch(e.target.value)} className="pl-8 h-8 w-48 text-xs" />
-              {hcpSearch && <button onClick={() => setHcpSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2"><X className="h-3 w-3 text-muted-foreground" /></button>}
+              <Input
+                placeholder="Search occasions…"
+                value={hcpSearch}
+                onChange={(e) => setHcpSearch(e.target.value)}
+                className="pl-8 h-9 text-sm"
+              />
+              {hcpSearch && (
+                <button type="button" onClick={() => setHcpSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2">
+                  <X className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+              )}
             </div>
-            <Button size="sm" className="h-8 text-xs gap-1" onClick={openHcpCreate}>
-              <Plus className="h-3.5 w-3.5" />Add Event
+            <Button size="sm" className="h-9 gap-1.5 text-xs" onClick={openHcpCreate}>
+              <Plus className="h-3.5 w-3.5" />
+              Add occasion
             </Button>
           </div>
 
-
-          {/* Events Table — same structure for both recurring and non-recurring */}
-          <div className="flex-1 overflow-auto border rounded-lg">
+          <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-border">
             {hcpLoading ? (
-              <div className="flex items-center justify-center py-20"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
             ) : hcpFiltered.length === 0 ? (
-              <div className="text-center py-20 text-sm text-muted-foreground">{hcpSearch ? 'No matching events' : 'No events yet — click "Add Event"'}</div>
+              <div className="flex flex-col items-center justify-center gap-2 py-16 px-6 text-center">
+                <CalendarDays className="h-8 w-8 text-muted-foreground/50" />
+                <p className="text-sm font-medium text-foreground">
+                  {hcpSearch ? 'No matching occasions' : 'No occasions yet'}
+                </p>
+                <p className="text-xs text-muted-foreground max-w-sm">
+                  {hcpSearch
+                    ? 'Try a different search.'
+                    : 'Add an occasion to reuse its date and keywords when you create monitoring events.'}
+                </p>
+                {!hcpSearch && (
+                  <Button size="sm" className="mt-2 h-8 gap-1.5 text-xs" onClick={openHcpCreate}>
+                    <Plus className="h-3.5 w-3.5" />
+                    Add occasion
+                  </Button>
+                )}
+              </div>
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="w-16 text-center">SL.NO</TableHead>
-                    <TableHead>OCCASIONS</TableHead>
-                    <TableHead className="w-32">DATE</TableHead>
-                    <TableHead className="w-44">MONITORING RANGE</TableHead>
-                    <TableHead>KEYWORDS</TableHead>
-                    <TableHead>REMARKS</TableHead>
-                    <TableHead className="w-20 text-center">ACTIONS</TableHead>
+                  <TableRow className="bg-muted/40 hover:bg-muted/40">
+                    <TableHead className="w-14 text-center text-xs">#</TableHead>
+                    <TableHead className="text-xs">Occasion</TableHead>
+                    <TableHead className="w-36 text-xs">Date</TableHead>
+                    <TableHead className="w-44 text-xs">Watch window</TableHead>
+                    <TableHead className="text-xs">Keywords</TableHead>
+                    <TableHead className="text-xs">Notes</TableHead>
+                    <TableHead className="w-20 text-center text-xs">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {hcpFiltered.map((evt) => (
                     <TableRow key={evt.id || evt._id}>
-                      <TableCell className="text-center font-medium text-xs">{evt.slNo}</TableCell>
-                      <TableCell className="font-medium text-xs">{evt.occasion}</TableCell>
+                      <TableCell className="text-center text-xs text-muted-foreground">{evt.slNo}</TableCell>
+                      <TableCell className="font-medium text-sm">{evt.occasion}</TableCell>
                       <TableCell className="text-xs">{evt.date}</TableCell>
-                      <TableCell className="text-xs">{evt.monitoringRange || '—'}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{evt.monitoringRange || '—'}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {evt.keywords ? evt.keywords.split(',').map((kw, i) => (
-                            <Badge key={i} variant="secondary" className="text-[10px] px-1.5 py-0">{kw.trim()}</Badge>
-                          )) : <span className="text-xs text-muted-foreground">—</span>}
+                          {evt.keywords
+                            ? evt.keywords.split(',').filter((kw) => kw.trim()).map((kw, i) => (
+                              <Badge key={i} variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+                                {kw.trim()}
+                              </Badge>
+                            ))
+                            : <span className="text-xs text-muted-foreground">—</span>}
                         </div>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{evt.remarks || '—'}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-[140px] truncate">{evt.remarks || '—'}</TableCell>
                       <TableCell>
-                        <div className="flex items-center justify-center gap-1">
-                          <button onClick={() => openHcpEdit(evt)} className="p-1 rounded hover:bg-muted" title="Edit">
-                            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                          </button>
-                          <button onClick={() => handleHcpDelete(evt.id)} className="p-1 rounded hover:bg-destructive/10" title="Delete">
-                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                          </button>
+                        <div className="flex items-center justify-center gap-0.5">
+                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => openHcpEdit(evt)} title="Edit">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleHcpDelete(evt.id)} title="Delete">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1973,45 +2790,114 @@ const Events = () => {
               </Table>
             )}
           </div>
-          <div className="text-[10px] text-muted-foreground text-right">{hcpFiltered.length} event{hcpFiltered.length !== 1 ? 's' : ''}</div>
+          <p className="text-[11px] text-muted-foreground text-right">
+            {hcpFiltered.length} occasion{hcpFiltered.length !== 1 ? 's' : ''}
+          </p>
         </DialogContent>
       </Dialog>
 
 
-      {/* HCP Recurring Event Create/Edit Sub-Dialog */}
-      <Dialog open={hcpFormOpen} onOpenChange={setHcpFormOpen}>
+      {/* Occasion Calendar Create/Edit Sub-Dialog */}
+      <Dialog open={hcpFormOpen} onOpenChange={(open) => { setHcpFormOpen(open); if (!open) { setHcpEditId(null); setHcpForm(emptyHcpForm()); } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{hcpEditId ? 'Edit Calendar Event' : 'Add Calendar Event'}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              {hcpEditId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {hcpEditId ? 'Edit occasion' : 'Add occasion'}
+            </DialogTitle>
+            <DialogDescription>
+              {hcpTab === 'recurring'
+                ? 'Save a yearly occasion template. The date repeats every year.'
+                : 'Save a one-time occasion you may want to monitor.'}
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleHcpSave} className="space-y-4">
-            <div className="grid gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Occasion *</Label>
-                <Input placeholder="e.g. Republic Day" value={hcpForm.occasion} onChange={(e) => setHcpForm({ ...hcpForm, occasion: e.target.value })} className="h-9" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Date *</Label>
-                <Input placeholder="e.g. 26 January" value={hcpForm.date} onChange={(e) => setHcpForm({ ...hcpForm, date: e.target.value })} className="h-9" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Monitoring Range</Label>
-                <Input placeholder="e.g. 24 Jan – 28 Jan" value={hcpForm.monitoringRange} onChange={(e) => setHcpForm({ ...hcpForm, monitoringRange: e.target.value })} className="h-9" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Keywords (comma-separated)</Label>
-                <Textarea placeholder="Republic Day, 26 January, parade" value={hcpForm.keywords} onChange={(e) => setHcpForm({ ...hcpForm, keywords: e.target.value })} rows={2} className="text-sm" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Remarks</Label>
-                <Input placeholder="Optional notes" value={hcpForm.remarks} onChange={(e) => setHcpForm({ ...hcpForm, remarks: e.target.value })} className="h-9" />
-              </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Occasion name *</Label>
+              <Input
+                placeholder="e.g. Republic Day"
+                value={hcpForm.occasion}
+                onChange={(e) => setHcpForm({ ...hcpForm, occasion: e.target.value })}
+                className="h-9"
+              />
             </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">When it happens *</Label>
+              <OccasionDateField
+                value={hcpForm.date}
+                withYear={hcpTab !== 'recurring'}
+                placeholder={hcpTab === 'recurring' ? 'Pick day & month' : 'Pick a date'}
+                onChange={(date) => setHcpForm({ ...hcpForm, date })}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {hcpTab === 'recurring'
+                  ? 'Year is ignored — this occasion repeats annually.'
+                  : 'Full date for this one-time occasion.'}
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Watch window</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <OccasionDateField
+                  value={hcpForm.rangeFrom}
+                  withYear={false}
+                  placeholder="From"
+                  onChange={(rangeFrom) => updateHcpRange({ rangeFrom })}
+                />
+                <OccasionDateField
+                  value={hcpForm.rangeTo}
+                  withYear={false}
+                  placeholder="Until"
+                  onChange={(rangeTo) => updateHcpRange({ rangeTo })}
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Optional period to watch around the occasion
+                {hcpForm.monitoringRange ? ` · ${hcpForm.monitoringRange}` : ''}.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Platforms *</Label>
+              <EventPlatformPicker
+                value={hcpForm.platforms || []}
+                onChange={(platforms) => setHcpForm({ ...hcpForm, platforms })}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Used when this occasion is linked as a monitoring event.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Suggested keywords</Label>
+              <Input
+                placeholder="e.g. Republic Day, parade, 26 January"
+                value={hcpForm.keywords}
+                onChange={(e) => setHcpForm({ ...hcpForm, keywords: e.target.value })}
+                className="h-9"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Words you might reuse when creating a monitoring event.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Notes</Label>
+              <Input
+                placeholder="Optional notes"
+                value={hcpForm.remarks}
+                onChange={(e) => setHcpForm({ ...hcpForm, remarks: e.target.value })}
+                className="h-9"
+              />
+            </div>
+
             <DialogFooter className="gap-2 sm:gap-0">
               <Button type="button" variant="outline" onClick={() => setHcpFormOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={hcpSaving} className="gap-1.5">
-                {hcpSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                {hcpEditId ? 'Update' : 'Create'}
+                {hcpSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : hcpEditId ? <Pencil className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                {hcpEditId ? 'Save changes' : 'Add occasion'}
               </Button>
             </DialogFooter>
           </form>
@@ -2043,38 +2929,42 @@ const Events = () => {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Start Date</Label>
-                <Input type="date" value={nrForm.start_date} onChange={(e) => setNrForm({ ...nrForm, start_date: e.target.value })} className="h-9" />
+                <EventDateField
+                  value={nrForm.start_date}
+                  onChange={(start_date) => setNrForm({ ...nrForm, start_date })}
+                  placeholder="Start date"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">End Date</Label>
-                <Input type="date" value={nrForm.end_date} onChange={(e) => setNrForm({ ...nrForm, end_date: e.target.value })} className="h-9" />
+                <EventDateField
+                  value={nrForm.end_date}
+                  onChange={(end_date) => setNrForm({ ...nrForm, end_date })}
+                  placeholder="End date"
+                />
               </div>
             </div>
+            <EventPollIntervalField
+              minutes={nrForm.polling_interval_minutes}
+              preset={nrForm.poll_preset}
+              onChange={({ minutes, preset }) => {
+                setNrForm({ ...nrForm, polling_interval_minutes: minutes, poll_preset: preset });
+              }}
+            />
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold flex items-center gap-1.5">
-                <Timer className="h-3.5 w-3.5 text-muted-foreground" />
-                Scan Interval
-              </Label>
-              <Select value={nrForm.polling_interval_minutes || 'default'} onValueChange={(v) => setNrForm({ ...nrForm, polling_interval_minutes: v === 'default' ? '' : v })}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Use global default" /></SelectTrigger>
-                <SelectContent>
-                  {EVENT_POLL_INTERVALS.map(opt => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs font-semibold">Platforms *</Label>
+              <EventPlatformPicker
+                value={nrForm.platforms || []}
+                onChange={(platforms) => setNrForm({ ...nrForm, platforms })}
+              />
             </div>
-            <div>
-              <Label className="text-xs font-semibold mb-2 block">Keywords (comma or newline separated)</Label>
-              <Tabs defaultValue="te">
-                <TabsList className="h-8 mb-2">
-                  <TabsTrigger value="te" className="text-xs h-7 px-4">Telugu</TabsTrigger>
-                  <TabsTrigger value="hi" className="text-xs h-7 px-4">Hindi</TabsTrigger>
-                  <TabsTrigger value="en" className="text-xs h-7 px-4">English</TabsTrigger>
-                </TabsList>
-                <TabsContent value="te"><Textarea value={nrForm.keywords_te} onChange={(e) => setNrForm({ ...nrForm, keywords_te: e.target.value })} rows={3} placeholder="ఉదా: ఎన్నిక, ఓటు..." className="text-sm" /></TabsContent>
-                <TabsContent value="hi"><Textarea value={nrForm.keywords_hi} onChange={(e) => setNrForm({ ...nrForm, keywords_hi: e.target.value })} rows={3} placeholder="उदा: चुनाव, वोट..." className="text-sm" /></TabsContent>
-                <TabsContent value="en"><Textarea value={nrForm.keywords_en} onChange={(e) => setNrForm({ ...nrForm, keywords_en: e.target.value })} rows={3} placeholder="e.g. election, vote..." className="text-sm" /></TabsContent>
-              </Tabs>
-            </div>
+            <EventKeywordsFields
+              values={{ te: nrForm.keywords_te, hi: nrForm.keywords_hi, en: nrForm.keywords_en }}
+              onChange={(key, value) => {
+                const field = key === 'te' ? 'keywords_te' : key === 'hi' ? 'keywords_hi' : 'keywords_en';
+                setNrForm({ ...nrForm, [field]: value });
+              }}
+            />
             <DialogFooter className="gap-2 sm:gap-0">
               <Button type="button" variant="outline" onClick={() => setNrFormOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={nrSaving} className="gap-1.5">

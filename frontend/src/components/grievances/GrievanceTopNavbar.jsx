@@ -209,7 +209,7 @@ export const GrievanceTopNavbar = ({
           )}
           <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={onAddSource}>
             <Plus className="h-3.5 w-3.5" />
-            Accounts
+            Manage Profiles
           </Button>
         </div>
       </div>

@@ -6,6 +6,7 @@ const {
   normalizePlatform,
   hydrateCatalogAlert,
   buildWhere,
+  deriveViralityFromEngagement,
 } = require('./alert.utils');
 
 /**
@@ -82,6 +83,8 @@ const createAlertFromCatalogPost = async (post, analysisResult, options = {}) =>
   const highlights = matchedKeywords.map((m) => m.keyword).filter(Boolean);
   const alertType = matchedKeywords.length > 0 ? 'keyword_risk' : 'ai_risk';
   const riskScore = Number(analysisResult.risk_score) || 0;
+  const engagement = asJson(post.engagement, {});
+  const viralityLevel = deriveViralityFromEngagement(engagement);
 
   const data = {
     post_id: postId,
@@ -106,6 +109,7 @@ const createAlertFromCatalogPost = async (post, analysisResult, options = {}) =>
       sentiment: analysisResult.sentiment,
       risk_score: riskScore,
       risk_level: riskLevel,
+      virality_level: viralityLevel,
       keyword_context: analysisResult.keyword_context || [],
       matched_keywords: matchedKeywords,
       reasoning: analysisResult.reasoning || null,
@@ -378,6 +382,65 @@ const listTopCatalogAlertsByCategory = async ({
   };
 };
 
+const TRACKED_WORKFLOW_STATUSES = ['acknowledged', 'escalated', 'resolved', 'false_positive'];
+
+/**
+ * Workflow KPI from Postgres catalog alerts (status + updated_at).
+ * No status_history column yet — buckets current status by last update in range.
+ */
+const getCatalogWorkflowKpi = async ({ start, end } = {}) => {
+  const rows = await prisma.social_media_alerts.findMany({
+    where: {
+      status: { in: TRACKED_WORKFLOW_STATUSES },
+      updated_at: { gte: start, lte: end },
+    },
+    select: { status: true, updated_at: true },
+  });
+
+  const istKey = (d) =>
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+
+  const dailyMap = new Map();
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const key = istKey(d);
+    if (dailyMap.has(key)) continue;
+    const row = { date: key, total: 0 };
+    for (const status of TRACKED_WORKFLOW_STATUSES) row[status] = 0;
+    dailyMap.set(key, row);
+  }
+
+  const totals = TRACKED_WORKFLOW_STATUSES.reduce((acc, s) => ((acc[s] = 0), acc), {
+    total: 0,
+  });
+
+  for (const r of rows) {
+    const key = istKey(new Date(r.updated_at));
+    const row = dailyMap.get(key);
+    if (!row) continue;
+    const to = String(r.status || '').toLowerCase();
+    if (!TRACKED_WORKFLOW_STATUSES.includes(to)) continue;
+    row[to] += 1;
+    row.total += 1;
+    totals[to] += 1;
+    totals.total += 1;
+  }
+
+  const daily = Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+  return {
+    range: { start: start.toISOString(), end: end.toISOString() },
+    statuses: TRACKED_WORKFLOW_STATUSES,
+    daily,
+    totals,
+    byUser: [],
+  };
+};
+
 module.exports = {
   createAlertFromCatalogPost,
   buildCatalogStats,
@@ -388,4 +451,6 @@ module.exports = {
   getUnreadCount,
   markAllRead,
   listTopCatalogAlertsByCategory,
+  getCatalogWorkflowKpi,
+  TRACKED_WORKFLOW_STATUSES,
 };

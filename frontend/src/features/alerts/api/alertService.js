@@ -55,7 +55,10 @@ export const AlertService = {
   },
 
   getWorkflowKpi(params, config = {}) {
-    return api.get('/alerts/workflow-kpi', { params, ...config });
+    return api.get('/alerts/workflow-kpi', {
+      params: withCatalogParams(params),
+      ...config,
+    });
   },
 
   getDashboardStats() {

@@ -8,6 +8,7 @@ const {
   listCatalogSources,
   fetchCatalogSourceGrievances,
 } = require('./grievance.source.service');
+const { getDashboardReportStats } = require('./grievance.report.service');
 const logger = require('../../utils/logger');
 
 const listSources = async (req, res) => {
@@ -78,6 +79,16 @@ const getStats = async (req, res) => {
   }
 };
 
+const getReportStats = async (req, res) => {
+  try {
+    const stats = await getDashboardReportStats();
+    return res.status(200).json(stats);
+  } catch (error) {
+    logger.error('[Grievances] report-stats failed:', error.message);
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   listSources,
   fetchSource,
@@ -85,4 +96,5 @@ module.exports = {
   listGrievances,
   getGrievance,
   getStats,
+  getReportStats,
 };

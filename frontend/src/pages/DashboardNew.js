@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
+import React, { useState, useEffect, lazy, Suspense, useRef, useCallback } from 'react';
 import ReactPlayer from 'react-player';
 import { Link, useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
@@ -11,15 +11,13 @@ import {
 import { Card } from '../components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import WorkflowKpiCard from '../components/dashboard/WorkflowKpiCard';
+import api from '../lib/api';
+import { AlertService } from '../features/alerts/api/alertService';
+import { GrievanceService } from '../features/grievances/api/grievanceService';
+import { Button } from '../components/ui/button';
+import { cn } from '../lib/utils';
 
-// Temporary stub until dashboard context is restored
-const useDashboard = () => ({
-  dashboardData: null,
-  loading: false,
-  fetchDashboardData: async () => {},
-  refreshDashboard: async () => {},
-  hasCachedData: false,
-});
+// Dashboard data is loaded locally (Postgres catalog APIs) — no context stub.
 
 // Lazy load heavy components
 const TodaysEventsWidget = lazy(() => import('../components/dashboard/TodaysEventsWidget'));
@@ -514,10 +512,10 @@ const DroneViewStrip = () => {
 };
 
 const Dashboard = () => {
-  const { dashboardData, loading, fetchDashboardData, refreshDashboard, hasCachedData } = useDashboard();
   const navigate = useNavigate();
   const [isRefreshing, setIsRefreshing] = useState(false);
-
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState(null);
 
   const [alertType, setAlertType] = useState('active');
   const [alertPlatform, setAlertPlatform] = useState('all');
@@ -527,7 +525,6 @@ const Dashboard = () => {
   const [grievanceStatus, setGrievanceStatus] = useState('all');
   const [profilePlatform, setProfilePlatform] = useState('all');
 
-  // Extract data from context
   const alertData = dashboardData?.alertData || {};
   const reportData = dashboardData?.reportData || {};
   const grievanceData = dashboardData?.grievanceData || {};
@@ -535,25 +532,194 @@ const Dashboard = () => {
   const profileData = dashboardData?.profileData || {};
   const eventData = dashboardData?.eventData || {};
 
+  const loadDashboard = useCallback(async () => {
+    const platformIds = PLATFORMS.map((p) => p.id);
+    const toApiPlatform = (id) => {
+      if (!id || id === 'all') return undefined;
+      if (id === 'twitter') return 'x';
+      return id;
+    };
+
+    const emptyAlertBucket = () =>
+      Object.fromEntries(platformIds.map((id) => [id, 0]));
+
+    const alertDataNext = {
+      active: emptyAlertBucket(),
+      acknowledged: emptyAlertBucket(),
+      false_positive: emptyAlertBucket(),
+      escalated: emptyAlertBucket(),
+      severity: Object.fromEntries(
+        platformIds.map((id) => [id, { high: 0, medium: 0, low: 0 }])
+      ),
+    };
+    const pendingReports = emptyAlertBucket();
+
+    await Promise.all(
+      platformIds.map(async (id) => {
+        try {
+          const platform = toApiPlatform(id);
+          const res = await AlertService.getStats(platform ? { platform } : {});
+          const s = res.data || {};
+          alertDataNext.active[id] = s.active || 0;
+          alertDataNext.acknowledged[id] = s.acknowledged || 0;
+          alertDataNext.false_positive[id] = s.false_positive || 0;
+          alertDataNext.escalated[id] = s.escalated || 0;
+          pendingReports[id] = s.escalated_pending_report || 0;
+        } catch {
+          /* keep zeros */
+        }
+      })
+    );
+
+    const emptyReport = () => ({
+      total: 0,
+      sent_to_intermediary: 0,
+      awaiting_reply: 0,
+      closed: 0,
+    });
+    const reportDataNext = Object.fromEntries(
+      platformIds.map((id) => [id, emptyReport()])
+    );
+    try {
+      const reportsRes = await api.get('/grievances/report-stats');
+      const byPlatform = reportsRes.data || {};
+      platformIds.forEach((id) => {
+        const key = id === 'twitter' ? 'x' : id;
+        const src = byPlatform[id] || byPlatform[key] || emptyReport();
+        reportDataNext[id] = {
+          total: src.total || 0,
+          sent_to_intermediary: src.sent_to_intermediary || 0,
+          awaiting_reply: src.awaiting_reply || 0,
+          closed: src.closed || 0,
+        };
+      });
+    } catch {
+      /* ignore */
+    }
+
+    const gPlatforms = platformIds.filter((p) => p !== 'youtube' && p !== 'instagram');
+    const grievanceDataNext = {};
+    await Promise.all(
+      gPlatforms.map(async (id) => {
+        try {
+          const platform = toApiPlatform(id);
+          const res = await GrievanceService.getStats(platform ? { platform } : {});
+          const s = res.data || {};
+          grievanceDataNext[id === 'twitter' ? 'x' : id] = {
+            total: s.total || 0,
+            pending: s.pending || 0,
+            escalated: s.escalated || 0,
+            closed: s.closed || 0,
+          };
+          if (id === 'all') {
+            grievanceDataNext.all = {
+              total: s.total || 0,
+              pending: s.pending || 0,
+              escalated: s.escalated || 0,
+              closed: s.closed || 0,
+            };
+          }
+        } catch {
+          grievanceDataNext[id === 'twitter' ? 'x' : id] = {
+            total: 0,
+            pending: 0,
+            escalated: 0,
+            closed: 0,
+          };
+        }
+      })
+    );
+
+    const profileDataNext = Object.fromEntries(
+      platformIds.map((id) => [
+        id === 'twitter' ? 'x' : id,
+        { total: 0, active: 0, inactive: 0, week_added: 0 },
+      ])
+    );
+    profileDataNext.all = { total: 0, active: 0, inactive: 0, week_added: 0 };
+    try {
+      const platRes = await api.get('/social-profiles', { params: { limit: 1 } });
+      const byPlatform = platRes.data?.stats?.byPlatform || {};
+      const stats = platRes.data?.stats || {};
+      let total = 0;
+      Object.entries(byPlatform).forEach(([slugRaw, count]) => {
+        const slug = slugRaw === 'twitter' ? 'x' : slugRaw;
+        if (profileDataNext[slug]) {
+          profileDataNext[slug].total = count || 0;
+          profileDataNext[slug].active = count || 0;
+        }
+        total += count || 0;
+      });
+      profileDataNext.all = {
+        total: stats.total ?? total,
+        active: stats.active ?? total,
+        inactive: stats.paused ?? 0,
+        week_added: 0,
+      };
+    } catch {
+      /* ignore */
+    }
+
+    let eventList = [];
+    try {
+      const eventsRes = await api.get('/events');
+      eventList = Array.isArray(eventsRes.data)
+        ? eventsRes.data
+        : eventsRes.data?.events || [];
+    } catch {
+      eventList = [];
+    }
+    const started = eventList.filter(
+      (e) =>
+        e.monitoring_status === 'started' ||
+        String(e.status || '').toLowerCase() === 'active'
+    );
+
+    setDashboardData({
+      alertData: alertDataNext,
+      alertPendingReportData: pendingReports,
+      reportData: reportDataNext,
+      grievanceData: grievanceDataNext,
+      profileData: profileDataNext,
+      eventData: {
+        list: started.map((e) => ({
+          ...e,
+          status: 'active',
+          name: e.name || e.programme_name || 'Event',
+        })),
+        all: { active: started.length },
+      },
+    });
+  }, []);
+
   useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        await loadDashboard();
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadDashboard]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await refreshDashboard();
-    setIsRefreshing(false);
+    try {
+      await loadDashboard();
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
-  if (loading && !hasCachedData) {
+  if (loading && !dashboardData) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="relative">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-violet-500/20 border-t-violet-600"></div>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Shield className="h-5 w-5 text-violet-600 animate-pulse" />
-          </div>
-        </div>
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -725,80 +891,88 @@ const Dashboard = () => {
       name: 'Active',
       value: profileSliceBase.active || 0,
       color: '#8b5cf6',
-      target: { path: '/person-of-interest', params: { status: 'active', platform: profilePlatformKey } },
+      target: { path: '/social-profiles', params: { status: 'active', platform: profilePlatformKey } },
     },
     {
       label: 'Inactive',
       name: 'Inactive',
       value: profileSliceBase.inactive || 0,
       color: '#a1a1aa',
-      target: { path: '/person-of-interest', params: { status: 'inactive', platform: profilePlatformKey } },
+      target: { path: '/social-profiles', params: { status: 'inactive', platform: profilePlatformKey } },
     },
   ];
   const profilePieSlices = ensureMinSlice(profilePieData.filter((entry) => entry.value > 0));
 
   return (
-    <div className="animate-in fade-in duration-300 h-full overflow-y-auto" data-testid="dashboard">
-      {/* Header with Refresh */}
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-semibold">Dashboard</h1>
-        <button
-          onClick={handleRefresh}
-          disabled={isRefreshing || loading}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-          {isRefreshing ? 'Refreshing...' : 'Refresh'}
-        </button>
+    <div className="w-full space-y-3 animate-in fade-in duration-300" data-testid="dashboard">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="min-w-0 shrink-0">
+          <h1 className="text-xl font-heading font-bold tracking-tight leading-none">Dashboard</h1>
+          <p className="text-[11px] text-muted-foreground mt-0.5 hidden sm:block">
+            Live overview — events, alerts, grievances, and profiles
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            onClick={handleRefresh}
+            disabled={isRefreshing || loading}
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', isRefreshing && 'animate-spin')} />
+            {isRefreshing ? 'Refreshing…' : 'Refresh'}
+          </Button>
+        </div>
       </div>
 
-      <div className="flex flex-wrap gap-4">
+      <div className="flex flex-wrap gap-3">
         {/* Main Content - Left */}
-<div className="flex-1 min-w-0 lg:min-w-[60%] space-y-4">
+        <div className="flex-1 min-w-0 lg:min-w-[58%] space-y-3">
       <Suspense fallback={<LoadingSpinner />}>
 
-        {/* ═══ Events Card (moved above Periscope) ═══ */}
-        <Card className="relative overflow-hidden border border-amber-200/50 dark:border-amber-500/20 shadow-sm hover:shadow-lg hover:shadow-amber-500/5 transition-all duration-300">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-400" />
-          <div className="p-4 pt-5">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="p-1.5 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg shadow-sm shadow-amber-200">
-                  <CalendarDays className="h-4 w-4 text-white" />
-                </div>
-                <span className="text-sm font-bold tracking-tight">Events</span>
+        {/* ═══ Events Card ═══ */}
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border bg-muted/20">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="h-8 w-8 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                <CalendarDays className="h-4 w-4 text-amber-600" />
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col items-end">
-                  <p className="text-xl font-black bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent leading-none">{getEventCount()}</p>
-                  <p className="text-[8px] text-muted-foreground uppercase font-bold tracking-tighter">Active</p>
-                </div>
-                <Link to="/events?status=active" className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 uppercase tracking-wider">
-                  View <ArrowRight className="h-3 w-3" />
-                </Link>
+              <div className="min-w-0">
+                <span className="text-sm font-semibold leading-none">Events</span>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Monitoring started</p>
               </div>
             </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="text-right">
+                <p className="text-lg font-bold tabular-nums leading-none">{getEventCount()}</p>
+                <p className="text-[9px] text-muted-foreground uppercase tracking-wide">Live</p>
+              </div>
+              <Link to="/events" className="text-[11px] font-medium text-primary hover:underline inline-flex items-center gap-1">
+                View <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+          </div>
 
-            <div className="mt-4 space-y-1.5 max-h-[148px] overflow-y-auto pr-1 custom-scrollbar">
+            <div className="p-3 space-y-1.5 max-h-[148px] overflow-y-auto">
               {activeEvents.length > 0 ? (
                 activeEvents.map((event, i) => (
-                  <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-amber-50/50 dark:bg-amber-500/5 border border-amber-100/50 dark:border-amber-500/10 group hover:border-amber-300 transition-all">
-                    <div className="w-1.5 h-1.5 rounded-full shrink-0 bg-green-500 animate-pulse" />
-                    <span className="text-[11px] font-semibold truncate flex-1 text-foreground/80 group-hover:text-foreground">
+                  <div key={event.id || i} className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-border bg-background hover:bg-muted/30 transition-colors">
+                    <div className="w-1.5 h-1.5 rounded-full shrink-0 bg-emerald-500 animate-pulse" />
+                    <span className="text-xs font-medium truncate flex-1">
                       {event.name || `Event #${i + 1}`}
                     </span>
-                    <span className="text-[8px] font-bold text-green-600 dark:text-green-400 uppercase tracking-tighter">Live</span>
+                    <span className="text-[9px] font-semibold text-emerald-600 uppercase tracking-wide">Live</span>
                   </div>
                 ))
               ) : (
-                <div className="flex flex-col items-center justify-center py-6 text-muted-foreground/40">
-                  <CalendarDays className="h-8 w-8 mb-2 opacity-20" />
-                  <p className="text-[10px] font-medium italic">No active events found</p>
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <CalendarDays className="h-7 w-7 mb-2 opacity-30" />
+                  <p className="text-[11px]">No events currently monitoring</p>
                 </div>
               )}
             </div>
-          </div>
-        </Card>
+        </div>
 
         <div className="min-h-[560px] h-[560px] min-h-0 overflow-hidden">
           <TodaysEventsWidget className="h-full" />
@@ -813,27 +987,26 @@ const Dashboard = () => {
     </div>
 
         {/* Stats Sidebar - Right */}
-        <div className="w-full lg:w-80 xl:w-[22rem] flex-shrink-0 space-y-4">
+        <div className="w-full lg:w-[22rem] xl:w-[26rem] flex-shrink-0 space-y-3">
           <TooltipProvider>
             {/* ═══ 1. Active Alerts Card ═══ */}
-            <Card className="relative overflow-hidden border border-rose-200/50 dark:border-rose-500/20 shadow-sm hover:shadow-lg hover:shadow-rose-500/5 transition-all duration-300">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 via-pink-500 to-rose-400" />
+            <Card className="rounded-xl border border-border bg-card overflow-hidden shadow-none">
               <div className="p-4 pt-5">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 bg-gradient-to-br from-rose-500 to-pink-600 rounded-lg shadow-sm shadow-rose-200">
-                      <AlertTriangle className="h-4 w-4 text-white" />
+                    <div className="h-8 w-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+                      <AlertTriangle className="h-4 w-4 text-red-600" />
                     </div>
                     <span className="text-sm font-bold tracking-tight">Alerts Summary</span>
                   </div>
-                  <Link to="/intelligence-dashboard" className="text-[10px] font-semibold text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1 uppercase tracking-wider">
+                  <Link to="/alerts" className="text-[11px] font-medium text-primary hover:underline inline-flex items-center gap-1">
                     View <ArrowRight className="h-3 w-3" />
                   </Link>
                 </div>
 
                 <div className="flex items-center gap-4">
                   <div className="flex-1 space-y-1.5">
-                    <p className="text-4xl font-black bg-gradient-to-r from-rose-600 to-pink-600 bg-clip-text text-transparent leading-none">{alertData?.active?.[alertPlatform] ?? alertData?.active?.all ?? 0}</p>
+                    <p className="text-3xl font-bold tabular-nums text-foreground leading-none">{alertData?.active?.[alertPlatform] ?? alertData?.active?.all ?? 0}</p>
                     <p className="text-[10px] text-muted-foreground font-medium">
                       {PLATFORMS.find(p => p.id === alertPlatform)?.label || 'All sources'}
                     </p>
@@ -841,7 +1014,7 @@ const Dashboard = () => {
                       <select
                         value={alertPlatform}
                         onChange={(e) => setAlertPlatform(e.target.value)}
-                        className="appearance-none bg-rose-50 dark:bg-rose-500/10 text-[10px] font-semibold text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-rose-400/50 w-28 pr-5 px-2.5 py-1.5 rounded-lg border border-rose-200/50 dark:border-rose-500/20"
+                        className="appearance-none bg-muted/40 text-[10px] font-semibold text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring w-28 pr-5 px-2.5 py-1.5 rounded-md border border-border"
                       >
                         {ALERT_REPORT_PLATFORMS.map((p) => (
                           <option key={p.id} value={p.id}>{p.label}</option>
@@ -891,7 +1064,7 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              <div className="px-4 py-3 border-t border-rose-100 dark:border-rose-500/10 bg-gradient-to-r from-rose-50/50 to-transparent dark:from-rose-500/5 grid grid-cols-5 gap-1">
+              <div className="px-4 py-2.5 border-t border-border bg-muted/20 grid grid-cols-5 gap-1">
                 {alertPieData.map((item, i) => (
                   <Tooltip key={i}>
                     <TooltipTrigger asChild>
@@ -915,19 +1088,18 @@ const Dashboard = () => {
             </Card>
 
             {/* ═══ 2. Escalated to SM Intermediaries Card ═══ */}
-            <Card className="relative overflow-hidden border border-blue-200/50 dark:border-blue-500/20 shadow-sm hover:shadow-lg hover:shadow-blue-500/5 transition-all duration-300">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-cyan-500 to-blue-400" />
+            <Card className="rounded-xl border border-border bg-card overflow-hidden shadow-none">
               <div className="p-4 pt-5">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg shadow-sm shadow-blue-200">
-                      <Send className="h-4 w-4 text-white" />
+                    <div className="h-8 w-8 rounded-lg bg-sky-500/10 flex items-center justify-center">
+                      <Send className="h-4 w-4 text-sky-600" />
                     </div>
                     <span className="text-xs font-bold leading-tight tracking-tight">Escalated to SM Intermediaries</span>
                   </div>
                   <Link
                     to={buildRouteWithParams('/alerts', { status: 'reports', reportStatus: 'sent_to_intermediary', platform: reportPlatformKey })}
-                    className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 flex-shrink-0 uppercase tracking-wider"
+                    className="text-[11px] font-medium text-primary hover:underline inline-flex items-center gap-1 shrink-0"
                   >
                     View <ArrowRight className="h-3 w-3" />
                   </Link>
@@ -935,7 +1107,7 @@ const Dashboard = () => {
 
                 <div className="flex items-center gap-4">
                   <div className="flex-1 space-y-1.5">
-                    <p className="text-4xl font-black bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent leading-none">{getReportCount()}</p>
+                    <p className="text-3xl font-bold tabular-nums text-foreground leading-none">{getReportCount()}</p>
                     <p className="text-[10px] text-muted-foreground font-medium">
                       {PLATFORMS.find(p => p.id === reportPlatform)?.label || 'All sources'}
                     </p>
@@ -943,7 +1115,7 @@ const Dashboard = () => {
                       <select
                         value={reportPlatform}
                         onChange={(e) => setReportPlatform(e.target.value)}
-                        className="appearance-none bg-blue-50 dark:bg-blue-500/10 text-[10px] font-semibold text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-400/50 w-28 pr-5 px-2.5 py-1.5 rounded-lg border border-blue-200/50 dark:border-blue-500/20"
+                        className="appearance-none bg-muted/40 text-[10px] font-semibold text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring w-28 pr-5 px-2.5 py-1.5 rounded-md border border-border"
                       >
                         {ALERT_REPORT_PLATFORMS.map((p) => (
                           <option key={p.id} value={p.id}>{p.label}</option>
@@ -978,7 +1150,7 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              <div className="px-4 py-3 border-t border-blue-100 dark:border-blue-500/10 bg-gradient-to-r from-blue-50/50 to-transparent dark:from-blue-500/5 flex gap-4">
+              <div className="px-4 py-2.5 border-t border-border bg-muted/20 flex gap-4">
                 {reportPieData.map((item, i) => (
                   <Tooltip key={i}>
                     <TooltipTrigger asChild>
@@ -1002,24 +1174,23 @@ const Dashboard = () => {
             </Card>
 
             {/* ═══ 4. Grievances Card ═══ */}
-            <Card className="relative overflow-hidden border border-emerald-200/50 dark:border-emerald-500/20 shadow-sm hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400" />
+            <Card className="rounded-xl border border-border bg-card overflow-hidden shadow-none">
               <div className="p-4 pt-5">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg shadow-sm shadow-emerald-200">
-                      <Users className="h-4 w-4 text-white" />
+                    <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                      <Users className="h-4 w-4 text-emerald-600" />
                     </div>
                     <span className="text-sm font-bold tracking-tight">Grievances</span>
                   </div>
-                  <Link to="/grievances" className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 uppercase tracking-wider">
+                  <Link to="/grievances" className="text-[11px] font-medium text-primary hover:underline inline-flex items-center gap-1">
                     View <ArrowRight className="h-3 w-3" />
                   </Link>
                 </div>
 
                 <div className="flex items-center gap-4">
                   <div className="flex-1 space-y-1.5">
-                    <p className="text-4xl font-black bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent leading-none">{getGrievanceCount()}</p>
+                    <p className="text-3xl font-bold tabular-nums text-foreground leading-none">{getGrievanceCount()}</p>
                     <p className="text-[10px] text-muted-foreground font-medium">
                       {PLATFORMS.find(p => p.id === grievancePlatform)?.label || 'All sources'}
                     </p>
@@ -1027,7 +1198,7 @@ const Dashboard = () => {
                       <select
                         value={grievancePlatform}
                         onChange={(e) => setGrievancePlatform(e.target.value)}
-                        className="appearance-none bg-emerald-50 dark:bg-emerald-500/10 text-[10px] font-semibold text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-400/50 w-28 pr-5 px-2.5 py-1.5 rounded-lg border border-emerald-200/50 dark:border-emerald-500/20"
+                        className="appearance-none bg-muted/40 text-[10px] font-semibold text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring w-28 pr-5 px-2.5 py-1.5 rounded-md border border-border"
                       >
                         {PLATFORMS.filter(p => p.id !== 'youtube' && p.id !== 'instagram').map((p) => (
                           <option key={p.id} value={p.id}>{p.label}</option>
@@ -1062,7 +1233,7 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              <div className="px-4 py-3 border-t border-emerald-100 dark:border-emerald-500/10 bg-gradient-to-r from-emerald-50/50 to-transparent dark:from-emerald-500/5 flex gap-4">
+              <div className="px-4 py-2.5 border-t border-border bg-muted/20 flex gap-4">
                 {grievancePieData.map((item, i) => (
                   <Tooltip key={i}>
                     <TooltipTrigger asChild>
@@ -1086,24 +1257,23 @@ const Dashboard = () => {
             </Card>
 
             {/* ═══ 5. Profiles Card ═══ */}
-            <Card className="relative overflow-hidden border border-violet-200/50 dark:border-violet-500/20 shadow-sm hover:shadow-lg hover:shadow-violet-500/5 transition-all duration-300">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 via-fuchsia-500 to-violet-400" />
+            <Card className="rounded-xl border border-border bg-card overflow-hidden shadow-none">
               <div className="p-4 pt-5">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 bg-gradient-to-br from-violet-500 to-fuchsia-600 rounded-lg shadow-sm shadow-violet-200">
-                      <UserSearch className="h-4 w-4 text-white" />
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <UserSearch className="h-4 w-4 text-primary" />
                     </div>
                     <span className="text-sm font-bold tracking-tight">Profiles</span>
                   </div>
-                  <Link to="/person-of-interest" className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 hover:underline flex items-center gap-1 uppercase tracking-wider">
+                  <Link to="/social-profiles" className="text-[11px] font-medium text-primary hover:underline inline-flex items-center gap-1">
                     View <ArrowRight className="h-3 w-3" />
                   </Link>
                 </div>
 
                 <div className="flex items-center gap-4">
                   <div className="flex-1 space-y-1.5">
-                    <p className="text-4xl font-black bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent leading-none">{getProfileCount()}</p>
+                    <p className="text-3xl font-bold tabular-nums text-foreground leading-none">{getProfileCount()}</p>
                     <p className="text-[10px] text-muted-foreground font-medium">
                       {PROFILE_PLATFORMS.find(p => p.id === profilePlatform)?.label || 'All platforms'}
                     </p>
@@ -1111,7 +1281,7 @@ const Dashboard = () => {
                       <select
                         value={profilePlatform}
                         onChange={(e) => setProfilePlatform(e.target.value)}
-                        className="appearance-none bg-violet-50 dark:bg-violet-500/10 text-[10px] font-semibold text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-violet-400/50 w-28 pr-5 px-2.5 py-1.5 rounded-lg border border-violet-200/50 dark:border-violet-500/20"
+                        className="appearance-none bg-muted/40 text-[10px] font-semibold text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring w-28 pr-5 px-2.5 py-1.5 rounded-md border border-border"
                       >
                         {PROFILE_PLATFORMS.map((p) => (
                           <option key={p.id} value={p.id}>{p.label}</option>
@@ -1146,7 +1316,7 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              <div className="px-4 py-3 border-t border-violet-100 dark:border-violet-500/10 bg-gradient-to-r from-violet-50/50 to-transparent dark:from-violet-500/5 flex gap-4">
+              <div className="px-4 py-2.5 border-t border-border bg-muted/20 flex gap-4">
                 {profilePieData.map((item, i) => (
                   <Tooltip key={i}>
                     <TooltipTrigger asChild>
@@ -1168,10 +1338,10 @@ const Dashboard = () => {
                 ))}
               </div>
 
-              <div className="px-4 py-2 border-t border-violet-100 dark:border-violet-500/10 bg-violet-50/40 dark:bg-violet-500/5">
+              <div className="px-4 py-2 border-t border-border bg-muted/10">
                 <div className="flex items-center justify-between">
                   <span className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider">New Profiles Added This Week</span>
-                  <span className="text-sm font-black text-violet-700 dark:text-violet-300">{getProfileWeekAddedCount()}</span>
+                  <span className="text-sm font-bold tabular-nums text-foreground">{getProfileWeekAddedCount()}</span>
                 </div>
               </div>
             </Card>

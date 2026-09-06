@@ -63,7 +63,7 @@ describe('AlertService', () => {
       { responseType: 'blob' }
     );
     expect(api.get).toHaveBeenCalledWith('/alerts/workflow-kpi', {
-      params: { start: '2026-01-01', end: '2026-01-02', format: 'csv' },
+      params: { store: 'catalog', start: '2026-01-01', end: '2026-01-02', format: 'csv' },
       responseType: 'blob',
     });
   });

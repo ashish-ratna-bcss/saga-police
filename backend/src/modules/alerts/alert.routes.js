@@ -9,6 +9,7 @@ const {
   getUnread,
   putMarkAllRead,
   getTopByCategory,
+  getWorkflowKpi,
 } = require('./alert.controller');
 const { getKeywords, postKeyword, putKeyword, removeKeyword } = require('./alert.keyword.controller');
 const {
@@ -34,7 +35,6 @@ const {
   translateAlertContent,
   getSimilarEscalatedAlerts,
   changeAlertCategory,
-  getWorkflowKpi,
 } = require('../../controllers/alertController');
 
 const router = express.Router();

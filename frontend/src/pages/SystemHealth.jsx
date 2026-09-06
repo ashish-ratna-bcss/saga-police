@@ -1,12 +1,134 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Activity, Server, Database, Brain, RefreshCw, ShieldAlert } from 'lucide-react';
+/**
+ * System Health — dense full-width status board (matches Alerts / Settings).
+ */
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import {
+  Activity,
+  Database,
+  Brain,
+  RefreshCw,
+  ShieldAlert,
+  Zap,
+  Youtube,
+  Facebook,
+  Instagram,
+  Circle,
+} from 'lucide-react';
 import api from '../lib/api';
+import { Button } from '../components/ui/button';
+import { cn } from '../lib/utils';
+
+const XLogo = ({ className }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+  </svg>
+);
+
+const statusMeta = (status) => {
+  if (status === 'online' || status === 'active' || status === 'ok') {
+    return {
+      label: status === 'active' ? 'Active' : status === 'ok' ? 'OK' : 'Online',
+      tone: 'ok',
+      chip: 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800',
+      dot: 'bg-emerald-500',
+    };
+  }
+  if (status === 'quota_completed' || status === 'degraded') {
+    return {
+      label: status === 'degraded' ? 'Degraded' : 'Quota',
+      tone: 'warn',
+      chip: 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
+      dot: 'bg-amber-500',
+    };
+  }
+  return {
+    label: 'Offline',
+    tone: 'bad',
+    chip: 'bg-red-50 text-red-800 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800',
+    dot: 'bg-red-500',
+  };
+};
+
+const getApiStatus = (quotaData) => {
+  if (!quotaData) return { status: 'offline', message: 'No data from backend.' };
+  if (quotaData.available === false) return { status: 'offline', message: 'API keys exhausted or invalid.' };
+  if (
+    quotaData.remaining !== undefined &&
+    quotaData.remaining !== 'Unknown' &&
+    Number(quotaData.remaining) <= 0
+  ) {
+    return { status: 'quota_completed', message: 'Rate limit / quota exceeded.' };
+  }
+  return { status: 'active', message: 'Operational and within limits.' };
+};
+
+const formatQuota = (q) => {
+  if (!q) return null;
+  const rem = q.remaining;
+  const lim = q.limit;
+  if (rem === 'Unknown' && lim === 'Unknown') {
+    return q.totalCalls != null ? `${q.totalCalls} calls` : null;
+  }
+  if (rem !== 'Unknown' && lim !== 'Unknown') return `${rem} / ${lim} left`;
+  if (rem !== 'Unknown') return `${rem} remaining`;
+  return null;
+};
+
+const StatusTile = ({ title, description, status, icon: Icon, latency, meta }) => {
+  const s = statusMeta(status);
+  return (
+    <div className="rounded-lg border border-border bg-background p-3 flex flex-col gap-2 min-h-[108px]">
+      <div className="flex items-start justify-between gap-2">
+        <div className="h-8 w-8 rounded-lg bg-muted/60 flex items-center justify-center shrink-0">
+          <Icon className="h-4 w-4 text-foreground" />
+        </div>
+        <span
+          className={cn(
+            'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+            s.chip
+          )}
+        >
+          <span className={cn('h-1.5 w-1.5 rounded-full', s.dot)} />
+          {s.label}
+        </span>
+      </div>
+      <div className="min-w-0 flex-1">
+        <h3 className="text-sm font-semibold leading-tight truncate">{title}</h3>
+        <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug line-clamp-2">{description}</p>
+      </div>
+      <div className="flex items-center justify-between gap-2 text-[10px] tabular-nums text-muted-foreground">
+        <span>{latency != null && (status === 'online' || status === 'active') ? `${latency} ms` : '—'}</span>
+        {meta ? <span className="truncate">{meta}</span> : null}
+      </div>
+    </div>
+  );
+};
+
+const Section = ({ title, icon: Icon, children, count }) => (
+  <section className="rounded-xl border border-border bg-card overflow-hidden w-full">
+    <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border bg-muted/20">
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+          <Icon className="h-3.5 w-3.5 text-primary" />
+        </div>
+        <h2 className="text-sm font-semibold leading-none">{title}</h2>
+      </div>
+      {count != null && (
+        <span className="text-[11px] text-muted-foreground tabular-nums">{count}</span>
+      )}
+    </div>
+    <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
+      {children}
+    </div>
+  </section>
+);
 
 const SystemHealth = () => {
   const [healthData, setHealthData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastChecked, setLastChecked] = useState(null);
   const healthDataRef = useRef(healthData);
   healthDataRef.current = healthData;
 
@@ -14,9 +136,10 @@ const SystemHealth = () => {
     try {
       if (manual) setIsRefreshing(true);
       else if (!healthDataRef.current) setLoading(true);
-      
+
       const res = await api.get('/health/status');
       setHealthData(res.data.data);
+      setLastChecked(new Date());
       setError(null);
     } catch (err) {
       console.error('Failed to fetch system health', err);
@@ -33,185 +156,193 @@ const SystemHealth = () => {
     return () => clearInterval(interval);
   }, [fetchHealth]);
 
-  const StatusCard = ({ title, statusObj, icon: Icon, latency }) => {
-    const { status, message } = statusObj || { status: 'offline', message: 'Unknown state' };
-    let label = 'Offline';
-    let colorClasses = 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
-    
-    if (status === 'online' || status === 'active') {
-      label = status === 'active' ? 'Active' : 'Operational';
-      colorClasses = 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
-    } else if (status === 'quota_completed') {
-      label = 'Quota Completed';
-      colorClasses = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-500';
-    }
+  const summary = useMemo(() => {
+    if (!healthData) return { ok: 0, warn: 0, bad: 0, total: 0 };
+    const items = [];
+    if (healthData.postgres) items.push(healthData.postgres.status);
+    const svc = healthData.services || {};
+    ['ollama', 'sentiment', 'mediaAnalyzer', 'ragApi'].forEach((k) => {
+      if (svc[k]) items.push(svc[k].status);
+    });
+    ['instagram', 'facebook', 'x', 'youtube'].forEach((k) => {
+      items.push(getApiStatus(healthData.quotas?.[k]).status);
+    });
 
+    let ok = 0;
+    let warn = 0;
+    let bad = 0;
+    items.forEach((st) => {
+      const t = statusMeta(st).tone;
+      if (t === 'ok') ok += 1;
+      else if (t === 'warn') warn += 1;
+      else bad += 1;
+    });
+    return { ok, warn, bad, total: items.length };
+  }, [healthData]);
+
+  if (error && !healthData) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <div className="flex justify-between items-start mb-3">
-          <div className="p-2 bg-gray-100 dark:bg-gray-900 rounded-md">
-            <Icon className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+      <div className="w-full space-y-3" data-testid="system-health-page">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <div className="min-w-0">
+            <h1 className="text-xl font-heading font-bold tracking-tight leading-none">System Health</h1>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Services, databases, and API quotas</p>
           </div>
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] uppercase font-semibold tracking-wide ${colorClasses}`}>
-            {label}
-          </span>
         </div>
-        
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">{title}</h3>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 leading-tight">{message}</p>
-        
-        {latency && (status === 'online' || status === 'active') ? (
-          <span className="text-[11px] text-gray-400 dark:text-gray-500 font-mono">
-            Latency: {latency}ms
-          </span>
-        ) : <div className="h-4"></div>}
-      </div>
-    );
-  };
-
-  const getApiStatus = (quotaData) => {
-    if (!quotaData) return { status: 'offline', message: 'No data from backend.' };
-    if (quotaData.available === false) return { status: 'offline', message: 'API keys exhausted or invalid.' };
-    if (quotaData.remaining !== undefined && quotaData.remaining !== 'Unknown' && Number(quotaData.remaining) <= 0) {
-      return { status: 'quota_completed', message: 'Rate limit / quota exceeded.' };
-    }
-    return { status: 'active', message: 'Operational and within limits.' };
-  };
-
-
-
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-5 flex flex-col items-center justify-center max-w-sm mx-auto mt-10">
-          <ShieldAlert className="w-8 h-8 text-red-500 mb-2" />
-          <h2 className="text-sm font-semibold mb-1">Connection Error</h2>
-          <p className="text-xs text-center text-red-600 mb-4">{error}</p>
-          <button 
-            onClick={() => fetchHealth(true)} 
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-200 shadow-sm rounded-md hover:bg-red-50 text-xs font-medium transition-colors"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+        <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/30 dark:border-red-900 px-4 py-8 flex flex-col items-center text-center">
+          <ShieldAlert className="h-8 w-8 text-red-500 mb-2" />
+          <h2 className="text-sm font-semibold text-red-900 dark:text-red-200">Connection error</h2>
+          <p className="text-xs text-red-700 dark:text-red-300 mt-1 mb-4 max-w-sm">{error}</p>
+          <Button size="sm" className="h-8 text-xs" onClick={() => fetchHealth(true)}>
+            <RefreshCw className={cn('h-3.5 w-3.5 mr-1.5', isRefreshing && 'animate-spin')} />
             Retry
-          </button>
+          </Button>
         </div>
       </div>
     );
   }
 
+  const pg = healthData?.postgres;
+
   return (
-    <div className="p-4 md:p-6 max-w-[1400px] mx-auto">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-gray-200 dark:border-gray-700 pb-4">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <Activity className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-            System Health & Quotas
-          </h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Real-time status of your internal microservices and external API limits.
+    <div className="w-full space-y-3 animate-in fade-in duration-300" data-testid="system-health-page">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="min-w-0 shrink-0">
+          <h1 className="text-xl font-heading font-bold tracking-tight leading-none">System Health</h1>
+          <p className="text-[11px] text-muted-foreground mt-0.5 hidden sm:block">
+            Live status of databases, AI services, and platform APIs
           </p>
         </div>
-        <button 
-          onClick={() => fetchHealth(true)}
-          disabled={loading || isRefreshing}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md text-xs font-medium text-gray-700 dark:text-gray-200 transition-colors"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${(loading || isRefreshing) ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+
+        <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+          {healthData && (
+            <>
+              <span className="inline-flex items-baseline gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300">
+                <span className="tabular-nums font-semibold">{summary.ok}</span>
+                <span>ok</span>
+              </span>
+              {summary.warn > 0 && (
+                <span className="inline-flex items-baseline gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
+                  <span className="tabular-nums font-semibold">{summary.warn}</span>
+                  <span>warn</span>
+                </span>
+              )}
+              {summary.bad > 0 && (
+                <span className="inline-flex items-baseline gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[11px] text-red-800">
+                  <span className="tabular-nums font-semibold">{summary.bad}</span>
+                  <span>down</span>
+                </span>
+              )}
+              {lastChecked && (
+                <span className="hidden sm:inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] text-muted-foreground">
+                  <Circle className="h-2 w-2 fill-emerald-500 text-emerald-500" />
+                  {lastChecked.toLocaleTimeString()}
+                </span>
+              )}
+            </>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            disabled={loading || isRefreshing}
+            onClick={() => fetchHealth(true)}
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', (loading || isRefreshing) && 'animate-spin')} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      {!healthData && loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {[1,2,3,4,5,6].map(i => (
-            <div key={i} className="h-32 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse border border-gray-200 dark:border-gray-700"></div>
+      {loading && !healthData ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <div key={i} className="h-[108px] rounded-lg border border-border bg-muted/40 animate-pulse" />
           ))}
         </div>
       ) : healthData ? (
-        <div className="space-y-6">
-          
-          {/* Core Infrastructure */}
-          <section>
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-1.5">
-              <Database className="w-4 h-4 text-gray-500" /> 
-              Core Infrastructure
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              <StatusCard 
-                title="MongoDB Database"
-                icon={Server}
-                statusObj={{ status: healthData.database.status, message: 'Primary datastore for content and alerts.' }}
-              />
-            </div>
-          </section>
-
-          {/* AI Microservices */}
-          <section>
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-1.5">
-              <Brain className="w-4 h-4 text-gray-500" /> 
-              AI Microservices
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              <StatusCard 
-                title="BCSS LLM"
-                icon={Brain}
-                statusObj={{ status: healthData.services.ollama.status, message: 'Local Language Model (Risk Scoring)' }}
-                latency={healthData.services.ollama.latency}
-              />
-              <StatusCard
-                title="Custom Sentiment"
-                icon={Activity}
-                statusObj={{ status: healthData.services.sentiment.status, message: 'Multi-lingual emotion detection.' }}
-                latency={healthData.services.sentiment.latency}
-              />
-              <StatusCard 
-                title="Media Analyzer"
+        <div className="space-y-3 w-full">
+          <Section title="Infrastructure" icon={Database} count="1 store">
+            {pg && (
+              <StatusTile
+                title="PostgreSQL"
+                description="Primary catalog — profiles, events, alerts, settings"
+                status={pg.status}
                 icon={Database}
-                statusObj={{ status: healthData.services.mediaAnalyzer.status, message: 'Image & Video OCR pipeline.' }}
-                latency={healthData.services.mediaAnalyzer.latency}
+                latency={pg.latency}
               />
-              <StatusCard 
-                title="RAG API"
-                icon={Database}
-                statusObj={{ status: healthData.services.ragApi.status, message: 'Vector database retrieval.' }}
-                latency={healthData.services.ragApi.latency}
-              />
-            </div>
-          </section>
+            )}
+          </Section>
 
-          {/* API Quotas */}
-          <section className="mt-8">
-            <div className="flex items-center gap-3 mb-6">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                <Activity className="w-4 h-4" />
-                External Integrations
-              </h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              <StatusCard 
-                title="BCSS Instagram"
-                icon={Activity}
-                statusObj={getApiStatus(healthData.quotas.instagram)}
-              />
-              <StatusCard 
-                title="BCSS Facebook"
-                icon={Activity}
-                statusObj={getApiStatus(healthData.quotas.facebook)}
-              />
-              <StatusCard 
-                title="BCSS X (Twitter)"
-                icon={Activity}
-                statusObj={getApiStatus(healthData.quotas.x)}
-              />
-              <StatusCard 
-                title="Google YouTube"
-                icon={Activity}
-                statusObj={getApiStatus(healthData.quotas.youtube)}
-              />
-            </div>
-          </section>
+          <Section title="AI services" icon={Brain} count="4 services">
+            <StatusTile
+              title="BCSS LLM"
+              description="Local language model — risk scoring"
+              status={healthData.services?.ollama?.status}
+              icon={Brain}
+              latency={healthData.services?.ollama?.latency}
+            />
+            <StatusTile
+              title="Custom Sentiment"
+              description="Multi-lingual emotion detection"
+              status={healthData.services?.sentiment?.status}
+              icon={Activity}
+              latency={healthData.services?.sentiment?.latency}
+            />
+            <StatusTile
+              title="Media Analyzer"
+              description="Image & video OCR pipeline"
+              status={healthData.services?.mediaAnalyzer?.status}
+              icon={Zap}
+              latency={healthData.services?.mediaAnalyzer?.latency}
+            />
+            <StatusTile
+              title="RAG API"
+              description="Vector retrieval for investigations"
+              status={healthData.services?.ragApi?.status}
+              icon={Database}
+              latency={healthData.services?.ragApi?.latency}
+            />
+          </Section>
 
+          <Section
+            title="Platform APIs"
+            icon={Activity}
+            count={
+              healthData.quotas?.totalOverallCalls != null
+                ? `${healthData.quotas.totalOverallCalls} calls tracked`
+                : '4 platforms'
+            }
+          >
+            <StatusTile
+              title="Instagram"
+              description={getApiStatus(healthData.quotas?.instagram).message}
+              status={getApiStatus(healthData.quotas?.instagram).status}
+              icon={Instagram}
+              meta={formatQuota(healthData.quotas?.instagram)}
+            />
+            <StatusTile
+              title="Facebook"
+              description={getApiStatus(healthData.quotas?.facebook).message}
+              status={getApiStatus(healthData.quotas?.facebook).status}
+              icon={Facebook}
+              meta={formatQuota(healthData.quotas?.facebook)}
+            />
+            <StatusTile
+              title="X"
+              description={getApiStatus(healthData.quotas?.x).message}
+              status={getApiStatus(healthData.quotas?.x).status}
+              icon={XLogo}
+              meta={formatQuota(healthData.quotas?.x)}
+            />
+            <StatusTile
+              title="YouTube"
+              description={getApiStatus(healthData.quotas?.youtube).message}
+              status={getApiStatus(healthData.quotas?.youtube).status}
+              icon={Youtube}
+              meta={formatQuota(healthData.quotas?.youtube)}
+            />
+          </Section>
         </div>
       ) : null}
     </div>
