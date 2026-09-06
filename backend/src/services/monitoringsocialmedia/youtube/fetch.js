@@ -153,30 +153,55 @@ const mapYouTubePost = (item, accountId, channelMeta) => {
  * Fetch recent uploads for one YouTube catalog account.
  */
 const fetchYouTubePosts = async (account) => {
-  const { uploadsPlaylistId, apiHits: resolveHits, dataPatch, channelMeta } =
-    await resolveChannel(account.data || {});
+  let resolved = await resolveChannel(account.data || {});
 
-  const playlist = await callWithGap('PLAYLIST_ITEMS_LIST', {
-    part: 'snippet,contentDetails',
-    playlistId: uploadsPlaylistId,
-    maxResults: 15,
-  });
-
-  const items = Array.isArray(playlist?.items) ? playlist.items : [];
-  const seen = new Set();
-  const posts = [];
-  for (const item of items) {
-    const mapped = mapYouTubePost(item, account.id, channelMeta);
-    if (!mapped || seen.has(mapped.external_id)) continue;
-    seen.add(mapped.external_id);
-    posts.push(mapped);
-  }
-
-  return {
-    posts,
-    apiHits: resolveHits + 1,
-    dataPatch,
+  const loadPlaylist = async (uploadsPlaylistId) => {
+    const playlist = await callWithGap('PLAYLIST_ITEMS_LIST', {
+      part: 'snippet,contentDetails',
+      playlistId: uploadsPlaylistId,
+      maxResults: 15,
+    });
+    const items = Array.isArray(playlist?.items) ? playlist.items : [];
+    const seen = new Set();
+    const posts = [];
+    for (const item of items) {
+      const mapped = mapYouTubePost(item, account.id, resolved.channelMeta);
+      if (!mapped || seen.has(mapped.external_id)) continue;
+      seen.add(mapped.external_id);
+      posts.push(mapped);
+    }
+    return posts;
   };
+
+  try {
+    const posts = await loadPlaylist(resolved.uploadsPlaylistId);
+    return {
+      posts,
+      apiHits: resolved.apiHits + 1,
+      dataPatch: resolved.dataPatch,
+    };
+  } catch (err) {
+    const reason = err?.response?.data?.error?.errors?.[0]?.reason;
+    const msg = String(err?.message || '');
+    const playlistMissing =
+      reason === 'playlistNotFound' ||
+      msg.includes('playlistId') ||
+      msg.toLowerCase().includes('playlist cannot be found');
+
+    // Stale/wrong uploads id — drop cache, re-resolve via CHANNELS_LIST, retry once.
+    if (playlistMissing && account.data?.uploads_playlist_id) {
+      const dataWithoutPlaylist = { ...(account.data || {}) };
+      delete dataWithoutPlaylist.uploads_playlist_id;
+      resolved = await resolveChannel(dataWithoutPlaylist);
+      const posts = await loadPlaylist(resolved.uploadsPlaylistId);
+      return {
+        posts,
+        apiHits: resolved.apiHits + 2,
+        dataPatch: resolved.dataPatch,
+      };
+    }
+    throw err;
+  }
 };
 
 module.exports = {

@@ -34,6 +34,7 @@ const checkSystemHealth = async () => {
   );
   const mediaAnalyzer = await pingService(process.env.MEDIA_ANALYZER_URL, '/health');
   const ragApi = await pingService(process.env.RAG_API_URL, '/api/rag/health');
+  const bluweb = await pingService(process.env.BLUWEB_API_URL, '/health/ready');
 
   let instagramLimit = { totalCalls: 0, remaining: 'Unknown', limit: 'Unknown' };
   let facebookLimit = { totalCalls: 0, remaining: 'Unknown', limit: 'Unknown' };
@@ -112,6 +113,7 @@ const checkSystemHealth = async () => {
       sentiment,
       mediaAnalyzer,
       ragApi,
+      bluweb,
     },
     quotas: {
       totalOverallCalls:

@@ -646,6 +646,51 @@ const toggleMonitoring = async (req, res) => {
   }
 };
 
+/** Start monitoring on every account that is not already started. */
+const startAllMonitoring = async (req, res) => {
+  try {
+    const platformFilter = req.body?.platform || req.query?.platform;
+    const where = { monitoring_status: { not: 'started' } };
+    if (platformFilter) {
+      const platformRow = await resolvePlatform(platformFilter);
+      where.platform_id = platformRow ? platformRow.id : -1;
+    }
+
+    const accounts = await prisma.social_media_accounts.findMany({ where });
+    if (accounts.length === 0) {
+      return res.json({ started: 0, message: 'All services already running' });
+    }
+
+    const now = new Date().toISOString();
+    const logEntry = {
+      at: now,
+      action: 'start',
+      status: 'running',
+      message: 'Monitoring session started (start all services)',
+    };
+
+    let started = 0;
+    for (const existing of accounts) {
+      await prisma.social_media_accounts.update({
+        where: { id: existing.id },
+        data: {
+          is_active: true,
+          monitoring_status: 'started',
+          monitoring_logs: appendMonitoringLog(existing.monitoring_logs, logEntry),
+        },
+      });
+      monitoringSocialMedia.startProfile(existing.id).catch((err) => {
+        console.error('[startAllMonitoring] startProfile:', err.message);
+      });
+      started += 1;
+    }
+
+    res.json({ started, message: `Started monitoring on ${started} profile(s)` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 const bulkToggleStatus = async (req, res) => {
   try {
     const { platform, is_active } = req.body;
@@ -694,6 +739,7 @@ module.exports = {
   updateProfile,
   deleteProfile,
   toggleMonitoring,
+  startAllMonitoring,
   bulkToggleStatus,
   previewProfileIdentity,
 };

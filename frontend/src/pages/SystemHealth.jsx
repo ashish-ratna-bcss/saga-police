@@ -13,6 +13,7 @@ import {
   Facebook,
   Instagram,
   Circle,
+  Globe,
 } from 'lucide-react';
 import api from '../lib/api';
 import { Button } from '../components/ui/button';
@@ -161,7 +162,7 @@ const SystemHealth = () => {
     const items = [];
     if (healthData.postgres) items.push(healthData.postgres.status);
     const svc = healthData.services || {};
-    ['ollama', 'sentiment', 'mediaAnalyzer', 'ragApi'].forEach((k) => {
+    ['ollama', 'sentiment', 'mediaAnalyzer', 'ragApi', 'bluweb'].forEach((k) => {
       if (svc[k]) items.push(svc[k].status);
     });
     ['instagram', 'facebook', 'x', 'youtube'].forEach((k) => {
@@ -274,7 +275,7 @@ const SystemHealth = () => {
             )}
           </Section>
 
-          <Section title="AI services" icon={Brain} count="4 services">
+          <Section title="AI services" icon={Brain} count="5 services">
             <StatusTile
               title="BCSS LLM"
               description="Local language model — risk scoring"
@@ -302,6 +303,13 @@ const SystemHealth = () => {
               status={healthData.services?.ragApi?.status}
               icon={Database}
               latency={healthData.services?.ragApi?.latency}
+            />
+            <StatusTile
+              title="Web Intelligence"
+              description="Bluweb crawl, sources, and document search"
+              status={healthData.services?.bluweb?.status}
+              icon={Globe}
+              latency={healthData.services?.bluweb?.latency}
             />
           </Section>
 

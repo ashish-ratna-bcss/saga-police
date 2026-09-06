@@ -153,6 +153,7 @@ app.use('/api/policies', require('./routes/policyRoutes'));
 app.use('/api/templates', require('./routes/templatesRoutes'));
 app.use('/api/poi', require('./routes/poiRoutes'));
 app.use('/api/rag', require('./routes/ragRoutes'));
+app.use('/api/web-intelligence', require('./routes/bluwebRoutes'));
 app.use('/api/daily-intelligence-report', require('./routes/dailyIntelligenceReportRoutes'));
 app.use('/api/comprehensive-report', require('./routes/comprehensiveReportRoutes'));
 app.use('/api/post-location', require('./routes/postLocationRoutes'));

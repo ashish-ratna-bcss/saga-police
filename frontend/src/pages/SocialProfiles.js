@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Search, Plus, Pencil, Trash2, Loader2, PlayCircle, PauseCircle,
+  Search, Plus, Pencil, Trash2, Loader2, PlayCircle,
   Twitter, Facebook, Instagram, Youtube, Globe2, Settings2, Square, History, BarChart3, Download, Timer,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -305,8 +305,8 @@ const SocialProfiles = () => {
   const [savingProfile, setSavingProfile] = useState(false);
   const [deleteProfile, setDeleteProfile] = useState(null);
   const [deleting, setDeleting] = useState(false);
-  const [togglingId, setTogglingId] = useState(null);
   const [monitoringId, setMonitoringId] = useState(null);
+  const [startingAll, setStartingAll] = useState(false);
 
   // Live clock while any profile is monitoring — powers Waiting countdown
   const [monitorNow, setMonitorNow] = useState(() => Date.now());
@@ -600,18 +600,6 @@ const SocialProfiles = () => {
     }
   };
 
-  const toggleProfile = async (row) => {
-    setTogglingId(row.id);
-    try {
-      await socialProfilesApi.update(row.id, { is_active: !row.is_active });
-      await loadProfiles();
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Update failed');
-    } finally {
-      setTogglingId(null);
-    }
-  };
-
   const toggleMonitoring = async (row) => {
     setMonitoringId(row.id);
     try {
@@ -629,6 +617,30 @@ const SocialProfiles = () => {
       toast.error(error.response?.data?.error || 'Monitoring update failed');
     } finally {
       setMonitoringId(null);
+    }
+  };
+
+  const startAllServices = async () => {
+    setStartingAll(true);
+    try {
+      const params = platformTab !== 'all' ? { platform: platformTab } : undefined;
+      const res = await socialProfilesApi.startAllMonitoring(params);
+      const started = res.data?.started ?? 0;
+      toast.success(
+        started > 0
+          ? `Started monitoring on ${started} profile${started === 1 ? '' : 's'}`
+          : res.data?.message || 'All services already running'
+      );
+      await loadProfiles();
+      if (started > 0) {
+        setTimeout(() => {
+          loadProfiles().catch(() => {});
+        }, 4000);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to start all services');
+    } finally {
+      setStartingAll(false);
     }
   };
 
@@ -743,6 +755,20 @@ const SocialProfiles = () => {
             <Settings2 className="h-3.5 w-3.5" />
             Platforms
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5"
+            disabled={startingAll || loading}
+            onClick={startAllServices}
+          >
+            {startingAll ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <PlayCircle className="h-3.5 w-3.5" />
+            )}
+            Start all services
+          </Button>
           <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={openAddPlatform}>
             <Plus className="h-3.5 w-3.5" />
             Add platform
@@ -819,7 +845,6 @@ const SocialProfiles = () => {
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Platform</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Details</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Poll</th>
-                <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Status</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Monitoring</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap text-right">Actions</th>
               </tr>
@@ -827,13 +852,13 @@ const SocialProfiles = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-12 text-center text-muted-foreground">
+                  <td colSpan={6} className="px-3 py-12 text-center text-muted-foreground">
                     <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" /> Loading…
                   </td>
                 </tr>
               ) : profiles.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-12 text-center">
+                  <td colSpan={6} className="px-3 py-12 text-center">
                     <p className="text-sm font-medium text-foreground">No profiles yet</p>
                     <p className="text-xs text-muted-foreground mt-0.5">Add a platform account to start monitoring.</p>
                     <Button size="sm" className="mt-3 h-8 gap-1.5" onClick={openAddProfile}>
@@ -886,26 +911,6 @@ const SocialProfiles = () => {
                         <span className="text-[11px] text-muted-foreground">
                           {formatPollInterval(row.poll_interval_minutes)}
                         </span>
-                      </td>
-                      <td className="px-2.5 py-2 align-top whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => toggleProfile(row)}
-                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] ${
-                            row.is_active
-                              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
-                              : 'bg-muted text-muted-foreground'
-                          }`}
-                        >
-                          {togglingId === row.id ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : row.is_active ? (
-                            <PlayCircle className="h-3 w-3" />
-                          ) : (
-                            <PauseCircle className="h-3 w-3" />
-                          )}
-                          {row.is_active ? 'Active' : 'Paused'}
-                        </button>
                       </td>
                       <td className="px-2.5 py-2 align-top">
                         <div className="flex items-center gap-1 flex-wrap">

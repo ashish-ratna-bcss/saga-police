@@ -42,6 +42,7 @@ const AccessManagement = lazy(() => import('./pages/AccessManagement'));
 const UsersManagement = lazy(() => import('./pages/UsersManagement'));
 const RolesManagement = lazy(() => import('./pages/RolesManagement'));
 const AnalysisTools = lazy(() => import('./pages/AnalysisTools'));
+const WebIntelligence = lazy(() => import('./pages/WebIntelligence'));
 const OSINTLayout = lazy(() => import('./pages/osint/OSINTLayout'));
 const OSINTDashboard = lazy(() => import('./pages/osint/OSINTDashboard'));
 const EmailTools = lazy(() => import('./pages/osint/EmailTools'));
@@ -120,6 +121,7 @@ function App() {
               <Route path="person-of-interest" element={<PersonOfInterest />} />
               <Route path="person-of-interest/:id" element={<POIDetail />} />
               <Route path="analysis-tools" element={<AnalysisTools />} />
+              <Route path="web-intelligence" element={<WebIntelligence />} />
               <Route path="system-health" element={<SystemHealth />} />
               <Route path="analysis-tools/osint-tools" element={<OSINTLayout />}>
                 <Route index element={<OSINTDashboard />} />

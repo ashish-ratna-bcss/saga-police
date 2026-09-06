@@ -169,6 +169,11 @@ async function migrateRolesAndRoleId(prisma) {
     );
   }
 
+  if (!(await tableExists(prisma, 'users'))) {
+    console.log('[postgres] roles ready (users table not present yet)');
+    return;
+  }
+
   await prisma.$executeRawUnsafe(`
     ALTER TABLE users
     ADD COLUMN IF NOT EXISTS role_id INTEGER
@@ -206,6 +211,7 @@ async function migrateRolesAndRoleId(prisma) {
 }
 
 async function ensureUserThemeColumns(prisma) {
+  if (!(await tableExists(prisma, 'users'))) return;
   await prisma.$executeRawUnsafe(`
     ALTER TABLE users
     ADD COLUMN IF NOT EXISTS ui_mode TEXT NOT NULL DEFAULT 'light'
@@ -221,6 +227,7 @@ async function ensureUserThemeColumns(prisma) {
 }
 
 async function ensurePlatformFields(prisma) {
+  if (!(await tableExists(prisma, 'platforms'))) return;
   await prisma.$executeRawUnsafe(`
     ALTER TABLE platforms
     ADD COLUMN IF NOT EXISTS fields JSONB NOT NULL DEFAULT '[]'::jsonb
@@ -864,8 +871,8 @@ async function ensureSettingsTables(prisma) {
     )
   `);
   await prisma.$executeRawUnsafe(`
-    INSERT INTO alert_config (id)
-    VALUES ('default')
+    INSERT INTO alert_config (id, updated_at)
+    VALUES ('default', NOW())
     ON CONFLICT (id) DO NOTHING
   `);
 
@@ -885,8 +892,8 @@ async function ensureSettingsTables(prisma) {
   for (const platform of ['x', 'facebook', 'youtube', 'instagram']) {
     await prisma.$executeRawUnsafe(
       `
-      INSERT INTO alert_thresholds (platform)
-      VALUES ($1)
+      INSERT INTO alert_thresholds (id, platform, created_at, updated_at)
+      VALUES (gen_random_uuid()::text, $1, NOW(), NOW())
       ON CONFLICT (platform) DO NOTHING
       `,
       platform
@@ -934,6 +941,20 @@ async function ensureSettingsTables(prisma) {
   `);
 }
 
+async function pushPrismaSchema() {
+  console.log('[postgres] syncing Prisma schema (db push)…');
+  execSync('npx prisma db push --skip-generate --accept-data-loss', {
+    cwd: BACKEND_ROOT,
+    stdio: 'inherit',
+    env: process.env,
+  });
+  execSync('npx prisma generate', {
+    cwd: BACKEND_ROOT,
+    stdio: 'inherit',
+    env: process.env,
+  });
+}
+
 async function main() {
   if (process.env.SKIP_PG_ENSURE === 'true') {
     console.log('[postgres] SKIP_PG_ENSURE=true — skipping schema check');
@@ -948,63 +969,49 @@ async function main() {
   const prisma = new PrismaClient();
 
   try {
-    const count = await countPublicTables(prisma);
-    const rolesReady = count > 0 ? await hasRolesTable(prisma) : false;
-    const roleIdReady = count > 0 ? await hasUsersRoleId(prisma) : false;
+    let missing = await missingRequiredTables(prisma);
+    if (missing.length > 0) {
+      console.log(`[postgres] missing tables: ${missing.join(', ')}`);
+      await pushPrismaSchema();
+      missing = await missingRequiredTables(prisma);
+      if (missing.length > 0) {
+        throw new Error(`required tables still missing after db push: ${missing.join(', ')}`);
+      }
+    }
 
+    const rolesReady = await hasRolesTable(prisma);
+    const roleIdReady = (await tableExists(prisma, 'users')) && (await hasUsersRoleId(prisma));
     if (!rolesReady || !roleIdReady) {
       await migrateRolesAndRoleId(prisma);
     }
 
-    if ((await countPublicTables(prisma)) > 0) {
-      await ensureUserThemeColumns(prisma);
-      await ensurePlatformFields(prisma);
+    await ensureUserThemeColumns(prisma);
+    await ensurePlatformFields(prisma);
+    await migrateCatalogSplit(prisma);
+    await ensureCatalogColumns(prisma);
+    await ensureSettingsTables(prisma);
+
+    const stillLegacy =
+      (await tableExists(prisma, 'social_media_profiles')) &&
+      (await columnExists(prisma, 'social_media_profiles', 'platform_id'));
+    if (stillLegacy) {
+      console.log('[postgres] legacy profile shape still present — syncing Prisma schema…');
+      await pushPrismaSchema();
       await migrateCatalogSplit(prisma);
       await ensureCatalogColumns(prisma);
       await ensureSettingsTables(prisma);
     }
 
-    const afterMigrate = await countPublicTables(prisma);
-    const rolesOk = await hasRolesTable(prisma);
-    const roleIdOk = await hasUsersRoleId(prisma);
-    const stillLegacy =
-      (await tableExists(prisma, 'social_media_profiles')) &&
-      (await columnExists(prisma, 'social_media_profiles', 'platform_id'));
-    const missing = await missingRequiredTables(prisma);
-
-    if (missing.length === 0 && rolesOk && roleIdOk && !stillLegacy) {
-      console.log(
-        `[postgres] schema ready (${REQUIRED_TABLES.length} required tables, ${afterMigrate} public)`
-      );
-      return;
-    }
-
-    console.log(
-      `[postgres] missing [${missing.join(', ') || 'none'}] ` +
-        `(roles=${rolesOk}, legacy=${stillLegacy}, public=${afterMigrate}) — syncing Prisma schema…`
-    );
-
-    execSync('npx prisma db push --skip-generate --accept-data-loss', {
-      cwd: BACKEND_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
-    execSync('npx prisma generate', {
-      cwd: BACKEND_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
-
-    // Re-run idempotent ensures after push (settings seeds, event column cleanup)
-    await ensureCatalogColumns(prisma);
-    await ensureSettingsTables(prisma);
-
     const after = await countPublicTables(prisma);
     const stillMissing = await missingRequiredTables(prisma);
     if (stillMissing.length) {
-      console.warn(`[postgres] still missing after push: ${stillMissing.join(', ')}`);
+      console.warn(`[postgres] still missing: ${stillMissing.join(', ')}`);
+      process.exitCode = 1;
+      return;
     }
-    console.log(`[postgres] schema synced (${after} tables)`);
+    console.log(
+      `[postgres] schema ready (${REQUIRED_TABLES.length} required tables, ${after} public)`
+    );
   } catch (error) {
     console.error('[postgres] schema ensure failed:', error.message);
     process.exitCode = 1;

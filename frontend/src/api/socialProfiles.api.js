@@ -12,6 +12,8 @@ export const socialProfilesApi = {
   update: (id, body) => apiHandler.put(`/social-profiles/${id}`, body),
   remove: (id) => apiHandler.delete(`/social-profiles/${id}`),
   toggleMonitoring: (id) => apiHandler.put(`/social-profiles/${id}/monitoring`),
+  startAllMonitoring: (params) =>
+    apiHandler.put('/social-profiles/monitoring/start-all', {}, { params }),
   preview: (body) => apiHandler.post('/social-profiles/preview', body),
 };
 

@@ -14,6 +14,16 @@ const tools = [
     border: 'border-blue-200 dark:border-blue-800',
   },
   {
+    name: 'Create Web Intelligence',
+    description:
+      'Crawl and monitor open websites via Bluweb — preflight sites, run instant crawls, register sources, search documents, and explore entities and stories.',
+    icon: Globe,
+    href: '/web-intelligence',
+    color: 'from-sky-500 to-cyan-600',
+    bg: 'bg-sky-50 dark:bg-sky-950/30',
+    border: 'border-sky-200 dark:border-sky-800',
+  },
+  {
     name: 'OSINT Tools',
     description:
       'Integrated open-source intelligence workspace. Look up an email, username, phone number, image (EXIF / GPS / device), or infrastructure (domains, IPs) and pivot between findings — all in one place, with results saved to your investigation.',

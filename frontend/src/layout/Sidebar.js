@@ -2,14 +2,14 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, AlertTriangle, MessageSquare, CalendarDays, Contact2,
-  Wrench, BarChart3, Bot, Users, ShieldCheck, Settings, Activity, HelpCircle, Circle,
+  Wrench, BarChart3, Bot, Users, ShieldCheck, Settings, Activity, HelpCircle, Circle, Globe,
 } from 'lucide-react';
 import { AlertService } from '@/features/alerts/api/alertService';
 
 /** Resolve Lucide icon name from API (`item.icon`) */
 const ICONS = {
   LayoutDashboard, AlertTriangle, MessageSquare, CalendarDays, Contact2,
-  Wrench, BarChart3, Bot, Users, ShieldCheck, Settings, Activity, HelpCircle,
+  Wrench, BarChart3, Bot, Users, ShieldCheck, Settings, Activity, HelpCircle, Globe,
 };
 
 const formatBadgeCount = (n) => {
