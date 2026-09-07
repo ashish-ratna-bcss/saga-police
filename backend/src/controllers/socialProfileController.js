@@ -1,6 +1,7 @@
 const prisma = require('../../prisma/client');
 const monitoringSocialMedia = require('../services/monitoringsocialmedia');
 const { previewProfile } = require('../services/monitoringsocialmedia/previewProfile');
+const { attachRelevanceToAccounts } = require('../services/catalogProfileRelevanceService');
 
 const FIELD_TYPES = new Set(['text', 'url']);
 const MIN_POLL_MINUTES = 1;
@@ -253,7 +254,7 @@ const listProfiles = async (req, res) => {
 
     const countsById = counts.reduce((acc, c) => ({ ...acc, [c.platform_id]: c._count._all }), {});
     const byPlatform = allPlatforms.reduce((acc, p) => ({ ...acc, [p.slug]: countsById[p.id] || 0 }), {});
-    const flattened = accounts.map(flattenAccount);
+    const flattened = await attachRelevanceToAccounts(accounts.map(flattenAccount));
 
     res.json({
       profiles: flattened,
@@ -691,6 +692,50 @@ const startAllMonitoring = async (req, res) => {
   }
 };
 
+/** Stop monitoring on every account that is currently started. */
+const stopAllMonitoring = async (req, res) => {
+  try {
+    const platformFilter = req.body?.platform || req.query?.platform;
+    const where = { monitoring_status: 'started' };
+    if (platformFilter) {
+      const platformRow = await resolvePlatform(platformFilter);
+      where.platform_id = platformRow ? platformRow.id : -1;
+    }
+
+    const accounts = await prisma.social_media_accounts.findMany({ where });
+    if (accounts.length === 0) {
+      return res.json({ stopped: 0, message: 'No services are running' });
+    }
+
+    const now = new Date().toISOString();
+    const logEntry = {
+      at: now,
+      action: 'stop',
+      status: 'stopped',
+      message: 'Monitoring session stopped (stop all services)',
+    };
+
+    let stopped = 0;
+    for (const existing of accounts) {
+      await prisma.social_media_accounts.update({
+        where: { id: existing.id },
+        data: {
+          monitoring_status: 'stopped',
+          monitoring_logs: appendMonitoringLog(existing.monitoring_logs, logEntry),
+        },
+      });
+      monitoringSocialMedia.stopProfile(existing.id).catch((err) => {
+        console.error('[stopAllMonitoring] stopProfile:', err.message);
+      });
+      stopped += 1;
+    }
+
+    res.json({ stopped, message: `Stopped monitoring on ${stopped} profile(s)` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 const bulkToggleStatus = async (req, res) => {
   try {
     const { platform, is_active } = req.body;
@@ -740,6 +785,7 @@ module.exports = {
   deleteProfile,
   toggleMonitoring,
   startAllMonitoring,
+  stopAllMonitoring,
   bulkToggleStatus,
   previewProfileIdentity,
 };

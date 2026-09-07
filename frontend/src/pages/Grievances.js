@@ -427,7 +427,16 @@ const Grievances = () => {
     const [activeTab, setActiveTab] = useState('all');
     const [stats, setStats] = useState({ total: 0, pending: 0, escalated: 0, closed: 0, converted_to_fir: 0 });
     const [workflowStats, setWorkflowStats] = useState({ total: 0, pending: 0, escalated: 0, closed: 0, fir: 0 });
-    const [activeReportSubTab, setActiveReportSubTab] = useState('grievance'); // grievance, suggestion, criticism
+    const [selectedReportTypes, setSelectedReportTypes] = useState({
+        grievance: true,
+        suggestion: true,
+        criticism: true,
+    });
+    const [reportTypeCounts, setReportTypeCounts] = useState({
+        grievance: null,
+        suggestion: null,
+        criticism: null,
+    });
     const [pagination, setPagination] = useState({ hasMore: false, nextCursor: null, total: 0 });
 
     // Sources
@@ -1549,7 +1558,7 @@ const Grievances = () => {
                 toast.error('No grievance report code found for this card');
                 return;
             }
-            setActiveReportSubTab('grievance');
+            setSelectedReportTypes({ grievance: true, suggestion: false, criticism: false });
             setNavbarStatus('reports');
             setOpenGReportCode(uniqueCode);
         } else if (action === 'open_s_report') {
@@ -1558,7 +1567,7 @@ const Grievances = () => {
                 toast.error('No suggestion report code found for this card');
                 return;
             }
-            setActiveReportSubTab('suggestion');
+            setSelectedReportTypes({ grievance: false, suggestion: true, criticism: false });
             setNavbarStatus('reports');
             setOpenSReportCode(uniqueCode);
         } else if (action === 'open_c_report') {
@@ -1567,7 +1576,7 @@ const Grievances = () => {
                 toast.error('No criticism report code found for this card');
                 return;
             }
-            setActiveReportSubTab('criticism');
+            setSelectedReportTypes({ grievance: false, suggestion: false, criticism: true });
             setNavbarStatus('reports');
             setOpenCReportCode(uniqueCode);
         } else if (action === 'update_g_workflow_status') {
@@ -1685,9 +1694,51 @@ const Grievances = () => {
         setSelectedHandle(null);
     };
 
+    const toggleReportType = (id) => {
+        setSelectedReportTypes((prev) => {
+            const next = { ...prev, [id]: !prev[id] };
+            if (!next.grievance && !next.suggestion && !next.criticism) {
+                return prev;
+            }
+            return next;
+        });
+    };
+
     const hasActiveFilters = Boolean(dateRange.from || debouncedSearch || selectedHandle);
     const isReportsTab = navbarStatus === 'reports';
     const hasNoCatalogData = !hasActiveFilters && Number(stats?.total || 0) === 0 && grievances.length === 0;
+
+    useEffect(() => {
+        if (!isReportsTab) return undefined;
+        let cancelled = false;
+
+        const loadCounts = async () => {
+            try {
+                const [gRes, sRes, cRes] = await Promise.all([
+                    api.get('/grievance-workflow/reports', { params: { page: 1, limit: 1 } }).catch(() => null),
+                    api.get('/suggestion/reports', { params: { page: 1, limit: 1 } }).catch(() => null),
+                    api.get('/criticism/reports', { params: { page: 1, limit: 1 } }).catch(() => null),
+                ]);
+                if (cancelled) return;
+                setReportTypeCounts({
+                    grievance: Number(
+                        gRes?.data?.stats?.total ?? gRes?.data?.pagination?.total ?? 0
+                    ),
+                    suggestion: Number(sRes?.data?.pagination?.total ?? 0),
+                    criticism: Number(cRes?.data?.pagination?.total ?? 0),
+                });
+            } catch {
+                if (!cancelled) {
+                    setReportTypeCounts({ grievance: 0, suggestion: 0, criticism: 0 });
+                }
+            }
+        };
+
+        loadCounts();
+        return () => {
+            cancelled = true;
+        };
+    }, [isReportsTab]);
 
     /* ═══════════════════════════════════════════════════════════════ */
     /*                           RENDER                              */
@@ -1730,13 +1781,14 @@ const Grievances = () => {
                             { id: 'suggestion', label: 'S', title: 'Suggestion', active: 'bg-violet-600 text-white', idle: 'text-muted-foreground hover:bg-violet-50 hover:text-violet-900' },
                             { id: 'criticism', label: 'C', title: 'Criticism', active: 'bg-rose-600 text-white', idle: 'text-muted-foreground hover:bg-rose-50 hover:text-rose-900' },
                         ].map((btn) => {
-                            const isActive = activeReportSubTab === btn.id;
+                            const isActive = Boolean(selectedReportTypes[btn.id]);
+                            const count = reportTypeCounts[btn.id];
                             return (
                                 <button
                                     key={btn.id}
                                     type="button"
                                     title={btn.title}
-                                    onClick={() => setActiveReportSubTab(btn.id)}
+                                    onClick={() => toggleReportType(btn.id)}
                                     className={cn(
                                         'inline-flex items-center justify-center rounded-md px-2.5 py-1 text-xs font-bold transition-colors min-w-[2rem]',
                                         isActive ? btn.active : btn.idle
@@ -1744,29 +1796,47 @@ const Grievances = () => {
                                 >
                                     {btn.label}
                                     <span className="ml-1 font-medium hidden sm:inline">{btn.title}</span>
+                                    <span
+                                        className={cn(
+                                            'ml-1.5 rounded px-1.5 py-0.5 text-[10px] tabular-nums font-semibold',
+                                            isActive ? 'bg-white/25 text-white' : 'bg-muted text-muted-foreground'
+                                        )}
+                                    >
+                                        {count == null ? '…' : Number(count).toLocaleString()}
+                                    </span>
                                 </button>
                             );
                         })}
                     </div>
 
-                    {activeReportSubTab === 'grievance' && (
+                    {selectedReportTypes.grievance && (
                         <GrievanceWorkflowReports
-                            onStatsUpdate={setWorkflowStats}
+                            onStatsUpdate={(next) => {
+                                setWorkflowStats(next);
+                                if (next?.total != null) {
+                                    setReportTypeCounts((prev) => ({ ...prev, grievance: Number(next.total) || 0 }));
+                                }
+                            }}
                             openReportCode={openGReportCode}
                             onReportCodeHandled={() => setOpenGReportCode('')}
                         />
                     )}
-                    {activeReportSubTab === 'suggestion' && (
+                    {selectedReportTypes.suggestion && (
                         <SuggestionReports
                             openReportCode={openSReportCode}
                             onReportCodeHandled={() => setOpenSReportCode('')}
                         />
                     )}
-                    {activeReportSubTab === 'criticism' && (
+                    {selectedReportTypes.criticism && (
                         <CriticismReports
                             openReportCode={openCReportCode}
                             onReportCodeHandled={() => setOpenCReportCode('')}
                         />
+                    )}
+                    {!selectedReportTypes.grievance && !selectedReportTypes.suggestion && !selectedReportTypes.criticism && (
+                        <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+                            Select at least one report type above.
+                        </div>
                     )}
                 </div>
             )}

@@ -14,6 +14,8 @@ export const socialProfilesApi = {
   toggleMonitoring: (id) => apiHandler.put(`/social-profiles/${id}/monitoring`),
   startAllMonitoring: (params) =>
     apiHandler.put('/social-profiles/monitoring/start-all', {}, { params }),
+  stopAllMonitoring: (params) =>
+    apiHandler.put('/social-profiles/monitoring/stop-all', {}, { params }),
   preview: (body) => apiHandler.post('/social-profiles/preview', body),
 };
 

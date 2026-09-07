@@ -1,15 +1,41 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, AlertTriangle, MessageSquare, CalendarDays, Contact2,
-  Wrench, BarChart3, Bot, Users, ShieldCheck, Settings, Activity, HelpCircle, Circle, Globe,
+  LayoutDashboard,
+  AlertTriangle,
+  MessageSquare,
+  CalendarDays,
+  Contact2,
+  Wrench,
+  BarChart3,
+  Bot,
+  Users,
+  ShieldCheck,
+  Settings,
+  Activity,
+  HelpCircle,
+  Circle,
+  Globe,
 } from 'lucide-react';
 import { AlertService } from '@/features/alerts/api/alertService';
+import { cn } from '@/lib/utils';
 
 /** Resolve Lucide icon name from API (`item.icon`) */
 const ICONS = {
-  LayoutDashboard, AlertTriangle, MessageSquare, CalendarDays, Contact2,
-  Wrench, BarChart3, Bot, Users, ShieldCheck, Settings, Activity, HelpCircle, Globe,
+  LayoutDashboard,
+  AlertTriangle,
+  MessageSquare,
+  CalendarDays,
+  Contact2,
+  Wrench,
+  BarChart3,
+  Bot,
+  Users,
+  ShieldCheck,
+  Settings,
+  Activity,
+  HelpCircle,
+  Globe,
 };
 
 const formatBadgeCount = (n) => {
@@ -46,12 +72,13 @@ const Sidebar = ({ open, items }) => {
 
   return (
     <aside
-      className={`fixed bottom-0 left-0 top-16 z-40 flex w-16 flex-col items-center bg-primary transition-transform duration-300 ${
+      className={cn(
+        'fixed bottom-0 left-0 top-16 z-40 flex w-[72px] flex-col bg-primary transition-transform duration-300',
         open ? 'translate-x-0' : '-translate-x-full'
-      }`}
+      )}
       aria-label="Main navigation"
     >
-      <nav className="flex w-full flex-1 flex-col items-center gap-0.5 overflow-y-auto py-2">
+      <nav className="flex w-full flex-1 flex-col items-center gap-0.5 overflow-y-auto overflow-x-hidden py-2 [scrollbar-width:none]">
         {nav.map((item) => {
           const href = item.path || item.href;
           if (!href) return null;
@@ -68,21 +95,36 @@ const Sidebar = ({ open, items }) => {
               to={href}
               title={badge ? `${label} (${unreadAlerts} new)` : label}
               aria-label={badge ? `${label}, ${unreadAlerts} new` : label}
-              className={`relative flex h-11 w-11 items-center justify-center rounded-xl transition-colors ${
+              aria-current={active ? 'page' : undefined}
+              className={cn(
+                'relative flex w-[64px] flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 transition-colors',
                 active
                   ? 'bg-white/15 text-white'
-                  : 'text-white/45 hover:bg-white/10 hover:text-white/85'
-              }`}
+                  : 'text-white/50 hover:bg-white/10 hover:text-white/90'
+              )}
             >
               {active && (
-                <span className="absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-r-full bg-[hsl(43,96%,58%)]" />
+                <span
+                  className="absolute left-0 top-1/2 h-6 w-[2px] -translate-y-1/2 rounded-r-full bg-[hsl(43,96%,58%)]"
+                  aria-hidden
+                />
               )}
-              <Icon className="h-5 w-5" strokeWidth={active ? 2.2 : 1.7} />
-              {badge ? (
-                <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[hsl(43,96%,58%)] px-1 text-[10px] font-bold leading-none text-primary shadow-sm">
-                  {badge}
-                </span>
-              ) : null}
+              <span className="relative flex h-5 w-5 items-center justify-center">
+                <Icon className="h-[18px] w-[18px]" strokeWidth={active ? 2.2 : 1.7} />
+                {badge ? (
+                  <span className="absolute -right-2.5 -top-1.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[hsl(43,96%,58%)] px-0.5 text-[9px] font-bold leading-none text-primary shadow-sm">
+                    {badge}
+                  </span>
+                ) : null}
+              </span>
+              <span
+                className={cn(
+                  'w-full truncate text-center text-[9px] leading-tight tracking-wide',
+                  active ? 'font-semibold text-white' : 'font-medium'
+                )}
+              >
+                {label}
+              </span>
             </Link>
           );
         })}

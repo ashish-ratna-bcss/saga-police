@@ -1,7 +1,13 @@
+const mongoose = require('mongoose');
 const AuditLog = require('../models/AuditLog');
 const logger = require('../utils/logger');
 
 const createAuditLog = async (user, action, resourceType, resourceId = null, details = null) => {
+  // Mongo is opt-in; do not block login/API on buffering timeouts when disconnected.
+  if (mongoose.connection.readyState !== 1) {
+    return;
+  }
+
   try {
     await AuditLog.create({
       user_id: user.id,

@@ -12,6 +12,7 @@ const {
   deleteProfile,
   toggleMonitoring,
   startAllMonitoring,
+  stopAllMonitoring,
   bulkToggleStatus,
   previewProfileIdentity,
 } = require('../controllers/socialProfileController');
@@ -39,6 +40,7 @@ router.route('/')
 
 router.put('/bulk-status', bulkToggleStatus);
 router.put('/monitoring/start-all', startAllMonitoring);
+router.put('/monitoring/stop-all', stopAllMonitoring);
 
 router.put('/:id/monitoring', toggleMonitoring);
 

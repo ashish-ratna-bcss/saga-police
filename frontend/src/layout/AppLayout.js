@@ -3,6 +3,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/auth.context';
 import Header from './Header';
 import Sidebar from './Sidebar';
+import { cn } from '../lib/utils';
 
 const AppLayout = () => {
   const { user, logout } = useAuth();
@@ -25,9 +26,10 @@ const AppLayout = () => {
       <div className="flex min-h-0 flex-1">
         <Sidebar open={sidebarOpen} items={user?.sidebar || []} />
         <main
-          className={`min-h-0 flex-1 overflow-auto p-4 lg:p-6 ${
-            sidebarOpen ? 'ml-16' : 'ml-0'
-          }`}
+          className={cn(
+            'min-h-0 flex-1 overflow-auto p-4 transition-[margin] duration-300 lg:p-6',
+            sidebarOpen ? 'ml-[72px]' : 'ml-0'
+          )}
         >
           <Outlet />
         </main>

@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Search, Plus, Pencil, Trash2, Loader2, PlayCircle,
+  Search, Plus, Pencil, Trash2, Loader2, PlayCircle, StopCircle,
   Twitter, Facebook, Instagram, Youtube, Globe2, Settings2, Square, History, BarChart3, Download, Timer,
+  ChevronDown, User, FileText, CheckCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { socialProfilesApi } from '../api/socialProfiles.api';
@@ -22,6 +23,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '../components/ui/alert-dialog';
+import { cn } from '../lib/utils';
 
 const ICONS = { Twitter, Facebook, Instagram, Youtube, Globe2 };
 const ICON_OPTIONS = [
@@ -56,6 +58,126 @@ const formatPollInterval = (minutes) => {
     return h === 1 ? 'Every 1h' : `Every ${h}h`;
   }
   return `Every ${m}m`;
+};
+
+const getRelevanceScore = (row) => {
+  const score = row?.relevance?.score;
+  return Number.isFinite(score) ? score : null;
+};
+
+const getRelevanceTone = (score) => {
+  if (score == null) return 'muted';
+  if (score >= 80) return 'high';
+  if (score >= 60) return 'medium';
+  return 'low';
+};
+
+const relevanceToneClasses = {
+  high: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  medium: 'bg-amber-50 text-amber-700 border-amber-200',
+  low: 'bg-slate-50 text-slate-600 border-slate-200',
+  muted: 'bg-slate-50 text-slate-400 border-slate-200',
+};
+
+const ProfileRelevanceBadge = ({ row }) => {
+  const relevance = row?.relevance || {};
+  const score = getRelevanceScore(row);
+  const tone = getRelevanceTone(score);
+  const qualifying = relevance.qualifying_post_count ?? 0;
+  const total = relevance.total_post_count ?? 0;
+  const staticScore = Number(relevance.static_score) || 0;
+  const contentAvg = relevance.content_avg_score;
+  const matched = Array.isArray(relevance.matched_terms) ? relevance.matched_terms : [];
+  const staticWeight = relevance.static_weight ?? 100;
+  const contentWeight = relevance.content_weight ?? 0;
+
+  if (score == null) {
+    return <span className="text-[11px] text-muted-foreground">—</span>;
+  }
+
+  const level =
+    score >= 80
+      ? { label: 'Highly relevant', hint: 'Strong Andhra Pradesh focus' }
+      : score >= 60
+        ? { label: 'Moderately relevant', hint: 'Some AP connection' }
+        : { label: 'Low relevance', hint: 'Weak or no AP connection' };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="min-w-[88px] rounded-md p-1 -m-1 text-left transition-colors hover:bg-muted/60"
+          aria-label={`Relevance ${score} out of 100`}
+        >
+          <div className="flex items-center gap-1">
+            <Badge variant="outline" className={cn('h-5 px-1.5 text-[10px] font-semibold tabular-nums', relevanceToneClasses[tone])}>
+              {score}/100
+            </Badge>
+            <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+          </div>
+          <div className="mt-1 h-1 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className={cn(
+                'h-full rounded-full',
+                tone === 'high' ? 'bg-emerald-500' : tone === 'medium' ? 'bg-amber-500' : 'bg-slate-400'
+              )}
+              style={{ width: `${Math.max(0, Math.min(100, score))}%` }}
+            />
+          </div>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="bottom" align="start" className="w-[20rem] p-0" onClick={(e) => e.stopPropagation()}>
+        <div className="px-3 py-2.5 border-b">
+          <p className="text-sm font-bold tabular-nums">{score}/100</p>
+          <p className="text-xs font-medium">{level.label}</p>
+          <p className="text-[10px] text-muted-foreground">{level.hint}</p>
+        </div>
+        <div className="px-3 py-2.5 space-y-2 text-[11px]">
+          <div className="rounded-md border p-2">
+            <div className="flex items-center justify-between gap-2 mb-0.5">
+              <span className="inline-flex items-center gap-1.5 font-semibold">
+                <User className="h-3.5 w-3.5 text-sky-600" /> Profile
+              </span>
+              <span className="tabular-nums font-bold">{staticScore}/100</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground pl-5">
+              {matched.length
+                ? `Matched: ${matched.slice(0, 4).join(', ')}`
+                : 'No clear AP words in name or handle.'}
+            </p>
+          </div>
+          <div className="rounded-md border p-2">
+            <div className="flex items-center justify-between gap-2 mb-0.5">
+              <span className="inline-flex items-center gap-1.5 font-semibold">
+                <FileText className="h-3.5 w-3.5 text-violet-600" /> Recent posts
+              </span>
+              <span className="tabular-nums font-bold">
+                {contentAvg != null ? `${Math.round(contentAvg)}/100` : '—'}
+              </span>
+            </div>
+            <p className="text-[10px] text-muted-foreground pl-5">
+              {total === 0
+                ? 'No posts in the last 30 days.'
+                : qualifying === 0
+                  ? `Checked ${total} posts — none clearly AP-focused.`
+                  : `${qualifying} of ${total} recent posts look AP-related.`}
+            </p>
+          </div>
+          <div className="rounded-md border border-emerald-100 bg-emerald-50/50 p-2">
+            <p className="inline-flex items-center gap-1.5 font-semibold text-emerald-900">
+              <CheckCircle className="h-3.5 w-3.5" /> Blend
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5 pl-5">
+              {contentWeight > 0
+                ? `Posts ${contentWeight}% · Profile ${staticWeight}% → ${score}/100`
+                : `Profile only → ${score}/100`}
+            </p>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 };
 
 const FIELD_PRESETS = [
@@ -307,6 +429,7 @@ const SocialProfiles = () => {
   const [deleting, setDeleting] = useState(false);
   const [monitoringId, setMonitoringId] = useState(null);
   const [startingAll, setStartingAll] = useState(false);
+  const [stoppingAll, setStoppingAll] = useState(false);
 
   // Live clock while any profile is monitoring — powers Waiting countdown
   const [monitorNow, setMonitorNow] = useState(() => Date.now());
@@ -644,6 +767,25 @@ const SocialProfiles = () => {
     }
   };
 
+  const stopAllServices = async () => {
+    setStoppingAll(true);
+    try {
+      const params = platformTab !== 'all' ? { platform: platformTab } : undefined;
+      const res = await socialProfilesApi.stopAllMonitoring(params);
+      const stopped = res.data?.stopped ?? 0;
+      toast.success(
+        stopped > 0
+          ? `Stopped monitoring on ${stopped} profile${stopped === 1 ? '' : 's'}`
+          : res.data?.message || 'No services are running'
+      );
+      await loadProfiles();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to stop all services');
+    } finally {
+      setStoppingAll(false);
+    }
+  };
+
   const openAddPlatform = () => {
     setEditingPlatform(null);
     setPlatformForm(emptyPlatformForm());
@@ -759,7 +901,7 @@ const SocialProfiles = () => {
             variant="outline"
             size="sm"
             className="h-8 gap-1.5"
-            disabled={startingAll || loading}
+            disabled={startingAll || stoppingAll || loading}
             onClick={startAllServices}
           >
             {startingAll ? (
@@ -768,6 +910,20 @@ const SocialProfiles = () => {
               <PlayCircle className="h-3.5 w-3.5" />
             )}
             Start all services
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5"
+            disabled={startingAll || stoppingAll || loading}
+            onClick={stopAllServices}
+          >
+            {stoppingAll ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <StopCircle className="h-3.5 w-3.5" />
+            )}
+            Stop all services
           </Button>
           <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={openAddPlatform}>
             <Plus className="h-3.5 w-3.5" />
@@ -838,10 +994,11 @@ const SocialProfiles = () => {
       </div>
 
         <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto max-h-[calc(100dvh-14rem)]">
-          <table className="text-sm border-collapse w-full" style={{ minWidth: 980 }}>
+          <table className="text-sm border-collapse w-full" style={{ minWidth: 1080 }}>
             <thead className="sticky top-0 z-10 border-b bg-muted/95 text-left text-[11px] text-muted-foreground">
               <tr>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Profile</th>
+                <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Relevance</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Platform</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Details</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Poll</th>
@@ -852,13 +1009,13 @@ const SocialProfiles = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-3 py-12 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-3 py-12 text-center text-muted-foreground">
                     <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" /> Loading…
                   </td>
                 </tr>
               ) : profiles.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-3 py-12 text-center">
+                  <td colSpan={7} className="px-3 py-12 text-center">
                     <p className="text-sm font-medium text-foreground">No profiles yet</p>
                     <p className="text-xs text-muted-foreground mt-0.5">Add a platform account to start monitoring.</p>
                     <Button size="sm" className="mt-3 h-8 gap-1.5" onClick={openAddProfile}>
@@ -896,6 +1053,9 @@ const SocialProfiles = () => {
                             Fetching…
                           </p>
                         ) : null}
+                      </td>
+                      <td className="px-2.5 py-2 align-top">
+                        <ProfileRelevanceBadge row={row} />
                       </td>
                       <td className="px-2.5 py-2 align-top whitespace-nowrap">
                         <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px]">
