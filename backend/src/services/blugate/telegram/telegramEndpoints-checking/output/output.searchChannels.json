@@ -1,0 +1,50 @@
+{
+  "endpoint": "SEARCH_CHANNELS",
+  "params": {
+    "q": "news",
+    "limit": 5
+  },
+  "status": "PASS",
+  "checkedAt": "2026-09-07T11:23:27.628Z",
+  "baseUrl": "http://172.16.172.177:8000",
+  "response": {
+    "items": [
+      {
+        "id": "1005640892",
+        "username": "telegram",
+        "title": "Telegram News",
+        "type": "channel",
+        "members_count": 9614814,
+        "photo_url": "http://172.16.172.177:8000/api/telegram/channels/1005640892/photo",
+        "url": "https://t.me/telegram"
+      },
+      {
+        "id": "1580753312",
+        "username": null,
+        "title": "𝗡𝗘𝗪𝗦 𝗙𝗢𝗥𝗨𝗠 📰",
+        "type": "channel",
+        "members_count": 15036,
+        "photo_url": "http://172.16.172.177:8000/api/telegram/channels/1580753312/photo",
+        "url": null
+      },
+      {
+        "id": "1237616925",
+        "username": "news2",
+        "title": "اخبار روز اقتصادي",
+        "type": "channel",
+        "members_count": 13687,
+        "photo_url": "http://172.16.172.177:8000/api/telegram/channels/1237616925/photo",
+        "url": "https://t.me/news2"
+      },
+      {
+        "id": "1484367684",
+        "username": null,
+        "title": "Каталог Телеграм Каналов",
+        "type": "channel",
+        "members_count": 3962,
+        "photo_url": "http://172.16.172.177:8000/api/telegram/channels/1484367684/photo",
+        "url": null
+      }
+    ]
+  }
+}

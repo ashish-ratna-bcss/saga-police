@@ -18,6 +18,7 @@ import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { ScrollArea } from '../ui/scroll-area';
+import { TelegramBrandLogo } from '../PlatformBrandIcon';
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '../ui/select';
@@ -174,6 +175,7 @@ const platformIcons = {
     twitter: Twitter,
     facebook: Facebook,
     instagram: Instagram,
+    telegram: TelegramBrandLogo,
     whatsapp: MessageCircle,
     default: Globe
 };
@@ -272,7 +274,7 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
     const mediaUrls = (Array.isArray(r.media_s3_urls) && r.media_s3_urls.length > 0 ? r.media_s3_urls : r.media_urls || []);
     const closingMediaUrls = (Array.isArray(r.closing_media_s3_urls) && r.closing_media_s3_urls.length > 0 ? r.closing_media_s3_urls : r.closing_media_urls || []);
     const firInfo = parseFirFields(r);
-    const platformLabel = r.platform === 'x' || r.platform === 'twitter' ? 'X (Twitter)' : r.platform === 'facebook' ? 'Facebook' : r.platform === 'instagram' ? 'Instagram' : r.platform === 'whatsapp' ? 'WhatsApp' : r.platform || '—';
+    const platformLabel = r.platform === 'x' || r.platform === 'twitter' ? 'X (Twitter)' : r.platform === 'facebook' ? 'Facebook' : r.platform === 'instagram' ? 'Instagram' : r.platform === 'telegram' ? 'Telegram' : r.platform === 'whatsapp' ? 'WhatsApp' : r.platform || '—';
     const PlatformIcon = platformIcons[r.platform] || platformIcons.default;
 
     /* ─── Preview media modal state ─── */
@@ -1639,6 +1641,7 @@ export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStats
                             <SelectItem value="x">X</SelectItem>
                             <SelectItem value="facebook">Facebook</SelectItem>
                             <SelectItem value="instagram">Instagram</SelectItem>
+                            <SelectItem value="telegram">Telegram</SelectItem>
                             <SelectItem value="whatsapp">WhatsApp</SelectItem>
                         </SelectContent>
                     </Select>

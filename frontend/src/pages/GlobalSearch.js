@@ -3,10 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import axios from 'axios';
 import {
-    Search, User, Users, Youtube, Monitor, ExternalLink,
-    Loader2, AlertCircle, Download, Facebook, Instagram,
+    Search, User, Users, Monitor, ExternalLink,
+    Loader2, AlertCircle, Download,
     Globe, Heart, MessageCircle, Eye, Repeat2, ArrowUpRight,
-    Hash, ChevronDown, X, RefreshCw, Share2, StopCircle, ArrowLeft, History
+    Hash, ChevronDown, X, RefreshCw, Share2, StopCircle, ArrowLeft, History, CheckCircle2
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -14,12 +14,21 @@ import { Input } from '../components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import AddSourceModal from '../components/AddSourceModal';
 import { toast } from 'sonner';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import AddSocialProfileDialog from '../components/AddSocialProfileDialog';
+import { socialProfilesApi } from '../api/socialProfiles.api';
+import {
+    AllPlatformsLogo,
+    XBrandLogo,
+    YoutubeBrandLogo,
+    FacebookBrandLogo,
+    InstagramBrandLogo,
+    TelegramBrandLogo,
+} from '../components/PlatformBrandIcon';
 
 /* ── 3D Globe Animation (CSS-only) ────────────────────────────── */
 const SearchGlobe = () => (
@@ -65,24 +74,108 @@ const SearchGlobe = () => (
     </div>
 );
 
-// X (𝕏) Logo SVG
-const XLogo = ({ className = '' }) => (
-  <svg viewBox="0 0 24 24" className={className} fill="currentColor">
-    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-  </svg>
-);
-
 // Platform configuration
 const PLATFORMS = {
-    all: { label: 'All Platforms', icon: Globe, color: 'from-slate-600 to-slate-800', bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-300' },
-    x: { label: 'X (Twitter)', icon: XLogo, color: 'from-gray-900 to-black', bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-900 dark:text-gray-100', border: 'border-gray-300' },
-    youtube: { label: 'YouTube', icon: Youtube, color: 'from-red-500 to-red-700', bg: 'bg-red-50 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-300', border: 'border-red-200' },
-    facebook: { label: 'Facebook', icon: Facebook, color: 'from-blue-500 to-blue-700', bg: 'bg-blue-50 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-200' },
-    instagram: { label: 'Instagram', icon: Instagram, color: 'from-purple-500 via-pink-500 to-orange-400', bg: 'bg-pink-50 dark:bg-pink-900/30', text: 'text-pink-700 dark:text-pink-300', border: 'border-pink-200' },
+    all: { label: 'All Platforms', icon: AllPlatformsLogo, color: 'from-slate-600 to-slate-800', bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-300' },
+    x: { label: 'X (Twitter)', icon: XBrandLogo, color: 'from-gray-900 to-black', bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-900 dark:text-gray-100', border: 'border-gray-300' },
+    youtube: { label: 'YouTube', icon: YoutubeBrandLogo, color: 'from-red-500 to-red-700', bg: 'bg-red-50 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-300', border: 'border-red-200' },
+    facebook: { label: 'Facebook', icon: FacebookBrandLogo, color: 'from-blue-500 to-blue-700', bg: 'bg-blue-50 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-200' },
+    instagram: { label: 'Instagram', icon: InstagramBrandLogo, color: 'from-purple-500 via-pink-500 to-orange-400', bg: 'bg-pink-50 dark:bg-pink-900/30', text: 'text-pink-700 dark:text-pink-300', border: 'border-pink-200' },
+    telegram: { label: 'Telegram', icon: TelegramBrandLogo, color: 'from-sky-500 to-sky-700', bg: 'bg-sky-50 dark:bg-sky-900/30', text: 'text-sky-700 dark:text-sky-300', border: 'border-sky-200' },
 };
 
-const PROFILE_PLATFORMS = ['x', 'youtube', 'facebook', 'instagram'];
-const CONTENT_PLATFORMS = ['x', 'youtube', 'facebook', 'instagram'];
+const PROFILE_PLATFORMS = ['x', 'youtube', 'facebook', 'instagram', 'telegram'];
+const CONTENT_PLATFORMS = ['x', 'youtube', 'facebook', 'instagram', 'telegram'];
+
+const normalizePlatformKey = (platform) => {
+    const p = String(platform || '').trim().toLowerCase();
+    if (p === 'twitter') return 'x';
+    return p;
+};
+
+const stripHandle = (value) => String(value || '').trim().replace(/^@+/, '').toLowerCase();
+
+const identityTokens = (platform, value) => {
+    const tokens = new Set();
+    const raw = String(value || '').trim();
+    if (!raw) return tokens;
+    const p = normalizePlatformKey(platform);
+
+    if (p === 'telegram') {
+        const fromUrl = raw.match(/(?:t\.me|telegram\.me)\/([A-Za-z0-9_]+)/i);
+        if (fromUrl?.[1]) tokens.add(fromUrl[1].toLowerCase());
+        const cleaned = stripHandle(raw).replace(/^https?:\/\//, '');
+        if (cleaned && !cleaned.includes('/') && !cleaned.includes('.')) tokens.add(cleaned);
+        if (/^-?\d+$/.test(raw)) tokens.add(raw);
+        return tokens;
+    }
+
+    if (p === 'youtube') {
+        const cleaned = stripHandle(raw);
+        if (cleaned) tokens.add(cleaned);
+        const ch = raw.match(/youtube\.com\/(?:channel\/|@)?([^\s/?#]+)/i);
+        if (ch?.[1]) tokens.add(ch[1].toLowerCase());
+        return tokens;
+    }
+
+    if (p === 'facebook') {
+        const cleaned = stripHandle(raw);
+        if (cleaned) tokens.add(cleaned);
+        const page = raw.match(/facebook\.com\/([^\s/?#]+)/i);
+        if (page?.[1]) tokens.add(page[1].toLowerCase());
+        return tokens;
+    }
+
+    const cleaned = stripHandle(raw);
+    if (cleaned) tokens.add(cleaned);
+    return tokens;
+};
+
+const addIdentityKeys = (keys, platform, value) => {
+    const p = normalizePlatformKey(platform);
+    if (!p) return;
+    for (const token of identityTokens(p, value)) {
+        keys.add(`${p}:${token}`);
+    }
+};
+
+const catalogIdentityKeys = (row) => {
+    const keys = new Set();
+    const p = row?.platform;
+    addIdentityKeys(keys, p, row?.handle);
+    addIdentityKeys(keys, p, row?.data?.username);
+    addIdentityKeys(keys, p, row?.data?.handle);
+    addIdentityKeys(keys, p, row?.data?.url);
+    addIdentityKeys(keys, p, row?.data?.channel_url);
+    addIdentityKeys(keys, p, row?.data?.channel_id);
+    addIdentityKeys(keys, p, row?.data?.page_id);
+    addIdentityKeys(keys, p, row?.data?.user_id);
+    return keys;
+};
+
+const searchItemIdentityKeys = (item) => {
+    const keys = new Set();
+    const p = item?._platform || item?.platform;
+    addIdentityKeys(keys, p, item?.screen_name);
+    addIdentityKeys(keys, p, item?.username);
+    addIdentityKeys(keys, p, item?.author_handle);
+    addIdentityKeys(keys, p, item?.url);
+    addIdentityKeys(keys, p, item?.profile_url);
+    addIdentityKeys(keys, p, item?.customUrl);
+    addIdentityKeys(keys, p, item?.channel_id);
+    addIdentityKeys(keys, p, item?.channelId);
+    addIdentityKeys(keys, p, item?.page_id);
+    addIdentityKeys(keys, p, item?.id);
+    return keys;
+};
+
+const isAlreadyInCatalog = (item, monitoredKeys) => {
+    if (!monitoredKeys?.size) return false;
+    for (const key of searchItemIdentityKeys(item)) {
+        if (monitoredKeys.has(key)) return true;
+    }
+    return false;
+};
 
 const formatIST = (dateStr) => {
     if (!dateStr) return '';
@@ -175,7 +268,7 @@ const highlightText = (text, searchText) => {
     ));
 };
 
-const ContentCard = memo(({ item, index, getContentUrl, onMonitor, highlightQuery = '' }) => {
+const ContentCard = memo(({ item, index, getContentUrl, onMonitor, highlightQuery = '', isMonitored = false }) => {
     const [expanded, setExpanded] = useState(false);
     const textRef = React.useRef(null);
     const [isOverflowing, setIsOverflowing] = useState(false);
@@ -188,7 +281,6 @@ const ContentCard = memo(({ item, index, getContentUrl, onMonitor, highlightQuer
     const shares = item.metrics?.retweets || item.metrics?.shares || 0;
     const contentText = item.text || item.description || item.title || '';
     const thumbnail = item.thumbnails?.medium?.url || item.thumbnails?.default?.url || null;
-    const isMonitorDisabled = false;
 
     React.useEffect(() => {
         const el = textRef.current;
@@ -287,11 +379,19 @@ const ContentCard = memo(({ item, index, getContentUrl, onMonitor, highlightQuer
                     <Button
                         variant="outline"
                         size="sm"
-                        className="h-6 text-xs px-2 gap-1"
-                        onClick={() => !isMonitorDisabled && onMonitor?.(item)}
-                        disabled={isMonitorDisabled}
+                        className={`h-6 text-xs px-2 gap-1 ${isMonitored ? 'text-emerald-700 border-emerald-300 bg-emerald-50' : ''}`}
+                        onClick={() => !isMonitored && onMonitor?.(item)}
+                        disabled={isMonitored}
                     >
-                        <Monitor className="h-3 w-3" /> Monitor
+                        {isMonitored ? (
+                            <>
+                                <CheckCircle2 className="h-3 w-3" /> Monitored
+                            </>
+                        ) : (
+                            <>
+                                <Monitor className="h-3 w-3" /> Monitor
+                            </>
+                        )}
                     </Button>
                     <Button
                         variant="ghost"
@@ -340,13 +440,30 @@ const GlobalSearch = () => {
     });
     const [historySelectedRecord, setHistorySelectedRecord] = useState(null);
     const historyDebounceRef = useRef(null);
+    const [addProfileOpen, setAddProfileOpen] = useState(false);
+    const [addProfilePrefill, setAddProfilePrefill] = useState(null);
+    const [monitoredKeys, setMonitoredKeys] = useState(() => new Set());
+
+    const loadMonitoredCatalog = useCallback(async () => {
+        try {
+            const res = await socialProfilesApi.list({});
+            const rows = Array.isArray(res.data?.profiles) ? res.data.profiles : [];
+            const next = new Set();
+            rows.forEach((row) => {
+                catalogIdentityKeys(row).forEach((key) => next.add(key));
+            });
+            setMonitoredKeys(next);
+        } catch (_) {
+            // Non-blocking — Monitor still works without catalog cache
+        }
+    }, []);
+
+    useEffect(() => {
+        loadMonitoredCatalog();
+    }, [loadMonitoredCatalog]);
 
     // Abort controller ref
     const abortRef = useRef(null);
-
-    // Add Source modal state
-    const [sourceModalOpen, setSourceModalOpen] = useState(false);
-    const [initialSourceData, setInitialSourceData] = useState(null);
 
     const loadHistory = useCallback(async (page = 1, overrideFilters = null) => {
         setHistoryLoading(true);
@@ -563,35 +680,67 @@ const GlobalSearch = () => {
         }
     }, [query, platform, searchType, resultLimit]);
 
-    const openMonitorDialog = useCallback((source) => {
-        const sourcePlatform = source._platform || platform;
-        const handle = source.screen_name || source.username || source.id || '';
-        const displayName = source.name || source.title || '';
-        const followers = source.followers_count || source.subscriber_count || '';
+    const buildSocialProfilePrefill = useCallback((source) => {
+        const sourcePlatform = String(source._platform || source.platform || platform || '')
+            .trim()
+            .toLowerCase()
+            .replace(/^twitter$/, 'x');
+        const cleanHandle = (value) => String(value || '').trim().replace(/^@/, '');
+        const handle = cleanHandle(
+            source.screen_name || source.username || source.author_handle || source.id || ''
+        );
+        const displayName = String(source.name || source.title || handle || '').trim();
+        const url = String(source.url || source.profile_url || '').trim();
+        const data = {};
 
-        setInitialSourceData({
-            platform: sourcePlatform,
-            identifier: handle,
-            display_name: displayName,
-            category: 'others',
-            priority: 'medium',
-            is_active: true,
-            poiData: {
-                realName: displayName,
-                socialMedia: [{
-                    platform: sourcePlatform,
-                    handle: handle,
-                    displayName: displayName,
-                    category: 'others',
-                    priority: 'medium',
-                    isActive: true,
-                    followerCount: followers ? String(followers) : '',
-                    createdDate: ''
-                }]
+        if (sourcePlatform === 'telegram') {
+            if (handle) data.username = handle;
+            if (url) data.url = url;
+            else if (handle) data.url = `https://t.me/${handle}`;
+            if (source.id && String(source.id) !== handle) data.channel_id = String(source.id);
+        } else if (sourcePlatform === 'facebook') {
+            data.url = url || (handle ? `https://www.facebook.com/${handle}` : '');
+            if (source.page_id) data.page_id = String(source.page_id);
+        } else if (sourcePlatform === 'youtube') {
+            data.channel_url =
+                url ||
+                source.customUrl ||
+                (handle ? `https://www.youtube.com/@${handle}` : '');
+            if (source.channel_id || source.channelId) {
+                data.channel_id = String(source.channel_id || source.channelId);
             }
-        });
-        setSourceModalOpen(true);
+        } else if (sourcePlatform === 'x' || sourcePlatform === 'instagram') {
+            data.username = handle;
+        } else {
+            data.username = handle;
+            if (url) data.url = url;
+        }
+
+        return {
+            platform: sourcePlatform || 'telegram',
+            display_name: displayName,
+            data,
+        };
     }, [platform]);
+
+    const openMonitorDialog = useCallback((source) => {
+        if (isAlreadyInCatalog(source, monitoredKeys)) {
+            toast.message('Already in Social Profiles');
+            return;
+        }
+        const prefill = buildSocialProfilePrefill(source);
+        if (!prefill.platform) {
+            toast.error('Unable to identify platform for this result');
+            return;
+        }
+        const hasField = Object.values(prefill.data || {}).some((v) => String(v || '').trim());
+        if (!hasField) {
+            toast.error('Unable to identify handle for this result');
+            return;
+        }
+        setAddProfilePrefill(prefill);
+        setAddProfileOpen(true);
+    }, [buildSocialProfilePrefill, monitoredKeys]);
 
     const openMonitorDialogFromContent = useCallback((contentItem) => {
         if (!contentItem) return;
@@ -602,7 +751,7 @@ const GlobalSearch = () => {
         let identifier = '';
         if (sourcePlatform === 'youtube') {
             identifier = cleanHandle(contentItem.channelId || contentItem.channel_id || contentItem.author_handle || contentItem.author || contentItem.id);
-        } else if (sourcePlatform === 'x' || sourcePlatform === 'instagram') {
+        } else if (sourcePlatform === 'x' || sourcePlatform === 'instagram' || sourcePlatform === 'telegram') {
             identifier = cleanHandle(contentItem.author_handle || contentItem.screen_name || contentItem.author || contentItem.id);
         } else if (sourcePlatform === 'facebook') {
             identifier = cleanHandle(contentItem.author_handle || contentItem.author || contentItem.page_id || contentItem.id);
@@ -625,6 +774,7 @@ const GlobalSearch = () => {
             username: identifier,
             name: displayName,
             title: displayName,
+            url: contentItem.url || contentItem.author_url || '',
             followers_count: followers
         });
     }, [openMonitorDialog, platform]);
@@ -746,6 +896,7 @@ const GlobalSearch = () => {
         if (p === 'youtube') return item.customUrl || `https://youtube.com/channel/${item.id}`;
         if (p === 'facebook') return item.url || `https://facebook.com/${item.id}`;
         if (p === 'instagram') return `https://instagram.com/${item.screen_name}`;
+        if (p === 'telegram') return item.url || (item.screen_name ? `https://t.me/${item.screen_name}` : '#');
         return '#';
     };
 
@@ -756,12 +907,13 @@ const GlobalSearch = () => {
         if (p === 'youtube') return `https://youtube.com/watch?v=${item.id?.videoId || item.id}`;
         if (p === 'facebook') return `https://facebook.com/${item.id}`;
         if (p === 'instagram') return `https://instagram.com/p/${item.id}`;
+        if (p === 'telegram') return item.url || '#';
         return '#';
     };
 
     const getHandle = (item) => {
         const p = item._platform;
-        if (p === 'x' || p === 'instagram') return `@${item.screen_name || ''}`;
+        if (p === 'x' || p === 'instagram' || p === 'telegram') return `@${item.screen_name || ''}`;
         if (p === 'facebook') return item.screen_name || item.id || '';
         if (p === 'youtube') return item.customUrl || '';
         return item.screen_name || '';
@@ -969,7 +1121,7 @@ const GlobalSearch = () => {
         const cfg = PLATFORMS[p] || PLATFORMS.all;
         const profileUrl = getProfileUrl(item);
         const followers = getFollowerCount(item);
-        const isMonitorDisabled = false;
+        const isMonitored = isAlreadyInCatalog(item, monitoredKeys);
 
         return (
             <div key={`${p}-${item.id}-${index}`} className={`group relative bg-card rounded-xl border border-border hover:shadow-lg transition-all duration-200 overflow-hidden`}>
@@ -1028,12 +1180,23 @@ const GlobalSearch = () => {
                             <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 text-xs px-2.5 gap-1 font-medium"
-                                onClick={() => !isMonitorDisabled && openMonitorDialog(item)}
-                                disabled={isMonitorDisabled}
+                                className={`h-7 text-xs px-2.5 gap-1 font-medium ${
+                                    isMonitored ? 'text-emerald-700 border-emerald-300 bg-emerald-50' : ''
+                                }`}
+                                onClick={() => !isMonitored && openMonitorDialog(item)}
+                                disabled={isMonitored}
                             >
-                                <Monitor className="h-3 w-3" />
-                                Monitor
+                                {isMonitored ? (
+                                    <>
+                                        <CheckCircle2 className="h-3 w-3" />
+                                        Monitored
+                                    </>
+                                ) : (
+                                    <>
+                                        <Monitor className="h-3 w-3" />
+                                        Monitor
+                                    </>
+                                )}
                             </Button>
                         </div>
                     </div>
@@ -1051,6 +1214,7 @@ const GlobalSearch = () => {
                 getContentUrl={getContentUrl}
                 onMonitor={openMonitorDialogFromContent}
                 highlightQuery={highlightQuery}
+                isMonitored={isAlreadyInCatalog(item, monitoredKeys)}
             />
         );
     };
@@ -1317,7 +1481,7 @@ const GlobalSearch = () => {
                             </div>
                             <h3 className="text-lg font-semibold text-foreground mb-2">Search across platforms</h3>
                             <p className="text-sm text-muted-foreground text-center max-w-md">
-                                Find users, channels, and pages or discover content by keywords across X, YouTube, Facebook{searchType === 'profiles' ? ', and Instagram' : ''}.
+                                Find users, channels, and pages or discover content by keywords across X, YouTube, Facebook, Instagram, and Telegram.
                             </p>
                             <div className="flex gap-3 mt-6">
                                 {(searchType === 'content' ? CONTENT_PLATFORMS : PROFILE_PLATFORMS).map(p => {
@@ -1586,15 +1750,14 @@ const GlobalSearch = () => {
                 </div>
             </div>
 
-            {/* Add Source Modal — same as Alerts/Sources/POI */}
-            <AddSourceModal
-                open={sourceModalOpen}
-                onClose={() => setSourceModalOpen(false)}
-                initialData={initialSourceData}
-                onSuccess={() => {
-                    toast.success(`Started monitoring ${initialSourceData?.display_name || initialSourceData?.identifier || 'source'}`);
-                    setSourceModalOpen(false);
+            <AddSocialProfileDialog
+                open={addProfileOpen}
+                onOpenChange={(open) => {
+                    setAddProfileOpen(open);
+                    if (!open) setAddProfilePrefill(null);
                 }}
+                prefill={addProfilePrefill}
+                onSuccess={loadMonitoredCatalog}
             />
         </div>
     );

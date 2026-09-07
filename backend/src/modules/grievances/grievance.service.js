@@ -7,6 +7,10 @@ const {
 const {
   fetchInstagramPosts,
 } = require('../../services/monitoringsocialmedia/instagram/fetch');
+const {
+  fetchTelegramPosts,
+} = require('../../services/monitoringsocialmedia/telegram/fetch');
+const { cleanUsername: cleanTelegramUsername } = require('../../services/blugate/telegram/blugate.telegram.helpers');
 const callFacebookApi = require('../../services/blugate/facebook/blugate.facebook.api_client');
 const callInstagramApi = require('../../services/blugate/instagram/blugate.instagram.api_client');
 const { unwrapPayload } = require('../../services/blugate/instagram/blugate.instagram.helpers');
@@ -594,6 +598,143 @@ const fetchCatalogInstagramGrievances = async (account, startDate, endDate) => {
   };
 };
 
+const fetchCatalogTelegramGrievances = async (account, startDate, endDate) => {
+  const data = asObject(account.data);
+  const taggedHandle =
+    cleanTelegramUsername(data.username || data.handle || account.handle) ||
+    String(account.handle || '').trim();
+  const displayName = account.profile?.display_name || taggedHandle || 'Telegram';
+
+  logger.info(`[CatalogGrievances] Fetching Telegram channel posts for ${taggedHandle || account.id}`);
+
+  const accountForFetch = {
+    id: account.id,
+    handle: taggedHandle,
+    data,
+  };
+
+  const { posts, dataPatch } = await fetchTelegramPosts(accountForFetch);
+  if (dataPatch) {
+    await prisma.social_media_accounts.update({
+      where: { id: account.id },
+      data: { data: { ...data, ...dataPatch } },
+    });
+  }
+
+  const start = startDate ? new Date(startDate) : null;
+  const end = endDate ? new Date(endDate) : null;
+  const inRange = (date) => {
+    if (!date) return true;
+    const d = new Date(date);
+    if (Number.isNaN(d.getTime())) return true;
+    if (start && d < start) return false;
+    if (end && d > end) return false;
+    return true;
+  };
+
+  let newCount = 0;
+  let total = 0;
+  const postsToScan = posts.slice(0, 50);
+
+  for (const post of postsToScan) {
+    const postId = String(post.external_id || '').trim();
+    if (!postId) continue;
+    if (!inRange(post.posted_at)) continue;
+
+    total += 1;
+    const canonicalPostId = `telegram:msg:${postId}`;
+    const postUrl =
+      post.url ||
+      (taggedHandle ? `https://t.me/${taggedHandle}/${postId}` : null);
+
+    const mediaItems = Array.isArray(post.media_items) && post.media_items.length
+      ? post.media_items
+      : Array.isArray(post.media_urls)
+        ? post.media_urls.map((url) => ({ type: 'photo', url }))
+        : [];
+    const hasMedia = mediaItems.length > 0;
+    const mediaLabel = hasMedia
+      ? mediaItems.some((m) => String(m.type || '').includes('video'))
+        ? '[Telegram video]'
+        : '[Telegram photo]'
+      : '[Telegram post without text]';
+    const postText = String(post.text || '').trim() || mediaLabel;
+
+    const payload = {
+      accountId: account.id,
+      platform: 'telegram',
+      externalId: canonicalPostId,
+      taggedAccount: taggedHandle,
+      postedBy: {
+        handle: post.author_handle || taggedHandle,
+        display_name: post.author_name || displayName,
+        profile_image_url: pickAvatar(account.preview_data),
+        is_verified: false,
+        follower_count: 0,
+      },
+      content: { text: postText, full_text: postText, media: mediaItems },
+      engagement: {
+        likes: 0,
+        replies: post.engagement?.replies || 0,
+        retweets: post.engagement?.forwards || 0,
+        views: post.engagement?.views || 0,
+        quotes: 0,
+        forwards: post.engagement?.forwards || 0,
+      },
+      contentUrl: postUrl,
+      text: postText,
+      postedAt: post.posted_at || new Date(),
+    };
+
+    const existing = await prisma.social_media_grievances.findUnique({
+      where: { platform_external_id: { platform: 'telegram', external_id: canonicalPostId } },
+    });
+    if (existing) {
+      const stalePlaceholder =
+        !existing.text ||
+        existing.text === '[Telegram post without text]' ||
+        String(existing.text).startsWith('[Telegram ');
+      const betterText = postText && !postText.startsWith('[Telegram ');
+      if (stalePlaceholder || betterText || hasMedia) {
+        await prisma.social_media_grievances.update({
+          where: { id: existing.id },
+          data: {
+            text: betterText || stalePlaceholder ? postText : existing.text,
+            content: payload.content,
+            engagement: payload.engagement,
+            content_url: postUrl || existing.content_url,
+            author_name: payload.postedBy.display_name,
+            author_handle: payload.postedBy.handle,
+            posted_by: payload.postedBy,
+          },
+        });
+      }
+      continue;
+    }
+
+    const postResult = await createGrievanceIfNew(payload);
+    if (postResult.created) newCount += 1;
+  }
+
+  await prisma.social_media_accounts.update({
+    where: { id: account.id },
+    data: { last_fetched_at: new Date() },
+  });
+
+  return {
+    newGrievances: newCount,
+    total,
+    source: {
+      id: String(account.id),
+      handle: taggedHandle,
+      display_name: displayName,
+      platform: 'telegram',
+      avatar: pickAvatar(account.preview_data),
+      store: 'catalog',
+    },
+  };
+};
+
 const fetchCatalogXGrievances = async (account, startDate, endDate) => {
   const clean = String(account.handle || '')
     .replace(/^@/, '')
@@ -645,6 +786,9 @@ const fetchCatalogAccountGrievances = async (account, startDate, endDate) => {
   if (platform === 'x') {
     return fetchCatalogXGrievances(account, startDate, endDate);
   }
+  if (platform === 'telegram') {
+    return fetchCatalogTelegramGrievances(account, startDate, endDate);
+  }
   const err = new Error(`Catalog grievance fetch does not support platform: ${platform}`);
   err.status = 400;
   throw err;
@@ -654,7 +798,7 @@ const fetchAllCatalogGrievances = async (startDate, endDate) => {
   const accounts = await prisma.social_media_accounts.findMany({
     where: {
       is_active: true,
-      platforms: { slug: { in: ['x', 'facebook', 'instagram'] } },
+      platforms: { slug: { in: ['x', 'facebook', 'instagram', 'telegram'] } },
     },
     include: {
       profile: { select: { display_name: true } },

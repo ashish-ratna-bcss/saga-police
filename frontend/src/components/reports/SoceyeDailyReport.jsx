@@ -71,6 +71,7 @@ const platformBadge = (p) => {
   if (k.includes('insta')) return { label: 'IG', cls: 'bg-[#FBEAF0] text-[#993556]' };
   if (k.includes('face')) return { label: 'FB', cls: 'bg-[#E6F1FB] text-[#0C447C]' };
   if (k.includes('you')) return { label: 'YT', cls: 'bg-[#FCEBEB] text-[#A32D2D]' };
+  if (k.includes('tele')) return { label: 'TG', cls: 'bg-[#E0F2FE] text-[#0369A1]' };
   return { label: p || '—', cls: 'bg-slate-100 text-slate-700' };
 };
 
@@ -1378,12 +1379,13 @@ const ProfilesTab = ({ report, fileTag }) => {
         onExportPng={() => exportNodeAsPng(summaryRef.current, `${fileTag}_profiles_summary.png`)}
         onExportPdf={() => exportNodeAsPdf(summaryRef.current, `${fileTag}_profiles_summary.pdf`, 'Profiles')}
       >
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-2.5">
           <Metric label="Total Monitoring" value={fmtNum(profiles.total_monitoring)} tone="blue" />
           <Metric label="X Profiles" value={fmtNum(byPlatformMap.x || byPlatformMap.twitter)} />
           <Metric label="Instagram" value={fmtNum(byPlatformMap.instagram)} tone="orange" />
           <Metric label="Facebook" value={fmtNum(byPlatformMap.facebook)} tone="blue" />
           <Metric label="YouTube" value={fmtNum(byPlatformMap.youtube)} tone="red" />
+          <Metric label="Telegram" value={fmtNum(byPlatformMap.telegram)} tone="blue" />
         </div>
       </SectionShell>
 

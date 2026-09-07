@@ -4,6 +4,7 @@ import { Button } from './ui/button';
 import ReactPlayer from 'react-player';
 import { VideoPlayer } from './AlertCards';
 import { proxyMediaUrl } from '@/shared/utils/mediaProxy';
+import { TelegramBrandLogo } from './PlatformBrandIcon';
 
 /* ──────────────────────────────────────────────
    X (𝕏) Logo SVG — official glyph
@@ -73,6 +74,20 @@ const PLATFORM_THEMES = {
       { key: 'likes', icon: Heart, label: 'Likes' },
       { key: 'comments', icon: MessageSquare, label: 'Comments' }
     ]
+  },
+  telegram: {
+    bg: 'bg-white dark:bg-zinc-900',
+    text: 'text-zinc-900 dark:text-zinc-100',
+    muted: 'text-zinc-500 dark:text-zinc-400',
+    border: 'border-zinc-200 dark:border-zinc-700',
+    accent: 'text-sky-600',
+    icon: <TelegramBrandLogo className="h-4 w-4 text-sky-600" />,
+    name: 'Telegram',
+    engagement: [
+      { key: 'views', icon: Eye, label: 'Views' },
+      { key: 'comments', icon: MessageSquare, label: 'Replies' },
+      { key: 'likes', icon: Heart, label: 'Reactions' }
+    ]
   }
 };
 
@@ -98,7 +113,14 @@ const getAllMediaUrls = (item) => {
 
 const getVideoUrl = (item) => {
   if (!item) return null;
-  const raw = item.s3_url || item.video_url || item.original_video_url || item.url || item.original_url || null;
+  if (typeof item === 'string') return proxyMediaUrl(item) || null;
+  const raw =
+    item.video_url ||
+    item.s3_url ||
+    item.original_video_url ||
+    item.url ||
+    item.original_url ||
+    null;
   return raw ? proxyMediaUrl(raw) : null;
 };
 
@@ -474,7 +496,7 @@ const ContentCard = ({ item, index, onDownload, onAddSource }) => {
             <Button variant="outline" size="sm" onClick={() => onAddSource(item)}
               className="h-8 px-3 gap-1.5 text-xs font-semibold shrink-0 hover:bg-primary/5 hover:border-primary/30 transition-all">
               <UserPlus className="h-3.5 w-3.5" />
-              Add to Sources
+              Add to Monitor
             </Button>
           )}
         </div>

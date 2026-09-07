@@ -1,0 +1,18 @@
+{
+  "endpoint": "STATUS",
+  "params": {},
+  "status": "PASS",
+  "checkedAt": "2026-09-07T11:23:26.035Z",
+  "baseUrl": "http://172.16.172.177:8000",
+  "response": {
+    "connected": true,
+    "authenticated": true,
+    "account": {
+      "id": "8937684807",
+      "username": null,
+      "phone": "91********71"
+    },
+    "error": null,
+    "session_invalid": false
+  }
+}

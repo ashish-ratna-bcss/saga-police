@@ -52,7 +52,7 @@ const createEvent = async (body, user) => {
       start_date: payload.start_date || null,
       end_date: payload.end_date || null,
       location: payload.location || '',
-      platforms: payload.platforms?.length ? payload.platforms : ['x', 'facebook', 'youtube'],
+      platforms: payload.platforms?.length ? payload.platforms : ['x', 'facebook', 'youtube', 'telegram'],
       keywords: payload.keywords || [],
       high_risk_threshold: payload.high_risk_threshold ?? null,
       medium_risk_threshold: payload.medium_risk_threshold ?? null,

@@ -121,7 +121,47 @@ const hydrateEvent = (row) => {
 /** Map event media row to ContentCard-ish shape. */
 const hydrateEventMedia = (row) => {
   if (!row) return null;
-  const media = asJson(row.media, []);
+  let media = asJson(row.media, []);
+  if (!Array.isArray(media)) media = [];
+
+  // Repair X videos stored with thumbnail-only URLs (from older scans).
+  const raw = asJson(row.raw_data, {});
+  const rawLegacy = raw?.legacy || raw?.tweet?.legacy || null;
+  const rawMedia =
+    rawLegacy?.extended_entities?.media ||
+    rawLegacy?.entities?.media ||
+    raw?.extended_entities?.media ||
+    [];
+  if (Array.isArray(rawMedia) && rawMedia.length) {
+    const pickBestVideoUrl = (variants = []) => {
+      const list = Array.isArray(variants) ? variants : [];
+      const mp4 = list
+        .filter((v) => v?.url && String(v.content_type || '').includes('mp4'))
+        .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+      if (mp4?.url) return mp4.url;
+      const hls = list.find((v) => v?.url && /mpegurl|m3u8/i.test(String(v.content_type || v.url)));
+      return hls?.url || list.find((v) => v?.url)?.url || null;
+    };
+    media = media.map((item, idx) => {
+      if (!item || typeof item !== 'object') return item;
+      const type = String(item.type || '').toLowerCase();
+      if (type !== 'video' && type !== 'animated_gif') return item;
+      const current = String(item.video_url || item.url || '');
+      if (/\.(mp4|m3u8|webm|mov)(\?|$)/i.test(current) || /video\.twimg\.com/i.test(current)) {
+        return item;
+      }
+      const source = rawMedia[idx] || rawMedia.find((m) => m?.type === 'video' || m?.type === 'animated_gif');
+      const videoUrl = pickBestVideoUrl(source?.video_info?.variants);
+      if (!videoUrl) return item;
+      return {
+        ...item,
+        url: videoUrl,
+        video_url: videoUrl,
+        preview: item.preview || source?.media_url_https || item.url || videoUrl,
+      };
+    });
+  }
+
   return serialize({
     id: String(row.id),
     platform: row.platform,
@@ -132,7 +172,8 @@ const hydrateEventMedia = (row) => {
     author_handle: row.author_handle || '',
     published_at: row.posted_at,
     engagement: asJson(row.engagement, {}),
-    media: Array.isArray(media) ? media : [],
+    media,
+    raw_data: raw,
     event_ids: [String(row.event_id)],
   });
 };
@@ -141,8 +182,8 @@ const hydrateOccasion = (row) => {
   if (!row) return null;
   const platforms = Array.isArray(row.platforms) && row.platforms.length
     ? row.platforms.map((p) => String(p).toLowerCase()).filter((p) => p && p !== 'instagram')
-    : ['x', 'youtube', 'facebook'];
-  if (!platforms.length) platforms.push('x', 'youtube', 'facebook');
+    : ['x', 'youtube', 'facebook', 'telegram'];
+  if (!platforms.length) platforms.push('x', 'youtube', 'facebook', 'telegram');
   return serialize({
     id: String(row.id),
     slNo: row.sl_no,

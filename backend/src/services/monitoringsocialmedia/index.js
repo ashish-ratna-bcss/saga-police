@@ -3,6 +3,7 @@ const facebook = require('./facebook');
 const x = require('./x');
 const youtube = require('./youtube');
 const instagram = require('./instagram');
+const telegram = require('./telegram');
 
 const ADAPTERS = {
   facebook,
@@ -10,6 +11,7 @@ const ADAPTERS = {
   twitter: x,
   youtube,
   instagram,
+  telegram,
 };
 
 const resolveSlug = async (accountId) => {
@@ -47,6 +49,7 @@ const startScheduler = () => {
   x.startScheduler();
   youtube.startScheduler();
   instagram.startScheduler();
+  telegram.startScheduler();
 };
 
 const stopScheduler = () => {
@@ -54,6 +57,7 @@ const stopScheduler = () => {
   x.stopScheduler();
   youtube.stopScheduler();
   instagram.stopScheduler();
+  telegram.stopScheduler();
 };
 
 module.exports = {

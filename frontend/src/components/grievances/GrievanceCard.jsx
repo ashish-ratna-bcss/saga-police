@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { format, formatDistanceToNowStrict } from 'date-fns';
 import {
     Heart, MessageCircle, Repeat2, BarChart3, Bookmark,
-    BadgeCheck, Download, Loader2, FileText, ChevronDown
+    BadgeCheck, Download, Loader2, FileText, ChevronDown, Share2, Eye, ExternalLink
 } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
@@ -18,6 +18,7 @@ import {
 import { normalizeMediaList } from '../AlertCards';
 import { cn } from '../../lib/utils';
 import { decodeHtmlEntities } from '../../utils/decodeHtml';
+import { TelegramBrandLogo } from '../PlatformBrandIcon';
 
 let activeInlineVideoElement = null;
 
@@ -967,6 +968,130 @@ const FacebookLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
     );
 };
 
+/* Telegram channel post layout */
+const TelegramLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState = {} }) => {
+    const user = grievance.posted_by || {};
+    const handle = String(user.handle || '').replace(/^@/, '');
+    const rawText = decodeHtmlEntities(
+        grievance.content?.full_text || grievance.content?.text || grievance.text || ''
+    );
+    const isPlaceholder = !rawText || /^\[Telegram /.test(rawText);
+    const text = isPlaceholder ? '' : rawText;
+    const media = grievance.content?.media || [];
+    const hasRenderableMedia = normalizeMediaList(media).some(
+        (m) => m?.url || m?.s3_url || m?.preview_url || m?.s3_preview
+    );
+    const engagement = grievance.engagement || {};
+    const views = engagement.views || 0;
+    const forwards = engagement.forwards || engagement.retweets || 0;
+    const replies = engagement.replies || 0;
+    const openDetails = () => onAction?.('view', { grievance });
+    const openOriginal = () => {
+        const url = grievance.tweet_url || grievance.url;
+        if (url) window.open(url, '_blank', 'noopener,noreferrer');
+        else openDetails();
+    };
+
+    return (
+        <div>
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                    <Avatar className="h-10 w-10 ring-1 ring-sky-200 shrink-0">
+                        <AvatarImage src={user.profile_image_url} />
+                        <AvatarFallback className="text-sm bg-[#229ED9] text-white">
+                            {(user.display_name || handle || '?')[0]?.toUpperCase()}
+                        </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="font-semibold text-[15px] text-[#050505] truncate">
+                                {user.display_name || handle}
+                            </span>
+                            {handle ? (
+                                <span className="text-[13px] text-[#65676b] truncate">@{handle}</span>
+                            ) : null}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[13px] text-[#65676b]">
+                            <span className="whitespace-nowrap">
+                                {timeAgo(grievance.post_date || grievance.posted_at)}
+                            </span>
+                            <span>·</span>
+                            <span className="inline-flex items-center gap-1 text-[#229ED9] font-medium">
+                                <TelegramBrandLogo className="h-3.5 w-3.5" />
+                                Telegram
+                            </span>
+                        </div>
+                        <WorkflowMeta grievance={grievance} onAction={onAction} />
+                    </div>
+                </div>
+                <ActionButtons
+                    grievance={grievance}
+                    onAction={onAction}
+                    isDownloading={!!downloadState?.downloading}
+                />
+            </div>
+
+            {text ? (
+                <div className="mt-3 text-[15px] text-[#050505] leading-5 whitespace-pre-wrap break-words">
+                    {highlightMentions(text)}
+                </div>
+            ) : (
+                <div className="mt-3 rounded-lg border border-dashed border-sky-200 bg-sky-50/60 px-3 py-2.5 text-[13px] text-sky-800">
+                    {hasRenderableMedia
+                        ? 'Media post'
+                        : media.length > 0
+                          ? 'Media attached — open on Telegram to view'
+                          : 'No text in this Telegram message'}
+                    {(grievance.tweet_url || grievance.url) ? (
+                        <button
+                            type="button"
+                            onClick={openOriginal}
+                            className="ml-2 inline-flex items-center gap-1 font-medium text-[#229ED9] hover:underline"
+                        >
+                            Open <ExternalLink className="h-3 w-3" />
+                        </button>
+                    ) : null}
+                </div>
+            )}
+
+            {hasRenderableMedia ? (
+                <div className="mt-3 -mx-4">
+                    <FacebookMediaGrid media={media} getProxiedMediaUrl={getProxiedMediaUrl} />
+                </div>
+            ) : null}
+
+            <div className="mt-3 flex items-center justify-between max-w-[360px] -ml-1">
+                {[
+                    { icon: MessageCircle, count: replies, label: 'Replies' },
+                    { icon: Share2, count: forwards, label: 'Forwards' },
+                    { icon: Eye, count: views, label: 'Views' },
+                ].map(({ icon: Icon, count, label }) => (
+                    <button
+                        key={label}
+                        type="button"
+                        onClick={openDetails}
+                        title={label}
+                        className="flex items-center gap-1.5 group p-2 rounded-full hover:bg-[#229ED9]/10 transition-colors"
+                    >
+                        <Icon className="h-[18px] w-[18px] text-[#536471] group-hover:text-[#229ED9]" />
+                        <span className="text-[13px] text-[#536471] group-hover:text-[#229ED9]">
+                            {formatCount(count)}
+                        </span>
+                    </button>
+                ))}
+                <button
+                    type="button"
+                    onClick={openOriginal}
+                    className="flex items-center gap-1.5 group p-2 rounded-full hover:bg-[#229ED9]/10 transition-colors"
+                    title="Open on Telegram"
+                >
+                    <TelegramBrandLogo className="h-[18px] w-[18px] text-[#229ED9]" />
+                </button>
+            </div>
+        </div>
+    );
+};
+
 /* Instagram uses the same post/comment structure as Facebook (parent + body). */
 const InstagramLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState = {}, isActioned }) => {
     const user = grievance.posted_by || {};
@@ -1139,6 +1264,7 @@ export const GrievanceCard = ({ grievance, onAction, getProxiedMediaUrl, downloa
     const isX = platform === 'x' || platform === 'twitter';
     const isFB = platform === 'facebook';
     const isIG = platform === 'instagram';
+    const isTG = platform === 'telegram';
     const isWA = platform === 'whatsapp';
     const isDownloading = !!downloadState?.downloading;
     const downloadProgress = Math.max(0, Math.min(100, Math.round(downloadState?.progress || 0)));
@@ -1175,6 +1301,7 @@ export const GrievanceCard = ({ grievance, onAction, getProxiedMediaUrl, downloa
                 {isX && <XLayout grievance={grievance} getProxiedMediaUrl={getProxiedMediaUrl} onAction={onAction} downloadState={downloadState} isActioned={isActioned} />}
                 {isFB && <FacebookLayout grievance={grievance} getProxiedMediaUrl={getProxiedMediaUrl} onAction={onAction} downloadState={downloadState} isActioned={isActioned} />}
                 {isIG && <InstagramLayout grievance={grievance} getProxiedMediaUrl={getProxiedMediaUrl} onAction={onAction} downloadState={downloadState} isActioned={isActioned} />}
+                {isTG && <TelegramLayout grievance={grievance} getProxiedMediaUrl={getProxiedMediaUrl} onAction={onAction} downloadState={downloadState} />}
                 {isWA && <WhatsAppLayout grievance={grievance} getProxiedMediaUrl={getProxiedMediaUrl} onAction={onAction} downloadState={downloadState} />}
             </CardContent>
 

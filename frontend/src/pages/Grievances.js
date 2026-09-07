@@ -995,7 +995,7 @@ const Grievances = () => {
             const rows = Array.isArray(res.data) ? res.data : [];
             setSources(rows.filter((source) => {
                 const p = String(source?.platform || '').toLowerCase();
-                return p === 'x' || p === 'facebook' || p === 'instagram';
+                return p === 'x' || p === 'facebook' || p === 'instagram' || p === 'telegram';
             }));
         } catch (error) {
             console.error('Failed to fetch sources', error);
@@ -1244,15 +1244,23 @@ const Grievances = () => {
                 toast.success(`Fetched ${newCount} new grievance${newCount !== 1 ? 's' : ''}`);
             } else {
                 let newCount = 0;
+                let failCount = 0;
                 for (const source of targets) {
                     try {
                         const res = await GrievanceService.fetchSource(source.id, {});
                         newCount += res.data?.newGrievances || 0;
                     } catch (err) {
+                        failCount += 1;
                         console.error('Fetch failed for', source.handle, err);
                     }
                 }
-                toast.success(`Fetched ${newCount} new grievance${newCount !== 1 ? 's' : ''}`);
+                if (failCount > 0 && newCount === 0) {
+                    toast.error(`Fetch failed for ${failCount} account${failCount !== 1 ? 's' : ''}. Check Telegram service connectivity.`);
+                } else if (failCount > 0) {
+                    toast.success(`Fetched ${newCount} new · ${failCount} account${failCount !== 1 ? 's' : ''} failed`);
+                } else {
+                    toast.success(`Fetched ${newCount} new grievance${newCount !== 1 ? 's' : ''}`);
+                }
             }
             fetchGrievances();
             fetchDashboardStats();
@@ -1874,10 +1882,12 @@ const Grievances = () => {
                                     ? 'Nothing matches the current search or account filter.'
                                     : hasNoCatalogData
                                         ? sources.length === 0
-                                            ? 'Add official accounts on Social Profiles, then fetch mentions or Facebook comments.'
-                                            : navbarPlatform === 'facebook'
+                                            ? 'Add official accounts on Social Profiles, then fetch mentions or Facebook / Instagram / Telegram activity.'
+                                            : navbarPlatform === 'facebook' || navbarPlatform === 'instagram'
                                                 ? 'Click Fetch posts & comments to pull page activity into Postgres.'
-                                                : 'Click Fetch mentions to pull @tags into Postgres.'
+                                                : navbarPlatform === 'telegram'
+                                                    ? 'Click Fetch channel posts to pull Telegram messages into Postgres.'
+                                                    : 'Click Fetch mentions to pull @tags into Postgres.'
                                         : 'No matching grievances for this view.'}
                             </p>
                             <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
@@ -1900,7 +1910,11 @@ const Grievances = () => {
                                         ) : (
                                             <RefreshCw className="h-4 w-4 mr-1.5" />
                                         )}
-                                        {navbarPlatform === 'facebook' ? 'Fetch posts & comments' : 'Fetch mentions'}
+                                        {navbarPlatform === 'facebook' || navbarPlatform === 'instagram'
+                                          ? 'Fetch posts & comments'
+                                          : navbarPlatform === 'telegram'
+                                            ? 'Fetch channel posts'
+                                            : 'Fetch mentions'}
                                     </Button>
                                 )}
                             </div>

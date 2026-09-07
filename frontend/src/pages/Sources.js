@@ -13,6 +13,7 @@ import {
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '../components/ui/dialog';
+import { TelegramBrandLogo } from '../components/PlatformBrandIcon';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
@@ -569,6 +570,7 @@ const PLATFORMS = [
   { value: 'instagram', label: 'Instagram', icon: Instagram, color: 'text-pink-500', gradient: 'from-purple-600 to-pink-500', hoverBg: 'hover:bg-pink-50 hover:text-pink-600 hover:border-pink-200', activeBg: 'bg-gradient-to-r from-purple-600 to-pink-600 text-white border-pink-600' },
   { value: 'facebook', label: 'Facebook', icon: Facebook, color: 'text-blue-600', gradient: 'from-blue-600 to-cyan-500', hoverBg: 'hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200', activeBg: 'bg-blue-600 text-white border-blue-600' },
   { value: 'youtube', label: 'YouTube', icon: Youtube, color: 'text-red-500', gradient: 'from-red-600 to-orange-500', hoverBg: 'hover:bg-red-50 hover:text-red-600 hover:border-red-200', activeBg: 'bg-red-600 text-white border-red-600' },
+  { value: 'telegram', label: 'Telegram', icon: TelegramBrandLogo, color: 'text-sky-600', gradient: 'from-sky-500 to-sky-700', hoverBg: 'hover:bg-sky-50 hover:text-sky-600 hover:border-sky-200', activeBg: 'bg-sky-600 text-white border-sky-600' },
 ];
 
 const CATEGORY_OPTIONS = [
@@ -891,6 +893,13 @@ const Sources = () => {
         return /^https?:\/\//i.test(identifier)
           ? identifier
           : `https://facebook.com/${identifier.replace('@', '')}`;
+      case 'telegram': {
+        if (/^https?:\/\//i.test(identifier) || /t\.me\//i.test(identifier)) {
+          return identifier.startsWith('http') ? identifier : `https://${identifier}`;
+        }
+        const handle = identifier.replace(/^@/, '');
+        return handle ? `https://t.me/${handle}` : '#';
+      }
       default: return '#';
     }
   };
@@ -914,6 +923,7 @@ const Sources = () => {
       case 'x': return <Twitter className={`${size} text-slate-800`} />;
       case 'instagram': return <Instagram className={`${size} text-pink-500`} />;
       case 'facebook': return <Facebook className={`${size} text-blue-600`} />;
+      case 'telegram': return <TelegramBrandLogo className={`${size} text-sky-600`} />;
       default: return <Globe className={`${size}`} />;
     }
   };
@@ -921,11 +931,11 @@ const Sources = () => {
   const getPlatformGradient = (platform) => (PLATFORMS.find(p => p.value === platform)?.gradient || 'from-blue-600 to-cyan-500');
 
   const getContentLabel = (platform) => {
-    switch (platform) { case 'youtube': return 'Videos'; case 'x': return 'Tweets'; case 'instagram': return 'Posts'; case 'facebook': return 'Posts'; default: return 'Content'; }
+    switch (platform) { case 'youtube': return 'Videos'; case 'x': return 'Tweets'; case 'instagram': return 'Posts'; case 'facebook': return 'Posts'; case 'telegram': return 'Messages'; default: return 'Content'; }
   };
 
   const getPlatformViewLabel = (platform) => {
-    switch (platform) { case 'youtube': return 'View on YouTube'; case 'x': return 'View on X'; case 'instagram': return 'View on Instagram'; case 'facebook': return 'View on Facebook'; default: return 'View Profile'; }
+    switch (platform) { case 'youtube': return 'View on YouTube'; case 'x': return 'View on X'; case 'instagram': return 'View on Instagram'; case 'facebook': return 'View on Facebook'; case 'telegram': return 'View on Telegram'; default: return 'View Profile'; }
   };
 
   const formatIST = (dateStr) => { try { return format(new Date(dateStr), 'd MMM yyyy, h:mm a'); } catch { return 'N/A'; } };

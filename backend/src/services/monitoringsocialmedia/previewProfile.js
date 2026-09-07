@@ -2,7 +2,12 @@ const callFacebookApi = require('../blugate/facebook/blugate.facebook.api_client
 const callXApi = require('../blugate/x/blugate.x.api_client');
 const callYouTubeApi = require('../blugate/youtube/blugate.youtube.api_client');
 const callInstagramApi = require('../blugate/instagram/blugate.instagram.api_client');
+const callTelegramApi = require('../blugate/telegram/blugate.telegram.api_client');
 const { pickUser } = require('../blugate/instagram/blugate.instagram.helpers');
+const {
+  cleanUsername: cleanTelegramUsername,
+  resolveChannelRef,
+} = require('../blugate/telegram/blugate.telegram.helpers');
 const { parseChannelRef } = require('./youtube/fetch');
 
 /**
@@ -211,9 +216,10 @@ const previewProfile = async (platformSlug, data) => {
   if (slug === 'x' || slug === 'twitter') return previewX(data);
   if (slug === 'youtube') return previewYouTube(data);
   if (slug === 'instagram') return previewInstagram(data);
+  if (slug === 'telegram') return previewTelegram(data);
 
   const err = new Error(
-    `Preview/fetch is not set up for "${slug}" yet. Supported: facebook, x, youtube, instagram`
+    `Preview/fetch is not set up for "${slug}" yet. Supported: facebook, x, youtube, instagram, telegram`
   );
   err.status = 400;
   throw err;
@@ -275,10 +281,69 @@ const previewInstagram = async (data = {}) => {
   };
 };
 
+const previewTelegram = async (data = {}) => {
+  const body = resolveChannelRef({
+    username: data.username || data.handle,
+    url: data.url || data.channel_url,
+    channel_id: data.channel_id,
+  });
+  if (!body.username && !body.url && !body.channel_id) {
+    const err = new Error('Enter a Telegram username, t.me URL, or channel id');
+    err.status = 400;
+    throw err;
+  }
+
+  const raw = await callTelegramApi('CHANNEL_INFO', body);
+  const channel = raw?.channel && typeof raw.channel === 'object' ? raw.channel : raw;
+  if (!channel || (!channel.id && !channel.username && !channel.title)) {
+    const err = new Error('Could not load Telegram channel');
+    err.status = 404;
+    throw err;
+  }
+
+  const handle = cleanTelegramUsername(channel.username || body.username || '');
+  const channelId = channel.id != null ? String(channel.id) : body.channel_id || null;
+  const url =
+    channel.url ||
+    (handle ? `https://t.me/${handle}` : body.url) ||
+    null;
+
+  const summary = {
+    name: channel.title || channel.name || handle || channelId || 'Telegram',
+    biography: channel.description || channel.about || null,
+    image: channel.photo_url || channel.photo || null,
+    url,
+    username: handle || null,
+    channel_id: channelId,
+    members: channel.members_count ?? channel.participants_count ?? null,
+    type: channel.type || 'channel',
+    is_public: channel.is_public,
+  };
+
+  const preview_data = {
+    fetched_at: new Date().toISOString(),
+    platform: 'telegram',
+    summary,
+    raw: channel,
+  };
+
+  return {
+    platform: 'telegram',
+    preview: summary,
+    preview_data,
+    data_patch: {
+      ...(handle ? { username: handle } : {}),
+      ...(channelId ? { channel_id: channelId } : {}),
+      ...(url ? { url } : {}),
+    },
+  };
+};
+
 module.exports = {
   previewProfile,
   previewFacebook,
   previewX,
   previewYouTube,
   previewInstagram,
+  previewTelegram,
 };

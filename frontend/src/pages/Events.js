@@ -25,8 +25,9 @@ import {
   ChevronDown, X, AlertTriangle, Globe, ArrowUpRight, History, Square
 } from 'lucide-react';
 import ContentCard from '../components/ContentCard';
-import AddSourceModal from '../components/AddSourceModal';
+import AddSocialProfileDialog from '../components/AddSocialProfileDialog';
 import EventMonthSidebar, { MONTH_THEMES } from '../components/EventMonthSidebar';
+import { TelegramBrandLogo } from '../components/PlatformBrandIcon';
 import { QRCodeCanvas } from 'qrcode.react';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
@@ -37,6 +38,40 @@ import 'jspdf-autotable';
 const splitKeywords = (value) => {
   if (!value) return [];
   return value.split(/\n|,|;/g).map((s) => s.trim()).filter(Boolean);
+};
+
+/** Guess language bucket from script (calendar keywords are often language: "all"). */
+const detectKeywordLanguage = (keyword) => {
+  const text = String(keyword || '');
+  if (/[\u0C00-\u0C7F]/.test(text)) return 'te';
+  if (/[\u0900-\u097F]/.test(text)) return 'hi';
+  return 'en';
+};
+
+/** Split event keywords into Telugu / Hindi / English form fields. */
+const keywordsToLangFields = (keywords = []) => {
+  const buckets = { te: [], hi: [], en: [] };
+  for (const entry of keywords || []) {
+    const raw = typeof entry === 'string' ? entry : entry?.keyword;
+    if (!raw || !String(raw).trim()) continue;
+    const tagged = String(entry?.language || '').toLowerCase();
+    // Expand legacy comma-joined blobs that were dumped into one field.
+    for (const text of splitKeywords(raw)) {
+      const byScript = detectKeywordLanguage(text);
+      const lang =
+        byScript !== 'en'
+          ? byScript
+          : tagged === 'te' || tagged === 'hi' || tagged === 'en'
+            ? tagged
+            : 'en';
+      buckets[lang].push(text);
+    }
+  }
+  return {
+    te: buckets.te.join(', '),
+    hi: buckets.hi.join(', '),
+    en: buckets.en.join(', '),
+  };
 };
 
 const formatWhen = (iso) => {
@@ -455,12 +490,14 @@ const PLATFORM_CONFIG = {
   x:         { label: 'X / Twitter',  icon: XLogo,     color: 'text-gray-800 dark:text-gray-200' },
   youtube:   { label: 'YouTube',       icon: Youtube,   color: 'text-red-600 dark:text-red-400' },
   facebook:  { label: 'Facebook',      icon: Facebook,  color: 'text-blue-600 dark:text-blue-400' },
+  telegram:  { label: 'Telegram',      icon: TelegramBrandLogo, color: 'text-sky-600 dark:text-sky-400' },
 };
 
 const EVENT_PLATFORM_OPTIONS = [
   { value: 'x', label: 'X', icon: XLogo, accent: 'text-foreground' },
   { value: 'youtube', label: 'YouTube', icon: Youtube, accent: 'text-red-600' },
   { value: 'facebook', label: 'Facebook', icon: Facebook, accent: 'text-blue-600' },
+  { value: 'telegram', label: 'Telegram', icon: TelegramBrandLogo, accent: 'text-sky-600' },
 ];
 
 const DEFAULT_EVENT_PLATFORMS = EVENT_PLATFORM_OPTIONS.map((p) => p.value);
@@ -475,7 +512,7 @@ const EventPlatformPicker = ({ value = [], onChange }) => {
   };
 
   return (
-    <div className="grid grid-cols-3 gap-1.5">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
       {EVENT_PLATFORM_OPTIONS.map(({ value: slug, label, icon: Icon, accent }) => {
         const on = selected.includes(slug);
         return (
@@ -899,9 +936,9 @@ const Events = () => {
   const [nrLoading, setNrLoading] = useState(false);
 
 
-  // ── Add Source Modal ──
-  const [addSourceOpen, setAddSourceOpen] = useState(false);
-  const [addSourceInitial, setAddSourceInitial] = useState(null);
+  // ── Add to Monitor (Social Profiles) ──
+  const [addProfileOpen, setAddProfileOpen] = useState(false);
+  const [addProfilePrefill, setAddProfilePrefill] = useState(null);
 
 
   // ── Form fields ──
@@ -922,8 +959,8 @@ const Events = () => {
     setEventFormOpen(false);
     setEditingEvent(null);
     setConfirmDeleteOpen(false);
-    setAddSourceOpen(false);
-    setAddSourceInitial(null);
+    setAddProfileOpen(false);
+    setAddProfilePrefill(null);
     setExportMenuOpen(false);
     setHcpOpen(false);
   };
@@ -966,7 +1003,7 @@ const Events = () => {
   };
   const openNrEdit = (evt) => {
     setNrEditId(evt.id);
-    const kwByLang = (lang) => (evt.keywords || []).filter(k => k.language === lang).map(k => k.keyword).join(', ');
+    const kwFields = keywordsToLangFields(evt.keywords || []);
     const plats = Array.isArray(evt.platforms) ? evt.platforms.filter(Boolean) : [];
     const minutes = Number(evt.polling_interval_minutes) || 60;
     setNrForm({
@@ -974,9 +1011,9 @@ const Events = () => {
       location: evt.location || '',
       start_date: evt.start_date ? new Date(evt.start_date).toISOString().split('T')[0] : '',
       end_date: evt.end_date ? new Date(evt.end_date).toISOString().split('T')[0] : '',
-      keywords_te: kwByLang('te'),
-      keywords_hi: kwByLang('hi'),
-      keywords_en: kwByLang('en'),
+      keywords_te: kwFields.te,
+      keywords_hi: kwFields.hi,
+      keywords_en: kwFields.en,
       polling_interval_minutes: minutes,
       poll_preset: resolvePollPreset(minutes),
       platforms: plats.length ? plats : DEFAULT_EVENT_PLATFORMS,
@@ -1425,6 +1462,21 @@ const Events = () => {
     return contentPlatform === 'all' ? arr : arr.filter((a) => a.platform === contentPlatform);
   }, [dashboard, contentPlatform]);
 
+  const eventPlatformTabs = useMemo(() => {
+    const configured = new Set(
+      (Array.isArray(selectedEvent?.platforms) ? selectedEvent.platforms : [])
+        .map((p) => String(p || '').toLowerCase().replace(/^twitter$/, 'x'))
+        .filter(Boolean)
+    );
+    return Object.entries(PLATFORM_CONFIG).filter(([key]) => key === 'all' || configured.has(key));
+  }, [selectedEvent]);
+
+  useEffect(() => {
+    if (contentPlatform === 'all') return;
+    const allowed = new Set(eventPlatformTabs.map(([key]) => key));
+    if (!allowed.has(contentPlatform)) setContentPlatform('all');
+  }, [eventPlatformTabs, contentPlatform]);
+
 
   const eventCounts = useMemo(() => {
     const active = events.filter((e) => isMonitoringStarted(e)).length;
@@ -1463,16 +1515,14 @@ const Events = () => {
   const handleStartEdit = () => {
     if (!selectedEvent) return;
     closeActionOverlays();
-    const kws = selectedEvent.keywords || [];
+    const kwFields = keywordsToLangFields(selectedEvent.keywords || []);
     setName(selectedEvent.name || '');
     setLocation(selectedEvent.location || '');
     setStartDate(selectedEvent.start_date ? new Date(selectedEvent.start_date).toISOString().split('T')[0] : '');
     setEndDate(selectedEvent.end_date ? new Date(selectedEvent.end_date).toISOString().split('T')[0] : '');
-    const allLangKws = kws.filter(k => (k.language || 'all') === 'all').map(k => k.keyword);
-    const enKws = kws.filter(k => k.language === 'en').map(k => k.keyword);
-    setKeywordsTe(kws.filter(k => k.language === 'te').map(k => k.keyword).join(', '));
-    setKeywordsHi(kws.filter(k => k.language === 'hi').map(k => k.keyword).join(', '));
-    setKeywordsEn([...enKws, ...allLangKws].join(', '));
+    setKeywordsTe(kwFields.te);
+    setKeywordsHi(kwFields.hi);
+    setKeywordsEn(kwFields.en);
     const minutes = Number(selectedEvent.polling_interval_minutes) || 60;
     setEventPollMinutes(minutes);
     setEventPollPreset(resolvePollPreset(minutes));
@@ -1646,17 +1696,129 @@ const Events = () => {
 
 
   const handleOpenAddSource = (item) => {
+    if (!item) return;
     closeActionOverlays();
-    setAddSourceInitial({
-      platform: item.platform || 'x',
-      identifier: item.author_handle || item.author || '',
-      display_name: item.author || '',
-      poiData: {
-        realName: item.author || '',
-        socialMedia: [{ platform: item.platform || 'x', handle: item.author_handle || item.author || '', displayName: item.author || '', category: 'others', priority: 'medium', isActive: true, followerCount: '', createdDate: '' }]
+
+    const sourcePlatform = String(item.platform || '')
+      .trim()
+      .toLowerCase()
+      .replace(/^twitter$/, 'x');
+    if (!sourcePlatform) {
+      toast.error('Unable to identify platform for this post');
+      return;
+    }
+
+    const cleanHandle = (value) => String(value || '').trim().replace(/^@/, '');
+    const looksLikeUsername = (value) => {
+      const v = cleanHandle(value);
+      return Boolean(v) && !/\s/.test(v) && v.length <= 64 && !/^unknown$/i.test(v);
+    };
+    const raw = item.raw_data && typeof item.raw_data === 'object' ? item.raw_data : {};
+    const contentUrl = String(item.content_url || item.url || '').trim();
+    const displayName = String(item.author || item.author_name || '').trim();
+    const data = {};
+
+    if (sourcePlatform === 'youtube') {
+      const channelId =
+        cleanHandle(item.channel_id || raw.channelId || raw.channel_id || '') ||
+        (/^UC[\w-]{20,}$/i.test(cleanHandle(item.author_handle))
+          ? cleanHandle(item.author_handle)
+          : '');
+      const handleCandidate = cleanHandle(
+        raw.customUrl ||
+          (looksLikeUsername(item.author_handle) && !/^UC[\w-]{20,}$/i.test(cleanHandle(item.author_handle))
+            ? item.author_handle
+            : '')
+      );
+      if (channelId) {
+        data.channel_id = channelId;
+        data.channel_url = `https://www.youtube.com/channel/${channelId}`;
+      } else if (handleCandidate) {
+        data.channel_url = `https://www.youtube.com/@${handleCandidate.replace(/^@/, '')}`;
+      } else {
+        toast.error('Unable to identify YouTube channel for this post');
+        return;
       }
+    } else if (sourcePlatform === 'facebook') {
+      const handle = cleanHandle(item.author_handle || raw.author?.id || raw.page_id || '');
+      const authorUrl = String(raw.author?.url || '').trim();
+      const isPageUrl = (u) =>
+        /facebook\.com\//i.test(u) &&
+        !/\/(posts|permalink|watch|reel|videos|share|story)\b/i.test(u);
+      let pageUrl = '';
+      if (authorUrl && isPageUrl(authorUrl)) pageUrl = authorUrl;
+      else if (contentUrl && isPageUrl(contentUrl)) pageUrl = contentUrl;
+      else if (contentUrl) {
+        const m = contentUrl.match(/facebook\.com\/([^/?#]+)\/(?:posts|photos|videos|reels)\b/i);
+        if (m?.[1] && !/^(permalink\.php|watch|story\.php)$/i.test(m[1])) {
+          pageUrl = `https://www.facebook.com/${m[1]}`;
+        }
+      }
+      if (!pageUrl && handle) {
+        pageUrl = /^https?:\/\//i.test(handle)
+          ? handle
+          : `https://www.facebook.com/${handle}`;
+      }
+      if (!pageUrl) {
+        toast.error('Unable to identify Facebook page for this post');
+        return;
+      }
+      data.url = pageUrl;
+      if (handle && /^\d+$/.test(handle)) data.page_id = handle;
+      else if (raw.page_id) data.page_id = String(raw.page_id);
+    } else if (sourcePlatform === 'telegram') {
+      let username = '';
+      const fromHandle = cleanHandle(item.author_handle || raw.author?.username || raw.channel_username || '');
+      if (looksLikeUsername(fromHandle) && !/^\d+$/.test(fromHandle)) username = fromHandle;
+
+      let tmeUrl = '';
+      const urlCandidates = [contentUrl, raw.url, raw.author?.url].filter(Boolean);
+      for (const u of urlCandidates) {
+        const m = String(u).match(/t\.me\/([A-Za-z0-9_]+)/i);
+        if (m?.[1] && !/^(c|s|joinchat)$/i.test(m[1])) {
+          username = username || m[1];
+          tmeUrl = `https://t.me/${m[1]}`;
+          break;
+        }
+      }
+
+      const externalId = String(item.content_id || '').trim();
+      let channelId = String(raw.channel_id || raw.peer_id || raw.author?.id || '').trim();
+      if (!channelId && externalId.includes('_')) {
+        const head = externalId.split('_')[0];
+        if (/^-?\d+$/.test(head)) channelId = head;
+      }
+
+      if (username) {
+        data.username = username;
+        data.url = tmeUrl || `https://t.me/${username}`;
+      } else if (tmeUrl) {
+        data.url = tmeUrl;
+      }
+      if (channelId) data.channel_id = channelId;
+
+      if (!data.username && !data.url && !data.channel_id) {
+        toast.error('Unable to identify Telegram channel for this post');
+        return;
+      }
+    } else {
+      // x / instagram / others
+      const identifier = cleanHandle(
+        item.author_handle || raw.author_handle || raw.username || item.author || ''
+      );
+      if (!looksLikeUsername(identifier)) {
+        toast.error('Unable to identify handle for this post');
+        return;
+      }
+      data.username = identifier;
+    }
+
+    setAddProfilePrefill({
+      platform: sourcePlatform,
+      display_name: displayName || data.username || data.channel_id || 'Profile',
+      data,
     });
-    setAddSourceOpen(true);
+    setAddProfileOpen(true);
   };
 
 
@@ -2450,7 +2612,7 @@ const Events = () => {
             <div className="shrink-0 px-4 sm:px-6 py-2 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-1 overflow-x-auto min-w-0" style={{ scrollbarWidth: 'none' }}>
-                  {Object.entries(PLATFORM_CONFIG).map(([key, cfg]) => {
+                  {eventPlatformTabs.map(([key, cfg]) => {
                     const Icon = cfg.icon;
                     const isActive = contentPlatform === key;
                     return (
@@ -2988,12 +3150,17 @@ const Events = () => {
       </Dialog>
 
 
-      {/* Add Source Modal */}
-      <AddSourceModal
-        open={addSourceOpen}
-        onClose={() => { setAddSourceOpen(false); setAddSourceInitial(null); }}
-        onSuccess={() => { toast.success('Profile added to monitoring list'); }}
-        initialData={addSourceInitial}
+      {/* Add to Monitor */}
+      <AddSocialProfileDialog
+        open={addProfileOpen}
+        onOpenChange={(open) => {
+          setAddProfileOpen(open);
+          if (!open) setAddProfilePrefill(null);
+        }}
+        prefill={addProfilePrefill}
+        title="Add to Monitor"
+        description="Add this account to Social Profiles monitoring."
+        onSuccess={() => toast.success('Profile added to monitoring list')}
       />
     </div>
   );

@@ -4,6 +4,8 @@ const Content = require('../models/Content');
 const youtubeService = require('./youtube.service');
 const rapidApiXService = require('./rapidApiXService');
 const rapidApiFacebookService = require('./rapidApiFacebookService');
+const callTelegramApi = require('./blugate/telegram/blugate.telegram.api_client');
+const { listItems: listTelegramItems } = require('./blugate/telegram/blugate.telegram.helpers');
 const { archiveTwitterMedia, archiveContentMedia } = require('./contentS3Service');
 const { scoreContentDoc } = require('../utils/relevanceScorer');
 const { classifyOneAsync } = require('./llmRelevanceSweeper');
@@ -288,7 +290,7 @@ const scanEventOnce = async ({ event, settings }) => {
     }
   };
 
-  const platforms = event.platforms && event.platforms.length > 0 ? event.platforms.filter((p) => p !== 'instagram') : ['youtube', 'x', 'facebook'];
+  const platforms = event.platforms && event.platforms.length > 0 ? event.platforms.filter((p) => p !== 'instagram') : ['youtube', 'x', 'facebook', 'telegram'];
 
   // X / Twitter
   if (platforms.includes('x')) {
@@ -484,6 +486,97 @@ const scanEventOnce = async ({ event, settings }) => {
     } catch (error) {
       logger.error(`[EventMonitor] Error monitoring Facebook for event ${event.name}: ${error.message}`);
       errors.push({ platform: 'facebook', message: error.message });
+    }
+  }
+
+  // Telegram
+  if (platforms.includes('telegram')) {
+    try {
+      const posts = await fetchUniqueByQueries(queries, async (q) => {
+        const raw = await callTelegramApi('SEARCH_MESSAGES', { q, limit: 25 });
+        return listTelegramItems(raw)
+          .map((m) => {
+            const id = m.id ?? m.message_id;
+            if (id == null) return null;
+            const channelKey =
+              m.channel_id ||
+              m.peer_id ||
+              m.author?.username ||
+              m.channel_username ||
+              m.author_handle ||
+              '';
+            return {
+              id: channelKey ? `${channelKey}_${id}` : String(id),
+              text: m.text || m.message || m.caption || '',
+              url: m.url || null,
+              created_at: m.date || m.posted_at || m.created_at || null,
+              author: m.author?.name || m.author_name || m.channel_title || 'Telegram',
+              author_handle: m.author?.username || m.author_handle || m.channel_username || '',
+              metrics: {
+                views: m.views ?? 0,
+                shares: m.forwards ?? m.forwards_count ?? 0,
+                comments: m.replies_count ?? m.replies ?? 0,
+                likes: 0,
+              },
+              media: Array.isArray(m.media) ? m.media : [],
+              raw_data: m,
+            };
+          })
+          .filter(Boolean);
+      });
+      const relevantPosts = filterPostsByEventRelevance(posts, event, (p) => p?.text || '');
+      scanned += relevantPosts.length;
+      trackPlatform('telegram', { scanned: relevantPosts.length });
+      const tgIngestedBefore = ingested;
+
+      for (const p of relevantPosts) {
+        const normalizedMedia = (Array.isArray(p.media) ? p.media : [])
+          .map((m) => {
+            if (typeof m === 'string') {
+              return { type: 'photo', url: m };
+            }
+            const url = m?.url || m?.preview || null;
+            if (!url) return null;
+            return { type: m.type || 'photo', url, preview: m.preview || url };
+          })
+          .filter(Boolean);
+
+        const handle = String(p.author_handle || '').replace(/^@/, '');
+        const { content, isNew } = await upsertEventContent({
+          eventId: event.id,
+          platform: 'telegram',
+          contentId: p.id,
+          payload: {
+            source_id: null,
+            content_url: p.url || (handle ? `https://t.me/${handle}` : null),
+            text: p.text || '',
+            author: p.author || 'Telegram',
+            author_handle: handle || 'unknown',
+            published_at: p.created_at
+              ? new Date(
+                  typeof p.created_at === 'number' && p.created_at < 1e12
+                    ? p.created_at * 1000
+                    : p.created_at
+                )
+              : new Date(),
+            engagement: buildEngagement({
+              views: p.metrics?.views,
+              likes: p.metrics?.likes,
+              comments: p.metrics?.comments,
+              shares: p.metrics?.shares,
+            }),
+            media: normalizedMedia,
+            raw_data: p.raw_data || p,
+          },
+        });
+
+        if (!content) continue;
+        if (isNew) ingested++;
+      }
+      trackPlatform('telegram', { ingested: ingested - tgIngestedBefore });
+    } catch (error) {
+      logger.error(`[EventMonitor] Error monitoring Telegram for event ${event.name}: ${error.message}`);
+      errors.push({ platform: 'telegram', message: error.message });
     }
   }
 

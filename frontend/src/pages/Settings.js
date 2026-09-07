@@ -2,12 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../lib/api';
 import { Save, Plus, Trash2, ShieldAlert, BrainCircuit, FileText, Upload, Star, Eye, Pencil, Copy, Check, X, AlertTriangle, Zap, Youtube, Facebook, Instagram, Loader2, Moon, Sun, Palette, ChevronDown, ChevronUp } from 'lucide-react';
-
-const XLogo = ({ className }) => (
-  <svg viewBox="0 0 24 24" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-  </svg>
-);
+import { TelegramBrandLogo, XBrandLogo } from '../components/PlatformBrandIcon';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Switch } from '../components/ui/switch';
@@ -26,6 +21,8 @@ import RichTextEditor from '../components/RichTextEditor';
 import { applyThemeColor } from '../utils/theme';
 import { useAuth } from '../context/auth.context';
 import { cn } from '../lib/utils';
+
+const XLogo = XBrandLogo;
 
 const THEME_PRESETS = ['#1e3a8a', '#0f766e', '#7c2d12', '#4c1d95', '#1f2937', '#166534'];
 
@@ -644,6 +641,7 @@ const Settings = () => {
     { platform: 'instagram', name: 'Instagram', Icon: Instagram },
     { platform: 'facebook', name: 'Facebook', Icon: Facebook },
     { platform: 'youtube', name: 'YouTube', Icon: Youtube },
+    { platform: 'telegram', name: 'Telegram', Icon: TelegramBrandLogo },
   ];
   const thresholdFor = (platform) => {
     const found = thresholds.find((th) => th.platform === platform);
@@ -1024,6 +1022,7 @@ const Settings = () => {
                             <SelectItem value="youtube">YouTube</SelectItem>
                             <SelectItem value="facebook">Facebook</SelectItem>
                             <SelectItem value="instagram">Instagram</SelectItem>
+                            <SelectItem value="telegram">Telegram</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

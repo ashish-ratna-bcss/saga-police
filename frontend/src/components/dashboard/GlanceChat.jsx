@@ -84,12 +84,12 @@ const GlanceChat = () => {
         });
       }
 
-      ['x', 'youtube', 'instagram', 'facebook'].forEach(pKey => {
+      ['x', 'youtube', 'instagram', 'facebook', 'telegram'].forEach(pKey => {
         if (byPlatform[pKey] && byPlatform[pKey].length > 0 && sources.length < 4) {
           const item = byPlatform[pKey][0];
           sources.push({
             title: item.title || item.text?.slice(0, 50) + '...',
-            domain: pKey === 'x' ? '𝕏' : pKey === 'youtube' ? '▶️ YT' : pKey === 'instagram' ? 'Instagram' : pKey === 'facebook' ? 'Facebook' : item.platform,
+            domain: pKey === 'x' ? '𝕏' : pKey === 'youtube' ? '▶️ YT' : pKey === 'instagram' ? 'Instagram' : pKey === 'facebook' ? 'Facebook' : pKey === 'telegram' ? 'Telegram' : item.platform,
             url: item.link || item.url || '#',
             platform: pKey
           });
@@ -393,6 +393,7 @@ const GlanceChat = () => {
                 <option value="youtube">YouTube</option>
                 <option value="instagram">Instagram</option>
                 <option value="facebook">Facebook</option>
+                <option value="telegram">Telegram</option>
               </select>
             </div>
 

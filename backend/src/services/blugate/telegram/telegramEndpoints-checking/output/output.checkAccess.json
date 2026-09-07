@@ -1,0 +1,14 @@
+{
+  "endpoint": "CHECK_ACCESS",
+  "params": {
+    "username": "telegram"
+  },
+  "status": "PASS",
+  "checkedAt": "2026-09-07T11:23:28.358Z",
+  "baseUrl": "http://172.16.172.177:8000",
+  "response": {
+    "accessible": true,
+    "state": "public",
+    "detail": "public"
+  }
+}

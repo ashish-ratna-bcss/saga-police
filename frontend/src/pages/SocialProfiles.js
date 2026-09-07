@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, Plus, Pencil, Trash2, Loader2, PlayCircle, StopCircle,
   Twitter, Facebook, Instagram, Youtube, Globe2, Settings2, Square, History, BarChart3, Download, Timer,
@@ -6,6 +7,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { socialProfilesApi } from '../api/socialProfiles.api';
+import { TelegramBrandLogo } from '../components/PlatformBrandIcon';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -25,12 +27,21 @@ import {
 } from '../components/ui/alert-dialog';
 import { cn } from '../lib/utils';
 
-const ICONS = { Twitter, Facebook, Instagram, Youtube, Globe2 };
+const ICONS = {
+  Twitter,
+  Facebook,
+  Instagram,
+  Youtube,
+  Globe2,
+  Telegram: TelegramBrandLogo,
+  Send: TelegramBrandLogo, // legacy DB icon key
+};
 const ICON_OPTIONS = [
   { value: 'Twitter', label: 'X / Twitter' },
   { value: 'Facebook', label: 'Facebook' },
   { value: 'Instagram', label: 'Instagram' },
   { value: 'Youtube', label: 'YouTube' },
+  { value: 'Telegram', label: 'Telegram' },
   { value: 'Globe2', label: 'Other' },
 ];
 
@@ -421,6 +432,8 @@ const rowToAccountSlot = (row, platformsList) => {
 };
 
 const SocialProfiles = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [platforms, setPlatforms] = useState([]);
   const [allPlatforms, setAllPlatforms] = useState([]);
   const [profiles, setProfiles] = useState([]);
@@ -537,6 +550,38 @@ const SocialProfiles = () => {
     });
     setProfileOpen(true);
   };
+
+  /** Prefill Add profile from Global Search Monitor (or other pages). */
+  const openAddProfilePrefill = useCallback(
+    (prefill) => {
+      if (!prefill || !platforms.length) return;
+      const slug = String(prefill.platform || '').toLowerCase();
+      const plat = platforms.find((p) => p.slug === slug) || platforms[0];
+      const slot = blankAccountSlot(plat?.slug || '', platforms);
+      const incoming = prefill.data && typeof prefill.data === 'object' ? prefill.data : {};
+      slot.data = { ...slot.data, ...incoming };
+      setEditingProfile(null);
+      setEditingProfileId(null);
+      setEditingSiblingIds([]);
+      if (plat?.slug) setPlatformTab(plat.slug);
+      setProfileForm({
+        display_name: String(prefill.display_name || '').trim(),
+        poll_interval_minutes: 30,
+        poll_preset: '30',
+        notes: String(prefill.notes || '').trim(),
+        accounts: [slot],
+      });
+      setProfileOpen(true);
+    },
+    [platforms]
+  );
+
+  useEffect(() => {
+    const prefill = location.state?.addProfile;
+    if (!prefill || !platforms.length) return;
+    openAddProfilePrefill(prefill);
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state, location.pathname, platforms, openAddProfilePrefill, navigate]);
 
   const openEditProfile = async (row) => {
     setEditingProfile(row);
@@ -1106,7 +1151,7 @@ const SocialProfiles = () => {
                       <td className="px-2.5 py-2 align-top">
                         <div className="flex items-center gap-1 flex-wrap">
                           <Button
-                            type="button"
+                          type="button"
                             size="sm"
                             variant={isMonitoring ? 'destructive' : 'default'}
                             className="h-7 gap-1 px-2 text-[11px]"
@@ -1114,11 +1159,11 @@ const SocialProfiles = () => {
                             onClick={() => toggleMonitoring(row)}
                           >
                             {monitoringId === row.id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
+                            <Loader2 className="h-3 w-3 animate-spin" />
                             ) : isMonitoring ? (
                               <Square className="h-3 w-3" />
                             ) : (
-                              <PlayCircle className="h-3 w-3" />
+                            <PlayCircle className="h-3 w-3" />
                             )}
                             {isMonitoring ? 'Stop' : 'Start'}
                           </Button>
@@ -1209,7 +1254,7 @@ const SocialProfiles = () => {
                                 <div className="flex items-center justify-between gap-2">
                                   <p className="text-sm font-medium">Fetch stats</p>
                                   <Badge
-                                    variant="outline"
+                            variant="outline"
                                     className={`h-5 text-[10px] capitalize ${
                                       phase.phase === 'waiting'
                                         ? 'border-amber-500/30 bg-amber-500/10 text-amber-800'

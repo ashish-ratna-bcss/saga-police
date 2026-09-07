@@ -1,6 +1,7 @@
 const rapidApiXService = require('./rapidApiXService');
 const rapidApiFacebookService = require('./rapidApiFacebookService');
 const callInstagramApi = require('./blugate/instagram/blugate.instagram.api_client');
+const callTelegramApi = require('./blugate/telegram/blugate.telegram.api_client');
 const {
   listItems,
   pickUser,
@@ -8,6 +9,10 @@ const {
   mapNodesToSearchPosts,
   mapUserToSearchProfile,
 } = require('./blugate/instagram/blugate.instagram.helpers');
+const {
+  listItems: listTelegramItems,
+  cleanUsername: cleanTelegramUsername,
+} = require('./blugate/telegram/blugate.telegram.helpers');
 const youtubeService = require('./youtube.service');
 const logger = require('../utils/logger');
 
@@ -38,6 +43,90 @@ const searchInstagramPosts = async (query, limit = 50) => {
   }
 };
 
+/** Telegram: discover channels by keyword (+ username resolve fallback). */
+const searchTelegramChannels = async (query, limit = 20) => {
+  const q = String(query || '').trim();
+  if (!q) return [];
+  const safeLimit = Math.max(1, Math.min(50, Number(limit) || 20));
+  const out = [];
+  try {
+    const raw = await callTelegramApi('SEARCH_CHANNELS', { q, limit: safeLimit });
+    for (const ch of listTelegramItems(raw)) {
+      const handle = cleanTelegramUsername(ch.username || '');
+      out.push({
+        id: ch.id != null ? String(ch.id) : handle || q,
+        name: ch.title || ch.name || handle || q,
+        screen_name: handle,
+        description: ch.description || '',
+        profile_image_url: ch.photo_url || '',
+        followers_count: ch.members_count || 0,
+        url: ch.url || (handle ? `https://t.me/${handle}` : ''),
+        verified: false,
+        platform: 'telegram',
+      });
+    }
+  } catch (err) {
+    logger.warn(`[GlobalSearch] Telegram SEARCH_CHANNELS: ${err.message}`);
+  }
+  if (!out.length) {
+    const username = cleanTelegramUsername(q);
+    if (username) {
+      try {
+        const ch = await callTelegramApi('CHANNEL_INFO', { username });
+        const handle = cleanTelegramUsername(ch.username || username);
+        out.push({
+          id: ch.id != null ? String(ch.id) : handle,
+          name: ch.title || ch.name || handle,
+          screen_name: handle,
+          description: ch.description || '',
+          profile_image_url: ch.photo_url || '',
+          followers_count: ch.members_count || 0,
+          url: ch.url || `https://t.me/${handle}`,
+          verified: false,
+          platform: 'telegram',
+        });
+      } catch (_) {}
+    }
+  }
+  return out.slice(0, safeLimit);
+};
+
+/** Telegram: keyword message search. */
+const searchTelegramMessages = async (query, limit = 20) => {
+  const q = String(query || '').trim();
+  if (!q) return [];
+  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 20));
+  try {
+    const raw = await callTelegramApi('SEARCH_MESSAGES', { q, limit: safeLimit });
+    return listTelegramItems(raw)
+      .map((m) => {
+        const id = m.id ?? m.message_id;
+        if (id == null) return null;
+        return {
+          id: String(id),
+          text: m.text || m.message || m.caption || '',
+          url: m.url || null,
+          created_at: m.date || m.posted_at || m.created_at || null,
+          author_name: m.author?.name || m.author_name || m.channel_title || 'Telegram',
+          author_handle: m.author?.username || m.author_handle || m.channel_username || '',
+          metrics: {
+            views: m.views ?? 0,
+            shares: m.forwards ?? m.forwards_count ?? 0,
+            comments: m.replies_count ?? m.replies ?? 0,
+            likes: 0,
+          },
+          media: Array.isArray(m.media) ? m.media : [],
+          platform: 'telegram',
+        };
+      })
+      .filter(Boolean)
+      .slice(0, safeLimit);
+  } catch (err) {
+    logger.warn(`[GlobalSearch] Telegram SEARCH_MESSAGES: ${err.message}`);
+    return [];
+  }
+};
+
 class GlobalSearchService {
     constructor() {
         this.weights = {
@@ -50,7 +139,8 @@ class GlobalSearchService {
             'x': 1.2, // Boost X for real-time news
             'youtube': 1.0,
             'facebook': 0.9,
-            'instagram': 0.95
+            'instagram': 0.95,
+            'telegram': 1.05,
         };
     }
 
@@ -116,7 +206,8 @@ class GlobalSearchService {
             Promise.resolve(this.normalizeList(xResults, 'x', 'user')),
             youtubeService.searchChannels(query, safeLimit).then(res => this.normalizeList(res, 'youtube', 'user')),
             rapidApiFacebookService.searchPages(query, { limit: safeLimit }).then(res => this.normalizeList(res, 'facebook', 'user')),
-            searchInstagramUsers(query, safeLimit).then(res => this.normalizeList(res, 'instagram', 'user'))
+            searchInstagramUsers(query, safeLimit).then(res => this.normalizeList(res, 'instagram', 'user')),
+            searchTelegramChannels(query, safeLimit).then(res => this.normalizeList(res, 'telegram', 'user')),
         ]);
         const flatResults = results
             .filter(r => r.status === 'fulfilled')
@@ -165,11 +256,22 @@ class GlobalSearchService {
             youtubeService.searchVideos(query, safeLimit).then(res => this.normalizeList(res, 'youtube', 'video')),
             rapidApiFacebookService.searchPosts(query, safeLimit).then(res => this.normalizeList(res, 'facebook', 'post')),
             searchInstagramPosts(query, safeLimit).then(res => this.normalizeList(res, 'instagram', 'post')),
+            searchTelegramMessages(query, safeLimit).then(res => this.normalizeList(res, 'telegram', 'post')),
         ]);
         const flatResults = results
             .filter(r => r.status === 'fulfilled')
             .flatMap(r => r.value);
         return this.rankResults(flatResults, 'content').slice(0, safeLimit);
+    }
+
+    async searchTelegramProfiles(query, limit = 20) {
+        const rows = await searchTelegramChannels(query, limit);
+        return this.normalizeList(rows, 'telegram', 'user');
+    }
+
+    async searchTelegramContent(query, limit = 20) {
+        const rows = await searchTelegramMessages(query, limit);
+        return this.normalizeList(rows, 'telegram', 'post');
     }
 
     /**

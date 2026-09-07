@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../lib/api';
 import { AlertService } from '@/features/alerts/api/alertService';
-import { AlertTriangle, CheckCircle, Flag, XCircle, Zap, Activity, MessageSquare, Filter, ExternalLink, Search, Calendar, Download, Loader2, ArrowUpCircle, Plus, LayoutGrid, LayoutList, Twitter, Youtube, Facebook, Instagram, Users, X, Sparkles, Trash2, Pencil } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Flag, XCircle, Zap, Activity, MessageSquare, Filter, ExternalLink, Search, Calendar, Download, Loader2, ArrowUpCircle, Plus, LayoutGrid, LayoutList, Users, X, Sparkles, Trash2, Pencil } from 'lucide-react';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Skeleton } from '../components/ui/skeleton';
@@ -17,6 +17,7 @@ import ReportsContent from '../components/ReportsContent';
 import { socialProfilesApi } from '../api/socialProfiles.api';
 import { abortAlertsListFetchOnUnmount } from '../features/alerts/alertsFetchGuard';
 import { mapInstagramStoryToAlert, mergeInstagramStoriesByIdentity } from '../utils/instagramStoryMedia';
+import { PlatformBrandIcon } from '../components/PlatformBrandIcon';
 
 const normalizeAddPlatform = (platform) => {
   const value = String(platform || '').trim().toLowerCase();
@@ -71,7 +72,7 @@ const SOURCE_CATEGORY_OPTIONS = [
   { value: 'others', label: 'Others' }
 ];
 
-const PLATFORM_DISPLAY_ORDER = ['x', 'youtube', 'facebook', 'instagram', 'whatsapp'];
+const PLATFORM_DISPLAY_ORDER = ['x', 'youtube', 'facebook', 'instagram', 'telegram', 'whatsapp'];
 
 export default function Alerts() {
   const navigate = useNavigate();
@@ -235,6 +236,7 @@ export default function Alerts() {
       youtube: 'YouTube',
       facebook: 'Facebook',
       instagram: 'Instagram',
+      telegram: 'Telegram',
       whatsapp: 'WhatsApp',
       unknown: 'Unknown'
     };
@@ -264,6 +266,11 @@ export default function Alerts() {
         rowClass: 'bg-pink-200/60 hover:bg-pink-300/60',
         stickyClass: 'bg-pink-200/75'
       },
+      telegram: {
+        iconClass: 'text-sky-700',
+        rowClass: 'bg-sky-200/60 hover:bg-sky-300/60',
+        stickyClass: 'bg-sky-200/75'
+      },
       whatsapp: {
         iconClass: 'text-emerald-700',
         rowClass: 'bg-emerald-200/60 hover:bg-emerald-300/60',
@@ -283,21 +290,7 @@ export default function Alerts() {
     const normalized = normalizePlatform(platformValue);
     const theme = getPlatformTheme(normalized);
     const iconClass = `h-4 w-4 shrink-0 ${theme.iconClass}`;
-
-    switch (normalized) {
-      case 'x':
-        return <Twitter className={iconClass} />;
-      case 'youtube':
-        return <Youtube className={iconClass} />;
-      case 'facebook':
-        return <Facebook className={iconClass} />;
-      case 'instagram':
-        return <Instagram className={iconClass} />;
-      case 'whatsapp':
-        return <MessageSquare className={iconClass} />;
-      default:
-        return <AlertTriangle className={iconClass} />;
-    }
+    return <PlatformBrandIcon platform={normalized} className={iconClass} colored={false} />;
   }, [getPlatformTheme, normalizePlatform]);
 
   const monitoredProfilesMatrix = useMemo(() => {
@@ -2230,15 +2223,46 @@ export default function Alerts() {
               {/* Compact Filter Controls */}
               <div className="flex items-center gap-1.5 flex-wrap">
                 <Select value={platformFilter} onValueChange={setPlatformFilter}>
-                  <SelectTrigger className="w-[120px] h-8 text-[11px]">
+                  <SelectTrigger className="w-[150px] h-8 text-[11px]">
                     <SelectValue placeholder="Platform" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Platforms</SelectItem>
-                    <SelectItem value="x">Twitter (X)</SelectItem>
-                    <SelectItem value="youtube">YouTube</SelectItem>
-                    <SelectItem value="facebook">Facebook</SelectItem>
-                    <SelectItem value="instagram">Instagram</SelectItem>
+                    <SelectItem value="all">
+                      <span className="flex items-center gap-2">
+                        <PlatformBrandIcon platform="all" className="h-3.5 w-3.5" />
+                        All Platforms
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="x">
+                      <span className="flex items-center gap-2">
+                        <PlatformBrandIcon platform="x" className="h-3.5 w-3.5" />
+                        Twitter (X)
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="youtube">
+                      <span className="flex items-center gap-2">
+                        <PlatformBrandIcon platform="youtube" className="h-3.5 w-3.5" />
+                        YouTube
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="facebook">
+                      <span className="flex items-center gap-2">
+                        <PlatformBrandIcon platform="facebook" className="h-3.5 w-3.5" />
+                        Facebook
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="instagram">
+                      <span className="flex items-center gap-2">
+                        <PlatformBrandIcon platform="instagram" className="h-3.5 w-3.5" />
+                        Instagram
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="telegram">
+                      <span className="flex items-center gap-2">
+                        <PlatformBrandIcon platform="telegram" className="h-3.5 w-3.5" />
+                        Telegram
+                      </span>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
 

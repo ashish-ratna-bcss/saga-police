@@ -1,0 +1,14 @@
+{
+  "endpoint": "SEARCH_MESSAGES",
+  "params": {
+    "q": "news",
+    "limit": 5
+  },
+  "status": "PASS",
+  "checkedAt": "2026-09-07T11:23:27.210Z",
+  "baseUrl": "http://172.16.172.177:8000",
+  "response": {
+    "items": [],
+    "cursor": "eyJvZmZzZXRfaWQiOjEyNDg2Nywib2Zmc2V0X3BlZXIiOnsiYWNjZXNzX2hhc2giOi02MzU2MjEwMTg3MjYyMzg5MDQ1LCJpZCI6MTY3MDMzNjE0Mywia2luZCI6ImNoYW5uZWwifSwib2Zmc2V0X3JhdGUiOjE3ODg1MTA3ODF9"
+  }
+}

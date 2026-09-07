@@ -13,6 +13,7 @@ import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Skeleton } from '../components/ui/skeleton';
+import { PlatformBrandIcon } from '../components/PlatformBrandIcon';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
@@ -59,6 +60,7 @@ const Surveillance = () => {
     x: sources.filter(s => s.platform === 'x').length,
     instagram: sources.filter(s => s.platform === 'instagram').length,
     facebook: sources.filter(s => s.platform === 'facebook').length,
+    telegram: sources.filter(s => s.platform === 'telegram').length,
     highPriority: sources.filter(s => s.priority === 'high').length,
   }), [sources]);
 
@@ -68,6 +70,7 @@ const Surveillance = () => {
       case 'x': return <Twitter className={className} />;
       case 'instagram': return <Instagram className={`${className} text-pink-500`} />;
       case 'facebook': return <Facebook className={`${className} text-blue-600`} />;
+      case 'telegram': return <PlatformBrandIcon platform="telegram" className={className} />;
       default: return <Globe className={className} />;
     }
   };
@@ -78,6 +81,7 @@ const Surveillance = () => {
       case 'x': return 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700';
       case 'instagram': return 'bg-pink-50 border-pink-200';
       case 'facebook': return 'bg-blue-50 border-blue-200';
+      case 'telegram': return 'bg-sky-50 border-sky-200';
       default: return 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700';
     }
   };
@@ -105,6 +109,11 @@ const Surveillance = () => {
         return `https://instagram.com/${source.identifier.replace('@', '')}`;
       case 'facebook':
         return `https://facebook.com/${source.identifier.replace('@', '')}`;
+      case 'telegram': {
+        const handle = String(source.identifier || '').replace(/^@/, '');
+        if (/^https?:\/\//i.test(handle) || handle.includes('t.me/')) return handle.startsWith('http') ? handle : `https://${handle}`;
+        return handle ? `https://t.me/${handle}` : '#';
+      }
       default:
         return '#';
     }
@@ -211,7 +220,7 @@ const Surveillance = () => {
           </Card>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
             <Card className="border-l-4 border-l-primary">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -264,6 +273,19 @@ const Surveillance = () => {
                 </div>
               </CardContent>
             </Card>
+            <Card className="border-l-4 border-l-sky-500">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Telegram</p>
+                    <p className="text-2xl font-bold mt-1">{stats.telegram}</p>
+                  </div>
+                  <div className="p-2 bg-sky-100 rounded-lg">
+                    <PlatformBrandIcon platform="telegram" className="h-5 w-5" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
             <Card className="border-l-4 border-l-amber-500">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -302,6 +324,7 @@ const Surveillance = () => {
                     <SelectItem value="x">X (Twitter)</SelectItem>
                     <SelectItem value="instagram">Instagram</SelectItem>
                     <SelectItem value="facebook">Facebook</SelectItem>
+                    <SelectItem value="telegram">Telegram</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -1,0 +1,11 @@
+{
+  "endpoint": "READY",
+  "params": {},
+  "status": "PASS",
+  "checkedAt": "2026-09-07T11:23:25.818Z",
+  "baseUrl": "http://172.16.172.177:8000",
+  "response": {
+    "status": "ready",
+    "telegram_configured": true
+  }
+}

@@ -17,6 +17,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../com
 import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import { formatDistanceToNow, format, subDays } from 'date-fns';
+import { PlatformBrandIcon } from '../components/PlatformBrandIcon';
 
 const IntelProcessed = () => {
   const [content, setContent] = useState([]);
@@ -83,6 +84,7 @@ const IntelProcessed = () => {
       case 'x': return <Twitter className={className} />;
       case 'instagram': return <Instagram className={`${className} text-pink-500`} />;
       case 'facebook': return <Facebook className={`${className} text-blue-600`} />;
+      case 'telegram': return <PlatformBrandIcon platform="telegram" className={className} />;
       default: return <Globe className={className} />;
     }
   };

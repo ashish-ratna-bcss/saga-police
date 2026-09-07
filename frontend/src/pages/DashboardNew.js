@@ -29,6 +29,7 @@ const PLATFORMS = [
   { id: 'youtube', label: 'YouTube' },
   { id: 'facebook', label: 'Facebook' },
   { id: 'instagram', label: 'Instagram' },
+  { id: 'telegram', label: 'Telegram' },
   { id: 'whatsapp', label: 'WhatsApp' }
 ];
 
@@ -42,6 +43,7 @@ const PLATFORM_COLORS = {
   youtube: '#FF0000',
   facebook: '#1877F2',
   instagram: '#E4405F',
+  telegram: '#229ED9',
   whatsapp: '#25D366',
 };
 

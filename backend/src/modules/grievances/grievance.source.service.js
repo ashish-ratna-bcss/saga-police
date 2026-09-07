@@ -6,7 +6,7 @@ const {
 const { normalizePlatform, pickAvatar } = require('./grievance.utils');
 const logger = require('../../utils/logger');
 
-const GRIEVANCE_PLATFORMS = ['x', 'facebook', 'instagram'];
+const GRIEVANCE_PLATFORMS = ['x', 'facebook', 'instagram', 'telegram'];
 
 const shapeCatalogAccount = (account, grievanceCount = 0) => {
   const platform = normalizePlatform(account.platforms?.slug, 'x');

@@ -150,10 +150,16 @@ const searchProfiles = async (req, res) => {
                 timeout,
                 'Instagram search'
             );
+        } else if (platform === 'telegram') {
+            results = await withTimeout(
+                globalSearchService.searchTelegramProfiles(query, parsedLimit),
+                timeout,
+                'Telegram search'
+            );
         } else if (platform === 'all') {
             results = await globalSearchService.searchProfiles(query, parsedLimit);
         } else {
-            return res.status(400).json({ error: 'Invalid platform. Use "x", "youtube", "facebook", "instagram", or "all".' });
+            return res.status(400).json({ error: 'Invalid platform. Use "x", "youtube", "facebook", "instagram", "telegram", or "all".' });
         }
 
         res.json(Array.isArray(results) ? results : []);
@@ -208,10 +214,16 @@ const searchContent = async (req, res) => {
                 timeout,
                 'Instagram content search'
             );
+        } else if (platform === 'telegram') {
+            results = await withTimeout(
+                globalSearchService.searchTelegramContent(query, parsedLimit),
+                timeout,
+                'Telegram content search'
+            );
         } else if (platform === 'all') {
             results = await globalSearchService.searchContent(query, parsedLimit);
         } else {
-            return res.status(400).json({ error: 'Invalid platform. Use "x", "youtube", "facebook", "instagram", or "all".' });
+            return res.status(400).json({ error: 'Invalid platform. Use "x", "youtube", "facebook", "instagram", "telegram", or "all".' });
         }
 
         res.json(Array.isArray(results) ? results : []);

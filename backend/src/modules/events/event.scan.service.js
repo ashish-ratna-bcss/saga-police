@@ -2,12 +2,16 @@ const prisma = require('../../../prisma/client');
 const callXApi = require('../../services/blugate/x/blugate.x.api_client');
 const callFacebookApi = require('../../services/blugate/facebook/blugate.facebook.api_client');
 const callYouTubeApi = require('../../services/blugate/youtube/blugate.youtube.api_client');
+const callTelegramApi = require('../../services/blugate/telegram/blugate.telegram.api_client');
+const {
+  listItems: listTelegramItems,
+} = require('../../services/blugate/telegram/blugate.telegram.helpers');
 const { engagementFromXMetricsBag } = require('../../utils/engagementMetrics');
 const { asJson } = require('./event.utils');
 const { recordFetch } = require('./event.service');
 const logger = require('../../utils/logger');
 
-const DEFAULT_EVENT_SCAN_PLATFORMS = ['youtube', 'x', 'facebook'];
+const DEFAULT_EVENT_SCAN_PLATFORMS = ['youtube', 'x', 'facebook', 'telegram'];
 
 const squeezeWhitespace = (text) => String(text || '').replace(/\s+/g, ' ').trim();
 
@@ -231,6 +235,16 @@ const mapBlugateTweet = (raw) => {
   const authorName = user?.core?.name || user?.legacy?.name || screenName;
   const mediaEntities = legacy.extended_entities?.media || legacy.entities?.media || [];
 
+  const pickBestVideoUrl = (variants = []) => {
+    const list = Array.isArray(variants) ? variants : [];
+    const mp4 = list
+      .filter((v) => v?.url && String(v.content_type || '').includes('mp4'))
+      .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+    if (mp4?.url) return mp4.url;
+    const hls = list.find((v) => v?.url && /mpegurl|m3u8/i.test(String(v.content_type || v.url)));
+    return hls?.url || list.find((v) => v?.url)?.url || null;
+  };
+
   return {
     id,
     text: legacy.full_text || legacy.text || '',
@@ -246,12 +260,26 @@ const mapBlugateTweet = (raw) => {
       view: tweet.views?.count != null ? Number(tweet.views.count) : undefined,
     },
     media: mediaEntities
-      .map((m) => ({
-        type: m.type || 'photo',
-        url: m.media_url_https || m.media_url || null,
-        preview: m.media_url_https || m.media_url || null,
-      }))
-      .filter((m) => m.url),
+      .map((m) => {
+        const type = m.type || 'photo';
+        const preview = m.media_url_https || m.media_url || null;
+        let url = preview;
+        if (type === 'video' || type === 'animated_gif') {
+          url =
+            pickBestVideoUrl(m.video_info?.variants) ||
+            m.video_url ||
+            m.player_stream_url ||
+            preview;
+        }
+        if (!url) return null;
+        return {
+          type,
+          url,
+          preview: preview || url,
+          ...(type === 'video' || type === 'animated_gif' ? { video_url: url } : {}),
+        };
+      })
+      .filter(Boolean),
     raw_data: tweet,
   };
 };
@@ -309,7 +337,13 @@ const mapBlugateFacebookPost = (post) => {
     text: post.message || post.text || '',
     author: authorObj?.name || post.author_name || 'Unknown',
     author_name: authorObj?.name || post.author_name || 'Unknown',
-    author_handle: authorObj?.id || authorObj?.url || '',
+    author_handle:
+      authorObj?.url ||
+      authorObj?.username ||
+      authorObj?.id ||
+      post.author_url ||
+      post.page_id ||
+      '',
     created_at: createdAt,
     timestamp: ts,
     comments_count: post.comments_count ?? 0,
@@ -324,6 +358,40 @@ const searchFacebookViaBlugate = async (query) => {
   const data = await callFacebookApi('SEARCH_POSTS', { query });
   const results = Array.isArray(data?.results) ? data.results : [];
   return results.map(mapBlugateFacebookPost).filter(Boolean);
+};
+
+/* ── Blugate Telegram search ── */
+
+const searchTelegramViaBlugate = async (query) => {
+  const q = String(query || '').trim();
+  if (!q) return [];
+  const raw = await callTelegramApi('SEARCH_MESSAGES', { q, limit: 25 });
+  return listTelegramItems(raw)
+    .map((m) => {
+      const id = m.id ?? m.message_id;
+      if (id == null) return null;
+      const channelKey =
+        m.channel_id ||
+        m.peer_id ||
+        m.author?.username ||
+        m.channel_username ||
+        m.author_handle ||
+        '';
+      return {
+        id: channelKey ? `${channelKey}_${id}` : String(id),
+        text: m.text || m.message || m.caption || '',
+        url: m.url || null,
+        created_at: m.date || m.posted_at || m.created_at || null,
+        author_name: m.author?.name || m.author_name || m.channel_title || 'Telegram',
+        author_handle: m.author?.username || m.author_handle || m.channel_username || '',
+        views: m.views ?? 0,
+        forwards: m.forwards ?? m.forwards_count ?? 0,
+        replies: m.replies_count ?? m.replies ?? 0,
+        media: Array.isArray(m.media) ? m.media : [],
+        raw_data: m,
+      };
+    })
+    .filter(Boolean);
 };
 
 /* ── Blugate YouTube search ── */
@@ -550,6 +618,55 @@ const runScanEventOnce = async (event, options = {}) => {
     } catch (error) {
       logger.error(`[EventScan] Facebook failed for ${event.name}: ${error.message}`);
       errors.push({ platform: 'facebook', message: error.message });
+    }
+  }
+
+  if (platforms.includes('telegram')) {
+    try {
+      const posts = await fetchUniqueByQueriesCounted(queries, searchTelegramViaBlugate);
+      const relevant = filterByKeywords(posts, event, (p) => p?.text || '');
+      scanned += relevant.length;
+      track('telegram', { scanned: relevant.length });
+      let tgIn = 0;
+      for (const p of relevant) {
+        const pid = p.id;
+        if (!pid) continue;
+        const handle = String(p.author_handle || '').replace(/^@/, '');
+        const url =
+          p.url ||
+          (handle && !/\s/.test(handle) ? `https://t.me/${handle}` : null);
+        const { isNew } = await upsertMedia({
+          eventId: event.id,
+          platform: 'telegram',
+          externalId: String(pid),
+          payload: {
+            url,
+            text: p.text || '',
+            author_name: p.author_name || 'Telegram',
+            author_handle: handle || '',
+            posted_at: p.created_at
+              ? new Date(
+                  typeof p.created_at === 'number' && p.created_at < 1e12
+                    ? p.created_at * 1000
+                    : p.created_at
+                )
+              : new Date(),
+            engagement: {
+              views: p.views ?? 0,
+              shares: p.forwards ?? 0,
+              comments: p.replies ?? 0,
+            },
+            media: normalizeFbMedia(p.media),
+            raw_data: p.raw_data || p,
+          },
+        });
+        if (isNew) tgIn += 1;
+      }
+      ingested += tgIn;
+      track('telegram', { ingested: tgIn });
+    } catch (error) {
+      logger.error(`[EventScan] Telegram failed for ${event.name}: ${error.message}`);
+      errors.push({ platform: 'telegram', message: error.message });
     }
   }
 

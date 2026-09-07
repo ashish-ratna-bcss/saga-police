@@ -198,6 +198,17 @@ const PLATFORM_DEFS = [
       { key: 'username', label: 'Username', type: 'text', required: true, placeholder: 'e.g. appolice' },
     ],
   },
+  {
+    slug: 'telegram',
+    name: 'Telegram',
+    icon: 'Telegram',
+    color: '#229ED9',
+    fields: [
+      { key: 'username', label: 'Username', type: 'text', required: false, placeholder: 'e.g. somchannel' },
+      { key: 'url', label: 't.me URL', type: 'url', required: false, placeholder: 'https://t.me/...' },
+      { key: 'channel_id', label: 'Channel ID', type: 'text', required: false, placeholder: 'numeric id' },
+    ],
+  },
 ];
 
 /**

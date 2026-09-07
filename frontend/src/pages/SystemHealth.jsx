@@ -18,12 +18,9 @@ import {
 import api from '../lib/api';
 import { Button } from '../components/ui/button';
 import { cn } from '../lib/utils';
+import { TelegramBrandLogo, XBrandLogo } from '../components/PlatformBrandIcon';
 
-const XLogo = ({ className }) => (
-  <svg viewBox="0 0 24 24" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-  </svg>
-);
+const XLogo = XBrandLogo;
 
 const statusMeta = (status) => {
   if (status === 'online' || status === 'active' || status === 'ok') {
@@ -162,7 +159,7 @@ const SystemHealth = () => {
     const items = [];
     if (healthData.postgres) items.push(healthData.postgres.status);
     const svc = healthData.services || {};
-    ['ollama', 'sentiment', 'mediaAnalyzer', 'ragApi', 'bluweb'].forEach((k) => {
+    ['ollama', 'sentiment', 'mediaAnalyzer', 'ragApi', 'bluweb', 'telegram'].forEach((k) => {
       if (svc[k]) items.push(svc[k].status);
     });
     ['instagram', 'facebook', 'x', 'youtube'].forEach((k) => {
@@ -275,7 +272,7 @@ const SystemHealth = () => {
             )}
           </Section>
 
-          <Section title="AI services" icon={Brain} count="5 services">
+          <Section title="AI services" icon={Brain} count="6 services">
             <StatusTile
               title="BCSS LLM"
               description="Local language model — risk scoring"
@@ -310,6 +307,26 @@ const SystemHealth = () => {
               status={healthData.services?.bluweb?.status}
               icon={Globe}
               latency={healthData.services?.bluweb?.latency}
+            />
+            <StatusTile
+              title="Telegram"
+              description={
+                healthData.services?.telegram?.error
+                  ? String(healthData.services.telegram.error)
+                  : healthData.services?.telegram?.connected || healthData.services?.telegram?.authorized
+                    ? 'Service up — session connected'
+                    : 'Service / session status'
+              }
+              status={healthData.services?.telegram?.status}
+              icon={TelegramBrandLogo}
+              latency={healthData.services?.telegram?.latency}
+              meta={
+                healthData.services?.telegram?.authorized
+                  ? 'Authorized'
+                  : healthData.services?.telegram?.connected
+                    ? 'Connected'
+                    : null
+              }
             />
           </Section>
 

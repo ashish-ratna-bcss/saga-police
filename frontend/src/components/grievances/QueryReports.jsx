@@ -15,6 +15,7 @@ import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { ScrollArea } from '../ui/scroll-area';
+import { TelegramBrandLogo } from '../PlatformBrandIcon';
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '../ui/select';
@@ -95,6 +96,7 @@ const platformConfig = {
     x: { label: 'X (Twitter)', icon: Twitter, color: 'sky' },
     facebook: { label: 'Facebook', icon: Facebook, color: 'blue' },
     instagram: { label: 'Instagram', icon: Instagram, color: 'pink' },
+    telegram: { label: 'Telegram', icon: TelegramBrandLogo, color: 'sky' },
     whatsapp: { label: 'WhatsApp', icon: MessageCircle, color: 'emerald' }
 };
 
@@ -689,6 +691,7 @@ export const QueryReports = ({ externalStatusFilter = 'all', onStatsUpdate }) =>
                                         <SelectItem value="x">X (Twitter)</SelectItem>
                                         <SelectItem value="facebook">Facebook</SelectItem>
                             <SelectItem value="instagram">Instagram</SelectItem>
+                                        <SelectItem value="telegram">Telegram</SelectItem>
                                         <SelectItem value="whatsapp">WhatsApp</SelectItem>
                                     </SelectContent>
                                 </Select>

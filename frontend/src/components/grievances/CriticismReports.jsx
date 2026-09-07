@@ -17,6 +17,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '../ui/select';
+import { TelegramBrandLogo } from '../PlatformBrandIcon';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -90,6 +91,7 @@ const platformConfig = {
     x: { label: 'X (Twitter)', icon: XIcon, color: 'sky' },
     facebook: { label: 'Facebook', icon: FacebookIcon, color: 'blue' },
     instagram: { label: 'Instagram', icon: FacebookIcon, color: 'pink' },
+    telegram: { label: 'Telegram', icon: TelegramBrandLogo, color: 'sky' },
     whatsapp: { label: 'WhatsApp', icon: MessageSquare, color: 'emerald' }
 };
 
@@ -1088,6 +1090,7 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
                             <SelectItem value="x">X</SelectItem>
                             <SelectItem value="facebook">Facebook</SelectItem>
                             <SelectItem value="instagram">Instagram</SelectItem>
+                            <SelectItem value="telegram">Telegram</SelectItem>
                             <SelectItem value="whatsapp">WhatsApp</SelectItem>
                         </SelectContent>
                     </Select>

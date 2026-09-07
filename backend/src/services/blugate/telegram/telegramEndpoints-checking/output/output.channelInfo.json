@@ -1,0 +1,20 @@
+{
+  "endpoint": "CHANNEL_INFO",
+  "params": {
+    "username": "telegram"
+  },
+  "status": "PASS",
+  "checkedAt": "2026-09-07T11:23:26.311Z",
+  "baseUrl": "http://172.16.172.177:8000",
+  "response": {
+    "id": "1005640892",
+    "username": "telegram",
+    "title": "Telegram News",
+    "type": "channel",
+    "description": "The official Telegram on Telegram. Much recursion. Very Telegram. Wow.",
+    "members_count": 9614814,
+    "photo_url": "http://172.16.172.177:8000/api/telegram/channels/1005640892/photo",
+    "is_public": true,
+    "url": "https://t.me/telegram"
+  }
+}

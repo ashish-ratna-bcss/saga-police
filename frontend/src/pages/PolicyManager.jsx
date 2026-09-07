@@ -239,6 +239,7 @@ const PolicyManager = () => {
                                                         <SelectItem value="youtube">YouTube</SelectItem>
                                                         <SelectItem value="facebook">Facebook</SelectItem>
                                                         <SelectItem value="instagram">Instagram</SelectItem>
+                                                        <SelectItem value="telegram">Telegram</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>

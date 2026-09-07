@@ -2,6 +2,13 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MessageCircle, Repeat, Heart, BarChart2, MoreHorizontal, Share, CheckCircle2, ThumbsUp, Eye, ExternalLink, MessageSquare, Zap, Info, X, AlertTriangle, Shield, ShieldCheck, Download, Loader2, FileText, Share2, Check, XCircle, AlertCircle, FilePlus, ChevronDown, ChevronRight, Image, Video, Pause, Play, Plus, Twitter, Instagram, Facebook, Users, Trash2, Clock, Globe, Network, UserPlus, CalendarDays, Search, Tags, MapPin, HelpCircle, Bookmark, Quote } from 'lucide-react';
+import {
+    XBrandLogo,
+    YoutubeBrandLogo,
+    FacebookBrandLogo,
+    InstagramBrandLogo,
+    TelegramBrandLogo,
+} from './PlatformBrandIcon';
 import { formatDistanceToNow, format, startOfDay, startOfWeek, endOfDay } from 'date-fns';
 
 import { ScrollArea } from './ui/scroll-area';
@@ -470,12 +477,6 @@ const isImageMediaItem = (item) => {
     return isImageType(item?.type) || isImageType(item?.media_type) || isLikelyImageUrl(url);
 };
 
-const XBrandIcon = ({ className }) => (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <path d="M18.244 2h3.308l-7.227 8.26L23 22h-6.73l-5.27-6.89L4.97 22H1.66l7.73-8.84L1 2h6.9l4.76 6.29L18.244 2zm-1.16 18h1.833L6.91 3.895H4.943L17.084 20z" />
-    </svg>
-);
-
 const normalizePlatformKey = (platform = '') => {
     const normalized = String(platform || '').toLowerCase();
     if (normalized === 'twitter') return 'x';
@@ -489,30 +490,38 @@ const PlatformLogoBadge = ({ platform = 'x', className = '' }) => {
     if (platformKey === 'instagram') {
         return (
             <div className={`${badgeBaseClass} border-[#E4405F]/70 bg-gradient-to-r from-[#E4405F] via-[#E4405F] to-[#FF69B4]`}>
-                <Instagram className="h-4 w-4" />
+                <InstagramBrandLogo className="h-4 w-4" />
             </div>
         );
     }
 
     if (platformKey === 'facebook') {
         return (
-            <div className={`${badgeBaseClass} border-[#1877F2]/70 bg-gradient-to-r from-[#1877F2] via-[#1877F2] to-[#FF69B4]`}>
-                <Facebook className="h-4 w-4" />
+            <div className={`${badgeBaseClass} border-[#1877F2]/70 bg-gradient-to-r from-[#1877F2] via-[#1877F2] to-[#54A0FF]`}>
+                <FacebookBrandLogo className="h-4 w-4" />
             </div>
         );
     }
 
     if (platformKey === 'youtube') {
         return (
-            <div className={`${badgeBaseClass} border-[#FF0000]/70 bg-gradient-to-r from-[#FF0000] via-[#FF0000] to-[#FF69B4]`}>
-                <Video className="h-4 w-4" />
+            <div className={`${badgeBaseClass} border-[#FF0000]/70 bg-gradient-to-r from-[#FF0000] via-[#FF0000] to-[#FF6B6B]`}>
+                <YoutubeBrandLogo className="h-4 w-4" />
+            </div>
+        );
+    }
+
+    if (platformKey === 'telegram') {
+        return (
+            <div className={`${badgeBaseClass} border-[#229ED9]/70 bg-gradient-to-r from-[#229ED9] via-[#229ED9] to-[#54B3E7]`}>
+                <TelegramBrandLogo className="h-4 w-4" />
             </div>
         );
     }
 
     return (
         <div className={`${badgeBaseClass} border-foreground/40 bg-gradient-to-r from-foreground via-foreground to-[#FF69B4] text-background`}>
-            <XBrandIcon className="h-4 w-4" />
+            <XBrandLogo className="h-4 w-4" />
         </div>
     );
 };

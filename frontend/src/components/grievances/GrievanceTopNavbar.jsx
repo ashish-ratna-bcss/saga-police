@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import {
-  Globe, BarChart3, Plus, Trash2, RefreshCw, Loader2, Search, X, LayoutGrid, BookUser, Instagram
+  Globe, BarChart3, Plus, Trash2, RefreshCw, Loader2, Search, X, LayoutGrid, BookUser
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -9,25 +9,24 @@ import { cn } from '../../lib/utils';
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger
 } from '../ui/tooltip';
-
-const XLogo = ({ className }) => (
-  <svg viewBox="0 0 24 24" className={className} fill="currentColor">
-    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-  </svg>
-);
-
-const FacebookLogo = ({ className }) => (
-  <svg viewBox="0 0 24 24" className={className} fill="currentColor">
-    <path d="M22 12.07C22 6.48 17.52 2 11.93 2S1.86 6.48 1.86 12.07c0 5.02 3.66 9.18 8.44 9.93v-7.02H7.9v-2.91h2.4V9.84c0-2.37 1.4-3.69 3.56-3.69 1.03 0 2.12.19 2.12.19v2.34h-1.2c-1.18 0-1.55.74-1.55 1.5v1.8h2.64l-.42 2.91h-2.22V22c4.78-.75 8.44-4.91 8.44-9.93z" />
-  </svg>
-);
+import { TelegramBrandLogo, XBrandLogo, FacebookBrandLogo, InstagramBrandLogo } from '../PlatformBrandIcon';
 
 const PLATFORMS = [
   { id: 'all', label: 'All', icon: Globe },
-  { id: 'x', label: 'X', icon: XLogo },
-  { id: 'facebook', label: 'Facebook', icon: FacebookLogo },
-  { id: 'instagram', label: 'Instagram', icon: Instagram },
+  { id: 'x', label: 'X', icon: XBrandLogo },
+  { id: 'facebook', label: 'Facebook', icon: FacebookBrandLogo },
+  { id: 'instagram', label: 'Instagram', icon: InstagramBrandLogo },
+  { id: 'telegram', label: 'Telegram', icon: TelegramBrandLogo },
 ];
+
+const platformLabel = (platform) => {
+  const p = String(platform || '').toLowerCase();
+  if (p === 'facebook') return 'Facebook';
+  if (p === 'instagram') return 'Instagram';
+  if (p === 'telegram') return 'Telegram';
+  if (p === 'x' || p === 'twitter') return 'X';
+  return p || 'Unknown';
+};
 
 const STATUS_FILTERS = [
   { id: 'total', label: 'Total', key: 'total' },
@@ -87,7 +86,9 @@ export const GrievanceTopNavbar = ({
   const fetchLabel =
     activePlatform === 'facebook' || activePlatform === 'instagram'
       ? 'Fetch posts & comments'
-      : 'Fetch mentions';
+      : activePlatform === 'telegram'
+        ? 'Fetch channel posts'
+        : 'Fetch mentions';
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -97,7 +98,7 @@ export const GrievanceTopNavbar = ({
         <div className="min-w-0 shrink-0">
           <h1 className="text-xl font-heading font-bold tracking-tight leading-none">Grievances</h1>
           <p className="text-[11px] text-muted-foreground mt-0.5 hidden sm:block">
-            Mentions on watched X &amp; Facebook accounts
+            Mentions on watched X, Facebook, Instagram &amp; Telegram accounts
           </p>
         </div>
 
@@ -181,7 +182,7 @@ export const GrievanceTopNavbar = ({
               </span>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-[220px] text-xs">
-              Official X &amp; Facebook accounts you are monitoring for grievances.
+              Official X, Facebook, Instagram &amp; Telegram accounts you are monitoring for grievances.
             </TooltipContent>
           </Tooltip>
           {typeof onManageContacts === 'function' && (
@@ -360,11 +361,7 @@ export const GrievanceTopNavbar = ({
                           {source.display_name || source.handle}
                         </p>
                         <p className="text-[10px] text-muted-foreground truncate">
-                          {source.platform === 'facebook'
-                            ? 'Facebook'
-                            : source.platform === 'instagram'
-                              ? 'Instagram'
-                              : 'X'} ·{' '}
+                          {platformLabel(source.platform)} ·{' '}
                           {source.total_grievances || 0} items
                         </p>
                       </div>

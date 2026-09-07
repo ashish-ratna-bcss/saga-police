@@ -1,0 +1,255 @@
+{
+  "endpoint": "CHANNEL_MESSAGES",
+  "params": {
+    "username": "telegram",
+    "limit": 10
+  },
+  "status": "PASS",
+  "checkedAt": "2026-09-07T11:23:26.715Z",
+  "baseUrl": "http://172.16.172.177:8000",
+  "response": {
+    "items": [
+      {
+        "id": "460",
+        "channel_id": "1005640892",
+        "text": "For all the info from today's update and a look back at 13 years of Telegram features — check out our blog:\nhttps://telegram.org/blog/welcome-messages-buttons-TG-13\n\nAugust Features\n1 • 2 • 3 • 4 • 5 • More",
+        "date": "2026-08-26T19:12:34Z",
+        "url": "https://t.me/telegram/460",
+        "views": 963452,
+        "forwards": 2031,
+        "replies_count": null,
+        "media": [
+          {
+            "type": "photo",
+            "filename": null,
+            "mime_type": "image/jpeg",
+            "file_size": 215572,
+            "url": null
+          }
+        ],
+        "author": {
+          "id": "-1001005640892",
+          "username": "telegram",
+          "name": "Telegram News"
+        }
+      },
+      {
+        "id": "459",
+        "channel_id": "1005640892",
+        "text": "Signed Gifts. You can now add your signature and a comment to gifts you buy via the gift marketplace.\n\nAugust Features\n1 • 2 • 3 • 4 • 5 • More",
+        "date": "2026-08-26T19:12:24Z",
+        "url": "https://t.me/telegram/459",
+        "views": 861555,
+        "forwards": 1617,
+        "replies_count": null,
+        "media": [
+          {
+            "type": "video",
+            "filename": "signed gifts.mp4",
+            "mime_type": "video/mp4",
+            "file_size": 5697716,
+            "url": null
+          }
+        ],
+        "author": {
+          "id": "-1001005640892",
+          "username": "telegram",
+          "name": "Telegram News"
+        }
+      },
+      {
+        "id": "458",
+        "channel_id": "1005640892",
+        "text": "Placeholders for App Updates. If a user with an outdated app encounters a new feature, they can now instantly tap to download the latest update.\n\nAugust Features\n1 • 2 • 3 • 4 • 5 • More",
+        "date": "2026-08-26T19:12:04Z",
+        "url": "https://t.me/telegram/458",
+        "views": 587962,
+        "forwards": 1608,
+        "replies_count": null,
+        "media": [
+          {
+            "type": "photo",
+            "filename": null,
+            "mime_type": "image/jpeg",
+            "file_size": 166311,
+            "url": null
+          }
+        ],
+        "author": {
+          "id": "-1001005640892",
+          "username": "telegram",
+          "name": "Telegram News"
+        }
+      },
+      {
+        "id": "457",
+        "channel_id": "1005640892",
+        "text": "Inline Documents. The rich text editor now supports inline documents, files and music anywhere in your text.\n\nAugust Features\n1 • 2 • 3 • 4 • 5 • More",
+        "date": "2026-08-26T19:11:54Z",
+        "url": "https://t.me/telegram/457",
+        "views": 559614,
+        "forwards": 1781,
+        "replies_count": null,
+        "media": [
+          {
+            "type": "photo",
+            "filename": null,
+            "mime_type": "image/jpeg",
+            "file_size": 173089,
+            "url": null
+          }
+        ],
+        "author": {
+          "id": "-1001005640892",
+          "username": "telegram",
+          "name": "Telegram News"
+        }
+      },
+      {
+        "id": "456",
+        "channel_id": "1005640892",
+        "text": "Buttons Inside Messages. Developers are now able to put multiple buttons inside a message and create custom flows.\n\nAugust Features\n1 • 2 • 3 • 4 • 5 • More",
+        "date": "2026-08-26T19:11:39Z",
+        "url": "https://t.me/telegram/456",
+        "views": 693224,
+        "forwards": 2040,
+        "replies_count": null,
+        "media": [
+          {
+            "type": "video",
+            "filename": "buttons inside messages.mp4",
+            "mime_type": "video/mp4",
+            "file_size": 3402765,
+            "url": null
+          }
+        ],
+        "author": {
+          "id": "-1001005640892",
+          "username": "telegram",
+          "name": "Telegram News"
+        }
+      },
+      {
+        "id": "455",
+        "channel_id": "1005640892",
+        "text": "Welcome Messages. Group and channel owners can now add messages that appear when a new member joins.\n\nThese messages are only visible to the person who joins the chat.\n\nAugust Features\n1 • 2 • 3 • 4 • 5 • More",
+        "date": "2026-08-26T19:11:05Z",
+        "url": "https://t.me/telegram/455",
+        "views": 712405,
+        "forwards": 2176,
+        "replies_count": null,
+        "media": [
+          {
+            "type": "video",
+            "filename": "welcome messages.mp4",
+            "mime_type": "video/mp4",
+            "file_size": 4981160,
+            "url": null
+          }
+        ],
+        "author": {
+          "id": "-1001005640892",
+          "username": "telegram",
+          "name": "Telegram News"
+        }
+      },
+      {
+        "id": "454",
+        "channel_id": "1005640892",
+        "text": "For all the details on these new features, check out our blog:\nhttps://telegram.org/blog/communities-editor-invisible-messages\n\nJuly Features\n1 • 2 • 3 • 4 • More",
+        "date": "2026-07-19T17:58:20Z",
+        "url": "https://t.me/telegram/454",
+        "views": 2287363,
+        "forwards": 26429,
+        "replies_count": null,
+        "media": [
+          {
+            "type": "photo",
+            "filename": null,
+            "mime_type": "image/jpeg",
+            "file_size": 196875,
+            "url": null
+          }
+        ],
+        "author": {
+          "id": "-1001005640892",
+          "username": "telegram",
+          "name": "Telegram News"
+        }
+      },
+      {
+        "id": "453",
+        "channel_id": "1005640892",
+        "text": "350 Million GIFs. The GIF panel now contains over 350 million GIFs in 36 languages.\n\nYour Telegram GIF searches are entirely private and do not rely on any third parties.\n\nJuly Features\n1 • 2 • 3 • 4 • More",
+        "date": "2026-07-19T17:58:17Z",
+        "url": "https://t.me/telegram/453",
+        "views": 1791243,
+        "forwards": 25513,
+        "replies_count": null,
+        "media": [
+          {
+            "type": "video",
+            "filename": "gifs_1.mp4",
+            "mime_type": "video/mp4",
+            "file_size": 6278443,
+            "url": null
+          }
+        ],
+        "author": {
+          "id": "-1001005640892",
+          "username": "telegram",
+          "name": "Telegram News"
+        }
+      },
+      {
+        "id": "452",
+        "channel_id": "1005640892",
+        "text": "Ephemeral Bot Messages. You can now send private commands to bots in group chats and receive replies that are only visible to you.\n\nJuly Features\n1 • 2 • 3 • 4 • More",
+        "date": "2026-07-19T17:57:31Z",
+        "url": "https://t.me/telegram/452",
+        "views": 1207904,
+        "forwards": 25579,
+        "replies_count": null,
+        "media": [
+          {
+            "type": "photo",
+            "filename": null,
+            "mime_type": "image/jpeg",
+            "file_size": 184352,
+            "url": null
+          }
+        ],
+        "author": {
+          "id": "-1001005640892",
+          "username": "telegram",
+          "name": "Telegram News"
+        }
+      },
+      {
+        "id": "451",
+        "channel_id": "1005640892",
+        "text": "Telegram Communities. Several groups, channels and bots can now be linked together in a single community, where members can view and join other chats instantly.\n\nJuly Features\n1 • 2 • 3 • 4 • More",
+        "date": "2026-07-19T17:57:29Z",
+        "url": "https://t.me/telegram/451",
+        "views": 1261255,
+        "forwards": 25986,
+        "replies_count": null,
+        "media": [
+          {
+            "type": "video",
+            "filename": "communities_1.mp4",
+            "mime_type": "video/mp4",
+            "file_size": 8505533,
+            "url": null
+          }
+        ],
+        "author": {
+          "id": "-1001005640892",
+          "username": "telegram",
+          "name": "Telegram News"
+        }
+      }
+    ],
+    "cursor": "eyJvZmZzZXRfaWQiOjQ1MX0="
+  }
+}

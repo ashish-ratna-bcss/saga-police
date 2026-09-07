@@ -183,6 +183,7 @@ export const PlatformSelector = ({ selected, onChange }) => {
                 <SelectItem value="facebook">Facebook</SelectItem>
                 <SelectItem value="instagram">Instagram</SelectItem>
                 <SelectItem value="youtube">YouTube</SelectItem>
+                <SelectItem value="telegram">Telegram</SelectItem>
             </SelectContent>
         </Select>
     );

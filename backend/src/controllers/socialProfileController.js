@@ -112,6 +112,10 @@ const accountInclude = {
 
 const listPlatforms = async (req, res) => {
   try {
+    try {
+      const { ensureTelegramPlatform } = require('../services/monitoringsocialmedia/telegram');
+      await ensureTelegramPlatform();
+    } catch (_) {}
     const includeInactive = req.query.all === '1' || req.query.all === 'true';
     const platforms = await prisma.platforms.findMany({
       where: includeInactive ? undefined : { is_active: true },

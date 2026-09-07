@@ -55,8 +55,8 @@ const WINDOW_OPTIONS = [
   { key: 'custom', label: 'Custom Range', shortLabel: 'Custom' }
 ];
 
-const PLATFORM_COLORS = { x: '#000000', youtube: '#FF0000', facebook: '#1877F2', instagram: '#E4405F', unknown: '#94a3b8' };
-const PLATFORM_LABELS = { x: 'X (Twitter)', youtube: 'YouTube', facebook: 'Facebook', instagram: 'Instagram', unknown: 'Other' };
+const PLATFORM_COLORS = { x: '#000000', youtube: '#FF0000', facebook: '#1877F2', instagram: '#E4405F', telegram: '#229ED9', unknown: '#94a3b8' };
+const PLATFORM_LABELS = { x: 'X (Twitter)', youtube: 'YouTube', facebook: 'Facebook', instagram: 'Instagram', telegram: 'Telegram', unknown: 'Other' };
 
 /* ═══════════════════════════════════════════════════════════════════
    FORMATTERS

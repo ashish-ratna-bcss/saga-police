@@ -44,11 +44,17 @@ const splitRange = (range) => {
 const keywordsFromSuggested = (raw) => {
   if (!raw) return [];
   if (Array.isArray(raw)) return asJson(raw, []);
+  const detectLang = (keyword) => {
+    const text = String(keyword || '');
+    if (/[\u0C00-\u0C7F]/.test(text)) return 'te';
+    if (/[\u0900-\u097F]/.test(text)) return 'hi';
+    return 'en';
+  };
   return String(raw)
     .split(/[,\n;]/)
     .map((k) => k.trim())
     .filter(Boolean)
-    .map((keyword) => ({ keyword, language: 'all' }));
+    .map((keyword) => ({ keyword, language: detectLang(keyword) }));
 };
 
 /** Build start/end for this year's monitoring window from occasion labels. */
@@ -100,8 +106,8 @@ const ensureLinkedEvent = async (occasionRow) => {
   const platforms =
     Array.isArray(occasionRow.platforms) && occasionRow.platforms.length
       ? occasionRow.platforms.map((p) => String(p).toLowerCase()).filter((p) => p && p !== 'instagram')
-      : ['x', 'facebook', 'youtube'];
-  if (!platforms.length) platforms.push('x', 'facebook', 'youtube');
+      : ['x', 'facebook', 'youtube', 'telegram'];
+  if (!platforms.length) platforms.push('x', 'facebook', 'youtube', 'telegram');
 
   if (existing) {
     return prisma.social_media_events.update({
@@ -178,8 +184,8 @@ const createOccasion = async (body) => {
   const is_recurring = Boolean(body.isRecurring ?? body.is_recurring);
   const platforms = Array.isArray(body.platforms) && body.platforms.length
     ? body.platforms.map((p) => String(p).toLowerCase()).filter((p) => p && p !== 'instagram')
-    : ['x', 'youtube', 'facebook'];
-  if (!platforms.length) platforms.push('x', 'youtube', 'facebook');
+    : ['x', 'youtube', 'facebook', 'telegram'];
+  if (!platforms.length) platforms.push('x', 'youtube', 'facebook', 'telegram');
   const max = await prisma.social_media_occasion_calendar.findFirst({
     where: { is_recurring },
     orderBy: { sl_no: 'desc' },
@@ -221,8 +227,8 @@ const updateOccasion = async (id, body) => {
   if (body.platforms != null) {
     data.platforms = Array.isArray(body.platforms) && body.platforms.length
       ? body.platforms.map((p) => String(p).toLowerCase()).filter((p) => p && p !== 'instagram')
-      : ['x', 'youtube', 'facebook'];
-    if (!data.platforms.length) data.platforms = ['x', 'youtube', 'facebook'];
+      : ['x', 'youtube', 'facebook', 'telegram'];
+    if (!data.platforms.length) data.platforms = ['x', 'youtube', 'facebook', 'telegram'];
   }
   if (body.isRecurring != null || body.is_recurring != null) {
     data.is_recurring = Boolean(body.isRecurring ?? body.is_recurring);
