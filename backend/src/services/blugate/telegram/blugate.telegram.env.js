@@ -5,10 +5,6 @@
 const getTelegramBaseUrl = () =>
   String(process.env.TELEGRAM_BASE_URL || '').trim().replace(/\/$/, '');
 
-const getTelegramTimeoutMs = () =>
-  Number(process.env.TELEGRAM_API_TIMEOUT_MS) || 60000;
-
 module.exports = {
   getTelegramBaseUrl,
-  getTelegramTimeoutMs,
 };

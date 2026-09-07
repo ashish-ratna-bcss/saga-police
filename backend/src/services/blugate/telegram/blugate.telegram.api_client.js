@@ -37,7 +37,7 @@ const callTelegramApi = async (endpointKey, payload = {}) => {
     method,
     url: requestUrl,
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    timeout: env.getTelegramTimeoutMs(),
+    timeout: 60000,
   };
 
   if (method === 'GET' || method === 'DELETE') {
