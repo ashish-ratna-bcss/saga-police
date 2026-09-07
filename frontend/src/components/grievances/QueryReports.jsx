@@ -7,7 +7,7 @@ import {
     Eye, Printer, GripHorizontal, X, Maximize2, Minimize2,
     Share2, Copy, Check, AlertCircle, Clock, Users, Tag,
     Link2, Image, FileText, MoreHorizontal, ArrowUpDown,
-    Phone, Mail, Globe, Facebook, Twitter, MessageCircle,
+    Phone, Mail, Globe, Facebook, Instagram, Twitter, MessageCircle,
     ChevronLeft, ChevronRight, Info, HelpCircle, Plus
 } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -94,6 +94,7 @@ const platformConfig = {
     all: { label: 'All Platforms', icon: Globe, color: 'slate' },
     x: { label: 'X (Twitter)', icon: Twitter, color: 'sky' },
     facebook: { label: 'Facebook', icon: Facebook, color: 'blue' },
+    instagram: { label: 'Instagram', icon: Instagram, color: 'pink' },
     whatsapp: { label: 'WhatsApp', icon: MessageCircle, color: 'emerald' }
 };
 
@@ -687,6 +688,7 @@ export const QueryReports = ({ externalStatusFilter = 'all', onStatsUpdate }) =>
                                         <SelectItem value="all">All Platforms</SelectItem>
                                         <SelectItem value="x">X (Twitter)</SelectItem>
                                         <SelectItem value="facebook">Facebook</SelectItem>
+                            <SelectItem value="instagram">Instagram</SelectItem>
                                         <SelectItem value="whatsapp">WhatsApp</SelectItem>
                                     </SelectContent>
                                 </Select>

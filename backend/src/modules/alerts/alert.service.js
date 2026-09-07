@@ -193,7 +193,7 @@ const listCatalogAlerts = async ({ query = {}, page = 1, limit = 20 } = {}) => {
     prisma.social_media_alerts.findMany({
       where,
       include: ALERT_INCLUDE,
-      orderBy: [{ posted_at: 'desc' }, { created_at: 'desc' }, { id: 'desc' }],
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       skip,
       take: limit + 1,
     }),

@@ -1,682 +1,471 @@
-const axios = require('axios');
-const Counter = require('../models/Counter');
+/**
+ * Higher-level Instagram helpers on top of blugate.instagram.api_client
+ * (same split as FB/X: blugate = HTTP, this file = normalize / product ops).
+ * No Mongo — Postgres catalog only.
+ */
+const callInstagramApi = require('./blugate/instagram/blugate.instagram.api_client');
+const { getInstagramBaseUrl, getInstagramApiKey } = require('./blugate/instagram/blugate.instagram.env');
+const { INSTAGRAM_ENDPOINTS } = require('./blugate/instagram/blugate.instagram.endpoints');
 const logger = require('../utils/logger');
 
-const INSTAGRAM_DEFAULT_HOST = 'instagram120.p.rapidapi.com';
+const callEndpoint = async (endpointKey, body) => callInstagramApi(endpointKey, body);
 
-// ─── Subscribed Key — Direct Usage (no cooldown/rotation) ──────────────────
-let totalCalls = 0;
-
-// Initialize from DB
-(async () => {
-    try {
-        const doc = await Counter.findOne({ key: 'api_calls_instagram' });
-        if (doc) totalCalls = doc.seq;
-    } catch(e) {}
-})();
-
-const _incrementCalls = () => {
-    totalCalls++;
-    Counter.findOneAndUpdate({ key: 'api_calls_instagram' }, { $inc: { seq: 1 } }, { upsert: true }).catch(()=>{});
+const extractInstagramLocation = (post) => {
+  if (!post || typeof post !== 'object') return null;
+  const candidates = [post.location, post.location_info, post.place?.location, post.place].filter(
+    (c) => c && typeof c === 'object'
+  );
+  for (const loc of candidates) {
+    const name = loc.name || loc.short_name || loc.title || null;
+    if (!name) continue;
+    const lat =
+      typeof loc.lat === 'number' ? loc.lat : typeof loc.latitude === 'number' ? loc.latitude : null;
+    const lng =
+      typeof loc.lng === 'number' ? loc.lng : typeof loc.longitude === 'number' ? loc.longitude : null;
+    return {
+      name,
+      address: loc.address || loc.street_address || null,
+      city: loc.city || loc.city_name || null,
+      country: loc.country || loc.country_name || null,
+      lat,
+      lng,
+      place_id: loc.pk ? String(loc.pk) : loc.id ? String(loc.id) : null,
+      source: 'instagram_post',
+    };
+  }
+  return null;
 };
 
-// ─── Global Rate-Limit Protection ──────────────────────────────────────────
-let igGlobalRateLimitPauseUntil = 0;
-const IG_GLOBAL_RATE_LIMIT_PAUSE_MS = Number(process.env.RAPIDAPI_IG_GLOBAL_PAUSE_MS) || 60000;
-let igLastRequestTime = 0;
-let globalRateLimitRemaining = null;
-let globalRateLimit = null;
-const IG_MIN_REQUEST_GAP_MS = Number(process.env.RAPIDAPI_IG_MIN_GAP_MS) || 500;
+const {
+  unwrapPayload,
+  pickUser,
+  listItems,
+  mapFeedItemToUpsert,
+} = require('./blugate/instagram/blugate.instagram.helpers');
 
 const getInstagramRapidApiKeys = () => {
-    const key = String(process.env.RAPIDAPI_INSTAGRAM_KEY || process.env.RAPIDAPI_INSTAGRAM_KEYS).split(',')[0].trim();
-    return key ? [key] : [];
+  const key = getInstagramApiKey();
+  return key ? [key] : [];
 };
 
 const getInstagramRapidApiHost = () => {
-    return process.env.RAPIDAPI_INSTAGRAM_HOST || INSTAGRAM_DEFAULT_HOST;
-};
-
-const isApiPrefixedInstagramHost = () => {
-    const host = String(getInstagramRapidApiHost() || '').toLowerCase();
-    return host.includes('instagram120') || host.includes('instagram-scraper');
-};
-
-const buildEndpointOrder = (legacyEndpoints, apiEndpoints) => {
-    return isApiPrefixedInstagramHost()
-        ? [...apiEndpoints, ...legacyEndpoints]
-        : [...legacyEndpoints, ...apiEndpoints];
-};
-
-// Normalize an Instagram location object (may live on the post root, in
-// `location`, `location_info`, or `place.location`) into our Content schema shape.
-const extractInstagramLocation = (post) => {
-    if (!post || typeof post !== 'object') return null;
-    const candidates = [
-        post.location,
-        post.location_info,
-        post.place?.location,
-        post.place
-    ].filter((c) => c && typeof c === 'object');
-
-    for (const loc of candidates) {
-        const name = loc.name || loc.short_name || loc.title || null;
-        if (!name) continue;
-        const lat = typeof loc.lat === 'number'
-            ? loc.lat
-            : (typeof loc.latitude === 'number' ? loc.latitude : null);
-        const lng = typeof loc.lng === 'number'
-            ? loc.lng
-            : (typeof loc.longitude === 'number' ? loc.longitude : null);
-        return {
-            name,
-            address: loc.address || loc.street_address || null,
-            city: loc.city || loc.city_name || null,
-            country: loc.country || loc.country_name || null,
-            lat,
-            lng,
-            place_id: loc.pk ? String(loc.pk) : (loc.id ? String(loc.id) : null),
-            source: 'instagram_post'
-        };
-    }
-    return null;
+  try {
+    return new URL(getInstagramBaseUrl()).host;
+  } catch (_) {
+    return 'ig-downloader-api.p.rapidapi.com';
+  }
 };
 
 const getKeyHealthStatus = () => {
-    const keys = getInstagramRapidApiKeys();
-    return keys.map((k, i) => ({
-        index: i,
-        key: k.substring(0, 8) + '...',
-        available: true,
-        failures: 0,
-        totalCalls,
-        cooldownRemaining: 0,
-        remaining: globalRateLimitRemaining,
-        limit: globalRateLimit
-    }));
+  const keys = getInstagramRapidApiKeys();
+  return keys.map((k, i) => ({
+    index: i,
+    key: `${k.substring(0, 8)}...`,
+    available: true,
+    host: getInstagramRapidApiHost(),
+  }));
 };
 
-// ─── Core POST Request (subscribed key — simple retry on errors) ────────────
-const rapidPost = async (path, data, _retryCount = 0) => {
-    const keys = getInstagramRapidApiKeys();
-    if (keys.length === 0) throw new Error('No RapidAPI Instagram keys configured');
-
-    const MAX_RETRIES = 2;
-    if (_retryCount >= MAX_RETRIES) {
-        throw new Error(`[Instagram] Request failed after ${_retryCount} retries for ${path}`);
-    }
-
-    const key = keys[0];
-    const host = getInstagramRapidApiHost();
-
-    // Global rate-limit pause check — wait it out instead of skipping
-    const now = Date.now();
-    if (now < igGlobalRateLimitPauseUntil) {
-        const waitMs = igGlobalRateLimitPauseUntil - now;
-        (() => { })(`[Instagram] ⏸️ Global rate-limit pause active — waiting ${Math.ceil(waitMs / 1000)}s before POST ${path}`);
-        await new Promise(r => setTimeout(r, waitMs));
-    }
-
-    // Per-request throttle
-    const gap = now - igLastRequestTime;
-    if (gap < IG_MIN_REQUEST_GAP_MS) {
-        await new Promise(r => setTimeout(r, IG_MIN_REQUEST_GAP_MS - gap));
-    }
-    igLastRequestTime = Date.now();
-
-    try {
-        const response = await axios.post(`https://${host}${path}`, data, {
-            params: { _ts: Date.now() },
-            headers: {
-                'x-rapidapi-key': key,
-                'x-rapidapi-host': host,
-                'Content-Type': 'application/json',
-                'Cache-Control': 'no-cache',
-                Pragma: 'no-cache'
-            },
-            timeout: 30000
-        });
-        _incrementCalls();
-        if (response.headers['x-ratelimit-requests-remaining']) {
-            globalRateLimitRemaining = parseInt(response.headers['x-ratelimit-requests-remaining'], 10);
-        }
-        if (response.headers['x-ratelimit-requests-limit']) {
-            globalRateLimit = parseInt(response.headers['x-ratelimit-requests-limit'], 10);
-        }
-        return response;
-    } catch (error) {
-        _incrementCalls();
-        const status = error.response?.status;
-        const msg = String(error.response?.data?.message || error.response?.data?.error || error.message || '').toLowerCase();
-
-        const isServerError = status >= 500 && status < 600;
-        const isRateLimit = status === 429 || msg.includes('too many requests') || msg.includes('rate limit');
-
-        if (isServerError || isRateLimit) {
-            const waitMs = isRateLimit ? 3000 : 2000;
-            logger.warn(`[Instagram] ${isRateLimit ? '429 rate-limit' : `${status} server error`} on POST ${path} — retry ${_retryCount + 1}/${MAX_RETRIES}`);
-            await new Promise(r => setTimeout(r, waitMs));
-            if (isRateLimit && _retryCount + 1 >= MAX_RETRIES) {
-                // All retries exhausted on 429 — activate global pause
-                igGlobalRateLimitPauseUntil = Date.now() + IG_GLOBAL_RATE_LIMIT_PAUSE_MS;
-                logger.warn(`[Instagram] 🛑 429 exhausted all retries on POST ${path} — global pause ${IG_GLOBAL_RATE_LIMIT_PAUSE_MS / 1000}s`);
-                const err = new Error(`[Instagram] Rate limit exhausted on POST ${path}`);
-                err.isRateLimit = true;
-                throw err;
-            }
-            return rapidPost(path, data, _retryCount + 1);
-        }
-
-        if (status === 404) throw error;
-
-        (() => { })(`[Instagram] POST ${path}: ${status} — ${error.response?.data?.message || error.message}`);
-        throw error;
-    }
-};
-
-// ─── Core GET Request (subscribed key — simple retry on errors) ─────────────
-const rapidGet = async (path, params = {}, _retryCount = 0) => {
-    const keys = getInstagramRapidApiKeys();
-    if (keys.length === 0) throw new Error('No RapidAPI Instagram keys configured');
-
-    const MAX_RETRIES = 2;
-    if (_retryCount >= MAX_RETRIES) {
-        throw new Error(`[Instagram] GET request failed after ${_retryCount} retries for ${path}`);
-    }
-
-    const key = keys[0];
-    const host = getInstagramRapidApiHost();
-
-    // Global rate-limit pause check — wait it out instead of skipping
-    const now = Date.now();
-    if (now < igGlobalRateLimitPauseUntil) {
-        const waitMs = igGlobalRateLimitPauseUntil - now;
-        (() => { })(`[Instagram] ⏸️ Global rate-limit pause active — waiting ${Math.ceil(waitMs / 1000)}s before GET ${path}`);
-        await new Promise(r => setTimeout(r, waitMs));
-    }
-
-    // Per-request throttle
-    const gap = now - igLastRequestTime;
-    if (gap < IG_MIN_REQUEST_GAP_MS) {
-        await new Promise(r => setTimeout(r, IG_MIN_REQUEST_GAP_MS - gap));
-    }
-    igLastRequestTime = Date.now();
-
-    try {
-        const response = await axios.get(`https://${host}${path}`, {
-            params: { ...(params || {}), _ts: Date.now() },
-            headers: {
-                'x-rapidapi-key': key,
-                'x-rapidapi-host': host,
-                'Cache-Control': 'no-cache',
-                Pragma: 'no-cache'
-            },
-            timeout: 30000
-        });
-        _incrementCalls();
-        return response;
-    } catch (error) {
-        _incrementCalls();
-        const status = error.response?.status;
-        const msg = String(error.response?.data?.message || error.response?.data?.error || error.message || '').toLowerCase();
-
-        const isServerError = status >= 500 && status < 600;
-        const isRateLimit = status === 429 || msg.includes('too many requests') || msg.includes('rate limit');
-
-        if (isServerError || isRateLimit) {
-            const waitMs = isRateLimit ? 3000 : 2000;
-            logger.warn(`[Instagram] ${isRateLimit ? '429 rate-limit' : `${status} server error`} on GET ${path} — retry ${_retryCount + 1}/${MAX_RETRIES}`);
-            await new Promise(r => setTimeout(r, waitMs));
-            if (isRateLimit && _retryCount + 1 >= MAX_RETRIES) {
-                igGlobalRateLimitPauseUntil = Date.now() + IG_GLOBAL_RATE_LIMIT_PAUSE_MS;
-                logger.warn(`[Instagram] 🛑 429 exhausted all retries on GET ${path} — global pause ${IG_GLOBAL_RATE_LIMIT_PAUSE_MS / 1000}s`);
-                const err = new Error(`[Instagram] Rate limit exhausted on GET ${path}`);
-                err.isRateLimit = true;
-                throw err;
-            }
-            return rapidGet(path, params, _retryCount + 1);
-        }
-
-        if (status === 404) throw error;
-        throw error;
-    }
-};
-
-// ─── Public API Methods ────────────────────────────────────────────────────
-
-/**
- * Fetch latest posts for a given username.
- * Includes fallback: if POST /api/instagram/posts fails, tries alternative endpoints.
- */
-const fetchUserPosts = async (username, maxId = "") => {
-    const legacyEndpoints = [
-        { method: 'POST', path: '/posts', data: { username, maxId } },
-        { method: 'GET', path: '/posts', data: { username, maxId } }
-    ];
-    const apiEndpoints = [
-        { method: 'POST', path: '/api/instagram/posts', data: { username, maxId } },
-        { method: 'POST', path: '/api/instagram/user/posts', data: { username, maxId } },
-        { method: 'POST', path: '/api/instagram/media', data: { username } }
-    ];
-    const endpoints = buildEndpointOrder(legacyEndpoints, apiEndpoints);
-    let lastRateLimitError = null;
-
-    for (const ep of endpoints) {
-        try {
-            (() => { })(`[Instagram] Fetching posts for ${username} via ${ep.method} ${ep.path}`);
-            const response = ep.method === 'POST'
-                ? await rapidPost(ep.path, ep.data)
-                : await rapidGet(ep.path, ep.data);
-
-            if (response?.data) {
-                (() => { })(`[Instagram] ✅ Posts fetched for ${username} via ${ep.path}`);
-                return response.data;
-            }
-        } catch (error) {
-            if (error.isRateLimit) {
-                lastRateLimitError = error;
-                logger.warn(`[Instagram] ⚠️ Rate-limited on ${ep.path} for ${username} — trying next endpoint (global pause will auto-wait)`);
-                // Don't bail yet — a later endpoint may still succeed; the next
-                // rapidPost/rapidGet waits out the global pause on its own.
-            } else {
-                (() => { })(`[Instagram] ⚠️ ${ep.path} failed for ${username}: ${error.message}`);
-            }
-            // Continue to next endpoint
-        }
-    }
-
-    // Every endpoint failed AND at least one was rate limited: this is a rate
-    // limit, not "account has no posts" and not a generic API error. Surface it
-    // so the caller classifies RATE_LIMIT and the platform breaker can arm.
-    if (lastRateLimitError) {
-        logger.warn(`[Instagram] 🛑 All endpoints rate-limited for posts of ${username} — propagating rate limit`);
-        throw lastRateLimitError;
-    }
-
-    logger.warn(`[Instagram] ❌ All endpoints failed for posts of ${username}`);
-    return null;
-};
-
-/**
- * Fetch profile information for a given username.
- * Multiple endpoint fallbacks.
- */
 const fetchUserProfile = async (username) => {
-    const legacyEndpoints = [
-        { method: 'POST', path: '/userInfo', data: { username } },
-        { method: 'GET', path: '/userInfo', data: { username } },
-        { method: 'POST', path: '/profile', data: { username } },
-        { method: 'GET', path: '/profile', data: { username } }
-    ];
-    const apiEndpoints = [
-        { method: 'POST', path: '/api/instagram/userInfo', data: { username } },
-        { method: 'POST', path: '/api/instagram/user/info', data: { username } },
-        { method: 'POST', path: '/api/instagram/profile', data: { username } }
-    ];
-    const endpoints = buildEndpointOrder(legacyEndpoints, apiEndpoints);
-
-    for (const ep of endpoints) {
-        try {
-            //(() => {})(`[Instagram] Fetching profile for ${username} via ${ep.method} ${ep.path}`);
-            const response = ep.method === 'POST'
-                ? await rapidPost(ep.path, ep.data)
-                : await rapidGet(ep.path, ep.data);
-
-            if (response?.data) {
-                (() => { })(`[Instagram] ✅ Profile fetched for ${username} via ${ep.path}`);
-                return response.data;
-            }
-        } catch (error) {
-            if (error.isRateLimit) {
-                (() => { })(`[Instagram] ⚠️ Rate-limited on ${ep.path} for profile ${username} — will try next endpoint`);
-            } else {
-                (() => { })(`[Instagram] ⚠️ ${ep.path} failed for ${username}: ${error.message}`);
-            }
-        }
-    }
-
-    (() => { })(`[Instagram] ❌ All endpoints failed for profile of ${username}`);
-    return null;
+  const clean = String(username || '')
+    .trim()
+    .replace(/^@/, '');
+  if (!clean) return null;
+  try {
+    return await callEndpoint('USER_INFO', { username: clean });
+  } catch (err) {
+    logger.warn(`[Instagram] userInfo failed for ${clean}: ${err.message}`);
+  }
+  try {
+    return await callEndpoint('PROFILE', { username: clean });
+  } catch (err) {
+    logger.warn(`[Instagram] profile failed for ${clean}: ${err.message}`);
+  }
+  return null;
 };
 
-/**
- * Fetch profile information for a given Instagram user id.
- * Different RapidAPI providers expose different endpoint names, so we try a few.
- */
 const fetchUserProfileById = async (userId) => {
-    const cleanUserId = String(userId || '').trim();
-    if (!cleanUserId) return null;
+  const cleanUserId = String(userId || '').trim();
+  if (!cleanUserId) return null;
+  try {
+    return await callEndpoint('USER_INFO', { userId: cleanUserId });
+  } catch (err) {
+    logger.warn(`[Instagram] userInfo by id failed: ${err.message}`);
+    return null;
+  }
+};
 
-    const endpoints = [
-        { method: 'POST', path: '/api/instagram/userInfo', data: { userId: cleanUserId } },
-        { method: 'POST', path: '/api/instagram/userInfo', data: { username: cleanUserId } },
-        { method: 'POST', path: '/userInfo', data: { user_id: cleanUserId } },
-        { method: 'POST', path: '/userInfo', data: { userId: cleanUserId } },
-        { method: 'POST', path: '/userInfo', data: { id: cleanUserId } },
-        { method: 'POST', path: '/profile', data: { user_id: cleanUserId } },
-        { method: 'POST', path: '/profile', data: { userId: cleanUserId } },
-        { method: 'POST', path: '/profile', data: { id: cleanUserId } },
-        { method: 'GET', path: '/userInfo', data: { user_id: cleanUserId } },
-        { method: 'GET', path: '/userInfo', data: { userId: cleanUserId } },
-        { method: 'GET', path: '/userInfo', data: { id: cleanUserId } },
-        { method: 'GET', path: '/profile', data: { user_id: cleanUserId } },
-        { method: 'GET', path: '/profile', data: { userId: cleanUserId } },
-        { method: 'GET', path: '/profile', data: { id: cleanUserId } },
-        { method: 'POST', path: '/api/instagram/userInfoById', data: { user_id: cleanUserId } },
-        { method: 'POST', path: '/api/instagram/user/info/by/id', data: { user_id: cleanUserId } },
-        { method: 'POST', path: '/api/instagram/user/info', data: { user_id: cleanUserId } },
-        { method: 'POST', path: '/api/instagram/profile', data: { user_id: cleanUserId } },
-        { method: 'GET', path: '/api/instagram/userInfoById', data: { user_id: cleanUserId } },
-        { method: 'GET', path: '/api/instagram/user/info/by/id', data: { user_id: cleanUserId } },
-        { method: 'GET', path: '/api/instagram/user/info', data: { user_id: cleanUserId } },
-        { method: 'GET', path: '/api/instagram/profile', data: { user_id: cleanUserId } }
-    ];
-
-    for (const ep of endpoints) {
-        try {
-            const response = ep.method === 'POST'
-                ? await rapidPost(ep.path, ep.data)
-                : await rapidGet(ep.path, ep.data);
-
-            if (!response?.data) continue;
-
-            // Quick structural check to avoid returning unrelated payloads.
-            const payload = response.data;
-            const resultArr = payload.result || payload.results;
-            const user = Array.isArray(resultArr)
-                ? (resultArr[0]?.user || resultArr[0])
-                : (payload.data || payload.user || payload);
-
-            const maybeId = String(user?.pk || user?.pk_id || user?.id || '').trim();
-            const maybeHandle = String(user?.username || '').trim();
-
-            if (maybeId || maybeHandle) {
-                return payload;
-            }
-        } catch (error) {
-            // Try next endpoint variant.
-        }
+const inferUsernameFromProfileUrl = async (profileUrl) => {
+  const url = String(profileUrl || '').trim();
+  if (!url) return null;
+  try {
+    const u = new URL(url.startsWith('http') ? url : `https://${url}`);
+    if (/instagram\.com$/i.test(u.hostname) || /\.instagram\.com$/i.test(u.hostname)) {
+      const part = u.pathname.split('/').filter(Boolean)[0];
+      if (part && !['p', 'reel', 'reels', 'stories', 'tv'].includes(part.toLowerCase())) {
+        return part.replace(/^@/, '').toLowerCase();
+      }
     }
+  } catch (_) {}
 
-    return null;
+  try {
+    const data = await callEndpoint('LINKS', { url });
+    const raw = unwrapPayload(data);
+    const candidates = [
+      raw?.username,
+      raw?.user?.username,
+      raw?.owner?.username,
+      ...(Array.isArray(raw) ? raw.map((x) => x?.username) : []),
+    ].filter(Boolean);
+    if (candidates[0]) return String(candidates[0]).replace(/^@/, '').toLowerCase();
+  } catch (_) {}
+  return null;
 };
 
-/**
- * Fetch stories for a given username.
- * Stories are ephemeral (24h) so we need to poll regularly.
- */
-const fetchUserStories = async (username) => {
-    // Disabled because the current RapidAPI Instagram provider does not expose
-    // working stories/highlights endpoints in this project integration.
-    // Username refresh remains available via POI/source identity refresh flows.
-    void username;
-    return null;
+const fetchUserPosts = async (username, maxId = '') => {
+  const clean = String(username || '')
+    .trim()
+    .replace(/^@/, '');
+  if (!clean) return null;
+  const body = { username: clean };
+  if (maxId) body.maxId = maxId;
+  return callEndpoint('POSTS', body);
 };
 
-/**
- * Fetch detailed information for a specific Instagram post/reel.
- * Multiple fallback strategies: shortcode-based, then URL-based.
- */
+const fetchUserReels = async (username, maxId = '') => {
+  const clean = String(username || '')
+    .trim()
+    .replace(/^@/, '');
+  if (!clean) return null;
+  const body = { username: clean };
+  if (maxId) body.maxId = maxId;
+  return callEndpoint('REELS', body);
+};
+
+const fetchTaggedPosts = async (username, maxId = '') => {
+  const clean = String(username || '')
+    .trim()
+    .replace(/^@/, '');
+  if (!clean) return null;
+  const body = { username: clean };
+  if (maxId) body.maxId = maxId;
+  return callEndpoint('TAGGED_POSTS', body);
+};
+
 const fetchInstagramPostDetail = async (shortcode) => {
-    const endpoints = [
-        { method: 'POST', path: '/mediaByShortcode', data: { shortcode } },
-        { method: 'GET', path: '/mediaByShortcode', data: { shortcode } },
-        { method: 'POST', path: '/reels', data: { shortcode } },
-        { method: 'GET', path: '/reels', data: { shortcode } },
-        { method: 'POST', path: '/api/instagram/postInfo', data: { shortcode } },
-        { method: 'POST', path: '/api/instagram/post/info', data: { shortcode } },
-        { method: 'POST', path: '/api/instagram/media/info', data: { shortcode } }
-    ];
+  const code = String(shortcode || '').trim();
+  if (!code) return null;
 
-    for (const ep of endpoints) {
-        try {
-            const response = ep.method === 'POST'
-                ? await rapidPost(ep.path, ep.data)
-                : await rapidGet(ep.path, ep.data);
+  let data = null;
+  try {
+    data = await callEndpoint('MEDIA_BY_SHORTCODE', { shortcode: code });
+  } catch (err) {
+    logger.warn(`[Instagram] mediaByShortcode failed: ${err.message}`);
+  }
 
-            const data = response?.data?.data || response?.data;
-            if (!data) continue;
-
-            // Normalize a single API media item into playback-ready fields
-            const collectVariantUrls = (versions) => (Array.isArray(versions) ? versions : [])
-                .map((variant) => (typeof variant === 'string' ? variant : variant?.url))
-                .filter((url) => typeof url === 'string' && url.trim());
-
-            const normApiMedia = (item) => {
-                if (!item) return null;
-                const videoVersions = [
-                    ...(Array.isArray(item.video_versions) ? item.video_versions : []),
-                    ...(Array.isArray(item.videoVersions) ? item.videoVersions : [])
-                ];
-                const videoUrls = collectVariantUrls(videoVersions);
-                const videoUrl = item.video_url || item.videoUrl || videoUrls[0] || null;
-                const imageUrl = item.image_versions2?.candidates?.[0]?.url
-                    || item.image_versions?.[0]?.url
-                    || item.thumbnail_url
-                    || item.display_url
-                    || item.preview
-                    || null;
-                const isVideo = item.media_type === 2
-                    || item.media_type === '2'
-                    || Boolean(item.is_video)
-                    || Boolean(videoUrl)
-                    || videoVersions.length > 0;
-                const url = isVideo ? (videoUrl || imageUrl) : imageUrl;
-                if (!url) return null;
-                return {
-                    url,
-                    type: isVideo ? 'video' : 'photo',
-                    video_url: isVideo ? videoUrl || undefined : undefined,
-                    preview: imageUrl || undefined,
-                    video_versions: videoVersions.length ? videoVersions : undefined
-                };
-            };
-
-            let mediaArr = [];
-            if (Array.isArray(data.carousel_media) && data.carousel_media.length) {
-                mediaArr = data.carousel_media.map(normApiMedia).filter(Boolean);
-            } else {
-                const single = normApiMedia(data);
-                if (single) mediaArr = [single];
-            }
-
-            return {
-                id: data.id || shortcode,
-                text: data.caption?.text || data.text || '',
-                author: data.user?.full_name || data.owner?.full_name || 'Instagram User',
-                author_handle: data.user?.username || data.owner?.username || 'instagram',
-                author_avatar: data.user?.profile_pic_url || data.owner?.profile_pic_url || '',
-                created_at: data.taken_at ? new Date(data.taken_at * 1000) : new Date(),
-                media: mediaArr,
-                location: extractInstagramLocation(data),
-                metrics: {
-                    likes: data.like_count || 0,
-                    comments: data.comment_count || 0,
-                    views: data.view_count || data.play_count || data.video_play_count || 0
-                }
-            };
-        } catch (error) {
-            //(() => {})(`[Instagram] ⚠️ Post detail ${ep.path} failed for ${shortcode}: ${error.message}`);
-        }
+  if (!data) {
+    try {
+      data = await callEndpoint('LINKS', { url: `https://www.instagram.com/p/${code}/` });
+    } catch (err) {
+      logger.warn(`[Instagram] links fallback failed: ${err.message}`);
+      return null;
     }
+  }
 
-    //(() => {})(`[Instagram] ❌ All endpoints failed for post detail ${shortcode}`);
-    return null;
+  if (Array.isArray(data) && data[0]?.urls) {
+    const entry = data[0];
+    const meta = entry.meta || {};
+    const media = (entry.urls || [])
+      .map((u) => {
+        const url = typeof u === 'string' ? u : u?.url;
+        if (!url) return null;
+        const ext = String(u.extension || '').toLowerCase();
+        const isVideo = ext === 'mp4' || /video|\.mp4/i.test(url);
+        return {
+          url,
+          type: isVideo ? 'video' : 'photo',
+          video_url: isVideo ? url : undefined,
+          preview: !isVideo ? url : undefined,
+          quality: u.quality || u.subName || null,
+        };
+      })
+      .filter(Boolean);
+
+    return {
+      id: meta.shortcode || code,
+      shortcode: meta.shortcode || code,
+      caption: meta.title || meta.caption || '',
+      media,
+      metrics: {
+        likes: meta.likeCount || meta.like_count || 0,
+        comments: meta.commentCount || meta.comment_count || 0,
+        views: meta.viewCount || meta.play_count || 0,
+      },
+      location: extractInstagramLocation(meta),
+      raw: entry,
+      platform: 'instagram',
+    };
+  }
+
+  const payload = unwrapPayload(data) || data;
+  const item = Array.isArray(payload) ? payload[0] : payload;
+  if (!item) return null;
+
+  const collectVariantUrls = (versions) =>
+    (Array.isArray(versions) ? versions : [])
+      .map((variant) => (typeof variant === 'string' ? variant : variant?.url))
+      .filter((url) => typeof url === 'string' && url.trim());
+
+  const normApiMedia = (mediaItem) => {
+    if (!mediaItem) return null;
+    if (Array.isArray(mediaItem.urls) && mediaItem.urls.length) {
+      const first = mediaItem.urls[0];
+      const url = typeof first === 'string' ? first : first?.url;
+      if (!url) return null;
+      const isVideo = /\.mp4|video/i.test(url) || String(first.extension || '').toLowerCase() === 'mp4';
+      return {
+        url,
+        type: isVideo ? 'video' : 'photo',
+        video_url: isVideo ? url : undefined,
+        preview: !isVideo ? url : undefined,
+      };
+    }
+    const videoVersions = [
+      ...(Array.isArray(mediaItem.video_versions) ? mediaItem.video_versions : []),
+      ...(Array.isArray(mediaItem.videoVersions) ? mediaItem.videoVersions : []),
+    ];
+    const videoUrls = collectVariantUrls(videoVersions);
+    const videoUrl =
+      mediaItem.video_url || mediaItem.videoUrl || mediaItem.video || videoUrls[0] || null;
+    const imageUrl =
+      mediaItem.image_versions2?.candidates?.[0]?.url ||
+      mediaItem.image_versions?.[0]?.url ||
+      mediaItem.thumbnail_url ||
+      mediaItem.display_url ||
+      mediaItem.preview ||
+      mediaItem.image ||
+      null;
+    const isVideo =
+      mediaItem.media_type === 2 ||
+      mediaItem.media_type === '2' ||
+      Boolean(mediaItem.is_video) ||
+      Boolean(videoUrl) ||
+      videoVersions.length > 0;
+    const url = isVideo ? videoUrl || imageUrl : imageUrl;
+    if (!url) return null;
+    return {
+      url,
+      type: isVideo ? 'video' : 'photo',
+      video_url: isVideo ? videoUrl || undefined : undefined,
+      preview: imageUrl || undefined,
+      video_versions: videoVersions.length ? videoVersions : undefined,
+    };
+  };
+
+  let mediaArr = [];
+  if (Array.isArray(item.carousel_media) && item.carousel_media.length) {
+    mediaArr = item.carousel_media.map(normApiMedia).filter(Boolean);
+  } else {
+    const single = normApiMedia(item);
+    if (single) mediaArr = [single];
+  }
+
+  return {
+    id: item.id || item.pk || code,
+    shortcode: item.code || item.shortcode || item.meta?.shortcode || code,
+    caption:
+      item.caption?.text || item.caption || item.title || item.meta?.title || item.text || '',
+    media: mediaArr,
+    metrics: {
+      likes: item.like_count || item.likes || item.meta?.likeCount || 0,
+      comments: item.comment_count || item.comments || item.meta?.commentCount || 0,
+      views: item.view_count || item.play_count || item.video_view_count || 0,
+    },
+    location: extractInstagramLocation(item),
+    raw: item,
+    platform: 'instagram',
+  };
 };
 
-/**
- * Infer a profile's canonical username from the links endpoint.
- * This helps when profile endpoints are stale right after a rename.
- */
-const inferUsernameFromProfileUrl = async (identifierOrUrl) => {
-    const raw = String(identifierOrUrl || '').trim();
-    if (!raw) return null;
-
-    const profileUrl = /^https?:\/\//i.test(raw)
-        ? raw
-        : `https://www.instagram.com/${raw.replace(/^@/, '')}/`;
-
-    const endpoints = [
-        { method: 'POST', path: '/api/instagram/links', data: { url: profileUrl } },
-        { method: 'POST', path: '/links', data: { url: profileUrl } }
-    ];
-
-    for (const ep of endpoints) {
-        try {
-            const response = ep.method === 'POST'
-                ? await rapidPost(ep.path, ep.data)
-                : await rapidGet(ep.path, ep.data);
-
-            const rows = Array.isArray(response?.data?.result)
-                ? response.data.result
-                : (Array.isArray(response?.data) ? response.data : []);
-
-            if (!rows.length) continue;
-
-            // Prefer explicit username from sourceUrl query param when present.
-            for (const row of rows) {
-                const sourceUrl = String(row?.meta?.sourceUrl || '').trim();
-                if (!sourceUrl) continue;
-                try {
-                    const u = new URL(sourceUrl);
-                    const username = String(u.searchParams.get('username') || '').trim().replace(/^@/, '').toLowerCase();
-                    if (username) return username;
-                } catch {
-                    // ignore malformed sourceUrl
-                }
-            }
-
-            // Fallback: most frequent meta.username value.
-            const counts = new Map();
-            for (const row of rows) {
-                const name = String(row?.meta?.username || '').trim().replace(/^@/, '').toLowerCase();
-                if (!name) continue;
-                counts.set(name, (counts.get(name) || 0) + 1);
-            }
-
-            let best = null;
-            let bestCount = 0;
-            for (const [name, count] of counts.entries()) {
-                if (count > bestCount) {
-                    best = name;
-                    bestCount = count;
-                }
-            }
-
-            if (best) return best;
-        } catch {
-            // Try next endpoint variant.
-        }
-    }
-
-    return null;
+const fetchMediaLinks = async (url) => {
+  const clean = String(url || '').trim();
+  if (!clean) return null;
+  return callEndpoint('LINKS', { url: clean });
 };
 
-/**
- * Search Instagram users by query.
- * Tries dedicated search endpoints, falls back to direct profile lookup.
- */
+const fetchUserStories = async (username) => {
+  const clean = String(username || '')
+    .trim()
+    .replace(/^@/, '');
+  if (!clean) return null;
+  return callEndpoint('STORIES', { username: clean });
+};
+
+const fetchStory = async (username, storyId) => {
+  const clean = String(username || '')
+    .trim()
+    .replace(/^@/, '');
+  let id = String(storyId || '').trim();
+  if (!clean) return null;
+  // If no storyId, pick the first active story for the user.
+  if (!id) {
+    const stories = await fetchUserStories(clean);
+    const list = Array.isArray(stories?.result) ? stories.result : listItems(stories);
+    id = String(list[0]?.pk || list[0]?.id || '').trim();
+    if (!id) return null;
+  }
+  return callEndpoint('STORY', { username: clean, storyId: id });
+};
+
+const fetchHighlights = async (username) => {
+  const clean = String(username || '')
+    .trim()
+    .replace(/^@/, '');
+  if (!clean) return null;
+  return callEndpoint('HIGHLIGHTS', { username: clean });
+};
+
+const fetchHighlightStories = async (highlightId) => {
+  const id = String(highlightId || '').trim();
+  if (!id) return null;
+  return callEndpoint('HIGHLIGHT_STORIES', { highlightId: id });
+};
+
+const fetchComments = async (url, maxId = '') => {
+  const clean = String(url || '').trim();
+  if (!clean) return null;
+  const body = { url: clean };
+  if (maxId) body.maxId = maxId;
+  return callEndpoint('COMMENTS', body);
+};
+
+const fetchFollowers = async (username, maxId = '') => {
+  const clean = String(username || '')
+    .trim()
+    .replace(/^@/, '');
+  if (!clean) return null;
+  const body = { username: clean };
+  if (maxId) body.maxId = maxId;
+  return callEndpoint('FOLLOWERS', body);
+};
+
+const fetchFollowings = async (username, maxId = '') => {
+  const clean = String(username || '')
+    .trim()
+    .replace(/^@/, '');
+  if (!clean) return null;
+  const body = { username: clean };
+  if (maxId) body.maxId = maxId;
+  return callEndpoint('FOLLOWINGS', body);
+};
+
 const searchUsers = async (query, limit = 1) => {
-    const cleanQuery = String(query || '').trim().replace(/^@/, '');
-    if (!cleanQuery) return [];
-
-    // instagram120 API has no search endpoint — only direct profile lookup
-    try {
-        const profileData = await fetchUserProfile(cleanQuery);
-        if (profileData) {
-            // Response may nest user data under .data, .result[0].user, .user, or at top level
-            const resultArr = profileData.result || profileData.results;
-            const raw = Array.isArray(resultArr) ? (resultArr[0]?.user || resultArr[0]) : null;
-            const user = raw || profileData.data || profileData.user || profileData;
-            if (user.username || user.full_name) {
-                (() => { })(`[Instagram] Found user profile: ${user.username}`);
-                return [{
-                    id: user.pk || user.pk_id || user.id || '',
-                    name: user.full_name || user.username || cleanQuery,
-                    screen_name: user.username || cleanQuery,
-                    description: user.biography || user.bio_text || user.bio || '',
-                    profile_image_url: user.profile_pic_url || user.profile_pic_url_hd || user.hd_profile_pic_url_info?.url || '',
-                    followers_count: user.follower_count || user.edge_followed_by?.count || 0,
-                    following_count: user.following_count || user.edge_follow?.count || 0,
-                    posts_count: user.media_count || user.edge_owner_to_timeline_media?.count || 0,
-                    verified: user.is_verified || false,
-                    platform: 'instagram'
-                }];
-            }
-        }
-    } catch (err) {
-        (() => { })(`[Instagram] Profile lookup failed for '${cleanQuery}':`, err.message);
-    }
-
+  const cleanQuery = String(query || '')
+    .trim()
+    .replace(/^@/, '');
+  if (!cleanQuery) return [];
+  try {
+    const profileData = await fetchUserProfile(cleanQuery);
+    const user = pickUser(profileData);
+    if (!user) return [];
+    return [
+      {
+        id: String(user.pk || user.id || user.userId || cleanQuery),
+        username: user.username || cleanQuery,
+        full_name: user.full_name || user.fullName || user.name || null,
+        profile_pic_url: user.profile_pic_url || user.profilePicUrl || user.avatar || null,
+        is_verified: Boolean(user.is_verified || user.isVerified),
+        platform: 'instagram',
+      },
+    ].slice(0, Math.max(1, Number(limit) || 1));
+  } catch (_) {
     return [];
+  }
 };
 
-/**
- * Search Instagram posts by keyword.
- * Tries hashtag/tag search endpoints, which is the closest to keyword search on Instagram.
- */
 const searchPosts = async (query, limit = 50) => {
-    const cleanQuery = String(query || '').trim().replace(/^#/, '');
-    const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 50);
-    if (!cleanQuery) return [];
-
-    // instagram120 API has no hashtag/search endpoint — fetch posts from the user matching the query
-    try {
-        const rawPosts = await fetchUserPosts(cleanQuery);
-        if (!rawPosts) return [];
-
-        // Response nests posts under .result.edges or .items
-        const edges = rawPosts.result?.edges || rawPosts.edges || rawPosts.items || (Array.isArray(rawPosts) ? rawPosts : []);
-        if (!Array.isArray(edges) || edges.length === 0) return [];
-
-        const normalized = edges.slice(0, safeLimit).map(p => {
-            const node = p.node || p;
-            return {
-                id: node.id || node.pk || node.code || node.shortcode || '',
-                text: node.caption?.text || node.edge_media_to_caption?.edges?.[0]?.node?.text || node.text || '',
-                author: node.user?.full_name || node.owner?.full_name || cleanQuery,
-                author_handle: node.user?.username || node.owner?.username || cleanQuery,
-                author_avatar: node.user?.profile_pic_url || node.owner?.profile_pic_url || '',
-                url: (node.shortcode || node.code)
-                    ? `https://www.instagram.com/p/${node.shortcode || node.code}/`
-                    : '',
-                created_at: node.taken_at
-                    ? new Date(node.taken_at * 1000).toISOString()
-                    : (node.taken_at_timestamp ? new Date(node.taken_at_timestamp * 1000).toISOString() : new Date().toISOString()),
-                media: node.image_versions2
-                    ? [{ url: node.image_versions2.candidates?.[0]?.url, type: 'photo' }]
-                    : (node.display_url ? [{ url: node.display_url, type: 'photo' }]
-                        : (node.thumbnail_src ? [{ url: node.thumbnail_src, type: 'photo' }] : [])),
-                metrics: {
-                    likes: node.like_count || node.edge_liked_by?.count || node.edge_media_preview_like?.count || 0,
-                    comments: node.comment_count || node.edge_media_to_comment?.count || 0,
-                    views: node.view_count || node.play_count || node.video_view_count || 0
-                },
-                platform: 'instagram'
-            };
-        }).filter(p => p.id);
-
-        if (normalized.length > 0) {
-            (() => { })(`[Instagram] Found ${normalized.length} posts for user '${cleanQuery}'`);
-        }
-        return normalized;
-    } catch (err) {
-        (() => { })(`[Instagram] Posts lookup failed for '${cleanQuery}':`, err.message);
-    }
-
+  const cleanQuery = String(query || '')
+    .trim()
+    .replace(/^@/, '');
+  if (!cleanQuery) return [];
+  try {
+    // IG Downloader has no keyword search — treat query as username and return recent posts.
+    const raw = await fetchUserPosts(cleanQuery);
+    const items = listItems(raw).slice(0, Math.max(1, Number(limit) || 50));
+    return items
+      .map((node) => {
+        const code = node.code || node.shortcode || node.id;
+        if (!code) return null;
+        const caption =
+          typeof node.caption === 'string'
+            ? node.caption
+            : node.caption?.text || node.title || '';
+        const takenAt = node.taken_at || node.taken_at_ts || node.device_timestamp;
+        const image =
+          node.image_versions2?.candidates?.[0]?.url ||
+          node.display_uri ||
+          node.thumbnail_url ||
+          null;
+        const user = node.user || node.owner || {};
+        return {
+          id: String(code),
+          shortcode: String(code),
+          caption,
+          text: caption,
+          description: caption,
+          url: `https://www.instagram.com/p/${code}/`,
+          image,
+          author: user.username || cleanQuery,
+          author_name: user.full_name || user.username || cleanQuery,
+          screen_name: user.username || cleanQuery,
+          author_handle: user.username || cleanQuery,
+          author_avatar: user.profile_pic_url || user.profile_pic_url_hd || null,
+          is_verified: Boolean(user.is_verified),
+          created_at: takenAt
+            ? new Date(Number(takenAt) > 1e12 ? Number(takenAt) : Number(takenAt) * 1000).toISOString()
+            : null,
+          metrics: {
+            likes: node.like_count || node.edge_liked_by?.count || 0,
+            comments: node.comment_count || node.edge_media_to_comment?.count || 0,
+            views: node.view_count || node.play_count || 0,
+          },
+          platform: 'instagram',
+        };
+      })
+      .filter(Boolean);
+  } catch (_) {
     return [];
+  }
 };
 
 module.exports = {
-    fetchUserPosts,
-    fetchUserStories,
-    fetchUserProfile,
-    fetchUserProfileById,
-    inferUsernameFromProfileUrl,
-    fetchInstagramPostDetail,
-    searchUsers,
-    searchPosts,
-    getKeyHealthStatus,
-    getInstagramRapidApiKeys,
-    extractInstagramLocation
+  INSTAGRAM_ENDPOINTS,
+  callEndpoint,
+  listItems,
+  pickUser,
+  unwrapPayload,
+  mapFeedItemToUpsert,
+  fetchUserPosts,
+  fetchUserReels,
+  fetchTaggedPosts,
+  fetchUserStories,
+  fetchStory,
+  fetchHighlights,
+  fetchHighlightStories,
+  fetchUserProfile,
+  fetchUserProfileById,
+  inferUsernameFromProfileUrl,
+  fetchInstagramPostDetail,
+  fetchMediaLinks,
+  fetchComments,
+  fetchFollowers,
+  fetchFollowings,
+  searchUsers,
+  searchPosts,
+  getKeyHealthStatus,
+  getInstagramRapidApiKeys,
+  getInstagramRapidApiHost,
+  getInstagramBaseUrl,
+  getInstagramApiKey,
+  extractInstagramLocation,
 };

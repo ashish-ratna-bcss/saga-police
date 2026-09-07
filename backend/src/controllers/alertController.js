@@ -408,7 +408,7 @@ const getAlerts = async (req, res) => {
     let total;
 
     const rows = await Alert.find(query)
-      .sort({ content_published_at: -1, created_at: -1, id: -1 })
+      .sort({ created_at: -1, id: -1 })
       .skip(skip)
       .limit(limitNum + 1)
       .lean();

@@ -1811,16 +1811,17 @@ export default function Alerts() {
       return 0;
     };
 
-    // Use ONLY the original platform posting date — never the ingestion /
-    // alert-creation timestamp. Items missing a real published_at fall to the
-    // bottom (return 0) instead of getting promoted by their fetch time.
+    // Newest alerts first — sort by when the alert was created/ingested.
     const getAlertTime = (item) => {
       const content = item?.content_details || item?.content_id || {};
-      const published =
+      return parseDateTime(
+        item?.created_at ||
+        item?.timestamp ||
         content?.published_at ||
         content?.dateTime ||
-        content?.timestamp;
-      return parseDateTime(published);
+        content?.timestamp ||
+        item?.posted_at
+      );
     };
 
     const mapStoryToAlert = (story, index) => mapInstagramStoryToAlert(story, index);
@@ -1879,9 +1880,7 @@ export default function Alerts() {
         .sort((a, b) => getAlertTime(b) - getAlertTime(a));
     }
 
-    // Always sort by the *original* posting date (content.published_at) in
-    // descending order so the newest real-world posts appear first, regardless
-    // of when we ingested/created the alert.
+    // Newest ingested alerts first (created_at via getAlertTime).
     const combined = [...filteredInvestigated, ...filteredRegular]
       .sort((a, b) => getAlertTime(b) - getAlertTime(a));
     return applyInstagramContentFilter(combined);

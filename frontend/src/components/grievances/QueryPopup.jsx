@@ -52,7 +52,7 @@ const buildQueryMessage = (g) => {
     const link = g.tweet_url || g.url || g.post_url || '';
     const eng = g.engagement || g.metrics || {};
     const phone = extractPhoneFromText(desc) || g.complainant_phone || 'None';
-    const platformName = (g.platform || 'x') === 'x' ? 'X (Twitter)' : g.platform === 'facebook' ? 'Facebook' : 'WhatsApp';
+    const platformName = (g.platform || 'x') === 'x' ? 'X (Twitter)' : g.platform === 'facebook' ? 'Facebook' : g.platform === 'instagram' ? 'Instagram' : 'WhatsApp';
 
     return [
         `${greeting} Sir/Ma'am,`,

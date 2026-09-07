@@ -1,0 +1,151 @@
+{
+  "endpoint": "USER_INFO",
+  "params": {
+    "username": "instagram"
+  },
+  "status": "PASS",
+  "checkedAt": "2026-09-07T07:36:56.192Z",
+  "response": {
+    "result": [
+      {
+        "user": {
+          "pk": "25025320",
+          "friendship_status": {
+            "following": true,
+            "blocking": false,
+            "is_feed_favorite": false,
+            "outgoing_request": false,
+            "followed_by": false,
+            "incoming_request": false,
+            "is_restricted": false,
+            "is_bestie": false,
+            "muting": false,
+            "is_muting_reel": false
+          },
+          "gating": null,
+          "fbid_v2": "17841400039600391",
+          "is_memorialized": false,
+          "is_private": false,
+          "has_story_archive": null,
+          "is_coppa_enforced": null,
+          "supervision_info": null,
+          "is_regulated_c18": false,
+          "regulated_news_in_locations": [],
+          "bio_links": [
+            {
+              "image_url": "",
+              "is_pinned": false,
+              "link_type": "external",
+              "lynx_url": "https://l.instagram.com/?u=https%3A%2F%2Fhelp.instagram.com%2F%3Futm_source%3Dig%26utm_medium%3Dsocial%26utm_content%3Dlink_in_bio%26fbclid%3DPAcGRvZgJleHRuA2FlbQIxMQBzcnRjBmFwcF9pZA85MzY2MTk3NDMzOTI0NTkAAaf_cgxGEc6CvTWUU1ni1fkNNO4cfBSzzHCqdb82-UYmdbvVZxYLeDYRdNMLNw_aem_SRzkd7-eL5TPMxWwcpO-nQ&e=AUDPfsJFvjiPFGAhQsUPJUZER50ykh7F0cyW-WG3ck5ZofZqMyNuf3bilC2iMlMMYsSptuu85qE4EeOp57YtCI6VXbNW3D2nful5roDAv4h6XQR5KLy6dDqlby1UESlO-Clm0EU",
+              "media_accent_color_hex": "",
+              "media_type": "none",
+              "title": "",
+              "url": "http://help.instagram.com",
+              "creation_source": "NONE"
+            },
+            {
+              "image_url": "",
+              "is_pinned": false,
+              "link_type": "external",
+              "lynx_url": "https://l.instagram.com/?u=https%3A%2F%2Fyoutu.be%2Fac_qIXO0zlY%3Ffbclid%3DPAcGRvZgJleHRuA2FlbQIxMQBzcnRjBmFwcF9pZA85MzY2MTk3NDMzOTI0NTkAAadOQhP1s9hNf_rOZR3d6emL4jOX7_8g6p6wXfYp7r3Xaff2J4zbOtt3ws4NVQ_aem_aK7KUre-T70zd5pZPUSfJQ&e=AUCCm3vichNlqRFbdQHwMsSUrKFDvn9ikjZW2DaQXaweyMZI8gHywaxWuoXLvaa1ecTMJg84w6xaW_C5f6aLFRo-HN-Poky1Oh7dfXMwQ6nyOxVL4QeSx4nDGhvfkSx1FiSp4D4",
+              "media_accent_color_hex": "",
+              "media_type": "none",
+              "title": "Carversations with Salma Hayek",
+              "url": "https://youtu.be/ac_qIXO0zlY",
+              "creation_source": "NONE"
+            }
+          ],
+          "linked_fb_info": null,
+          "meta_verified_benefits_info": {
+            "active_meta_verified_benefits": []
+          },
+          "text_post_app_badge_label": "instagram",
+          "show_text_post_app_badge": true,
+          "username": "instagram",
+          "live_broadcast_visibility": null,
+          "live_broadcast_id": null,
+          "profile_pic_url": "https://scontent-fco2-1.cdninstagram.com/v/t51.82787-19/550891366_18667771684001321_1383210656577177067_n.jpg?stp=dst-jpg_s150x150_tt6&_nc_cat=1&ccb=7-5&_nc_sid=f7ccc5&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDgwLkMzIn0%3D&_nc_ohc=20oEy57A5B0Q7kNvwGDBqEM&_nc_oc=AdozV90vveOhFgjn-3OmEuw-ygbaBdohVCykV95II3df8jkshTzspc-ei69r-jdepG0&_nc_zt=24&_nc_ht=scontent-fco2-1.cdninstagram.com&_nc_gid=5byJyRVcFTJBCAH0Mk14yw&_nc_ss=7b6a8&oh=00_AQLLO3DT2z_CPvBGLHhhBXCs76iHWzyRkLQ8794Ng1G8SQ&oe=6AA3F7E7",
+          "hd_profile_pic_url_info": {
+            "url": "https://scontent-fco2-1.cdninstagram.com/v/t51.82787-19/550891366_18667771684001321_1383210656577177067_n.jpg?_nc_cat=1&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDgwLkMzIn0%3D&_nc_ohc=20oEy57A5B0Q7kNvwGDBqEM&_nc_oc=AdozV90vveOhFgjn-3OmEuw-ygbaBdohVCykV95II3df8jkshTzspc-ei69r-jdepG0&_nc_zt=24&_nc_ht=scontent-fco2-1.cdninstagram.com&_nc_gid=5byJyRVcFTJBCAH0Mk14yw&_nc_ss=7b6a8&oh=00_AQK3C_rIcF8RcJgNgLAOXR6-FvgyvpSE9Ws8L24gPAaz-g&oe=6AA3F7E7",
+            "url_wrapped": "/api/instagram/get?__sig=Waw2q68iLiQCvoMyrvv8Fw&__expires=1788767816&uri=https%3A%2F%2Fscontent-fco2-1.cdninstagram.com%2Fv%2Ft51.82787-19%2F550891366_18667771684001321_1383210656577177067_n.jpg%3F_nc_cat%3D1%26ccb%3D7-5%26_nc_sid%3Dbf7eb4%26efg%3DeyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDgwLkMzIn0%253D%26_nc_ohc%3D20oEy57A5B0Q7kNvwGDBqEM%26_nc_oc%3DAdozV90vveOhFgjn-3OmEuw-ygbaBdohVCykV95II3df8jkshTzspc-ei69r-jdepG0%26_nc_zt%3D24%26_nc_ht%3Dscontent-fco2-1.cdninstagram.com%26_nc_gid%3D5byJyRVcFTJBCAH0Mk14yw%26_nc_ss%3D7b6a8%26oh%3D00_AQK3C_rIcF8RcJgNgLAOXR6-FvgyvpSE9Ws8L24gPAaz-g%26oe%3D6AA3F7E7&filename=550891366_18667771684001321_1383210656577177067_n.jpg"
+          },
+          "is_unpublished": false,
+          "latest_reel_media": 0,
+          "has_profile_pic": null,
+          "profile_pic_genai_tool_info": [],
+          "biography": "Discover what's new on Instagram 🔎✨",
+          "full_name": "Instagram",
+          "is_verified": true,
+          "show_account_transparency_details": true,
+          "account_type": 3,
+          "follower_count": 686442219,
+          "mutual_followers_count": 53,
+          "profile_context_links_with_user_ids": [],
+          "profile_context_facepile_users": [
+            {
+              "profile_pic_url": "https://scontent-fco2-1.cdninstagram.com/v/t51.82787-19/552683076_17846428020570878_9006656090821282466_n.jpg?stp=dst-jpg_s150x150_tt6&_nc_cat=108&ccb=7-5&_nc_sid=f7ccc5&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDgwLkMzIn0%3D&_nc_ohc=SbJa-vcBjSQQ7kNvwEt7BFs&_nc_oc=Adqngb2HIGQq_3dPPLVwTk8eN1r9ChMPnPZzob1KMy0sqeoLoJpeYXbjhhYBF20qcDc&_nc_zt=24&_nc_ht=scontent-fco2-1.cdninstagram.com&_nc_gid=5byJyRVcFTJBCAH0Mk14yw&_nc_ss=7b6a8&oh=00_AQJw6FVQkwsmyVvlv7vyU434WntanNeOfr7_BOVjaoZa_Q&oe=6AA40BF0",
+              "id": "77186890877"
+            },
+            {
+              "profile_pic_url": "https://scontent-fco2-1.cdninstagram.com/v/t51.2885-19/294842599_1237418743767373_9138099074010367910_n.jpg?stp=dst-jpg_s150x150_tt6&_nc_cat=100&ccb=7-5&_nc_sid=f7ccc5&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy44MDEuQzMifQ%3D%3D&_nc_ohc=O7Yk-_rJpUkQ7kNvwG7eM2j&_nc_oc=Adq6w3JMd8S292snTm4Cc0LhCbEJwBzo1OF70qRq4--q5hbujvLljj5i20Hx23tJDe8&_nc_zt=24&_nc_ht=scontent-fco2-1.cdninstagram.com&_nc_ss=7b6a8&oh=00_AQIUFHCCF5kx0mIaxMSQ0f2ORLgq5AT4FBr4cMSAvdxTFw&oe=6AA40BDA",
+              "id": "6735985758"
+            },
+            {
+              "profile_pic_url": "https://scontent-fco2-1.cdninstagram.com/v/t51.2885-19/58410444_353807571918196_1256264099990339584_n.jpg?stp=dst-jpg_s150x150_tt6&_nc_cat=102&ccb=7-5&_nc_sid=f7ccc5&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDgwLkMzIn0%3D&_nc_ohc=RuwQq7McGRMQ7kNvwESlB3s&_nc_oc=Adp-OBo4zbGJy18ufhz0gMOKYm8sr-G5tuDdNicSQMuJXS1nrKjiu3Qojl-vLyWjrCc&_nc_zt=24&_nc_ht=scontent-fco2-1.cdninstagram.com&_nc_ss=7b6a8&oh=00_AQKrwPBa-q9lKZDt08-4E4gr39aBdYxh5nyWH9VVdLl05g&oe=6AA405B9",
+              "id": "3656473306"
+            }
+          ],
+          "address_street": "",
+          "city_name": "",
+          "is_business": false,
+          "zip": "",
+          "biography_with_entities": {
+            "entities": []
+          },
+          "category": "",
+          "should_show_category": false,
+          "aigm_account_label_info": null,
+          "is_ring_creator": false,
+          "show_ring_award": false,
+          "ring_creator_metadata": {
+            "profile_background_color": null
+          },
+          "account_badges": [],
+          "ai_agent_type": null,
+          "external_lynx_url": "https://l.instagram.com/?u=https%3A%2F%2Fhelp.instagram.com%2F%3Futm_source%3Dig%26utm_medium%3Dsocial%26utm_content%3Dlink_in_bio%26fbclid%3DPAcGRvZgJleHRuA2FlbQIxMQBzcnRjBmFwcF9pZA85MzY2MTk3NDMzOTI0NTkAAaf_cgxGEc6CvTWUU1ni1fkNNO4cfBSzzHCqdb82-UYmdbvVZxYLeDYRdNMLNw_aem_SRzkd7-eL5TPMxWwcpO-nQ&e=AUD-mT7HEV_JZeYW0tdRdtwWeH98i8pqTwCc-UivVqahVxsf6eoe32vcG_M17w5ZznRoFyN-LOpkck7Zy6zzTQDQplDwqlkr2wzOmrkp62YhB1EnVDaPak9VhQs3sNRt1GACYLk",
+          "external_url": "http://help.instagram.com",
+          "pronouns": [],
+          "transparency_label": null,
+          "transparency_product": null,
+          "hide_creator_marketplace_badge": false,
+          "id": "25025320",
+          "has_chaining": true,
+          "remove_message_entrypoint": false,
+          "is_embeds_disabled": false,
+          "is_cannes": false,
+          "is_professional_account": null,
+          "following_count": 286,
+          "media_count": 8579,
+          "total_clips_count": 1,
+          "has_visible_media_notes": true,
+          "latest_besties_reel_media": 0,
+          "reel_media_seen_timestamp": null,
+          "profile_pic_url_wrapped": "/api/instagram/get?__sig=448Y-P39pb7jx77Y87A1Tw&__expires=1788767816&uri=https%3A%2F%2Fscontent-fco2-1.cdninstagram.com%2Fv%2Ft51.82787-19%2F550891366_18667771684001321_1383210656577177067_n.jpg%3Fstp%3Ddst-jpg_s150x150_tt6%26_nc_cat%3D1%26ccb%3D7-5%26_nc_sid%3Df7ccc5%26efg%3DeyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDgwLkMzIn0%253D%26_nc_ohc%3D20oEy57A5B0Q7kNvwGDBqEM%26_nc_oc%3DAdozV90vveOhFgjn-3OmEuw-ygbaBdohVCykV95II3df8jkshTzspc-ei69r-jdepG0%26_nc_zt%3D24%26_nc_ht%3Dscontent-fco2-1.cdninstagram.com%26_nc_gid%3D5byJyRVcFTJBCAH0Mk14yw%26_nc_ss%3D7b6a8%26oh%3D00_AQLLO3DT2z_CPvBGLHhhBXCs76iHWzyRkLQ8794Ng1G8SQ%26oe%3D6AA3F7E7&filename=550891366_18667771684001321_1383210656577177067_n.jpg"
+        },
+        "viewer": {
+          "user": {
+            "pk": "1629046689",
+            "id": "1629046689",
+            "can_see_organic_insights": true,
+            "supervision_info": {
+              "is_guardian_user": false,
+              "is_feta_guardian_user": false,
+              "guardian_hypercard_content": null,
+              "id": "XDTSupervisionInfo:1629046689"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 import { format, parse } from 'date-fns';
 import {
   CalendarDays, Loader2, Play, Download, RefreshCw, ExternalLink,
-  Youtube, Facebook, Radio, Instagram, Pause, Trash2, Plus, MapPin, Clock,
+  Youtube, Facebook, Radio, Pause, Trash2, Plus, MapPin, Clock,
   Search, ScanLine, UserPlus, Pencil, FileSpreadsheet,
   FileText, BarChart3, Activity, Zap, Timer, ChevronRight,
   ChevronDown, X, AlertTriangle, Globe, ArrowUpRight, History, Square
@@ -455,14 +455,12 @@ const PLATFORM_CONFIG = {
   x:         { label: 'X / Twitter',  icon: XLogo,     color: 'text-gray-800 dark:text-gray-200' },
   youtube:   { label: 'YouTube',       icon: Youtube,   color: 'text-red-600 dark:text-red-400' },
   facebook:  { label: 'Facebook',      icon: Facebook,  color: 'text-blue-600 dark:text-blue-400' },
-  instagram: { label: 'Instagram',     icon: Instagram, color: 'text-pink-600 dark:text-pink-400' },
 };
 
 const EVENT_PLATFORM_OPTIONS = [
   { value: 'x', label: 'X', icon: XLogo, accent: 'text-foreground' },
   { value: 'youtube', label: 'YouTube', icon: Youtube, accent: 'text-red-600' },
   { value: 'facebook', label: 'Facebook', icon: Facebook, accent: 'text-blue-600' },
-  { value: 'instagram', label: 'Instagram', icon: Instagram, accent: 'text-pink-600' },
 ];
 
 const DEFAULT_EVENT_PLATFORMS = EVENT_PLATFORM_OPTIONS.map((p) => p.value);
@@ -477,7 +475,7 @@ const EventPlatformPicker = ({ value = [], onChange }) => {
   };
 
   return (
-    <div className="grid grid-cols-4 gap-1.5">
+    <div className="grid grid-cols-3 gap-1.5">
       {EVENT_PLATFORM_OPTIONS.map(({ value: slug, label, icon: Icon, accent }) => {
         const on = selected.includes(slug);
         return (
@@ -2469,9 +2467,22 @@ const Events = () => {
                     { label: 'Content', value: dashboard?.stats?.content_total ?? contentItems.length ?? 0, icon: BarChart3, color: 'text-amber-600 dark:text-amber-400', valueClass: 'text-gray-900 dark:text-white' },
                     { label: 'Priority', value: (dashboard?.stats?.content_priority || 0) + (dashboard?.stats?.alerts_priority || 0), icon: AlertTriangle, color: 'text-red-500 dark:text-red-400', valueClass: 'text-red-600 dark:text-red-400' },
                     { label: 'Recent', value: dashboard?.stats?.content_recent_24h || 0, icon: Activity, color: 'text-amber-500 dark:text-amber-400', valueClass: 'text-gray-900 dark:text-white' },
-                    { label: 'Platforms', value: dashboard?.stats?.platforms_active || (selectedEvent.platforms || []).length, icon: Globe, color: 'text-emerald-600 dark:text-emerald-400', valueClass: 'text-gray-900 dark:text-white' },
+                    {
+                      label: 'Platforms',
+                      value:
+                        dashboard?.stats?.platforms_configured ??
+                        (Array.isArray(selectedEvent.platforms) ? selectedEvent.platforms.filter(Boolean).length : 0),
+                      icon: Globe,
+                      color: 'text-emerald-600 dark:text-emerald-400',
+                      valueClass: 'text-gray-900 dark:text-white',
+                      title: `Selected for this event${
+                        dashboard?.stats?.platforms_active != null
+                          ? ` · ${dashboard.stats.platforms_active} with content so far`
+                          : ''
+                      }`,
+                    },
                   ].map((s) => (
-                    <div key={s.label} className="flex items-center gap-1.5 whitespace-nowrap" title={s.label}>
+                    <div key={s.label} className="flex items-center gap-1.5 whitespace-nowrap" title={s.title || s.label}>
                       <s.icon className={`h-3.5 w-3.5 ${s.color}`} />
                       <span className="text-gray-400 dark:text-gray-500 uppercase tracking-wider text-[10px]">{s.label}</span>
                       <span className={`text-sm font-bold tabular-nums ${s.valueClass}`}>{s.value}</span>

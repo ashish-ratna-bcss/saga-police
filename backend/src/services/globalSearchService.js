@@ -1,8 +1,42 @@
 const rapidApiXService = require('./rapidApiXService');
 const rapidApiFacebookService = require('./rapidApiFacebookService');
-const rapidApiInstagramService = require('./rapidApiInstagramService');
+const callInstagramApi = require('./blugate/instagram/blugate.instagram.api_client');
+const {
+  listItems,
+  pickUser,
+  cleanUsername,
+  mapNodesToSearchPosts,
+  mapUserToSearchProfile,
+} = require('./blugate/instagram/blugate.instagram.helpers');
 const youtubeService = require('./youtube.service');
 const logger = require('../utils/logger');
+
+/** Blugate IG: username lookup (no keyword search on provider). */
+const searchInstagramUsers = async (query, limit = 1) => {
+  const username = cleanUsername(query);
+  if (!username) return [];
+  try {
+    const raw = await callInstagramApi('USER_INFO', { username }).catch(() =>
+      callInstagramApi('PROFILE', { username })
+    );
+    const profile = mapUserToSearchProfile(pickUser(raw), username);
+    return profile ? [profile].slice(0, Math.max(1, Number(limit) || 1)) : [];
+  } catch (_) {
+    return [];
+  }
+};
+
+/** Blugate IG: recent posts for username (provider has no keyword content search). */
+const searchInstagramPosts = async (query, limit = 50) => {
+  const username = cleanUsername(query);
+  if (!username) return [];
+  try {
+    const raw = await callInstagramApi('POSTS', { username, maxId: '' });
+    return mapNodesToSearchPosts(listItems(raw), username, limit);
+  } catch (_) {
+    return [];
+  }
+};
 
 class GlobalSearchService {
     constructor() {
@@ -82,7 +116,7 @@ class GlobalSearchService {
             Promise.resolve(this.normalizeList(xResults, 'x', 'user')),
             youtubeService.searchChannels(query, safeLimit).then(res => this.normalizeList(res, 'youtube', 'user')),
             rapidApiFacebookService.searchPages(query, { limit: safeLimit }).then(res => this.normalizeList(res, 'facebook', 'user')),
-            rapidApiInstagramService.searchUsers(query, safeLimit).then(res => this.normalizeList(res, 'instagram', 'user'))
+            searchInstagramUsers(query, safeLimit).then(res => this.normalizeList(res, 'instagram', 'user'))
         ]);
         const flatResults = results
             .filter(r => r.status === 'fulfilled')
@@ -129,7 +163,8 @@ class GlobalSearchService {
         const results = await Promise.allSettled([
             Promise.resolve(this.normalizeList(xResults, 'x', 'post')),
             youtubeService.searchVideos(query, safeLimit).then(res => this.normalizeList(res, 'youtube', 'video')),
-            rapidApiFacebookService.searchPosts(query, safeLimit).then(res => this.normalizeList(res, 'facebook', 'post'))
+            rapidApiFacebookService.searchPosts(query, safeLimit).then(res => this.normalizeList(res, 'facebook', 'post')),
+            searchInstagramPosts(query, safeLimit).then(res => this.normalizeList(res, 'instagram', 'post')),
         ]);
         const flatResults = results
             .filter(r => r.status === 'fulfilled')
@@ -155,7 +190,7 @@ class GlobalSearchService {
                 type: type,
                 platform: platform,
                 title: item.title || item.name || item.author_name || item.author || '',
-                description: item.description || item.text || item.about || '',
+                description: item.description || item.text || item.caption || item.about || '',
                 url: item.url || item.profile_url || item.post_url || '',
 
                 // Author Info

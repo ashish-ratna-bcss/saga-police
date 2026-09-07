@@ -47,6 +47,7 @@ const extractPhoneFromText = (text = '') => {
 const getReceivedModeFromPlatform = (platform = '') => {
     const normalized = String(platform || '').toLowerCase();
     if (normalized === 'facebook') return 'FB POST';
+    if (normalized === 'instagram') return 'IG POST';
     if (normalized === 'whatsapp') return 'WHATSAPP DM';
     return 'X POST';
 };
@@ -65,7 +66,7 @@ const buildGrievanceMessage = (g) => {
     const link = g.tweet_url || g.url || g.post_url || '';
     const eng = g.engagement || g.metrics || {};
     const phone = extractPhoneFromText(desc) || g.complainant_phone || 'None';
-    const platformName = (g.platform || 'x') === 'x' ? 'X (Twitter)' : g.platform === 'facebook' ? 'Facebook' : 'WhatsApp';
+    const platformName = (g.platform || 'x') === 'x' ? 'X (Twitter)' : g.platform === 'facebook' ? 'Facebook' : g.platform === 'instagram' ? 'Instagram' : 'WhatsApp';
 
     return [
         `${greeting} Sir/Ma'am,`,

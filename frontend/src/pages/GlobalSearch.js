@@ -82,7 +82,7 @@ const PLATFORMS = {
 };
 
 const PROFILE_PLATFORMS = ['x', 'youtube', 'facebook', 'instagram'];
-const CONTENT_PLATFORMS = ['x', 'youtube', 'facebook'];
+const CONTENT_PLATFORMS = ['x', 'youtube', 'facebook', 'instagram'];
 
 const formatIST = (dateStr) => {
     if (!dateStr) return '';
@@ -1173,7 +1173,7 @@ const GlobalSearch = () => {
                                     <button
                                         type="button"
                                         className={`px-3 py-2 text-xs font-medium flex items-center gap-1.5 transition-all border-l border-border ${searchType === 'content' ? 'bg-primary text-primary-foreground shadow-inner' : 'bg-card text-muted-foreground hover:bg-muted'}`}
-                                        onClick={() => { setSearchType('content'); if (platform === 'instagram') setPlatform('all'); }}
+                                        onClick={() => setSearchType('content')}
                                     >
                                         <Hash className="h-3.5 w-3.5" /> Content
                                     </button>
@@ -1199,7 +1199,7 @@ const GlobalSearch = () => {
                                     <Input
                                         placeholder={searchType === 'profiles'
                                             ? `Search users, channels, pages...`
-                                            : `Search posts, tweets by keyword...`}
+                                            : `Search posts/tweets by keyword (Instagram: username)`}
                                         className="pl-10 h-10 bg-muted/50 border-border focus:bg-card text-sm rounded-lg"
                                         value={query}
                                         onChange={(e) => setQuery(e.target.value)}

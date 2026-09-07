@@ -1,0 +1,11 @@
+{
+  "endpoint": "HIGHLIGHT_STORIES",
+  "params": {
+    "highlightId": "highlight:17936913893330057"
+  },
+  "status": "PASS",
+  "checkedAt": "2026-09-07T07:36:32.061Z",
+  "response": {
+    "result": []
+  }
+}

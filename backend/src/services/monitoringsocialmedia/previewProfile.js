@@ -1,6 +1,8 @@
 const callFacebookApi = require('../blugate/facebook/blugate.facebook.api_client');
 const callXApi = require('../blugate/x/blugate.x.api_client');
 const callYouTubeApi = require('../blugate/youtube/blugate.youtube.api_client');
+const callInstagramApi = require('../blugate/instagram/blugate.instagram.api_client');
+const { pickUser } = require('../blugate/instagram/blugate.instagram.helpers');
 const { parseChannelRef } = require('./youtube/fetch');
 
 /**
@@ -208,17 +210,75 @@ const previewProfile = async (platformSlug, data) => {
   if (slug === 'facebook') return previewFacebook(data);
   if (slug === 'x' || slug === 'twitter') return previewX(data);
   if (slug === 'youtube') return previewYouTube(data);
-  if (slug === 'instagram') {
-    const err = new Error('Instagram catalog monitoring is not enabled yet');
-    err.status = 400;
-    throw err;
-  }
+  if (slug === 'instagram') return previewInstagram(data);
 
   const err = new Error(
-    `Preview/fetch is not set up for "${slug}" yet. Supported: facebook, x, youtube`
+    `Preview/fetch is not set up for "${slug}" yet. Supported: facebook, x, youtube, instagram`
   );
   err.status = 400;
   throw err;
 };
 
-module.exports = { previewProfile, previewFacebook, previewX, previewYouTube };
+const previewInstagram = async (data = {}) => {
+  const username = String(data.username || data.handle || '')
+    .trim()
+    .replace(/^@/, '')
+    .replace(/^https?:\/\/(www\.)?instagram\.com\//i, '')
+    .split(/[/?#]/)[0];
+
+  if (!username) {
+    const err = new Error('Enter an Instagram username');
+    err.status = 400;
+    throw err;
+  }
+
+  const raw = await callInstagramApi('USER_INFO', { username }).catch(() =>
+    callInstagramApi('PROFILE', { username })
+  );
+  const user = pickUser(raw);
+  if (!user) {
+    const err = new Error(`Could not load Instagram profile for @${username}`);
+    err.status = 404;
+    throw err;
+  }
+
+  const handle = String(user.username || username).replace(/^@/, '');
+  const summary = {
+    name: user.full_name || user.fullName || user.name || handle,
+    biography: user.biography || user.bio || null,
+    image: user.profile_pic_url || user.profilePicUrl || user.avatar || null,
+    url: `https://www.instagram.com/${handle}/`,
+    username: handle,
+    user_id: user.pk || user.id || user.userId || null,
+    followers: user.follower_count ?? user.followers ?? null,
+    following: user.following_count ?? user.following ?? null,
+    posts: user.media_count ?? user.posts ?? null,
+    is_verified: Boolean(user.is_verified || user.isVerified),
+    is_private: Boolean(user.is_private || user.isPrivate),
+  };
+
+  const preview_data = {
+    fetched_at: new Date().toISOString(),
+    platform: 'instagram',
+    summary,
+    raw: user,
+  };
+
+  return {
+    platform: 'instagram',
+    preview: summary,
+    preview_data,
+    data_patch: {
+      username: handle,
+      ...(summary.user_id ? { user_id: String(summary.user_id) } : {}),
+    },
+  };
+};
+
+module.exports = {
+  previewProfile,
+  previewFacebook,
+  previewX,
+  previewYouTube,
+  previewInstagram,
+};

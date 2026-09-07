@@ -868,6 +868,17 @@ const Grievances = () => {
             };
         }
 
+        if (platform === 'instagram') {
+            const postUrl = grievance?.url || grievance?.tweet_url || grievance?.post_url || grievance?.context?.in_reply_to?.url || grievance?.context?.in_reply_to?.tweet_url;
+            if (!postUrl) return null;
+
+            return {
+                platformLabel: 'Instagram',
+                url: postUrl,
+                instruction: 'We opened the Instagram post. Please comment directly on the post and close the popup when done.'
+            };
+        }
+
         return null;
     }, [extractTwitterStatusId]);
 
@@ -876,7 +887,7 @@ const Grievances = () => {
 
         const popupConfig = buildSocialPopupConfig(grievance);
         if (!popupConfig?.url) {
-            toast.error('Reply / Comment is available only for X and Facebook posts.');
+            toast.error('Reply / Comment is available for X, Facebook, and Instagram posts.');
             return;
         }
 
@@ -910,7 +921,12 @@ const Grievances = () => {
         if (reportId) {
             try {
                 const platform = String(grievance.platform || 'x').toLowerCase();
-                const mode = platform === 'facebook' ? 'FB POST' : 'X POST';
+                const mode =
+                  platform === 'facebook'
+                    ? 'FB POST'
+                    : platform === 'instagram'
+                      ? 'IG POST'
+                      : 'X POST';
                 await api.post(`/grievance-workflow/reports/${reportId}/communication-log`, {
                     content: `Operator(${userName}) → User: ${message.trim()}`,
                     mode
@@ -979,7 +995,7 @@ const Grievances = () => {
             const rows = Array.isArray(res.data) ? res.data : [];
             setSources(rows.filter((source) => {
                 const p = String(source?.platform || '').toLowerCase();
-                return p === 'x' || p === 'facebook';
+                return p === 'x' || p === 'facebook' || p === 'instagram';
             }));
         } catch (error) {
             console.error('Failed to fetch sources', error);

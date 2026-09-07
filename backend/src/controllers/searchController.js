@@ -1,6 +1,13 @@
 const rapidApiXService = require('../services/rapidApiXService');
 const rapidApiFacebookService = require('../services/rapidApiFacebookService');
-const rapidApiInstagramService = require('../services/rapidApiInstagramService');
+const callInstagramApi = require('../services/blugate/instagram/blugate.instagram.api_client');
+const {
+  listItems,
+  pickUser,
+  cleanUsername,
+  mapNodesToSearchPosts,
+  mapUserToSearchProfile,
+} = require('../services/blugate/instagram/blugate.instagram.helpers');
 const youtubeService = require('../services/youtube.service');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const googleSearchService = require('../services/googleSearchService');
@@ -130,7 +137,19 @@ const searchProfiles = async (req, res) => {
         } else if (platform === 'facebook') {
             results = await withTimeout(rapidApiFacebookService.searchPages(query, { throwOnCooldown: true, limit: parsedLimit }), timeout, 'Facebook search');
         } else if (platform === 'instagram') {
-            results = await withTimeout(rapidApiInstagramService.searchUsers(query, parsedLimit), timeout, 'Instagram search');
+            const username = cleanUsername(query);
+            results = await withTimeout(
+                (async () => {
+                    if (!username) return [];
+                    const raw = await callInstagramApi('USER_INFO', { username }).catch(() =>
+                        callInstagramApi('PROFILE', { username })
+                    );
+                    const profile = mapUserToSearchProfile(pickUser(raw), username);
+                    return profile ? [profile].slice(0, parsedLimit) : [];
+                })(),
+                timeout,
+                'Instagram search'
+            );
         } else if (platform === 'all') {
             results = await globalSearchService.searchProfiles(query, parsedLimit);
         } else {
@@ -178,10 +197,21 @@ const searchContent = async (req, res) => {
                 timeout,
                 'Facebook search'
             );
+        } else if (platform === 'instagram') {
+            results = await withTimeout(
+                (async () => {
+                    const username = cleanUsername(query);
+                    if (!username) return [];
+                    const raw = await callInstagramApi('POSTS', { username, maxId: '' });
+                    return mapNodesToSearchPosts(listItems(raw), username, parsedLimit);
+                })(),
+                timeout,
+                'Instagram content search'
+            );
         } else if (platform === 'all') {
             results = await globalSearchService.searchContent(query, parsedLimit);
         } else {
-            return res.status(400).json({ error: 'Invalid platform. Use "x", "youtube", "facebook", or "all".' });
+            return res.status(400).json({ error: 'Invalid platform. Use "x", "youtube", "facebook", "instagram", or "all".' });
         }
 
         res.json(Array.isArray(results) ? results : []);

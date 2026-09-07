@@ -52,7 +52,7 @@ const createEvent = async (body, user) => {
       start_date: payload.start_date || null,
       end_date: payload.end_date || null,
       location: payload.location || '',
-      platforms: payload.platforms?.length ? payload.platforms : ['x', 'facebook', 'youtube', 'instagram'],
+      platforms: payload.platforms?.length ? payload.platforms : ['x', 'facebook', 'youtube'],
       keywords: payload.keywords || [],
       high_risk_threshold: payload.high_risk_threshold ?? null,
       medium_risk_threshold: payload.medium_risk_threshold ?? null,
@@ -174,7 +174,7 @@ const getDashboard = async (id) => {
 
   const byPlatformRows = await prisma.social_media_event_media.groupBy({
     by: ['platform'],
-    where: { event_id: Number(id) },
+    where: { event_id: Number(id), NOT: { platform: 'instagram' } },
     _count: { _all: true },
   });
   const content_by_platform = {};
@@ -184,14 +184,18 @@ const getDashboard = async (id) => {
     content_total += row._count._all;
   }
 
+  const hydrated = hydrateEvent(event);
   return {
-    event: hydrateEvent(event),
+    event: hydrated,
     stats: {
       content_total,
       alerts_total: 0,
       alerts_active: 0,
       alerts_priority: 0,
       content_by_platform,
+      // Platforms selected on the event (tabs always list all; this is the configured set)
+      platforms_configured: Array.isArray(hydrated.platforms) ? hydrated.platforms.filter(Boolean).length : 0,
+      // Platforms that actually have ingested media for this event
       platforms_active: Object.keys(content_by_platform).length,
     },
     recent_content: [],
@@ -207,8 +211,11 @@ const listEventContent = async (id, { page = 1, limit = 50, platform = 'all' } =
     throw err;
   }
 
-  const where = { event_id: Number(id) };
-  if (platform && platform !== 'all') where.platform = String(platform).toLowerCase();
+  const where = { event_id: Number(id), NOT: { platform: 'instagram' } };
+  if (platform && platform !== 'all') {
+    where.platform = String(platform).toLowerCase();
+    delete where.NOT;
+  }
 
   const skip = (Math.max(1, page) - 1) * Math.min(200, Math.max(1, limit));
   const take = Math.min(200, Math.max(1, limit));

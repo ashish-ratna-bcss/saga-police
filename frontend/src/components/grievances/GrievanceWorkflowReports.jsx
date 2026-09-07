@@ -7,7 +7,7 @@ import {
     Eye, Printer, GripHorizontal, X, Maximize2, Minimize2,
     Share2, Copy, Check, AlertCircle, Clock, Users, Tag,
     Link2, Image, FileText, MoreHorizontal, ArrowUpDown,
-    Phone, Mail, Globe, Facebook, Twitter, MessageCircle,
+    Phone, Mail, Globe, Facebook, Instagram, Twitter, MessageCircle,
     ChevronLeft, ChevronRight, Info, Shield, Lock, Reply,
     User, CircleDot, CircleCheck, ArrowRight, Send, Plus
 } from 'lucide-react';
@@ -173,6 +173,7 @@ const platformIcons = {
     x: Twitter,
     twitter: Twitter,
     facebook: Facebook,
+    instagram: Instagram,
     whatsapp: MessageCircle,
     default: Globe
 };
@@ -271,7 +272,7 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
     const mediaUrls = (Array.isArray(r.media_s3_urls) && r.media_s3_urls.length > 0 ? r.media_s3_urls : r.media_urls || []);
     const closingMediaUrls = (Array.isArray(r.closing_media_s3_urls) && r.closing_media_s3_urls.length > 0 ? r.closing_media_s3_urls : r.closing_media_urls || []);
     const firInfo = parseFirFields(r);
-    const platformLabel = r.platform === 'x' || r.platform === 'twitter' ? 'X (Twitter)' : r.platform === 'facebook' ? 'Facebook' : r.platform === 'whatsapp' ? 'WhatsApp' : r.platform || '—';
+    const platformLabel = r.platform === 'x' || r.platform === 'twitter' ? 'X (Twitter)' : r.platform === 'facebook' ? 'Facebook' : r.platform === 'instagram' ? 'Instagram' : r.platform === 'whatsapp' ? 'WhatsApp' : r.platform || '—';
     const PlatformIcon = platformIcons[r.platform] || platformIcons.default;
 
     /* ─── Preview media modal state ─── */
@@ -1637,6 +1638,7 @@ export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStats
                             <SelectItem value="all">All platforms</SelectItem>
                             <SelectItem value="x">X</SelectItem>
                             <SelectItem value="facebook">Facebook</SelectItem>
+                            <SelectItem value="instagram">Instagram</SelectItem>
                             <SelectItem value="whatsapp">WhatsApp</SelectItem>
                         </SelectContent>
                     </Select>

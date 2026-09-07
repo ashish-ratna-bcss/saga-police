@@ -597,7 +597,7 @@ const Dashboard = () => {
       /* ignore */
     }
 
-    const gPlatforms = platformIds.filter((p) => p !== 'youtube' && p !== 'instagram');
+    const gPlatforms = platformIds.filter((p) => p !== 'youtube');
     const grievanceDataNext = {};
     await Promise.all(
       gPlatforms.map(async (id) => {
@@ -1200,7 +1200,7 @@ const Dashboard = () => {
                         onChange={(e) => setGrievancePlatform(e.target.value)}
                         className="appearance-none bg-muted/40 text-[10px] font-semibold text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring w-28 pr-5 px-2.5 py-1.5 rounded-md border border-border"
                       >
-                        {PLATFORMS.filter(p => p.id !== 'youtube' && p.id !== 'instagram').map((p) => (
+                        {PLATFORMS.filter(p => p.id !== 'youtube').map((p) => (
                           <option key={p.id} value={p.id}>{p.label}</option>
                         ))}
                       </select>

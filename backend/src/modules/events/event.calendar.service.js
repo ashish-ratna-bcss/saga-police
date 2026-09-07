@@ -99,8 +99,9 @@ const ensureLinkedEvent = async (occasionRow) => {
   const keywords = keywordsFromSuggested(occasionRow.suggested_keywords);
   const platforms =
     Array.isArray(occasionRow.platforms) && occasionRow.platforms.length
-      ? occasionRow.platforms.map((p) => String(p).toLowerCase())
-      : ['x', 'facebook', 'youtube', 'instagram'];
+      ? occasionRow.platforms.map((p) => String(p).toLowerCase()).filter((p) => p && p !== 'instagram')
+      : ['x', 'facebook', 'youtube'];
+  if (!platforms.length) platforms.push('x', 'facebook', 'youtube');
 
   if (existing) {
     return prisma.social_media_events.update({
@@ -176,8 +177,9 @@ const createOccasion = async (body) => {
   }
   const is_recurring = Boolean(body.isRecurring ?? body.is_recurring);
   const platforms = Array.isArray(body.platforms) && body.platforms.length
-    ? body.platforms.map((p) => String(p).toLowerCase())
-    : ['x', 'youtube', 'facebook', 'instagram'];
+    ? body.platforms.map((p) => String(p).toLowerCase()).filter((p) => p && p !== 'instagram')
+    : ['x', 'youtube', 'facebook'];
+  if (!platforms.length) platforms.push('x', 'youtube', 'facebook');
   const max = await prisma.social_media_occasion_calendar.findFirst({
     where: { is_recurring },
     orderBy: { sl_no: 'desc' },
@@ -218,8 +220,9 @@ const updateOccasion = async (id, body) => {
   if (body.remarks != null) data.remarks = body.remarks;
   if (body.platforms != null) {
     data.platforms = Array.isArray(body.platforms) && body.platforms.length
-      ? body.platforms.map((p) => String(p).toLowerCase())
-      : ['x', 'youtube', 'facebook', 'instagram'];
+      ? body.platforms.map((p) => String(p).toLowerCase()).filter((p) => p && p !== 'instagram')
+      : ['x', 'youtube', 'facebook'];
+    if (!data.platforms.length) data.platforms = ['x', 'youtube', 'facebook'];
   }
   if (body.isRecurring != null || body.is_recurring != null) {
     data.is_recurring = Boolean(body.isRecurring ?? body.is_recurring);

@@ -2,13 +2,14 @@ const prisma = require('../../../prisma/client');
 const facebook = require('./facebook');
 const x = require('./x');
 const youtube = require('./youtube');
+const instagram = require('./instagram');
 
 const ADAPTERS = {
   facebook,
   x,
-  twitter: x, // alias
+  twitter: x,
   youtube,
-  // instagram intentionally omitted
+  instagram,
 };
 
 const resolveSlug = async (accountId) => {
@@ -40,17 +41,19 @@ const stopProfile = async (accountId) => {
   }
 };
 
-/** Boot all platform schedulers (Facebook, X, YouTube — not Instagram). */
+/** Boot all platform schedulers. */
 const startScheduler = () => {
   facebook.startScheduler();
   x.startScheduler();
   youtube.startScheduler();
+  instagram.startScheduler();
 };
 
 const stopScheduler = () => {
   facebook.stopScheduler();
   x.stopScheduler();
   youtube.stopScheduler();
+  instagram.stopScheduler();
 };
 
 module.exports = {

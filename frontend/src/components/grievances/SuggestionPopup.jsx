@@ -71,7 +71,7 @@ const buildSuggestionMessage = (g) => {
     const likes = fmtNum(engagement.like_count || engagement.likes || engagement.reactions || 0);
     const replies = fmtNum(engagement.reply_count || engagement.replies || engagement.comments || 0);
     const platform = g.platform || 'x';
-    const platformName = platform === 'x' ? 'X (Twitter)' : platform === 'facebook' ? 'Facebook' : 'WhatsApp';
+    const platformName = platform === 'x' ? 'X (Twitter)' : platform === 'facebook' ? 'Facebook' : platform === 'instagram' ? 'Instagram' : 'WhatsApp';
 
     const lines = [
         `${greeting} Sir/Ma'am,`,

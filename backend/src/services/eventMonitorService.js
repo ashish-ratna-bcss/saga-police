@@ -4,7 +4,6 @@ const Content = require('../models/Content');
 const youtubeService = require('./youtube.service');
 const rapidApiXService = require('./rapidApiXService');
 const rapidApiFacebookService = require('./rapidApiFacebookService');
-const rapidApiInstagramService = require('./rapidApiInstagramService');
 const { archiveTwitterMedia, archiveContentMedia } = require('./contentS3Service');
 const { scoreContentDoc } = require('../utils/relevanceScorer');
 const { classifyOneAsync } = require('./llmRelevanceSweeper');
@@ -13,6 +12,7 @@ const {
   buildEngagement
 } = require('../utils/engagementMetrics');
 const logger = require('../utils/logger');
+
 
 const normalizeText = (text) => String(text || '').toLowerCase();
 const squeezeWhitespace = (text) => String(text || '').replace(/\s+/g, ' ').trim();
@@ -288,7 +288,7 @@ const scanEventOnce = async ({ event, settings }) => {
     }
   };
 
-  const platforms = event.platforms && event.platforms.length > 0 ? event.platforms : ['youtube', 'x', 'facebook', 'instagram'];
+  const platforms = event.platforms && event.platforms.length > 0 ? event.platforms.filter((p) => p !== 'instagram') : ['youtube', 'x', 'facebook'];
 
   // X / Twitter
   if (platforms.includes('x')) {
@@ -484,67 +484,6 @@ const scanEventOnce = async ({ event, settings }) => {
     } catch (error) {
       logger.error(`[EventMonitor] Error monitoring Facebook for event ${event.name}: ${error.message}`);
       errors.push({ platform: 'facebook', message: error.message });
-    }
-  }
-
-  // Instagram
-  if (platforms.includes('instagram')) {
-    try {
-      const posts = await fetchUniqueByQueries(queries, (q) => rapidApiInstagramService.searchPosts(q));
-      const relevantPosts = filterPostsByEventRelevance(posts, event, (p) => p?.text || '');
-      scanned += relevantPosts.length;
-      trackPlatform('instagram', { scanned: relevantPosts.length });
-      const igIngestedBefore = ingested;
-
-      for (const p of relevantPosts) {
-        const { content, isNew } = await upsertEventContent({
-          eventId: event.id,
-          platform: 'instagram',
-          contentId: p.id,
-          payload: {
-            source_id: null,
-            content_url: p.url,
-            text: p.text || '',
-            author: p.author || 'Unknown',
-            author_handle: p.author_handle || 'unknown',
-            published_at: p.created_at ? new Date(p.created_at) : new Date(),
-            engagement: buildEngagement({
-              views: p.metrics?.views,
-              likes: p.metrics?.likes,
-              comments: p.metrics?.comments,
-              shares: p.metrics?.shares,
-              saves: p.metrics?.saves
-            }),
-            media: p.media || []
-          }
-        });
-
-        if (!content) continue; // prefiltered as off-topic (Telangana relevance gate)
-        if (isNew) ingested++;
-
-        // Trigger S3 Archiving for Instagram
-        if (content.media && content.media.length > 0) {
-          try {
-            const archivedMedia = await archiveContentMedia(content.media, content.content_id, {
-              folder: 'instagram-content',
-              useUniqueFileName: true,
-              postUrl: content.content_url
-            });
-            if (archivedMedia && archivedMedia.length > 0) {
-              await Content.findByIdAndUpdate(content._id, {
-                media: archivedMedia,
-                is_media_archived: true
-              });
-            }
-          } catch (err) {
-            logger.error(`[EventMonitor] S3 Archive failed for Instagram ${content.content_id}:`, err.message);
-          }
-        }
-      }
-      trackPlatform('instagram', { ingested: ingested - igIngestedBefore });
-    } catch (error) {
-      logger.error(`[EventMonitor] Error monitoring Instagram for event ${event.name}: ${error.message}`);
-      errors.push({ platform: 'instagram', message: error.message });
     }
   }
 

@@ -89,6 +89,7 @@ const platformConfig = {
     all: { label: 'All Platforms', icon: Globe, color: 'slate' },
     x: { label: 'X (Twitter)', icon: XIcon, color: 'sky' },
     facebook: { label: 'Facebook', icon: FacebookIcon, color: 'blue' },
+    instagram: { label: 'Instagram', icon: FacebookIcon, color: 'pink' },
     whatsapp: { label: 'WhatsApp', icon: MessageSquare, color: 'emerald' }
 };
 
@@ -1086,6 +1087,7 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
                             <SelectItem value="all">All platforms</SelectItem>
                             <SelectItem value="x">X</SelectItem>
                             <SelectItem value="facebook">Facebook</SelectItem>
+                            <SelectItem value="instagram">Instagram</SelectItem>
                             <SelectItem value="whatsapp">WhatsApp</SelectItem>
                         </SelectContent>
                     </Select>

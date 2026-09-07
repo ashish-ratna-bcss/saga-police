@@ -70,7 +70,9 @@ const normalizeEventPayload = (body = {}) => {
   if (keywords.length > 0) payload.keywords = keywords;
 
   if (Array.isArray(payload.platforms)) {
-    payload.platforms = payload.platforms.map((p) => String(p).toLowerCase()).filter(Boolean);
+    payload.platforms = payload.platforms
+      .map((p) => String(p).toLowerCase())
+      .filter((p) => p && p !== 'instagram');
   }
 
   if (payload.polling_interval_minutes != null) {
@@ -96,7 +98,9 @@ const hydrateEvent = (row) => {
     start_date: row.start_date,
     end_date: row.end_date,
     location: row.location || '',
-    platforms: row.platforms || [],
+    platforms: (Array.isArray(row.platforms) ? row.platforms : [])
+      .map((p) => String(p).toLowerCase())
+      .filter((p) => p && p !== 'instagram'),
     keywords: asJson(row.keywords, []),
     high_risk_threshold: row.high_risk_threshold,
     medium_risk_threshold: row.medium_risk_threshold,
@@ -136,8 +140,9 @@ const hydrateEventMedia = (row) => {
 const hydrateOccasion = (row) => {
   if (!row) return null;
   const platforms = Array.isArray(row.platforms) && row.platforms.length
-    ? row.platforms
-    : ['x', 'youtube', 'facebook', 'instagram'];
+    ? row.platforms.map((p) => String(p).toLowerCase()).filter((p) => p && p !== 'instagram')
+    : ['x', 'youtube', 'facebook'];
+  if (!platforms.length) platforms.push('x', 'youtube', 'facebook');
   return serialize({
     id: String(row.id),
     slNo: row.sl_no,

@@ -90,9 +90,9 @@ const events = {
         {
           type: 'callout',
           tone: 'info',
-          title: 'All three platforms are always searched',
+          title: 'Platforms for events',
           text:
-            'There is no platform selector on this form. Every event searches X, YouTube and Facebook. You filter by platform afterwards, using the tabs on the event. Instagram is not supported for events — it has no keyword or hashtag search.',
+            'X, YouTube and Facebook can be selected for event monitoring.',
         },
         {
           type: 'callout',

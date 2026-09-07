@@ -967,6 +967,108 @@ const FacebookLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
     );
 };
 
+/* Instagram uses the same post/comment structure as Facebook (parent + body). */
+const InstagramLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState = {}, isActioned }) => {
+    const user = grievance.posted_by || {};
+    const text = decodeHtmlEntities(grievance.content?.full_text || grievance.content?.text || grievance.text || '');
+    const media = grievance.content?.media || [];
+    const engagement = grievance.engagement || {};
+    const totalLikes = engagement.likes || 0;
+    const openDetails = () => onAction?.('view', { grievance });
+    const ctx = grievance.context || {};
+    const parentPost = ctx.in_reply_to;
+    const hasParentPost = hasThreadReference(parentPost);
+
+    return (
+        <div>
+            {hasParentPost && (
+                <ParentFacebookPost
+                    context={parentPost}
+                    getProxiedMediaUrl={getProxiedMediaUrl}
+                    onAction={onAction}
+                    grievance={grievance}
+                />
+            )}
+
+            <div className={cn(hasParentPost ? 'pl-4' : '')}>
+                <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <Avatar className="h-10 w-10 ring-1 ring-pink-200 shrink-0">
+                            <AvatarImage src={user.profile_image_url} />
+                            <AvatarFallback className="text-sm bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 text-white">
+                                {(user.display_name || user.handle || '?')[0]?.toUpperCase()}
+                            </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="font-semibold text-[15px] text-[#050505] truncate">
+                                    {user.display_name || user.handle}
+                                </span>
+                                {user.handle && (
+                                    <span className="text-[13px] text-[#65676b] truncate">@{String(user.handle).replace(/^@/, '')}</span>
+                                )}
+                                {user.is_verified && <BadgeCheck className="h-4 w-4 text-pink-500 shrink-0" />}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[13px] text-[#65676b]">
+                                <span className="whitespace-nowrap">{timeAgo(grievance.post_date || grievance.posted_at)}</span>
+                                <span>·</span>
+                                <span className="text-pink-600 font-medium">Instagram</span>
+                            </div>
+                            <WorkflowMeta grievance={grievance} onAction={onAction} />
+                        </div>
+                    </div>
+                    <ActionButtons grievance={grievance} onAction={onAction} isDownloading={!!downloadState?.downloading} />
+                </div>
+                {text && (
+                    <div className="mt-3 text-[15px] text-[#050505] leading-5 whitespace-pre-wrap break-words">
+                        {highlightMentions(text)}
+                    </div>
+                )}
+                {media.length > 0 && (
+                    <div className="mt-3 -mx-4">
+                        <FacebookMediaGrid media={media} getProxiedMediaUrl={getProxiedMediaUrl} />
+                    </div>
+                )}
+                {(totalLikes > 0 || (engagement.replies || 0) > 0) && (
+                    <div className="flex items-center justify-between px-1 py-2.5 border-b border-[#ced0d4]">
+                        <div className="flex items-center gap-1">
+                            {totalLikes > 0 && (
+                                <>
+                                    <Heart className="h-4 w-4 text-pink-500 fill-pink-500" />
+                                    <span className="text-[15px] text-[#65676b]">{formatCount(totalLikes)}</span>
+                                </>
+                            )}
+                        </div>
+                        {(engagement.replies || 0) > 0 && (
+                            <span className="text-[15px] text-[#65676b]">{formatCount(engagement.replies)} comments</span>
+                        )}
+                    </div>
+                )}
+                <div className="flex items-center justify-around pt-1">
+                    {[
+                        { icon: Heart, label: 'Like' },
+                        { icon: MessageCircle, label: 'Comment' },
+                    ].map(({ icon: Icon, label }) => (
+                        <button
+                            type="button"
+                            key={label}
+                            onClick={label === 'Comment' ? () => onAction?.('reply_comment', { grievance }) : openDetails}
+                            data-comment-btn={label === 'Comment' ? 'true' : undefined}
+                            className={cn(
+                                'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg hover:bg-pink-50 transition-all duration-150 active:scale-[0.98] text-[#65676b]',
+                                label === 'Comment' && isActioned && 'animate-comment-btn-blink'
+                            )}
+                        >
+                            <Icon className="h-5 w-5" />
+                            <span className="text-[15px] font-semibold">{label}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*                   WHATSAPP LAYOUT                       */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -1036,6 +1138,7 @@ export const GrievanceCard = ({ grievance, onAction, getProxiedMediaUrl, downloa
     const platform = (grievance.platform || 'x').toLowerCase();
     const isX = platform === 'x' || platform === 'twitter';
     const isFB = platform === 'facebook';
+    const isIG = platform === 'instagram';
     const isWA = platform === 'whatsapp';
     const isDownloading = !!downloadState?.downloading;
     const downloadProgress = Math.max(0, Math.min(100, Math.round(downloadState?.progress || 0)));
@@ -1071,6 +1174,7 @@ export const GrievanceCard = ({ grievance, onAction, getProxiedMediaUrl, downloa
             <CardContent className={cn('p-4', isWA && 'p-3')}>
                 {isX && <XLayout grievance={grievance} getProxiedMediaUrl={getProxiedMediaUrl} onAction={onAction} downloadState={downloadState} isActioned={isActioned} />}
                 {isFB && <FacebookLayout grievance={grievance} getProxiedMediaUrl={getProxiedMediaUrl} onAction={onAction} downloadState={downloadState} isActioned={isActioned} />}
+                {isIG && <InstagramLayout grievance={grievance} getProxiedMediaUrl={getProxiedMediaUrl} onAction={onAction} downloadState={downloadState} isActioned={isActioned} />}
                 {isWA && <WhatsAppLayout grievance={grievance} getProxiedMediaUrl={getProxiedMediaUrl} onAction={onAction} downloadState={downloadState} />}
             </CardContent>
 

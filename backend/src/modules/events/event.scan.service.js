@@ -2,12 +2,12 @@ const prisma = require('../../../prisma/client');
 const callXApi = require('../../services/blugate/x/blugate.x.api_client');
 const callFacebookApi = require('../../services/blugate/facebook/blugate.facebook.api_client');
 const callYouTubeApi = require('../../services/blugate/youtube/blugate.youtube.api_client');
-// Instagram has no Blugate keyword search yet — keep RapidAPI for IG only.
-const rapidApiInstagramService = require('../../services/rapidApiInstagramService');
 const { engagementFromXMetricsBag } = require('../../utils/engagementMetrics');
 const { asJson } = require('./event.utils');
 const { recordFetch } = require('./event.service');
 const logger = require('../../utils/logger');
+
+const DEFAULT_EVENT_SCAN_PLATFORMS = ['youtube', 'x', 'facebook'];
 
 const squeezeWhitespace = (text) => String(text || '').replace(/\s+/g, ' ').trim();
 
@@ -367,7 +367,7 @@ const inflightScans = new Map();
 
 /**
  * Keyword search for one event → upsert social_media_event_media.
- * X / Facebook / YouTube use Blugate; Instagram uses RapidAPI until Blugate search exists.
+ * X / Facebook / YouTube use Blugate.
  * @param {object} event
  * @param {{ source?: 'scheduler'|'manual'|'kickoff' }} [options]
  */
@@ -416,8 +416,8 @@ const runScanEventOnce = async (event, options = {}) => {
 
   const platforms =
     event.platforms && event.platforms.length > 0
-      ? event.platforms
-      : ['youtube', 'x', 'facebook', 'instagram'];
+      ? event.platforms.filter((p) => p !== 'instagram')
+      : DEFAULT_EVENT_SCAN_PLATFORMS;
 
   const fetchUniqueByQueriesCounted = async (qs, fetcher) => {
     const merged = [];
@@ -550,40 +550,6 @@ const runScanEventOnce = async (event, options = {}) => {
     } catch (error) {
       logger.error(`[EventScan] Facebook failed for ${event.name}: ${error.message}`);
       errors.push({ platform: 'facebook', message: error.message });
-    }
-  }
-
-  if (platforms.includes('instagram')) {
-    try {
-      const posts = await fetchUniqueByQueriesCounted(queries, (q) => rapidApiInstagramService.searchPosts(q));
-      const relevant = filterByKeywords(posts, event, (p) => p?.text || '');
-      scanned += relevant.length;
-      track('instagram', { scanned: relevant.length });
-      let igIn = 0;
-      for (const p of relevant) {
-        if (!p.id) continue;
-        const { isNew } = await upsertMedia({
-          eventId: event.id,
-          platform: 'instagram',
-          externalId: String(p.id),
-          payload: {
-            url: p.url || null,
-            text: p.text || '',
-            author_name: p.author || p.author_handle || 'Unknown',
-            author_handle: p.author_handle || '',
-            posted_at: p.created_at ? new Date(p.created_at) : new Date(),
-            engagement: p.metrics || {},
-            media: p.media || [],
-            raw_data: p,
-          },
-        });
-        if (isNew) igIn += 1;
-      }
-      ingested += igIn;
-      track('instagram', { ingested: igIn });
-    } catch (error) {
-      logger.error(`[EventScan] Instagram failed for ${event.name}: ${error.message}`);
-      errors.push({ platform: 'instagram', message: error.message });
     }
   }
 

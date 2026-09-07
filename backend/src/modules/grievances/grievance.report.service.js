@@ -34,6 +34,7 @@ const asArray = (value) => (Array.isArray(value) ? value : []);
 const platformLetter = (platform) => {
   const p = String(platform || 'x').toLowerCase();
   if (p === 'facebook' || p === 'fb') return 'F';
+  if (p === 'instagram' || p === 'ig') return 'I';
   if (p === 'whatsapp') return 'W';
   return 'X';
 };

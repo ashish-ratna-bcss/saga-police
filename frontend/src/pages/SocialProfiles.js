@@ -494,8 +494,8 @@ const SocialProfiles = () => {
     return { active, all };
   }, []);
 
-  const loadProfiles = useCallback(async () => {
-      setLoading(true);
+  const loadProfiles = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const params = {};
       if (platformTab !== 'all') params.platform = platformTab;
@@ -507,7 +507,7 @@ const SocialProfiles = () => {
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to load profiles');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [platformTab, statusFilter, query]);
 
@@ -516,7 +516,7 @@ const SocialProfiles = () => {
   }, [loadPlatforms]);
 
   useEffect(() => {
-    const t = setTimeout(loadProfiles, query ? 300 : 0);
+    const t = setTimeout(() => loadProfiles(), query ? 300 : 0);
     return () => clearTimeout(t);
   }, [loadProfiles, query]);
 
@@ -742,13 +742,29 @@ const SocialProfiles = () => {
     setMonitoringId(row.id);
     try {
       const res = await socialProfilesApi.toggleMonitoring(row.id);
-      const next = res.data?.monitoring_status;
+      const updated = res.data || {};
+      const next = updated.monitoring_status;
+      // Update the row in place — avoid full-table Loading… flash
+      setProfiles((prev) =>
+        prev.map((p) => (String(p.id) === String(row.id) ? { ...p, ...updated } : p))
+      );
+      setStats((prev) => {
+        const wasStarted = row.monitoring_status === 'started';
+        const nowStarted = next === 'started';
+        if (wasStarted === nowStarted) return prev;
+        const delta = nowStarted ? 1 : -1;
+        return {
+          ...prev,
+          active: Math.max(0, (prev.active || 0) + delta),
+          paused: Math.max(0, (prev.paused || 0) - delta),
+        };
+      });
       toast.success(next === 'started' ? 'Monitoring started' : 'Monitoring stopped');
-      await loadProfiles();
-      // Kickoff fetch is async — refresh again so Stats / history catch up
+      // Background refresh for logs / fetch history (no page blank)
+      loadProfiles({ silent: true }).catch(() => {});
       if (next === 'started') {
         setTimeout(() => {
-          loadProfiles().catch(() => {});
+          loadProfiles({ silent: true }).catch(() => {});
         }, 4000);
       }
     } catch (error) {
@@ -769,10 +785,10 @@ const SocialProfiles = () => {
           ? `Started monitoring on ${started} profile${started === 1 ? '' : 's'}`
           : res.data?.message || 'All services already running'
       );
-      await loadProfiles();
+      await loadProfiles({ silent: true });
       if (started > 0) {
         setTimeout(() => {
-          loadProfiles().catch(() => {});
+          loadProfiles({ silent: true }).catch(() => {});
         }, 4000);
       }
     } catch (error) {
@@ -793,7 +809,7 @@ const SocialProfiles = () => {
           ? `Stopped monitoring on ${stopped} profile${stopped === 1 ? '' : 's'}`
           : res.data?.message || 'No services are running'
       );
-      await loadProfiles();
+      await loadProfiles({ silent: true });
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to stop all services');
     } finally {

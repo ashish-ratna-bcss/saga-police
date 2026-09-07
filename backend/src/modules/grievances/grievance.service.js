@@ -4,7 +4,12 @@ const { searchMentions } = require('../../services/grievanceService');
 const {
   fetchFacebookPosts,
 } = require('../../services/monitoringsocialmedia/facebook/fetch');
+const {
+  fetchInstagramPosts,
+} = require('../../services/monitoringsocialmedia/instagram/fetch');
 const callFacebookApi = require('../../services/blugate/facebook/blugate.facebook.api_client');
+const callInstagramApi = require('../../services/blugate/instagram/blugate.instagram.api_client');
+const { unwrapPayload } = require('../../services/blugate/instagram/blugate.instagram.helpers');
 const {
   normalizePlatform,
   asJson,
@@ -282,6 +287,21 @@ const fetchFacebookComments = async (postId) => {
   }
 };
 
+const fetchInstagramComments = async (postUrl) => {
+  const url = String(postUrl || '').trim();
+  if (!url) return [];
+  try {
+    const response = await callInstagramApi('COMMENTS', { url });
+    const raw = unwrapPayload(response);
+    if (Array.isArray(raw?.comments)) return raw.comments;
+    if (Array.isArray(raw)) return raw;
+    return [];
+  } catch (err) {
+    logger.error(`[CatalogGrievances] IG COMMENTS failed for ${url}: ${err.message}`);
+    return [];
+  }
+};
+
 const fetchCatalogFacebookGrievances = async (account, startDate, endDate) => {
   const taggedHandle = String(account.handle || '').trim();
   const displayName = account.profile?.display_name || taggedHandle;
@@ -428,6 +448,152 @@ const fetchCatalogFacebookGrievances = async (account, startDate, endDate) => {
   };
 };
 
+const fetchCatalogInstagramGrievances = async (account, startDate, endDate) => {
+  const taggedHandle = String(account.handle || '')
+    .replace(/^@/, '')
+    .trim();
+  const displayName = account.profile?.display_name || taggedHandle;
+
+  logger.info(`[CatalogGrievances] Fetching Instagram posts/comments for @${taggedHandle}`);
+
+  const accountForFetch = {
+    id: account.id,
+    handle: taggedHandle,
+    data: asObject(account.data),
+  };
+
+  const { posts, dataPatch } = await fetchInstagramPosts(accountForFetch);
+  if (dataPatch) {
+    await prisma.social_media_accounts.update({
+      where: { id: account.id },
+      data: { data: { ...accountForFetch.data, ...dataPatch } },
+    });
+  }
+
+  const start = startDate ? new Date(startDate) : null;
+  const end = endDate ? new Date(endDate) : null;
+  const inRange = (date) => {
+    if (!date) return true;
+    const d = new Date(date);
+    if (Number.isNaN(d.getTime())) return true;
+    if (start && d < start) return false;
+    if (end && d > end) return false;
+    return true;
+  };
+
+  let newCount = 0;
+  let total = 0;
+  const postsToScan = posts.slice(0, 20);
+
+  for (const post of postsToScan) {
+    const postId = String(post.external_id || '').trim();
+    if (!postId) continue;
+    if (!inRange(post.posted_at)) continue;
+
+    total += 1;
+    const canonicalPostId = `instagram:post:${postId}`;
+    const postUrl = post.url || `https://www.instagram.com/p/${postId}/`;
+    const postText = String(post.text || '').trim() || '[Instagram post without text]';
+    const postAuthorName = post.author_name || displayName;
+    const postAuthorHandle = post.author_handle || taggedHandle;
+
+    const postResult = await createGrievanceIfNew({
+      accountId: account.id,
+      platform: 'instagram',
+      externalId: canonicalPostId,
+      taggedAccount: taggedHandle,
+      postedBy: {
+        handle: postAuthorHandle,
+        display_name: postAuthorName,
+        profile_image_url: null,
+        is_verified: false,
+        follower_count: 0,
+      },
+      content: { text: postText, full_text: postText, media: [] },
+      engagement: {
+        likes: post.engagement?.likes || 0,
+        replies: post.engagement?.comments || 0,
+        retweets: 0,
+        views: post.engagement?.views || 0,
+        quotes: 0,
+      },
+      contentUrl: postUrl,
+      text: postText,
+      postedAt: post.posted_at || new Date(),
+    });
+    if (postResult.created) newCount += 1;
+
+    const comments = await fetchInstagramComments(postUrl);
+    for (const comment of comments.slice(0, 50)) {
+      const commentId = String(comment.pk || comment.id || comment.strong_id__ || '').trim();
+      if (!commentId) continue;
+
+      const createdRaw = comment.created_at || comment.created_at_utc;
+      const commentDate =
+        createdRaw != null && Number.isFinite(Number(createdRaw))
+          ? new Date(Number(createdRaw) > 1e12 ? Number(createdRaw) : Number(createdRaw) * 1000)
+          : post.posted_at;
+      if (!inRange(commentDate)) continue;
+
+      total += 1;
+      const commentText = String(comment.text || '').trim() || '[Instagram comment without text]';
+      const user = comment.user || {};
+      const commentUrl = `${postUrl.replace(/\/$/, '')}/c/${encodeURIComponent(commentId)}/`;
+
+      const commentResult = await createGrievanceIfNew({
+        accountId: account.id,
+        platform: 'instagram',
+        externalId: `instagram:comment:${commentId}`,
+        taggedAccount: taggedHandle,
+        postedBy: {
+          handle: user.username || user.pk || '',
+          display_name: user.full_name || user.username || 'Instagram User',
+          profile_image_url: user.profile_pic_url || null,
+          is_verified: Boolean(user.is_verified),
+          follower_count: 0,
+        },
+        content: { text: commentText, full_text: commentText, media: [] },
+        engagement: {
+          likes: comment.comment_like_count || 0,
+        },
+        context: {
+          in_reply_to: {
+            tweet_id: canonicalPostId,
+            tweet_url: postUrl,
+            posted_by: {
+              handle: postAuthorHandle,
+              display_name: postAuthorName,
+            },
+            content: { text: postText, full_text: postText, media: [] },
+          },
+        },
+        contentUrl: commentUrl,
+        text: commentText,
+        postedAt: commentDate || new Date(),
+      });
+      if (commentResult.created) newCount += 1;
+    }
+  }
+
+  await prisma.social_media_accounts.update({
+    where: { id: account.id },
+    data: { last_fetched_at: new Date() },
+  });
+
+  return {
+    newGrievances: newCount,
+    total,
+    source: {
+      id: String(account.id),
+      handle: taggedHandle,
+      display_name: displayName,
+      platform: 'instagram',
+      avatar: pickAvatar(account.preview_data),
+      store: 'catalog',
+    },
+  };
+};
+
 const fetchCatalogXGrievances = async (account, startDate, endDate) => {
   const clean = String(account.handle || '')
     .replace(/^@/, '')
@@ -473,6 +639,9 @@ const fetchCatalogAccountGrievances = async (account, startDate, endDate) => {
   if (platform === 'facebook') {
     return fetchCatalogFacebookGrievances(account, startDate, endDate);
   }
+  if (platform === 'instagram') {
+    return fetchCatalogInstagramGrievances(account, startDate, endDate);
+  }
   if (platform === 'x') {
     return fetchCatalogXGrievances(account, startDate, endDate);
   }
@@ -485,7 +654,7 @@ const fetchAllCatalogGrievances = async (startDate, endDate) => {
   const accounts = await prisma.social_media_accounts.findMany({
     where: {
       is_active: true,
-      platforms: { slug: { in: ['x', 'facebook'] } },
+      platforms: { slug: { in: ['x', 'facebook', 'instagram'] } },
     },
     include: {
       profile: { select: { display_name: true } },

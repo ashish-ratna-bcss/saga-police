@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import {
-  Globe, BarChart3, Plus, Trash2, RefreshCw, Loader2, Search, X, LayoutGrid, BookUser
+  Globe, BarChart3, Plus, Trash2, RefreshCw, Loader2, Search, X, LayoutGrid, BookUser, Instagram
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -26,6 +26,7 @@ const PLATFORMS = [
   { id: 'all', label: 'All', icon: Globe },
   { id: 'x', label: 'X', icon: XLogo },
   { id: 'facebook', label: 'Facebook', icon: FacebookLogo },
+  { id: 'instagram', label: 'Instagram', icon: Instagram },
 ];
 
 const STATUS_FILTERS = [
@@ -84,7 +85,9 @@ export const GrievanceTopNavbar = ({
 
   const isReportsMode = activeStatus === 'reports';
   const fetchLabel =
-    activePlatform === 'facebook' ? 'Fetch posts & comments' : 'Fetch mentions';
+    activePlatform === 'facebook' || activePlatform === 'instagram'
+      ? 'Fetch posts & comments'
+      : 'Fetch mentions';
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -357,7 +360,11 @@ export const GrievanceTopNavbar = ({
                           {source.display_name || source.handle}
                         </p>
                         <p className="text-[10px] text-muted-foreground truncate">
-                          {source.platform === 'facebook' ? 'Facebook' : 'X'} ·{' '}
+                          {source.platform === 'facebook'
+                            ? 'Facebook'
+                            : source.platform === 'instagram'
+                              ? 'Instagram'
+                              : 'X'} ·{' '}
                           {source.total_grievances || 0} items
                         </p>
                       </div>
