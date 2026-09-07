@@ -1,6 +1,7 @@
 const prisma = require('../../../prisma/client');
 const Settings = require('../../models/Settings');
 const intelligenceClient = require('../intelligenceClientService');
+const mappingService = require('../mappingService');
 const { createAlertFromCatalogPost } = require('../../modules/alerts');
 
 const MAX_ATTEMPTS = Math.max(1, Number(process.env.SENTIMENT_MAX_ATTEMPTS) || 5);
@@ -170,19 +171,43 @@ const analyzePost = async (postId) => {
   const riskScore = Math.max(0, Math.min(100, Number(intel.risk_score) || 0));
   const riskLevel = scoreToLevel(riskScore, high, medium);
 
+  const platform =
+    post.account?.platforms?.slug ||
+    post.platform ||
+    'x';
+
+  // Attach Policy Manager legal + platform rules (infer category if ML left it blank)
+  let mapping = { category_id: null, legal_sections: [], platform_policies: [], triggered_keywords: [] };
+  try {
+    await mappingService.waitForLoad(5000);
+    mapping = mappingService.resolveForAnalysis({
+      category: intel.category,
+      text,
+      platform,
+      country: 'IN',
+    });
+  } catch (mapErr) {
+    console.error('[sentimentanalysis] policy mapping failed:', mapErr.message);
+  }
+
+  const resolvedCategory = mapping.category_id || intel.category || null;
+
   const analysis_result = {
     sentiment: intel.sentiment || 'neutral',
     sentiment_confidence: intel.sentiment_confidence ?? null,
     risk_score: riskScore,
     risk_level: riskLevel,
-    category: intel.category || null,
-    intent: intel.intent || null,
+    category: resolvedCategory,
+    intent: intel.intent || resolvedCategory || null,
     reasoning: intel.reasoning || null,
     summary: intel.summary || null,
     recommended_action: intel.recommended_action || null,
     signals: intel.signals || [],
     keyword_context: intel.keyword_context || [],
     matched_keywords: matchedKeywords,
+    legal_sections: mapping.legal_sections || [],
+    violated_policies: mapping.platform_policies || [],
+    policy_triggered_keywords: mapping.triggered_keywords || [],
     language: intel.language || null,
     english_text: intel.english_text || null,
     was_translated: Boolean(intel.was_translated),

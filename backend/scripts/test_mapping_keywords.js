@@ -7,7 +7,7 @@ const path = require('path');
 
 const mappingService = require(path.resolve(__dirname, '../src/services/mappingService'));
 
-// Case 1 — empty DB keywords uses KR_MAP (identical to extractKeywords(text))
+// Case 1 — empty Policy Manager keywords → no matches (no KR_MAP fallback)
 const case1Texts = [
   'He will kill them.',
   'This promotes enmity and hateful conduct.',
@@ -15,29 +15,26 @@ const case1Texts = [
   'hindu muslim caste tension'
 ];
 for (const t of case1Texts) {
-  const krOnly = mappingService.extractKeywords(t);
-  const emptyDb = mappingService.extractKeywords(t, []);
-  const omitted = mappingService.extractKeywords(t, undefined);
-  assert.deepStrictEqual(emptyDb, krOnly, `empty [] must match 1-arg for: ${t}`);
-  assert.deepStrictEqual(omitted, krOnly, `undefined dbKeywords must match 1-arg for: ${t}`);
+  assert.deepStrictEqual(mappingService.extractKeywords(t), [], `no keywords list → [] for: ${t}`);
+  assert.deepStrictEqual(mappingService.extractKeywords(t, []), [], `empty [] → [] for: ${t}`);
+  assert.deepStrictEqual(mappingService.extractKeywords(t, undefined), [], `undefined → [] for: ${t}`);
 }
-assert.ok(mappingService.extractKeywords('He will kill them.').includes('kill'), 'KR_MAP should still match "kill"');
 
-// Case 2 — DB keywords without requiring KR_MAP
+// Case 2 — Policy Manager keywords only
 assert.deepStrictEqual(
   mappingService.extractKeywords('He has a knife.', ['knife', 'terror']),
   ['knife'],
-  'DB keywords should match knife without KR_MAP'
+  'DB keywords should match knife'
 );
 
-// Case 3 — DB primary only: KR_MAP term must not match when DB list is set
+// Case 3 — only listed keywords match
 assert.deepStrictEqual(
   mappingService.extractKeywords('He will kill them.', ['knife']),
   [],
-  'populated DB keywords must not fall through to KR_MAP'
+  'unlisted terms must not match'
 );
 
-// Matching semantics preserved: case-insensitive, dedupe, sort
+// Matching semantics: case-insensitive, dedupe, sort
 assert.deepStrictEqual(
   mappingService.extractKeywords('KNIFE and terror and knife', ['terror', 'knife']),
   ['knife', 'terror']
@@ -62,6 +59,4 @@ assert.deepStrictEqual(mappingService.extractKeywords('', ['knife']), []);
 assert.deepStrictEqual(mappingService.extractKeywords(null, ['knife']), []);
 
 console.log('mappingService keywords: all checks passed.');
-
-// mappingService opens a background Mongo connection via PolicyMapping — force exit
 process.exit(0);

@@ -108,55 +108,131 @@ class MappingService {
     }
 
     /**
-     * Resolve legal and policy violations for a given category.
-     * @param {string} category - The detected category (e.g., "Hate_Speech")
-     * @param {string} text - The input text to extract keywords from.
-     * @param {string} platform - The source platform (e.g., "x", "youtube")
-     * @param {string} country - The target country (default: "IN")
-     * @returns {object} { legal_sections: [], platform_policies: [], triggered_keywords: [] }
+     * Normalize category labels from LLM / UI to PolicyMapping category_id shape.
+     * "Hate Speech" / "hate_speech" → "Hate_Speech"
+     */
+    normalizeCategoryId(category) {
+        const raw = String(category || '').trim();
+        if (!raw) return '';
+        const collapsed = raw.replace(/[\s-]+/g, '_');
+        const lower = collapsed.toLowerCase();
+        const hit = this.mappingData.category_mappings.find(
+            (m) => String(m.category_id).toLowerCase() === lower
+        );
+        if (hit) return hit.category_id;
+        return collapsed
+            .split('_')
+            .filter(Boolean)
+            .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+            .join('_');
+    }
+
+    findMapping(category, country = 'IN') {
+        const normalized = this.normalizeCategoryId(category);
+        if (!normalized) return null;
+        return (
+            this.mappingData.category_mappings.find(
+                (m) =>
+                    String(m.category_id).toLowerCase() === normalized.toLowerCase() &&
+                    (m.country || 'IN') === country
+            ) ||
+            this.mappingData.category_mappings.find(
+                (m) => String(m.category_id).toLowerCase() === normalized.toLowerCase()
+            ) ||
+            null
+        );
+    }
+
+    /**
+     * Infer best policy category from text using Policy Manager keywords.
+     * Skips Normal. Returns category_id or null.
+     */
+    inferCategoryFromText(text) {
+        const hay = String(text || '').toLowerCase();
+        if (!hay.trim()) return null;
+
+        let best = null;
+        let bestScore = 0;
+
+        for (const mapping of this.mappingData.category_mappings) {
+            const id = String(mapping.category_id || '');
+            if (!id || /^normal$/i.test(id)) continue;
+            const kws = Array.isArray(mapping.keywords) ? mapping.keywords : [];
+            let score = 0;
+            for (const kw of kws) {
+                const term = String(kw || '').toLowerCase().trim();
+                if (term.length < 2) continue;
+                if (hay.includes(term)) score += Math.min(40, 8 + term.length);
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                best = id;
+            }
+        }
+
+        return bestScore > 0 ? best : null;
+    }
+
+    /**
+     * Resolve legal sections and platform policies based on category.
+     * @returns {object} { legal_sections, platform_policies, triggered_keywords, category_id }
      */
     resolveMapping(category, text, platform = 'x', country = 'IN') {
-        const platformKey = platform.toLowerCase();
+        const platformKey = String(platform || 'x').toLowerCase() === 'twitter'
+            ? 'x'
+            : String(platform || 'x').toLowerCase();
 
-        // Find mapping for category and country
-        const mapping = this.mappingData.category_mappings.find(
-            m => m.category_id === category && m.country === country
-        );
+        const mapping = this.findMapping(category, country);
 
         const result = {
+            category_id: mapping?.category_id || this.normalizeCategoryId(category) || null,
             legal_sections: [],
             platform_policies: [],
             triggered_keywords: []
         };
 
         if (mapping) {
-            result.legal_sections = (mapping.legal_sections || []).map(s => ({
+            result.legal_sections = (mapping.legal_sections || []).map((s) => ({
                 act: country === 'IN' ? 'BNS 2023' : 'International Law',
                 section: s.code,
-                description: s.title
+                description: s.title,
+                code: s.code,
+                title: s.title,
+                id: s.id || s.code,
             }));
 
-            // Handle both Map object and plain object in case of different load states
-            const policiesMap = mapping.platform_policies;
+            const policiesMap = mapping.platform_policies || {};
             const policies = policiesMap[platformKey] || [];
 
-            result.platform_policies = policies.map(p => ({
+            result.platform_policies = policies.map((p) => ({
                 policy_id: p.id,
                 policy_name: p.name,
+                name: p.name,
                 platform: platformKey
             }));
-        } else {
+        } else if (category) {
             logger.info(`[MappingService] No mapping found for category: ${category} (Country: ${country})`);
         }
 
-        // Prefer PolicyMapping.keywords when present; empty → KR_MAP fallback inside extractKeywords
         result.triggered_keywords = this.extractKeywords(
             text,
             mapping ? (mapping.keywords || []) : [],
-            category
+            result.category_id
         );
 
         return result;
+    }
+
+    /**
+     * Resolve mapping for analysis: use ML category, else infer from policy keywords.
+     */
+    resolveForAnalysis({ category, text, platform = 'x', country = 'IN' } = {}) {
+        let cat = this.normalizeCategoryId(category);
+        if (!cat || /^normal$/i.test(cat) || /^unknown$/i.test(cat) || /^neutral$/i.test(cat)) {
+            const inferred = this.inferCategoryFromText(text);
+            if (inferred) cat = inferred;
+        }
+        return this.resolveMapping(cat, text, platform, country);
     }
 
     /**
@@ -181,9 +257,8 @@ class MappingService {
     }
 
     /**
-     * Extract triggered keywords from text.
-     * Primary source: PolicyMapping.keywords (when non-empty).
-     * Fallback: hardcoded KR_MAP (backward compatible).
+     * Extract triggered keywords from text using Policy Manager keywords only.
+     * No hardcoded KR_MAP fallback.
      * @param {string} text
      * @param {string[]} [dbKeywords=[]]
      * @param {string|null} [categoryId=null]
@@ -196,32 +271,8 @@ class MappingService {
             ? dbKeywords.filter((kw) => kw != null && String(kw).trim() !== '').map(String)
             : [];
 
-        if (list.length > 0) {
-            console.debug(`Using PolicyMapping keywords for category ${categoryId}`);
-            return this.matchKeywords(text, list);
-        }
-
-        console.debug('PolicyMapping keywords empty, falling back to KR_MAP');
-
-        // Allocated only on fallback path — skipped when DB keywords are used
-        const KR_MAP = {
-            "violence": ["kill", "murder", "attack", "wipe out", "revolt", "overthrow", "weapons", "terrorism", "extremist", "bomb", "explode", "sovereignty", "integrity", "చంపేస్తా", "దాడి", "मारो", "बम"],
-            "sexual": ["rape", "sex", "modesty", "nudity", "porn", "బలాత్కారం", "బలాత్కరించు", "बलात्कार"],
-            "hate": ["scum", "drive them out", "dehumanizing", "hateful conduct", "promoting enmity", "తరిమేస్తాం", "నికృష్ట", "కుక్కలు", "भगाओ", "नीच"],
-            "harassment": ["idiot", "stupid", "moron", "useless", "shut up", "అవినీతి", "దొంగ", "बेवकूफ", "चोर"],
-            "religious": ["religion", "god", "mulla", "temple", "mosque", "church", "prophet", "idol", "blasphemy", "దేవుడు", "గుడి", "మసీదు", "చర్చి", "धर्म", "भगवान", "मंदिर"],
-            "communal": ["hindu", "muslim", "christian", "dalit", "brahmin", "caste", "minority", "majority", "కులం", "హిందూ", "ముస్లిం", "जाతి", "हिंदू", "मुस्लिम"],
-            "privacy": ["address", "phone number", "aadhaar", "ssn", "passport", "చిరునామా", "ఫోన్ నంబర్", "आधार", "पता"],
-            "civic": ["election", "vote", "voter card", "evm", "rigging", "misinformation", "ఓటు", "ఎన్నికలు", "चुनाव", "वोट"]
-        };
-
-        const flat = [];
-        for (const cat in KR_MAP) {
-            for (const kw of KR_MAP[cat]) {
-                flat.push(kw);
-            }
-        }
-        return this.matchKeywords(text, flat);
+        if (list.length === 0) return [];
+        return this.matchKeywords(text, list);
     }
 }
 

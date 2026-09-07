@@ -7,10 +7,157 @@
  */
 require('dotenv').config();
 
+const fs = require('fs');
+const path = require('path');
 const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 const RESET = process.argv.includes('--reset');
+
+/** Shared Meta/X/YouTube rule packs for AP-priority categories not in mapping_data.json */
+const RULES = {
+  violence: {
+    youtube: [{ id: 'VIOLENT_GRAPHIC_CONTENT', name: 'Violent or Graphic Content' }],
+    x: [{ id: 'VIOLENT_SPEECH', name: 'Violent Speech' }],
+    facebook: [{ id: 'VIOLENCE_INCITEMENT', name: 'Violence and Incitement' }],
+    instagram: [{ id: 'VIOLENCE_INCITEMENT', name: 'Violence and Incitement' }],
+  },
+  fraud: {
+    youtube: [{ id: 'SPAM_DECEPTIVE', name: 'Spam, Deceptive Practices & Scams' }],
+    x: [{ id: 'PLATFORM_MANIPULATION', name: 'Platform Manipulation and Spam' }],
+    facebook: [{ id: 'FRAUD_SCAMS', name: 'Fraud and Scams' }],
+    instagram: [{ id: 'FRAUD_SCAMS', name: 'Fraud and Scams' }],
+  },
+  illegal: {
+    youtube: [{ id: 'ILLEGAL_ACTIVITIES', name: 'Illegal Activities' }],
+    x: [{ id: 'ILLEGAL_GOODS', name: 'Illegal or Certain Regulated Goods' }],
+    facebook: [{ id: 'RESTRICTED_GOODS', name: 'Restricted Goods and Services' }],
+    instagram: [{ id: 'RESTRICTED_GOODS', name: 'Restricted Goods and Services' }],
+  },
+  harassment: {
+    youtube: [{ id: 'HARASSMENT_CYBERBULLYING', name: 'Harassment & Cyberbullying' }],
+    x: [{ id: 'ABUSE_HARASSMENT', name: 'Abuse and Harassment' }],
+    facebook: [{ id: 'BULLYING_HARASSMENT', name: 'Bullying and Harassment' }],
+    instagram: [{ id: 'BULLYING_HARASSMENT', name: 'Bullying and Harassment' }],
+  },
+};
+
+/**
+ * AP SOC policy categories — AI definitions + keywords.
+ * Legal/platform maps for overlapping ids are taken from mapping_data.json when present.
+ */
+const AP_POLICY_DEFS = [
+  {
+    category_id: 'Hate_Speech',
+    severity_level: 'High',
+    definition:
+      'Content that attacks, degrades, or calls for exclusion of people in Andhra Pradesh based on religion, caste, language, ethnicity, gender, or community identity. Include dehumanising labels, slurs, and coordinated hate campaigns targeting AP communities.',
+    keywords: ['hate speech', 'caste slur', 'religious hate', 'ద్వేషపూరిత'],
+  },
+  {
+    category_id: 'Communal_Violence',
+    severity_level: 'High',
+    definition:
+      'Posts that promote enmity between communities, threaten or celebrate communal violence, or urge riots, arson, or mob action in Andhra Pradesh. Prioritise location cues (districts, towns, temples/mosques) and calls to gather for violence.',
+    keywords: ['communal clash', 'riot', 'mob violence', 'కమ్యూనల్', 'గొడవ'],
+  },
+  {
+    category_id: 'Misinformation',
+    severity_level: 'High',
+    definition:
+      'False or misleading claims circulated to create panic, damage reputation, or distort public events in Andhra Pradesh — including fake orders, forged FIR/notices, rumour about police action, health scares, and doctored media. Distinguish satire when clearly labelled.',
+    keywords: ['fake news', 'rumour', 'నకిలీ న్యూస్', 'పుకార్లు', 'forward'],
+  },
+  {
+    category_id: 'Harassment',
+    severity_level: 'Medium',
+    definition:
+      'Targeted abuse, doxxing, sustained insults, or coordinated pile-ons against individuals (officers, journalists, civilians) that are not primarily group-based hate. Include cyberbullying and reputational attacks with identifiable victims.',
+    keywords: ['harassment', 'doxxing', 'troll', 'వేధింపు'],
+  },
+  {
+    category_id: 'Sexual_Harassment',
+    severity_level: 'High',
+    definition:
+      'Unwanted sexual advances, sexualised threats, non-consensual intimate imagery discussion, or sexual humiliation directed at a person. Flag for triage; escalate graphic sexual violence to Crime_Against_Women when assault is alleged.',
+    keywords: ['sexual harassment', 'molestation', 'అత్యాచారం attempt', 'modesty'],
+  },
+  {
+    category_id: 'threat',
+    severity_level: 'High',
+    definition:
+      'Direct threats of violence, harm, or criminal acts against a person, group, or institution (including AP Police). Credible intent language such as kill, bomb, burn, attack — even if conditional.',
+    keywords: ['threat', 'kill you', 'bomb', 'బెదిరింపు', 'చంపుతా'],
+  },
+  {
+    category_id: 'threat_incitement',
+    severity_level: 'High',
+    definition:
+      'Calls to others to commit violence, vandalism, or public disorder in Andhra Pradesh — “gather and attack”, “burn the office”, “lynch”, “stone pelting” instructions. Includes coded mobilisation when clearly urging illegal force.',
+    keywords: ['incitement', 'stone pelting', 'lynch', 'దాడి చేయండి', 'రాళ్లు విసరండి'],
+  },
+  {
+    category_id: 'Cyber_Fraud',
+    severity_level: 'High',
+    definition:
+      'OTP phishing, fake KYC, investment scams, impersonation of banks/UPI/govt/AP Police to steal money or credentials, and recruitment into fraud networks targeting Andhra users.',
+    keywords: ['OTP scam', 'cyber fraud', 'phishing', 'సైబర్ మోసం', 'UPI fraud'],
+    legal_sections: [
+      { id: 'IT_66C', code: 'IT Act 66C', title: 'Identity theft' },
+      { id: 'IT_66D', code: 'IT Act 66D', title: 'Cheating by personation using computer resource' },
+      { id: 'BNS_318', code: '318', title: 'Cheating' },
+    ],
+    platform_policies: RULES.fraud,
+  },
+  {
+    category_id: 'Drugs_Narcotics',
+    severity_level: 'High',
+    definition:
+      'Sale, peddling, trafficking, or open solicitation of ganja/narcotics and related logistics in Andhra Pradesh. Include coded slang when clearly about drug trade; exclude medical/news reporting without solicitation.',
+    keywords: ['ganja', 'drug peddling', 'NDPS', 'గంజాయి', 'మాదక ద్రవ్యాలు'],
+    legal_sections: [
+      { id: 'NDPS_20', code: 'NDPS 20', title: 'Punishment for cannabis-related offences' },
+      { id: 'NDPS_21', code: 'NDPS 21', title: 'Punishment for manufactured drugs' },
+    ],
+    platform_policies: RULES.illegal,
+  },
+  {
+    category_id: 'Protest_Public_Order',
+    severity_level: 'Medium',
+    definition:
+      'Calls for bandh, raasta roko, road blockade, unlawful assembly, or disruption of public order in Andhra Pradesh. Include violent protest planning; peaceful protest announcements without illegal obstruction stay lower priority / Normal if clearly lawful.',
+    keywords: ['bandh', 'raasta roko', 'road blockade', 'బంద్', 'రోడ్డు దిగ్బంధం'],
+    legal_sections: [
+      { id: 'BNS_189', code: '189', title: 'Unlawful assembly' },
+      { id: 'BNS_191', code: '191', title: 'Rioting' },
+      { id: 'BNS_223', code: '223', title: 'Disobedience to order duly promulgated by public servant' },
+    ],
+    platform_policies: RULES.violence,
+  },
+  {
+    category_id: 'Crime_Against_Women',
+    severity_level: 'High',
+    definition:
+      'Reports or glorification of rape, sexual assault, domestic violence, dowry-related harm, acid attack, or trafficking of women/girls in Andhra Pradesh. Prioritise actionable victim/location details for SOC triage; do not treat advocacy against violence as the offence.',
+    keywords: ['rape', 'dowry death', 'domestic violence', 'అత్యాచారం', 'వధువు హింస'],
+    legal_sections: [
+      { id: 'BNS_64', code: '64', title: 'Rape' },
+      { id: 'BNS_70', code: '70', title: 'Gang rape' },
+      { id: 'BNS_80', code: '80', title: 'Dowry death' },
+      { id: 'BNS_85', code: '85', title: 'Husband or relative subjecting woman to cruelty' },
+    ],
+    platform_policies: RULES.harassment,
+  },
+  {
+    category_id: 'Normal',
+    severity_level: 'Low',
+    definition:
+      'Benign content with no credible AP public-order, crime, hate, fraud, or safety signal — routine news, greetings, sports, entertainment, or official awareness without actionable offence. Use when no other category applies.',
+    keywords: [],
+    legal_sections: [],
+    platform_policies: { youtube: [], x: [], facebook: [], instagram: [] },
+  },
+];
 
 const PLATFORM_DEFS = [
   {
@@ -686,6 +833,80 @@ async function seedCatalogKeywords() {
   return { created, skipped, total: list.length };
 }
 
+function loadMappingByCategory() {
+  try {
+    const raw = fs.readFileSync(
+      path.join(__dirname, '../src/data/mapping_data.json'),
+      'utf8'
+    );
+    const data = JSON.parse(raw);
+    const map = new Map();
+    for (const row of data.category_mappings || []) {
+      if (row?.category_id) map.set(row.category_id, row);
+    }
+    return map;
+  } catch (_) {
+    return new Map();
+  }
+}
+
+/**
+ * Upsert AP SOC policy_mappings (safe re-run). Merges legal/platform from
+ * mapping_data.json when the category already exists there.
+ */
+async function seedPolicyMappings() {
+  const fromFile = loadMappingByCategory();
+  let created = 0;
+  let updated = 0;
+
+  for (const def of AP_POLICY_DEFS) {
+    const base = fromFile.get(def.category_id);
+    const legal_sections =
+      def.legal_sections !== undefined
+        ? def.legal_sections
+        : Array.isArray(base?.legal_sections)
+          ? base.legal_sections
+          : [];
+    const platform_policies =
+      def.platform_policies !== undefined
+        ? def.platform_policies
+        : base?.platform_policies && typeof base.platform_policies === 'object'
+          ? base.platform_policies
+          : { youtube: [], x: [], facebook: [], instagram: [] };
+
+    const data = {
+      definition: def.definition,
+      legal_sections,
+      platform_policies,
+      keywords: Array.isArray(def.keywords) ? def.keywords : [],
+      severity_level: def.severity_level || 'Medium',
+      is_active: true,
+    };
+
+    const existing = await prisma.policy_mappings.findUnique({
+      where: { category_id: def.category_id },
+    });
+
+    if (existing) {
+      await prisma.policy_mappings.update({
+        where: { category_id: def.category_id },
+        data,
+      });
+      updated += 1;
+    } else {
+      await prisma.policy_mappings.create({
+        data: {
+          category_id: def.category_id,
+          ...data,
+        },
+      });
+      created += 1;
+    }
+  }
+
+  return { created, updated, total: AP_POLICY_DEFS.length };
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL is required');
@@ -714,6 +935,11 @@ async function main() {
   const keywords = await seedCatalogKeywords();
   console.log(
     `[seed] catalog keywords +${keywords.created} (skipped ${keywords.skipped}, list ${keywords.total})`
+  );
+
+  const policies = await seedPolicyMappings();
+  console.log(
+    `[seed] policy mappings +${policies.created} updated ${policies.updated} (list ${policies.total})`
   );
 
   console.log('[seed] done — monitoring left stopped; use Start all services when ready');

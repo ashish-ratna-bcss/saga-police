@@ -88,6 +88,9 @@ const ProfileRelevanceBadge = ({ row }) => {
   const staticScore = Number(relevance.static_score) || 0;
   const contentAvg = relevance.content_avg_score;
   const matched = Array.isArray(relevance.matched_terms) ? relevance.matched_terms : [];
+  const profileMatched = Array.isArray(relevance.profile_matched_terms)
+    ? relevance.profile_matched_terms
+    : matched;
   const staticWeight = relevance.static_weight ?? 100;
   const contentWeight = relevance.content_weight ?? 0;
 
@@ -95,12 +98,15 @@ const ProfileRelevanceBadge = ({ row }) => {
     return <span className="text-[11px] text-muted-foreground">—</span>;
   }
 
+  const keywordCount = relevance.keyword_count ?? 0;
+  const postsScope = relevance.posts_scope || 'account';
+  const ownPosts = relevance.own_post_count ?? total;
   const level =
     score >= 80
-      ? { label: 'Highly relevant', hint: 'Strong Andhra Pradesh focus' }
+      ? { label: 'Highly relevant', hint: 'Strong catalog keyword match' }
       : score >= 60
-        ? { label: 'Moderately relevant', hint: 'Some AP connection' }
-        : { label: 'Low relevance', hint: 'Weak or no AP connection' };
+        ? { label: 'Moderately relevant', hint: 'Some catalog keyword match' }
+        : { label: 'Low relevance', hint: 'Weak or no catalog keyword match' };
 
   return (
     <Popover>
@@ -142,9 +148,9 @@ const ProfileRelevanceBadge = ({ row }) => {
               <span className="tabular-nums font-bold">{staticScore}/100</span>
             </div>
             <p className="text-[10px] text-muted-foreground pl-5">
-              {matched.length
-                ? `Matched: ${matched.slice(0, 4).join(', ')}`
-                : 'No clear AP words in name or handle.'}
+              {profileMatched.length
+                ? `Matched: ${profileMatched.slice(0, 4).join(', ')}`
+                : 'No catalog keywords in name or handle.'}
             </p>
           </div>
           <div className="rounded-md border p-2">
@@ -158,10 +164,18 @@ const ProfileRelevanceBadge = ({ row }) => {
             </div>
             <p className="text-[10px] text-muted-foreground pl-5">
               {total === 0
-                ? 'No posts in the last 30 days.'
+                ? 'No posts stored for this account (last 30 days). Start monitoring to fetch posts.'
                 : qualifying === 0
-                  ? `Checked ${total} posts — none clearly AP-focused.`
-                  : `${qualifying} of ${total} recent posts look AP-related.`}
+                  ? `Checked ${total} posts — no catalog keyword hits.${
+                      postsScope === 'profile' && ownPosts === 0
+                        ? ' (from other platforms on this profile)'
+                        : ''
+                    }`
+                  : `${qualifying} of ${total} recent posts matched catalog keywords.${
+                      postsScope === 'profile' && ownPosts === 0
+                        ? ' (from other platforms on this profile)'
+                        : ''
+                    }`}
             </p>
           </div>
           <div className="rounded-md border border-emerald-100 bg-emerald-50/50 p-2">
@@ -172,6 +186,7 @@ const ProfileRelevanceBadge = ({ row }) => {
               {contentWeight > 0
                 ? `Posts ${contentWeight}% · Profile ${staticWeight}% → ${score}/100`
                 : `Profile only → ${score}/100`}
+              {keywordCount > 0 ? ` · ${keywordCount} keywords` : ''}
             </p>
           </div>
         </div>

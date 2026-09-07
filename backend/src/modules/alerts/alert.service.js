@@ -115,6 +115,9 @@ const createAlertFromCatalogPost = async (post, analysisResult, options = {}) =>
       reasoning: analysisResult.reasoning || null,
       summary: analysisResult.summary || null,
       source: analysisResult.source || 'sentiment-api',
+      legal_sections: analysisResult.legal_sections || [],
+      violated_policies: analysisResult.violated_policies || [],
+      policy_triggered_keywords: analysisResult.policy_triggered_keywords || [],
     },
     posted_at: post.posted_at || post.fetched_at || null,
   };

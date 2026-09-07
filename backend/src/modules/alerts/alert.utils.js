@@ -86,6 +86,14 @@ const DEFAULT_VIRALITY_THRESHOLDS = {
   high_threshold: 1000,
 };
 
+const mappingService = (() => {
+  try {
+    return require('../../services/mappingService');
+  } catch (_) {
+    return null;
+  }
+})();
+
 const normalizeViralityLevel = (value) => {
   const v = String(value || '').toLowerCase().trim();
   if (v === 'low' || v === 'medium' || v === 'high') return v;
@@ -140,9 +148,40 @@ const hydrateCatalogAlert = (row) => {
 
   const engagement = asJson(post?.engagement, {});
   const viralityLevel = resolveCatalogViralityLevel(snap, engagement);
+
+  let legalSections = Array.isArray(snap.legal_sections) ? snap.legal_sections : [];
+  let violatedPolicies = Array.isArray(snap.violated_policies) ? snap.violated_policies : [];
+  let category = snap.category || null;
+
+  // Live-resolve Policy Manager maps for older alerts / missing snapshot fields
+  if (
+    mappingService &&
+    (legalSections.length === 0 || violatedPolicies.length === 0 || !category)
+  ) {
+    try {
+      const text = post?.text || '';
+      const platform = normalizePlatform(row.platform || post?.platform || 'x');
+      const mapped = mappingService.resolveForAnalysis({
+        category,
+        text,
+        platform,
+        country: 'IN',
+      });
+      if (!category && mapped.category_id) category = mapped.category_id;
+      if (legalSections.length === 0 && mapped.legal_sections?.length) {
+        legalSections = mapped.legal_sections;
+      }
+      if (violatedPolicies.length === 0 && mapped.platform_policies?.length) {
+        violatedPolicies = mapped.platform_policies;
+      }
+    } catch (_) {
+      /* mapping optional at hydrate time */
+    }
+  }
+
   const analysis = {
-    category: snap.category || null,
-    intent: snap.intent || snap.category || null,
+    category: category || null,
+    intent: snap.intent || category || null,
     sentiment: snap.sentiment || row.sentiment || null,
     risk_score: row.risk_score ?? snap.risk_score ?? 0,
     risk_level: row.risk_level || snap.risk_level || 'low',
@@ -152,6 +191,19 @@ const hydrateCatalogAlert = (row) => {
     keyword_context: snap.keyword_context || [],
     source: snap.source || 'sentiment-api',
     analyzed_at: post?.analyzed_at || row.updated_at || null,
+    legal_sections: legalSections,
+    violated_policies: violatedPolicies,
+  };
+
+  const llm_analysis = {
+    category: analysis.category,
+    intent: analysis.intent,
+    sentiment: analysis.sentiment,
+    reasoning: analysis.reasoning || '',
+    score: analysis.risk_score,
+    summary: analysis.summary || '',
+    platform_policies_violated: violatedPolicies,
+    bns_sections_violated: legalSections,
   };
 
   return serialize({
@@ -171,11 +223,16 @@ const hydrateCatalogAlert = (row) => {
     is_read: row.is_read,
     matched_keywords: highlights,
     virality_level: viralityLevel,
+    violated_policies: violatedPolicies,
+    legal_sections: legalSections,
+    llm_analysis,
     threat_details: {
       intent: analysis.intent,
       reasons,
       highlights,
       risk_score: analysis.risk_score,
+      violated_policies: violatedPolicies,
+      legal_sections: legalSections,
     },
     content_details: post
       ? {
@@ -200,7 +257,7 @@ const hydrateCatalogAlert = (row) => {
       handle: account?.handle || row.author_handle || null,
     },
     source_category: (() => {
-      const raw = String(snap.category || '').trim().toLowerCase();
+      const raw = String(category || '').trim().toLowerCase();
       if (raw && !['neutral', 'unknown', 'normal', 'monitor', 'null', 'none'].includes(raw)) {
         return raw.replace(/\s+/g, '_').slice(0, 48);
       }

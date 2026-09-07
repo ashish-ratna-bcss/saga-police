@@ -1,87 +1,45 @@
 /**
- * Andhra Pradesh relevance signals for catalog profile scoring.
- * Deterministic / no network — safe to run on every list request.
+ * Catalog-keyword relevance scoring for social profiles.
+ * Keywords are supplied by the caller (from Alerts → Manage keywords) —
+ * nothing is hard-coded here.
  */
-
-const LOCATION_KEYWORDS = [
-  { term: 'andhra pradesh', weight: 50 },
-  { term: 'andhra', weight: 35 },
-  { term: 'visakhapatnam', weight: 45 },
-  { term: 'vizag', weight: 45 },
-  { term: 'vijayawada', weight: 45 },
-  { term: 'guntur', weight: 40 },
-  { term: 'tirupati', weight: 45 },
-  { term: 'tirumala', weight: 42 },
-  { term: 'nellore', weight: 38 },
-  { term: 'kurnool', weight: 38 },
-  { term: 'rajahmundry', weight: 38 },
-  { term: 'kakinada', weight: 38 },
-  { term: 'ongole', weight: 35 },
-  { term: 'anantapur', weight: 35 },
-  { term: 'kadapa', weight: 35 },
-  { term: 'cuddapah', weight: 35 },
-  { term: 'srikakulam', weight: 32 },
-  { term: 'vizianagaram', weight: 32 },
-  { term: 'eluru', weight: 32 },
-  { term: 'machilipatnam', weight: 28 },
-  { term: 'amaravati', weight: 40 },
-  { term: 'amravati', weight: 35 },
-  { term: 'appolice', weight: 45 },
-  { term: 'ap police', weight: 45 },
-  { term: 'andhra police', weight: 42 },
-  { term: 'ఆంధ్రప్రదేశ్', weight: 50 },
-  { term: 'విశాఖపట్నం', weight: 45 },
-  { term: 'విజయవాడ', weight: 45 },
-  { term: 'తిరుపతి', weight: 45 },
-  { term: 'గుంటూరు', weight: 40 },
-];
-
-const CONTEXT_KEYWORDS = [
-  { term: 'telugu', weight: 25 },
-  { term: 'తెలుగు', weight: 28 },
-  { term: 'sankranti', weight: 18 },
-  { term: 'ugadi', weight: 18 },
-  { term: 'సంక్రాంతి', weight: 18 },
-  { term: 'ఉగాది', weight: 18 },
-  { term: 'cyclone', weight: 12 },
-  { term: 'bay of bengal', weight: 14 },
-  { term: 'godavari', weight: 16 },
-  { term: 'krishna river', weight: 14 },
-];
-
-const HANDLE_PATTERNS = [
-  { term: 'andhra', weight: 40 },
-  { term: 'vizag', weight: 40 },
-  { term: 'vijayawada', weight: 40 },
-  { term: 'tirupati', weight: 40 },
-  { term: 'guntur', weight: 35 },
-  { term: 'nellore', weight: 32 },
-  { term: 'appolice', weight: 45 },
-  { term: 'apnews', weight: 30 },
-  { term: 'telugu', weight: 35 },
-  { term: 'tv9', weight: 20 },
-  { term: 'sakshi', weight: 18 },
-  { term: 'eenadu', weight: 18 },
-];
-
-const HANDLE_PREFIX_PATTERNS = [
-  { re: /^ap[_\-]?police/i, term: 'appolice', weight: 45 },
-  { re: /^vizag/i, term: 'vizag', weight: 38 },
-  { re: /^vijay/i, term: 'vijayawada', weight: 30 },
-];
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const buildMatcher = (terms) =>
-  [...terms]
-    .sort((a, b) => b.term.length - a.term.length)
-    .map((entry) => ({
-      ...entry,
-      regex: new RegExp(`(^|[^a-zA-Z0-9_])(${escapeRegex(entry.term)})(?=[^a-zA-Z0-9_]|$)`, 'i'),
-    }));
+/** Longer / more specific catalog phrases score higher. */
+const weightForKeyword = (keyword) => {
+  const len = String(keyword || '').trim().length;
+  if (len >= 18) return 48;
+  if (len >= 12) return 40;
+  if (len >= 8) return 32;
+  if (len >= 5) return 22;
+  if (len >= 3) return 14;
+  return 8;
+};
 
-const LOCATION_MATCHERS = buildMatcher(LOCATION_KEYWORDS);
-const CONTEXT_MATCHERS = buildMatcher(CONTEXT_KEYWORDS);
+/**
+ * @param {string[]} keywords - live catalog keyword strings
+ * @returns {{ term: string, weight: number, regex: RegExp }[]}
+ */
+const buildKeywordMatchers = (keywords = []) => {
+  const seen = new Set();
+  const entries = [];
+
+  for (const raw of keywords) {
+    const term = String(raw || '').trim();
+    if (!term || term.length < 2) continue;
+    const key = term.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    entries.push({
+      term,
+      weight: weightForKeyword(term),
+      regex: new RegExp(`(^|[^a-zA-Z0-9_ఀ-౿])(${escapeRegex(term)})(?=[^a-zA-Z0-9_ఀ-౿]|$)`, 'i'),
+    });
+  }
+
+  return entries.sort((a, b) => b.term.length - a.term.length);
+};
 
 const normalizeHandle = (value) =>
   String(value || '')
@@ -90,58 +48,62 @@ const normalizeHandle = (value) =>
     .replace(/^https?:\/\//i, '')
     .toLowerCase();
 
-const scoreBlob = (text) => {
+const scoreBlobAgainstMatchers = (text, matchers = []) => {
   const blob = String(text || '').trim();
-  if (!blob) {
+  if (!blob || !matchers.length) {
     return { score: 0, matched_terms: [] };
   }
 
   let score = 0;
   const matched = [];
 
-  for (const m of LOCATION_MATCHERS) {
-    if (m.regex.test(blob)) {
-      score += m.weight;
-      matched.push(m.term);
-      if (matched.length >= 5) break;
-    }
+  for (const m of matchers) {
+    if (matched.length >= 10) break;
+    if (!m.regex.test(blob)) continue;
+    score += m.weight;
+    matched.push(m.term);
   }
-  for (const m of CONTEXT_MATCHERS) {
-    if (m.regex.test(blob)) {
-      score += m.weight;
-      matched.push(m.term);
-      if (matched.length >= 8) break;
-    }
-  }
-
-  if (/[ఀ-౿]/.test(blob) && matched.length) score += 10;
 
   return {
     score: Math.min(100, score),
-    matched_terms: [...new Set(matched)].slice(0, 10),
+    matched_terms: matched,
   };
 };
 
-const scoreHandlePatterns = (handle) => {
-  const normalized = normalizeHandle(handle);
-  if (!normalized) return { score: 0, matched: [] };
+/**
+ * Handle match — only full compacted keyword or ALL significant tokens.
+ * Never score a multi-word keyword from a single shared token (e.g. "andhra").
+ */
+const scoreHandleAgainstMatchers = (handle, matchers = []) => {
+  const normalized = normalizeHandle(handle).replace(/[^a-z0-9ఀ-౿]/g, '');
+  if (!normalized || !matchers.length) return { score: 0, matched: [] };
 
   let score = 0;
   const matched = [];
 
-  for (const pattern of HANDLE_PATTERNS) {
-    if (matched.length >= 2) break;
-    if (!normalized.includes(pattern.term.toLowerCase())) continue;
-    score += pattern.weight;
-    matched.push(pattern.term);
-  }
+  for (const m of matchers) {
+    if (matched.length >= 3) break;
+    const term = String(m.term || '').trim();
+    if (!term) continue;
 
-  for (const pattern of HANDLE_PREFIX_PATTERNS) {
-    if (matched.includes(pattern.term)) continue;
-    if (!pattern.re.test(normalized)) continue;
-    score += pattern.weight;
-    matched.push(pattern.term);
-    break;
+    const compact = term.toLowerCase().replace(/[^a-z0-9ఀ-౿]+/g, '');
+    const tokens = term
+      .toLowerCase()
+      .split(/[^a-z0-9ఀ-౿]+/)
+      .filter((t) => t.length >= 4);
+
+    let hit = false;
+    if (compact.length >= 4 && normalized.includes(compact)) {
+      hit = true;
+    } else if (tokens.length === 1 && normalized.includes(tokens[0])) {
+      hit = true;
+    } else if (tokens.length >= 2 && tokens.every((t) => normalized.includes(t))) {
+      hit = true;
+    }
+
+    if (!hit) continue;
+    score += Math.min(m.weight, 40);
+    matched.push(m.term);
   }
 
   return { score: Math.min(70, score), matched };
@@ -174,15 +136,19 @@ const confidenceFromCount = (qualifyingCount) => {
   return 'low';
 };
 
+/** Any catalog keyword hit (≥14) counts as medium; strong multi-hit as high. */
 const priorityFromScore = (score) => {
-  if (score > 80) return 'high';
-  if (score >= 60) return 'medium';
+  if (score >= 50) return 'high';
+  if (score >= 14) return 'medium';
   return 'hidden';
 };
 
-const scoreProfileStatic = ({ handle, display_name, biography, notes } = {}) => {
-  const profileText = scoreBlob([display_name, biography, notes].filter(Boolean).join(' '));
-  const handleText = scoreHandlePatterns(handle);
+const scoreProfileStatic = ({ handle, display_name, biography, notes } = {}, matchers = []) => {
+  const profileText = scoreBlobAgainstMatchers(
+    [display_name, biography, notes].filter(Boolean).join(' '),
+    matchers
+  );
+  const handleText = scoreHandleAgainstMatchers(handle, matchers);
 
   let score = Math.max(profileText.score, handleText.score);
   if (profileText.score > 0 && handleText.score > 0) {
@@ -201,12 +167,12 @@ const scoreProfileStatic = ({ handle, display_name, biography, notes } = {}) => 
     matched_terms,
     reason: matched_terms.length
       ? `matched: ${matched_terms.slice(0, 4).join(', ')}`
-      : 'no Andhra Pradesh signal',
+      : 'no catalog keyword match',
   };
 };
 
-const scorePostText = (text) => {
-  const scored = scoreBlob(text);
+const scorePostText = (text, matchers = []) => {
+  const scored = scoreBlobAgainstMatchers(text, matchers);
   return {
     score: scored.score,
     priority: priorityFromScore(scored.score),
@@ -215,6 +181,8 @@ const scorePostText = (text) => {
 };
 
 module.exports = {
+  buildKeywordMatchers,
+  weightForKeyword,
   scoreProfileStatic,
   scorePostText,
   describeBlend,
