@@ -61,12 +61,23 @@ const Sidebar = ({ open, items }) => {
 
   useEffect(() => {
     refreshUnread();
-    const timer = setInterval(refreshUnread, 30_000);
+    const timer = setInterval(() => {
+      // WI-02: skip background polls while the tab is hidden.
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+      refreshUnread();
+    }, 30_000);
     const onFocus = () => refreshUnread();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refreshUnread();
+    };
     window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       clearInterval(timer);
       window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [refreshUnread, location.pathname]);
 

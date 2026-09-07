@@ -13,12 +13,14 @@ import {
   Pencil,
 } from 'lucide-react';
 import { bluwebApi, formatBluwebError } from '../features/webIntelligence/api/bluwebApi';
+import { CACHE_TTL, cacheGet, cacheInvalidate, cacheSet } from '../features/webIntelligence/cache';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { cn } from '../lib/utils';
 
 const TERMINAL = new Set(['completed', 'failed', 'cancelled']);
+const PREFLIGHT_OK = new Set(['completed', 'ready', 'ok', 'success', 'succeeded']);
 
 /** Hostname for display labels — never leave a prior preflight domain stuck. */
 const hostnameFromUrl = (raw) => {
@@ -29,10 +31,42 @@ const hostnameFromUrl = (raw) => {
   }
 };
 
+/** FE URL guard (WI-10): reject empty, nested schemes, and non-http(s). */
+const validateHttpUrl = (raw) => {
+  const value = String(raw || '').trim();
+  if (!value || value === 'https://' || value === 'http://') {
+    return 'Enter a valid http(s) URL.';
+  }
+  if (/^(https?:\/\/)+(https?:\/\/)/i.test(value)) {
+    return 'Enter a valid http(s) URL.';
+  }
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return 'Enter a valid http(s) URL.';
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    return 'Enter a valid http(s) URL.';
+  }
+  if (!parsed.hostname || ['http', 'https'].includes(parsed.hostname.toLowerCase())) {
+    return 'Enter a valid http(s) URL.';
+  }
+  return '';
+};
+
 const sourceNameMismatchesUrl = (source) => {
   const fromUrl = hostnameFromUrl(source?.base_url || source?.url || '');
   if (!fromUrl) return false;
   return String(source?.name || '').trim().toLowerCase() !== fromUrl.toLowerCase();
+};
+
+const preflightCanCreate = (preflight) => {
+  if (!preflight?.preflight_id) return false;
+  if (preflight.error) return false;
+  const status = String(preflight.status || '').toLowerCase();
+  if (status === 'failed' || status === 'not_ready' || status === 'error') return false;
+  return PREFLIGHT_OK.has(status) || Boolean(preflight.capability || preflight.fetch);
 };
 
 const ErrorBanner = ({ message }) => {
@@ -48,9 +82,9 @@ const ErrorBanner = ({ message }) => {
 const StatusChip = ({ status }) => {
   const s = String(status || '').toLowerCase();
   const tone =
-    s === 'completed' || s === 'active' || s === 'ready' || s === 'ok' || s === 'alive'
+    s === 'completed' || s === 'active' || s === 'ready' || s === 'ok' || s === 'alive' || s === 'success' || s === 'succeeded'
       ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-      : s === 'failed' || s === 'not_ready' || s === 'paused'
+      : s === 'failed' || s === 'not_ready' || s === 'paused' || s === 'error'
         ? 'bg-amber-50 text-amber-800 border-amber-200'
         : s === 'running' || s === 'queued' || s === 'cancelling'
           ? 'bg-sky-50 text-sky-800 border-sky-200'
@@ -66,6 +100,10 @@ const Empty = ({ children }) => (
   <p className="text-xs text-muted-foreground text-center py-8">{children}</p>
 );
 
+const SkeletonBlock = ({ className }) => (
+  <div className={cn('animate-pulse rounded bg-muted/60', className)} />
+);
+
 const WebIntelligence = () => {
   const [tab, setTab] = useState('overview');
   const [ready, setReady] = useState(null);
@@ -76,6 +114,8 @@ const WebIntelligence = () => {
   const [crawls, setCrawls] = useState([]);
   const [sources, setSources] = useState([]);
   const [overviewError, setOverviewError] = useState('');
+  const [overviewLoaded, setOverviewLoaded] = useState(false);
+  const [overviewLoading, setOverviewLoading] = useState(true);
 
   // Sources tab
   const [preflightUrl, setPreflightUrl] = useState('https://');
@@ -86,6 +126,9 @@ const WebIntelligence = () => {
   const [sourceEvents, setSourceEvents] = useState([]);
   const [sourceStats, setSourceStats] = useState(null);
   const [sourceError, setSourceError] = useState('');
+  const [sourceStatsError, setSourceStatsError] = useState('');
+  const [sourceEventsError, setSourceEventsError] = useState('');
+  const [sourceDetailLoading, setSourceDetailLoading] = useState(false);
 
   // Crawl tab
   const [crawlUrl, setCrawlUrl] = useState('https://');
@@ -95,7 +138,10 @@ const WebIntelligence = () => {
   const [crawlPages, setCrawlPages] = useState([]);
   const [crawlDocs, setCrawlDocs] = useState([]);
   const [crawlError, setCrawlError] = useState('');
+  const [crawlArtifactsLoading, setCrawlArtifactsLoading] = useState(false);
   const pollAbortRef = useRef(null);
+  const pollPausedRef = useRef(false);
+  const activeCrawlIdRef = useRef(null);
 
   // Documents tab
   const [docFilterCrawlId, setDocFilterCrawlId] = useState('');
@@ -108,15 +154,20 @@ const WebIntelligence = () => {
   const [diffFrom, setDiffFrom] = useState(1);
   const [diffTo, setDiffTo] = useState(2);
   const [docError, setDocError] = useState('');
+  const [docsLoading, setDocsLoading] = useState(false);
 
   // Search tab
   const [searchQuery, setSearchQuery] = useState('');
   const [searchDomain, setSearchDomain] = useState('');
   const [searchResults, setSearchResults] = useState(null);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [instantUrl, setInstantUrl] = useState('https://');
   const [instantQuery, setInstantQuery] = useState('');
   const [instantResult, setInstantResult] = useState(null);
+  const [instantLoading, setInstantLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const searchAbortRef = useRef(null);
+  const instantAbortRef = useRef(null);
 
   // Intelligence tab
   const [intelMode, setIntelMode] = useState('entities');
@@ -128,6 +179,11 @@ const WebIntelligence = () => {
   const [storyTimeline, setStoryTimeline] = useState(null);
   const [storyEntities, setStoryEntities] = useState(null);
   const [intelError, setIntelError] = useState('');
+  const [entitiesError, setEntitiesError] = useState('');
+  const [storiesError, setStoriesError] = useState('');
+  const [entitiesLoading, setEntitiesLoading] = useState(false);
+  const [storiesLoading, setStoriesLoading] = useState(false);
+  const [intelLoaded, setIntelLoaded] = useState(false);
 
   const refreshReady = useCallback(async () => {
     try {
@@ -140,17 +196,35 @@ const WebIntelligence = () => {
     }
   }, []);
 
-  const refreshOverview = useCallback(async () => {
+  const refreshOverview = useCallback(async ({ force = false } = {}) => {
     setOverviewError('');
+    setOverviewLoading(true);
     try {
+      const cacheKey = 'overview:lists';
+      if (!force) {
+        const cached = cacheGet(cacheKey);
+        if (cached) {
+          setCrawls(cached.crawls);
+          setSources(cached.sources);
+          setOverviewLoaded(true);
+          setOverviewLoading(false);
+          return;
+        }
+      }
       const [cRes, sRes] = await Promise.all([
         bluwebApi.listCrawls(),
         bluwebApi.listSources(),
       ]);
-      setCrawls(Array.isArray(cRes.data) ? cRes.data : []);
-      setSources(Array.isArray(sRes.data) ? sRes.data : []);
+      const nextCrawls = Array.isArray(cRes.data) ? cRes.data : [];
+      const nextSources = Array.isArray(sRes.data) ? sRes.data : [];
+      setCrawls(nextCrawls);
+      setSources(nextSources);
+      cacheSet(cacheKey, { crawls: nextCrawls, sources: nextSources }, CACHE_TTL.overview);
+      setOverviewLoaded(true);
     } catch (err) {
       setOverviewError(formatBluwebError(err));
+    } finally {
+      setOverviewLoading(false);
     }
   }, []);
 
@@ -161,16 +235,113 @@ const WebIntelligence = () => {
 
   useEffect(() => () => {
     pollAbortRef.current?.abort();
+    searchAbortRef.current?.abort();
+    instantAbortRef.current?.abort();
   }, []);
+
+  // WI-01: pause crawl polling while not on Crawl tab; resume if still running.
+  useEffect(() => {
+    const onCrawlTab = tab === 'crawl';
+    pollPausedRef.current = !onCrawlTab;
+    if (onCrawlTab && activeCrawlIdRef.current) {
+      const status = String(activeCrawl?.status || '').toLowerCase();
+      if (activeCrawl && !TERMINAL.has(status) && !pollAbortRef.current) {
+        // Resume poller after leaving/returning without an active controller.
+        const crawlId = activeCrawlIdRef.current;
+        const controller = new AbortController();
+        pollAbortRef.current = controller;
+        (async () => {
+          try {
+            const finalJob = await bluwebApi.pollCrawl(crawlId, {
+              signal: controller.signal,
+              onUpdate: setActiveCrawl,
+              pausedRef: pollPausedRef,
+            });
+            setActiveCrawl(finalJob);
+            await loadCrawlArtifacts(crawlId, { force: true });
+            await refreshOverview({ force: true });
+          } catch (err) {
+            if (err.code !== 'ABORTED') setCrawlError(formatBluwebError(err));
+          } finally {
+            if (pollAbortRef.current === controller) pollAbortRef.current = null;
+          }
+        })();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   const serviceReady = String(ready?.status || '').toLowerCase() === 'ready';
   const writesDisabled = !serviceReady || busy;
 
+  const loadCrawlArtifacts = async (crawlId, { force = false } = {}) => {
+    if (!crawlId) return;
+    const cacheKey = `crawlArtifacts:${crawlId}`;
+    if (!force) {
+      const cached = cacheGet(cacheKey);
+      if (cached) {
+        setCrawlPages(cached.pages);
+        setCrawlDocs(cached.docs);
+        return;
+      }
+    }
+    setCrawlArtifactsLoading(true);
+    try {
+      const [pagesRes, docsRes] = await Promise.all([
+        bluwebApi.getCrawlPages(crawlId).catch(() => ({ data: [] })),
+        bluwebApi.listDocuments({ crawl_id: crawlId }).catch(() => ({ data: [] })),
+      ]);
+      const pages = Array.isArray(pagesRes.data) ? pagesRes.data : [];
+      const docs = Array.isArray(docsRes.data) ? docsRes.data : [];
+      setCrawlPages(pages);
+      setCrawlDocs(docs);
+      cacheSet(cacheKey, { pages, docs }, CACHE_TTL.crawlArtifacts);
+    } finally {
+      setCrawlArtifactsLoading(false);
+    }
+  };
+
+  const selectCrawl = async (crawl) => {
+    pollAbortRef.current?.abort();
+    pollAbortRef.current = null;
+    setActiveCrawl(crawl);
+    activeCrawlIdRef.current = crawl?.crawl_id || null;
+    setDocFilterCrawlId(crawl?.crawl_id || '');
+    setCrawlPages([]);
+    setCrawlDocs([]);
+    setTab('crawl');
+    if (crawl?.crawl_id) {
+      await loadCrawlArtifacts(crawl.crawl_id);
+      const status = String(crawl.status || '').toLowerCase();
+      if (!TERMINAL.has(status)) {
+        const controller = new AbortController();
+        pollAbortRef.current = controller;
+        try {
+          const finalJob = await bluwebApi.pollCrawl(crawl.crawl_id, {
+            signal: controller.signal,
+            onUpdate: setActiveCrawl,
+            pausedRef: pollPausedRef,
+          });
+          setActiveCrawl(finalJob);
+          await loadCrawlArtifacts(crawl.crawl_id, { force: true });
+        } catch (err) {
+          if (err.code !== 'ABORTED') setCrawlError(formatBluwebError(err));
+        } finally {
+          if (pollAbortRef.current === controller) pollAbortRef.current = null;
+        }
+      }
+    }
+  };
+
   const runPreflight = async () => {
+    const urlErr = validateHttpUrl(preflightUrl);
+    if (urlErr) {
+      setSourceError(urlErr);
+      return;
+    }
     setSourceError('');
     setBusy(true);
     setPreflight(null);
-    // Drop any leftover label from a previous attempt before the new preflight settles.
     setSourceName('');
     try {
       const { data } = await bluwebApi.createPreflight({ url: preflightUrl.trim() });
@@ -181,7 +352,6 @@ const WebIntelligence = () => {
         setSourceName('');
         return;
       }
-      // Always reset name from this preflight's hostname (not only when empty).
       const host =
         hostnameFromUrl(data?.final_url || data?.url || preflightUrl.trim()) || 'Monitored site';
       setSourceName(host);
@@ -201,8 +371,10 @@ const WebIntelligence = () => {
     setSourceError('');
     try {
       await bluwebApi.updateSource(source.source_id, { name: host });
-      await refreshOverview();
-      if (selectedSourceId === source.source_id) await loadSourceDetail(source.source_id);
+      cacheInvalidate('overview:');
+      cacheInvalidate(`sourceDetail:${source.source_id}`);
+      await refreshOverview({ force: true });
+      if (selectedSourceId === source.source_id) await loadSourceDetail(source.source_id, { force: true });
     } catch (err) {
       setSourceError(formatBluwebError(err));
     } finally {
@@ -211,8 +383,8 @@ const WebIntelligence = () => {
   };
 
   const createAndStartSource = async () => {
-    if (!preflight?.preflight_id) {
-      setSourceError('Run preflight first');
+    if (!preflightCanCreate(preflight)) {
+      setSourceError('Run a successful preflight first');
       return;
     }
     setSourceError('');
@@ -226,8 +398,10 @@ const WebIntelligence = () => {
         source_type: 'website',
       });
       await bluwebApi.startSource(created.source_id);
-      await refreshOverview();
+      cacheInvalidate('overview:');
+      await refreshOverview({ force: true });
       setSelectedSourceId(created.source_id);
+      await loadSourceDetail(created.source_id, { force: true });
     } catch (err) {
       setSourceError(formatBluwebError(err));
     } finally {
@@ -235,18 +409,59 @@ const WebIntelligence = () => {
     }
   };
 
-  const loadSourceDetail = async (sourceId) => {
+  const loadSourceDetail = async (sourceId, { force = false } = {}) => {
     setSelectedSourceId(sourceId);
     setSourceError('');
+    setSourceStatsError('');
+    setSourceEventsError('');
+    const cacheKey = `sourceDetail:${sourceId}`;
+    if (!force) {
+      const cached = cacheGet(cacheKey);
+      if (cached) {
+        setSourceEvents(cached.events);
+        setSourceStats(cached.stats);
+        setSourceStatsError(cached.statsError || '');
+        setSourceEventsError(cached.eventsError || '');
+        return;
+      }
+    }
+    setSourceDetailLoading(true);
+    setSourceEvents([]);
+    setSourceStats(null);
     try {
-      const [ev, st] = await Promise.all([
+      const [evSettled, stSettled] = await Promise.allSettled([
         bluwebApi.getSourceEvents(sourceId),
         bluwebApi.getSourceStatistics(sourceId),
       ]);
-      setSourceEvents(Array.isArray(ev.data) ? ev.data : ev.data?.events || []);
-      setSourceStats(st.data);
-    } catch (err) {
-      setSourceError(formatBluwebError(err));
+
+      let events = [];
+      let eventsError = '';
+      if (evSettled.status === 'fulfilled') {
+        const ev = evSettled.value;
+        events = Array.isArray(ev.data) ? ev.data : ev.data?.events || [];
+        setSourceEvents(events);
+      } else {
+        eventsError = formatBluwebError(evSettled.reason);
+        setSourceEventsError(eventsError);
+      }
+
+      let stats = null;
+      let statsError = '';
+      if (stSettled.status === 'fulfilled') {
+        stats = stSettled.value.data;
+        setSourceStats(stats);
+      } else {
+        statsError = formatBluwebError(stSettled.reason);
+        setSourceStatsError(statsError);
+      }
+
+      cacheSet(
+        cacheKey,
+        { events, stats, eventsError, statsError },
+        CACHE_TTL.sourceDetail
+      );
+    } finally {
+      setSourceDetailLoading(false);
     }
   };
 
@@ -256,8 +471,10 @@ const WebIntelligence = () => {
     try {
       if (action === 'start') await bluwebApi.startSource(source.source_id);
       else await bluwebApi.pauseSource(source.source_id);
-      await refreshOverview();
-      if (selectedSourceId === source.source_id) await loadSourceDetail(source.source_id);
+      cacheInvalidate('overview:');
+      cacheInvalidate(`sourceDetail:${source.source_id}`);
+      await refreshOverview({ force: true });
+      if (selectedSourceId === source.source_id) await loadSourceDetail(source.source_id, { force: true });
     } catch (err) {
       setSourceError(formatBluwebError(err));
     } finally {
@@ -266,6 +483,11 @@ const WebIntelligence = () => {
   };
 
   const startCrawl = async () => {
+    const urlErr = validateHttpUrl(crawlUrl);
+    if (urlErr) {
+      setCrawlError(urlErr);
+      return;
+    }
     setCrawlError('');
     setBusy(true);
     setCrawlPages([]);
@@ -273,6 +495,7 @@ const WebIntelligence = () => {
     pollAbortRef.current?.abort();
     const controller = new AbortController();
     pollAbortRef.current = controller;
+    pollPausedRef.current = tab !== 'crawl';
 
     try {
       const { data: job } = await bluwebApi.createCrawl({
@@ -282,23 +505,22 @@ const WebIntelligence = () => {
         same_domain_only: true,
       });
       setActiveCrawl(job);
+      activeCrawlIdRef.current = job.crawl_id;
 
       const finalJob = await bluwebApi.pollCrawl(job.crawl_id, {
         signal: controller.signal,
         onUpdate: setActiveCrawl,
+        pausedRef: pollPausedRef,
       });
       setActiveCrawl(finalJob);
 
-      const [pagesRes, docsRes] = await Promise.all([
-        bluwebApi.getCrawlPages(job.crawl_id).catch(() => ({ data: [] })),
-        bluwebApi.listDocuments({ crawl_id: job.crawl_id }).catch(() => ({ data: [] })),
-      ]);
-      setCrawlPages(Array.isArray(pagesRes.data) ? pagesRes.data : []);
-      setCrawlDocs(Array.isArray(docsRes.data) ? docsRes.data : []);
-      await refreshOverview();
+      await loadCrawlArtifacts(job.crawl_id, { force: true });
+      cacheInvalidate('overview:');
+      await refreshOverview({ force: true });
     } catch (err) {
       if (err.code !== 'ABORTED') setCrawlError(formatBluwebError(err));
     } finally {
+      if (pollAbortRef.current === controller) pollAbortRef.current = null;
       setBusy(false);
     }
   };
@@ -328,6 +550,7 @@ const WebIntelligence = () => {
 
   const loadDocuments = async () => {
     setDocError('');
+    setDocsLoading(true);
     setBusy(true);
     try {
       const params = {};
@@ -338,6 +561,7 @@ const WebIntelligence = () => {
     } catch (err) {
       setDocError(formatBluwebError(err));
     } finally {
+      setDocsLoading(false);
       setBusy(false);
     }
   };
@@ -358,54 +582,114 @@ const WebIntelligence = () => {
 
   const runSearch = async () => {
     setSearchError('');
-    setBusy(true);
+    searchAbortRef.current?.abort();
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
+    setSearchLoading(true);
     try {
-      const { data } = await bluwebApi.search({
-        query: searchQuery.trim() || null,
-        domain: searchDomain.trim() || null,
-        limit: 20,
-        offset: 0,
-      });
-      setSearchResults(data);
+      const { data } = await bluwebApi.search(
+        {
+          query: searchQuery.trim() || null,
+          domain: searchDomain.trim() || null,
+          limit: 20,
+          offset: 0,
+        },
+        { signal: controller.signal }
+      );
+      if (!controller.signal.aborted) setSearchResults(data);
     } catch (err) {
+      if (err.code === 'ERR_CANCELED' || err.name === 'CanceledError' || err.code === 'ABORTED') return;
       setSearchError(formatBluwebError(err));
     } finally {
-      setBusy(false);
+      if (searchAbortRef.current === controller) searchAbortRef.current = null;
+      setSearchLoading(false);
     }
+  };
+
+  const clearSearch = () => {
+    searchAbortRef.current?.abort();
+    setSearchQuery('');
+    setSearchDomain('');
+    setSearchResults(null);
+    setSearchError('');
   };
 
   const runInstantSearch = async () => {
+    const urlErr = validateHttpUrl(instantUrl);
+    if (urlErr) {
+      setSearchError(urlErr);
+      return;
+    }
     setSearchError('');
+    instantAbortRef.current?.abort();
+    const controller = new AbortController();
+    instantAbortRef.current = controller;
+    setInstantLoading(true);
     setBusy(true);
     try {
-      const { data } = await bluwebApi.instantSearch({
-        url: instantUrl.trim(),
-        query: instantQuery.trim() || null,
-        max_pages: 5,
-        wait_seconds: 8,
-      });
-      setInstantResult(data);
+      const { data } = await bluwebApi.instantSearch(
+        {
+          url: instantUrl.trim(),
+          query: instantQuery.trim() || null,
+          max_pages: 5,
+          wait_seconds: 8,
+        },
+        { signal: controller.signal }
+      );
+      if (!controller.signal.aborted) setInstantResult(data);
     } catch (err) {
+      if (err.code === 'ERR_CANCELED' || err.name === 'CanceledError' || err.code === 'ABORTED') return;
       setSearchError(formatBluwebError(err));
     } finally {
+      if (instantAbortRef.current === controller) instantAbortRef.current = null;
+      setInstantLoading(false);
       setBusy(false);
     }
   };
 
-  const loadIntelligence = async () => {
+  const loadIntelligence = async ({ force = false } = {}) => {
     setIntelError('');
-    setBusy(true);
+    setEntitiesError('');
+    setStoriesError('');
+    if (!force) {
+      const cached = cacheGet('intelligence:lists');
+      if (cached) {
+        setEntities(cached.entities);
+        setStories(cached.stories);
+        setIntelLoaded(true);
+        return;
+      }
+    }
+    setEntitiesLoading(true);
+    setStoriesLoading(true);
     try {
-      const [eRes, sRes] = await Promise.all([
+      const [eSettled, sSettled] = await Promise.allSettled([
         bluwebApi.listEntities(),
         bluwebApi.listStories(),
       ]);
-      setEntities(Array.isArray(eRes.data) ? eRes.data : []);
-      setStories(Array.isArray(sRes.data) ? sRes.data : []);
-    } catch (err) {
-      setIntelError(formatBluwebError(err));
+      let nextEntities = [];
+      let nextStories = [];
+      if (eSettled.status === 'fulfilled') {
+        nextEntities = Array.isArray(eSettled.value.data) ? eSettled.value.data : [];
+        setEntities(nextEntities);
+      } else {
+        setEntitiesError(formatBluwebError(eSettled.reason));
+      }
+      if (sSettled.status === 'fulfilled') {
+        nextStories = Array.isArray(sSettled.value.data) ? sSettled.value.data : [];
+        setStories(nextStories);
+      } else {
+        setStoriesError(formatBluwebError(sSettled.reason));
+      }
+      cacheSet(
+        'intelligence:lists',
+        { entities: nextEntities, stories: nextStories },
+        CACHE_TTL.intelligence
+      );
+      setIntelLoaded(true);
     } finally {
-      setBusy(false);
+      setEntitiesLoading(false);
+      setStoriesLoading(false);
     }
   };
 
@@ -442,8 +726,8 @@ const WebIntelligence = () => {
   };
 
   useEffect(() => {
-    if (tab === 'documents' && documents.length === 0) loadDocuments();
-    if (tab === 'intelligence' && entities.length === 0 && stories.length === 0) loadIntelligence();
+    if (tab === 'documents' && documents.length === 0 && !docsLoading) loadDocuments();
+    if (tab === 'intelligence' && !intelLoaded) loadIntelligence();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
@@ -473,7 +757,8 @@ const WebIntelligence = () => {
             className="h-8 gap-1.5 text-xs"
             onClick={() => {
               refreshReady();
-              refreshOverview();
+              cacheInvalidate('overview:');
+              refreshOverview({ force: true });
             }}
           >
             <RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} />
@@ -520,7 +805,11 @@ const WebIntelligence = () => {
                   <card.icon className="h-3 w-3" />
                   {card.label}
                 </div>
-                <div className="text-2xl font-semibold tabular-nums mt-1">{card.value}</div>
+                {overviewLoading && !overviewLoaded ? (
+                  <SkeletonBlock className="h-8 w-12 mt-1" />
+                ) : (
+                  <div className="text-2xl font-semibold tabular-nums mt-1">{card.value}</div>
+                )}
               </div>
             ))}
           </div>
@@ -529,7 +818,13 @@ const WebIntelligence = () => {
             <div className="rounded-lg border border-border overflow-hidden">
               <div className="px-3 py-2 border-b text-xs font-medium bg-muted/40">Recent crawls</div>
               <div className="max-h-64 overflow-y-auto divide-y">
-                {crawls.length === 0 ? (
+                {overviewLoading && !overviewLoaded ? (
+                  <div className="p-3 space-y-2">
+                    <SkeletonBlock className="h-8 w-full" />
+                    <SkeletonBlock className="h-8 w-full" />
+                    <SkeletonBlock className="h-8 w-5/6" />
+                  </div>
+                ) : crawls.length === 0 ? (
                   <Empty>No crawls yet</Empty>
                 ) : (
                   crawls.slice(0, 20).map((c) => (
@@ -537,11 +832,7 @@ const WebIntelligence = () => {
                       key={c.crawl_id}
                       type="button"
                       className="w-full text-left px-3 py-2 text-xs hover:bg-muted/40 flex items-center gap-2"
-                      onClick={() => {
-                        setActiveCrawl(c);
-                        setDocFilterCrawlId(c.crawl_id);
-                        setTab('crawl');
-                      }}
+                      onClick={() => selectCrawl(c)}
                     >
                       <StatusChip status={c.status} />
                       <span className="truncate flex-1">{c.seed_url}</span>
@@ -553,7 +844,12 @@ const WebIntelligence = () => {
             <div className="rounded-lg border border-border overflow-hidden">
               <div className="px-3 py-2 border-b text-xs font-medium bg-muted/40">Sources</div>
               <div className="max-h-64 overflow-y-auto divide-y">
-                {sources.length === 0 ? (
+                {overviewLoading && !overviewLoaded ? (
+                  <div className="p-3 space-y-2">
+                    <SkeletonBlock className="h-8 w-full" />
+                    <SkeletonBlock className="h-8 w-full" />
+                  </div>
+                ) : sources.length === 0 ? (
                   <Empty>No sources registered</Empty>
                 ) : (
                   sources.slice(0, 20).map((s) => (
@@ -626,7 +922,7 @@ const WebIntelligence = () => {
                   <Button
                     size="sm"
                     className="h-8 text-xs"
-                    disabled={writesDisabled || String(preflight.status).toLowerCase() === 'failed'}
+                    disabled={writesDisabled || !preflightCanCreate(preflight)}
                     onClick={createAndStartSource}
                   >
                     Create & start
@@ -640,12 +936,25 @@ const WebIntelligence = () => {
             <div className="rounded-lg border border-border overflow-hidden">
               <div className="px-3 py-2 border-b text-xs font-medium bg-muted/40 flex justify-between">
                 <span>All sources</span>
-                <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1" onClick={refreshOverview}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-[10px] px-1"
+                  onClick={() => {
+                    cacheInvalidate('overview:');
+                    refreshOverview({ force: true });
+                  }}
+                >
                   Reload
                 </Button>
               </div>
               <div className="max-h-80 overflow-y-auto divide-y">
-                {sources.length === 0 ? (
+                {!overviewLoaded && overviewLoading ? (
+                  <div className="p-3 space-y-2">
+                    <SkeletonBlock className="h-10 w-full" />
+                    <SkeletonBlock className="h-10 w-full" />
+                  </div>
+                ) : sources.length === 0 ? (
                   <Empty>No sources</Empty>
                 ) : (
                   sources.map((s) => (
@@ -693,15 +1002,24 @@ const WebIntelligence = () => {
               <div className="p-3 space-y-2 max-h-80 overflow-y-auto text-xs">
                 {!selectedSourceId ? (
                   <Empty>Select a source</Empty>
+                ) : sourceDetailLoading ? (
+                  <div className="space-y-2">
+                    <SkeletonBlock className="h-24 w-full" />
+                    <SkeletonBlock className="h-8 w-full" />
+                  </div>
                 ) : (
                   <>
-                    {sourceStats && (
+                    <ErrorBanner message={sourceStatsError} />
+                    {sourceStats ? (
                       <pre className="text-[10px] bg-muted/40 rounded p-2 overflow-x-auto whitespace-pre-wrap">
                         {JSON.stringify(sourceStats, null, 2)}
                       </pre>
-                    )}
+                    ) : !sourceStatsError ? (
+                      <p className="text-muted-foreground">No statistics</p>
+                    ) : null}
                     <div className="font-medium">Events</div>
-                    {(sourceEvents || []).length === 0 ? (
+                    <ErrorBanner message={sourceEventsError} />
+                    {(sourceEvents || []).length === 0 && !sourceEventsError ? (
                       <p className="text-muted-foreground">No events</p>
                     ) : (
                       sourceEvents.slice(0, 30).map((ev, i) => (
@@ -773,10 +1091,18 @@ const WebIntelligence = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             <div className="rounded-lg border overflow-hidden">
-              <div className="px-3 py-2 border-b text-xs font-medium bg-muted/40">Pages</div>
+              <div className="px-3 py-2 border-b text-xs font-medium bg-muted/40 flex justify-between">
+                <span>Pages</span>
+                {crawlArtifactsLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+              </div>
               <div className="max-h-72 overflow-y-auto divide-y">
-                {crawlPages.length === 0 ? (
-                  <Empty>No pages</Empty>
+                {crawlArtifactsLoading && crawlPages.length === 0 ? (
+                  <div className="p-3 space-y-2">
+                    <SkeletonBlock className="h-8 w-full" />
+                    <SkeletonBlock className="h-8 w-full" />
+                  </div>
+                ) : crawlPages.length === 0 ? (
+                  <Empty>{activeCrawl ? 'No pages for this crawl' : 'No pages'}</Empty>
                 ) : (
                   crawlPages.map((p, i) => (
                     <div key={`${p.url}-${i}`} className="px-3 py-2 text-xs">
@@ -791,10 +1117,18 @@ const WebIntelligence = () => {
               </div>
             </div>
             <div className="rounded-lg border overflow-hidden">
-              <div className="px-3 py-2 border-b text-xs font-medium bg-muted/40">Documents from crawl</div>
+              <div className="px-3 py-2 border-b text-xs font-medium bg-muted/40 flex justify-between">
+                <span>Documents from crawl</span>
+                {crawlArtifactsLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+              </div>
               <div className="max-h-72 overflow-y-auto divide-y">
-                {crawlDocs.length === 0 ? (
-                  <Empty>No documents</Empty>
+                {crawlArtifactsLoading && crawlDocs.length === 0 ? (
+                  <div className="p-3 space-y-2">
+                    <SkeletonBlock className="h-8 w-full" />
+                    <SkeletonBlock className="h-8 w-full" />
+                  </div>
+                ) : crawlDocs.length === 0 ? (
+                  <Empty>{activeCrawl ? 'No documents for this crawl' : 'No documents'}</Empty>
                 ) : (
                   crawlDocs.map((d) => (
                     <button
@@ -832,7 +1166,7 @@ const WebIntelligence = () => {
               placeholder="domain filter"
               className="h-9 text-xs w-40"
             />
-            <Button size="sm" className="h-9 text-xs" onClick={loadDocuments} disabled={busy}>
+            <Button size="sm" className="h-9 text-xs" onClick={loadDocuments} disabled={busy || docsLoading}>
               <FileText className="h-3.5 w-3.5 mr-1" />
               List (max 50)
             </Button>
@@ -841,7 +1175,12 @@ const WebIntelligence = () => {
             <div className="rounded-lg border overflow-hidden">
               <div className="px-3 py-2 border-b text-xs font-medium bg-muted/40">Documents</div>
               <div className="max-h-[28rem] overflow-y-auto divide-y">
-                {documents.length === 0 ? (
+                {docsLoading && documents.length === 0 ? (
+                  <div className="p-3 space-y-2">
+                    <SkeletonBlock className="h-8 w-full" />
+                    <SkeletonBlock className="h-8 w-full" />
+                  </div>
+                ) : documents.length === 0 ? (
                   <Empty>No documents</Empty>
                 ) : (
                   documents.map((d) => (
@@ -918,34 +1257,77 @@ const WebIntelligence = () => {
               <h2 className="text-sm font-semibold flex items-center gap-1.5">
                 <Search className="h-4 w-4" /> Indexed search
               </h2>
-              <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Query" className="h-9 text-xs" />
-              <Input value={searchDomain} onChange={(e) => setSearchDomain(e.target.value)} placeholder="Domain (optional)" className="h-9 text-xs" />
-              <Button size="sm" className="h-9 text-xs" disabled={busy} onClick={runSearch}>Search</Button>
-              {searchResults && (
-                <div className="text-xs space-y-1 max-h-72 overflow-y-auto">
-                  <div className="text-muted-foreground">Total: {searchResults.total}</div>
-                  {(searchResults.results || []).map((hit) => (
-                    <button
-                      key={hit.document_id}
-                      type="button"
-                      className="w-full text-left border-b py-1.5 hover:bg-muted/40"
-                      onClick={() => {
-                        setTab('documents');
-                        openDocument({ document_id: hit.document_id, title: hit.title, url: hit.url });
-                      }}
-                    >
-                      <div className="font-medium">{hit.title || hit.url}</div>
-                      <div className="text-muted-foreground line-clamp-2">{hit.snippet}</div>
-                    </button>
-                  ))}
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    runSearch();
+                  }
+                }}
+                placeholder="Query"
+                className="h-9 text-xs"
+              />
+              <Input
+                value={searchDomain}
+                onChange={(e) => setSearchDomain(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    runSearch();
+                  }
+                }}
+                placeholder="Domain (optional)"
+                className="h-9 text-xs"
+              />
+              <div className="flex gap-2">
+                <Button size="sm" className="h-9 text-xs" disabled={searchLoading} onClick={runSearch}>
+                  {searchLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                  Search
+                </Button>
+                <Button size="sm" variant="outline" className="h-9 text-xs" onClick={clearSearch}>
+                  Clear
+                </Button>
+              </div>
+              {searchLoading && !searchResults ? (
+                <div className="space-y-2 py-2">
+                  <SkeletonBlock className="h-6 w-full" />
+                  <SkeletonBlock className="h-6 w-5/6" />
                 </div>
-              )}
+              ) : searchResults ? (
+                <div className="text-xs space-y-1 max-h-72 overflow-y-auto">
+                  <div className="text-muted-foreground">
+                    Total: {searchResults.total}
+                    {searchLoading ? ' · updating…' : ''}
+                  </div>
+                  {(searchResults.results || []).length === 0 ? (
+                    <Empty>No hits</Empty>
+                  ) : (
+                    (searchResults.results || []).map((hit) => (
+                      <button
+                        key={hit.document_id}
+                        type="button"
+                        className="w-full text-left border-b py-1.5 hover:bg-muted/40"
+                        onClick={() => {
+                          setTab('documents');
+                          openDocument({ document_id: hit.document_id, title: hit.title, url: hit.url });
+                        }}
+                      >
+                        <div className="font-medium">{hit.title || hit.url}</div>
+                        <div className="text-muted-foreground line-clamp-2">{hit.snippet}</div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              ) : null}
             </div>
             <div className="rounded-lg border p-3 space-y-2">
               <h2 className="text-sm font-semibold">Instant crawl + search</h2>
               <Input value={instantUrl} onChange={(e) => setInstantUrl(e.target.value)} placeholder="https://…" className="h-9 text-xs" />
               <Input value={instantQuery} onChange={(e) => setInstantQuery(e.target.value)} placeholder="Filter query (optional)" className="h-9 text-xs" />
-              <Button size="sm" className="h-9 text-xs" disabled={writesDisabled} onClick={runInstantSearch}>
+              <Button size="sm" className="h-9 text-xs" disabled={writesDisabled || instantLoading} onClick={runInstantSearch}>
+                {instantLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
                 Instant search
               </Button>
               {instantResult && (
@@ -970,7 +1352,11 @@ const WebIntelligence = () => {
 
         {/* Intelligence */}
         <TabsContent value="intelligence" className="space-y-3">
-          <ErrorBanner message={intelError} />
+          <ErrorBanner message={intelError || (intelMode === 'entities' ? entitiesError : storiesError)} />
+          <p className="text-[11px] text-muted-foreground">
+            Bluweb stories and entities are separate from the sidebar Alerts badge, which counts catalog
+            social-media alerts — not Bluweb change events.
+          </p>
           <div className="flex gap-2">
             <Button
               size="sm"
@@ -988,8 +1374,17 @@ const WebIntelligence = () => {
             >
               Stories
             </Button>
-            <Button size="sm" variant="outline" className="h-8 text-xs ml-auto" onClick={loadIntelligence} disabled={busy}>
-              <RefreshCw className={cn('h-3.5 w-3.5 mr-1', busy && 'animate-spin')} />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs ml-auto"
+              onClick={() => {
+                cacheInvalidate('intelligence:');
+                loadIntelligence({ force: true });
+              }}
+              disabled={entitiesLoading || storiesLoading}
+            >
+              <RefreshCw className={cn('h-3.5 w-3.5 mr-1', (entitiesLoading || storiesLoading) && 'animate-spin')} />
               Reload
             </Button>
           </div>
@@ -1000,7 +1395,13 @@ const WebIntelligence = () => {
               </div>
               <div className="max-h-96 overflow-y-auto divide-y">
                 {intelMode === 'entities' ? (
-                  entities.length === 0 ? (
+                  entitiesLoading && !intelLoaded ? (
+                    <div className="p-3 space-y-2">
+                      <SkeletonBlock className="h-8 w-full" />
+                      <SkeletonBlock className="h-8 w-full" />
+                      <SkeletonBlock className="h-8 w-4/5" />
+                    </div>
+                  ) : entities.length === 0 ? (
                     <Empty>No entities</Empty>
                   ) : (
                     entities.map((e) => (
@@ -1015,6 +1416,11 @@ const WebIntelligence = () => {
                       </button>
                     ))
                   )
+                ) : storiesLoading && !intelLoaded ? (
+                  <div className="p-3 space-y-2">
+                    <SkeletonBlock className="h-8 w-full" />
+                    <SkeletonBlock className="h-8 w-full" />
+                  </div>
                 ) : stories.length === 0 ? (
                   <Empty>No stories</Empty>
                 ) : (
