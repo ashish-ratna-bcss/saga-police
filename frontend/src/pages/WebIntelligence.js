@@ -10,6 +10,7 @@ import {
   Radar,
   Link2,
   AlertCircle,
+  Pencil,
 } from 'lucide-react';
 import { bluwebApi, formatBluwebError } from '../features/webIntelligence/api/bluwebApi';
 import { Button } from '../components/ui/button';
@@ -18,6 +19,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { cn } from '../lib/utils';
 
 const TERMINAL = new Set(['completed', 'failed', 'cancelled']);
+
+/** Hostname for display labels — never leave a prior preflight domain stuck. */
+const hostnameFromUrl = (raw) => {
+  try {
+    return new URL(raw).hostname || '';
+  } catch {
+    return '';
+  }
+};
+
+const sourceNameMismatchesUrl = (source) => {
+  const fromUrl = hostnameFromUrl(source?.base_url || source?.url || '');
+  if (!fromUrl) return false;
+  return String(source?.name || '').trim().toLowerCase() !== fromUrl.toLowerCase();
+};
 
 const ErrorBanner = ({ message }) => {
   if (!message) return null;
@@ -154,16 +170,39 @@ const WebIntelligence = () => {
     setSourceError('');
     setBusy(true);
     setPreflight(null);
+    // Drop any leftover label from a previous attempt before the new preflight settles.
+    setSourceName('');
     try {
       const { data } = await bluwebApi.createPreflight({ url: preflightUrl.trim() });
       setPreflight(data);
-      if (data?.url && !sourceName) {
-        try {
-          setSourceName(new URL(data.final_url || data.url).hostname);
-        } catch {
-          setSourceName('Monitored site');
-        }
+      const status = String(data?.status || '').toLowerCase();
+      const failed = status === 'failed' || Boolean(data?.error);
+      if (failed) {
+        setSourceName('');
+        return;
       }
+      // Always reset name from this preflight's hostname (not only when empty).
+      const host =
+        hostnameFromUrl(data?.final_url || data?.url || preflightUrl.trim()) || 'Monitored site';
+      setSourceName(host);
+    } catch (err) {
+      setSourceName('');
+      setPreflight(null);
+      setSourceError(formatBluwebError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const syncSourceNameFromUrl = async (source) => {
+    const host = hostnameFromUrl(source?.base_url || source?.url || '');
+    if (!host || !source?.source_id) return;
+    setBusy(true);
+    setSourceError('');
+    try {
+      await bluwebApi.updateSource(source.source_id, { name: host });
+      await refreshOverview();
+      if (selectedSourceId === source.source_id) await loadSourceDetail(source.source_id);
     } catch (err) {
       setSourceError(formatBluwebError(err));
     } finally {
@@ -614,8 +653,25 @@ const WebIntelligence = () => {
                       <button type="button" className="flex-1 text-left min-w-0" onClick={() => loadSourceDetail(s.source_id)}>
                         <div className="font-medium truncate">{s.name}</div>
                         <div className="text-muted-foreground truncate">{s.base_url}</div>
+                        {sourceNameMismatchesUrl(s) && (
+                          <div className="text-[10px] text-amber-700 dark:text-amber-400 mt-0.5">
+                            Name does not match URL — only the URL is monitored
+                          </div>
+                        )}
                       </button>
                       <StatusChip status={s.status} />
+                      {sourceNameMismatchesUrl(s) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 w-7 p-0"
+                          title="Set name from URL hostname"
+                          disabled={writesDisabled}
+                          onClick={() => syncSourceNameFromUrl(s)}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                      )}
                       {String(s.status).toLowerCase() === 'active' ? (
                         <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={writesDisabled} onClick={() => toggleSource(s, 'pause')}>
                           <Pause className="h-3 w-3" />
