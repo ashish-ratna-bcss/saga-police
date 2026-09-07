@@ -6,7 +6,6 @@ import {
   Play,
   Pause,
   Search,
-  FileText,
   Radar,
   Link2,
   AlertCircle,
@@ -143,10 +142,10 @@ const WebIntelligence = () => {
   const pollPausedRef = useRef(false);
   const activeCrawlIdRef = useRef(null);
 
-  // Documents tab
-  const [docFilterCrawlId, setDocFilterCrawlId] = useState('');
-  const [docFilterDomain, setDocFilterDomain] = useState('');
-  const [documents, setDocuments] = useState([]);
+  // Documents tab — source-first browser (IDs stay internal only)
+  const [docSelectedSource, setDocSelectedSource] = useState(null); // { source_id, name, domain, … }
+  const [sourceDocuments, setSourceDocuments] = useState([]);
+  const [sourceDocCounts, setSourceDocCounts] = useState({}); // source_id → total_documents
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [docVersion, setDocVersion] = useState(null);
   const [docChanges, setDocChanges] = useState([]);
@@ -154,7 +153,13 @@ const WebIntelligence = () => {
   const [diffFrom, setDiffFrom] = useState(1);
   const [diffTo, setDiffTo] = useState(2);
   const [docError, setDocError] = useState('');
-  const [docsLoading, setDocsLoading] = useState(false);
+  const [loadingDocSources, setLoadingDocSources] = useState(false);
+  const [loadingSourceDocuments, setLoadingSourceDocuments] = useState(false);
+  const [loadingDocDetail, setLoadingDocDetail] = useState(false);
+  const [docSourcesLoaded, setDocSourcesLoaded] = useState(false);
+  // Internal handoff from Crawl tab only — never shown as a primary user input
+  const [docHandoffCrawlId, setDocHandoffCrawlId] = useState('');
+  const [showDocDebugFilters, setShowDocDebugFilters] = useState(false);
 
   // Search tab
   const [searchQuery, setSearchQuery] = useState('');
@@ -306,7 +311,7 @@ const WebIntelligence = () => {
     pollAbortRef.current = null;
     setActiveCrawl(crawl);
     activeCrawlIdRef.current = crawl?.crawl_id || null;
-    setDocFilterCrawlId(crawl?.crawl_id || '');
+    setDocHandoffCrawlId(crawl?.crawl_id || '');
     setCrawlPages([]);
     setCrawlDocs([]);
     setTab('crawl');
@@ -527,6 +532,7 @@ const WebIntelligence = () => {
 
   const openDocument = async (doc) => {
     setDocError('');
+    setLoadingDocDetail(true);
     setSelectedDoc(null);
     setDocVersion(null);
     setDocChanges([]);
@@ -545,24 +551,109 @@ const WebIntelligence = () => {
       setDocChanges(Array.isArray(chRes.data) ? chRes.data : []);
     } catch (err) {
       setDocError(formatBluwebError(err));
+    } finally {
+      setLoadingDocDetail(false);
     }
   };
 
-  const loadDocuments = async () => {
+  const enrichSourceCounts = async (sourceList) => {
+    const entries = await Promise.all(
+      (sourceList || []).slice(0, 40).map(async (s) => {
+        try {
+          const { data } = await bluwebApi.getSourceStatistics(s.source_id);
+          return [s.source_id, Number(data?.total_documents) || 0];
+        } catch {
+          return [s.source_id, null];
+        }
+      })
+    );
+    const next = {};
+    for (const [id, count] of entries) next[id] = count;
+    setSourceDocCounts((prev) => ({ ...prev, ...next }));
+  };
+
+  const ensureDocSources = async ({ force = false } = {}) => {
     setDocError('');
-    setDocsLoading(true);
-    setBusy(true);
+    // Prefer already-loaded overview sources — never ask the user for IDs.
+    if (!force && sources.length > 0) {
+      setDocSourcesLoaded(true);
+      enrichSourceCounts(sources);
+      return sources;
+    }
+    setLoadingDocSources(true);
     try {
-      const params = {};
-      if (docFilterCrawlId.trim()) params.crawl_id = docFilterCrawlId.trim();
-      if (docFilterDomain.trim()) params.domain = docFilterDomain.trim();
-      const { data } = await bluwebApi.listDocuments(params);
-      setDocuments(Array.isArray(data) ? data : []);
+      await refreshOverview({ force: true });
+      const cached = cacheGet('overview:lists');
+      let list = cached?.sources;
+      if (!list) {
+        const { data } = await bluwebApi.listSources();
+        list = Array.isArray(data) ? data : [];
+      }
+      setDocSourcesLoaded(true);
+      enrichSourceCounts(list);
+      return list;
     } catch (err) {
       setDocError(formatBluwebError(err));
+      return [];
     } finally {
-      setDocsLoading(false);
-      setBusy(false);
+      setLoadingDocSources(false);
+    }
+  };
+
+  const loadDocumentsForSource = async (source, { force = false } = {}) => {
+    if (!source?.source_id) return;
+    setDocError('');
+    setLoadingSourceDocuments(true);
+    // Clear detail when switching sources (caller may also clear selectedDoc)
+    try {
+      const cacheKey = `sourceDocuments:${source.source_id}`;
+      if (!force) {
+        const cached = cacheGet(cacheKey);
+        if (cached) {
+          setSourceDocuments(cached);
+          return;
+        }
+      }
+      // Internal API param only — never shown in UI
+      const { data } = await bluwebApi.listDocuments({ source_id: source.source_id });
+      const list = Array.isArray(data) ? data : [];
+      setSourceDocuments(list);
+      cacheSet(cacheKey, list, CACHE_TTL.sourceDetail);
+      setSourceDocCounts((prev) => ({ ...prev, [source.source_id]: list.length }));
+    } catch (err) {
+      setSourceDocuments([]);
+      setDocError(formatBluwebError(err));
+    } finally {
+      setLoadingSourceDocuments(false);
+    }
+  };
+
+  const selectDocSource = async (source) => {
+    setDocSelectedSource(source);
+    setDocHandoffCrawlId(''); // leave crawl-scoped debug view when picking a source
+    setSelectedDoc(null);
+    setDocVersion(null);
+    setDocChanges([]);
+    setDocDiff(null);
+    setSourceDocuments([]);
+    await loadDocumentsForSource(source, { force: true });
+  };
+
+  /** Debug/developer: load by internal crawl handoff id (not part of normal UX). */
+  const loadDocumentsByHandoffCrawl = async () => {
+    if (!docHandoffCrawlId.trim()) return;
+    setDocError('');
+    setLoadingSourceDocuments(true);
+    setDocSelectedSource(null);
+    setSelectedDoc(null);
+    try {
+      const { data } = await bluwebApi.listDocuments({ crawl_id: docHandoffCrawlId.trim() });
+      setSourceDocuments(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setSourceDocuments([]);
+      setDocError(formatBluwebError(err));
+    } finally {
+      setLoadingSourceDocuments(false);
     }
   };
 
@@ -726,7 +817,9 @@ const WebIntelligence = () => {
   };
 
   useEffect(() => {
-    if (tab === 'documents' && documents.length === 0 && !docsLoading) loadDocuments();
+    if (tab === 'documents' && !docSourcesLoaded && !loadingDocSources) {
+      ensureDocSources();
+    }
     if (tab === 'intelligence' && !intelLoaded) loadIntelligence();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
@@ -1150,60 +1243,182 @@ const WebIntelligence = () => {
           </div>
         </TabsContent>
 
-        {/* Documents */}
+        {/* Documents — Source → Documents → Detail (IDs never user-entered) */}
         <TabsContent value="documents" className="space-y-3">
           <ErrorBanner message={docError} />
-          <div className="flex flex-wrap gap-2">
-            <Input
-              value={docFilterCrawlId}
-              onChange={(e) => setDocFilterCrawlId(e.target.value)}
-              placeholder="crawl_id filter"
-              className="h-9 text-xs w-48"
-            />
-            <Input
-              value={docFilterDomain}
-              onChange={(e) => setDocFilterDomain(e.target.value)}
-              placeholder="domain filter"
-              className="h-9 text-xs w-40"
-            />
-            <Button size="sm" className="h-9 text-xs" onClick={loadDocuments} disabled={busy || docsLoading}>
-              <FileText className="h-3.5 w-3.5 mr-1" />
-              List (max 50)
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[11px] text-muted-foreground flex-1 min-w-[200px]">
+              Choose a source by name, then browse its documents. No IDs required.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              disabled={loadingDocSources}
+              onClick={() => {
+                setDocSourcesLoaded(false);
+                ensureDocSources({ force: true });
+              }}
+            >
+              <RefreshCw className={cn('h-3.5 w-3.5 mr-1', loadingDocSources && 'animate-spin')} />
+              Reload sources
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 text-[10px] text-muted-foreground"
+              onClick={() => setShowDocDebugFilters((v) => !v)}
+            >
+              {showDocDebugFilters ? 'Hide debug' : 'Debug'}
             </Button>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+
+          {showDocDebugFilters && (
+            <div className="rounded-md border border-dashed border-amber-300 bg-amber-50/40 dark:bg-amber-950/20 px-3 py-2 space-y-2">
+              <p className="text-[10px] text-amber-800 dark:text-amber-200">
+                Developer only — crawl-scoped handoff. Ordinary users should pick a Source above.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  value={docHandoffCrawlId}
+                  onChange={(e) => setDocHandoffCrawlId(e.target.value)}
+                  placeholder="Internal crawl handoff (optional)"
+                  className="h-8 text-xs w-64 font-mono"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs"
+                  disabled={!docHandoffCrawlId.trim() || loadingSourceDocuments}
+                  onClick={loadDocumentsByHandoffCrawl}
+                >
+                  Load by crawl handoff
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            {/* Sources */}
             <div className="rounded-lg border overflow-hidden">
-              <div className="px-3 py-2 border-b text-xs font-medium bg-muted/40">Documents</div>
+              <div className="px-3 py-2 border-b text-xs font-medium bg-muted/40">Sources</div>
               <div className="max-h-[28rem] overflow-y-auto divide-y">
-                {docsLoading && documents.length === 0 ? (
+                {loadingDocSources && !docSourcesLoaded && sources.length === 0 ? (
                   <div className="p-3 space-y-2">
-                    <SkeletonBlock className="h-8 w-full" />
-                    <SkeletonBlock className="h-8 w-full" />
+                    <p className="text-[11px] text-muted-foreground">Loading Sources…</p>
+                    <SkeletonBlock className="h-12 w-full" />
+                    <SkeletonBlock className="h-12 w-full" />
+                    <SkeletonBlock className="h-12 w-5/6" />
                   </div>
-                ) : documents.length === 0 ? (
-                  <Empty>No documents</Empty>
+                ) : sources.length === 0 ? (
+                  <Empty>No sources available.</Empty>
                 ) : (
-                  documents.map((d) => (
+                  sources.map((s) => {
+                    const selected = docSelectedSource?.source_id === s.source_id;
+                    const count = sourceDocCounts[s.source_id];
+                    return (
+                      <button
+                        key={s.source_id}
+                        type="button"
+                        className={cn(
+                          'w-full text-left px-3 py-2.5 text-xs hover:bg-muted/40',
+                          selected && 'bg-muted/60 border-l-2 border-l-primary'
+                        )}
+                        onClick={() => selectDocSource(s)}
+                      >
+                        <div className="font-medium truncate">{s.name || s.domain || 'Unnamed source'}</div>
+                        <div className="text-muted-foreground truncate">{s.domain || s.base_url}</div>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                          <StatusChip status={s.status} />
+                          <span>
+                            {count == null ? '… documents' : `${count} document${count === 1 ? '' : 's'}`}
+                          </span>
+                          {s.last_crawl_at && (
+                            <span className="truncate">· last crawl {String(s.last_crawl_at).slice(0, 19)}</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Documents for selected source */}
+            <div className="rounded-lg border overflow-hidden">
+              <div className="px-3 py-2 border-b text-xs font-medium bg-muted/40 flex items-center justify-between gap-2">
+                <span className="truncate">
+                  Documents
+                  {docSelectedSource
+                    ? ` · ${docSelectedSource.name || docSelectedSource.domain}`
+                    : docHandoffCrawlId
+                      ? ' · crawl handoff'
+                      : ''}
+                </span>
+                {docSelectedSource && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 text-[10px] px-1"
+                    disabled={loadingSourceDocuments}
+                    onClick={() => loadDocumentsForSource(docSelectedSource, { force: true })}
+                  >
+                    <RefreshCw className={cn('h-3 w-3', loadingSourceDocuments && 'animate-spin')} />
+                  </Button>
+                )}
+              </div>
+              <div className="max-h-[28rem] overflow-y-auto divide-y">
+                {!docSelectedSource && !docHandoffCrawlId ? (
+                  <Empty>Select a source to view its documents.</Empty>
+                ) : loadingSourceDocuments && sourceDocuments.length === 0 ? (
+                  <div className="p-3 space-y-2">
+                    <p className="text-[11px] text-muted-foreground">Loading Documents…</p>
+                    <SkeletonBlock className="h-8 w-full" />
+                    <SkeletonBlock className="h-8 w-full" />
+                    <SkeletonBlock className="h-8 w-4/5" />
+                  </div>
+                ) : sourceDocuments.length === 0 ? (
+                  <Empty>
+                    {docSelectedSource
+                      ? 'No documents found for this source.'
+                      : 'No documents found for this crawl handoff.'}
+                  </Empty>
+                ) : (
+                  sourceDocuments.map((d) => (
                     <button
                       key={d.document_id}
                       type="button"
                       className={cn(
                         'w-full text-left px-3 py-2 text-xs hover:bg-muted/40',
-                        selectedDoc?.document_id === d.document_id && 'bg-muted/60'
+                        selectedDoc?.document_id === d.document_id && 'bg-muted/60 border-l-2 border-l-primary'
                       )}
                       onClick={() => openDocument(d)}
                     >
                       <div className="font-medium truncate">{d.title || '(untitled)'}</div>
                       <div className="text-muted-foreground truncate">{d.url}</div>
+                      {(d.page_type || d.current_version) && (
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                          {d.page_type || '—'}
+                          {d.current_version != null ? ` · v${d.current_version}` : ''}
+                        </div>
+                      )}
                     </button>
                   ))
                 )}
               </div>
             </div>
+
+            {/* Detail + body */}
             <div className="rounded-lg border overflow-hidden">
               <div className="px-3 py-2 border-b text-xs font-medium bg-muted/40">Detail + body</div>
               <div className="p-3 space-y-2 max-h-[28rem] overflow-y-auto text-xs">
-                {!selectedDoc ? (
+                {loadingDocDetail ? (
+                  <div className="space-y-2">
+                    <p className="text-[11px] text-muted-foreground">Loading document detail…</p>
+                    <SkeletonBlock className="h-6 w-3/4" />
+                    <SkeletonBlock className="h-24 w-full" />
+                  </div>
+                ) : !selectedDoc ? (
                   <Empty>Select a document</Empty>
                 ) : (
                   <>
@@ -1215,7 +1430,9 @@ const WebIntelligence = () => {
                       v{selectedDoc.current_version} · {selectedDoc.domain} · {selectedDoc.page_type || '—'}
                     </div>
                     {selectedDoc.story_id && (
-                      <div>Story: {selectedDoc.story_id} ({selectedDoc.story_match_confidence})</div>
+                      <div className="text-muted-foreground">
+                        Story confidence: {selectedDoc.story_match_confidence || '—'}
+                      </div>
                     )}
                     <div className="flex flex-wrap gap-2 items-center">
                       <Input type="number" className="h-8 text-xs w-20" value={diffFrom} onChange={(e) => setDiffFrom(e.target.value)} />
