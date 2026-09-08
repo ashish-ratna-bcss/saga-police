@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/auth.context';
 import Header from './Header';
 import Sidebar from './Sidebar';
@@ -8,12 +8,17 @@ import { cn } from '../lib/utils';
 const AppLayout = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
+
+  // Home fills the panel edge-to-edge (no main gutters).
+  const flushMain =
+    location.pathname === '/dashboard' || location.pathname === '/';
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background">
@@ -27,7 +32,10 @@ const AppLayout = () => {
         <Sidebar open={sidebarOpen} items={user?.sidebar || []} />
         <main
           className={cn(
-            'min-h-0 flex-1 overflow-auto p-4 transition-[margin] duration-300 lg:p-6',
+            'min-h-0 flex-1 overflow-auto transition-[margin] duration-300',
+            flushMain
+              ? 'flex flex-col p-0 [&>*]:min-h-0 [&>*]:flex-1'
+              : 'p-2 lg:p-3',
             sidebarOpen ? 'ml-[72px]' : 'ml-0'
           )}
         >

@@ -5,6 +5,7 @@ const roleRoutes = require('./role/role.routes');
 const alertRoutes = require('./alerts/alert.routes');
 const { grievanceRoutes } = require('./grievances');
 const { eventRoutes, occasionCalendarRoutes } = require('./events');
+const { dashboardRoutes } = require('./dashboard');
 const { authorize } = require('../middleware/auth.middleware');
 const { getMyPermissions, getAllPages } = require('./user/user.controller');
 const { ensureSystemRoles, getRoleBySlug } = require('./role/role.service');
@@ -14,7 +15,7 @@ const { assertJwtConfigured, shouldSeedDefaultAdmin, isProduction } = require('.
 /**
  * Flat router mounted at `/api`:
  *   auth: /login /logout /me
- *   + /me/permissions /pages /users /roles /alerts /grievances /events /occasion-calendar
+ *   + /me/permissions /pages /users /roles /alerts /grievances /events /occasion-calendar /dashboard
  */
 const router = express.Router();
 
@@ -35,6 +36,7 @@ router.use('/events', eventRoutes);
 router.use('/occasion-calendar', occasionCalendarRoutes);
 // Compat alias while UI migrates off /master-calendar
 router.use('/master-calendar', occasionCalendarRoutes);
+router.use('/dashboard', dashboardRoutes);
 
 module.exports = {
   router,

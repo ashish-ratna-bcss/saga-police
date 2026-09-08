@@ -17,6 +17,7 @@
     "db:ensure": "node prisma/ensureSchema.js",
     "db:seed:ap": "node prisma/seedApSoc.js",
     "db:seed:ap:reset": "node prisma/seedApSoc.js --reset",
+    "db:seed:narcotics-crime": "node prisma/seedNarcoticsCrimeProfiles.js",
     "db:apply-schema": "psql \"$DATABASE_URL\" -f ../postgres-schema/schema.sql"
   },
   "dependencies": {

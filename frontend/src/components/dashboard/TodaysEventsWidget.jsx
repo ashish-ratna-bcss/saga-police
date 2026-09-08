@@ -4,14 +4,6 @@ import api from '../../lib/api';
 import { CalendarDays, Loader2, ArrowRight, MapPin, Clock, Users, User, FileText, ShieldAlert } from 'lucide-react';
 import { Badge } from '../ui/badge';
 
-const MOCK_EVENTS = [
-  { id: 'm1', programName: 'CM Public Meeting at Town Hall', category: 'category1', zone: 'Central', location: 'Town Hall, MG Road', organizer: 'District Administration', time: '10:00 AM', expectedMembers: 5000, gist: 'Chief Minister addressing public on development schemes' },
-  { id: 'm2', programName: 'Protest at District Collectorate', category: 'category2', zone: 'North', location: 'Collectorate Gate', organizer: 'Workers Union', time: '11:30 AM', expectedMembers: 200, gist: 'Demanding wage revision' },
-  { id: 'm3', programName: 'Religious Procession - Main St.', category: 'category3', zone: 'South', location: 'Main Street to Temple', organizer: 'Temple Committee', time: '04:00 PM', expectedMembers: 1500, gist: 'Annual religious festival procession' },
-  { id: 'm4', programName: 'Tech Summit Inauguration', category: 'category2', zone: 'West', location: 'Convention Centre', organizer: 'IT Association', time: '09:00 AM', expectedMembers: 300, gist: 'Technology summit with industry leaders' },
-  { id: 'm5', programName: 'Traffic Awareness Campaign', category: 'category1', zone: 'East', location: 'RTC Cross Roads', organizer: 'Traffic Police', time: '08:00 AM', expectedMembers: 50, gist: 'Road safety awareness drive' },
-];
-
 const MIN_LOOP_BASE_ITEMS = 28;
 
 const TodaysEventsWidget = ({ className = '' }) => {
@@ -73,11 +65,11 @@ const TodaysEventsWidget = ({ className = '' }) => {
         if (apiEvents.length > 0) {
           setEvents(apiEvents);
         } else {
-          setEvents(MOCK_EVENTS);
+          setEvents([]);
         }
       } catch (error) {
         console.error('Error fetching events:', error);
-        setEvents(MOCK_EVENTS);
+        setEvents([]);
       } finally {
         setIsLoading(false);
       }
