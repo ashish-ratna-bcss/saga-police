@@ -1,388 +1,243 @@
-const Report = require('../models/Report');
-const Alert = require('../models/Alert');
-const Content = require('../models/Content');
-const Analysis = require('../models/Analysis');
+/**
+ * Formal Reports API — Postgres only.
+ * Uses existing social_media_grievance_reports (G/S/C/Q) — no Mongo, no second reports table.
+ */
+const prisma = require('../../prisma/client');
 const cacheService = require('./cacheService');
-const logger = require('../utils/logger');
 
-const escapeRegex = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const asObject = (value, fallback = {}) => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  return fallback;
+};
 
-/**
- * Generate a unique serial number for a report.
- * Format: PLATFORM-SN-MM-DD-YYYY
- */
-const generateSerialNumber = async (platform) => {
-    const now = new Date();
-    const dd = String(now.getDate()).padStart(2, '0');
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const yyyy = now.getFullYear();
+const asArray = (value) => (Array.isArray(value) ? value : []);
 
-    const platformCode = platform.toUpperCase().substring(0, 1); // X, Y, F, I
-    const dateStr = `${dd}${mm}${yyyy}`; // ddmmyyyy
+/** Map grievance-report row → shape expected by /reports UI. */
+const toFormalReportShape = (row) => {
+  const postedBy = asObject(row.posted_by);
+  const handle =
+    postedBy.handle ||
+    postedBy.username ||
+    postedBy.screen_name ||
+    row.profile_id ||
+    '';
+  const name =
+    postedBy.display_name ||
+    postedBy.name ||
+    handle ||
+    'Unknown';
 
-    // Count ALL reports created for this platform (no date filter)
-    const count = await Report.countDocuments({
-        platform: platform.toLowerCase()
-    });
+  return {
+    id: row.id,
+    serial_number: row.unique_code,
+    alert_id: row.grievance_id,
+    report_type: row.report_type,
+    platform: row.platform,
+    status: String(row.status || '').toLowerCase() || 'pending',
+    title: row.category || row.report_type,
+    target_user_details: {
+      name,
+      handle,
+      profile_url: row.profile_link || '',
+      avatar_url: postedBy.profile_image_url || postedBy.avatar_url || '',
+      is_verified: Boolean(postedBy.is_verified),
+    },
+    content_summary: row.post_description || row.message || '',
+    media_links: asArray(row.media_urls),
+    post_link: row.post_link || null,
+    report_pdf_url: row.report_pdf_url || null,
+    informed_to: asObject(row.informed_to),
+    generated_at: row.created_at || row.shared_at || null,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    unique_code: row.unique_code,
+    grievance_id: row.grievance_id,
+  };
+};
 
-    const sn = String(count + 1).padStart(4, '0'); // 0001
-    return `${platformCode}${sn}-${dateStr}`; // x0001-ddmmyyyy
+const generateSerialNumber = async (platform, reportType = 'grievance') => {
+  // Kept for callers; unique codes are owned by grievance.report.service.
+  const prefix = String(reportType || 'G')[0].toUpperCase();
+  const p = String(platform || 'x').toUpperCase()[0] || 'X';
+  const count = await prisma.social_media_grievance_reports.count({
+    where: { platform: String(platform || 'x').toLowerCase() },
+  });
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const yyyy = now.getFullYear();
+  return `${prefix}-${p}${String(count + 1).padStart(5, '0')}-${dd}${mm}${yyyy}`;
 };
 
 /**
- * Create a new report based on an alert.
+ * Escalating catalog alerts into formal notices is not used when reports
+ * are grievance-table only. Create G/S/C/Q reports from Grievances UI instead.
  */
-const createReportFromAlert = async (alertId) => {
-    const alert = await Alert.findOne({ id: alertId });
-    if (!alert) throw new Error('Alert not found');
-
-    const content = await Content.findOne({ id: alert.content_id });
-    const analysis = await Analysis.findOne({ id: alert.analysis_id });
-
-    // Check if report already exists
-    const existingReport = await Report.findOne({ alert_id: alertId });
-    if (existingReport) {
-        return existingReport;
-    }
-
-    const serialNumber = await generateSerialNumber(alert.platform);
-
-    const reportData = {
-        serial_number: serialNumber,
-        alert_id: alertId,
-        platform: alert.platform,
-        target_user_details: {
-            name: alert.author || 'Unknown',
-            handle: content?.author_handle || alert.author,
-            profile_url: `https://x.com/${(content?.author_handle || alert.author).replace('@', '')}`,
-            avatar_url: content?.original_author_avatar || '',
-            is_verified: false // Source model would have this
-        },
-        content_summary: content?.text || alert.description,
-        media_links: content?.media?.map(m => m.url) || [],
-        legal_sections: alert.legal_sections || [],
-        violated_policies: alert.violated_policies || [],
-        status: 'sent_to_intermediary'
-    };
-
-    const report = new Report(reportData);
-    await report.save();
-
-    // Update alert status to escalated
-    alert.status = 'escalated';
-    await alert.save();
-    await cacheService.invalidatePrefix('reports:stats:v1');
-    await cacheService.invalidatePrefix('dashboard:v2');
-    await cacheService.invalidatePrefix('alerts:stats:v2');
-
-    // --- ML FEEDBACK LOOP ---
-    // Recording report generation as confirmed escalation (HIGH risk)
-    try {
-        const feedbackService = require('./feedbackService');
-        if (content && content.text) {
-            await feedbackService.recordFeedback({
-                text: content.text,
-                category: alert.category_id || 'Abusive',
-                legal_sections: alert.legal_sections,
-                review_status: 'escalated',
-                current_risk: 'HIGH'
-            });
-            logger.info(`[ReportService] Recorded feedback for report: ${alertId}`);
-        }
-    } catch (fbError) {
-        logger.error('[ReportService] Feedback recording failed:', fbError);
-    }
-
-    return report;
+const createReportFromAlert = async () => {
+  const err = new Error(
+    'Formal reports use social_media_grievance_reports. Create them from Grievances (G/S/C/Q), not Mongo alerts.'
+  );
+  err.status = 400;
+  throw err;
 };
 
-/**
- * Get all reports with filtering and pagination.
- */
 const getAllReports = async (filters = {}) => {
-    const { platform, status, search, startDate, endDate, page = 1, limit = 20, keyword, alert_type, risk_level, virality_level, category } = filters;
-    const query = {};
+  const {
+    platform,
+    status,
+    search,
+    report_type,
+    page = 1,
+    limit = 100,
+  } = filters;
 
-    if (platform && platform !== 'all') query.platform = platform;
-    if (status && status !== 'all') query.status = status;
-    if (startDate || endDate) {
-        query.generated_at = {};
-        if (startDate) query.generated_at.$gte = new Date(startDate);
-        if (endDate) query.generated_at.$lte = new Date(endDate);
-    }
+  const where = {};
 
-    const pageNum = Math.max(parseInt(page) || 1, 1);
-    const limitNum = Math.min(Math.max(parseInt(limit) || 20, 1), 100);
-    const skip = (pageNum - 1) * limitNum;
+  if (platform && platform !== 'all') {
+    where.platform = String(platform).toLowerCase();
+  }
+  if (report_type && report_type !== 'all') {
+    where.report_type = String(report_type).toLowerCase();
+  }
+  if (status && status !== 'all') {
+    where.status = String(status).toUpperCase();
+  }
 
-    const needsJoinsForFiltering = (category && category !== 'all') ||
-        (keyword && keyword !== 'all') ||
-        (risk_level && risk_level !== 'all') ||
-        (virality_level && virality_level !== 'all') ||
-        (alert_type && alert_type !== 'all');
+  const normalizedSearch = String(search || '').trim();
+  if (normalizedSearch) {
+    where.OR = [
+      { unique_code: { contains: normalizedSearch, mode: 'insensitive' } },
+      { post_description: { contains: normalizedSearch, mode: 'insensitive' } },
+      { profile_id: { contains: normalizedSearch, mode: 'insensitive' } },
+      { category: { contains: normalizedSearch, mode: 'insensitive' } },
+      { remarks: { contains: normalizedSearch, mode: 'insensitive' } },
+    ];
+  }
 
-    const normalizedSearch = String(search || '').trim();
+  const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+  const limitNum = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 500);
+  const skip = (pageNum - 1) * limitNum;
 
-    let dataPipeline = [];
-    let countFilter = null; // for fast parallel count
+  const [rows, total] = await Promise.all([
+    prisma.social_media_grievance_reports.findMany({
+      where,
+      orderBy: { created_at: 'desc' },
+      skip,
+      take: limitNum,
+    }),
+    prisma.social_media_grievance_reports.count({ where }),
+  ]);
 
-    if (!needsJoinsForFiltering) {
-        // ── Optimized path: $text index for search, paginate Report collection first ──
-        const matchFilter = { ...query };
+  const items = rows.map(toFormalReportShape);
 
-        if (normalizedSearch) {
-            // Use the compound text index { serial_number, target_user_details.name, target_user_details.handle }
-            matchFilter.$text = { $search: normalizedSearch };
-        }
-
-        countFilter = matchFilter; // countDocuments can use same filter
-
-        dataPipeline.push({ $match: matchFilter });
-
-        // Sort: text-score relevance when searching, otherwise newest first
-        if (normalizedSearch) {
-            dataPipeline.push({ $sort: { score: { $meta: 'textScore' }, generated_at: -1 } });
-        } else {
-            dataPipeline.push({ $sort: { generated_at: -1 } });
-        }
-
-        dataPipeline.push({ $skip: skip });
-        dataPipeline.push({ $limit: limitNum });
-
-        // Lookups run on paginated slice only (max limitNum docs)
-        dataPipeline.push(
-            {
-                $lookup: {
-                    from: 'alerts',
-                    localField: 'alert_id',
-                    foreignField: 'id',
-                    as: 'alert_data'
-                }
-            },
-            { $unwind: { path: '$alert_data', preserveNullAndEmptyArrays: true } },
-            {
-                $lookup: {
-                    from: 'contents',
-                    localField: 'alert_data.content_id',
-                    foreignField: 'id',
-                    as: 'content_data'
-                }
-            },
-            { $unwind: { path: '$content_data', preserveNullAndEmptyArrays: true } }
-        );
-    } else {
-        // ── Legacy path: Joins happen before filtering ──
-        dataPipeline = [
-            { $match: query },
-            {
-                $lookup: {
-                    from: 'alerts',
-                    localField: 'alert_id',
-                    foreignField: 'id',
-                    as: 'alert_data'
-                }
-            },
-            { $unwind: { path: '$alert_data', preserveNullAndEmptyArrays: true } },
-            {
-                $lookup: {
-                    from: 'contents',
-                    localField: 'alert_data.content_id',
-                    foreignField: 'id',
-                    as: 'content_data'
-                }
-            },
-            { $unwind: { path: '$content_data', preserveNullAndEmptyArrays: true } }
-        ];
-
-        if (category && category !== 'all') {
-            dataPipeline.push(
-                {
-                    $lookup: {
-                        from: 'sources',
-                        localField: 'content_data.source_id',
-                        foreignField: 'id',
-                        as: 'source_data'
-                    }
-                },
-                { $unwind: { path: '$source_data', preserveNullAndEmptyArrays: true } },
-                { $match: { $or: [{ 'alert_data.source_category': category }, { 'source_data.category': category }] } }
-            );
-        }
-
-        if (keyword && keyword !== 'all') {
-            dataPipeline.push({
-                $match: {
-                    'content_data.risk_factors.keyword': { $regex: `^${escapeRegex(keyword)}`, $options: 'i' }
-                }
-            });
-        }
-
-        if (risk_level && risk_level !== 'all') {
-            dataPipeline.push({ $match: { 'alert_data.risk_level': risk_level } });
-        }
-
-        if (virality_level && virality_level !== 'all') {
-            dataPipeline.push({ $match: { 'alert_data.virality_level': String(virality_level).toLowerCase() } });
-        }
-
-        if (alert_type && alert_type !== 'all') {
-            if (alert_type === 'risk') {
-                dataPipeline.push({ $match: { 'alert_data.alert_type': { $in: ['keyword_risk', 'ai_risk', null] } } });
-            } else {
-                dataPipeline.push({ $match: { 'alert_data.alert_type': alert_type } });
-            }
-        }
-
-        if (normalizedSearch) {
-            const searchPattern = escapeRegex(normalizedSearch);
-            dataPipeline.push({
-                $match: {
-                    $or: [
-                        { serial_number: { $regex: searchPattern, $options: 'i' } },
-                        { 'target_user_details.name': { $regex: searchPattern, $options: 'i' } },
-                        { 'target_user_details.handle': { $regex: searchPattern, $options: 'i' } },
-                        { 'content_data.text': { $regex: searchPattern, $options: 'i' } }
-                    ]
-                }
-            });
-        }
-
-        dataPipeline.push(
-            { $sort: { generated_at: -1 } },
-            { $skip: skip },
-            { $limit: limitNum }
-        );
-    }
-
-    // Source lookup for category column (runs on paginated slice only)
-    dataPipeline.push(
-        {
-            $lookup: {
-                from: 'sources',
-                localField: 'content_data.source_id',
-                foreignField: 'id',
-                as: 'source_data'
-            }
-        },
-        { $unwind: { path: '$source_data', preserveNullAndEmptyArrays: true } },
-        {
-            $addFields: {
-                id: '$_id',
-                joined_content_url: '$alert_data.content_url',
-                source_category: {
-                    $ifNull: ['$alert_data.source_category', '$source_data.category']
-                }
-            }
-        }
-    );
-
-    // ── Run data + count in parallel ──
-    let items, total;
-
-    if (countFilter) {
-        // Optimized path: fast countDocuments (uses index)
-        [items, total] = await Promise.all([
-            Report.aggregate(dataPipeline),
-            Report.countDocuments(countFilter)
-        ]);
-    } else {
-        // Legacy path: count via separate aggregation (same filters, no skip/limit/lookups-after-filter)
-        const countPipeline = dataPipeline
-            .filter(stage => !stage.$skip && !stage.$limit && !stage.$addFields && !stage.$sort)
-            .filter(stage => {
-                // Keep $match, $lookup, $unwind stages needed for filtering — exclude final source lookup
-                if (stage.$lookup && stage.$lookup.from === 'sources' && !needsJoinsForFiltering) return false;
-                return true;
-            });
-        countPipeline.push({ $count: 'total' });
-
-        const [dataResult, countResult] = await Promise.all([
-            Report.aggregate(dataPipeline),
-            Report.aggregate(countPipeline).catch(() => [])
-        ]);
-        items = dataResult;
-        total = countResult[0]?.total || 0;
-    }
-
-    return {
-        items,
-        pagination: {
-            page: pageNum,
-            limit: limitNum,
-            total,
-            totalPages: Math.max(Math.ceil(total / limitNum), 1)
-        }
-    };
+  return {
+    items,
+    // Flat array also for older clients that expect res.data = []
+    ...{ length: items.length },
+    pagination: {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      totalPages: Math.max(Math.ceil(total / limitNum), 1),
+    },
+  };
 };
-const updateReport = async (alertId, updateData) => {
-    const report = await Report.findOneAndUpdate(
-        { alert_id: alertId },
-        {
-            $set: updateData
-        },
-        { new: true }
-    );
-    if (!report) throw new Error('Report not found');
-    await cacheService.invalidatePrefix('reports:stats:v1');
-    await cacheService.invalidatePrefix('dashboard:v2');
-    return report;
+
+const updateReport = async (idOrCode, updateData) => {
+  const existing = await prisma.social_media_grievance_reports.findFirst({
+    where: {
+      OR: [{ id: String(idOrCode) }, { unique_code: String(idOrCode) }],
+    },
+  });
+  if (!existing) throw new Error('Report not found');
+
+  const data = {};
+  if (updateData.status != null) data.status = String(updateData.status).toUpperCase();
+  if (updateData.remarks != null) data.remarks = updateData.remarks;
+  if (updateData.message != null) data.message = updateData.message;
+  if (updateData.category != null) data.category = updateData.category;
+  if (updateData.report_pdf_url != null) data.report_pdf_url = updateData.report_pdf_url;
+  if (updateData.pdf_url != null) data.report_pdf_url = updateData.pdf_url;
+
+  const row = await prisma.social_media_grievance_reports.update({
+    where: { id: existing.id },
+    data,
+  });
+
+  await cacheService.invalidatePrefix('reports:stats:v1');
+  return toFormalReportShape(row);
 };
 
 const getReportStats = async () => {
-    const cacheKey = 'reports:stats:v1:all';
-    const cached = await cacheService.get(cacheKey);
-    if (cached) return cached;
+  const cacheKey = 'reports:stats:v1:grievance_table';
+  const cached = await cacheService.get(cacheKey);
+  if (cached) return cached;
 
-    const grouped = await Report.aggregate([
-        {
-            $group: {
-                _id: { platform: '$platform', status: '$status' },
-                count: { $sum: 1 }
-            }
-        }
-    ]);
+  const grouped = await prisma.social_media_grievance_reports.groupBy({
+    by: ['platform', 'status'],
+    _count: { _all: true },
+  });
 
-    const normalizePlatform = (platform) => (platform === 'x' ? 'twitter' : platform);
-    const statuses = ['generated', 'printed', 'sent', 'sent_to_intermediary', 'awaiting_reply', 'closed'];
-    const platforms = ['all', 'twitter', 'youtube', 'facebook', 'instagram', 'whatsapp'];
-    const byPlatform = {};
-    const byStatus = Object.fromEntries(statuses.map((s) => [s, 0]));
-    const totals = { total: 0 };
+  const normalizePlatform = (platform) => (platform === 'x' ? 'twitter' : platform);
+  const statuses = ['pending', 'escalated', 'closed', 'generated', 'printed', 'sent', 'sent_to_intermediary', 'awaiting_reply'];
+  const platforms = ['all', 'twitter', 'youtube', 'facebook', 'instagram', 'whatsapp', 'telegram'];
+  const byPlatform = {};
+  const byStatus = Object.fromEntries(statuses.map((s) => [s, 0]));
+  const totals = { total: 0 };
 
-    platforms.forEach((p) => {
-        byPlatform[p] = { total: 0 };
-        statuses.forEach((s) => {
-            byPlatform[p][s] = 0;
-        });
+  platforms.forEach((p) => {
+    byPlatform[p] = { total: 0 };
+    statuses.forEach((s) => {
+      byPlatform[p][s] = 0;
     });
+  });
 
-    grouped.forEach(({ _id, count }) => {
-        const platform = normalizePlatform(_id.platform || 'unknown');
-        const status = _id.status;
-        if (!statuses.includes(status)) return;
-        if (!byPlatform[platform]) {
-            byPlatform[platform] = { total: 0 };
-            statuses.forEach((s) => {
-                byPlatform[platform][s] = 0;
-            });
-        }
-        byPlatform[platform][status] += count;
-        byPlatform[platform].total += count;
-        byPlatform.all[status] += count;
-        byPlatform.all.total += count;
-        byStatus[status] += count;
-        totals.total += count;
-    });
+  grouped.forEach((row) => {
+    const platform = normalizePlatform(row.platform || 'unknown');
+    const status = String(row.status || '').toLowerCase();
+    const count = row._count?._all || 0;
+    if (!byPlatform[platform]) {
+      byPlatform[platform] = { total: 0 };
+      statuses.forEach((s) => {
+        byPlatform[platform][s] = 0;
+      });
+    }
+    if (byPlatform[platform][status] == null) byPlatform[platform][status] = 0;
+    byPlatform[platform][status] += count;
+    byPlatform[platform].total += count;
+    byPlatform.all[status] = (byPlatform.all[status] || 0) + count;
+    byPlatform.all.total += count;
+    byStatus[status] = (byStatus[status] || 0) + count;
+    totals.total += count;
+  });
 
-    const payload = { byPlatform, byStatus, totals };
-    await cacheService.set(cacheKey, payload, 30);
-    return payload;
+  const byType = await prisma.social_media_grievance_reports.groupBy({
+    by: ['report_type'],
+    _count: { _all: true },
+  });
+
+  const payload = {
+    byPlatform,
+    byStatus,
+    totals,
+    byType: Object.fromEntries(byType.map((r) => [r.report_type, r._count._all])),
+  };
+  await cacheService.set(cacheKey, payload, 30);
+  return payload;
+};
+
+const finalizeReport = async () => {
+  const err = new Error('PDF finalize for grievance reports is handled in the Grievances reports workflow.');
+  err.status = 400;
+  throw err;
 };
 
 module.exports = {
-    generateSerialNumber,
-    createReportFromAlert,
-    getAllReports,
-    updateReport,
-    getReportStats
+  generateSerialNumber,
+  createReportFromAlert,
+  getAllReports,
+  updateReport,
+  getReportStats,
+  finalizeReport,
+  toFormalReportShape,
 };

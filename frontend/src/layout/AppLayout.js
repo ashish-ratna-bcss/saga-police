@@ -16,9 +16,12 @@ const AppLayout = () => {
     navigate('/login');
   };
 
-  // Home fills the panel edge-to-edge (no main gutters).
+  // Home / Health / Reports fill edge-to-edge (no main gutters).
   const flushMain =
-    location.pathname === '/dashboard' || location.pathname === '/';
+    location.pathname === '/dashboard' ||
+    location.pathname === '/' ||
+    location.pathname === '/system-health' ||
+    location.pathname === '/reports';
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background">
