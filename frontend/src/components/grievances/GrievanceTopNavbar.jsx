@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Globe, BarChart3, Plus, Trash2, RefreshCw, Loader2, Search, X, LayoutGrid, BookUser
+  Globe, BarChart3, Plus, Trash2, RefreshCw, Loader2, Search, X, LayoutGrid, BookUser, ChevronDown
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -89,6 +89,60 @@ export const GrievanceTopNavbar = ({
       : activePlatform === 'telegram'
         ? 'Fetch channel posts'
         : 'Fetch mentions';
+
+  // Watched-accounts: show chips on one line; overflow opens dropdown.
+  const [accountsOpen, setAccountsOpen] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(8);
+  const accountsRef = useRef(null);
+  const chipsRowRef = useRef(null);
+  const measureChipRef = useRef(null);
+
+  useEffect(() => {
+    if (!accountsOpen) return undefined;
+    const onDocClick = (e) => {
+      if (accountsRef.current && !accountsRef.current.contains(e.target)) {
+        setAccountsOpen(false);
+      }
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setAccountsOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [accountsOpen]);
+
+  // Fit as many chips as possible on one line; remainder via dropdown.
+  useEffect(() => {
+    const row = chipsRowRef.current;
+    if (!row) return undefined;
+
+    const measure = () => {
+      const chipW = measureChipRef.current?.offsetWidth || 148;
+      const moreBtnW = 118;
+      const gap = 6;
+      const width = row.clientWidth;
+      if (width <= 0) return;
+      const canFit = Math.max(1, Math.floor((width - moreBtnW - gap) / (chipW + gap)));
+      setVisibleCount(canFit);
+    };
+
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    ro?.observe(row);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [platformSources.length, activePlatform]);
+
+  const inlineSources = platformSources.slice(0, visibleCount);
+  const overflowCount = Math.max(0, platformSources.length - inlineSources.length);
+  const showMoreButton = platformSources.length > inlineSources.length || platformSources.length > 0;
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -219,7 +273,7 @@ export const GrievanceTopNavbar = ({
       </div>
 
       {!isReportsMode && (
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="rounded-xl border border-border bg-card">
           {/* Status + search */}
           <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-border">
             <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
@@ -305,28 +359,22 @@ export const GrievanceTopNavbar = ({
             )}
           </div>
 
-          {/* Watched accounts */}
-          <div className="px-3 py-2">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              <p className="text-xs font-semibold text-foreground">
-                Watched accounts
-                <span className="ml-1.5 font-normal text-muted-foreground">
-                  {platformSources.length}
-                </span>
-              </p>
-              {selectedHandle && (
-                <button
-                  type="button"
-                  className="text-[11px] text-primary hover:underline"
-                  onClick={() => onHandleChange?.(null)}
-                >
-                  Clear account filter
-                </button>
-              )}
+          {/* Watched accounts — one line of chips; overflow via dropdown */}
+          <div className="relative px-3 py-2" ref={accountsRef}>
+            {/* Hidden probe chip for width measurement */}
+            <div
+              ref={measureChipRef}
+              aria-hidden
+              className="pointer-events-none invisible absolute -z-10 inline-flex items-center gap-1.5 rounded-md border px-2 py-1"
+            >
+              <span className="h-5 w-5 rounded-full" />
+              <span className="max-w-[110px] truncate text-[11px] font-medium">
+                Measure chip width
+              </span>
             </div>
 
             {platformSources.length === 0 ? (
-              <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border px-3 py-2">
                 <p className="text-xs text-muted-foreground">
                   No accounts for this platform. Add them from Social Profiles.
                 </p>
@@ -335,79 +383,186 @@ export const GrievanceTopNavbar = ({
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1.5">
-                {platformSources.map((source) => {
-                  const active = selectedHandle === source.handle;
-                  return (
-                    <button
-                      key={source.id || source.handle}
-                      type="button"
-                      onClick={() => onHandleChange?.(active ? null : source.handle)}
-                      className={cn(
-                        'flex items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition-colors w-full',
-                        active
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border bg-background hover:bg-muted/40'
-                      )}
-                    >
-                      <Avatar className="h-7 w-7 shrink-0">
-                        <AvatarImage src={source.profile_image_url || source.profile_image} />
-                        <AvatarFallback className="text-[10px]">
-                          {(source.display_name || source.handle || '?')[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold truncate">
+              <div className="flex items-center gap-1.5">
+                <div
+                  ref={chipsRowRef}
+                  className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-hidden"
+                >
+                  {inlineSources.map((source) => {
+                    const active = selectedHandle === source.handle;
+                    return (
+                      <button
+                        key={source.id || source.handle}
+                        type="button"
+                        title={`${source.display_name || source.handle} · ${platformLabel(source.platform)}`}
+                        onClick={() => onHandleChange?.(active ? null : source.handle)}
+                        className={cn(
+                          'inline-flex max-w-[160px] shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-left transition-colors',
+                          active
+                            ? 'border-primary bg-primary/5'
+                            : 'border-border bg-background hover:bg-muted/40'
+                        )}
+                      >
+                        <Avatar className="h-5 w-5 shrink-0">
+                          <AvatarImage
+                            src={source.profile_image_url || source.profile_image}
+                          />
+                          <AvatarFallback className="text-[9px]">
+                            {(source.display_name || source.handle || '?')[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="truncate text-[11px] font-medium">
                           {source.display_name || source.handle}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground truncate">
-                          {platformLabel(source.platform)} ·{' '}
-                          {source.total_grievances || 0} items
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          className="p-1.5 rounded-md hover:bg-muted"
-                          title="Fetch"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onFetchSourceHistory?.(source);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.stopPropagation();
-                              onFetchSourceHistory?.(source);
-                            }
-                          }}
-                        >
-                          <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
                         </span>
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          className="p-1.5 rounded-md hover:bg-muted"
-                          title="Remove"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onRemoveSource?.(source);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.stopPropagation();
-                              onRemoveSource?.(source);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {showMoreButton ? (
+                  <button
+                    type="button"
+                    onClick={() => setAccountsOpen((v) => !v)}
+                    aria-expanded={accountsOpen}
+                    aria-haspopup="listbox"
+                    className={cn(
+                      'inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors',
+                      accountsOpen || selectedHandle
+                        ? 'border-primary/40 bg-primary/5'
+                        : 'border-border bg-background hover:bg-muted/40'
+                    )}
+                  >
+                    {overflowCount > 0 ? (
+                      <>
+                        <span>+{overflowCount}</span>
+                        <span className="font-normal text-muted-foreground">more</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>All</span>
+                        <span className="font-normal tabular-nums text-muted-foreground">
+                          {platformSources.length}
                         </span>
-                      </div>
-                    </button>
-                  );
-                })}
+                      </>
+                    )}
+                    <ChevronDown
+                      className={cn(
+                        'h-3.5 w-3.5 text-muted-foreground transition-transform',
+                        accountsOpen && 'rotate-180'
+                      )}
+                    />
+                  </button>
+                ) : null}
+
+                {selectedHandle ? (
+                  <button
+                    type="button"
+                    className="shrink-0 text-[11px] text-primary hover:underline"
+                    onClick={() => onHandleChange?.(null)}
+                  >
+                    Clear
+                  </button>
+                ) : null}
               </div>
             )}
+
+            {accountsOpen ? (
+              <div className="relative z-30 mt-2 max-h-[min(420px,55vh)] overflow-y-auto rounded-xl border border-border bg-card p-2 shadow-md">
+                {platformSources.length === 0 ? (
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border px-3 py-2.5">
+                    <p className="text-xs text-muted-foreground">
+                      No accounts for this platform. Add them from Social Profiles.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 shrink-0"
+                      onClick={onAddSource}
+                    >
+                      Open profiles
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {platformSources.map((source) => {
+                      const active = selectedHandle === source.handle;
+                      return (
+                        <button
+                          key={source.id || source.handle}
+                          type="button"
+                          onClick={() => {
+                            onHandleChange?.(active ? null : source.handle);
+                            setAccountsOpen(false);
+                          }}
+                          className={cn(
+                            'flex w-full items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition-colors',
+                            active
+                              ? 'border-primary bg-primary/5'
+                              : 'border-border bg-background hover:bg-muted/40'
+                          )}
+                        >
+                          <Avatar className="h-7 w-7 shrink-0">
+                            <AvatarImage
+                              src={source.profile_image_url || source.profile_image}
+                            />
+                            <AvatarFallback className="text-[10px]">
+                              {(source.display_name || source.handle || '?')[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-semibold">
+                              {source.display_name || source.handle}
+                            </p>
+                            <p className="truncate text-[10px] text-muted-foreground">
+                              {platformLabel(source.platform)} ·{' '}
+                              {source.total_grievances || 0} items
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-0.5">
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              className="rounded-md p-1.5 hover:bg-muted"
+                              title="Fetch"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onFetchSourceHistory?.(source);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.stopPropagation();
+                                  onFetchSourceHistory?.(source);
+                                }
+                              }}
+                            >
+                              <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+                            </span>
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              className="rounded-md p-1.5 hover:bg-muted"
+                              title="Remove"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onRemoveSource?.(source);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.stopPropagation();
+                                  onRemoveSource?.(source);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
       )}
