@@ -1,6 +1,6 @@
 const prisma = require('../../../prisma/client');
 const { scanEventOnce } = require('./event.scan.service');
-const logger = require('../../utils/logger');
+const logger = require('../../lib/logger');
 
 const TICK_MS = Math.max(60_000, Number(process.env.EVENT_SCHEDULER_TICK_MS || 60_000));
 

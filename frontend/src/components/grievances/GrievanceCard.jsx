@@ -17,7 +17,6 @@ import {
 } from '../ui/dropdown-menu';
 import { normalizeMediaList } from '../AlertCards';
 import { cn } from '../../lib/utils';
-import { decodeHtmlEntities } from '../../utils/decodeHtml';
 import { TelegramBrandLogo } from '../PlatformBrandIcon';
 
 let activeInlineVideoElement = null;
@@ -561,7 +560,7 @@ const MediaGrid = ({ media, getProxiedMediaUrl }) => {
 const QuotedTweet = ({ context, getProxiedMediaUrl, onAction, grievance, onRetryEnrich, enriching }) => {
     // Show placeholder while quoted thread content is being enriched
     if (!context) return null;
-    const text = decodeHtmlEntities(context?.content?.full_text || context?.content?.text);
+    const text = context?.content?.full_text || context?.content?.text;
     if (!hasRenderableThreadContent(context)) {
         if (hasThreadReference(context)) {
             return <ThreadLoadingPlaceholder className="mt-3" node={context} label="Quoted tweet" onRetry={onRetryEnrich} retrying={enriching} />;
@@ -608,7 +607,7 @@ const ParentTweet = ({ context, getProxiedMediaUrl, onAction, grievance, onRetry
 
     const user = context.posted_by || {};
     const handle = (user.handle || '').replace('@', '');
-    const text = decodeHtmlEntities(context.content?.full_text || context.content?.text || '');
+    const text = context.content?.full_text || context.content?.text || '';
     const media = context.content?.media || [];
     const tweetUrl = context.tweet_url || (handle && context.tweet_id ? `https://x.com/${handle}/status/${context.tweet_id}` : null);
 
@@ -673,7 +672,7 @@ const ParentFacebookPost = ({ context, getProxiedMediaUrl, onAction, grievance }
     }
 
     const user = context.posted_by || {};
-    const text = decodeHtmlEntities(context.content?.full_text || context.content?.text || '');
+    const text = context.content?.full_text || context.content?.text || '';
     const media = context.content?.media || [];
 
     return (
@@ -708,7 +707,7 @@ const ParentFacebookPost = ({ context, getProxiedMediaUrl, onAction, grievance }
 const XLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState = {}, isActioned }) => {
     const user = grievance.posted_by || {};
     const handle = (user.handle || '').replace('@', '');
-    const text = decodeHtmlEntities(grievance.content?.full_text || grievance.content?.text || '');
+    const text = grievance.content?.full_text || grievance.content?.text || '';
     const media = grievance.content?.media || [];
     const engagement = grievance.engagement || {};
     const ctx = grievance.context || {};
@@ -888,7 +887,7 @@ const FacebookMediaGrid = ({ media, getProxiedMediaUrl }) => {
 
 const FacebookLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState = {}, isActioned }) => {
     const user = grievance.posted_by || {};
-    const text = decodeHtmlEntities(grievance.content?.full_text || grievance.content?.text || '');
+    const text = grievance.content?.full_text || grievance.content?.text || '';
     const media = grievance.content?.media || [];
     const engagement = grievance.engagement || {};
     const totalReactions = (engagement.likes || 0);
@@ -972,9 +971,8 @@ const FacebookLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
 const TelegramLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState = {} }) => {
     const user = grievance.posted_by || {};
     const handle = String(user.handle || '').replace(/^@/, '');
-    const rawText = decodeHtmlEntities(
-        grievance.content?.full_text || grievance.content?.text || grievance.text || ''
-    );
+    const rawText = 
+        grievance.content?.full_text || grievance.content?.text || grievance.text || '';
     const isPlaceholder = !rawText || /^\[Telegram /.test(rawText);
     const text = isPlaceholder ? '' : rawText;
     const media = grievance.content?.media || [];
@@ -1095,7 +1093,7 @@ const TelegramLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
 /* Instagram uses the same post/comment structure as Facebook (parent + body). */
 const InstagramLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState = {}, isActioned }) => {
     const user = grievance.posted_by || {};
-    const text = decodeHtmlEntities(grievance.content?.full_text || grievance.content?.text || grievance.text || '');
+    const text = grievance.content?.full_text || grievance.content?.text || grievance.text || '';
     const media = grievance.content?.media || [];
     const engagement = grievance.engagement || {};
     const totalLikes = engagement.likes || 0;
@@ -1199,7 +1197,7 @@ const InstagramLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadStat
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 const WhatsAppLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState = {} }) => {
     const user = grievance.posted_by || {};
-    const text = decodeHtmlEntities(grievance.content?.full_text || grievance.content?.text || '');
+    const text = grievance.content?.full_text || grievance.content?.text || '';
     const media = grievance.content?.media || [];
     const displayName = user.display_name || grievance.complainant_phone || 'Unknown';
     const phone = grievance.complainant_phone || user.handle || '';

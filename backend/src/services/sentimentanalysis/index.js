@@ -14,7 +14,6 @@ const enqueuePost = (postId) => {
 
 const startScheduler = () => {
   startPoller();
-  console.log('[sentimentanalysis] queue ready', queue.getStats());
 };
 
 const stopScheduler = () => {

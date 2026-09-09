@@ -1,4 +1,4 @@
-const logger = require('../../utils/logger');
+const logger = require('../../lib/logger');
 const { getOverview } = require('./dashboard.service');
 
 const getDashboardOverview = async (req, res) => {

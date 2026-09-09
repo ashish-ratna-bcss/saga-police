@@ -23,7 +23,6 @@ import { TwitterAlertCard, YoutubeAlertCard } from '../../components/AlertCards'
 import ManageProfileImageDialog from './ManageProfileImageDialog';
 import AddSourceModal from '../../components/AddSourceModal';
 import api from '../../lib/api'; // Use authenticated API helper
-import { proxyMediaUrlAlways } from '@/shared/utils/mediaProxy';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '../../components/ui/dialog';
@@ -315,7 +314,7 @@ const POIDetail = () => {
             .catch(() => setReportProfileImageDataUrl(null));
     }, [effectiveProfileImage]);
 
-    const proxifyImageUrl = (url) => proxyMediaUrlAlways(url);
+    const proxifyImageUrl = (url) => url || '';
 
     const getMobileFriendlyUrl = (forcedUrl = null) => {
         // If an explicit URL is forced (e.g. during capture), use it

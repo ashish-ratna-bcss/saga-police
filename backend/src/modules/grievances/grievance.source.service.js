@@ -4,7 +4,7 @@ const {
   fetchAllCatalogGrievances,
 } = require('./grievance.service');
 const { normalizePlatform, pickAvatar } = require('./grievance.utils');
-const logger = require('../../utils/logger');
+const logger = require('../../lib/logger');
 
 const GRIEVANCE_PLATFORMS = ['x', 'facebook', 'instagram', 'telegram'];
 

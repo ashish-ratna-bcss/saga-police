@@ -221,8 +221,37 @@ async function ensureUserThemeColumns(prisma) {
     ALTER COLUMN ui_mode SET DEFAULT 'light'
   `);
   await prisma.$executeRawUnsafe(`
-    ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS theme_color TEXT NOT NULL DEFAULT '#1e3a8a'
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'theme_color'
+      ) THEN
+        ALTER TABLE users ADD COLUMN theme_color JSONB NOT NULL DEFAULT '{"type":"solid","value":"#06b6d4","primary_hex":"#06b6d4"}'::jsonb;
+      ELSIF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'theme_color' AND data_type != 'jsonb'
+      ) THEN
+        ALTER TABLE users ALTER COLUMN theme_color DROP DEFAULT;
+        ALTER TABLE users ALTER COLUMN theme_color TYPE JSONB USING (
+          CASE
+            WHEN theme_color::text LIKE 'linear-gradient%' THEN
+              jsonb_build_object(
+                'type', 'gradient',
+                'value', theme_color::text,
+                'primary_hex', COALESCE(substring(theme_color::text from '#[0-9a-fA-F]{6}'), '#06b6d4')
+              )
+            ELSE
+              jsonb_build_object(
+                'type', 'solid',
+                'value', theme_color::text,
+                'primary_hex', theme_color::text
+              )
+          END
+        );
+        ALTER TABLE users ALTER COLUMN theme_color SET DEFAULT '{"type":"solid","value":"#06b6d4","primary_hex":"#06b6d4"}'::jsonb;
+      END IF;
+    END $$;
   `);
 }
 

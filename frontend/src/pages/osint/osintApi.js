@@ -1,6 +1,5 @@
 /**
- * OSINT API client
- * All endpoints are prefixed with /osint and proxied to the rag_pipeline backend
+ * OSINT API client — calls REACT_APP_OSINT_API_URL (or localhost:8100/osint) directly.
  */
 
 import { OSINT_BASE_URL } from '../../lib/api';

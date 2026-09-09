@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Card } from '../ui/card';
 import { Download, RefreshCw, Activity, Users } from 'lucide-react';
-import { AlertService } from '@/features/alerts/api/alertService';
+import { AlertService } from '../../api';
 
 const STATUSES = [
   { key: 'acknowledged', label: 'Acknowledged', color: '#8b5cf6' },

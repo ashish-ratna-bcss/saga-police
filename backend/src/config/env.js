@@ -40,19 +40,6 @@ const shouldSeedDefaultAdmin = () =>
 
 const MEDIA_ANALYZER_URL = (process.env.MEDIA_ANALYZER_URL || 'http://172.16.212.229:8000').replace(/\/+$/, '');
 
-const getMongoUri = () =>
-  process.env.MONGODB_URI || 'mongodb://localhost:27017/blura_hub';
-
-/** Mongo is opt-in; Postgres is the default store. */
-const isMongoEnabled = () => {
-  const raw = String(process.env.MONGO_ENABLED || '').trim().toLowerCase();
-  if (raw === '1' || raw === 'true' || raw === 'yes') return true;
-  if (raw === '0' || raw === 'false' || raw === 'no') return false;
-  const skip = String(process.env.SKIP_MONGO || '').trim().toLowerCase();
-  if (skip === '1' || skip === 'true' || skip === 'yes') return false;
-  return false;
-};
-
 module.exports = {
   isProduction,
   requireEnv,
@@ -62,6 +49,4 @@ module.exports = {
   assertJwtConfigured,
   shouldSeedDefaultAdmin,
   MEDIA_ANALYZER_URL,
-  getMongoUri,
-  isMongoEnabled,
 };

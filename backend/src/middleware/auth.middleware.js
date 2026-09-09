@@ -10,7 +10,7 @@
  */
 const jwt = require('jsonwebtoken');
 const prisma = require('../../prisma/client');
-const logger = require('../utils/logger');
+const logger = require('../lib/logger');
 const { getJwtSecret } = require('../config/env');
 const { readAuthCookie } = require('../config/cookies');
 const { toPublicUser } = require('../modules/user/user.utils');

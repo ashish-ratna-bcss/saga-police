@@ -1,6 +1,5 @@
 const express = require('express');
 const { authorize } = require('../../middleware/auth.middleware');
-const { isCatalogStore } = require('./grievance.utils');
 const {
   listSources: listCatalogSources,
   fetchSource: fetchCatalogSource,
@@ -11,84 +10,54 @@ const {
   getReportStats,
 } = require('./grievance.controller');
 
-// Legacy Mongo handlers (opt-in via store=mongo only)
-const {
-  getSources,
-  addSource,
-  updateSource,
-  deleteSource,
-  fetchSourceGrievances,
-  fetchAllGrievances,
-  getGrievances,
-  getGrievance,
-  acknowledgeGrievance,
-  markAsComplaint,
-  updateComplaintStatus,
-  updateWorkflowStatus,
-  convertToFir,
-  escalateGrievance,
-  ingestWhatsAppWebhook,
-  generateReport,
-  recordShare,
-  getStats,
-  getDashboardStats,
-  getSettings,
-  updateSettings,
-  revertGrievance,
-  enrichGrievanceContext,
-} = require('../../controllers/grievanceController');
-
 const router = express.Router();
 
-const withCatalog = (catalogHandler, mongoHandler) => (req, res, next) => {
-  if (isCatalogStore(req)) return catalogHandler(req, res, next);
-  return mongoHandler(req, res, next);
-};
+const goneMongo = (feature) => (req, res) =>
+  res.status(410).json({
+    error: 'Mongo grievance path retired',
+    message: `${feature} is unavailable on Postgres-only mode. Use catalog sources / G-S-C-Q report APIs.`,
+  });
 
-// Public webhook (must stay unauthenticated)
-router.post('/whatsapp/webhook', ingestWhatsAppWebhook);
+// WhatsApp webhook was Mongo-backed — retired
+router.post('/whatsapp/webhook', goneMongo('whatsapp-webhook'));
 
 router.use(authorize({ pages: ['/grievances'] }));
 
-router.get('/stats', withCatalog(getCatalogStats, getStats));
+router.get('/stats', getCatalogStats);
 router.get('/report-stats', getReportStats);
-router.get('/dashboard-stats', getDashboardStats);
+router.get('/dashboard-stats', getReportStats);
 
-router.route('/settings').get(getSettings).put(updateSettings);
+router.route('/settings').get(goneMongo('settings')).put(goneMongo('settings'));
 
 router
   .route('/sources')
-  .get(withCatalog(listCatalogSources, getSources))
-  .post(addSource);
+  .get(listCatalogSources)
+  .post(goneMongo('add-source'));
 
-router.route('/sources/:id').put(updateSource).delete(deleteSource);
+router.route('/sources/:id').put(goneMongo('update-source')).delete(goneMongo('delete-source'));
 
-router.post(
-  '/sources/:id/fetch',
-  withCatalog(fetchCatalogSource, fetchSourceGrievances)
-);
+router.post('/sources/:id/fetch', fetchCatalogSource);
+router.post('/fetch-all', fetchCatalogAll);
 
-router.post('/fetch-all', withCatalog(fetchCatalogAll, fetchAllGrievances));
+router.route('/').get(listCatalogGrievances);
+router.route('/:id').get(getCatalogGrievance);
 
-router.route('/').get(withCatalog(listCatalogGrievances, getGrievances));
-router.route('/:id').get(withCatalog(getCatalogGrievance, getGrievance));
+router.put('/:id/acknowledge', goneMongo('acknowledge'));
+router.put('/:id/complaint', goneMongo('complaint'));
+router.put('/:id/status', goneMongo('status'));
+router.put('/:id/workflow', goneMongo('workflow'));
+router.post('/:id/convert-to-fir', goneMongo('convert-to-fir'));
+router.post('/:id/escalate', goneMongo('escalate'));
+router.post('/:id/enrich-context', goneMongo('enrich-context'));
+router.put('/:id/revert', goneMongo('revert'));
 
-router.put('/:id/acknowledge', acknowledgeGrievance);
-router.put('/:id/complaint', markAsComplaint);
-router.put('/:id/status', updateComplaintStatus);
-router.put('/:id/workflow', updateWorkflowStatus);
-router.post('/:id/convert-to-fir', convertToFir);
-router.post('/:id/escalate', escalateGrievance);
-router.post('/:id/enrich-context', enrichGrievanceContext);
-router.put('/:id/revert', revertGrievance);
-
-router.get('/:id/report', generateReport);
-router.post('/:id/share', recordShare);
+router.get('/:id/report', goneMongo('legacy-report'));
+router.post('/:id/share', goneMongo('legacy-share'));
 
 router.get('/debug', (req, res) =>
   res.json({
-    version: '1.1.0',
-    store: 'module/grievances',
+    version: '2.0.0',
+    store: 'postgres-catalog',
     default: 'postgres',
     timestamp: new Date(),
   })

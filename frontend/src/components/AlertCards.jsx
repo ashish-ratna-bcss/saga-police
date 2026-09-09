@@ -21,12 +21,12 @@ import { HoverCard, HoverCardTrigger, HoverCardContent } from './ui/hover-card';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Calendar } from './ui/calendar';
 import api from '../lib/api';
-import { decodeHtmlEntities } from '../utils/decodeHtml';
 import { toast } from 'sonner';
 import ReasonModal from './ReasonModal';
-import { NEEDS_PROXY_RE, proxyMediaUrl } from '@/shared/utils/mediaProxy';
-import { AlertService } from '@/features/alerts/api/alertService';
-import { anyPlayableMediaUrlFresh } from '../utils/instagramCdnExpiry';
+import { AlertService } from '../api';
+
+/** CDN expiry checks retired — treat playable media as always fresh. */
+const anyPlayableMediaUrlFresh = () => true;
 
 const WHATSAPP_GROUP_LINK = 'https://chat.whatsapp.com/HGGWZCyNXBmHfp4KvYxlXu';
 let activeVideoElement = null;
@@ -599,15 +599,15 @@ export const DownloadMenu = ({
                 return url;
             }).filter(Boolean);
 
-            // Strategy 1: Try direct download via stream proxy (same as video player)
-            const directImageUrls = imageUrls.filter(u => NEEDS_PROXY_RE.test(u) || IMAGE_URL_RE.test(u));
+            // Strategy 1: Try direct download from image URLs
+            const directImageUrls = imageUrls.filter(u => IMAGE_URL_RE.test(u) || /^https?:\/\//i.test(u));
             if (directImageUrls.length > 0 && directImageUrls.length === imageUrls.length) {
                 let allSucceeded = true;
                 for (let i = 0; i < directImageUrls.length; i++) {
-                    const proxiedUrl = proxyMediaUrl(directImageUrls[i]);
+                    const directUrl = directImageUrls[i];
                     const ext = directImageUrls[i].match(/\.(jpe?g|png|gif|webp)/i)?.[1] || 'jpg';
                     const filename = `image_${i + 1}.${ext}`;
-                    const success = await triggerBlobDownload(proxiedUrl, filename, 'image');
+                    const success = await triggerBlobDownload(directUrl, filename, 'image');
                     if (!success) {
                         allSucceeded = false;
                         break;
@@ -668,24 +668,23 @@ export const DownloadMenu = ({
             // Filter video items
             const videoItems = validItems.filter((m) => isVideoMediaItem(m));
 
-            // Strategy 1: Try direct download via stream proxy (same method the video player uses)
-            // This works reliably when we have direct CDN/S3 video URLs
+            // Strategy 1: Try direct download from CDN/S3 video URLs
             const directVideoUrls = videoItems
                 .map(v => {
                     // Gather all URL candidates for the video item
                     const candidates = [v.s3_url, v.url, ...(v.fallbackUrls || [])].filter(Boolean);
                     // Prefer URLs that are actually video URLs over thumbnails
-                    return candidates.find(u => isLikelyVideoUrl(u)) || candidates.find(u => NEEDS_PROXY_RE.test(u)) || candidates[0];
+                    return candidates.find(u => isLikelyVideoUrl(u)) || candidates[0];
                 })
                 .filter(Boolean)
-                .filter(u => !isLikelyYouTubeUrl(u) && (VIDEO_URL_RE.test(u) || NEEDS_PROXY_RE.test(u)));
+                .filter(u => !isLikelyYouTubeUrl(u) && (VIDEO_URL_RE.test(u) || isLikelyVideoUrl(u) || /^https?:\/\//i.test(u)));
 
             if (directVideoUrls.length > 0) {
                 let allSucceeded = true;
                 for (let i = 0; i < directVideoUrls.length; i++) {
-                    const proxiedUrl = proxyMediaUrl(directVideoUrls[i]);
+                    const directUrl = directVideoUrls[i];
                     const filename = `video_${i + 1}.mp4`;
-                    const success = await triggerBlobDownload(proxiedUrl, filename, 'video');
+                    const success = await triggerBlobDownload(directUrl, filename, 'video');
                     if (!success) {
                         allSucceeded = false;
                         break;
@@ -1493,9 +1492,7 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
         ];
         for (const raw of rawCandidates) {
             if (!raw || typeof raw !== 'string') continue;
-            const proxied = proxyMediaUrl(raw.trim());
-            push(proxied);
-            // NEVER add raw S3/CDN URLs — they cause CORS errors in the browser
+            push(raw.trim());
         }
         return urls;
     }, [resolvedVideoUrl, resolvedVideoUrls, url, fallbackUrls]);
@@ -1788,7 +1785,7 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
     }, [currentUrl, hasLoadedMedia, isResolvingMedia, loadVideoSource, videoFailed]);
 
     if (videoFailed && isResolvingMedia) {
-        const posterSrc = posterFailed ? '' : (proxyMediaUrl(allPosterUrls[posterSourceIndex]) || '');
+        const posterSrc = posterFailed ? '' : (allPosterUrls[posterSourceIndex] || '');
         return (
             <div className="w-full h-full relative flex items-center justify-center bg-black" onClick={(e) => e.stopPropagation()}>
                 {posterSrc ? (
@@ -1804,7 +1801,7 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
 
     // Fallback: show poster image when all video sources fail
     if (videoFailed) {
-        const posterSrc = posterFailed ? '' : (proxyMediaUrl(allPosterUrls[posterSourceIndex]) || '');
+        const posterSrc = posterFailed ? '' : (allPosterUrls[posterSourceIndex] || '');
         return (
             <div className="w-full h-full relative flex items-center justify-center bg-black" onClick={(e) => e.stopPropagation()}>
                 {posterSrc ? (
@@ -1854,7 +1851,7 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
         <div className="w-full h-full relative flex items-center justify-center bg-black group/video" onClick={(e) => e.stopPropagation()}>
             <video
                 ref={videoRef}
-                poster={posterFailed ? '' : proxyMediaUrl(allPosterUrls[posterSourceIndex] || preview)}
+                poster={posterFailed ? '' : (allPosterUrls[posterSourceIndex] || preview || '')}
                 controls
                 autoPlay={false}
                 loop={Boolean(autoPlay) && hasLoadedMedia}
@@ -1934,9 +1931,7 @@ const ImageWithFallback = ({ src, fallbackUrls = [], alt = '', className = '', p
         const rawCandidates = [src, ...(Array.isArray(fallbackUrls) ? fallbackUrls : []), resolvedFallbackUrl];
         for (const raw of rawCandidates) {
             if (!raw || typeof raw !== 'string') continue;
-            const proxied = proxyMediaUrl(raw.trim());
-            push(proxied);
-            // NEVER add raw S3/CDN URLs — they cause CORS errors in the browser
+            push(raw.trim());
         }
         return urls;
     }, [resolvedFallbackUrl, src, fallbackUrls]);
@@ -2016,21 +2011,17 @@ const ImageWithFallback = ({ src, fallbackUrls = [], alt = '', className = '', p
 };
 
 // Small circular profile/author avatar with a static icon fallback.
-// Routes every remote avatar through the shared backend media proxy (same
-// mechanism ImageWithFallback uses above) instead of hotlinking CDN hosts
-// like scontent.cdninstagram.com directly — direct hotlinking is what causes
-// the 403s, since Instagram's CDN rejects requests missing its own referer.
 // On failure we swap to a local icon once and never issue another request
 // for that avatar, so a dead/expired URL can't spam the console.
 const AvatarWithFallback = ({ src, alt = '', className = '' }) => {
     const [failed, setFailed] = useState(false);
-    const proxiedSrc = React.useMemo(() => (src ? proxyMediaUrl(src) : ''), [src]);
+    const avatarSrc = React.useMemo(() => (src || ''), [src]);
 
     React.useEffect(() => {
         setFailed(false);
-    }, [proxiedSrc]);
+    }, [avatarSrc]);
 
-    if (failed || !proxiedSrc) {
+    if (failed || !avatarSrc) {
         return (
             <div className={`${className} flex items-center justify-center bg-muted text-muted-foreground`}>
                 <Users className="h-1/2 w-1/2" />
@@ -2040,7 +2031,7 @@ const AvatarWithFallback = ({ src, alt = '', className = '' }) => {
 
     return (
         <img
-            src={proxiedSrc}
+            src={avatarSrc}
             alt={alt}
             className={className}
             referrerPolicy="no-referrer"
@@ -3277,10 +3268,10 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
 
     // Engagement
     const metrics = content?.engagement || {};
-    let rawContentText = decodeHtmlEntities(alert?.content_details?.text || '');
+    let rawContentText = alert?.content_details?.text || '';
     const contentText = rawContentText.replace(/\*\*Intent Detected:\*\*.*?(?:\n\n|\n|$)/g, '').trim();
     const shouldShowReadMore = contentText.length > 150 || (contentText.match(/\n/g) || []).length >= 2;
-    const quotedContentText = decodeHtmlEntities(content?.quoted_content?.text || '');
+    const quotedContentText = content?.quoted_content?.text || '';
     const shouldShowQuotedReadMore = quotedContentText.length > 130 || (quotedContentText.match(/\n/g) || []).length >= 2;
 
     const [showActionDropdown, setShowActionDropdown] = useState(false);
@@ -4588,7 +4579,7 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
     const timeStr = publishedAtDate ? publishedAtDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
     const dateStr = publishedAtDate ? publishedAtDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
     const isGrid = viewMode === 'grid';
-    let rawContentText = decodeHtmlEntities(alert?.content_details?.text || '');
+    let rawContentText = alert?.content_details?.text || '';
     const contentText = rawContentText.replace(/\*\*Intent Detected:\*\*.*?(?:\n\n|\n|$)/g, '').trim();
     const shouldShowReadMore = contentText.length > 150 || (contentText.match(/\n/g) || []).length >= 2;
     const channelHandleRaw = String(content?.author_handle || source?.handle || alert?.author_handle || '').replace(/^@+/, '');

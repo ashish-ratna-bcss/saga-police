@@ -1,5 +1,5 @@
 const express = require('express');
-const logger = require('../../utils/logger');
+const logger = require('../../lib/logger');
 const {
   listAlerts,
   getAlert,
@@ -17,72 +17,49 @@ const {
   getEngagersForHandle,
   postEngagersForHandle,
 } = require('./alert.engager.controller');
-const { isCatalogStore } = require('./alert.utils');
 const { authorize } = require('../../middleware/auth.middleware');
-
-// Legacy Mongo handlers (kept until Mongo alert path is retired)
-const {
-  getAlerts,
-  getAlertById,
-  getAlertsByIds,
-  updateAlert,
-  getAlertStats,
-  getAlertSummary,
-  getDashboardStats,
-  getUnreadCount,
-  markAllAsRead,
-  investigateLink,
-  translateAlertContent,
-  getSimilarEscalatedAlerts,
-  changeAlertCategory,
-} = require('../../controllers/alertController');
 
 const router = express.Router();
 
-/** Prefer Postgres catalog when store=catalog (Alerts UI default). */
-const withCatalog = (catalogHandler, mongoHandler) => (req, res, next) => {
-  if (isCatalogStore(req)) return catalogHandler(req, res, next);
-  return mongoHandler(req, res, next);
-};
+const goneMongo = (feature) => (req, res) =>
+  res.status(410).json({
+    error: 'Mongo alert path retired',
+    message: `${feature} is unavailable on Postgres-only mode.`,
+  });
 
 router.use(authorize({ pages: ['/alerts'] }));
 
-router.get('/', authorize({ pages: ['/alerts'] }), withCatalog(listAlerts, getAlerts));
-router.get('/stats', withCatalog(getStats, getAlertStats));
-router.get('/summary', getAlertSummary);
-router.get('/dashboard-stats', getDashboardStats);
+// Postgres catalog alerts only
+router.get('/', authorize({ pages: ['/alerts'] }), listAlerts);
+router.get('/stats', getStats);
+router.get('/summary', getStats);
+router.get('/dashboard-stats', getStats);
 router.get('/workflow-kpi', getWorkflowKpi);
-router.get('/unread', authorize({ pages: ['/alerts'] }), withCatalog(getUnread, getUnreadCount));
+router.get('/unread', authorize({ pages: ['/alerts'] }), getUnread);
 router.get('/top-by-category', authorize({ pages: ['/alerts'] }), getTopByCategory);
 router.post('/top-by-category', authorize({ pages: ['/alerts'] }), getTopByCategory);
 
-// Catalog alert keywords (must be before /:id)
 router.get('/keywords', getKeywords);
 router.post('/keywords', postKeyword);
 router.put('/keywords/:id', putKeyword);
 router.delete('/keywords/:id', removeKeyword);
 
-// Frequent engagers — live from Postgres posts + Blugate (no Mongo store)
 router.get('/engagers', listEngagers);
 router.get('/engagers/:handle', getEngagersForHandle);
 router.post('/engagers', postEngagersForHandle);
 router.post('/engagers/:handle', postEngagersForHandle);
 
-router.post('/investigate', authorize({ pages: ['/alerts'] }), (req, res, next) => {
-  logger.info('[AlertRoutes] POST /investigate reached');
-  investigateLink(req, res, next);
-});
-router.post('/public-investigate', (req, res) => {
-  logger.info('[AlertRoutes] POST /public-investigate reached');
-  investigateLink(req, res);
-});
-router.post('/translate', translateAlertContent);
-router.post('/bulk', withCatalog(getAlertsBulk, getAlertsByIds));
-router.get('/debug', (req, res) => res.json({ version: '1.0.2', store: 'module/alerts', timestamp: new Date() }));
-router.get('/:id', withCatalog(getAlert, getAlertById));
-router.put('/read', authorize({ pages: ['/alerts'] }), withCatalog(putMarkAllRead, markAllAsRead));
-router.put('/:id/change-category', changeAlertCategory);
-router.put('/:id', authorize({ pages: ['/alerts'] }), withCatalog(putAlert, updateAlert));
-router.post('/similar', getSimilarEscalatedAlerts);
+router.post('/investigate', authorize({ pages: ['/alerts'] }), goneMongo('investigate'));
+router.post('/public-investigate', goneMongo('investigate'));
+router.post('/translate', goneMongo('translate'));
+router.post('/bulk', getAlertsBulk);
+router.get('/debug', (req, res) =>
+  res.json({ version: '2.0.0', store: 'postgres-catalog', timestamp: new Date() })
+);
+router.get('/:id', getAlert);
+router.put('/read', authorize({ pages: ['/alerts'] }), putMarkAllRead);
+router.put('/:id/change-category', goneMongo('change-category'));
+router.put('/:id', authorize({ pages: ['/alerts'] }), putAlert);
+router.post('/similar', goneMongo('similar-escalated'));
 
 module.exports = router;

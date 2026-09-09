@@ -10,8 +10,8 @@ import {
   startOfMonth,
 } from "date-fns"
 
-import { cn } from "@/lib/utils"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { cn } from "lib/utils"
+import { Button, buttonVariants } from "components/ui/button"
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",

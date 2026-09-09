@@ -49,7 +49,6 @@ const tick = async () => {
 
 const startScheduler = () => {
   if (timer) return;
-  console.log('[monitoringsocialmedia/telegram] scheduler started');
   timer = setInterval(tick, TICK_MS);
   setTimeout(tick, 5_000);
 };

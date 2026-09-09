@@ -5,12 +5,25 @@ const { getRoleBySlug } = require('../role/role.service');
 const { toPublicUser } = require('./user.utils');
 const { validateCreateUser, validateUpdateUser } = require('./user.validation');
 
-// Superadmin sees every account; everyone else (e.g. admin) sees only the
-// accounts they personally created.
+// Superadmin sees every account; admin sees only standard user accounts; others see accounts they created.
 const listUsers = async (actor) => {
   const isSuperadmin = actor?.role === ROLE_SLUGS.SUPERADMIN;
+  const isAdmin = actor?.role === ROLE_SLUGS.ADMIN;
+
+  let where = {};
+  if (isSuperadmin) {
+    where = {};
+  } else if (isAdmin) {
+    where = {
+      created_by: actor?.id,
+      roles: { slug: { notIn: [ROLE_SLUGS.SUPERADMIN, ROLE_SLUGS.ADMIN] } },
+    };
+  } else {
+    where = { created_by: actor?.id };
+  }
+
   const users = await prisma.users.findMany({
-    where: isSuperadmin ? {} : { created_by: actor?.id },
+    where,
     include: { roles: true },
     orderBy: { name: 'asc' },
   });
@@ -63,7 +76,29 @@ const createUserAccount = async (actor, body) => {
     err.status = 400;
     throw err;
   }
+
   const hashedPassword = await bcrypt.hash(password, await bcrypt.genSalt(10));
+
+  // Inherit creator's blurasaga details if not provided
+  let actorUser = null;
+  if (actor?.id) {
+    actorUser = await prisma.users.findUnique({ where: { id: actor.id } });
+  }
+  const actorTc = actorUser && typeof actorUser.theme_color === 'object' && actorUser.theme_color ? actorUser.theme_color : {};
+
+  const creatorTitle = actorTc.blurasagatitle || actor?.blurasagatitle || 'BLURA SAGA';
+  const creatorDesc = actorTc.blurasagadescription || actor?.blurasagadescription || 'Cyber Intelligence Platform';
+  const creatorLogo = actorTc.blurasagalogo || actor?.blurasagalogo || '/blura_saga_logo.jpg';
+  const creatorColor = actorTc.value || actor?.theme_color || 'linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)';
+
+  const themePayload = {
+    blurasagatitle: body.blurasagatitle || creatorTitle,
+    blurasagadescription: body.blurasagadescription || creatorDesc,
+    blurasagalogo: body.blurasagalogo || creatorLogo,
+    value: body.theme_color || creatorColor,
+    primary_hex: '#38bdf8',
+  };
+
   const user = await prisma.users.create({
     data: {
       name,
@@ -71,7 +106,9 @@ const createUserAccount = async (actor, body) => {
       email,
       password: hashedPassword,
       role_id: role.id,
+      created_by: actor.id,
       ui_mode: 'light',
+      theme_color: themePayload,
     },
     include: { roles: true },
   });
@@ -113,6 +150,19 @@ const updateUserAccount = async (actor, userId, body) => {
   if (data.password) {
     data.password = await bcrypt.hash(data.password, await bcrypt.genSalt(10));
   }
+
+  // Handle blurasaga title, description, and logo fields update
+  if (body.blurasagatitle !== undefined || body.blurasagadescription !== undefined || body.blurasagalogo !== undefined || body.theme_color !== undefined) {
+    const existingTheme = typeof user.theme_color === 'object' && user.theme_color ? user.theme_color : {};
+    data.theme_color = {
+      ...existingTheme,
+      blurasagatitle: body.blurasagatitle !== undefined ? body.blurasagatitle : (existingTheme.blurasagatitle || 'BLURA SAGA'),
+      blurasagadescription: body.blurasagadescription !== undefined ? body.blurasagadescription : (existingTheme.blurasagadescription || 'Cyber Intelligence Platform'),
+      blurasagalogo: body.blurasagalogo !== undefined ? body.blurasagalogo : (existingTheme.blurasagalogo || '/blura_saga_logo.jpg'),
+      value: body.theme_color || existingTheme.value || 'linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)',
+    };
+  }
+
   const updated = await prisma.users.update({ where: { id: user.id }, data, include: { roles: true } });
   return toPublicUser(updated, updated.roles);
 };

@@ -118,7 +118,7 @@ const runYouTubeProfile = async (accountId, opts = {}) => {
       /* ignore secondary write failure */
     }
 
-    console.error(`[monitoringsocialmedia/youtube] account ${accountId}:`, error.message);
+    /* Error is stored in last_fetched_history DB column for account */
     return { ok: false, error: error.message };
   }
 };

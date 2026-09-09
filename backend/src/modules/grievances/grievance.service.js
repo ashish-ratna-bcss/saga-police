@@ -1,6 +1,6 @@
 const prisma = require('../../../prisma/client');
-const logger = require('../../utils/logger');
-const { searchMentions } = require('../../services/grievanceService');
+const logger = require('../../lib/logger');
+const { searchMentions } = require('./grievance.mentions');
 const {
   fetchFacebookPosts,
 } = require('../../services/monitoringsocialmedia/facebook/fetch');

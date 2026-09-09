@@ -1,5 +1,5 @@
 const prisma = require('../../../prisma/client');
-const Settings = require('../../models/Settings');
+const { getSettingsDoc } = require('../settings/settings.service');
 const {
   ALERT_INCLUDE,
   asJson,
@@ -25,7 +25,7 @@ const createAlertFromCatalogPost = async (post, analysisResult, options = {}) =>
 
   let alertEvery = false;
   try {
-    const settings = await Settings.findOne({ id: 'global_settings' }).lean();
+    const settings = await getSettingsDoc();
     alertEvery = Boolean(settings?.alert_for_every_post);
   } catch (_) {
     /* settings optional */

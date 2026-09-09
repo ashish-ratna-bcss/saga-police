@@ -4,7 +4,7 @@
  */
 const prisma = require('../../../prisma/client');
 const { getDashboardReportStats } = require('../grievances/grievance.report.service');
-const logger = require('../../utils/logger');
+const logger = require('../../lib/logger');
 
 const RANGE_MS = {
   '24h': 24 * 60 * 60 * 1000,

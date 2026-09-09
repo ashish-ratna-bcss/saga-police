@@ -2,7 +2,8 @@
  * Backward-compatible re-export of the backend apiHandler.
  * Prefer: import apiHandler from '../api/apiHandler' or import { authApi } from '../api'
  */
-export { default, BACKEND_URL } from '../api/apiHandler';
+export { default } from '../api/apiHandler';
+export { BACKEND_URL } from './backendUrl';
 export { default as api } from '../api/apiHandler';
 
 /** Non-backend service URLs (OSINT / RAG) — kept here, not in apiHandler */

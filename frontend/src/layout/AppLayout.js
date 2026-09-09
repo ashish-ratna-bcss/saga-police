@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/auth.context';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import { cn } from '../lib/utils';
+import { Loader2 } from 'lucide-react';
 
 const AppLayout = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, loading } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const handleLogout = () => {
@@ -16,12 +16,20 @@ const AppLayout = () => {
     navigate('/login');
   };
 
-  // Home / Health / Reports fill edge-to-edge (no main gutters).
-  const flushMain =
-    location.pathname === '/dashboard' ||
-    location.pathname === '/' ||
-    location.pathname === '/system-health' ||
-    location.pathname === '/reports';
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-xs font-semibold text-muted-foreground">Checking authentication session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background">
@@ -35,10 +43,7 @@ const AppLayout = () => {
         <Sidebar open={sidebarOpen} items={user?.sidebar || []} />
         <main
           className={cn(
-            'min-h-0 flex-1 overflow-auto transition-[margin] duration-300',
-            flushMain
-              ? 'flex flex-col p-0 [&>*]:min-h-0 [&>*]:flex-1'
-              : 'p-2 lg:p-3',
+            'min-h-0 flex-1 overflow-auto p-3 lg:p-4 transition-[margin] duration-300',
             sidebarOpen ? 'ml-[72px]' : 'ml-0'
           )}
         >

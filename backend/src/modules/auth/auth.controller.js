@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../../../prisma/client');
-const { createAuditLog } = require('../../services/auditService');
+const { createAuditLog } = require('../../lib/audit');
 const { validateLogin } = require('./auth.validation');
 const { generateToken, findUserWithRole } = require('./auth.service');
 const { createAuthCookie, deleteAuthCookie } = require('../../config/cookies');
@@ -60,7 +60,11 @@ const getMe = async (req, res) => {
     username: user.username,
     role: user.role,
     ui_mode: user.ui_mode === 'dark' ? 'dark' : 'light',
-    theme_color: user.theme_color || '#1e3a8a',
+    theme_color: user.theme_color || '#06b6d4',
+    theme_config: user.theme_config || {},
+    blurasagatitle: user.blurasagatitle || 'BLURA SAGA',
+    blurasagadescription: user.blurasagadescription || 'Cyber Intelligence Platform',
+    blurasagalogo: user.blurasagalogo || '/blura_saga_logo.jpg',
     sidebar: ACCESS_FEATURES[user.role] || [],
   });
 };
@@ -96,14 +100,38 @@ const updateMyThemeColor = async (req, res) => {
       return res.status(401).json({ message: 'Not authorized' });
     }
 
-    const color = String(req.body?.theme_color || '').trim();
-    if (!HEX_COLOR_RE.test(color)) {
-      return res.status(400).json({ message: 'theme_color must be a hex color like #1e3a8a' });
+    const currentUser = await prisma.users.findUnique({ where: { id: userId } });
+    const existingTc = typeof currentUser?.theme_color === 'object' && currentUser?.theme_color ? currentUser.theme_color : {};
+
+    const inputVal = String(req.body?.theme_color || req.body?.theme_config?.value || '').trim();
+    if (!inputVal) {
+      return res.status(400).json({ message: 'theme_color or theme_config is required' });
     }
+
+    const isGradient = inputVal.startsWith('linear-gradient') || inputVal.startsWith('radial-gradient');
+    let primaryHex = '#06b6d4';
+    if (isGradient) {
+      const match = inputVal.match(/#([0-9a-fA-F]{6})/);
+      if (match) primaryHex = `#${match[1]}`;
+    } else {
+      if (HEX_COLOR_RE.test(inputVal)) {
+        primaryHex = inputVal;
+      }
+    }
+
+    const themePayload = {
+      ...existingTc,
+      type: isGradient ? 'gradient' : 'solid',
+      value: inputVal,
+      primary_hex: primaryHex,
+      updated_at: new Date().toISOString(),
+    };
 
     const updated = await prisma.users.update({
       where: { id: userId },
-      data: { theme_color: color.toLowerCase() },
+      data: {
+        theme_color: themePayload,
+      },
       include: { roles: true },
     });
 

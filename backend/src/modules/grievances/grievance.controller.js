@@ -9,7 +9,7 @@ const {
   fetchCatalogSourceGrievances,
 } = require('./grievance.source.service');
 const { getDashboardReportStats } = require('./grievance.report.service');
-const logger = require('../../utils/logger');
+const logger = require('../../lib/logger');
 
 const listSources = async (req, res) => {
   try {

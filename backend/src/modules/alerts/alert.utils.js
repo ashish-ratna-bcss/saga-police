@@ -88,7 +88,7 @@ const DEFAULT_VIRALITY_THRESHOLDS = {
 
 const mappingService = (() => {
   try {
-    return require('../../services/mappingService');
+    return require('../settings/mapping.service');
   } catch (_) {
     return null;
   }

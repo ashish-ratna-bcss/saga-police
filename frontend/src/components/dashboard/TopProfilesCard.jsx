@@ -12,8 +12,8 @@ const formatScore = (n) => {
 };
 
 const TopProfilesCard = ({ items = [], className }) => (
-  <section className={cn('flex h-full min-h-0 flex-col bg-card', className)}>
-    <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
+  <section className={cn('flex flex-col rounded-2xl border border-border/60 bg-card shadow-sm overflow-hidden', className)}>
+    <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-4 py-3">
       <div className="flex min-w-0 items-center gap-2">
         <Users className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
         <div className="min-w-0">

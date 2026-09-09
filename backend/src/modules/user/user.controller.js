@@ -40,7 +40,7 @@ const getAllPages = async (req, res) => {
 
 const getAllUsers = async (req, res) => {
   try {
-    const users = await listUsers();
+    const users = await listUsers(req.user);
     return res.json(users);
   } catch (error) {
     return res.status(500).json({ message: error.message });

@@ -29,7 +29,6 @@ const pollPending = async () => {
 
 const startPoller = () => {
   if (timer) return;
-  console.log('[sentimentanalysis] pending poller started');
   timer = setInterval(pollPending, POLL_MS);
   setTimeout(pollPending, 8_000);
 };

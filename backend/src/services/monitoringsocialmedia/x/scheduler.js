@@ -49,7 +49,6 @@ const tick = async () => {
 
 const startScheduler = () => {
   if (timer) return;
-  console.log('[monitoringsocialmedia/x] scheduler started');
   timer = setInterval(tick, TICK_MS);
   setTimeout(tick, 5_000);
 };

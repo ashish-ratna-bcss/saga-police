@@ -1,6 +1,6 @@
 const prisma = require('../../../prisma/client');
-const { createAuditLog } = require('../../services/auditService');
-const logger = require('../../utils/logger');
+const { createAuditLog } = require('../../lib/audit');
+const logger = require('../../lib/logger');
 
 const toProp = (row) => {
   if (!row) return null;

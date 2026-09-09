@@ -1,4 +1,4 @@
-const logger = require('../../utils/logger');
+const logger = require('../../lib/logger');
 const reportService = require('./grievance.report.service');
 
 const getUser = (req) => ({

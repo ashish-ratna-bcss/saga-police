@@ -6,10 +6,10 @@ const callTelegramApi = require('../../services/blugate/telegram/blugate.telegra
 const {
   listItems: listTelegramItems,
 } = require('../../services/blugate/telegram/blugate.telegram.helpers');
-const { engagementFromXMetricsBag } = require('../../utils/engagementMetrics');
+const { engagementFromXMetricsBag } = require('../../lib/engagementMetrics');
 const { asJson } = require('./event.utils');
 const { recordFetch } = require('./event.service');
-const logger = require('../../utils/logger');
+const logger = require('../../lib/logger');
 
 const DEFAULT_EVENT_SCAN_PLATFORMS = ['youtube', 'x', 'facebook', 'telegram'];
 
@@ -495,7 +495,7 @@ const runScanEventOnce = async (event, options = {}) => {
         const batch = await fetcher(query);
         if (Array.isArray(batch) && batch.length) merged.push(...batch);
       } catch (error) {
-        logger.error(`[EventScan] Query failed "${query}": ${error.message}`);
+        logger.warn(`[EventScan] Query "${query}" skipped: ${error.message}`);
       }
     }
     return uniqueById(merged);

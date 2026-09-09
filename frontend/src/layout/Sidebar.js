@@ -18,8 +18,8 @@ import {
   Circle,
   Globe,
 } from 'lucide-react';
-import { AlertService } from '@/features/alerts/api/alertService';
-import { cn } from '@/lib/utils';
+import { AlertService } from '../api';
+import { cn } from '../lib/utils';
 
 /** Resolve Lucide icon name from API (`item.icon`) */
 const ICONS = {
@@ -86,9 +86,10 @@ const Sidebar = ({ open, items }) => {
   return (
     <aside
       className={cn(
-        'fixed bottom-0 left-0 top-16 z-40 flex w-[72px] flex-col bg-primary transition-transform duration-300',
+        'fixed bottom-0 left-0 top-16 z-40 flex w-[72px] flex-col border-r border-white/10 shadow-md transition-all duration-300',
         open ? 'translate-x-0' : '-translate-x-full'
       )}
+      style={{ background: 'var(--primary-gradient)' }}
       aria-label="Main navigation"
     >
       <nav className="flex w-full flex-1 flex-col items-center gap-0.5 overflow-y-auto overflow-x-hidden py-2 [scrollbar-width:none]">
@@ -110,22 +111,22 @@ const Sidebar = ({ open, items }) => {
               aria-label={badge ? `${label}, ${unreadAlerts} new` : label}
               aria-current={active ? 'page' : undefined}
               className={cn(
-                'relative flex w-[64px] flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 transition-colors',
+                'relative flex w-[64px] flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 transition-all duration-150',
                 active
-                  ? 'bg-white/15 text-white'
-                  : 'text-white/50 hover:bg-white/10 hover:text-white/90'
+                  ? 'bg-white/25 text-white font-bold shadow-sm ring-1 ring-white/30 backdrop-blur-sm'
+                  : 'text-white/85 hover:bg-white/15 hover:text-white font-semibold'
               )}
             >
               {active && (
                 <span
-                  className="absolute left-0 top-1/2 h-6 w-[2px] -translate-y-1/2 rounded-r-full bg-[hsl(43,96%,58%)]"
+                  className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-white shadow-md"
                   aria-hidden
                 />
               )}
               <span className="relative flex h-5 w-5 items-center justify-center">
-                <Icon className="h-[18px] w-[18px]" strokeWidth={active ? 2.2 : 1.7} />
+                <Icon className={cn("h-[18px] w-[18px] transition-transform", active ? "scale-105 stroke-[2.2]" : "stroke-[1.8]")} />
                 {badge ? (
-                  <span className="absolute -right-2.5 -top-1.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[hsl(43,96%,58%)] px-0.5 text-[9px] font-bold leading-none text-primary shadow-sm">
+                  <span className="absolute -right-2.5 -top-1.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-amber-400 px-1 text-[9px] font-black leading-none text-slate-950 shadow-md ring-1 ring-white/50">
                     {badge}
                   </span>
                 ) : null}
@@ -133,7 +134,7 @@ const Sidebar = ({ open, items }) => {
               <span
                 className={cn(
                   'w-full truncate text-center text-[9px] leading-tight tracking-wide',
-                  active ? 'font-semibold text-white' : 'font-medium'
+                  active ? 'font-bold text-white drop-shadow-sm' : 'font-semibold text-white/90'
                 )}
               >
                 {label}

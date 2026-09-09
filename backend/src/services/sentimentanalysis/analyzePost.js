@@ -1,7 +1,7 @@
 const prisma = require('../../../prisma/client');
-const Settings = require('../../models/Settings');
-const intelligenceClient = require('../intelligenceClientService');
-const mappingService = require('../mappingService');
+const { getSettingsDoc } = require('../../modules/settings/settings.service');
+const intelligenceClient = require('../../modules/intelligence/intelligence.client.service');
+const mappingService = require('../../modules/settings/mapping.service');
 const { createAlertFromCatalogPost } = require('../../modules/alerts');
 
 const MAX_ATTEMPTS = Math.max(1, Number(process.env.SENTIMENT_MAX_ATTEMPTS) || 5);
@@ -33,7 +33,7 @@ const matchKeywords = async (text) => {
 
 const loadRiskThresholds = async () => {
   try {
-    const settings = await Settings.findOne({ id: 'global_settings' }).lean();
+    const settings = await getSettingsDoc();
     return {
       high: settings?.high_risk_threshold ?? settings?.risk_threshold_high ?? 70,
       medium: settings?.medium_risk_threshold ?? settings?.risk_threshold_medium ?? 40,

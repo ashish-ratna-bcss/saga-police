@@ -11,3 +11,5 @@ venv/
 dist/
 build/
 backend/logs/
+backend/archive/
+frontend/archive/

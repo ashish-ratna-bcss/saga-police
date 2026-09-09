@@ -39,7 +39,7 @@ import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 import { saveAs } from 'file-saver';
 import api from '../../lib/api';
-import { AlertService } from '@/features/alerts/api/alertService';
+import { AlertService } from '../../api';
 import { TwitterAlertCard, YoutubeAlertCard } from '../AlertCards';
 import ContentCard from '../ContentCard';
 

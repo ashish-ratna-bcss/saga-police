@@ -35,9 +35,9 @@ const TYPE_META = {
 
 const RecommendationList = ({ items = [], className }) => (
   <section
-    className={cn('flex h-full min-h-0 flex-col bg-card border-border', className)}
+    className={cn('flex flex-col rounded-2xl border border-border/60 bg-card shadow-sm overflow-hidden', className)}
   >
-    <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
+    <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-4 py-3">
       <div className="flex min-w-0 items-center gap-2">
         <Sparkles className="h-3.5 w-3.5 shrink-0 text-amber-500" />
         <div className="min-w-0">

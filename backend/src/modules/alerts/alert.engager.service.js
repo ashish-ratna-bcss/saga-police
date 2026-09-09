@@ -3,7 +3,7 @@ const {
   fetchTweetRetweeters,
   fetchUserTweetsForEngagerAnalysis,
 } = require('../../services/monitoringsocialmedia/x/fetch');
-const logger = require('../../utils/logger');
+const logger = require('../../lib/logger');
 
 const normalizeHandle = (value) =>
   String(value || '')

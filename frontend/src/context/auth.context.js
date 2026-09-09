@@ -2,7 +2,7 @@ import { useState, useEffect, createContext, useContext } from 'react';
 import { authApi } from '../api/auth.api';
 import { toast } from 'sonner';
 import { sessionCache, AUTH_ME_CACHE_KEY } from '../lib/sessionCache';
-import { applyThemeColor } from '../utils/theme';
+import { applyThemeColor } from '../lib/theme';
 
 const AuthContext = createContext(null);
 
@@ -19,7 +19,8 @@ const applyUserTheme = (me) => {
   if (me.ui_mode === 'light' || me.ui_mode === 'dark') {
     document.documentElement.classList.toggle('dark', me.ui_mode === 'dark');
   }
-  if (me.theme_color) applyThemeColor(me.theme_color);
+  const colorVal = typeof me.theme_color === 'object' ? me.theme_color?.value : me.theme_color;
+  if (colorVal) applyThemeColor(colorVal);
 };
 
 const cacheUser = (me) => {

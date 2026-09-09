@@ -66,7 +66,7 @@ git branch --show-current
 git log -1 --format='%H %s'
 
 echo "=== env (non-secret) ==="
-grep -E '^(PORT|MONGO_ENABLED|CUSTOM_SENTIMENT_URL|MEDIA_ANALYZER_URL|RAG_API_URL|COOKIE_SECURE)=' backend/.env || true
+grep -E '^(PORT|CUSTOM_SENTIMENT_URL|MEDIA_ANALYZER_URL|RAG_API_URL|COOKIE_SECURE)=' backend/.env || true
 grep REACT_APP_BACKEND_URL frontend/.env || true
 
 echo "=== backend deps ==="

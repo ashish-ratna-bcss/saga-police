@@ -70,7 +70,7 @@ const ChipLegend = ({ data }) => (
 );
 
 const Panel = ({ className, children }) => (
-  <section className={cn('flex h-full min-h-0 flex-col bg-card', className)}>{children}</section>
+  <section className={cn('flex flex-col rounded-2xl border border-border/60 bg-card shadow-sm overflow-hidden min-h-[220px]', className)}>{children}</section>
 );
 
 /** Bottom ops row: alerts | grievances | platforms | events — equal columns, full width. */
@@ -105,13 +105,12 @@ const ModulePulseCharts = ({
   return (
     <div
       className={cn(
-        'grid h-full min-h-0 grid-cols-1 border-t border-border md:grid-cols-2 xl:grid-cols-4',
-        'divide-y md:divide-y-0 md:divide-x divide-border',
+        'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4',
         className
       )}
     >
       <Panel>
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-4 py-3">
           <div className="flex min-w-0 items-center gap-1.5">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-500" />
             <div className="min-w-0">
@@ -138,7 +137,7 @@ const ModulePulseCharts = ({
       </Panel>
 
       <Panel>
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-4 py-3">
           <div className="flex min-w-0 items-center gap-1.5">
             <MessageSquareWarning className="h-3.5 w-3.5 shrink-0 text-orange-500" />
             <div className="min-w-0">
@@ -176,7 +175,7 @@ const ModulePulseCharts = ({
       </Panel>
 
       <Panel>
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-4 py-3">
           <div className="flex min-w-0 items-center gap-1.5">
             <Globe className="h-3.5 w-3.5 shrink-0 text-sky-600" />
             <div className="min-w-0">
@@ -212,7 +211,7 @@ const ModulePulseCharts = ({
       </Panel>
 
       <Panel>
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-4 py-3">
           <div className="flex min-w-0 items-center gap-1.5">
             <CalendarDays className="h-3.5 w-3.5 shrink-0 text-sky-600" />
             <div className="min-w-0">
