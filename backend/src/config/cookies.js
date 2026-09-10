@@ -2,12 +2,19 @@ const { isProduction, jwtExpiresInToMs } = require('./env');
 
 const NAME = 'token';
 
+const cookieSecure = (crossSite) => {
+  const v = String(process.env.COOKIE_SECURE || '').toLowerCase();
+  if (v === 'false' || v === '0') return false;
+  if (v === 'true' || v === '1') return true;
+  return crossSite || isProduction();
+};
+
 /** Create — set the auth session cookie on the response. */
 const createAuthCookie = (res, token) => {
   const crossSite = String(process.env.COOKIE_CROSS_SITE || '').toLowerCase() === 'true';
   res.cookie(NAME, token, {
     httpOnly: true,
-    secure: crossSite || isProduction(),
+    secure: cookieSecure(crossSite),
     sameSite: crossSite ? 'none' : 'lax',
     path: '/',
     maxAge: jwtExpiresInToMs(),
@@ -28,7 +35,7 @@ const deleteAuthCookie = (res) => {
   const crossSite = String(process.env.COOKIE_CROSS_SITE || '').toLowerCase() === 'true';
   res.clearCookie(NAME, {
     httpOnly: true,
-    secure: crossSite || isProduction(),
+    secure: cookieSecure(crossSite),
     sameSite: crossSite ? 'none' : 'lax',
     path: '/',
   });
