@@ -210,6 +210,50 @@ const updateMyPlatforms = async (req, res) => {
   }
 };
 
+const changePassword = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Not authorized' });
+    }
+
+    const { current_password, new_password } = req.body;
+    if (!current_password || !new_password) {
+      return res.status(400).json({ message: 'current_password and new_password are required' });
+    }
+
+    const user = await prisma.users.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const isValid = await bcrypt.compare(current_password, user.password);
+    if (!isValid) {
+      return res.status(401).json({ message: 'Incorrect current password' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(new_password, salt);
+
+    await prisma.users.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+
+    await createAuditLog(
+      { id: user.id, email: user.email, full_name: user.name },
+      'change_password',
+      'user',
+      user.id,
+      { ip: req.ip }
+    );
+
+    return res.status(200).json({ message: 'Password updated successfully' });
+  } catch (error) {
+    return res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   login,
   logout,
@@ -217,4 +261,5 @@ module.exports = {
   updateMyUiMode,
   updateMyThemeColor,
   updateMyPlatforms,
+  changePassword,
 };

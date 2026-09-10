@@ -583,6 +583,7 @@ export default function Alerts() {
     try {
       const response = await AlertService.listKeywords();
       const records = Array.isArray(response.data) ? response.data : [];
+      records.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       setKeywordRecords(records);
       syncKeywordFilterOptions(records);
       return records;

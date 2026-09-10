@@ -6,6 +6,7 @@ const {
   updateMyUiMode,
   updateMyThemeColor,
   updateMyPlatforms,
+  changePassword,
 } = require('./auth.controller');
 const { authorize } = require('../../middleware/auth.middleware');
 
@@ -17,5 +18,6 @@ router.get('/me', authorize(), getMe);
 router.patch('/me/ui-mode', authorize(), updateMyUiMode);
 router.patch('/me/theme-color', authorize(), updateMyThemeColor);
 router.patch('/me/platforms', authorize(), updateMyPlatforms);
+router.patch('/me/password', authorize(), changePassword);
 
 module.exports = router;

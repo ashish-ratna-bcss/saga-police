@@ -422,9 +422,16 @@ const PolicyManager = () => {
               className="group text-left rounded-xl border border-border bg-card p-4 hover:border-primary/40 transition-colors flex flex-col"
             >
               <div className="flex items-start justify-between gap-2 mb-2">
-                <Badge variant="secondary" className="text-[10px] font-semibold">
-                  {(policy.category_id || '').replace(/_/g, ' ')}
-                </Badge>
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  <Badge variant="secondary" className="text-[10px] font-semibold">
+                    {(policy.category_id || '').replace(/_/g, ' ')}
+                  </Badge>
+                  {policy.is_global && (
+                    <Badge variant="outline" className="text-[10px] text-blue-600 border-blue-200 bg-blue-50">
+                      System Default
+                    </Badge>
+                  )}
+                </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
               </div>
               <p className="text-xs text-muted-foreground line-clamp-3 flex-1 leading-relaxed">
@@ -467,7 +474,7 @@ const PolicyManager = () => {
                 </p>
               </div>
               <div className="flex items-center gap-1">
-                {editingPolicy && (
+                {editingPolicy && !editingPolicy.is_global && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -511,6 +518,15 @@ const PolicyManager = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 bg-muted/5">
+              {editingPolicy?.is_global && (
+                <div className="mb-5 flex items-start gap-2.5 p-3 text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg">
+                  <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold block mb-0.5">System Default Policy</span>
+                    This policy is maintained globally and cannot be modified or deleted.
+                  </div>
+                </div>
+              )}
               <form id="panelForm" onSubmit={handleSaveClick} className="space-y-5">
                 {activeTab === 'basic' && (
                   <div className="space-y-4">
@@ -734,12 +750,14 @@ const PolicyManager = () => {
 
             <div className="p-4 border-t border-border bg-muted/20 flex justify-end gap-2">
               <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setIsPanelOpen(false)}>
-                Cancel
+                {editingPolicy?.is_global ? 'Close' : 'Cancel'}
               </Button>
-              <Button size="sm" className="h-8 text-xs min-w-[110px]" onClick={handleSaveClick} disabled={!isDirty}>
-                <Save className="h-3.5 w-3.5 mr-1.5" />
-                Save Changes
-              </Button>
+              {(!editingPolicy || !editingPolicy.is_global) && (
+                <Button size="sm" className="h-8 text-xs min-w-[110px]" onClick={handleSaveClick} disabled={!isDirty}>
+                  <Save className="h-3.5 w-3.5 mr-1.5" />
+                  Save Changes
+                </Button>
+              )}
             </div>
           </div>
         </div>

@@ -19,7 +19,7 @@ model platforms {
   color                 String?
   /// Field schema for the add/edit account form
   fields                Json                    @default("[]")
-  /// Per-tenant Blugate credentials
+  /// Per-tenant Blugate credentials (AES-encrypted at rest)
   blugate_client_key    String?
   api_key               String?
   /// Viral / velocity alert thresholds (engagement counts within time window)

@@ -12,7 +12,7 @@ const { getDefaultAccessForRole, PLATFORM_CATALOG } = require('../src/modules/au
 const BACKEND_ROOT = path.join(__dirname, '..');
 
 /** Must match every `model` in prisma/schema.prisma (main auth only). */
-const REQUIRED_TABLES = ['roles', 'users'];
+const REQUIRED_TABLES = ['roles', 'users', 'default_policies'];
 
 async function countPublicTables(prisma) {
   const rows = await prisma.$queryRaw`
@@ -1103,6 +1103,16 @@ async function main() {
     console.log(
       `[postgres] main auth schema ready (${REQUIRED_TABLES.length} required tables, ${after} public)`
     );
+    
+    // Seed default policies in the main DB
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO default_policies (category_id, definition, severity_level, is_active)
+      VALUES 
+        ('Hate_Speech', 'Content that attacks or demeans a group based on race, religion, ethnic origin, sexual orientation, disability, or gender.', 'High', true),
+        ('Misinformation', 'False or inaccurate information, especially that which is deliberately intended to deceive.', 'Medium', true),
+        ('Defamation', 'Content intended to damage the good reputation of someone.', 'Medium', true)
+      ON CONFLICT (category_id) DO NOTHING;
+    `);
   } catch (error) {
     console.error('[postgres] schema ensure failed:', error.message);
     process.exitCode = 1;

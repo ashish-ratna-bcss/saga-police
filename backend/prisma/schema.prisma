@@ -44,3 +44,18 @@ model users {
   creator            users?   @relation("user_creator", fields: [created_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
   created_users      users[]  @relation("user_creator")
 }
+
+model default_policies {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Text
+  category_id       String   @unique @db.Text
+  definition        String   @db.Text
+  legal_sections    Json     @default("[]")
+  platform_policies Json     @default("{}")
+  keywords          String[] @default([]) @db.Text
+  severity_level    String   @default("Medium") @db.Text
+  is_active         Boolean  @default(true)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  @@index([is_active, category_id])
+}

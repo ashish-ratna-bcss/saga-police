@@ -2,6 +2,7 @@
  * Alert config (risk bands) + viral thresholds + templates + policies — Postgres / Prisma.
  */
 const dbOf = require('../../lib/dbOf');
+const mainPrisma = require('../../../prisma/client');
 
 const CONFIG_ID = 'default';
 
@@ -233,14 +234,24 @@ const hydratePolicy = (row) => {
 
 const listPolicies = async ({ db } = {}) => {
   const prisma = dbOf(db);
-  const rows = await prisma.policy_mappings.findMany({ orderBy: { category_id: 'asc' } });
-  return rows.map(hydratePolicy);
+  const tenantRows = await prisma.policy_mappings.findMany({ orderBy: { category_id: 'asc' } });
+  const globalRows = await mainPrisma.default_policies.findMany({ orderBy: { category_id: 'asc' } });
+  
+  const mappedTenant = tenantRows.map(hydratePolicy);
+  const mappedGlobal = globalRows.map(r => ({ ...hydratePolicy(r), is_global: true }));
+  
+  return [...mappedGlobal, ...mappedTenant];
 };
 
 const getPolicy = async (id, { db } = {}) => {
   const prisma = dbOf(db);
   const row = await prisma.policy_mappings.findUnique({ where: { id: String(id) } });
-  return hydratePolicy(row);
+  if (row) return hydratePolicy(row);
+
+  const globalRow = await mainPrisma.default_policies.findUnique({ where: { id: String(id) } });
+  if (globalRow) return { ...hydratePolicy(globalRow), is_global: true };
+
+  return null;
 };
 
 const createPolicy = async (body = {}, { db } = {}) => {
@@ -263,6 +274,12 @@ const createPolicy = async (body = {}, { db } = {}) => {
 };
 
 const updatePolicy = async (id, body = {}, { db } = {}) => {
+  const globalRow = await mainPrisma.default_policies.findUnique({ where: { id: String(id) } });
+  if (globalRow) {
+    const err = new Error('Cannot modify global default policy');
+    err.status = 403;
+    throw err;
+  }
   const prisma = dbOf(db);
   const data = {};
   if (body.category_id !== undefined) data.category_id = String(body.category_id).trim();
@@ -279,6 +296,10 @@ const updatePolicy = async (id, body = {}, { db } = {}) => {
 };
 
 const deletePolicy = async (id, { db } = {}) => {
+  const globalRow = await mainPrisma.default_policies.findUnique({ where: { id: String(id) } });
+  if (globalRow) {
+    return false; // Or throw error, but returning false gives 404 in controller
+  }
   const prisma = dbOf(db);
   try {
     await prisma.policy_mappings.delete({ where: { id: String(id) } });
@@ -290,11 +311,19 @@ const deletePolicy = async (id, { db } = {}) => {
 
 const listActivePolicies = async ({ db } = {}) => {
   const prisma = dbOf(db);
-  const rows = await prisma.policy_mappings.findMany({
+  const tenantRows = await prisma.policy_mappings.findMany({
     where: { is_active: true },
     orderBy: { category_id: 'asc' },
   });
-  return rows.map(hydratePolicy);
+  const globalRows = await mainPrisma.default_policies.findMany({
+    where: { is_active: true },
+    orderBy: { category_id: 'asc' },
+  });
+  
+  const mappedTenant = tenantRows.map(hydratePolicy);
+  const mappedGlobal = globalRows.map(r => ({ ...hydratePolicy(r), is_global: true }));
+  
+  return [...mappedGlobal, ...mappedTenant];
 };
 
 module.exports = {

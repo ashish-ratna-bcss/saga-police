@@ -6,8 +6,11 @@ const {
     updatePolicy,
     deletePolicy
 } = require('./policy.controller');
+const { authorize } = require('../../middleware/auth.middleware');
 
 const router = express.Router();
+
+router.use(authorize());
 
 router
     .route('/')

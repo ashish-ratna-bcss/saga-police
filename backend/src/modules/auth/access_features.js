@@ -17,6 +17,7 @@ const PAGE_CATALOG = [
   { name: 'AI Assistant', label: 'AI', path: '/ai-assistant', icon: 'Bot' },
   { name: 'Users Management', label: 'Users', path: '/users-management', icon: 'Users' },
   { name: 'Settings', label: 'Settings', path: '/settings', icon: 'Settings' },
+  { name: 'Policies', label: 'Policies', path: '/policies', icon: 'Shield' },
   { name: 'System Health', label: 'Health', path: '/system-health', icon: 'Activity' },
   { name: 'Help', label: 'Help', path: '/help', icon: 'HelpCircle' },
 ];
@@ -43,6 +44,7 @@ const OPS_PAGE_PATHS = [
   '/reports',
   '/ai-assistant',
   '/settings',
+  '/policies',
   '/system-health',
   '/help',
 ];

@@ -2722,7 +2722,7 @@ export namespace Prisma {
        */
       fields: Prisma.JsonValue
       /**
-       * Per-tenant Blugate credentials
+       * Per-tenant Blugate credentials (AES-encrypted at rest)
        */
       blugate_client_key: string | null
       api_key: string | null
