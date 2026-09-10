@@ -200,9 +200,6 @@ const ModulePulseCharts = ({
               <li key={p.slug} className="flex items-center gap-2 py-1 text-sm">
                 <PlatformBrandIcon platform={p.slug} className="h-3.5 w-3.5" />
                 <span className="flex-1 truncate text-xs font-medium">{p.name || p.slug}</span>
-                <span className="text-[10px] tabular-nums text-muted-foreground">
-                  {p.monitoring} live
-                </span>
                 <span className="w-6 text-right text-xs font-bold tabular-nums">{p.accounts}</span>
               </li>
             ))}

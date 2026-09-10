@@ -13,6 +13,7 @@ const {
 const { cleanUsername: cleanTelegramUsername } = require('../../services/blugate/telegram/blugate.telegram.helpers');
 const callFacebookApi = require('../../services/blugate/facebook/blugate.facebook.api_client');
 const callInstagramApi = require('../../services/blugate/instagram/blugate.instagram.api_client');
+const callXApi = require('../../services/blugate/x/blugate.x.api_client');
 const { unwrapPayload } = require('../../services/blugate/instagram/blugate.instagram.helpers');
 const {
   normalizePlatform,
@@ -107,8 +108,11 @@ const buildWhere = (query = {}) => {
   }
   if (status && status !== 'all' && status !== 'total' && status !== 'reports') {
     if (status === 'fir') where.workflow_status = 'converted_to_fir';
-    else if (status === 'pending') where.workflow_status = { in: ['pending', 'PENDING', 'received'] };
-    else if (status === 'escalated') where.workflow_status = { in: ['escalated', 'ESCALATED'] };
+    else if (status === 'pending') {
+      // Pending = classified grievance awaiting action — not raw fetched "received" inbox.
+      where.workflow_status = { in: ['pending', 'PENDING'] };
+      where.classification = 'grievance';
+    } else if (status === 'escalated') where.workflow_status = { in: ['escalated', 'ESCALATED'] };
     else if (status === 'closed') where.workflow_status = { in: ['closed', 'CLOSED'] };
   }
 
@@ -184,10 +188,15 @@ const getCatalogGrievance = async (id, { db } = {}) => {
 const getCatalogStats = async (query = {}, { db } = {}) => {
   const prisma = dbOf(db);
   const base = buildWhere({ ...query, tab: 'all', status_filter: undefined });
-  const [total, received, escalated, closed, fir] = await Promise.all([
+  const [total, pending, escalated, closed, fir] = await Promise.all([
     prisma.social_media_grievances.count({ where: base }),
+    // Pending chip: classified G-reports still pending (Total stays all fetched mentions).
     prisma.social_media_grievances.count({
-      where: { ...base, workflow_status: { in: ['received', 'pending', 'PENDING'] } },
+      where: {
+        ...base,
+        classification: 'grievance',
+        workflow_status: { in: ['pending', 'PENDING'] },
+      },
     }),
     prisma.social_media_grievances.count({
       where: { ...base, workflow_status: { in: ['escalated', 'ESCALATED'] } },
@@ -202,7 +211,7 @@ const getCatalogStats = async (query = {}, { db } = {}) => {
 
   return {
     total,
-    pending: received,
+    pending,
     escalated,
     closed,
     converted_to_fir: fir,
@@ -759,8 +768,9 @@ const fetchCatalogXGrievances = async (account, startDate, endDate, { db } = {})
     .trim();
   const taggedHandle = `@${clean}`;
 
+  const auth = callXApi.authFromPlatformRow(account.platforms);
   logger.info(`[CatalogGrievances] Searching mentions for ${taggedHandle}`);
-  const mentions = await searchMentions(taggedHandle, 100, startDate, endDate);
+  const mentions = await searchMentions(taggedHandle, 100, startDate, endDate, auth);
 
   let newCount = 0;
   for (const mention of mentions) {
@@ -818,7 +828,7 @@ const fetchAllCatalogGrievances = async (startDate, endDate, { db } = {}) => {
     where: {
       is_active: true,
       type: 'grievance',
-      platforms: { slug: { in: ['x', 'twitter', 'facebook', 'instagram', 'telegram'] } },
+      platforms: { slug: { in: ['x', 'twitter', 'facebook', 'instagram'] } },
     },
     include: {
       profile: { select: { display_name: true } },

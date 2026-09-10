@@ -274,13 +274,6 @@ const createPolicy = async (body = {}, { db } = {}) => {
 };
 
 const updatePolicy = async (id, body = {}, { db } = {}) => {
-  const globalRow = await mainPrisma.default_policies.findUnique({ where: { id: String(id) } });
-  if (globalRow) {
-    const err = new Error('Cannot modify global default policy');
-    err.status = 403;
-    throw err;
-  }
-  const prisma = dbOf(db);
   const data = {};
   if (body.category_id !== undefined) data.category_id = String(body.category_id).trim();
   if (body.definition !== undefined) data.definition = String(body.definition);
@@ -291,6 +284,15 @@ const updatePolicy = async (id, body = {}, { db } = {}) => {
   }
   if (body.severity_level !== undefined) data.severity_level = body.severity_level;
   if (body.is_active !== undefined) data.is_active = Boolean(body.is_active);
+
+  // Global defaults live in main DB; tenant overrides in policy_mappings.
+  const globalRow = await mainPrisma.default_policies.findUnique({ where: { id: String(id) } });
+  if (globalRow) {
+    const row = await mainPrisma.default_policies.update({ where: { id: String(id) }, data });
+    return { ...hydratePolicy(row), is_global: true };
+  }
+
+  const prisma = dbOf(db);
   const row = await prisma.policy_mappings.update({ where: { id: String(id) }, data });
   return hydratePolicy(row);
 };

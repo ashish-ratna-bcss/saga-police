@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Globe, BarChart3, Plus, Trash2, RefreshCw, Loader2, Search, X, LayoutGrid, BookUser, ChevronDown
+  Globe, BarChart3, Plus, Trash2, RefreshCw, Loader2, Search, X, LayoutGrid, BookUser, ChevronDown, Pencil
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -9,14 +9,13 @@ import { cn } from '../../lib/utils';
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger
 } from '../ui/tooltip';
-import { TelegramBrandLogo, XBrandLogo, FacebookBrandLogo, InstagramBrandLogo } from '../PlatformBrandIcon';
+import { XBrandLogo, FacebookBrandLogo, InstagramBrandLogo } from '../PlatformBrandIcon';
 
 const ALL_PLATFORMS = [
   { id: 'all', label: 'All', icon: Globe },
   { id: 'x', label: 'X', icon: XBrandLogo },
   { id: 'facebook', label: 'Facebook', icon: FacebookBrandLogo },
   { id: 'instagram', label: 'Instagram', icon: InstagramBrandLogo },
-  { id: 'telegram', label: 'Telegram', icon: TelegramBrandLogo },
 ];
 
 const normalizePlatformId = (value) => {
@@ -29,7 +28,6 @@ const platformLabel = (platform) => {
   const p = normalizePlatformId(platform);
   if (p === 'facebook') return 'Facebook';
   if (p === 'instagram') return 'Instagram';
-  if (p === 'telegram') return 'Telegram';
   if (p === 'x') return 'X';
   return p || 'Unknown';
 };
@@ -56,6 +54,7 @@ export const GrievanceTopNavbar = ({
   allowedPlatforms = null,
   onAddSource,
   onRemoveSource,
+  onEditSource,
   onFetchSourceHistory,
   onFetchAll,
   fetchingAll = false,
@@ -117,22 +116,21 @@ export const GrievanceTopNavbar = ({
 
   const statusCounts = useMemo(
     () => ({
-      total: Number(stats.total ?? workflowStats.total ?? 0),
-      pending: Number(stats.pending ?? workflowStats.pending ?? 0),
-      escalated: Number(stats.escalated ?? workflowStats.escalated ?? 0),
-      closed: Number(stats.closed ?? workflowStats.closed ?? 0),
-      converted_to_fir: Number(stats.converted_to_fir ?? workflowStats.fir ?? 0),
+      // Catalog stats only — do not fall back to report workflowStats (keeps Total ≠ Pending).
+      total: Number(stats.total || 0),
+      pending: Number(stats.pending || 0),
+      escalated: Number(stats.escalated || 0),
+      closed: Number(stats.closed || 0),
+      converted_to_fir: Number(stats.converted_to_fir || 0),
     }),
-    [stats, workflowStats]
+    [stats]
   );
 
   const isReportsMode = activeStatus === 'reports';
   const fetchLabel =
     activePlatform === 'facebook' || activePlatform === 'instagram'
       ? 'Fetch posts & comments'
-      : activePlatform === 'telegram'
-        ? 'Fetch channel posts'
-        : 'Fetch mentions';
+      : 'Fetch mentions';
 
   // Watched-accounts: show chips on one line; overflow opens dropdown.
   const [accountsOpen, setAccountsOpen] = useState(false);
@@ -280,7 +278,7 @@ export const GrievanceTopNavbar = ({
               </span>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-[220px] text-xs">
-              Official X, Facebook, Instagram &amp; Telegram accounts you are monitoring for grievances.
+              Official X, Facebook &amp; Instagram accounts you are monitoring for grievances.
             </TooltipContent>
           </Tooltip>
           {typeof onManageContacts === 'function' && (
@@ -563,6 +561,24 @@ export const GrievanceTopNavbar = ({
                             </p>
                           </div>
                           <div className="flex shrink-0 items-center gap-0.5">
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              className="rounded-md p-1.5 hover:bg-muted"
+                              title="Edit"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEditSource?.(source);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.stopPropagation();
+                                  onEditSource?.(source);
+                                }
+                              }}
+                            >
+                              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                            </span>
                             <span
                               role="button"
                               tabIndex={0}

@@ -1,0 +1,97 @@
+[
+  {
+    "category_id": "Hate_Speech",
+    "definition": "Content that attacks or demeans a group based on race, religion, ethnic origin, caste, sexual orientation, disability, or gender.",
+    "severity_level": "High",
+    "keywords": ["hate", "communal", "religion", "caste", "racist", "bigot", "genocide", "go back", "kill them"],
+    "legal_sections": [
+      { "id": "BNS_196", "code": "196", "title": "Promoting enmity between groups" },
+      { "id": "BNS_299", "code": "299", "title": "Religious insult" }
+    ],
+    "platform_policies": {
+      "youtube": [{ "id": "HATE_SPEECH", "name": "Hate Speech" }],
+      "x": [{ "id": "HATEFUL_CONDUCT", "name": "Hateful Conduct" }],
+      "facebook": [{ "id": "HATE_SPEECH", "name": "Hate Speech" }],
+      "instagram": [{ "id": "HATE_SPEECH", "name": "Hate Speech" }]
+    }
+  },
+  {
+    "category_id": "Misinformation",
+    "definition": "False or misleading information presented as fact, especially when likely to deceive the public or cause panic, communal tension, or civic harm.",
+    "severity_level": "Medium",
+    "keywords": ["fake news", "rumour", "rumor", "false claim", "hoax", "misleading", "propaganda", "deepfake"],
+    "legal_sections": [
+      { "id": "BNS_197", "code": "197", "title": "Prejudicial to national integration" },
+      { "id": "BNS_353_2", "code": "353(2)", "title": "Statements conducing to public mischief" }
+    ],
+    "platform_policies": {
+      "youtube": [{ "id": "MISINFORMATION", "name": "Misinformation" }],
+      "x": [{ "id": "CIVIC_INTEGRITY", "name": "Civic Integrity" }],
+      "facebook": [{ "id": "MISINFORMATION", "name": "Misinformation" }],
+      "instagram": [{ "id": "MISINFORMATION", "name": "Misinformation" }]
+    }
+  },
+  {
+    "category_id": "Defamation",
+    "definition": "Content intended to damage the good reputation of a person or institution by publishing false or malicious allegations.",
+    "severity_level": "Medium",
+    "keywords": ["defame", "defamation", "slander", "libel", "character assassination", "false allegation", "smear"],
+    "legal_sections": [
+      { "id": "BNS_356", "code": "356", "title": "Defamation" }
+    ],
+    "platform_policies": {
+      "youtube": [{ "id": "HARASSMENT_CYBERBULLYING", "name": "Harassment & Cyberbullying" }],
+      "x": [{ "id": "ABUSE_HARASSMENT", "name": "Abuse and Harassment" }],
+      "facebook": [{ "id": "BULLYING_HARASSMENT", "name": "Bullying and Harassment" }],
+      "instagram": [{ "id": "BULLYING_HARASSMENT", "name": "Bullying and Harassment" }]
+    }
+  },
+  {
+    "category_id": "Communal_Violence",
+    "definition": "Content that promotes enmity between communities or is likely to provoke communal violence, intimidation, or public mischief.",
+    "severity_level": "High",
+    "keywords": ["riot", "communal", "mob", "lynch", "attack community", "burn", "violence"],
+    "legal_sections": [
+      { "id": "BNS_196", "code": "196", "title": "Promoting enmity between groups" },
+      { "id": "BNS_351", "code": "351", "title": "Criminal intimidation" },
+      { "id": "BNS_353_2", "code": "353(2)", "title": "Statements conducing to public mischief" }
+    ],
+    "platform_policies": {
+      "youtube": [{ "id": "VIOLENT_GRAPHIC_CONTENT", "name": "Violent or Graphic Content" }],
+      "x": [{ "id": "VIOLENT_SPEECH", "name": "Violent Speech" }],
+      "facebook": [{ "id": "VIOLENCE_INCITEMENT", "name": "Violence and Incitement" }],
+      "instagram": [{ "id": "VIOLENCE_INCITEMENT", "name": "Violence and Incitement" }]
+    }
+  },
+  {
+    "category_id": "Harassment",
+    "definition": "Repeated or targeted abuse intended to insult, intimidate, or provoke a breach of peace against an individual.",
+    "severity_level": "Medium",
+    "keywords": ["harass", "bully", "insult", "threaten", "stalk", "abuse"],
+    "legal_sections": [
+      { "id": "BNS_352", "code": "352", "title": "Intentional insult provoking breach of peace" },
+      { "id": "BNS_356", "code": "356", "title": "Defamation" }
+    ],
+    "platform_policies": {
+      "youtube": [{ "id": "HARASSMENT_CYBERBULLYING", "name": "Harassment & Cyberbullying" }],
+      "x": [{ "id": "ABUSE_HARASSMENT", "name": "Abuse and Harassment" }],
+      "facebook": [{ "id": "BULLYING_HARASSMENT", "name": "Bullying and Harassment" }],
+      "instagram": [{ "id": "BULLYING_HARASSMENT", "name": "Bullying and Harassment" }]
+    }
+  },
+  {
+    "category_id": "threat",
+    "definition": "Content that threatens violence, harm, or criminal intimidation against a person, group, or institution.",
+    "severity_level": "High",
+    "keywords": ["threat", "kill you", "will attack", "bomb", "shoot", "intimidate"],
+    "legal_sections": [
+      { "id": "BNS_351", "code": "351", "title": "Criminal intimidation" }
+    ],
+    "platform_policies": {
+      "youtube": [{ "id": "HARASSMENT_CYBERBULLYING", "name": "Harassment & Cyberbullying" }],
+      "x": [{ "id": "VIOLENT_SPEECH", "name": "Violent Speech" }],
+      "facebook": [{ "id": "VIOLENCE_INCITEMENT", "name": "Violence and Incitement" }],
+      "instagram": [{ "id": "VIOLENCE_INCITEMENT", "name": "Violence and Incitement" }]
+    }
+  }
+]

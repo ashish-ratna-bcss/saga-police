@@ -4,6 +4,9 @@
 Port 80 is shared: named domains → Blura Saga; default_server → vLLM upstream
 (when vllm_upstream is set in sites.json). vLLM is not removed — only rebound
 to localhost so nginx can terminate public :80.
+
+When a site has domain + ssl cert paths (or standard Let's Encrypt files exist),
+an HTTPS (:443) server is also emitted for that domain.
 """
 
 from __future__ import annotations
@@ -25,6 +28,24 @@ def _port(value, label: str) -> int:
     if port < 1024 or port > 65535:
         raise SystemExit(f"{label} must be 1024–65535, got {value!r}")
     return port
+
+
+def _ssl_paths(site: dict) -> tuple[str, str] | tuple[None, None]:
+    """Return cert/key paths. Prefer explicit sites.json values; else Let's Encrypt live/."""
+    domain = site.get("domain") or ""
+    cert = str(site.get("ssl_certificate") or "").strip()
+    key = str(site.get("ssl_certificate_key") or "").strip()
+    if not cert and domain:
+        # Standard LE layout (may not be readable by non-root; paths still valid for nginx)
+        cert = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
+        key = f"/etc/letsencrypt/live/{domain}/privkey.pem"
+        # Only auto-wire if at least the live dir exists (or root can see the files)
+        live = Path(f"/etc/letsencrypt/live/{domain}")
+        if not live.exists() and not Path(cert).exists():
+            return None, None
+    if cert and key:
+        return cert, key
+    return None, None
 
 
 def load_sites(path: Path) -> dict:
@@ -56,6 +77,10 @@ def load_sites(path: Path) -> dict:
         s["frontend_port"] = frontend_port
         s["backend_port"] = backend_port
         s["domain"] = str(s.get("domain") or "").strip()
+        cert, key = _ssl_paths(s)
+        s["ssl_certificate"] = cert or ""
+        s["ssl_certificate_key"] = key or ""
+        s["force_https"] = bool(s.get("force_https", True)) if cert else False
     data["sites"] = sites
     data["ip"] = str(data.get("ip") or "").strip() or "_"
     data["backend_bind"] = str(data.get("backend_bind") or "127.0.0.1").strip()
@@ -83,23 +108,9 @@ def proxy_block(upstream: str, indent: str = "        ", *, long_timeout: bool =
     return "\n".join(lines)
 
 
-def server_block(
-    *,
-    listen: str,
-    server_name: str,
-    web_root: str,
-    bind: str,
-    backend_port: int,
-    default_server: bool = False,
-) -> str:
-    listen_flag = " default_server" if default_server else ""
+def app_locations(*, bind: str, backend_port: int, web_root: str) -> str:
     loc = proxy_block(f"http://{bind}:{backend_port}")
     return f"""
-server {{
-    listen {listen}{listen_flag};
-    listen [::]:{listen}{listen_flag};
-    server_name {server_name};
-
     root {web_root};
     index index.html;
     client_max_body_size 50m;
@@ -129,6 +140,93 @@ server {{
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml image/svg+xml;
     gzip_min_length 1024;
+""".rstrip()
+
+
+def server_block(
+    *,
+    listen: str,
+    server_name: str,
+    web_root: str,
+    bind: str,
+    backend_port: int,
+    default_server: bool = False,
+    ssl_certificate: str = "",
+    ssl_certificate_key: str = "",
+) -> str:
+    listen_flag = " default_server" if default_server else ""
+    ssl = bool(ssl_certificate and ssl_certificate_key)
+    listen_lines = [
+        f"    listen {listen}{listen_flag};",
+        f"    listen [::]:{listen}{listen_flag};",
+    ]
+    if ssl:
+        # dual-stack HTTPS
+        listen_lines = [
+            f"    listen {listen} ssl{listen_flag};",
+            f"    listen [::]:{listen} ssl{listen_flag};",
+            "    http2 on;",
+            f"    ssl_certificate {ssl_certificate};",
+            f"    ssl_certificate_key {ssl_certificate_key};",
+            "    ssl_session_timeout 1d;",
+            "    ssl_session_cache shared:SSL:10m;",
+            "    ssl_protocols TLSv1.2 TLSv1.3;",
+            "    add_header Strict-Transport-Security \"max-age=31536000; includeSubDomains\" always;",
+        ]
+    body = app_locations(bind=bind, backend_port=backend_port, web_root=web_root)
+    return f"""
+server {{
+{chr(10).join(listen_lines)}
+    server_name {server_name};
+{body}
+}}
+""".rstrip()
+
+
+def http_redirect_block(domain: str) -> str:
+    return f"""
+server {{
+    listen 80;
+    listen [::]:80;
+    server_name {domain};
+
+    # ACME HTTP-01
+    location ^~ /.well-known/acme-challenge/ {{
+        root /var/www/certbot;
+        default_type "text/plain";
+        try_files $uri =404;
+    }}
+
+    location / {{
+        return 301 https://$host$request_uri;
+    }}
+}}
+""".rstrip()
+
+
+def http_domain_block(
+    *,
+    domain: str,
+    web_root: str,
+    bind: str,
+    backend_port: int,
+    force_https: bool,
+) -> str:
+    if force_https:
+        return http_redirect_block(domain)
+    body = app_locations(bind=bind, backend_port=backend_port, web_root=web_root)
+    return f"""
+server {{
+    listen 80;
+    listen [::]:80;
+    server_name {domain};
+
+    location ^~ /.well-known/acme-challenge/ {{
+        root /var/www/certbot;
+        default_type "text/plain";
+        try_files $uri =404;
+    }}
+{body}
 }}
 """.rstrip()
 
@@ -161,6 +259,7 @@ def render(data: dict, web_root: str) -> str:
         "#",
         "# nginx listens on frontend_port (UI). /api and /files go to backend_port.",
         "# Port 80: domain host → app; default_server → vllm_upstream (if set).",
+        "# HTTPS added automatically when Let's Encrypt certs exist for a domain.",
         "# Do not edit this file by hand.",
         "# (No top-level gzip here — main nginx.conf already enables it.)",
         "",
@@ -174,6 +273,8 @@ def render(data: dict, web_root: str) -> str:
         frontend_port = s["frontend_port"]
         backend_port = s["backend_port"]
         domain = s["domain"]
+        cert = s.get("ssl_certificate") or ""
+        key = s.get("ssl_certificate_key") or ""
         parts.append(
             f"# --- {admin}  UI :{frontend_port}  API {bind}:{backend_port} ---"
         )
@@ -189,14 +290,26 @@ def render(data: dict, web_root: str) -> str:
         )
         if domain:
             parts.append(
-                server_block(
-                    listen="80",
-                    server_name=domain,
+                http_domain_block(
+                    domain=domain,
                     web_root=web_root,
                     bind=bind,
                     backend_port=backend_port,
+                    force_https=bool(cert and key and s.get("force_https")),
                 )
             )
+            if cert and key:
+                parts.append(
+                    server_block(
+                        listen="443",
+                        server_name=domain,
+                        web_root=web_root,
+                        bind=bind,
+                        backend_port=backend_port,
+                        ssl_certificate=cert,
+                        ssl_certificate_key=key,
+                    )
+                )
         parts.append("")
     return "\n".join(parts).rstrip() + "\n"
 
@@ -218,6 +331,8 @@ def main() -> int:
         print(f"  vLLM default :80 → http://{data['vllm_upstream']}/")
     for s in data["sites"]:
         extra = f"  domain={s['domain']}" if s["domain"] else "  (set domain later)"
+        if s.get("ssl_certificate"):
+            extra += "  https=on"
         print(
             f"  {s['admin']}: UI http://{data['ip']}:{s['frontend_port']}/  "
             f"API {data['backend_bind']}:{s['backend_port']}{extra}"

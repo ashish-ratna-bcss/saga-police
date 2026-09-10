@@ -310,7 +310,7 @@ const ActionButtons = ({ grievance, onAction, isDownloading = false, showDownloa
                     size="icon"
                     disabled={isDownloading}
                     title={isDownloading ? 'Video is downloading...' : 'Download media'}
-                    className="h-8 w-8 text-blue-700 bg-blue-50 hover:bg-blue-100 ring-1 ring-blue-200 disabled:opacity-70"
+                    className="h-8 w-8 text-blue-700 bg-blue-50 hover:bg-blue-100 ring-1 ring-blue-200 dark:text-blue-300 dark:bg-blue-950/40 dark:hover:bg-blue-950/70 dark:ring-blue-800 disabled:opacity-70"
                     onClick={() => onAction?.('download', { grievance })}
                 >
                     {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
@@ -573,12 +573,12 @@ const QuotedTweet = ({ context, getProxiedMediaUrl, onAction, grievance, onRetry
         <div className="mt-3 border border-slate-200 dark:border-slate-700 rounded-2xl p-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
             <div className="flex items-center gap-2 min-w-0">
                 <Avatar className="h-5 w-5"><AvatarImage src={context.posted_by?.profile_image_url} /><AvatarFallback className="text-[8px]">{(context.posted_by?.display_name || qHandle || '?')[0]}</AvatarFallback></Avatar>
-                <span className="text-[13px] font-bold text-[#0f1419] truncate">{context.posted_by?.display_name || qHandle || 'Original Post'}</span>
+                <span className="text-[13px] font-bold text-[#0f1419] dark:text-slate-100 truncate">{context.posted_by?.display_name || qHandle || 'Original Post'}</span>
                 {context.posted_by?.is_verified && <BadgeCheck className="h-3.5 w-3.5 text-[#1d9bf0] shrink-0" />}
-                {qHandle && <span className="text-[13px] text-[#536471] truncate">@{qHandle}</span>}
+                {qHandle && <span className="text-[13px] text-[#536471] dark:text-slate-400 truncate">@{qHandle}</span>}
             </div>
             {text ? (
-                <p className="text-[13px] text-[#0f1419] mt-1 whitespace-pre-wrap break-words">{highlightMentions(text)}</p>
+                <p className="text-[13px] text-[#0f1419] dark:text-slate-100 mt-1 whitespace-pre-wrap break-words">{highlightMentions(text)}</p>
             ) : qUrl ? (
                 <a
                     href={qUrl}
@@ -617,7 +617,7 @@ const ParentTweet = ({ context, getProxiedMediaUrl, onAction, grievance, onRetry
             <div className="absolute left-[20px] top-[40px] bottom-[-16px] w-[2px] bg-[#cfd9de] group-hover:bg-[#ccd6dd]" />
 
             <div className="shrink-0 pt-0.5 z-10">
-                <Avatar className="h-10 w-10 ring-4 ring-white">
+                <Avatar className="h-10 w-10 ring-4 ring-background">
                     <AvatarImage src={user.profile_image_url} />
                     <AvatarFallback className="text-sm bg-[#1d9bf0] text-white">
                         {(user.display_name || handle || '?')[0]?.toUpperCase()}
@@ -626,18 +626,18 @@ const ParentTweet = ({ context, getProxiedMediaUrl, onAction, grievance, onRetry
             </div>
             <div className="flex-1 min-w-0 pt-1">
                 <div className="flex items-center gap-1 flex-wrap min-w-0">
-                    <span className="font-bold text-[15px] text-[#0f1419] truncate max-w-[140px]">
+                    <span className="font-bold text-[15px] text-[#0f1419] dark:text-slate-100 truncate max-w-[140px]">
                         {user.display_name || handle || 'Original Post'}
                     </span>
                     {user.is_verified && <BadgeCheck className="h-4 w-4 text-[#1d9bf0] shrink-0" />}
-                    {handle && <span className="text-[14px] text-[#536471] truncate max-w-[120px]">@{handle}</span>}
-                    <span className="text-[#536471]">·</span>
-                    <span className="text-[14px] text-[#536471]">
+                    {handle && <span className="text-[14px] text-[#536471] dark:text-slate-400 truncate max-w-[120px]">@{handle}</span>}
+                    <span className="text-[#536471] dark:text-slate-400">·</span>
+                    <span className="text-[14px] text-[#536471] dark:text-slate-400">
                         {context.post_date ? timeAgo(context.post_date) : 'Original Post'}
                     </span>
                 </div>
                 {text ? (
-                    <div className="text-[15px] text-[#0f1419] leading-5 mt-1 whitespace-pre-wrap break-words">
+                    <div className="text-[15px] text-[#0f1419] dark:text-slate-100 leading-5 mt-1 whitespace-pre-wrap break-words">
                         {highlightMentions(text)}
                     </div>
                 ) : tweetUrl ? (
@@ -686,16 +686,16 @@ const ParentFacebookPost = ({ context, getProxiedMediaUrl, onAction, grievance }
                 </Avatar>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-[15px] text-[#050505]">{user.display_name || user.handle}</span>
+                        <span className="font-semibold text-[15px] text-[#050505] dark:text-slate-100">{user.display_name || user.handle}</span>
                         {user.is_verified && <BadgeCheck className="h-4 w-4 text-[#1877F2] shrink-0" />}
                     </div>
-                    <div className="flex items-center gap-1.5 text-[13px] text-[#65676b]">
+                    <div className="flex items-center gap-1.5 text-[13px] text-[#65676b] dark:text-slate-400">
                         <span>{context.post_date ? timeAgo(context.post_date) : 'Original Post'}</span>
                         <span>·</span><GlobeIcon className="h-3 w-3" />
                     </div>
                 </div>
             </div>
-            {text && <div className="mt-3 text-[15px] text-[#050505] leading-5 whitespace-pre-wrap break-words">{highlightMentions(text)}</div>}
+            {text && <div className="mt-3 text-[15px] text-[#050505] dark:text-slate-100 leading-5 whitespace-pre-wrap break-words">{highlightMentions(text)}</div>}
             {media.length > 0 && <div className="mt-3 -mx-4 opacity-80"><FacebookMediaGrid media={media} getProxiedMediaUrl={getProxiedMediaUrl} /></div>}
         </div>
     );
@@ -769,14 +769,14 @@ const XLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState = {}, 
             {/* MAIN TWEET */}
             <div className="flex gap-3">
                 <div className="shrink-0 pt-0.5 z-10">
-                    <Avatar className="h-10 w-10 ring-4 ring-white">
+                    <Avatar className="h-10 w-10 ring-4 ring-background">
                         <AvatarImage src={user.profile_image_url} />
                         <AvatarFallback className="text-sm bg-[#1d9bf0] text-white">{(user.display_name || handle || '?')[0]?.toUpperCase()}</AvatarFallback>
                     </Avatar>
                 </div>
                 <div className="flex-1 min-w-0">
                     {ctx.reposted_from?.tweet_id && (
-                        <div className="flex items-center gap-1 text-[13px] text-[#536471] mb-1 -mt-1">
+                        <div className="flex items-center gap-1 text-[13px] text-[#536471] dark:text-slate-400 mb-1 -mt-1">
                             <Repeat2 className="h-3.5 w-3.5" />
                             <span className="font-bold">{ctx.reposted_from.posted_by?.display_name || 'Someone'} reposted</span>
                         </div>
@@ -784,11 +784,11 @@ const XLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState = {}, 
                     <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                             <div className="flex items-center gap-1 flex-wrap min-w-0">
-                                <span className="font-bold text-[15px] text-[#0f1419] truncate">{user.display_name || handle}</span>
+                                <span className="font-bold text-[15px] text-[#0f1419] dark:text-slate-100 truncate">{user.display_name || handle}</span>
                                 {user.is_verified && <BadgeCheck className="h-4 w-4 text-[#1d9bf0] shrink-0" />}
-                                {handle ? <span className="text-[14px] text-[#536471] truncate">@{handle}</span> : null}
-                                <span className="text-[#536471]">·</span>
-                                <span className="text-[15px] text-[#536471] hover:underline cursor-pointer whitespace-nowrap" title={formatFullDate(grievance.post_date)}>{timeAgo(grievance.post_date)}</span>
+                                {handle ? <span className="text-[14px] text-[#536471] dark:text-slate-400 truncate">@{handle}</span> : null}
+                                <span className="text-[#536471] dark:text-slate-400">·</span>
+                                <span className="text-[15px] text-[#536471] dark:text-slate-400 hover:underline cursor-pointer whitespace-nowrap" title={formatFullDate(grievance.post_date)}>{timeAgo(grievance.post_date)}</span>
                             </div>
                             <WorkflowMeta grievance={grievance} onAction={onAction} />
                         </div>
@@ -796,12 +796,12 @@ const XLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState = {}, 
                     </div>
                     {/* Only show "Replying to" if we DON'T show the parent thread above (fallback) */}
                     {!hasThread && ctx.in_reply_to?.posted_by?.handle && (
-                        <div className="flex items-center gap-1 text-[13px] text-[#536471] mt-0.5">
+                        <div className="flex items-center gap-1 text-[13px] text-[#536471] dark:text-slate-400 mt-0.5">
                             <span>Replying to</span>
                             <span className="text-[#1d9bf0] hover:underline cursor-pointer">@{(ctx.in_reply_to.posted_by.handle || '').replace('@', '')}</span>
                         </div>
                     )}
-                    {text && <div className="text-[15px] text-[#0f1419] leading-5 mt-1 whitespace-pre-wrap break-words">{highlightMentions(text)}</div>}
+                    {text && <div className="text-[15px] text-[#0f1419] dark:text-slate-100 leading-5 mt-1 whitespace-pre-wrap break-words">{highlightMentions(text)}</div>}
                     {media.length > 0 && <MediaGrid media={media} getProxiedMediaUrl={getProxiedMediaUrl} />}
                     {/* Quoted tweet — shown below the main tweet content */}
                     <QuotedTweet context={ctx.quoted} getProxiedMediaUrl={getProxiedMediaUrl} onAction={onAction} grievance={grievance} onRetryEnrich={handleRetryEnrich} enriching={enriching} />
@@ -819,12 +819,12 @@ const XLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState = {}, 
                                 data-comment-btn={isComment ? "true" : undefined}
                                 className={cn('flex items-center gap-1.5 group p-2 rounded-full transition-all duration-150 active:scale-95 active:translate-y-[1px]', hoverColor, isComment && isActioned && 'animate-comment-btn-blink')}
                             >
-                                <Icon className={cn('h-[18px] w-[18px] text-[#536471]', textHover)} />
-                                <span className={cn('text-[13px] text-[#536471]', textHover)}>{formatCount(count)}</span>
+                                <Icon className={cn('h-[18px] w-[18px] text-[#536471] dark:text-slate-400', textHover)} />
+                                <span className={cn('text-[13px] text-[#536471] dark:text-slate-400', textHover)}>{formatCount(count)}</span>
                             </button>
                         ))}
                         <button type="button" onClick={openOriginal} className="flex items-center gap-1.5 group p-2 rounded-full hover:bg-[#1d9bf0]/10 transition-all duration-150 active:scale-95 active:translate-y-[1px]">
-                            <Bookmark className="h-[18px] w-[18px] text-[#536471] group-hover:text-[#1d9bf0]" />
+                            <Bookmark className="h-[18px] w-[18px] text-[#536471] dark:text-slate-400 group-hover:text-[#1d9bf0]" />
                         </button>
                     </div>
                 </div>
@@ -919,10 +919,10 @@ const FacebookLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
                         </Avatar>
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="font-semibold text-[15px] text-[#050505] truncate">{user.display_name || user.handle}</span>
+                                <span className="font-semibold text-[15px] text-[#050505] dark:text-slate-100 truncate">{user.display_name || user.handle}</span>
                                 {user.is_verified && <BadgeCheck className="h-4 w-4 text-[#1877F2] shrink-0" />}
                             </div>
-                            <div className="flex items-center gap-1.5 text-[13px] text-[#65676b]">
+                            <div className="flex items-center gap-1.5 text-[13px] text-[#65676b] dark:text-slate-400">
                                 <span className="whitespace-nowrap">{timeAgo(grievance.post_date)}</span>
                                 <span>·</span>
                                 <GlobeIcon className="h-3 w-3 shrink-0" />
@@ -932,7 +932,7 @@ const FacebookLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
                     </div>
                     <ActionButtons grievance={grievance} onAction={onAction} isDownloading={!!downloadState?.downloading} />
                 </div>
-                {text && <div className="mt-3 text-[15px] text-[#050505] leading-5 whitespace-pre-wrap break-words">{highlightMentions(text)}</div>}
+                {text && <div className="mt-3 text-[15px] text-[#050505] dark:text-slate-100 leading-5 whitespace-pre-wrap break-words">{highlightMentions(text)}</div>}
                 {media.length > 0 && <div className="mt-3 -mx-4"><FacebookMediaGrid media={media} getProxiedMediaUrl={getProxiedMediaUrl} /></div>}
                 {totalReactions > 0 && (
                     <div className="flex items-center justify-between px-1 py-2.5 border-b border-[#ced0d4]">
@@ -941,9 +941,9 @@ const FacebookLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
                                 <span className="inline-flex items-center justify-center h-[18px] w-[18px] rounded-full bg-[#1877F2] border-2 border-white"><ThumbsUpIcon className="h-2.5 w-2.5 text-white" /></span>
                                 <span className="inline-flex items-center justify-center h-[18px] w-[18px] rounded-full bg-red-500 border-2 border-white"><Heart className="h-2.5 w-2.5 text-white fill-white" /></span>
                             </div>
-                            <span className="text-[15px] text-[#65676b]">{formatCount(totalReactions)}</span>
+                            <span className="text-[15px] text-[#65676b] dark:text-slate-400">{formatCount(totalReactions)}</span>
                         </div>
-                        <div className="flex items-center gap-4 text-[15px] text-[#65676b]">
+                        <div className="flex items-center gap-4 text-[15px] text-[#65676b] dark:text-slate-400">
                             {(engagement.replies || 0) > 0 && <span>{formatCount(engagement.replies)} comments</span>}
                             {(engagement.retweets || 0) > 0 && <span>{formatCount(engagement.retweets)} shares</span>}
                         </div>
@@ -956,7 +956,7 @@ const FacebookLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
                             key={label}
                             onClick={label === 'Comment' ? () => onAction?.('reply_comment', { grievance }) : openDetails}
                             data-comment-btn={label === 'Comment' ? "true" : undefined}
-                            className={cn("flex-1 flex items-center justify-center gap-2 py-2 rounded-lg hover:bg-[#f0f2f5] transition-all duration-150 active:scale-[0.98] active:translate-y-[1px] text-[#65676b]", label === 'Comment' && isActioned && 'animate-comment-btn-blink')}
+                            className={cn("flex-1 flex items-center justify-center gap-2 py-2 rounded-lg hover:bg-[#f0f2f5] transition-all duration-150 active:scale-[0.98] active:translate-y-[1px] text-[#65676b] dark:text-slate-400", label === 'Comment' && isActioned && 'animate-comment-btn-blink')}
                         >
                             <Icon className="h-5 w-5" /><span className="text-[15px] font-semibold">{label}</span>
                         </button>
@@ -1002,14 +1002,14 @@ const TelegramLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
                     </Avatar>
                     <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="font-semibold text-[15px] text-[#050505] truncate">
+                            <span className="font-semibold text-[15px] text-[#050505] dark:text-slate-100 truncate">
                                 {user.display_name || handle}
                             </span>
                             {handle ? (
-                                <span className="text-[13px] text-[#65676b] truncate">@{handle}</span>
+                                <span className="text-[13px] text-[#65676b] dark:text-slate-400 truncate">@{handle}</span>
                             ) : null}
                         </div>
-                        <div className="flex items-center gap-1.5 text-[13px] text-[#65676b]">
+                        <div className="flex items-center gap-1.5 text-[13px] text-[#65676b] dark:text-slate-400">
                             <span className="whitespace-nowrap">
                                 {timeAgo(grievance.post_date || grievance.posted_at)}
                             </span>
@@ -1030,7 +1030,7 @@ const TelegramLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
             </div>
 
             {text ? (
-                <div className="mt-3 text-[15px] text-[#050505] leading-5 whitespace-pre-wrap break-words">
+                <div className="mt-3 text-[15px] text-[#050505] dark:text-slate-100 leading-5 whitespace-pre-wrap break-words">
                     {highlightMentions(text)}
                 </div>
             ) : (
@@ -1071,8 +1071,8 @@ const TelegramLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
                         title={label}
                         className="flex items-center gap-1.5 group p-2 rounded-full hover:bg-[#229ED9]/10 transition-colors"
                     >
-                        <Icon className="h-[18px] w-[18px] text-[#536471] group-hover:text-[#229ED9]" />
-                        <span className="text-[13px] text-[#536471] group-hover:text-[#229ED9]">
+                        <Icon className="h-[18px] w-[18px] text-[#536471] dark:text-slate-400 group-hover:text-[#229ED9]" />
+                        <span className="text-[13px] text-[#536471] dark:text-slate-400 group-hover:text-[#229ED9]">
                             {formatCount(count)}
                         </span>
                     </button>
@@ -1124,15 +1124,15 @@ const InstagramLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadStat
                         </Avatar>
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="font-semibold text-[15px] text-[#050505] truncate">
+                                <span className="font-semibold text-[15px] text-[#050505] dark:text-slate-100 truncate">
                                     {user.display_name || user.handle}
                                 </span>
                                 {user.handle && (
-                                    <span className="text-[13px] text-[#65676b] truncate">@{String(user.handle).replace(/^@/, '')}</span>
+                                    <span className="text-[13px] text-[#65676b] dark:text-slate-400 truncate">@{String(user.handle).replace(/^@/, '')}</span>
                                 )}
                                 {user.is_verified && <BadgeCheck className="h-4 w-4 text-pink-500 shrink-0" />}
                             </div>
-                            <div className="flex items-center gap-1.5 text-[13px] text-[#65676b]">
+                            <div className="flex items-center gap-1.5 text-[13px] text-[#65676b] dark:text-slate-400">
                                 <span className="whitespace-nowrap">{timeAgo(grievance.post_date || grievance.posted_at)}</span>
                                 <span>·</span>
                                 <span className="text-pink-600 font-medium">Instagram</span>
@@ -1143,7 +1143,7 @@ const InstagramLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadStat
                     <ActionButtons grievance={grievance} onAction={onAction} isDownloading={!!downloadState?.downloading} />
                 </div>
                 {text && (
-                    <div className="mt-3 text-[15px] text-[#050505] leading-5 whitespace-pre-wrap break-words">
+                    <div className="mt-3 text-[15px] text-[#050505] dark:text-slate-100 leading-5 whitespace-pre-wrap break-words">
                         {highlightMentions(text)}
                     </div>
                 )}
@@ -1158,12 +1158,12 @@ const InstagramLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadStat
                             {totalLikes > 0 && (
                                 <>
                                     <Heart className="h-4 w-4 text-pink-500 fill-pink-500" />
-                                    <span className="text-[15px] text-[#65676b]">{formatCount(totalLikes)}</span>
+                                    <span className="text-[15px] text-[#65676b] dark:text-slate-400">{formatCount(totalLikes)}</span>
                                 </>
                             )}
                         </div>
                         {(engagement.replies || 0) > 0 && (
-                            <span className="text-[15px] text-[#65676b]">{formatCount(engagement.replies)} comments</span>
+                            <span className="text-[15px] text-[#65676b] dark:text-slate-400">{formatCount(engagement.replies)} comments</span>
                         )}
                     </div>
                 )}
@@ -1178,7 +1178,7 @@ const InstagramLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadStat
                             onClick={label === 'Comment' ? () => onAction?.('reply_comment', { grievance }) : openDetails}
                             data-comment-btn={label === 'Comment' ? 'true' : undefined}
                             className={cn(
-                                'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg hover:bg-pink-50 transition-all duration-150 active:scale-[0.98] text-[#65676b]',
+                                'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg hover:bg-pink-50 transition-all duration-150 active:scale-[0.98] text-[#65676b] dark:text-slate-400',
                                 label === 'Comment' && isActioned && 'animate-comment-btn-blink'
                             )}
                         >

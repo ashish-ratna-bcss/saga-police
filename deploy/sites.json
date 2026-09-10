@@ -9,6 +9,9 @@
       "frontend_port": 3000,
       "backend_port": 5005,
       "domain": "odisha.blurasaga.com",
+      "ssl_certificate": "/etc/letsencrypt/live/odisha.blurasaga.com/fullchain.pem",
+      "ssl_certificate_key": "/etc/letsencrypt/live/odisha.blurasaga.com/privkey.pem",
+      "force_https": true,
       "enabled": true
     },
     {

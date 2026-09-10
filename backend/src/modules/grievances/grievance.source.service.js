@@ -6,7 +6,7 @@ const {
 const { normalizePlatform, pickAvatar } = require('./grievance.utils');
 const logger = require('../../lib/logger');
 
-const GRIEVANCE_PLATFORMS = ['x', 'facebook', 'instagram', 'telegram'];
+const GRIEVANCE_PLATFORMS = ['x', 'facebook', 'instagram'];
 
 /** DB may store X as slug `x` or `twitter` — query both. */
 const platformSlugsForQuery = (canonicalOrAll) => {

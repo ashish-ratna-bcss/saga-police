@@ -103,7 +103,7 @@ const getTimelineEntriesFromSearchResponse = (data) => {
         [];
 };
 
-const fetchTweetById = async (tweetId, cache = null, handle = null) => {
+const fetchTweetById = async (tweetId, cache = null, handle = null, auth = null) => {
     const key = String(tweetId || '').trim();
     if (!key) return null;
     if (cache && cache.has(key)) return cache.get(key);
@@ -111,7 +111,7 @@ const fetchTweetById = async (tweetId, cache = null, handle = null) => {
     let snapshot = null;
 
     try {
-        const data = await callXApi('TWEET_DETAILS', { pid: key });
+        const data = await callXApi('TWEET_DETAILS', { pid: key }, auth);
         const tweetResult =
             data?.result?.tweetResult?.result ||
             data?.result?.tweet ||
@@ -132,11 +132,15 @@ const fetchTweetById = async (tweetId, cache = null, handle = null) => {
         for (const searchQuery of searchQueries) {
             if (snapshot) break;
             try {
-                const data = await callXApi('SEARCH', {
-                    query: searchQuery,
-                    type: 'Latest',
-                    count: '20',
-                });
+                const data = await callXApi(
+                    'SEARCH',
+                    {
+                        query: searchQuery,
+                        type: 'Latest',
+                        count: '20',
+                    },
+                    auth
+                );
                 const entries = getTimelineEntriesFromSearchResponse(data);
                 for (const entry of entries) {
                     if (entry.entryId?.startsWith('cursor-')) continue;
@@ -215,7 +219,7 @@ const normalizeThreadNode = (node) => {
     };
 };
 
-const buildReplyThreadChain = async (seedNode, cache = null, maxDepth = 8) => {
+const buildReplyThreadChain = async (seedNode, cache = null, maxDepth = 8, auth = null) => {
     const chain = [];
     const visited = new Set();
 
@@ -232,7 +236,8 @@ const buildReplyThreadChain = async (seedNode, cache = null, maxDepth = 8) => {
             const fetched = await fetchTweetById(
                 currentId,
                 cache,
-                resolvedNode?.posted_by?.handle || resolvedNode?.in_reply_to_handle || null
+                resolvedNode?.posted_by?.handle || resolvedNode?.in_reply_to_handle || null,
+                auth
             );
             if (fetched) {
                 resolvedNode = normalizeThreadNode({ ...resolvedNode, ...fetched }) || resolvedNode;
@@ -253,7 +258,7 @@ const buildReplyThreadChain = async (seedNode, cache = null, maxDepth = 8) => {
         const fallback = createFallbackThreadNode(nextId, resolvedNode.in_reply_to_handle || null);
         if (!fallback) break;
 
-        const fetchedParent = await fetchTweetById(nextId, cache, resolvedNode.in_reply_to_handle || null);
+        const fetchedParent = await fetchTweetById(nextId, cache, resolvedNode.in_reply_to_handle || null, auth);
         current = fetchedParent
             ? (normalizeThreadNode({ ...fallback, ...fetchedParent }) || fallback)
             : fallback;
@@ -282,8 +287,9 @@ const formatDateForSearch = (dateStr) => {
  * @param {number} limit - Maximum number of tweets to fetch
  * @param {string} startDate - Start date for search (YYYY-MM-DD)
  * @param {string} endDate - End date for search (YYYY-MM-DD)
+ * @param {{ accessKey: string, clientId: string }} auth - Blugate credentials from platforms row
  */
-const searchMentions = async (handle, limit = 50, startDate = null, endDate = null) => {
+const searchMentions = async (handle, limit = 50, startDate = null, endDate = null, auth = null) => {
     try {
         const cleanHandle = handle.replace('@', '').trim();
         
@@ -309,15 +315,16 @@ const searchMentions = async (handle, limit = 50, startDate = null, endDate = nu
                 searchQuery += ` since:${formattedStart}`;
             }
         }
-        
 
-
-        const responseData = await callXApi('SEARCH', {
-            query: searchQuery,
-            type: 'Latest',
-            count: String(adjustedLimit),
-        });
-
+        const responseData = await callXApi(
+            'SEARCH',
+            {
+                query: searchQuery,
+                type: 'Latest',
+                count: String(adjustedLimit),
+            },
+            auth
+        );
         
         // Log raw response structure for debugging
         if (responseData) {
@@ -405,7 +412,7 @@ const searchMentions = async (handle, limit = 50, startDate = null, endDate = nu
             if (rawQuote) {
                 quoted = extractTweetSnapshot(rawQuote);
             } else if (legacy.quoted_status_id_str) {
-                quoted = await fetchTweetById(legacy.quoted_status_id_str, parentTweetCache);
+                quoted = await fetchTweetById(legacy.quoted_status_id_str, parentTweetCache, null, auth);
             }
 
             // Reply context (original post)
@@ -414,7 +421,7 @@ const searchMentions = async (handle, limit = 50, startDate = null, endDate = nu
 
             let inReplyTo = null;
             if (inReplyToId) {
-                inReplyTo = await fetchTweetById(inReplyToId, parentTweetCache, inReplyToHandle);
+                inReplyTo = await fetchTweetById(inReplyToId, parentTweetCache, inReplyToHandle, auth);
                 if (!inReplyTo) {
                     const fallbackUrl = inReplyToHandle
                         ? `https://x.com/${inReplyToHandle}/status/${inReplyToId}`
@@ -430,7 +437,7 @@ const searchMentions = async (handle, limit = 50, startDate = null, endDate = nu
             }
 
             const threadChain = inReplyTo
-                ? await buildReplyThreadChain(inReplyTo, parentTweetCache, 8)
+                ? await buildReplyThreadChain(inReplyTo, parentTweetCache, 8, auth)
                 : [];
             const threadParent = threadChain.length > 0
                 ? threadChain[threadChain.length - 1]
@@ -485,8 +492,10 @@ const searchMentions = async (handle, limit = 50, startDate = null, endDate = nu
 
         return tweets;
     } catch (error) {
-        if (error.response) {
-        }
+        const logger = require('../../lib/logger');
+        logger.error(
+          `[CatalogGrievances] searchMentions failed for ${handle}: ${error.message}`
+        );
         return [];
     }
 };

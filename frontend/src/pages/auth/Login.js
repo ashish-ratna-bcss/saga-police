@@ -98,18 +98,18 @@ const Login = () => {
         <section className="rise flex flex-col justify-between px-6 py-8 sm:px-10 lg:px-14 xl:px-16 lg:py-10">
           
           {/* Top Brand Header */}
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4">
+            <div className="flex min-w-0 items-center gap-3.5">
               <div className="relative group">
                 <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-cyan-500 to-amber-500 opacity-60 blur transition group-hover:opacity-100" />
                 <img
                   src="/blura_saga_logo.jpg"
                   alt="Blura Saga Logo"
-                  className="relative h-12 w-12 rounded-xl object-cover ring-1 ring-white/20 sm:h-14 sm:w-14"
+                  className="relative h-12 w-auto max-w-[180px] object-contain sm:h-14 sm:max-w-[280px]"
                 />
               </div>
-              <div className="leading-tight">
-                <div className="flex items-center gap-2">
+              <div className="hidden leading-tight min-[480px]:block">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="font-heading text-lg font-bold tracking-[0.16em] text-white sm:text-xl">
                     BLURA SAGA
                   </span>
@@ -123,11 +123,16 @@ const Login = () => {
               </div>
             </div>
 
-            <img
-              src="/Logo.png"
-              alt="Company Logo"
-              className="hidden h-9 w-auto object-contain opacity-90 transition hover:opacity-100 md:block"
-            />
+            <div className="flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-2.5 py-1.5 sm:gap-2.5 sm:px-3 sm:py-2">
+              <span className="whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.14em] text-white/55 sm:text-[10px]">
+                Powered by
+              </span>
+              <img
+                src="/Logo.png"
+                alt="Blue Cloud Softech Solutions Limited"
+                className="h-8 w-auto max-w-[110px] object-contain opacity-95 sm:h-10 sm:max-w-[180px]"
+              />
+            </div>
           </div>
 
           {/* Center Content Section */}
@@ -208,7 +213,7 @@ const Login = () => {
                 <img
                   src="/blura_saga_logo.jpg"
                   alt="Blura Saga Emblem"
-                  className="relative h-9 w-9 rounded-xl object-cover ring-1 ring-white/20"
+                  className="relative h-9 w-auto max-w-[160px] object-contain"
                 />
               </div>
               <div className="leading-tight">
@@ -254,7 +259,10 @@ const Login = () => {
                     autoComplete="username"
                     placeholder="Enter username"
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     required
                     data-testid="username-input"
                     className="h-12 rounded-xl border-white/15 bg-black/25 pl-10 text-white placeholder:text-white/35 backdrop-blur-md transition hover:border-white/25 focus-visible:border-cyan-400 focus-visible:ring-2 focus-visible:ring-cyan-400/30"

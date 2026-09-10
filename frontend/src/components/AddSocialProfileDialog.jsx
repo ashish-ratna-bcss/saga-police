@@ -1,6 +1,5 @@
 /**
- * Social Profiles "Add profile" dialog — reusable from Global Search Monitor, etc.
- * Create-only (same UX as Social Profiles Add profile).
+ * Social Profiles add/edit dialog — reusable from Settings Grievances, Global Search, etc.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Download, Loader2, Plus, Trash2 } from 'lucide-react';
@@ -38,6 +37,12 @@ const POLL_PRESETS = [
 
 const HIDDEN_FIELD_KEYS = new Set(['page_id', 'user_id', 'channel_id']);
 
+const resolvePollPreset = (minutes) => {
+  const m = Number(minutes);
+  const match = POLL_PRESETS.find((p) => p.minutes === m);
+  return match ? match.value : 'custom';
+};
+
 const blankAccountSlot = (slug, platformsList) => {
   const plat = platformsList.find((p) => p.slug === slug);
   const data = {};
@@ -55,28 +60,69 @@ const blankAccountSlot = (slug, platformsList) => {
   };
 };
 
+const rowToAccountSlot = (row, platformsList) => {
+  const plat = platformsList.find((p) => p.slug === row.platform) || null;
+  const data = {};
+  (plat?.fields || []).forEach((f) => {
+    data[f.key] = row.data?.[f.key] ?? (f.key === 'username' ? row.handle : '') ?? '';
+  });
+  if (row.data?.page_id) data.page_id = row.data.page_id;
+  if (row.data?.user_id) data.user_id = row.data.user_id;
+  if (row.data?.channel_id) data.channel_id = row.data.channel_id;
+  if (row.data?.uploads_playlist_id) data.uploads_playlist_id = row.data.uploads_playlist_id;
+  const storedPreview =
+    row.preview_data && typeof row.preview_data === 'object' && Object.keys(row.preview_data).length
+      ? row.preview_data
+      : {
+          fetched_at: row.updated_at || new Date().toISOString(),
+          summary: { name: row.display_name || row.handle || '' },
+        };
+  return {
+    key: `id-${row.id}`,
+    profileId: row.id,
+    platform: row.platform,
+    data,
+    preview: storedPreview?.summary || null,
+    preview_data: storedPreview,
+    fetching: false,
+  };
+};
+
 /**
  * @param {object} props
  * @param {boolean} props.open
  * @param {(open: boolean) => void} props.onOpenChange
  * @param {{ platform?: string, display_name?: string, notes?: string, data?: object } | null} props.prefill
+ * @param {object | null} [props.editingProfile] — list row; opens dialog in edit mode
  * @param {() => void} [props.onSuccess]
  * @param {string} [props.title]
  * @param {string} [props.description]
- * @param {'profile'|'grievance'} [props.accountType] — persisted on social_media_accounts.type
+ * @param {'profile'|'grievance'} [props.accountType]
  */
 const AddSocialProfileDialog = ({
   open,
   onOpenChange,
   prefill = null,
+  editingProfile = null,
   onSuccess,
-  title = 'Add profile',
-  description = 'Fetch every platform, then Save. Same form as Social Profiles.',
+  title,
+  description,
   accountType = 'profile',
 }) => {
+  const isEditing = Boolean(editingProfile?.id);
+  const dialogTitle =
+    title || (isEditing ? 'Edit profile' : 'Add profile');
+  const dialogDescription =
+    description ||
+    (isEditing
+      ? 'Update name, poll interval, notes, or platform details.'
+      : 'Fetch every platform, then Save. Same form as Social Profiles.');
+
   const [platforms, setPlatforms] = useState([]);
   const [loadingPlatforms, setLoadingPlatforms] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingProfileId, setEditingProfileId] = useState(null);
+  const [editingSiblingIds, setEditingSiblingIds] = useState([]);
   const [form, setForm] = useState({
     display_name: '',
     poll_interval_minutes: 30,
@@ -88,27 +134,46 @@ const AddSocialProfileDialog = ({
   const allAccountsFetched = useMemo(
     () =>
       form.accounts.length > 0 &&
-      form.accounts.every((a) => a.preview_data?.fetched_at),
+      form.accounts.every((a) => a.preview_data?.fetched_at || a.profileId),
     [form.accounts]
   );
 
-  const resetFromPrefill = useCallback(
-    (list, seed) => {
-      const slug = String(seed?.platform || list[0]?.slug || '').toLowerCase();
-      const plat = list.find((p) => p.slug === slug) || list[0];
-      const slot = blankAccountSlot(plat?.slug || '', list);
-      const incoming = seed?.data && typeof seed.data === 'object' ? seed.data : {};
-      slot.data = { ...slot.data, ...incoming };
-      setForm({
-        display_name: String(seed?.display_name || '').trim(),
-        poll_interval_minutes: 30,
-        poll_preset: '30',
-        notes: String(seed?.notes || '').trim(),
-        accounts: [slot],
-      });
-    },
-    []
-  );
+  const resetFromPrefill = useCallback((list, seed) => {
+    const slug = String(seed?.platform || list[0]?.slug || '').toLowerCase();
+    const plat = list.find((p) => p.slug === slug) || list[0];
+    const slot = blankAccountSlot(plat?.slug || '', list);
+    const incoming = seed?.data && typeof seed.data === 'object' ? seed.data : {};
+    slot.data = { ...slot.data, ...incoming };
+    setEditingProfileId(null);
+    setEditingSiblingIds([]);
+    setForm({
+      display_name: String(seed?.display_name || '').trim(),
+      poll_interval_minutes: 30,
+      poll_preset: '30',
+      notes: String(seed?.notes || '').trim(),
+      accounts: [slot],
+    });
+  }, []);
+
+  const loadEditForm = useCallback(async (list, row) => {
+    const listParams = accountType === 'grievance' ? { type: 'grievance' } : {};
+    const res = await socialProfilesApi.list(listParams);
+    const all = Array.isArray(res.data?.profiles) ? res.data.profiles : [];
+    const parentId = row.profile_id ?? row.entity_id;
+    const siblings = parentId
+      ? all.filter((p) => String(p.profile_id ?? p.entity_id) === String(parentId))
+      : [all.find((p) => String(p.id) === String(row.id)) || row];
+    const minutes = Number(row.poll_interval_minutes) || 30;
+    setEditingProfileId(parentId || null);
+    setEditingSiblingIds(siblings.map((s) => s.id));
+    setForm({
+      display_name: row.display_name || '',
+      poll_interval_minutes: minutes,
+      poll_preset: resolvePollPreset(minutes),
+      notes: row.notes || '',
+      accounts: siblings.map((s) => rowToAccountSlot(s, list)),
+    });
+  }, [accountType]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -116,11 +181,15 @@ const AddSocialProfileDialog = ({
     setLoadingPlatforms(true);
     socialProfilesApi
       .listPlatforms()
-      .then((res) => {
+      .then(async (res) => {
         if (cancelled) return;
         const list = Array.isArray(res.data) ? res.data : [];
         setPlatforms(list);
-        resetFromPrefill(list, prefill);
+        if (editingProfile?.id) {
+          await loadEditForm(list, editingProfile);
+        } else {
+          resetFromPrefill(list, prefill);
+        }
       })
       .catch(() => {
         if (!cancelled) toast.error('Failed to load platforms');
@@ -131,7 +200,7 @@ const AddSocialProfileDialog = ({
     return () => {
       cancelled = true;
     };
-  }, [open, prefill, resetFromPrefill]);
+  }, [open, prefill, editingProfile, resetFromPrefill, loadEditForm]);
 
   const updateAccount = (key, patch) => {
     setForm((f) => ({
@@ -141,6 +210,11 @@ const AddSocialProfileDialog = ({
   };
 
   const setAccountPlatform = (key, slug) => {
+    const account = form.accounts.find((a) => a.key === key);
+    if (account?.profileId) {
+      toast.error('Remove this account and add a new platform instead');
+      return;
+    }
     const plat = platforms.find((p) => p.slug === slug);
     const data = {};
     (plat?.fields || []).forEach((f) => {
@@ -224,24 +298,63 @@ const AddSocialProfileDialog = ({
     }
     setSaving(true);
     try {
-      await socialProfilesApi.createBatch({
-        display_name: form.display_name,
-        poll_interval_minutes: minutes,
-        notes: form.notes,
-        type: accountType || 'profile',
-        accounts: form.accounts.map((a) => ({
-          platform: a.platform,
-          data: a.data,
-          preview_data: a.preview_data,
-        })),
-      });
-      toast.success(
-        form.accounts.length > 1
-          ? `Added ${form.accounts.length} platform accounts`
-          : accountType === 'grievance'
-            ? 'Grievance profile added'
-            : 'Profile added'
-      );
+      if (isEditing) {
+        let parentId = editingProfileId || editingProfile.profile_id || null;
+        const keepIds = new Set();
+
+        for (const account of form.accounts) {
+          const payload = {
+            platform: account.platform,
+            data: account.data,
+            display_name: form.display_name,
+            poll_interval_minutes: minutes,
+            notes: form.notes,
+            preview_data: account.preview_data || {},
+            type: accountType || 'profile',
+            ...(parentId ? { profile_id: parentId } : {}),
+          };
+          if (account.profileId) {
+            await socialProfilesApi.update(account.profileId, payload);
+            keepIds.add(account.profileId);
+            if (!parentId) parentId = editingProfile.profile_id;
+          } else {
+            const created = await socialProfilesApi.create(payload);
+            if (created.data?.id) keepIds.add(created.data.id);
+            if (!parentId && created.data?.profile_id) {
+              parentId = created.data.profile_id;
+            }
+          }
+        }
+
+        for (const id of editingSiblingIds) {
+          if (!keepIds.has(id)) {
+            await socialProfilesApi.remove(id);
+          }
+        }
+
+        toast.success(
+          accountType === 'grievance' ? 'Grievance profile updated' : 'Profile updated'
+        );
+      } else {
+        await socialProfilesApi.createBatch({
+          display_name: form.display_name,
+          poll_interval_minutes: minutes,
+          notes: form.notes,
+          type: accountType || 'profile',
+          accounts: form.accounts.map((a) => ({
+            platform: a.platform,
+            data: a.data,
+            preview_data: a.preview_data,
+          })),
+        });
+        toast.success(
+          form.accounts.length > 1
+            ? `Added ${form.accounts.length} platform accounts`
+            : accountType === 'grievance'
+              ? 'Grievance profile added'
+              : 'Profile added'
+        );
+      }
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
@@ -255,10 +368,8 @@ const AddSocialProfileDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogHeader className="shrink-0 space-y-1 border-b px-5 py-3.5 text-left">
-          <DialogTitle className="text-base">{title}</DialogTitle>
-          <DialogDescription className="text-xs">
-            {description}
-          </DialogDescription>
+          <DialogTitle className="text-base">{dialogTitle}</DialogTitle>
+          <DialogDescription className="text-xs">{dialogDescription}</DialogDescription>
         </DialogHeader>
 
         {loadingPlatforms ? (
@@ -310,23 +421,22 @@ const AddSocialProfileDialog = ({
                   </Select>
                 </div>
               </div>
+
               {form.poll_preset === 'custom' ? (
-                <div className="flex items-center gap-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Custom minutes</Label>
                   <Input
+                    className="h-9 w-40"
                     type="number"
                     min={1}
-                    max={10080}
-                    className="h-9 w-28"
                     value={form.poll_interval_minutes}
                     onChange={(e) =>
                       setForm((f) => ({
                         ...f,
-                        poll_interval_minutes: e.target.value === '' ? '' : Number(e.target.value),
+                        poll_interval_minutes: Number(e.target.value),
                       }))
                     }
-                    required
                   />
-                  <span className="text-xs text-muted-foreground">minutes</span>
                 </div>
               ) : null}
 
@@ -355,7 +465,7 @@ const AddSocialProfileDialog = ({
                     const fields = (Array.isArray(plat?.fields) ? plat.fields : []).filter(
                       (f) => !HIDDEN_FIELD_KEYS.has(f.key)
                     );
-                    const fetched = Boolean(account.preview_data?.fetched_at);
+                    const fetched = Boolean(account.preview_data?.fetched_at || account.profileId);
                     const primaryField = fields[0];
                     return (
                       <div
@@ -368,6 +478,7 @@ const AddSocialProfileDialog = ({
                           <Select
                             value={account.platform}
                             onValueChange={(v) => setAccountPlatform(account.key, v)}
+                            disabled={Boolean(account.profileId)}
                           >
                             <SelectTrigger className="h-8 w-[140px] text-xs">
                               <SelectValue placeholder="Platform" />
@@ -383,12 +494,12 @@ const AddSocialProfileDialog = ({
                           {fetched ? (
                             <Badge
                               variant="outline"
-                              className="h-5 border-emerald-500/30 bg-emerald-500/10 text-[10px] text-emerald-700"
+                              className="h-5 border-emerald-500/30 bg-emerald-500/10 text-[10px] text-emerald-700 dark:text-emerald-400"
                             >
                               Verified
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="h-5 text-[10px] text-amber-700">
+                            <Badge variant="outline" className="h-5 text-[10px] text-amber-700 dark:text-amber-400">
                               Needs fetch
                             </Badge>
                           )}
@@ -419,7 +530,9 @@ const AddSocialProfileDialog = ({
                                 updateAccount(account.key, {
                                   data: { ...account.data, [primaryField.key]: e.target.value },
                                   preview: null,
-                                  preview_data: null,
+                                  preview_data: account.profileId
+                                    ? account.preview_data
+                                    : null,
                                 })
                               }
                             />
@@ -454,7 +567,9 @@ const AddSocialProfileDialog = ({
                               updateAccount(account.key, {
                                 data: { ...account.data, [field.key]: e.target.value },
                                 preview: null,
-                                preview_data: null,
+                                preview_data: account.profileId
+                                  ? account.preview_data
+                                  : null,
                               })
                             }
                           />
@@ -475,7 +590,7 @@ const AddSocialProfileDialog = ({
                               </div>
                             )}
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">
+                              <p className="truncate text-sm font-medium text-foreground">
                                 {account.preview.name || 'Unknown'}
                               </p>
                               <p className="truncate text-[11px] text-muted-foreground">
@@ -517,7 +632,7 @@ const AddSocialProfileDialog = ({
 
             <DialogFooter className="shrink-0 gap-2 border-t bg-muted/30 px-5 py-3 sm:space-x-2">
               {!allAccountsFetched ? (
-                <p className="mr-auto hidden text-[11px] text-amber-700 sm:block">
+                <p className="mr-auto hidden text-[11px] text-amber-700 dark:text-amber-400 sm:block">
                   Fetch all platforms to enable Save
                 </p>
               ) : (

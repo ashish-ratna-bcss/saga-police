@@ -172,6 +172,26 @@ const deleteContact = async (req, res) => {
   }
 };
 
+const generatePdf =
+  (reportType) =>
+  async (req, res) => {
+    try {
+      const { generateReportPdf } = require('./grievance.report.pdf');
+      const result = await generateReportPdf(reportType, req.params.id, {
+        ...dbOpt(req),
+        req,
+      });
+      return res.status(200).json(result);
+    } catch (error) {
+      const status = error.status || 500;
+      logger.error(`[Grievances] generate ${reportType} PDF failed:`, error.message);
+      return res.status(status).json({
+        error: error.message || 'PDF generation failed',
+        detail: error.message || 'PDF generation failed',
+      });
+    }
+  };
+
 module.exports = {
   createGrievanceReport: createReport(reportService.REPORT_TYPES.grievance),
   shareGrievanceReport: shareReport(reportService.REPORT_TYPES.grievance),
@@ -180,21 +200,25 @@ module.exports = {
   updateGrievanceReportStatus,
   getGrievanceReport: getReport(reportService.REPORT_TYPES.grievance),
   listGrievanceReports: listReports(reportService.REPORT_TYPES.grievance),
+  generateGrievanceReportPdf: generatePdf(reportService.REPORT_TYPES.grievance),
 
   createSuggestionReport: createReport(reportService.REPORT_TYPES.suggestion),
   shareSuggestionReport: shareReport(reportService.REPORT_TYPES.suggestion),
   getSuggestionReport: getReport(reportService.REPORT_TYPES.suggestion),
   listSuggestionReports: listReports(reportService.REPORT_TYPES.suggestion),
+  generateSuggestionReportPdf: generatePdf(reportService.REPORT_TYPES.suggestion),
 
   createCriticismReport: createReport(reportService.REPORT_TYPES.criticism),
   shareCriticismReport: shareReport(reportService.REPORT_TYPES.criticism),
   getCriticismReport: getReport(reportService.REPORT_TYPES.criticism),
   listCriticismReports: listReports(reportService.REPORT_TYPES.criticism),
+  generateCriticismReportPdf: generatePdf(reportService.REPORT_TYPES.criticism),
 
   createQueryReport: createReport(reportService.REPORT_TYPES.query),
   shareQueryReport: shareReport(reportService.REPORT_TYPES.query),
   getQueryReport: getReport(reportService.REPORT_TYPES.query),
   listQueryReports: listReports(reportService.REPORT_TYPES.query),
+  generateQueryReportPdf: generatePdf(reportService.REPORT_TYPES.query),
 
   listContacts,
   addContact,

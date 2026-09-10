@@ -5,7 +5,7 @@ import { useAuth } from '../../context/auth.context';
 import {
     Search, Shield, FileText, CheckCircle2, Calendar, Clock,
     AlertCircle, X, RefreshCw, Plus, Trash2, Loader2, Download,
-    Building2, Users, BadgeCheck, CalendarDays, Filter, ChevronDown, ExternalLink, MessageSquare
+    Building2, Users, BadgeCheck, CalendarDays, Filter, ChevronDown, ExternalLink, MessageSquare, Pencil
 } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -994,8 +994,7 @@ const Grievances = () => {
                   p === 'x' ||
                   p === 'twitter' ||
                   p === 'facebook' ||
-                  p === 'instagram' ||
-                  p === 'telegram'
+                  p === 'instagram'
                 );
             }));
         } catch (error) {
@@ -1261,7 +1260,7 @@ const Grievances = () => {
                     }
                 }
                 if (failCount > 0 && newCount === 0) {
-                    toast.error(`Fetch failed for ${failCount} account${failCount !== 1 ? 's' : ''}. Check Telegram service connectivity.`);
+                    toast.error(`Fetch failed for ${failCount} account${failCount !== 1 ? 's' : ''}. Check platform credentials and try again.`);
                 } else if (failCount > 0) {
                     toast.success(`Fetched ${newCount} new · ${failCount} account${failCount !== 1 ? 's' : ''} failed`);
                 } else {
@@ -1790,6 +1789,10 @@ const Grievances = () => {
                 allowedPlatforms={authUser?.allowed_platforms}
                 onAddSource={() => navigate('/social-profiles')}
                 onRemoveSource={(source) => setDeleteConfirmSource(source)}
+                onEditSource={(source) => {
+                    toast.info('Edit this account on Social Profiles');
+                    navigate('/social-profiles');
+                }}
                 onFetchSourceHistory={(source) => handleFetchForSource(source)}
                 onFetchAll={handleFetchAll}
                 fetchingAll={fetchingSource === 'all'}
@@ -1891,10 +1894,8 @@ const Grievances = () => {
                                         ? sources.length === 0
                                             ? 'Add official accounts on Social Profiles, then use Fetch mentions to pull activity.'
                                             : navbarPlatform === 'facebook' || navbarPlatform === 'instagram'
-                                                ? 'Click Fetch posts & comments to pull page activity into Postgres.'
-                                                : navbarPlatform === 'telegram'
-                                                    ? 'Click Fetch channel posts to pull Telegram messages into Postgres.'
-                                                    : 'Click Fetch mentions to pull @tags into Postgres.'
+                                                ? 'Click Fetch posts & comments to pull page activity.'
+                                                : 'Click Fetch mentions to pull @tags from watched accounts.'
                                         : 'No matching grievances for this view.'}
                             </p>
                             <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
@@ -1919,9 +1920,7 @@ const Grievances = () => {
                                         )}
                                         {navbarPlatform === 'facebook' || navbarPlatform === 'instagram'
                                           ? 'Fetch posts & comments'
-                                          : navbarPlatform === 'telegram'
-                                            ? 'Fetch channel posts'
-                                            : 'Fetch mentions'}
+                                          : 'Fetch mentions'}
                                     </Button>
                                 )}
                             </div>
@@ -2656,20 +2655,20 @@ const Grievances = () => {
 };
 
 /* ─── Source Card Sub-component ─── */
-const SourceCard = ({ source, fetching, onFetch, onDelete }) => (
-    <Card className="border-slate-200 dark:border-slate-700 hover:border-slate-300 transition-colors">
+const SourceCard = ({ source, fetching, onFetch, onDelete, onEdit }) => (
+    <Card className="border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-500 transition-colors">
         <CardContent className="p-3">
             <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2.5 min-w-0">
                     <Avatar className="h-9 w-9 shrink-0">
                         <AvatarImage src={source.profile_image_url} />
-                        <AvatarFallback className="text-xs bg-slate-200">
+                        <AvatarFallback className="text-xs bg-slate-200 dark:bg-slate-700 dark:text-slate-100">
                             {(source.handle || '?').replace('@', '')[0]?.toUpperCase()}
                         </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
                         <div className="flex items-center gap-1">
-                            <span className="text-sm font-medium text-slate-900 truncate">
+                            <span className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
                                 {source.display_name || source.handle}
                             </span>
                             {source.is_verified && <BadgeCheck className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
@@ -2680,6 +2679,11 @@ const SourceCard = ({ source, fetching, onFetch, onDelete }) => (
             </div>
             <div className="mt-2.5 flex items-center justify-end">
                 <div className="flex items-center gap-1">
+                    {onEdit ? (
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onEdit} title="Edit source">
+                            <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                    ) : null}
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={onDelete} title="Remove source">
                         <Trash2 className="h-3.5 w-3.5" />
                     </Button>

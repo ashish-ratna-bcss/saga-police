@@ -1109,15 +1109,39 @@ async function main() {
       `[postgres] main auth schema ready (${REQUIRED_TABLES.length} required tables, ${after} public)`
     );
     
-    // Seed default policies in the main DB
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO default_policies (category_id, definition, severity_level, is_active)
-      VALUES 
-        ('Hate_Speech', 'Content that attacks or demeans a group based on race, religion, ethnic origin, sexual orientation, disability, or gender.', 'High', true),
-        ('Misinformation', 'False or inaccurate information, especially that which is deliberately intended to deceive.', 'Medium', true),
-        ('Defamation', 'Content intended to damage the good reputation of someone.', 'Medium', true)
-      ON CONFLICT (category_id) DO NOTHING;
-    `);
+    // Seed / refresh default policies (BNS + platform rules from prisma/default_policies_seed.json)
+    const seedPath = path.join(__dirname, 'default_policies_seed.json');
+    let policySeed = [];
+    try {
+      policySeed = JSON.parse(require('fs').readFileSync(seedPath, 'utf8'));
+    } catch (e) {
+      console.warn(`[postgres] default_policies seed file missing: ${e.message}`);
+    }
+    for (const p of policySeed) {
+      await prisma.default_policies.upsert({
+        where: { category_id: p.category_id },
+        create: {
+          category_id: p.category_id,
+          definition: p.definition,
+          severity_level: p.severity_level || 'Medium',
+          keywords: Array.isArray(p.keywords) ? p.keywords : [],
+          legal_sections: p.legal_sections || [],
+          platform_policies: p.platform_policies || {},
+          is_active: true,
+        },
+        update: {
+          definition: p.definition,
+          severity_level: p.severity_level || 'Medium',
+          keywords: Array.isArray(p.keywords) ? p.keywords : [],
+          legal_sections: p.legal_sections || [],
+          platform_policies: p.platform_policies || {},
+          is_active: true,
+        },
+      });
+    }
+    if (policySeed.length) {
+      console.log(`[postgres] default_policies seeded/updated: ${policySeed.length}`);
+    }
   } catch (error) {
     console.error('[postgres] schema ensure failed:', error.message);
     process.exitCode = 1;

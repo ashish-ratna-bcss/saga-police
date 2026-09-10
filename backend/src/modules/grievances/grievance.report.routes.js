@@ -20,6 +20,7 @@ grievanceWorkflowRoutes.put('/reports/:id', ctrl.updateGrievanceReport);
 grievanceWorkflowRoutes.put('/reports/:id/share', ctrl.shareGrievanceReport);
 grievanceWorkflowRoutes.put('/reports/:id/close', ctrl.closeGrievanceReport);
 grievanceWorkflowRoutes.put('/reports/:id/status', ctrl.updateGrievanceReportStatus);
+grievanceWorkflowRoutes.post('/reports/:id/generate-pdf', ctrl.generateGrievanceReportPdf);
 grievanceWorkflowRoutes.get('/contacts', ctrl.listContacts);
 grievanceWorkflowRoutes.post('/contacts', ctrl.addContact);
 grievanceWorkflowRoutes.put('/contacts/:id', ctrl.updateContact);
@@ -30,6 +31,7 @@ suggestionRoutes.get('/reports', ctrl.listSuggestionReports);
 suggestionRoutes.post('/reports', ctrl.createSuggestionReport);
 suggestionRoutes.get('/reports/:id', ctrl.getSuggestionReport);
 suggestionRoutes.put('/reports/:id/share', ctrl.shareSuggestionReport);
+suggestionRoutes.post('/reports/:id/generate-pdf', ctrl.generateSuggestionReportPdf);
 suggestionRoutes.get('/contacts', ctrl.listContacts);
 
 const criticismRoutes = withAuth(express.Router());
@@ -37,6 +39,7 @@ criticismRoutes.get('/reports', ctrl.listCriticismReports);
 criticismRoutes.post('/reports', ctrl.createCriticismReport);
 criticismRoutes.get('/reports/:id', ctrl.getCriticismReport);
 criticismRoutes.put('/reports/:id/share', ctrl.shareCriticismReport);
+criticismRoutes.post('/reports/:id/generate-pdf', ctrl.generateCriticismReportPdf);
 criticismRoutes.get('/contacts', ctrl.listContacts);
 criticismRoutes.post('/contacts', ctrl.addContact);
 criticismRoutes.put('/contacts/:id', ctrl.updateContact);
@@ -47,6 +50,7 @@ queryRoutes.get('/reports', ctrl.listQueryReports);
 queryRoutes.post('/reports', ctrl.createQueryReport);
 queryRoutes.get('/reports/:id', ctrl.getQueryReport);
 queryRoutes.put('/reports/:id/share', ctrl.shareQueryReport);
+queryRoutes.post('/reports/:id/generate-pdf', ctrl.generateQueryReportPdf);
 queryRoutes.get('/contacts', ctrl.listContacts);
 
 module.exports = {
