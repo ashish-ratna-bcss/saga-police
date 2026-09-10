@@ -7,7 +7,7 @@
       "admin": "odisha",
       "frontend_port": 3000,
       "backend_port": 5005,
-      "domain": "",
+      "domain": "odisha.blurasaga.com",
       "enabled": true
     },
     {
