@@ -2,6 +2,7 @@
   "ip": "100.49.109.96",
   "web_root": "/home/ubuntu/blurasaga/frontend/build",
   "backend_bind": "127.0.0.1",
+  "vllm_upstream": "127.0.0.1:8080",
   "sites": [
     {
       "admin": "odisha",
