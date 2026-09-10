@@ -1,15 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/auth.context';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import { cn } from '../lib/utils';
 import { Loader2 } from 'lucide-react';
+import { resolvePublicAssetUrl } from '../lib/publicAssetUrl';
 
 const AppLayout = () => {
   const { user, logout, loading } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      const title = user.blurasagatitle || user.theme_name || 'BLURA SAGA';
+      const desc = user.blurasagadescription || user.theme_description || 'Cyber Intelligence Platform';
+      document.title = `${title} — ${desc}`;
+
+      // Update favicon
+      let link = document.querySelector("link[rel~='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.getElementsByTagName('head')[0].appendChild(link);
+      }
+      const logoPath = user.blurasagalogo || user.theme_logo || '/favicon.ico';
+      link.href = resolvePublicAssetUrl(logoPath);
+    }
+  }, [user]);
 
   const handleLogout = async () => {
     await logout();

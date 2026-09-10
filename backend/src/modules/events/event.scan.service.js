@@ -7,11 +7,9 @@ const {
   listItems: listTelegramItems,
 } = require('../../services/blugate/telegram/blugate.telegram.helpers');
 const { engagementFromXMetricsBag } = require('../../lib/engagementMetrics');
-const { asJson } = require('./event.utils');
+const { asJson, resolveEventPlatforms } = require('./event.utils');
 const { recordFetch } = require('./event.service');
 const logger = require('../../lib/logger');
-
-const DEFAULT_EVENT_SCAN_PLATFORMS = ['youtube', 'x', 'facebook', 'telegram'];
 
 const squeezeWhitespace = (text) => String(text || '').replace(/\s+/g, ' ').trim();
 
@@ -496,12 +494,8 @@ const runScanEventOnce = async (event, options = {}) => {
     byPlatform[platform] = cur;
   };
 
-  const platforms =
-    event.platforms && event.platforms.length > 0
-      ? event.platforms.filter((p) => p !== 'instagram')
-      : DEFAULT_EVENT_SCAN_PLATFORMS;
-
   const prisma = dbOf(db);
+  const platforms = await resolveEventPlatforms(prisma, event.platforms);
   const loadPlatformAuth = async (slugs, authFn) => {
     const platformRow = await prisma.platforms.findFirst({
       where: { slug: { in: slugs }, is_active: true },

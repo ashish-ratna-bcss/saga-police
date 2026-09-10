@@ -10,6 +10,41 @@ const serialize = (value) => {
   return value;
 };
 
+const normalizeEventPlatformSlug = (slug) => {
+  const s = String(slug || '').trim().toLowerCase();
+  if (s === 'twitter') return 'x';
+  return s;
+};
+
+/** Active platform slugs from this tenant's `platforms` table (Settings → Platforms). */
+const listActiveEventPlatforms = async (prisma) => {
+  const rows = await prisma.platforms.findMany({
+    where: { is_active: true },
+    select: { slug: true },
+    orderBy: { id: 'asc' },
+  });
+  const seen = new Set();
+  const out = [];
+  for (const row of rows) {
+    const slug = normalizeEventPlatformSlug(row.slug);
+    if (!slug || slug === 'instagram' || seen.has(slug)) continue;
+    seen.add(slug);
+    out.push(slug);
+  }
+  return out;
+};
+
+/** Keep requested slugs that exist in the tenant DB; if none requested, use all active. */
+const resolveEventPlatforms = async (prisma, requested) => {
+  const configured = await listActiveEventPlatforms(prisma);
+  const wanted = Array.isArray(requested)
+    ? requested.map(normalizeEventPlatformSlug).filter((p) => p && p !== 'instagram')
+    : [];
+  if (!configured.length) return wanted;
+  if (!wanted.length) return configured;
+  return wanted.filter((p) => configured.includes(p));
+};
+
 const asJson = (value, fallback) => {
   if (value == null) return fallback;
   if (typeof value === 'string') {
@@ -99,7 +134,7 @@ const hydrateEvent = (row) => {
     end_date: row.end_date,
     location: row.location || '',
     platforms: (Array.isArray(row.platforms) ? row.platforms : [])
-      .map((p) => String(p).toLowerCase())
+      .map((p) => String(p).toLowerCase().replace(/^twitter$/, 'x'))
       .filter((p) => p && p !== 'instagram'),
     keywords: asJson(row.keywords, []),
     high_risk_threshold: row.high_risk_threshold,
@@ -181,9 +216,8 @@ const hydrateEventMedia = (row) => {
 const hydrateOccasion = (row) => {
   if (!row) return null;
   const platforms = Array.isArray(row.platforms) && row.platforms.length
-    ? row.platforms.map((p) => String(p).toLowerCase()).filter((p) => p && p !== 'instagram')
-    : ['x', 'youtube', 'facebook', 'telegram'];
-  if (!platforms.length) platforms.push('x', 'youtube', 'facebook', 'telegram');
+    ? row.platforms.map((p) => String(p).toLowerCase().replace(/^twitter$/, 'x')).filter((p) => p && p !== 'instagram')
+    : [];
   return serialize({
     id: String(row.id),
     slNo: row.sl_no,
@@ -213,4 +247,6 @@ module.exports = {
   hydrateEvent,
   hydrateEventMedia,
   hydrateOccasion,
+  listActiveEventPlatforms,
+  resolveEventPlatforms,
 };

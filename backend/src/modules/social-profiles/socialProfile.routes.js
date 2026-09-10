@@ -21,7 +21,8 @@ const {
 
 const { authorize } = require('../../middleware/auth.middleware');
 
-const PROFILE_ALLOWED_PAGES = ['/social-profiles'];
+/** Social Profiles page + Settings Grievances tab (add/list/remove grievance sources). */
+const PROFILE_ALLOWED_PAGES = ['/social-profiles', '/settings'];
 /** Settings → Platforms manage (add/edit/delete) */
 const PLATFORM_MANAGE_PAGES = ['/settings', '/social-profiles'];
 

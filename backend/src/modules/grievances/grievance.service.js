@@ -817,6 +817,7 @@ const fetchAllCatalogGrievances = async (startDate, endDate, { db } = {}) => {
   const accounts = await prisma.social_media_accounts.findMany({
     where: {
       is_active: true,
+      type: 'grievance',
       platforms: { slug: { in: ['x', 'twitter', 'facebook', 'instagram', 'telegram'] } },
     },
     include: {

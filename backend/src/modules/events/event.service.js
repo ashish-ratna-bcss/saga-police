@@ -1,5 +1,5 @@
 const dbOf = require('../../lib/dbOf');
-const { hydrateEvent, hydrateEventMedia, normalizeEventPayload, asJson } = require('./event.utils');
+const { hydrateEvent, hydrateEventMedia, normalizeEventPayload, asJson, resolveEventPlatforms } = require('./event.utils');
 
 const HISTORY_CAP = 200;
 
@@ -55,7 +55,7 @@ const createEvent = async (body, user, { db } = {}) => {
       start_date: payload.start_date || null,
       end_date: payload.end_date || null,
       location: payload.location || '',
-      platforms: payload.platforms?.length ? payload.platforms : ['x', 'facebook', 'youtube', 'telegram'],
+      platforms: await resolveEventPlatforms(prisma, payload.platforms),
       keywords: payload.keywords || [],
       high_risk_threshold: payload.high_risk_threshold ?? null,
       medium_risk_threshold: payload.medium_risk_threshold ?? null,

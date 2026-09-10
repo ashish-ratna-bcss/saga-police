@@ -63,6 +63,7 @@ const blankAccountSlot = (slug, platformsList) => {
  * @param {() => void} [props.onSuccess]
  * @param {string} [props.title]
  * @param {string} [props.description]
+ * @param {'profile'|'grievance'} [props.accountType] — persisted on social_media_accounts.type
  */
 const AddSocialProfileDialog = ({
   open,
@@ -71,6 +72,7 @@ const AddSocialProfileDialog = ({
   onSuccess,
   title = 'Add profile',
   description = 'Fetch every platform, then Save. Same form as Social Profiles.',
+  accountType = 'profile',
 }) => {
   const [platforms, setPlatforms] = useState([]);
   const [loadingPlatforms, setLoadingPlatforms] = useState(false);
@@ -226,6 +228,7 @@ const AddSocialProfileDialog = ({
         display_name: form.display_name,
         poll_interval_minutes: minutes,
         notes: form.notes,
+        type: accountType || 'profile',
         accounts: form.accounts.map((a) => ({
           platform: a.platform,
           data: a.data,
@@ -235,7 +238,9 @@ const AddSocialProfileDialog = ({
       toast.success(
         form.accounts.length > 1
           ? `Added ${form.accounts.length} platform accounts`
-          : 'Profile added'
+          : accountType === 'grievance'
+            ? 'Grievance profile added'
+            : 'Profile added'
       );
       onOpenChange(false);
       onSuccess?.();

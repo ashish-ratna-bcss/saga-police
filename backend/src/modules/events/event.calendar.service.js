@@ -1,5 +1,5 @@
 const dbOf = require('../../lib/dbOf');
-const { hydrateOccasion, asJson } = require('./event.utils');
+const { hydrateOccasion, asJson, resolveEventPlatforms } = require('./event.utils');
 
 const OCCASION_ORIGIN = 'master_calendar';
 
@@ -104,11 +104,7 @@ const ensureLinkedEvent = async (occasionRow, { db } = {}) => {
 
   const { start_date, end_date } = datesFromOccasion(occasionRow);
   const keywords = keywordsFromSuggested(occasionRow.suggested_keywords);
-  const platforms =
-    Array.isArray(occasionRow.platforms) && occasionRow.platforms.length
-      ? occasionRow.platforms.map((p) => String(p).toLowerCase()).filter((p) => p && p !== 'instagram')
-      : ['x', 'facebook', 'youtube', 'telegram'];
-  if (!platforms.length) platforms.push('x', 'facebook', 'youtube', 'telegram');
+  const platforms = await resolveEventPlatforms(prisma, occasionRow.platforms);
 
   if (existing) {
     return prisma.social_media_events.update({
@@ -185,10 +181,7 @@ const createOccasion = async (body, { db } = {}) => {
     throw err;
   }
   const is_recurring = Boolean(body.isRecurring ?? body.is_recurring);
-  const platforms = Array.isArray(body.platforms) && body.platforms.length
-    ? body.platforms.map((p) => String(p).toLowerCase()).filter((p) => p && p !== 'instagram')
-    : ['x', 'youtube', 'facebook', 'telegram'];
-  if (!platforms.length) platforms.push('x', 'youtube', 'facebook', 'telegram');
+  const platforms = await resolveEventPlatforms(prisma, body.platforms);
   const max = await prisma.social_media_occasion_calendar.findFirst({
     where: { is_recurring },
     orderBy: { sl_no: 'desc' },
@@ -229,10 +222,7 @@ const updateOccasion = async (id, body, { db } = {}) => {
   }
   if (body.remarks != null) data.remarks = body.remarks;
   if (body.platforms != null) {
-    data.platforms = Array.isArray(body.platforms) && body.platforms.length
-      ? body.platforms.map((p) => String(p).toLowerCase()).filter((p) => p && p !== 'instagram')
-      : ['x', 'youtube', 'facebook', 'telegram'];
-    if (!data.platforms.length) data.platforms = ['x', 'youtube', 'facebook', 'telegram'];
+    data.platforms = await resolveEventPlatforms(prisma, body.platforms);
   }
   if (body.isRecurring != null || body.is_recurring != null) {
     data.is_recurring = Boolean(body.isRecurring ?? body.is_recurring);

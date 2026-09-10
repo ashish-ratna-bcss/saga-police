@@ -427,6 +427,7 @@ async function migrateCatalogSplit(prisma) {
       handle TEXT NOT NULL,
       data JSONB NOT NULL DEFAULT '{}'::jsonb,
       preview_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+      type TEXT NOT NULL DEFAULT 'profile',
       is_active BOOLEAN NOT NULL DEFAULT true,
       poll_interval_minutes INTEGER NOT NULL DEFAULT 30,
       monitoring_status monitoring_status_enum NOT NULL DEFAULT 'stopped',
@@ -602,6 +603,10 @@ async function ensureCatalogColumns(prisma) {
     await prisma.$executeRawUnsafe(`
       ALTER TABLE social_media_accounts
       ADD COLUMN IF NOT EXISTS poll_interval_minutes INTEGER NOT NULL DEFAULT 30
+    `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE social_media_accounts
+      ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'profile'
     `);
     await prisma.$executeRawUnsafe(`
       ALTER TABLE social_media_accounts

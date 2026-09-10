@@ -21,6 +21,7 @@ import { applyThemeColor, BEST_THEMES, THEME_PRESETS, GRADIENT_PRESETS, DEFAULT_
 import { useAuth } from '../../context/auth.context';
 import { cn } from '../../lib/utils';
 import { socialProfilesApi } from '../../api/socialProfiles.api';
+import GrievancesTab from './GrievancesTab';
 
 const KNOWN_PLATFORM_PRESETS = [
   { slug: 'x', name: 'X (Twitter)', icon: 'twitter' },
@@ -843,7 +844,7 @@ const PlaceholderSidebar = ({ onClose }) => {
 let _settingsCache = null;
 let _settingsCacheTime = 0;
 const SETTINGS_CACHE_TTL = 60_000; // 1 minute
-const VALID_TABS = ['general', 'templates', 'policies', 'theme', 'platforms'];
+const VALID_TABS = ['general', 'templates', 'policies', 'theme', 'platforms', 'grievances'];
 
 const Settings = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1277,6 +1278,7 @@ const Settings = () => {
             ...(user?.role === 'admin' ? [{ value: 'platforms', label: 'Platforms' }] : []),
             { value: 'templates', label: 'Report Templates' },
             { value: 'policies', label: 'Policy Manager' },
+            { value: 'grievances', label: 'Grievances' },
             { value: 'theme', label: 'Theme' },
           ].map((tab) => (
             <TabsTrigger
@@ -1732,6 +1734,10 @@ const Settings = () => {
             <PlatformsTab />
           </TabsContent>
         )}
+
+        <TabsContent value="grievances" className="space-y-4 mt-0">
+          <GrievancesTab />
+        </TabsContent>
 
         {/* Template Preview Dialog */}
         <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>

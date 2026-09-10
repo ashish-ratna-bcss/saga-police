@@ -19,11 +19,12 @@ import { toast } from 'sonner';
 import { format, parse } from 'date-fns';
 import {
   CalendarDays, Loader2, Play, Download, RefreshCw, ExternalLink,
-  Youtube, Facebook, Radio, Pause, Trash2, Plus, MapPin, Clock,
+  Youtube, Facebook, Instagram, Radio, Pause, Trash2, Plus, MapPin, Clock,
   Search, ScanLine, UserPlus, Pencil, FileSpreadsheet,
   FileText, BarChart3, Activity, Zap, Timer, ChevronRight,
   ChevronDown, X, AlertTriangle, Globe, ArrowUpRight, History, Square
 } from 'lucide-react';
+import socialProfilesApi from '../../api/socialProfiles.api';
 import ContentCard from '../../components/ContentCard';
 import AddSocialProfileDialog from '../../components/AddSocialProfileDialog';
 import EventMonthSidebar, { MONTH_THEMES } from '../../components/EventMonthSidebar';
@@ -490,19 +491,41 @@ const PLATFORM_CONFIG = {
   x:         { label: 'X / Twitter',  icon: XLogo,     color: 'text-gray-800 dark:text-gray-200' },
   youtube:   { label: 'YouTube',       icon: Youtube,   color: 'text-red-600 dark:text-red-400' },
   facebook:  { label: 'Facebook',      icon: Facebook,  color: 'text-blue-600 dark:text-blue-400' },
+  instagram: { label: 'Instagram',     icon: Instagram, color: 'text-pink-600 dark:text-pink-400' },
   telegram:  { label: 'Telegram',      icon: TelegramBrandLogo, color: 'text-sky-600 dark:text-sky-400' },
 };
 
-const EVENT_PLATFORM_OPTIONS = [
-  { value: 'x', label: 'X', icon: XLogo, accent: 'text-foreground' },
-  { value: 'youtube', label: 'YouTube', icon: Youtube, accent: 'text-red-600' },
-  { value: 'facebook', label: 'Facebook', icon: Facebook, accent: 'text-blue-600' },
-  { value: 'telegram', label: 'Telegram', icon: TelegramBrandLogo, accent: 'text-sky-600' },
-];
+const PLATFORM_PICKER_META = {
+  x: { label: 'X', icon: XLogo, accent: 'text-foreground' },
+  twitter: { label: 'X', icon: XLogo, accent: 'text-foreground' },
+  youtube: { label: 'YouTube', icon: Youtube, accent: 'text-red-600' },
+  facebook: { label: 'Facebook', icon: Facebook, accent: 'text-blue-600' },
+  instagram: { label: 'Instagram', icon: Instagram, accent: 'text-pink-600' },
+  telegram: { label: 'Telegram', icon: TelegramBrandLogo, accent: 'text-sky-600' },
+};
 
-const DEFAULT_EVENT_PLATFORMS = EVENT_PLATFORM_OPTIONS.map((p) => p.value);
+const normalizeEventPlatformSlug = (slug) => {
+  const s = String(slug || '').trim().toLowerCase();
+  if (s === 'twitter') return 'x';
+  return s;
+};
 
-const EventPlatformPicker = ({ value = [], onChange }) => {
+const platformOptionFromRow = (row) => {
+  const slug = normalizeEventPlatformSlug(row?.slug || row?.value);
+  const meta = PLATFORM_PICKER_META[slug] || {
+    label: row?.name || slug,
+    icon: Globe,
+    accent: 'text-muted-foreground',
+  };
+  return {
+    value: slug,
+    label: row?.name || meta.label,
+    icon: meta.icon,
+    accent: meta.accent,
+  };
+};
+
+const EventPlatformPicker = ({ value = [], onChange, options = [], loading = false }) => {
   const selected = Array.isArray(value) ? value : [];
   const toggle = (slug) => {
     const next = selected.includes(slug)
@@ -511,9 +534,20 @@ const EventPlatformPicker = ({ value = [], onChange }) => {
     onChange?.(next);
   };
 
+  if (loading) {
+    return <p className="text-xs text-muted-foreground">Loading platforms…</p>;
+  }
+  if (!options.length) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        No platforms in this tenant. Add them under Settings → Platforms.
+      </p>
+    );
+  }
+
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-      {EVENT_PLATFORM_OPTIONS.map(({ value: slug, label, icon: Icon, accent }) => {
+      {options.map(({ value: slug, label, icon: Icon, accent }) => {
         const on = selected.includes(slug);
         return (
           <button
@@ -930,7 +964,7 @@ const Events = () => {
     name: '', location: '', start_date: '', end_date: '',
     keywords_te: '', keywords_hi: '', keywords_en: '',
     polling_interval_minutes: 60, poll_preset: '60',
-    platforms: DEFAULT_EVENT_PLATFORMS,
+    platforms: [],
   });
   const [nrEvents, setNrEvents] = useState([]);
   const [nrLoading, setNrLoading] = useState(false);
@@ -951,7 +985,57 @@ const Events = () => {
   const [keywordsEn, setKeywordsEn] = useState('');
   const [eventPollMinutes, setEventPollMinutes] = useState(60);
   const [eventPollPreset, setEventPollPreset] = useState('60');
-  const [selectedPlatforms, setSelectedPlatforms] = useState(DEFAULT_EVENT_PLATFORMS);
+  const [platformOptions, setPlatformOptions] = useState([]);
+  const [platformsLoading, setPlatformsLoading] = useState(true);
+  const [selectedPlatforms, setSelectedPlatforms] = useState([]);
+  const dbPlatformSlugs = useMemo(
+    () => platformOptions.map((p) => p.value).filter(Boolean),
+    [platformOptions]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setPlatformsLoading(true);
+      try {
+        let rows = [];
+        try {
+          const res = await socialProfilesApi.listPlatforms();
+          rows = Array.isArray(res.data) ? res.data : [];
+        } catch (_) {
+          const res = await api.get('/search/platforms');
+          rows = (Array.isArray(res.data?.platforms) ? res.data.platforms : []).map((slug) => ({ slug }));
+        }
+        const seen = new Set();
+        const options = [];
+        for (const row of rows) {
+          const option = platformOptionFromRow(row);
+          if (!option.value || seen.has(option.value)) continue;
+          seen.add(option.value);
+          options.push(option);
+        }
+        if (cancelled) return;
+        setPlatformOptions(options);
+        const slugs = options.map((p) => p.value);
+        setSelectedPlatforms((prev) => {
+          const allowed = new Set(slugs);
+          const kept = prev.filter((p) => allowed.has(normalizeEventPlatformSlug(p)));
+          return kept.length ? kept : slugs;
+        });
+        setNrForm((prev) => {
+          const current = Array.isArray(prev.platforms) ? prev.platforms : [];
+          const allowed = new Set(slugs);
+          const kept = current.filter((p) => allowed.has(normalizeEventPlatformSlug(p)));
+          return { ...prev, platforms: kept.length ? kept : slugs };
+        });
+      } catch (_) {
+        if (!cancelled) setPlatformOptions([]);
+      } finally {
+        if (!cancelled) setPlatformsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
 
   // ── Helpers ──
@@ -997,7 +1081,7 @@ const Events = () => {
       name: '', location: '', start_date: '', end_date: '',
       keywords_te: '', keywords_hi: '', keywords_en: '',
       polling_interval_minutes: 60, poll_preset: '60',
-      platforms: DEFAULT_EVENT_PLATFORMS,
+      platforms: dbPlatformSlugs,
     });
     setNrFormOpen(true);
   };
@@ -1016,7 +1100,7 @@ const Events = () => {
       keywords_en: kwFields.en,
       polling_interval_minutes: minutes,
       poll_preset: resolvePollPreset(minutes),
-      platforms: plats.length ? plats : DEFAULT_EVENT_PLATFORMS,
+      platforms: plats.length ? plats : dbPlatformSlugs,
     });
     setNrFormOpen(true);
   };
@@ -1040,7 +1124,7 @@ const Events = () => {
       nrForm.keywords_en.split(/[,\n]/).filter(Boolean).forEach(k => kw.push({ keyword: k.trim(), language: 'en' }));
       const payload = {
         name: nrForm.name, location: nrForm.location,
-        keywords: kw, platforms: nrForm.platforms || DEFAULT_EVENT_PLATFORMS,
+        keywords: kw, platforms: nrForm.platforms,
         ...(nrForm.start_date ? { start_date: nrForm.start_date } : {}),
         ...(nrForm.end_date ? { end_date: nrForm.end_date } : {}),
         polling_interval_minutes: Number(nrForm.polling_interval_minutes) || 60
@@ -1158,7 +1242,7 @@ const Events = () => {
     rangeTo: '',
     keywords: '',
     remarks: '',
-    platforms: [],
+    platforms: [...dbPlatformSlugs],
   });
 
   const openHcpCreate = () => {
@@ -1178,7 +1262,7 @@ const Events = () => {
       rangeTo: range.to,
       keywords: evt.keywords || '',
       remarks: evt.remarks || '',
-      platforms: plats.length ? plats : DEFAULT_EVENT_PLATFORMS,
+      platforms: plats.length ? plats : dbPlatformSlugs,
     });
     setHcpFormOpen(true);
   };
@@ -1210,7 +1294,7 @@ const Events = () => {
         monitoringRange: hcpForm.monitoringRange,
         keywords: hcpForm.keywords,
         remarks: hcpForm.remarks,
-        platforms: hcpForm.platforms || DEFAULT_EVENT_PLATFORMS,
+        platforms: hcpForm.platforms,
       };
       if (hcpEditId) {
         await api.put(`/occasion-calendar/${hcpEditId}`, payload);
@@ -1463,13 +1547,13 @@ const Events = () => {
   }, [dashboard, contentPlatform]);
 
   const eventPlatformTabs = useMemo(() => {
-    const configured = new Set(
-      (Array.isArray(selectedEvent?.platforms) ? selectedEvent.platforms : [])
-        .map((p) => String(p || '').toLowerCase().replace(/^twitter$/, 'x'))
-        .filter(Boolean)
+    const activePlats = dashboard?.stats?.content_by_platform
+      ? Object.keys(dashboard.stats.content_by_platform).filter(k => dashboard.stats.content_by_platform[k] > 0)
+      : [];
+    return Object.entries(PLATFORM_CONFIG).filter(
+      ([key]) => key === 'all' || activePlats.includes(key)
     );
-    return Object.entries(PLATFORM_CONFIG).filter(([key]) => key === 'all' || configured.has(key));
-  }, [selectedEvent]);
+  }, [dashboard?.stats?.content_by_platform]);
 
   useEffect(() => {
     if (contentPlatform === 'all') return;
@@ -1508,7 +1592,7 @@ const Events = () => {
     setName(''); setLocation(''); setStartDate(''); setEndDate('');
     setKeywordsTe(''); setKeywordsHi(''); setKeywordsEn('');
     setEventPollMinutes(60); setEventPollPreset('60');
-    setSelectedPlatforms(DEFAULT_EVENT_PLATFORMS);
+    setSelectedPlatforms(dbPlatformSlugs);
   };
 
 
@@ -1527,7 +1611,7 @@ const Events = () => {
     setEventPollMinutes(minutes);
     setEventPollPreset(resolvePollPreset(minutes));
     const plats = Array.isArray(selectedEvent.platforms) ? selectedEvent.platforms.filter(Boolean) : [];
-    setSelectedPlatforms(plats.length ? plats : DEFAULT_EVENT_PLATFORMS);
+    setSelectedPlatforms(plats.length ? plats : dbPlatformSlugs);
     setEditingEvent(selectedEvent);
     setEventFormOpen(true);
   };
@@ -2611,18 +2695,25 @@ const Events = () => {
           {selectedEvent && dashboard && (
             <div className="shrink-0 px-4 sm:px-6 py-2 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900">
               <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-1 overflow-x-auto min-w-0" style={{ scrollbarWidth: 'none' }}>
-                  {eventPlatformTabs.map(([key, cfg]) => {
-                    const Icon = cfg.icon;
-                    const isActive = contentPlatform === key;
-                    return (
-                      <button key={key} onClick={() => setContentPlatform(key)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-200 ${isActive ? 'bg-gray-900 text-white shadow-sm dark:bg-white dark:text-gray-900' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-slate-800 dark:hover:text-gray-200'}`}>
-                        <Icon className={`h-3.5 w-3.5 ${isActive ? '' : cfg.color}`} />
-                        {cfg.label}
-                      </button>
-                    );
-                  })}
+                <div className="flex items-center gap-2 min-w-0 shrink-0">
+                  <Select value={contentPlatform} onValueChange={setContentPlatform}>
+                    <SelectTrigger className="h-9 w-[180px] bg-gray-50/50 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700">
+                      <SelectValue placeholder="Select platform" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {eventPlatformTabs.map(([key, cfg]) => {
+                        const Icon = cfg.icon;
+                        return (
+                          <SelectItem key={key} value={key} className="text-xs">
+                            <div className="flex items-center gap-2">
+                              <Icon className={`h-4 w-4 ${cfg.color}`} />
+                              <span>{cfg.label}</span>
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="hidden md:flex items-center gap-3 shrink-0 text-[11px] font-medium">
                   {[
@@ -2710,7 +2801,11 @@ const Events = () => {
                   {/* Content feed */}
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                      Detected Content ({filteredRecentContent.length})
+                      Detected Content ({
+                        contentPlatform === 'all' 
+                          ? (dashboard?.stats?.content_total ?? filteredRecentContent.length)
+                          : (dashboard?.stats?.content_by_platform?.[contentPlatform] ?? filteredRecentContent.length)
+                      })
                     </h3>
                   </div>
 
@@ -2812,7 +2907,12 @@ const Events = () => {
 
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Platforms *</Label>
-              <EventPlatformPicker value={selectedPlatforms} onChange={setSelectedPlatforms} />
+              <EventPlatformPicker
+                value={selectedPlatforms}
+                onChange={setSelectedPlatforms}
+                options={platformOptions}
+                loading={platformsLoading}
+              />
             </div>
 
 
@@ -3037,6 +3137,8 @@ const Events = () => {
               <EventPlatformPicker
                 value={hcpForm.platforms || []}
                 onChange={(platforms) => setHcpForm({ ...hcpForm, platforms })}
+                options={platformOptions}
+                loading={platformsLoading}
               />
               <p className="text-[11px] text-muted-foreground">
                 Used when this occasion is linked as a monitoring event.
@@ -3129,6 +3231,8 @@ const Events = () => {
               <EventPlatformPicker
                 value={nrForm.platforms || []}
                 onChange={(platforms) => setNrForm({ ...nrForm, platforms })}
+                options={platformOptions}
+                loading={platformsLoading}
               />
             </div>
             <EventKeywordsFields

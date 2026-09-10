@@ -97,6 +97,7 @@ async function ensureOpsSchema(prisma) {
       handle TEXT NOT NULL,
       data JSONB NOT NULL DEFAULT '{}'::jsonb,
       preview_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+      type TEXT NOT NULL DEFAULT 'profile',
       is_active BOOLEAN NOT NULL DEFAULT true,
       poll_interval_minutes INTEGER NOT NULL DEFAULT 30,
       monitoring_status monitoring_status_enum NOT NULL DEFAULT 'stopped',
@@ -107,6 +108,22 @@ async function ensureOpsSchema(prisma) {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       CONSTRAINT social_media_accounts_platform_id_handle_key UNIQUE (platform_id, handle)
     )
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_accounts
+    ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'profile'
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_accounts
+    ADD COLUMN IF NOT EXISTS poll_interval_minutes INTEGER NOT NULL DEFAULT 30
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_accounts
+    ADD COLUMN IF NOT EXISTS last_fetched_at TIMESTAMPTZ NULL
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_accounts
+    ADD COLUMN IF NOT EXISTS last_fetched_history JSONB NOT NULL DEFAULT '[]'::jsonb
   `);
 
   await prisma.$executeRawUnsafe(`

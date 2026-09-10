@@ -4751,6 +4751,7 @@ export namespace Prisma {
     profile_id: number | null
     platform_id: number | null
     handle: string | null
+    type: string | null
     is_active: boolean | null
     poll_interval_minutes: number | null
     monitoring_status: $Enums.monitoring_status_enum | null
@@ -4764,6 +4765,7 @@ export namespace Prisma {
     profile_id: number | null
     platform_id: number | null
     handle: string | null
+    type: string | null
     is_active: boolean | null
     poll_interval_minutes: number | null
     monitoring_status: $Enums.monitoring_status_enum | null
@@ -4779,6 +4781,7 @@ export namespace Prisma {
     handle: number
     data: number
     preview_data: number
+    type: number
     is_active: number
     poll_interval_minutes: number
     monitoring_status: number
@@ -4810,6 +4813,7 @@ export namespace Prisma {
     profile_id?: true
     platform_id?: true
     handle?: true
+    type?: true
     is_active?: true
     poll_interval_minutes?: true
     monitoring_status?: true
@@ -4823,6 +4827,7 @@ export namespace Prisma {
     profile_id?: true
     platform_id?: true
     handle?: true
+    type?: true
     is_active?: true
     poll_interval_minutes?: true
     monitoring_status?: true
@@ -4838,6 +4843,7 @@ export namespace Prisma {
     handle?: true
     data?: true
     preview_data?: true
+    type?: true
     is_active?: true
     poll_interval_minutes?: true
     monitoring_status?: true
@@ -4942,6 +4948,7 @@ export namespace Prisma {
     handle: string
     data: JsonValue
     preview_data: JsonValue
+    type: string
     is_active: boolean
     poll_interval_minutes: number
     monitoring_status: $Enums.monitoring_status_enum
@@ -4978,6 +4985,7 @@ export namespace Prisma {
     handle?: boolean
     data?: boolean
     preview_data?: boolean
+    type?: boolean
     is_active?: boolean
     poll_interval_minutes?: boolean
     monitoring_status?: boolean
@@ -5000,6 +5008,7 @@ export namespace Prisma {
     handle?: boolean
     data?: boolean
     preview_data?: boolean
+    type?: boolean
     is_active?: boolean
     poll_interval_minutes?: boolean
     monitoring_status?: boolean
@@ -5019,6 +5028,7 @@ export namespace Prisma {
     handle?: boolean
     data?: boolean
     preview_data?: boolean
+    type?: boolean
     is_active?: boolean
     poll_interval_minutes?: boolean
     monitoring_status?: boolean
@@ -5038,6 +5048,7 @@ export namespace Prisma {
     handle?: boolean
     data?: boolean
     preview_data?: boolean
+    type?: boolean
     is_active?: boolean
     poll_interval_minutes?: boolean
     monitoring_status?: boolean
@@ -5048,7 +5059,7 @@ export namespace Prisma {
     updated_at?: boolean
   }
 
-  export type social_media_accountsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "profile_id" | "platform_id" | "handle" | "data" | "preview_data" | "is_active" | "poll_interval_minutes" | "monitoring_status" | "monitoring_logs" | "last_fetched_at" | "last_fetched_history" | "created_at" | "updated_at", ExtArgs["result"]["social_media_accounts"]>
+  export type social_media_accountsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "profile_id" | "platform_id" | "handle" | "data" | "preview_data" | "type" | "is_active" | "poll_interval_minutes" | "monitoring_status" | "monitoring_logs" | "last_fetched_at" | "last_fetched_history" | "created_at" | "updated_at", ExtArgs["result"]["social_media_accounts"]>
   export type social_media_accountsInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     profile?: boolean | social_media_profilesDefaultArgs<ExtArgs>
     platforms?: boolean | platformsDefaultArgs<ExtArgs>
@@ -5089,6 +5100,7 @@ export namespace Prisma {
        * Full Blugate preview payload from Fetch details
        */
       preview_data: Prisma.JsonValue
+      type: string
       is_active: boolean
       poll_interval_minutes: number
       monitoring_status: $Enums.monitoring_status_enum
@@ -5530,6 +5542,7 @@ export namespace Prisma {
     readonly handle: FieldRef<"social_media_accounts", 'String'>
     readonly data: FieldRef<"social_media_accounts", 'Json'>
     readonly preview_data: FieldRef<"social_media_accounts", 'Json'>
+    readonly type: FieldRef<"social_media_accounts", 'String'>
     readonly is_active: FieldRef<"social_media_accounts", 'Boolean'>
     readonly poll_interval_minutes: FieldRef<"social_media_accounts", 'Int'>
     readonly monitoring_status: FieldRef<"social_media_accounts", 'monitoring_status_enum'>
@@ -20148,6 +20161,7 @@ export namespace Prisma {
     handle: 'handle',
     data: 'data',
     preview_data: 'preview_data',
+    type: 'type',
     is_active: 'is_active',
     poll_interval_minutes: 'poll_interval_minutes',
     monitoring_status: 'monitoring_status',
@@ -20747,6 +20761,7 @@ export namespace Prisma {
     handle?: StringFilter<"social_media_accounts"> | string
     data?: JsonFilter<"social_media_accounts">
     preview_data?: JsonFilter<"social_media_accounts">
+    type?: StringFilter<"social_media_accounts"> | string
     is_active?: BoolFilter<"social_media_accounts"> | boolean
     poll_interval_minutes?: IntFilter<"social_media_accounts"> | number
     monitoring_status?: Enummonitoring_status_enumFilter<"social_media_accounts"> | $Enums.monitoring_status_enum
@@ -20768,6 +20783,7 @@ export namespace Prisma {
     handle?: SortOrder
     data?: SortOrder
     preview_data?: SortOrder
+    type?: SortOrder
     is_active?: SortOrder
     poll_interval_minutes?: SortOrder
     monitoring_status?: SortOrder
@@ -20793,6 +20809,7 @@ export namespace Prisma {
     handle?: StringFilter<"social_media_accounts"> | string
     data?: JsonFilter<"social_media_accounts">
     preview_data?: JsonFilter<"social_media_accounts">
+    type?: StringFilter<"social_media_accounts"> | string
     is_active?: BoolFilter<"social_media_accounts"> | boolean
     poll_interval_minutes?: IntFilter<"social_media_accounts"> | number
     monitoring_status?: Enummonitoring_status_enumFilter<"social_media_accounts"> | $Enums.monitoring_status_enum
@@ -20814,6 +20831,7 @@ export namespace Prisma {
     handle?: SortOrder
     data?: SortOrder
     preview_data?: SortOrder
+    type?: SortOrder
     is_active?: SortOrder
     poll_interval_minutes?: SortOrder
     monitoring_status?: SortOrder
@@ -20839,6 +20857,7 @@ export namespace Prisma {
     handle?: StringWithAggregatesFilter<"social_media_accounts"> | string
     data?: JsonWithAggregatesFilter<"social_media_accounts">
     preview_data?: JsonWithAggregatesFilter<"social_media_accounts">
+    type?: StringWithAggregatesFilter<"social_media_accounts"> | string
     is_active?: BoolWithAggregatesFilter<"social_media_accounts"> | boolean
     poll_interval_minutes?: IntWithAggregatesFilter<"social_media_accounts"> | number
     monitoring_status?: Enummonitoring_status_enumWithAggregatesFilter<"social_media_accounts"> | $Enums.monitoring_status_enum
@@ -22271,6 +22290,7 @@ export namespace Prisma {
     handle: string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: string
     is_active?: boolean
     poll_interval_minutes?: number
     monitoring_status?: $Enums.monitoring_status_enum
@@ -22292,6 +22312,7 @@ export namespace Prisma {
     handle: string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: string
     is_active?: boolean
     poll_interval_minutes?: number
     monitoring_status?: $Enums.monitoring_status_enum
@@ -22308,6 +22329,7 @@ export namespace Prisma {
     handle?: StringFieldUpdateOperationsInput | string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: StringFieldUpdateOperationsInput | string
     is_active?: BoolFieldUpdateOperationsInput | boolean
     poll_interval_minutes?: IntFieldUpdateOperationsInput | number
     monitoring_status?: Enummonitoring_status_enumFieldUpdateOperationsInput | $Enums.monitoring_status_enum
@@ -22329,6 +22351,7 @@ export namespace Prisma {
     handle?: StringFieldUpdateOperationsInput | string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: StringFieldUpdateOperationsInput | string
     is_active?: BoolFieldUpdateOperationsInput | boolean
     poll_interval_minutes?: IntFieldUpdateOperationsInput | number
     monitoring_status?: Enummonitoring_status_enumFieldUpdateOperationsInput | $Enums.monitoring_status_enum
@@ -22348,6 +22371,7 @@ export namespace Prisma {
     handle: string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: string
     is_active?: boolean
     poll_interval_minutes?: number
     monitoring_status?: $Enums.monitoring_status_enum
@@ -22362,6 +22386,7 @@ export namespace Prisma {
     handle?: StringFieldUpdateOperationsInput | string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: StringFieldUpdateOperationsInput | string
     is_active?: BoolFieldUpdateOperationsInput | boolean
     poll_interval_minutes?: IntFieldUpdateOperationsInput | number
     monitoring_status?: Enummonitoring_status_enumFieldUpdateOperationsInput | $Enums.monitoring_status_enum
@@ -22379,6 +22404,7 @@ export namespace Prisma {
     handle?: StringFieldUpdateOperationsInput | string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: StringFieldUpdateOperationsInput | string
     is_active?: BoolFieldUpdateOperationsInput | boolean
     poll_interval_minutes?: IntFieldUpdateOperationsInput | number
     monitoring_status?: Enummonitoring_status_enumFieldUpdateOperationsInput | $Enums.monitoring_status_enum
@@ -24205,6 +24231,7 @@ export namespace Prisma {
     handle?: SortOrder
     data?: SortOrder
     preview_data?: SortOrder
+    type?: SortOrder
     is_active?: SortOrder
     poll_interval_minutes?: SortOrder
     monitoring_status?: SortOrder
@@ -24227,6 +24254,7 @@ export namespace Prisma {
     profile_id?: SortOrder
     platform_id?: SortOrder
     handle?: SortOrder
+    type?: SortOrder
     is_active?: SortOrder
     poll_interval_minutes?: SortOrder
     monitoring_status?: SortOrder
@@ -24240,6 +24268,7 @@ export namespace Prisma {
     profile_id?: SortOrder
     platform_id?: SortOrder
     handle?: SortOrder
+    type?: SortOrder
     is_active?: SortOrder
     poll_interval_minutes?: SortOrder
     monitoring_status?: SortOrder
@@ -25855,6 +25884,7 @@ export namespace Prisma {
     handle: string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: string
     is_active?: boolean
     poll_interval_minutes?: number
     monitoring_status?: $Enums.monitoring_status_enum
@@ -25874,6 +25904,7 @@ export namespace Prisma {
     handle: string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: string
     is_active?: boolean
     poll_interval_minutes?: number
     monitoring_status?: $Enums.monitoring_status_enum
@@ -25922,6 +25953,7 @@ export namespace Prisma {
     handle?: StringFilter<"social_media_accounts"> | string
     data?: JsonFilter<"social_media_accounts">
     preview_data?: JsonFilter<"social_media_accounts">
+    type?: StringFilter<"social_media_accounts"> | string
     is_active?: BoolFilter<"social_media_accounts"> | boolean
     poll_interval_minutes?: IntFilter<"social_media_accounts"> | number
     monitoring_status?: Enummonitoring_status_enumFilter<"social_media_accounts"> | $Enums.monitoring_status_enum
@@ -25936,6 +25968,7 @@ export namespace Prisma {
     handle: string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: string
     is_active?: boolean
     poll_interval_minutes?: number
     monitoring_status?: $Enums.monitoring_status_enum
@@ -25955,6 +25988,7 @@ export namespace Prisma {
     handle: string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: string
     is_active?: boolean
     poll_interval_minutes?: number
     monitoring_status?: $Enums.monitoring_status_enum
@@ -26326,6 +26360,7 @@ export namespace Prisma {
     handle: string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: string
     is_active?: boolean
     poll_interval_minutes?: number
     monitoring_status?: $Enums.monitoring_status_enum
@@ -26346,6 +26381,7 @@ export namespace Prisma {
     handle: string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: string
     is_active?: boolean
     poll_interval_minutes?: number
     monitoring_status?: $Enums.monitoring_status_enum
@@ -26433,6 +26469,7 @@ export namespace Prisma {
     handle?: StringFieldUpdateOperationsInput | string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: StringFieldUpdateOperationsInput | string
     is_active?: BoolFieldUpdateOperationsInput | boolean
     poll_interval_minutes?: IntFieldUpdateOperationsInput | number
     monitoring_status?: Enummonitoring_status_enumFieldUpdateOperationsInput | $Enums.monitoring_status_enum
@@ -26453,6 +26490,7 @@ export namespace Prisma {
     handle?: StringFieldUpdateOperationsInput | string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: StringFieldUpdateOperationsInput | string
     is_active?: BoolFieldUpdateOperationsInput | boolean
     poll_interval_minutes?: IntFieldUpdateOperationsInput | number
     monitoring_status?: Enummonitoring_status_enumFieldUpdateOperationsInput | $Enums.monitoring_status_enum
@@ -26619,6 +26657,7 @@ export namespace Prisma {
     handle: string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: string
     is_active?: boolean
     poll_interval_minutes?: number
     monitoring_status?: $Enums.monitoring_status_enum
@@ -26639,6 +26678,7 @@ export namespace Prisma {
     handle: string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: string
     is_active?: boolean
     poll_interval_minutes?: number
     monitoring_status?: $Enums.monitoring_status_enum
@@ -26670,6 +26710,7 @@ export namespace Prisma {
     handle?: StringFieldUpdateOperationsInput | string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: StringFieldUpdateOperationsInput | string
     is_active?: BoolFieldUpdateOperationsInput | boolean
     poll_interval_minutes?: IntFieldUpdateOperationsInput | number
     monitoring_status?: Enummonitoring_status_enumFieldUpdateOperationsInput | $Enums.monitoring_status_enum
@@ -26690,6 +26731,7 @@ export namespace Prisma {
     handle?: StringFieldUpdateOperationsInput | string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: StringFieldUpdateOperationsInput | string
     is_active?: BoolFieldUpdateOperationsInput | boolean
     poll_interval_minutes?: IntFieldUpdateOperationsInput | number
     monitoring_status?: Enummonitoring_status_enumFieldUpdateOperationsInput | $Enums.monitoring_status_enum
@@ -27058,6 +27100,7 @@ export namespace Prisma {
     handle: string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: string
     is_active?: boolean
     poll_interval_minutes?: number
     monitoring_status?: $Enums.monitoring_status_enum
@@ -27072,6 +27115,7 @@ export namespace Prisma {
     handle?: StringFieldUpdateOperationsInput | string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: StringFieldUpdateOperationsInput | string
     is_active?: BoolFieldUpdateOperationsInput | boolean
     poll_interval_minutes?: IntFieldUpdateOperationsInput | number
     monitoring_status?: Enummonitoring_status_enumFieldUpdateOperationsInput | $Enums.monitoring_status_enum
@@ -27091,6 +27135,7 @@ export namespace Prisma {
     handle?: StringFieldUpdateOperationsInput | string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: StringFieldUpdateOperationsInput | string
     is_active?: BoolFieldUpdateOperationsInput | boolean
     poll_interval_minutes?: IntFieldUpdateOperationsInput | number
     monitoring_status?: Enummonitoring_status_enumFieldUpdateOperationsInput | $Enums.monitoring_status_enum
@@ -27109,6 +27154,7 @@ export namespace Prisma {
     handle?: StringFieldUpdateOperationsInput | string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: StringFieldUpdateOperationsInput | string
     is_active?: BoolFieldUpdateOperationsInput | boolean
     poll_interval_minutes?: IntFieldUpdateOperationsInput | number
     monitoring_status?: Enummonitoring_status_enumFieldUpdateOperationsInput | $Enums.monitoring_status_enum
@@ -27125,6 +27171,7 @@ export namespace Prisma {
     handle: string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: string
     is_active?: boolean
     poll_interval_minutes?: number
     monitoring_status?: $Enums.monitoring_status_enum
@@ -27139,6 +27186,7 @@ export namespace Prisma {
     handle?: StringFieldUpdateOperationsInput | string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: StringFieldUpdateOperationsInput | string
     is_active?: BoolFieldUpdateOperationsInput | boolean
     poll_interval_minutes?: IntFieldUpdateOperationsInput | number
     monitoring_status?: Enummonitoring_status_enumFieldUpdateOperationsInput | $Enums.monitoring_status_enum
@@ -27158,6 +27206,7 @@ export namespace Prisma {
     handle?: StringFieldUpdateOperationsInput | string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: StringFieldUpdateOperationsInput | string
     is_active?: BoolFieldUpdateOperationsInput | boolean
     poll_interval_minutes?: IntFieldUpdateOperationsInput | number
     monitoring_status?: Enummonitoring_status_enumFieldUpdateOperationsInput | $Enums.monitoring_status_enum
@@ -27176,6 +27225,7 @@ export namespace Prisma {
     handle?: StringFieldUpdateOperationsInput | string
     data?: JsonNullValueInput | InputJsonValue
     preview_data?: JsonNullValueInput | InputJsonValue
+    type?: StringFieldUpdateOperationsInput | string
     is_active?: BoolFieldUpdateOperationsInput | boolean
     poll_interval_minutes?: IntFieldUpdateOperationsInput | number
     monitoring_status?: Enummonitoring_status_enumFieldUpdateOperationsInput | $Enums.monitoring_status_enum

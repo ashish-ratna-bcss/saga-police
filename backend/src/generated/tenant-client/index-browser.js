@@ -154,6 +154,7 @@ exports.Prisma.Social_media_accountsScalarFieldEnum = {
   handle: 'handle',
   data: 'data',
   preview_data: 'preview_data',
+  type: 'type',
   is_active: 'is_active',
   poll_interval_minutes: 'poll_interval_minutes',
   monitoring_status: 'monitoring_status',

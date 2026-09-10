@@ -53,6 +53,7 @@ const listCatalogSources = async (platformFilter = 'all', { db } = {}) => {
   const accounts = await prisma.social_media_accounts.findMany({
     where: {
       is_active: true,
+      type: 'grievance',
       platforms: { slug: { in: platformSlugs } },
     },
     include: {
@@ -75,6 +76,7 @@ const getCatalogAccount = async (id, { db } = {}) => {
     where: {
       id: accountId,
       is_active: true,
+      type: 'grievance',
       platforms: { slug: { in: platformSlugsForQuery('all') } },
     },
     include: {

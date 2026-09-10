@@ -56,6 +56,7 @@ model social_media_accounts {
   data                  Json                      @default("{}")
   /// Full Blugate preview payload from Fetch details
   preview_data          Json                      @default("{}")
+  type                  String                    @default("profile")
   is_active             Boolean                   @default(true)
   poll_interval_minutes Int                       @default(30)
   monitoring_status     monitoring_status_enum    @default(stopped)

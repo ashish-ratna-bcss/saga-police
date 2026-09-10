@@ -316,7 +316,10 @@ const deletePlatform = async (req, res) => {
 const listProfiles = async (req, res) => {
   const prisma = dbOf(req.tenantPrisma);
   try {
-    const { platform, status, search } = req.query;
+    const { ensureOpsSchema } = require('../../../prisma/ensureOpsSchema');
+    await ensureOpsSchema(prisma);
+
+    const { platform, status, search, type } = req.query;
     const where = {};
 
     if (platform) {
@@ -325,6 +328,14 @@ const listProfiles = async (req, res) => {
     }
     if (status === 'active') where.is_active = true;
     if (status === 'paused') where.is_active = false;
+    
+    // Support filtering by type (grievance vs profile)
+    if (type) {
+      where.type = type;
+    } else {
+      where.type = 'profile'; // Default to normal profiles unless specified
+    }
+
     if (search) {
       where.OR = [
         { handle: { contains: search, mode: 'insensitive' } },
@@ -546,6 +557,7 @@ const createOneAccount = async ({
   pollInterval,
   preview_data,
   profile_id,
+  type,
   db,
 }) => {
   const prisma = dbOf(db);
@@ -592,6 +604,7 @@ const createOneAccount = async ({
       data: normalized,
       preview_data,
       poll_interval_minutes: pollInterval ?? 30,
+      type: type || 'profile',
     },
     include: accountInclude,
   });
@@ -600,7 +613,7 @@ const createOneAccount = async ({
 const createProfile = async (req, res) => {
   const prisma = dbOf(req.tenantPrisma);
   try {
-    const { platform, display_name, notes, profile_id, entity_id } = req.body;
+    const { platform, display_name, notes, profile_id, entity_id, type } = req.body;
     const parentId = profile_id || entity_id || null;
     if (!parentId) {
       const { assertUnderProfileQuota } = require('../user/user.quotas');
@@ -627,6 +640,7 @@ const createProfile = async (req, res) => {
       pollInterval: pollInterval ?? 30,
       preview_data: req.body.preview_data,
       profile_id: parentId,
+      type,
     });
 
     res.status(201).json(flattenAccount(account));
@@ -642,7 +656,7 @@ const createProfile = async (req, res) => {
 const createProfilesBatch = async (req, res) => {
   const prisma = dbOf(req.tenantPrisma);
   try {
-    const { display_name, notes, accounts } = req.body || {};
+    const { display_name, notes, accounts, type } = req.body || {};
     if (!Array.isArray(accounts) || accounts.length === 0) {
       return res.status(400).json({ error: 'accounts array is required' });
     }
@@ -670,7 +684,7 @@ const createProfilesBatch = async (req, res) => {
         return res.status(400).json({ error: `platform is invalid: ${account.platform}` });
       }
       const row = await createOneAccount({
-      db: prisma,
+        db: prisma,
         platformRow,
         data: account.data,
         display_name,
@@ -678,6 +692,7 @@ const createProfilesBatch = async (req, res) => {
         pollInterval: pollInterval ?? 30,
         preview_data: account.preview_data,
         profile_id: profile.id,
+        type: account.type || type || 'profile',
       });
       created.push(flattenAccount(row));
     }
@@ -723,6 +738,10 @@ const updateProfile = async (req, res) => {
       platformRow = await resolvePlatform(req.body.platform, { db: prisma });
       if (!platformRow) return res.status(400).json({ error: 'platform is invalid or not active' });
       data.platform_id = platformRow.id;
+    }
+
+    if (req.body.type !== undefined) {
+      data.type = req.body.type || 'profile';
     }
 
     if (req.body.data !== undefined || req.body.platform !== undefined) {

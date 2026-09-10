@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, Plus, Pencil, Trash2, Loader2, PlayCircle, StopCircle,
   Twitter, Facebook, Instagram, Youtube, Globe2, Square, History, BarChart3, Download, Timer,
-  ChevronDown, User, FileText, CheckCircle,
+  ChevronDown, User, FileText, CheckCircle, AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { socialProfilesApi } from '../../api/socialProfiles.api';
@@ -94,30 +94,17 @@ const ProfileRelevanceBadge = ({ row }) => {
   const relevance = row?.relevance || {};
   const score = getRelevanceScore(row);
   const tone = getRelevanceTone(score);
-  const qualifying = relevance.qualifying_post_count ?? 0;
-  const total = relevance.total_post_count ?? 0;
-  const staticScore = Number(relevance.static_score) || 0;
-  const contentAvg = relevance.content_avg_score;
-  const matched = Array.isArray(relevance.matched_terms) ? relevance.matched_terms : [];
-  const profileMatched = Array.isArray(relevance.profile_matched_terms)
-    ? relevance.profile_matched_terms
-    : matched;
-  const staticWeight = relevance.static_weight ?? 100;
-  const contentWeight = relevance.content_weight ?? 0;
 
   if (score == null) {
     return <span className="text-[11px] text-muted-foreground">—</span>;
   }
 
-  const keywordCount = relevance.keyword_count ?? 0;
-  const postsScope = relevance.posts_scope || 'account';
-  const ownPosts = relevance.own_post_count ?? total;
   const level =
     score >= 80
-      ? { label: 'Highly relevant', hint: 'Strong catalog keyword match' }
+      ? { label: 'Highly relevant', hint: 'Frequent or severe alerts generated' }
       : score >= 60
-        ? { label: 'Moderately relevant', hint: 'Some catalog keyword match' }
-        : { label: 'Low relevance', hint: 'Weak or no catalog keyword match' };
+        ? { label: 'Moderately relevant', hint: 'Some recent alerts generated' }
+        : { label: 'Low relevance', hint: 'Few or no recent alerts' };
 
   return (
     <Popover>
@@ -151,53 +138,31 @@ const ProfileRelevanceBadge = ({ row }) => {
           <p className="text-[10px] text-muted-foreground">{level.hint}</p>
         </div>
         <div className="px-3 py-2.5 space-y-2 text-[11px]">
-          <div className="rounded-md border p-2">
-            <div className="flex items-center justify-between gap-2 mb-0.5">
+          <div className="rounded-md border p-2 bg-slate-50 dark:bg-slate-900/50">
+            <div className="flex items-center justify-between gap-2 mb-1">
               <span className="inline-flex items-center gap-1.5 font-semibold">
-                <User className="h-3.5 w-3.5 text-sky-600" /> Profile
-              </span>
-              <span className="tabular-nums font-bold">{staticScore}/100</span>
-            </div>
-            <p className="text-[10px] text-muted-foreground pl-5">
-              {profileMatched.length
-                ? `Matched: ${profileMatched.slice(0, 4).join(', ')}`
-                : 'No catalog keywords in name or handle.'}
-            </p>
-          </div>
-          <div className="rounded-md border p-2">
-            <div className="flex items-center justify-between gap-2 mb-0.5">
-              <span className="inline-flex items-center gap-1.5 font-semibold">
-                <FileText className="h-3.5 w-3.5 text-violet-600" /> Recent posts
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-600" /> Recent Alerts
               </span>
               <span className="tabular-nums font-bold">
-                {contentAvg != null ? `${Math.round(contentAvg)}/100` : '—'}
+                {relevance.total_alerts || 0} Total
               </span>
             </div>
-            <p className="text-[10px] text-muted-foreground pl-5">
-              {total === 0
-                ? 'No posts stored for this account (last 30 days). Start monitoring to fetch posts.'
-                : qualifying === 0
-                  ? `Checked ${total} posts — no catalog keyword hits.${
-                      postsScope === 'profile' && ownPosts === 0
-                        ? ' (from other platforms on this profile)'
-                        : ''
-                    }`
-                  : `${qualifying} of ${total} recent posts matched catalog keywords.${
-                      postsScope === 'profile' && ownPosts === 0
-                        ? ' (from other platforms on this profile)'
-                        : ''
-                    }`}
-            </p>
-          </div>
-          <div className="rounded-md border border-emerald-100 bg-emerald-50/50 p-2">
-            <p className="inline-flex items-center gap-1.5 font-semibold text-emerald-900">
-              <CheckCircle className="h-3.5 w-3.5" /> Blend
-            </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5 pl-5">
-              {contentWeight > 0
-                ? `Posts ${contentWeight}% · Profile ${staticWeight}% → ${score}/100`
-                : `Profile only → ${score}/100`}
-              {keywordCount > 0 ? ` · ${keywordCount} keywords` : ''}
+            <div className="space-y-1.5 mt-3 text-xs">
+              <div className="flex justify-between text-red-600 dark:text-red-400 items-center">
+                <span>High Risk</span>
+                <span className="font-semibold bg-red-100 dark:bg-red-900/40 px-1.5 py-0.5 rounded">{relevance.high_alerts || 0}</span>
+              </div>
+              <div className="flex justify-between text-amber-600 dark:text-amber-400 items-center">
+                <span>Medium Risk</span>
+                <span className="font-semibold bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">{relevance.medium_alerts || 0}</span>
+              </div>
+              <div className="flex justify-between text-slate-600 dark:text-slate-400 items-center">
+                <span>Low Risk</span>
+                <span className="font-semibold bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded">{relevance.low_alerts || 0}</span>
+              </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-3 border-t dark:border-slate-800 pt-2 leading-relaxed">
+              Score is computed based on active alerts over the last 30 days. High risk alerts weigh heavily.
             </p>
           </div>
         </div>
