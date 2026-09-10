@@ -1,4 +1,4 @@
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 const callXApi = require('../../services/blugate/x/blugate.x.api_client');
 const callFacebookApi = require('../../services/blugate/facebook/blugate.facebook.api_client');
 const callYouTubeApi = require('../../services/blugate/youtube/blugate.youtube.api_client');
@@ -100,7 +100,8 @@ const fetchUniqueByQueries = async (queries, fetcher) => {
   return uniqueById(merged);
 };
 
-const upsertMedia = async ({ eventId, platform, externalId, payload }) => {
+const upsertMedia = async ({ eventId, platform, externalId, payload, db }) => {
+  const prisma = dbOf(db);
   const existing = await prisma.social_media_event_media.findUnique({
     where: {
       event_id_platform_external_id: {
@@ -284,12 +285,16 @@ const mapBlugateTweet = (raw) => {
   };
 };
 
-const searchXViaBlugate = async (query) => {
-  const data = await callXApi('SEARCH', {
-    query,
-    type: 'Latest',
-    count: '20',
-  });
+const searchXViaBlugate = async (query, auth = null) => {
+  const data = await callXApi(
+    'SEARCH',
+    {
+      query,
+      type: 'Latest',
+      count: '20',
+    },
+    auth
+  );
   const instructions =
     data?.result?.timeline?.instructions ||
     data?.timeline?.instructions ||
@@ -354,8 +359,8 @@ const mapBlugateFacebookPost = (post) => {
   };
 };
 
-const searchFacebookViaBlugate = async (query) => {
-  const data = await callFacebookApi('SEARCH_POSTS', { query });
+const searchFacebookViaBlugate = async (query, auth = null) => {
+  const data = await callFacebookApi('SEARCH_POSTS', { query }, auth);
   const results = Array.isArray(data?.results) ? data.results : [];
   return results.map(mapBlugateFacebookPost).filter(Boolean);
 };
@@ -396,22 +401,30 @@ const searchTelegramViaBlugate = async (query) => {
 
 /* ── Blugate YouTube search ── */
 
-const searchYouTubeViaBlugate = async (query) => {
-  const search = await callYouTubeApi('SEARCH_LIST', {
-    part: 'snippet',
-    q: query,
-    type: 'video',
-    maxResults: 25,
-  });
+const searchYouTubeViaBlugate = async (query, auth = null) => {
+  const search = await callYouTubeApi(
+    'SEARCH_LIST',
+    {
+      part: 'snippet',
+      q: query,
+      type: 'video',
+      maxResults: 25,
+    },
+    auth
+  );
   const ids = (search?.items || [])
     .map((item) => item?.id?.videoId)
     .filter(Boolean);
   if (!ids.length) return [];
 
-  const details = await callYouTubeApi('VIDEOS_LIST', {
-    part: 'snippet,statistics,contentDetails',
-    id: ids.join(','),
-  });
+  const details = await callYouTubeApi(
+    'VIDEOS_LIST',
+    {
+      part: 'snippet,statistics,contentDetails',
+      id: ids.join(','),
+    },
+    auth
+  );
 
   return (details?.items || []).map((video) => ({
     id: video.id,
@@ -454,6 +467,7 @@ const scanEventOnce = async (event, options = {}) => {
 };
 
 const runScanEventOnce = async (event, options = {}) => {
+  const db = options.db;
   const source = options.source || 'scheduler';
   const queries = buildEventQueries(event);
   if (!queries.length) {
@@ -466,7 +480,7 @@ const runScanEventOnce = async (event, options = {}) => {
       ok: true,
       message: 'No keywords to search',
       source,
-    });
+    }, { db });
     return { scanned: 0, ingested: 0, alerts: 0, queries: [], by_platform: {}, errors: [] };
   }
 
@@ -487,6 +501,15 @@ const runScanEventOnce = async (event, options = {}) => {
       ? event.platforms.filter((p) => p !== 'instagram')
       : DEFAULT_EVENT_SCAN_PLATFORMS;
 
+  const prisma = dbOf(db);
+  const loadPlatformAuth = async (slugs, authFn) => {
+    const platformRow = await prisma.platforms.findFirst({
+      where: { slug: { in: slugs }, is_active: true },
+      select: { api_key: true, blugate_client_key: true },
+    });
+    return authFn(platformRow);
+  };
+
   const fetchUniqueByQueriesCounted = async (qs, fetcher) => {
     const merged = [];
     for (const query of qs) {
@@ -503,13 +526,17 @@ const runScanEventOnce = async (event, options = {}) => {
 
   if (platforms.includes('x')) {
     try {
-      const tweets = await fetchUniqueByQueriesCounted(queries, searchXViaBlugate);
+      const xAuth = await loadPlatformAuth(['x', 'twitter'], callXApi.authFromPlatformRow);
+      const tweets = await fetchUniqueByQueriesCounted(queries, (q) =>
+        searchXViaBlugate(q, xAuth)
+      );
       const relevant = filterByKeywords(tweets, event, (t) => t?.text || '');
       scanned += relevant.length;
       track('x', { scanned: relevant.length });
       let xIn = 0;
       for (const t of relevant) {
         const { isNew } = await upsertMedia({
+          db,
           eventId: event.id,
           platform: 'x',
           externalId: t.id,
@@ -536,7 +563,10 @@ const runScanEventOnce = async (event, options = {}) => {
 
   if (platforms.includes('youtube')) {
     try {
-      const videos = await fetchUniqueByQueriesCounted(queries, searchYouTubeViaBlugate);
+      const ytAuth = await loadPlatformAuth(['youtube'], callYouTubeApi.authFromPlatformRow);
+      const videos = await fetchUniqueByQueriesCounted(queries, (q) =>
+        searchYouTubeViaBlugate(q, ytAuth)
+      );
       const relevant = filterByKeywords(
         videos,
         event,
@@ -548,6 +578,7 @@ const runScanEventOnce = async (event, options = {}) => {
       for (const v of relevant) {
         const text = `${v.title || ''}\n${v.description || ''}`.trim();
         const { isNew } = await upsertMedia({
+          db,
           eventId: event.id,
           platform: 'youtube',
           externalId: v.id,
@@ -584,7 +615,10 @@ const runScanEventOnce = async (event, options = {}) => {
 
   if (platforms.includes('facebook')) {
     try {
-      const posts = await fetchUniqueByQueriesCounted(queries, searchFacebookViaBlugate);
+      const fbAuth = await loadPlatformAuth(['facebook'], callFacebookApi.authFromPlatformRow);
+      const posts = await fetchUniqueByQueriesCounted(queries, (q) =>
+        searchFacebookViaBlugate(q, fbAuth)
+      );
       const relevant = filterByKeywords(posts, event, (p) => p?.message || p?.text || '');
       scanned += relevant.length;
       track('facebook', { scanned: relevant.length });
@@ -593,6 +627,7 @@ const runScanEventOnce = async (event, options = {}) => {
         const pid = p.id || p.post_id;
         if (!pid) continue;
         const { isNew } = await upsertMedia({
+          db,
           eventId: event.id,
           platform: 'facebook',
           externalId: String(pid),
@@ -636,6 +671,7 @@ const runScanEventOnce = async (event, options = {}) => {
           p.url ||
           (handle && !/\s/.test(handle) ? `https://t.me/${handle}` : null);
         const { isNew } = await upsertMedia({
+          db,
           eventId: event.id,
           platform: 'telegram',
           externalId: String(pid),
@@ -690,7 +726,7 @@ const runScanEventOnce = async (event, options = {}) => {
     message,
     source,
     by_platform: byPlatform,
-  });
+  }, { db });
 
   return { scanned, ingested, alerts: 0, queries, by_platform: byPlatform, errors };
 };

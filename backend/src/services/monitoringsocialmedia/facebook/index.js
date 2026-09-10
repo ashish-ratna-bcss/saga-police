@@ -8,19 +8,19 @@ const {
 } = require('./scheduler');
 
 /** Kickoff fetch for a Facebook profile (ignores poll interval once). */
-const startProfile = async (profileId) => {
-  if (isInFlight(profileId)) return;
-  markInFlight(profileId);
+const startProfile = async (profileId, { db, dbName } = {}) => {
+  if (isInFlight(profileId, dbName)) return;
+  markInFlight(profileId, dbName);
   try {
-    await runFacebookProfile(profileId, { force: true });
+    await runFacebookProfile(profileId, { force: true, db, dbName });
   } finally {
-    clearInFlight(profileId);
+    clearInFlight(profileId, dbName);
   }
 };
 
 /** Clear in-flight tracking; scheduler skips stopped profiles by status. */
-const stopProfile = (profileId) => {
-  clearInFlight(profileId);
+const stopProfile = (profileId, { dbName } = {}) => {
+  clearInFlight(profileId, dbName);
 };
 
 module.exports = {

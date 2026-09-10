@@ -1,15 +1,16 @@
 const queue = require('./queue');
 const { analyzePost } = require('./analyzePost');
 const { startPoller, stopPoller, pollPending } = require('./pollPending');
+const { getTenantPrisma } = require('../../lib/tenantDatabase.service');
 
 queue.setProcessor(async (job) => {
-  await analyzePost(job.postId);
+  await analyzePost(job.postId, { db: getTenantPrisma(job.dbName) });
 });
 
 /** Enqueue a catalog post for sentiment (after upsert). */
-const enqueuePost = (postId) => {
+const enqueuePost = (postId, { dbName } = {}) => {
   if (postId == null) return false;
-  return queue.enqueue({ postId });
+  return queue.enqueue({ postId, dbName: dbName || null });
 };
 
 const startScheduler = () => {

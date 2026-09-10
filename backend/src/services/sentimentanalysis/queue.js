@@ -2,12 +2,13 @@
  * In-memory job queue for catalog post sentiment analysis.
  * Concurrency + optional max queue size; overflow stays as DB `pending`
  * and is picked up by the pending poller.
+ * Jobs carry { postId, dbName } for multi-tenant routing.
  */
 const CONCURRENCY = Math.max(1, Number(process.env.SENTIMENT_QUEUE_CONCURRENCY) || 1);
 const MAX_QUEUE = Math.max(1, Number(process.env.SENTIMENT_QUEUE_MAX) || 500);
 
 const queue = [];
-const inFlight = new Set(); // string post ids
+const inFlight = new Set(); // `${dbName}:${postId}`
 let active = 0;
 let processor = null;
 
@@ -18,6 +19,8 @@ const stats = {
   dropped: 0,
 };
 
+const jobKey = (job) => `${job.dbName || ''}:${String(job.postId)}`;
+
 const setProcessor = (fn) => {
   processor = fn;
 };
@@ -27,7 +30,8 @@ const pump = () => {
   while (active < CONCURRENCY && queue.length > 0) {
     const job = queue.shift();
     active += 1;
-    inFlight.add(job.postId);
+    const key = jobKey(job);
+    inFlight.add(key);
     Promise.resolve()
       .then(() => processor(job))
       .then(() => {
@@ -35,10 +39,10 @@ const pump = () => {
       })
       .catch((err) => {
         stats.failed += 1;
-        console.error(`[sentimentanalysis/queue] job ${job.postId}:`, err.message);
+        console.error(`[sentimentanalysis/queue] job ${key}:`, err.message);
       })
       .finally(() => {
-        inFlight.delete(job.postId);
+        inFlight.delete(key);
         active -= 1;
         pump();
       });
@@ -46,21 +50,23 @@ const pump = () => {
 };
 
 /**
- * @param {{ postId: string|bigint|number }} job
+ * @param {{ postId: string|bigint|number, dbName?: string|null }} job
  * @returns {boolean} true if accepted into memory queue
  */
 const enqueue = (job) => {
   const postId = String(job.postId);
   if (!postId || postId === 'undefined' || postId === 'null') return false;
-  if (inFlight.has(postId)) return false;
-  if (queue.some((j) => j.postId === postId)) return false;
+  const dbName = job.dbName || null;
+  const key = jobKey({ postId, dbName });
+  if (inFlight.has(key)) return false;
+  if (queue.some((j) => jobKey(j) === key)) return false;
 
   if (queue.length >= MAX_QUEUE) {
     stats.dropped += 1;
     return false;
   }
 
-  queue.push({ postId });
+  queue.push({ postId, dbName });
   stats.enqueued += 1;
   pump();
   return true;

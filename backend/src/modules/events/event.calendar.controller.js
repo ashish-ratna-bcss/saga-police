@@ -2,7 +2,10 @@ const calendarService = require('./event.calendar.service');
 
 const listOccasions = async (req, res) => {
   try {
-    const rows = await calendarService.listOccasions({ recurring: req.query.recurring });
+    const rows = await calendarService.listOccasions({
+      recurring: req.query.recurring,
+      db: req.tenantPrisma,
+    });
     return res.json(rows);
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
@@ -11,7 +14,9 @@ const listOccasions = async (req, res) => {
 
 const createOccasion = async (req, res) => {
   try {
-    const row = await calendarService.createOccasion(req.body);
+    const row = await calendarService.createOccasion(req.body, {
+      db: req.tenantPrisma,
+    });
     return res.status(201).json(row);
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
@@ -20,7 +25,9 @@ const createOccasion = async (req, res) => {
 
 const updateOccasion = async (req, res) => {
   try {
-    const row = await calendarService.updateOccasion(req.params.id, req.body);
+    const row = await calendarService.updateOccasion(req.params.id, req.body, {
+      db: req.tenantPrisma,
+    });
     return res.json(row);
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
@@ -29,7 +36,7 @@ const updateOccasion = async (req, res) => {
 
 const deleteOccasion = async (req, res) => {
   try {
-    await calendarService.deleteOccasion(req.params.id);
+    await calendarService.deleteOccasion(req.params.id, { db: req.tenantPrisma });
     return res.json({ message: 'Occasion deleted' });
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });

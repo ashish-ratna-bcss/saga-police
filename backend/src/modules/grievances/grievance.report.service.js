@@ -1,5 +1,5 @@
 const { randomUUID } = require('crypto');
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 const { asJson, serialize } = require('./grievance.utils');
 const { getCatalogGrievance } = require('./grievance.service');
 
@@ -40,7 +40,8 @@ const platformLetter = (platform) => {
 };
 
 /** Atomic code numbers via Postgres SEQUENCE (no counters table). */
-const nextUniqueCode = async (reportType, platform = 'x') => {
+const nextUniqueCode = async (reportType, platform = 'x', { db } = {}) => {
+  const prisma = dbOf(db);
   const seq = SEQ_NAME[reportType] || SEQ_NAME.grievance;
   const prefix = CODE_PREFIX[reportType] || 'G';
   // Sequence name is from our fixed map only — never user input.
@@ -83,7 +84,8 @@ const mapWorkflowStatus = (status) => {
   return String(status || 'pending').toLowerCase() || 'pending';
 };
 
-const syncCatalogGrievance = async (grievanceId, reportType, report) => {
+const syncCatalogGrievance = async (grievanceId, reportType, report, { db } = {}) => {
+  const prisma = dbOf(db);
   if (!/^\d+$/.test(String(grievanceId))) return;
   const id = BigInt(String(grievanceId));
   const row = await prisma.social_media_grievances.findUnique({ where: { id } });
@@ -115,14 +117,14 @@ const syncCatalogGrievance = async (grievanceId, reportType, report) => {
   });
 };
 
-const resolveCatalogGrievance = async (grievanceId) => {
+const resolveCatalogGrievance = async (grievanceId, { db } = {}) => {
   const idStr = String(grievanceId || '').trim();
   if (!idStr) {
     const err = new Error('grievance_id is required');
     err.status = 400;
     throw err;
   }
-  const row = await getCatalogGrievance(idStr);
+  const row = await getCatalogGrievance(idStr, { db });
   if (!row) {
     const err = new Error('Grievance not found');
     err.status = 404;
@@ -131,9 +133,10 @@ const resolveCatalogGrievance = async (grievanceId) => {
   return row;
 };
 
-const createOrUpdateReport = async (reportType, body = {}, user = {}) => {
+const createOrUpdateReport = async (reportType, body = {}, user = {}, { db } = {}) => {
+  const prisma = dbOf(db);
   const type = REPORT_TYPES[reportType] || reportType;
-  const grievance = await resolveCatalogGrievance(body.grievance_id);
+  const grievance = await resolveCatalogGrievance(body.grievance_id, { db: prisma });
   const grievanceId = String(grievance.id);
   const platform = body.platform || grievance.platform || 'x';
 
@@ -147,7 +150,7 @@ const createOrUpdateReport = async (reportType, body = {}, user = {}) => {
   });
 
   const unique_code =
-    existing?.unique_code || (await nextUniqueCode(type, platform));
+    existing?.unique_code || (await nextUniqueCode(type, platform, { db: prisma }));
 
   const mediaUrls = Array.isArray(body.media_urls)
     ? body.media_urls.filter(Boolean)
@@ -218,11 +221,12 @@ const createOrUpdateReport = async (reportType, body = {}, user = {}) => {
     });
   }
 
-  await syncCatalogGrievance(grievanceId, type, row);
+  await syncCatalogGrievance(grievanceId, type, row, { db: prisma });
   return { report: serializeReport(row), created: !existing };
 };
 
-const findReport = async (idOrCode, reportType = null) => {
+const findReport = async (idOrCode, reportType = null, { db } = {}) => {
+  const prisma = dbOf(db);
   const key = String(idOrCode || '').trim();
   if (!key) return null;
   const where = reportType
@@ -237,7 +241,8 @@ const findReport = async (idOrCode, reportType = null) => {
   return row ? serializeReport(row) : null;
 };
 
-const shareReport = async (idOrCode, body = {}, reportType = null) => {
+const shareReport = async (idOrCode, body = {}, reportType = null, { db } = {}) => {
+  const prisma = dbOf(db);
   const existing = await prisma.social_media_grievance_reports.findFirst({
     where: reportType
       ? {
@@ -295,11 +300,12 @@ const shareReport = async (idOrCode, body = {}, reportType = null) => {
     },
   });
 
-  await syncCatalogGrievance(row.grievance_id, row.report_type, row);
+  await syncCatalogGrievance(row.grievance_id, row.report_type, row, { db: prisma });
   return serializeReport(row);
 };
 
-const closeReport = async (idOrCode, body = {}, reportType = REPORT_TYPES.grievance) => {
+const closeReport = async (idOrCode, body = {}, reportType = REPORT_TYPES.grievance, { db } = {}) => {
+  const prisma = dbOf(db);
   const existing = await prisma.social_media_grievance_reports.findFirst({
     where: {
       OR: [
@@ -339,7 +345,7 @@ const closeReport = async (idOrCode, body = {}, reportType = REPORT_TYPES.grieva
     },
   });
 
-  await syncCatalogGrievance(row.grievance_id, row.report_type, row);
+  await syncCatalogGrievance(row.grievance_id, row.report_type, row, { db: prisma });
   return serializeReport(row);
 };
 
@@ -347,8 +353,10 @@ const updateReportStatus = async (
   idOrCode,
   status,
   reportType = REPORT_TYPES.grievance,
-  changedBy = {}
+  changedBy = {},
+  { db } = {}
 ) => {
+  const prisma = dbOf(db);
   const allowed = ['PENDING', 'ESCALATED', 'CLOSED'];
   const next = String(status || '').toUpperCase();
   if (!allowed.includes(next)) {
@@ -392,11 +400,12 @@ const updateReportStatus = async (
     },
   });
 
-  await syncCatalogGrievance(row.grievance_id, row.report_type, row);
+  await syncCatalogGrievance(row.grievance_id, row.report_type, row, { db: prisma });
   return serializeReport(row);
 };
 
-const updateReportDetails = async (idOrCode, body = {}, reportType = REPORT_TYPES.grievance) => {
+const updateReportDetails = async (idOrCode, body = {}, reportType = REPORT_TYPES.grievance, { db } = {}) => {
+  const prisma = dbOf(db);
   const existing = await prisma.social_media_grievance_reports.findFirst({
     where: {
       OR: [
@@ -433,7 +442,8 @@ const updateReportDetails = async (idOrCode, body = {}, reportType = REPORT_TYPE
   });
 };
 
-const listReports = async (reportType, query = {}) => {
+const listReports = async (reportType, query = {}, { db } = {}) => {
+  const prisma = dbOf(db);
   const baseWhere = { report_type: reportType };
 
   if (query.platform && query.platform !== 'all') {
@@ -539,7 +549,8 @@ const listReports = async (reportType, query = {}) => {
   };
 };
 
-const listContacts = async () => {
+const listContacts = async ({ db } = {}) => {
+  const prisma = dbOf(db);
   const rows = await prisma.social_media_grievance_contacts.findMany({
     where: { is_active: true },
     orderBy: { name: 'asc' },
@@ -547,7 +558,8 @@ const listContacts = async () => {
   return serialize(rows);
 };
 
-const addContact = async (body = {}) => {
+const addContact = async (body = {}, { db } = {}) => {
+  const prisma = dbOf(db);
   if (!body.name || !body.phone) {
     const err = new Error('name and phone are required');
     err.status = 400;
@@ -566,7 +578,8 @@ const addContact = async (body = {}) => {
   return serialize(row);
 };
 
-const updateContact = async (id, body = {}) => {
+const updateContact = async (id, body = {}, { db } = {}) => {
+  const prisma = dbOf(db);
   try {
     const row = await prisma.social_media_grievance_contacts.update({
       where: { id: String(id) },
@@ -593,7 +606,8 @@ const updateContact = async (id, body = {}) => {
   }
 };
 
-const deleteContact = async (id) => {
+const deleteContact = async (id, { db } = {}) => {
+  const prisma = dbOf(db);
   try {
     await prisma.social_media_grievance_contacts.update({
       where: { id: String(id) },
@@ -614,7 +628,8 @@ const deleteContact = async (id) => {
  * Dashboard report KPI buckets from Postgres grievance reports.
  * Maps catalog statuses onto the legacy alert-report labels the Dashboard UI expects.
  */
-const getDashboardReportStats = async () => {
+const getDashboardReportStats = async ({ db } = {}) => {
+  const prisma = dbOf(db);
   const empty = () => ({
     total: 0,
     sent_to_intermediary: 0,

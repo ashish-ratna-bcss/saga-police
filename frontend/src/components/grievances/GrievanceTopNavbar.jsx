@@ -11,7 +11,7 @@ import {
 } from '../ui/tooltip';
 import { TelegramBrandLogo, XBrandLogo, FacebookBrandLogo, InstagramBrandLogo } from '../PlatformBrandIcon';
 
-const PLATFORMS = [
+const ALL_PLATFORMS = [
   { id: 'all', label: 'All', icon: Globe },
   { id: 'x', label: 'X', icon: XBrandLogo },
   { id: 'facebook', label: 'Facebook', icon: FacebookBrandLogo },
@@ -19,12 +19,18 @@ const PLATFORMS = [
   { id: 'telegram', label: 'Telegram', icon: TelegramBrandLogo },
 ];
 
+const normalizePlatformId = (value) => {
+  const p = String(value || '').trim().toLowerCase();
+  if (p === 'twitter') return 'x';
+  return p;
+};
+
 const platformLabel = (platform) => {
-  const p = String(platform || '').toLowerCase();
+  const p = normalizePlatformId(platform);
   if (p === 'facebook') return 'Facebook';
   if (p === 'instagram') return 'Instagram';
   if (p === 'telegram') return 'Telegram';
-  if (p === 'x' || p === 'twitter') return 'X';
+  if (p === 'x') return 'X';
   return p || 'Unknown';
 };
 
@@ -47,6 +53,7 @@ export const GrievanceTopNavbar = ({
   workflowStats = {},
   sources = [],
   allowedStatuses = null,
+  allowedPlatforms = null,
   onAddSource,
   onRemoveSource,
   onFetchSourceHistory,
@@ -56,6 +63,42 @@ export const GrievanceTopNavbar = ({
   onSearchChange,
   onManageContacts,
 }) => {
+  const visiblePlatforms = useMemo(() => {
+    const allowed = Array.isArray(allowedPlatforms)
+      ? [...new Set(allowedPlatforms.map(normalizePlatformId).filter(Boolean))]
+      : null;
+
+    // No restriction configured → show all known platforms
+    if (!allowed) return ALL_PLATFORMS;
+
+    const allowedSet = new Set(allowed);
+    const platforms = ALL_PLATFORMS.filter(
+      (p) => p.id === 'all' || allowedSet.has(p.id)
+    );
+
+    // Only keep "All" when more than one concrete platform is available
+    const concrete = platforms.filter((p) => p.id !== 'all');
+    if (concrete.length <= 1) return concrete;
+    return platforms;
+  }, [allowedPlatforms]);
+
+  const platformSubtitle = useMemo(() => {
+    const names = visiblePlatforms
+      .filter((p) => p.id !== 'all')
+      .map((p) => p.label);
+    if (names.length === 0) return 'No platforms enabled for this account';
+    if (names.length === 1) return `Mentions on watched ${names[0]} accounts`;
+    if (names.length === 2) return `Mentions on watched ${names[0]} & ${names[1]} accounts`;
+    return `Mentions on watched ${names.slice(0, -1).join(', ')} & ${names[names.length - 1]} accounts`;
+  }, [visiblePlatforms]);
+
+  // If current tab isn't allowed, jump to first available platform
+  useEffect(() => {
+    if (!visiblePlatforms.length) return;
+    if (visiblePlatforms.some((p) => p.id === activePlatform)) return;
+    onPlatformChange?.(visiblePlatforms[0].id);
+  }, [visiblePlatforms, activePlatform, onPlatformChange]);
+
   const visibleStatusFilters = Array.isArray(allowedStatuses)
     ? STATUS_FILTERS.filter((status) => allowedStatuses.includes(status.id))
     : STATUS_FILTERS;
@@ -68,7 +111,8 @@ export const GrievanceTopNavbar = ({
 
   const platformSources = useMemo(() => {
     if (activePlatform === 'all') return sources;
-    return sources.filter((s) => s.platform === activePlatform);
+    const want = normalizePlatformId(activePlatform);
+    return sources.filter((s) => normalizePlatformId(s.platform) === want);
   }, [activePlatform, sources]);
 
   const statusCounts = useMemo(
@@ -152,7 +196,7 @@ export const GrievanceTopNavbar = ({
         <div className="min-w-0 shrink-0">
           <h1 className="text-xl font-heading font-bold tracking-tight leading-none">Grievances</h1>
           <p className="text-[11px] text-muted-foreground mt-0.5 hidden sm:block">
-            Mentions on watched X, Facebook, Instagram &amp; Telegram accounts
+            {platformSubtitle}
           </p>
         </div>
 
@@ -187,9 +231,9 @@ export const GrievanceTopNavbar = ({
           </div>
         )}
 
-        {!isReportsMode && (
+        {!isReportsMode && visiblePlatforms.length > 0 && (
           <div className="inline-flex rounded-lg border border-border bg-card p-0.5 gap-0.5">
-            {PLATFORMS.map((platform) => {
+            {visiblePlatforms.map((platform) => {
               const Icon = platform.icon;
               const isActive = activePlatform === platform.id;
               return (

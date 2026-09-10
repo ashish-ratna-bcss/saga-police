@@ -1,4 +1,4 @@
-const prisma = require('../../../../prisma/client');
+const dbOf = require('../../../lib/dbOf');
 const { upsertPost } = require('../upsertPost');
 const { fetchTelegramPosts } = require('./fetch');
 
@@ -9,7 +9,7 @@ const appendFetchHistory = (existing, entry) => {
   return [...list, entry].slice(-HISTORY_CAP);
 };
 
-const stillStarted = async (id) => {
+const stillStarted = async (id, prisma) => {
   const row = await prisma.social_media_accounts.findUnique({
     where: { id },
     select: { monitoring_status: true },
@@ -18,6 +18,8 @@ const stillStarted = async (id) => {
 };
 
 const runTelegramProfile = async (accountId, opts = {}) => {
+  const prisma = dbOf(opts.db);
+  const dbName = opts.dbName || null;
   const account = await prisma.social_media_accounts.findUnique({
     where: { id: accountId },
     include: { platforms: { select: { slug: true } } },
@@ -46,7 +48,7 @@ const runTelegramProfile = async (accountId, opts = {}) => {
   let postsUpdated = 0;
 
   try {
-    if (!(await stillStarted(accountId))) {
+    if (!(await stillStarted(accountId, prisma))) {
       return { ok: false, skipped: true, reason: 'stopped' };
     }
 
@@ -54,13 +56,13 @@ const runTelegramProfile = async (accountId, opts = {}) => {
     apiHits = hits;
     postsReturned = posts.length;
 
-    if (!(await stillStarted(accountId))) {
+    if (!(await stillStarted(accountId, prisma))) {
       return { ok: false, skipped: true, reason: 'stopped_mid_fetch' };
     }
 
     for (const post of posts) {
-      if (!(await stillStarted(accountId))) break;
-      const result = await upsertPost(post);
+      if (!(await stillStarted(accountId, prisma))) break;
+      const result = await upsertPost(post, { db: prisma, dbName });
       if (result.created) postsNew += 1;
       else postsUpdated += 1;
     }

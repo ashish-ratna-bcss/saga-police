@@ -1,12 +1,13 @@
 const eventService = require('./event.service');
 const { scanEventOnce } = require('./event.scan.service');
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 
 const listEvents = async (req, res) => {
   try {
     const events = await eventService.listEvents({
       monitoring_status: req.query.monitoring_status,
       status: req.query.status,
+      db: req.tenantPrisma,
     });
     return res.status(200).json(events);
   } catch (error) {
@@ -16,7 +17,9 @@ const listEvents = async (req, res) => {
 
 const getEvent = async (req, res) => {
   try {
-    const event = await eventService.getEventById(req.params.id);
+    const event = await eventService.getEventById(req.params.id, {
+      db: req.tenantPrisma,
+    });
     if (!event) return res.status(404).json({ message: 'Event not found' });
     return res.status(200).json(event);
   } catch (error) {
@@ -26,7 +29,9 @@ const getEvent = async (req, res) => {
 
 const createEvent = async (req, res) => {
   try {
-    const event = await eventService.createEvent(req.body, req.user);
+    const event = await eventService.createEvent(req.body, req.user, {
+      db: req.tenantPrisma,
+    });
     return res.status(201).json(event);
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
@@ -35,7 +40,9 @@ const createEvent = async (req, res) => {
 
 const updateEvent = async (req, res) => {
   try {
-    const event = await eventService.updateEvent(req.params.id, req.body);
+    const event = await eventService.updateEvent(req.params.id, req.body, {
+      db: req.tenantPrisma,
+    });
     return res.status(200).json(event);
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
@@ -48,6 +55,7 @@ const updateEvent = async (req, res) => {
  */
 const toggleMonitoring = async (req, res) => {
   try {
+    const prisma = dbOf(req.tenantPrisma);
     const before = await prisma.social_media_events.findUnique({
       where: { id: Number(req.params.id) },
       select: { monitoring_status: true },
@@ -55,15 +63,18 @@ const toggleMonitoring = async (req, res) => {
     if (!before) return res.status(404).json({ message: 'Event not found' });
 
     const wasStopped = before.monitoring_status !== 'started';
-    const event = await eventService.toggleMonitoring(req.params.id);
+    const event = await eventService.toggleMonitoring(req.params.id, {
+      db: req.tenantPrisma,
+    });
 
     if (wasStopped && event.monitoring_status === 'started') {
+      const tenantDb = req.tenantPrisma;
       setImmediate(async () => {
         try {
-          const row = await prisma.social_media_events.findUnique({
+          const row = await dbOf(tenantDb).social_media_events.findUnique({
             where: { id: Number(event.id) },
           });
-          if (row) await scanEventOnce(row, { source: 'kickoff' });
+          if (row) await scanEventOnce(row, { source: 'kickoff', db: tenantDb });
         } catch (_) {
           /* kickoff errors are recorded in last_fetched_history when possible */
         }
@@ -78,7 +89,9 @@ const toggleMonitoring = async (req, res) => {
 
 const pauseEvent = async (req, res) => {
   try {
-    const event = await eventService.setMonitoringStatus(req.params.id, 'stopped');
+    const event = await eventService.setMonitoringStatus(req.params.id, 'stopped', {
+      db: req.tenantPrisma,
+    });
     return res.status(200).json(event);
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
@@ -87,6 +100,7 @@ const pauseEvent = async (req, res) => {
 
 const resumeEvent = async (req, res) => {
   try {
+    const prisma = dbOf(req.tenantPrisma);
     const before = await prisma.social_media_events.findUnique({
       where: { id: Number(req.params.id) },
       select: { monitoring_status: true },
@@ -94,14 +108,17 @@ const resumeEvent = async (req, res) => {
     if (!before) return res.status(404).json({ message: 'Event not found' });
 
     const wasStopped = before.monitoring_status !== 'started';
-    const event = await eventService.setMonitoringStatus(req.params.id, 'started');
+    const event = await eventService.setMonitoringStatus(req.params.id, 'started', {
+      db: req.tenantPrisma,
+    });
     if (wasStopped && event.monitoring_status === 'started') {
+      const tenantDb = req.tenantPrisma;
       setImmediate(async () => {
         try {
-          const row = await prisma.social_media_events.findUnique({
+          const row = await dbOf(tenantDb).social_media_events.findUnique({
             where: { id: Number(event.id) },
           });
-          if (row) await scanEventOnce(row, { source: 'kickoff' });
+          if (row) await scanEventOnce(row, { source: 'kickoff', db: tenantDb });
         } catch (_) {
           /* ignore */
         }
@@ -115,7 +132,7 @@ const resumeEvent = async (req, res) => {
 
 const deleteEvent = async (req, res) => {
   try {
-    await eventService.deleteEvent(req.params.id);
+    await eventService.deleteEvent(req.params.id, { db: req.tenantPrisma });
     return res.status(200).json({ message: 'Event deleted' });
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
@@ -124,7 +141,9 @@ const deleteEvent = async (req, res) => {
 
 const getEventDashboard = async (req, res) => {
   try {
-    const data = await eventService.getDashboard(req.params.id);
+    const data = await eventService.getDashboard(req.params.id, {
+      db: req.tenantPrisma,
+    });
     return res.status(200).json(data);
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
@@ -136,7 +155,12 @@ const getEventContent = async (req, res) => {
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 50;
     const platform = req.query.platform || 'all';
-    const data = await eventService.listEventContent(req.params.id, { page, limit, platform });
+    const data = await eventService.listEventContent(req.params.id, {
+      page,
+      limit,
+      platform,
+      db: req.tenantPrisma,
+    });
     return res.status(200).json(data);
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
@@ -145,9 +169,15 @@ const getEventContent = async (req, res) => {
 
 const runEventScan = async (req, res) => {
   try {
-    const row = await prisma.social_media_events.findUnique({ where: { id: Number(req.params.id) } });
+    const prisma = dbOf(req.tenantPrisma);
+    const row = await prisma.social_media_events.findUnique({
+      where: { id: Number(req.params.id) },
+    });
     if (!row) return res.status(404).json({ message: 'Event not found' });
-    const result = await scanEventOnce(row, { source: 'manual' });
+    const result = await scanEventOnce(row, {
+      source: 'manual',
+      db: req.tenantPrisma,
+    });
     return res.status(200).json({ message: 'Event scan completed', ...result });
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
@@ -156,7 +186,7 @@ const runEventScan = async (req, res) => {
 
 const getEventsReport = async (req, res) => {
   try {
-    const data = await eventService.getEventsReport();
+    const data = await eventService.getEventsReport({ db: req.tenantPrisma });
     return res.status(200).json(data);
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });

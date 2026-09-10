@@ -57,26 +57,13 @@ CREATE TYPE daily_programme_permission_enum AS ENUM (
 -- ---------------------------------------------------------------------------
 -- 3) Auth / RBAC
 -- ---------------------------------------------------------------------------
-CREATE TABLE roles (
-  id                  SERIAL PRIMARY KEY,
-  name                TEXT NOT NULL,
-  slug                TEXT NOT NULL UNIQUE,
-  allowed_pages       TEXT[] NOT NULL DEFAULT '{}',
-  assignable_by       TEXT[] NOT NULL DEFAULT '{superadmin}',
-  can_manage_users    BOOLEAN NOT NULL DEFAULT FALSE,
-  can_manage_roles    BOOLEAN NOT NULL DEFAULT FALSE,
-  is_system           BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
 CREATE TABLE users (
   id                          SERIAL PRIMARY KEY,
   name                        TEXT NOT NULL,
   username                    TEXT NOT NULL UNIQUE,
   email                       TEXT NOT NULL UNIQUE,
   password                    TEXT NOT NULL,
-  role_id                     INTEGER NOT NULL REFERENCES roles (id) ON DELETE RESTRICT,
+  role                        TEXT NOT NULL DEFAULT 'user',
   created_by                  INTEGER REFERENCES users (id) ON DELETE SET NULL,
   ui_mode                     TEXT NOT NULL DEFAULT 'light',
   theme_color                 TEXT NOT NULL DEFAULT '#1e3a8a',

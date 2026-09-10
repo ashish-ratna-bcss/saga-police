@@ -6,6 +6,8 @@ const {
   updatePlatform,
   deletePlatform,
   listProfiles,
+  getProfile,
+  listProfilePosts,
   createProfile,
   createProfilesBatch,
   updateProfile,
@@ -20,16 +22,15 @@ const {
 const { authorize } = require('../../middleware/auth.middleware');
 
 const PROFILE_ALLOWED_PAGES = ['/social-profiles'];
+/** Settings → Platforms manage (add/edit/delete) */
+const PLATFORM_MANAGE_PAGES = ['/settings', '/social-profiles'];
+
+router.get('/platforms', authorize({ pages: PLATFORM_MANAGE_PAGES }), listPlatforms);
+router.post('/platforms', authorize({ pages: PLATFORM_MANAGE_PAGES }), createPlatform);
+router.put('/platforms/:id', authorize({ pages: PLATFORM_MANAGE_PAGES }), updatePlatform);
+router.delete('/platforms/:id', authorize({ pages: PLATFORM_MANAGE_PAGES }), deletePlatform);
 
 router.use(authorize({ pages: PROFILE_ALLOWED_PAGES }));
-
-router.route('/platforms')
-  .get(listPlatforms)
-  .post(createPlatform);
-
-router.route('/platforms/:id')
-  .put(updatePlatform)
-  .delete(deletePlatform);
 
 router.post('/preview', previewProfileIdentity);
 router.post('/batch', createProfilesBatch);
@@ -43,8 +44,10 @@ router.put('/monitoring/start-all', startAllMonitoring);
 router.put('/monitoring/stop-all', stopAllMonitoring);
 
 router.put('/:id/monitoring', toggleMonitoring);
+router.get('/:id/posts', listProfilePosts);
 
 router.route('/:id')
+  .get(getProfile)
   .put(updateProfile)
   .delete(deleteProfile);
 

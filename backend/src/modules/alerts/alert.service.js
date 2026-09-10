@@ -1,4 +1,4 @@
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 const { getSettingsDoc } = require('../settings/settings.service');
 const {
   ALERT_INCLUDE,
@@ -14,6 +14,7 @@ const {
  * Skips low-risk unless settings.alert_for_every_post is true.
  */
 const createAlertFromCatalogPost = async (post, analysisResult, options = {}) => {
+  const prisma = dbOf(options.db);
   if (!post || !analysisResult || analysisResult.skipped) {
     return { created: false, skipped: true, reason: 'no_analysis' };
   }
@@ -25,7 +26,7 @@ const createAlertFromCatalogPost = async (post, analysisResult, options = {}) =>
 
   let alertEvery = false;
   try {
-    const settings = await getSettingsDoc();
+    const settings = await getSettingsDoc({ db: prisma });
     alertEvery = Boolean(settings?.alert_for_every_post);
   } catch (_) {
     /* settings optional */
@@ -155,7 +156,8 @@ const createAlertFromCatalogPost = async (post, analysisResult, options = {}) =>
   return { created: true, alert };
 };
 
-const buildCatalogStats = async (params = {}) => {
+const buildCatalogStats = async (params = {}, { db } = {}) => {
+  const prisma = dbOf(db);
   const where = buildWhere({ ...params, status: undefined });
   delete where.status;
 
@@ -185,7 +187,8 @@ const buildCatalogStats = async (params = {}) => {
   return counts;
 };
 
-const listCatalogAlerts = async ({ query = {}, page = 1, limit = 20 } = {}) => {
+const listCatalogAlerts = async ({ query = {}, page = 1, limit = 20, db } = {}) => {
+  const prisma = dbOf(db);
   const skip = (page - 1) * limit;
   const where = buildWhere(query);
 
@@ -215,7 +218,8 @@ const listCatalogAlerts = async ({ query = {}, page = 1, limit = 20 } = {}) => {
   };
 };
 
-const getCatalogAlertById = async (id) => {
+const getCatalogAlertById = async (id, { db } = {}) => {
+  const prisma = dbOf(db);
   const row = await prisma.social_media_alerts.findUnique({
     where: { id: BigInt(id) },
     include: ALERT_INCLUDE,
@@ -223,7 +227,8 @@ const getCatalogAlertById = async (id) => {
   return row ? hydrateCatalogAlert(row) : null;
 };
 
-const getCatalogAlertsByIds = async (ids = []) => {
+const getCatalogAlertsByIds = async (ids = [], { db } = {}) => {
+  const prisma = dbOf(db);
   const bigIds = ids
     .map((id) => {
       try {
@@ -245,7 +250,8 @@ const getCatalogAlertsByIds = async (ids = []) => {
   return rows.map(hydrateCatalogAlert);
 };
 
-const updateCatalogAlert = async (id, body = {}) => {
+const updateCatalogAlert = async (id, body = {}, { db } = {}) => {
+  const prisma = dbOf(db);
   const existing = await prisma.social_media_alerts.findUnique({
     where: { id: BigInt(id) },
   });
@@ -276,12 +282,22 @@ const updateCatalogAlert = async (id, body = {}) => {
   return hydrateCatalogAlert(updated);
 };
 
-const getUnreadCount = async () =>
-  prisma.social_media_alerts.count({
-    where: { is_read: false, status: 'active' },
-  });
+const getUnreadCount = async ({ db } = {}) => {
+  if (!db) return 0;
+  const prisma = dbOf(db);
+  try {
+    return await prisma.social_media_alerts.count({
+      where: { is_read: false, status: 'active' },
+    });
+  } catch (error) {
+    // Missing tenant / empty schema (e.g. superadmin with no db_name).
+    if (error.code === 'P2021' || error.code === 'NO_TENANT_DB') return 0;
+    throw error;
+  }
+};
 
-const markAllRead = async () => {
+const markAllRead = async ({ db } = {}) => {
+  const prisma = dbOf(db);
   const result = await prisma.social_media_alerts.updateMany({
     where: { is_read: false },
     data: { is_read: true },
@@ -308,7 +324,9 @@ const listTopCatalogAlertsByCategory = async ({
   hours = 24,
   topNPerCategory = 50,
   maxPerAuthor = 8,
+  db,
 } = {}) => {
+  const prisma = dbOf(db);
   const safeHours = Math.max(1, Math.min(Number(hours) || 24, 168));
   const safeTopN = Math.max(1, Math.min(Number(topNPerCategory) || 50, 100));
   const safeMaxAuthor = Math.max(1, Math.min(Number(maxPerAuthor) || 8, 30));
@@ -391,7 +409,8 @@ const TRACKED_WORKFLOW_STATUSES = ['acknowledged', 'escalated', 'resolved', 'fal
  * Workflow KPI from Postgres catalog alerts (status + updated_at).
  * No status_history column yet — buckets current status by last update in range.
  */
-const getCatalogWorkflowKpi = async ({ start, end } = {}) => {
+const getCatalogWorkflowKpi = async ({ start, end, db } = {}) => {
+  const prisma = dbOf(db);
   const rows = await prisma.social_media_alerts.findMany({
     where: {
       status: { in: TRACKED_WORKFLOW_STATUSES },

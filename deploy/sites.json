@@ -1,0 +1,21 @@
+{
+  "ip": "100.49.109.96",
+  "web_root": "/var/www/sockeye/frontend/build",
+  "backend_bind": "127.0.0.1",
+  "sites": [
+    {
+      "admin": "odisha",
+      "frontend_port": 3000,
+      "backend_port": 5005,
+      "domain": "",
+      "enabled": true
+    },
+    {
+      "admin": "andhra",
+      "frontend_port": 3001,
+      "backend_port": 5006,
+      "domain": "",
+      "enabled": false
+    }
+  ]
+}

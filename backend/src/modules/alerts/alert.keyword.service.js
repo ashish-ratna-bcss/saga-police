@@ -1,4 +1,4 @@
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 const { createAuditLog } = require('../../lib/audit');
 const logger = require('../../lib/logger');
 
@@ -12,7 +12,8 @@ const toProp = (row) => {
   };
 };
 
-const listKeywords = async () => {
+const listKeywords = async (_filters = {}, { db } = {}) => {
+  const prisma = dbOf(db);
   const rows = await prisma.keywords.findMany({
     orderBy: { keyword: 'asc' },
     take: 1000,
@@ -24,7 +25,8 @@ const listKeywords = async () => {
  * Re-queue catalog posts whose text contains the keyword so sentiment
  * can re-run and create social_media_alerts when matched.
  */
-const rescanCatalogPostsForKeyword = async (keyword) => {
+const rescanCatalogPostsForKeyword = async (keyword, { db } = {}) => {
+  const prisma = dbOf(db);
   const needle = String(keyword || '').trim();
   if (!needle) return { reset: 0 };
 
@@ -51,7 +53,8 @@ const rescanCatalogPostsForKeyword = async (keyword) => {
   return { reset: result.count };
 };
 
-const createKeyword = async (body = {}, { user } = {}) => {
+const createKeyword = async (body = {}, { user, db } = {}) => {
+  const prisma = dbOf(db);
   const keyword = String(body.keyword || '').trim();
   if (!keyword) {
     const err = new Error('keyword is required');
@@ -64,7 +67,7 @@ const createKeyword = async (body = {}, { user } = {}) => {
     let rescan = null;
     if (body.rescan_catalog === true || body.rescan_catalog === 'true') {
       try {
-        rescan = await rescanCatalogPostsForKeyword(existing.keyword);
+        rescan = await rescanCatalogPostsForKeyword(existing.keyword, { db: prisma });
       } catch (rescanErr) {
         logger.error('[AlertsKeywords] catalog rescan failed:', rescanErr);
         rescan = { reset: 0, error: rescanErr.message };
@@ -104,7 +107,7 @@ const createKeyword = async (body = {}, { user } = {}) => {
   let rescan = null;
   if (body.rescan_catalog === true || body.rescan_catalog === 'true') {
     try {
-      rescan = await rescanCatalogPostsForKeyword(created.keyword);
+      rescan = await rescanCatalogPostsForKeyword(created.keyword, { db: prisma });
     } catch (rescanErr) {
       logger.error('[AlertsKeywords] catalog rescan failed:', rescanErr);
       rescan = { reset: 0, error: rescanErr.message };
@@ -114,7 +117,8 @@ const createKeyword = async (body = {}, { user } = {}) => {
   return { keyword: toProp(created), rescan };
 };
 
-const updateKeyword = async (id, body = {}, { user } = {}) => {
+const updateKeyword = async (id, body = {}, { user, db } = {}) => {
+  const prisma = dbOf(db);
   const numericId = Number(id);
   if (!Number.isFinite(numericId)) {
     const err = new Error('Keyword not found');
@@ -171,7 +175,7 @@ const updateKeyword = async (id, body = {}, { user } = {}) => {
 
   if (shouldRescan) {
     try {
-      rescan = await rescanCatalogPostsForKeyword(updated.keyword);
+      rescan = await rescanCatalogPostsForKeyword(updated.keyword, { db: prisma });
     } catch (rescanErr) {
       logger.error('[AlertsKeywords] catalog rescan failed:', rescanErr);
       rescan = { reset: 0, error: rescanErr.message };
@@ -181,7 +185,8 @@ const updateKeyword = async (id, body = {}, { user } = {}) => {
   return { keyword: toProp(updated), rescan };
 };
 
-const deleteKeyword = async (id, { user } = {}) => {
+const deleteKeyword = async (id, { user, db } = {}) => {
+  const prisma = dbOf(db);
   const numericId = Number(id);
   if (!Number.isFinite(numericId)) {
     const err = new Error('Keyword not found');
@@ -217,7 +222,8 @@ const deleteKeyword = async (id, { user } = {}) => {
  * Full-table rescan: match every post text against all keywords,
  * update analysis risk on hits, create alert only if one does not exist yet.
  */
-const rescanAllCatalogPostsForKeywords = async () => {
+const rescanAllCatalogPostsForKeywords = async ({ db } = {}) => {
+  const prisma = dbOf(db);
   const { createAlertFromCatalogPost } = require('./alert.service');
 
   const keywordRows = await prisma.keywords.findMany({
@@ -317,7 +323,7 @@ const rescanAllCatalogPostsForKeywords = async () => {
     const alertInfo = await createAlertFromCatalogPost(
       { ...post, id: String(post.id) },
       analysis_result,
-      { skipIfExists: true }
+      { skipIfExists: true, db: prisma }
     );
 
     if (alertInfo?.created) alertsCreated += 1;

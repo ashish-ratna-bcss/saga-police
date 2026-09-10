@@ -1,9 +1,12 @@
-// Reads the YouTube Data API v3 settings from the environment.
-// Unlike Facebook/X, this isn't a RapidAPI provider — it's Google's own API,
-// accessed through the `googleapis` SDK, authenticated with a single key.
-// Set this one in .env:
-//   YOUTUBE_API_KEY   from Google Cloud Console (project "soceye")
+// YouTube Blugate gateway base URL (credentials from platforms table).
+//   BLUGATE_YOUTUBE_HOST=https://blugate.blurasaga.com/api/gateway/youtube
+//   or BLUGATE_BASE_URL=https://blugate.blurasaga.com
 
-const getYouTubeApiKey = () => process.env.YOUTUBE_API_KEY;
+const { resolveGatewayBaseUrl } = require('../blugate.http');
 
-module.exports = { getYouTubeApiKey };
+const getYouTubeBaseUrl = () =>
+  resolveGatewayBaseUrl('youtube', ['BLUGATE_YOUTUBE_HOST', 'YOUTUBE_BASE_URL']);
+
+module.exports = {
+  getYouTubeBaseUrl,
+};

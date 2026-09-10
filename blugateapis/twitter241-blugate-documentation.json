@@ -1,0 +1,1310 @@
+{
+  "format": "blugate-client-documentation-v1",
+  "gatewayBaseUrl": "https://blugate.blurasaga.com/api/gateway/twitter",
+  "auth": {
+    "note": "Authenticate with your BluGate client API key and client code. BluGate handles upstream credentials for you.",
+    "headers": [
+      {
+        "name": "Authorization",
+        "value": "Bearer <BLUGATE_API_KEY>",
+        "required": true,
+        "description": "BluGate client API key"
+      },
+      {
+        "name": "x-client-id",
+        "value": "<CLIENT_CODE>",
+        "required": true,
+        "description": "Your BluGate client code (e.g. SOC-EYE-001)"
+      }
+    ]
+  },
+  "endpoints": [
+    {
+      "method": "GET",
+      "route": "/community-about",
+      "gatewayPath": "/api/gateway/twitter/community-about",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/community-about",
+      "name": "Get Community About",
+      "description": "Get Community About by Community Id",
+      "groupName": "Community Endpoint",
+      "params": [
+        {
+          "name": "communityId",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Community ID"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/community-details",
+      "gatewayPath": "/api/gateway/twitter/community-details",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/community-details",
+      "name": "Get Community Details",
+      "description": "Get Community Details by Community ID",
+      "groupName": "Community Endpoint",
+      "params": [
+        {
+          "name": "communityId",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Community ID"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/community-members",
+      "gatewayPath": "/api/gateway/twitter/community-members",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/community-members",
+      "name": "Get Community Members",
+      "description": "Get Community Members by Community ID",
+      "groupName": "Community Endpoint",
+      "params": [
+        {
+          "name": "communityId",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Community ID"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/community-members-v2",
+      "gatewayPath": "/api/gateway/twitter/community-members-v2",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/community-members-v2",
+      "name": "Get Community Members V2",
+      "description": "Get Community Members by Community ID",
+      "groupName": "Community Endpoint",
+      "params": [
+        {
+          "name": "communityId",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Community ID"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/community-moderators",
+      "gatewayPath": "/api/gateway/twitter/community-moderators",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/community-moderators",
+      "name": "Get Community Moderators",
+      "description": "Get Community Moderators by Community ID",
+      "groupName": "Community Endpoint",
+      "params": [
+        {
+          "name": "communityId",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Community ID"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/community-topics",
+      "gatewayPath": "/api/gateway/twitter/community-topics",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/community-topics",
+      "name": "Get Community Topics",
+      "description": "Get Community Topics",
+      "groupName": "Community Endpoint",
+      "params": [
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor if supported"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/community-tweets",
+      "gatewayPath": "/api/gateway/twitter/community-tweets",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/community-tweets",
+      "name": "Get Community Tweets",
+      "description": "Get Community Tweets by Community ID",
+      "groupName": "Community Endpoint",
+      "params": [
+        {
+          "name": "communityId",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Community ID"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/explore-community-timeline",
+      "gatewayPath": "/api/gateway/twitter/explore-community-timeline",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/explore-community-timeline",
+      "name": "Get Community Timeline",
+      "description": "Explore Community Timeline",
+      "groupName": "Community Endpoint",
+      "params": [
+        {
+          "name": "count",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/fetch-popular-community",
+      "gatewayPath": "/api/gateway/twitter/fetch-popular-community",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/fetch-popular-community",
+      "name": "Fetch Popular Community",
+      "description": "Fetch Popular Community",
+      "groupName": "Community Endpoint",
+      "params": [
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor if supported"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/search-community",
+      "gatewayPath": "/api/gateway/twitter/search-community",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/search-community",
+      "name": "Search Community",
+      "description": "Search community",
+      "groupName": "Community Endpoint",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Community search query"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/get-users-v2",
+      "gatewayPath": "/api/gateway/twitter/get-users-v2",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/get-users-v2",
+      "name": "Get Users By IDs V2 (Deprecated)",
+      "description": "Get Users By IDs V2",
+      "groupName": "Deprecated",
+      "params": [
+        {
+          "name": "users",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Comma-separated rest IDs (deprecated)"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/likes",
+      "gatewayPath": "/api/gateway/twitter/likes",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/likes",
+      "name": "Get Post Likes (Deprecated)",
+      "description": "Get Post Likes By Post ID (Deprecated)",
+      "groupName": "Deprecated",
+      "params": [
+        {
+          "name": "pid",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Post/tweet ID (deprecated)"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/tweet",
+      "gatewayPath": "/api/gateway/twitter/tweet",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/tweet",
+      "name": "Get Tweet Details (Deprecated)",
+      "description": "Get Tweet Details By Tweet ID (Deprecated)",
+      "groupName": "Deprecated",
+      "params": []
+    },
+    {
+      "method": "GET",
+      "route": "/user-likes",
+      "gatewayPath": "/api/gateway/twitter/user-likes",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/user-likes",
+      "name": "Get User Likes (Deprecated)",
+      "description": "Get User Likes By ID\\",
+      "groupName": "Deprecated",
+      "params": [
+        {
+          "name": "user",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "User rest_id (deprecated endpoint)"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/autocomplete",
+      "gatewayPath": "/api/gateway/twitter/autocomplete",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/autocomplete",
+      "name": "Autocomplete",
+      "description": "Twitter Seach Query Autocomplete",
+      "groupName": "Explore Endpoint",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Partial search query"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/search",
+      "gatewayPath": "/api/gateway/twitter/search",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/search",
+      "name": "Search Twitter",
+      "description": "Search Twitter (Top, Latest, Videos, Photos and People)",
+      "groupName": "Explore Endpoint",
+      "params": [
+        {
+          "name": "type",
+          "in": "query",
+          "required": true,
+          "type": "enum",
+          "description": "Top / Latest / Videos / Photos / People (confirm enum in playground)"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Search query"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/search-v2",
+      "gatewayPath": "/api/gateway/twitter/search-v2",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/search-v2",
+      "name": "Search Twitter V2",
+      "description": "Search Twitter (Top, Latest, Videos, Photos and People)",
+      "groupName": "Explore Endpoint",
+      "params": [
+        {
+          "name": "type",
+          "in": "query",
+          "required": true,
+          "type": "enum",
+          "description": "Top / Latest / Videos / Photos / People"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Search query"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/search-v3",
+      "gatewayPath": "/api/gateway/twitter/search-v3",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/search-v3",
+      "name": "Search Twitter V3",
+      "description": "Search Twitter V3",
+      "groupName": "Explore Endpoint",
+      "params": [
+        {
+          "name": "type",
+          "in": "query",
+          "required": true,
+          "type": "enum",
+          "description": "Top / Latest / Videos / Photos / People"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Search query"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/job-details",
+      "gatewayPath": "/api/gateway/twitter/job-details",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/job-details",
+      "name": "Job Details",
+      "description": "Get Job Details",
+      "groupName": "Jobs Endpoint",
+      "params": [
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Job ID"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/jobs-locations-suggest",
+      "gatewayPath": "/api/gateway/twitter/jobs-locations-suggest",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/jobs-locations-suggest",
+      "name": "Search Job Locations",
+      "description": "Suggest Job Locations",
+      "groupName": "Jobs Endpoint",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Location search text"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/jobs-search",
+      "gatewayPath": "/api/gateway/twitter/jobs-search",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/jobs-search",
+      "name": "Search Jobs",
+      "description": "Search Jobs",
+      "groupName": "Jobs Endpoint",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Job search keyword"
+        },
+        {
+          "name": "location",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Location filter if supported"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/list-details",
+      "gatewayPath": "/api/gateway/twitter/list-details",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/list-details",
+      "name": "Get List Details",
+      "description": "Get list details by listId",
+      "groupName": "Lists Endpoint",
+      "params": [
+        {
+          "name": "listId",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "List ID"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/list-followers",
+      "gatewayPath": "/api/gateway/twitter/list-followers",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/list-followers",
+      "name": "Get List  Followers",
+      "description": "Get List Followers by List ID",
+      "groupName": "Lists Endpoint",
+      "params": [
+        {
+          "name": "listId",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "List ID"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/list-members",
+      "gatewayPath": "/api/gateway/twitter/list-members",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/list-members",
+      "name": "Get List Members",
+      "description": "Get List Members by List ID",
+      "groupName": "Lists Endpoint",
+      "params": [
+        {
+          "name": "listId",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "List ID"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/list-timeline",
+      "gatewayPath": "/api/gateway/twitter/list-timeline",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/list-timeline",
+      "name": "Get List Timeline",
+      "description": "Get list timeline by listId",
+      "groupName": "Lists Endpoint",
+      "params": [
+        {
+          "name": "listId",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "List ID"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/search-lists",
+      "gatewayPath": "/api/gateway/twitter/search-lists",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/search-lists",
+      "name": "Search Lists",
+      "description": "Search lists",
+      "groupName": "Lists Endpoint",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "List search query"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/org-affiliates",
+      "gatewayPath": "/api/gateway/twitter/org-affiliates",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/org-affiliates",
+      "name": "Get Organization Affiliates",
+      "description": "Get Organization Affiliates By ID\\",
+      "groupName": "Organization Endpoint",
+      "params": [
+        {
+          "name": "user",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Organization/user rest_id"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/comments",
+      "gatewayPath": "/api/gateway/twitter/comments",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/comments",
+      "name": "Get Post Comments",
+      "description": "Get Post Comments By Post ID",
+      "groupName": "Posts Endpoint",
+      "params": [
+        {
+          "name": "pid",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Post/tweet ID"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/comments-v2",
+      "gatewayPath": "/api/gateway/twitter/comments-v2",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/comments-v2",
+      "name": "Get Post Comments V2",
+      "description": "Get Post Comments By Post ID V2",
+      "groupName": "Posts Endpoint",
+      "params": [
+        {
+          "name": "pid",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Post/tweet ID"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/quotes",
+      "gatewayPath": "/api/gateway/twitter/quotes",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/quotes",
+      "name": "Get Post Quotes",
+      "description": "Get Post Quotes By Post ID",
+      "groupName": "Posts Endpoint",
+      "params": [
+        {
+          "name": "pid",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Post/tweet ID"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/retweets",
+      "gatewayPath": "/api/gateway/twitter/retweets",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/retweets",
+      "name": "Get Post Retweets",
+      "description": "Get Post Retweets By Post ID",
+      "groupName": "Posts Endpoint",
+      "params": [
+        {
+          "name": "pid",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Post/tweet ID"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/tweet-by-ids",
+      "gatewayPath": "/api/gateway/twitter/tweet-by-ids",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/tweet-by-ids",
+      "name": "Get Tweets Details By IDs",
+      "description": "Get Tweets Details By Tweet IDs",
+      "groupName": "Posts Endpoint",
+      "params": [
+        {
+          "name": "ids",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Comma-separated tweet IDs"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/tweet-by-ids-v2",
+      "gatewayPath": "/api/gateway/twitter/tweet-by-ids-v2",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/tweet-by-ids-v2",
+      "name": "Get Tweets Details By IDs V2",
+      "description": "Get Tweets Details By IDs V2",
+      "groupName": "Posts Endpoint",
+      "params": [
+        {
+          "name": "ids",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Comma-separated tweet IDs"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/tweet-v2",
+      "gatewayPath": "/api/gateway/twitter/tweet-v2",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/tweet-v2",
+      "name": "Get Tweet Details V2",
+      "description": "Get Tweet Details By Tweet ID",
+      "groupName": "Posts Endpoint",
+      "params": []
+    },
+    {
+      "method": "GET",
+      "route": "/spaces",
+      "gatewayPath": "/api/gateway/twitter/spaces",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/spaces",
+      "name": "Space Details",
+      "description": "Get Space Details By ID",
+      "groupName": "Spaces Endpoint",
+      "params": [
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Space ID"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/trends-by-location",
+      "gatewayPath": "/api/gateway/twitter/trends-by-location",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/trends-by-location",
+      "name": "Get Trends By Location",
+      "description": "Get Trends By Location",
+      "groupName": "Trends Endpoint",
+      "params": []
+    },
+    {
+      "method": "GET",
+      "route": "/trends-locations",
+      "gatewayPath": "/api/gateway/twitter/trends-locations",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/trends-locations",
+      "name": "Get Available Trends Locations",
+      "description": "Get Available Trends Locations",
+      "groupName": "Trends Endpoint",
+      "params": []
+    },
+    {
+      "method": "GET",
+      "route": "/about-account",
+      "gatewayPath": "/api/gateway/twitter/about-account",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/about-account",
+      "name": "Get About Account",
+      "description": "Get About Account",
+      "groupName": "User Endpoint",
+      "params": []
+    },
+    {
+      "method": "GET",
+      "route": "/followers",
+      "gatewayPath": "/api/gateway/twitter/followers",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/followers",
+      "name": "Get User Followers",
+      "description": "Get User Followers By ID. \\",
+      "groupName": "User Endpoint",
+      "params": [
+        {
+          "name": "user",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "User rest_id"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/followers-ids",
+      "gatewayPath": "/api/gateway/twitter/followers-ids",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/followers-ids",
+      "name": "Get User Followers IDs",
+      "description": "GET Followers IDs by Username",
+      "groupName": "User Endpoint",
+      "params": [
+        {
+          "name": "username",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Twitter/X username"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Max may be 5000 — confirm in playground"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/following-ids",
+      "gatewayPath": "/api/gateway/twitter/following-ids",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/following-ids",
+      "name": "Get User Following IDs",
+      "description": "GET Following IDs by Username",
+      "groupName": "User Endpoint",
+      "params": [
+        {
+          "name": "username",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Twitter/X username"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Maximum count is 5000"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/followings",
+      "gatewayPath": "/api/gateway/twitter/followings",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/followings",
+      "name": "Get User Followings",
+      "description": "Get User Followings By ID. \\",
+      "groupName": "User Endpoint",
+      "params": [
+        {
+          "name": "user",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "User rest_id"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/get-users",
+      "gatewayPath": "/api/gateway/twitter/get-users",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/get-users",
+      "name": "Get Users By IDs",
+      "description": "Get Users By IDs (Rest IDs)",
+      "groupName": "User Endpoint",
+      "params": [
+        {
+          "name": "users",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Comma-separated rest IDs (confirm param name in playground)"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/highlights",
+      "gatewayPath": "/api/gateway/twitter/highlights",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/highlights",
+      "name": "Get Highlights",
+      "description": "Get user highlights by ID",
+      "groupName": "User Endpoint",
+      "params": [
+        {
+          "name": "user",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "User rest_id"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/user",
+      "gatewayPath": "/api/gateway/twitter/user",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/user",
+      "name": "Get User By Username",
+      "description": "Gets a user by username",
+      "groupName": "User Endpoint",
+      "params": [
+        {
+          "name": "username",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Twitter/X username (without @)"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/user-media",
+      "gatewayPath": "/api/gateway/twitter/user-media",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/user-media",
+      "name": "Get User Media",
+      "description": "Get User Media By ID\\",
+      "groupName": "User Endpoint",
+      "params": [
+        {
+          "name": "user",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "User rest_id from Get User By Username"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/user-replies",
+      "gatewayPath": "/api/gateway/twitter/user-replies",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/user-replies",
+      "name": "Get User Replies",
+      "description": "Get User Replies By ID\\",
+      "groupName": "User Endpoint",
+      "params": [
+        {
+          "name": "user",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "User rest_id from Get User By Username"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/user-replies-v2",
+      "gatewayPath": "/api/gateway/twitter/user-replies-v2",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/user-replies-v2",
+      "name": "Get User Replies V2",
+      "description": "Get User Replies By ID\\",
+      "groupName": "User Endpoint",
+      "params": [
+        {
+          "name": "user",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "User rest_id"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/user-tweets",
+      "gatewayPath": "/api/gateway/twitter/user-tweets",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/user-tweets",
+      "name": "Get User Tweets",
+      "description": "Get User Tweets By ID\\",
+      "groupName": "User Endpoint",
+      "params": [
+        {
+          "name": "user",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "User rest_id from Get User By Username"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Requested count (may return fewer)"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/verified-followers",
+      "gatewayPath": "/api/gateway/twitter/verified-followers",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/twitter/verified-followers",
+      "name": "Get User Verified Followers",
+      "description": "Get User Verified Followers By ID. \\",
+      "groupName": "User Endpoint",
+      "params": [
+        {
+          "name": "user",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "User rest_id"
+        },
+        {
+          "name": "count",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Result count"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-const prisma = require('../../../prisma/client');
+const { listTenantDbNames, getTenantPrisma } = require('../../lib/tenantDatabase.service');
 const { scanEventOnce } = require('./event.scan.service');
 const logger = require('../../lib/logger');
 
@@ -18,19 +18,32 @@ const tick = async () => {
   if (running) return;
   running = true;
   try {
-    const active = await prisma.social_media_events.findMany({
-      where: { monitoring_status: 'started' },
-      orderBy: { id: 'asc' },
-    });
-    for (const event of active) {
-      if (!dueForPoll(event)) continue;
+    const dbNames = await listTenantDbNames();
+    for (const dbName of dbNames) {
+      const tenantPrisma = getTenantPrisma(dbName);
       try {
-        const result = await scanEventOnce(event, { source: 'scheduler' });
-        logger.info(
-          `[EventScheduler] event=${event.id} scanned=${result.scanned} ingested=${result.ingested}`
-        );
+        const active = await tenantPrisma.social_media_events.findMany({
+          where: { monitoring_status: 'started' },
+          orderBy: { id: 'asc' },
+        });
+        for (const event of active) {
+          if (!dueForPoll(event)) continue;
+          try {
+            const result = await scanEventOnce(event, {
+              source: 'scheduler',
+              db: tenantPrisma,
+            });
+            logger.info(
+              `[EventScheduler] tenant=${dbName} event=${event.id} scanned=${result.scanned} ingested=${result.ingested}`
+            );
+          } catch (err) {
+            logger.warn(
+              `[EventScheduler] tenant=${dbName} event=${event.id} failed: ${err.message}`
+            );
+          }
+        }
       } catch (err) {
-        logger.warn(`[EventScheduler] event=${event.id} failed: ${err.message}`);
+        logger.warn(`[EventScheduler] tenant=${dbName} tick failed: ${err.message}`);
       }
     }
   } catch (err) {

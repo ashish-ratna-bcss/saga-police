@@ -1,4 +1,4 @@
-const prisma = require('../../../../prisma/client');
+const dbOf = require('../../../lib/dbOf');
 const { runTelegramProfile } = require('./runProfile');
 const {
   startScheduler,
@@ -15,7 +15,8 @@ const TELEGRAM_FIELDS = [
 ];
 
 /** Ensure Telegram exists in platforms catalog (Social Profiles picker). */
-const ensureTelegramPlatform = async () => {
+const ensureTelegramPlatform = async ({ db } = {}) => {
+  const prisma = dbOf(db);
   try {
     await prisma.platforms.upsert({
       where: { slug: 'telegram' },
@@ -39,19 +40,19 @@ const ensureTelegramPlatform = async () => {
   }
 };
 
-const startProfile = async (profileId) => {
-  await ensureTelegramPlatform();
-  if (isInFlight(profileId)) return;
-  markInFlight(profileId);
+const startProfile = async (profileId, { db, dbName } = {}) => {
+  await ensureTelegramPlatform({ db });
+  if (isInFlight(profileId, dbName)) return;
+  markInFlight(profileId, dbName);
   try {
-    await runTelegramProfile(profileId, { force: true });
+    await runTelegramProfile(profileId, { force: true, db, dbName });
   } finally {
-    clearInFlight(profileId);
+    clearInFlight(profileId, dbName);
   }
 };
 
-const stopProfile = (profileId) => {
-  clearInFlight(profileId);
+const stopProfile = (profileId, { dbName } = {}) => {
+  clearInFlight(profileId, dbName);
 };
 
 const startSchedulerWrapped = () => {

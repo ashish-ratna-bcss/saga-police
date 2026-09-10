@@ -7,10 +7,10 @@ const isRateError = (err) => {
   return status === 429 || msg.includes('quota') || msg.includes('rate');
 };
 
-const callWithGap = async (endpointKey, params) => {
+const callWithGap = async (endpointKey, params, auth = null) => {
   await waitForSlot();
   try {
-    return await callYouTubeApi(endpointKey, params);
+    return await callYouTubeApi(endpointKey, params, auth);
   } catch (err) {
     if (isRateError(err)) noteRateLimit();
     throw err;
@@ -58,7 +58,7 @@ const parseChannelRef = (raw = {}) => {
   return { channelId: null, handle: null };
 };
 
-const resolveChannel = async (accountData = {}) => {
+const resolveChannel = async (accountData = {}, auth = null) => {
   const data = accountData && typeof accountData === 'object' ? accountData : {};
   const { channelId: existingId, handle } = parseChannelRef(data);
 
@@ -82,7 +82,7 @@ const resolveChannel = async (accountData = {}) => {
     throw new Error('YouTube account needs channel_url, @handle, or channel_id');
   }
 
-  const res = await callWithGap('CHANNELS_LIST', params);
+  const res = await callWithGap('CHANNELS_LIST', params, auth);
   const channel = res?.items?.[0];
   if (!channel?.id) {
     throw new Error('CHANNELS_LIST did not return a channel');
@@ -152,15 +152,19 @@ const mapYouTubePost = (item, accountId, channelMeta) => {
 /**
  * Fetch recent uploads for one YouTube catalog account.
  */
-const fetchYouTubePosts = async (account) => {
-  let resolved = await resolveChannel(account.data || {});
+const fetchYouTubePosts = async (account, auth = null) => {
+  let resolved = await resolveChannel(account.data || {}, auth);
 
   const loadPlaylist = async (uploadsPlaylistId) => {
-    const playlist = await callWithGap('PLAYLIST_ITEMS_LIST', {
-      part: 'snippet,contentDetails',
-      playlistId: uploadsPlaylistId,
-      maxResults: 15,
-    });
+    const playlist = await callWithGap(
+      'PLAYLIST_ITEMS_LIST',
+      {
+        part: 'snippet,contentDetails',
+        playlistId: uploadsPlaylistId,
+        maxResults: 15,
+      },
+      auth
+    );
     const items = Array.isArray(playlist?.items) ? playlist.items : [];
     const seen = new Set();
     const posts = [];
@@ -192,7 +196,7 @@ const fetchYouTubePosts = async (account) => {
     if (playlistMissing && account.data?.uploads_playlist_id) {
       const dataWithoutPlaylist = { ...(account.data || {}) };
       delete dataWithoutPlaylist.uploads_playlist_id;
-      resolved = await resolveChannel(dataWithoutPlaylist);
+      resolved = await resolveChannel(dataWithoutPlaylist, auth);
       const posts = await loadPlaylist(resolved.uploadsPlaylistId);
       return {
         posts,

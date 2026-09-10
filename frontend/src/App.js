@@ -10,6 +10,7 @@ import Login from './pages/auth/Login';
 // Lazy load heavy pages
 const Dashboard = lazy(() => import('./pages/dashboard/DashboardNew'));
 const SocialProfiles = lazy(() => import('./pages/profiles/SocialProfiles'));
+const SocialProfileDetail = lazy(() => import('./pages/profiles/SocialProfileDetail'));
 const ContentFeed = lazy(() => import('./pages/monitors/ContentFeed'));
 const YouTubeMonitor = lazy(() => import('./pages/monitors/YouTubeMonitor'));
 const XMonitor = lazy(() => import('./pages/monitors/XMonitor'));
@@ -32,15 +33,12 @@ const Announcements = lazy(() => import('./pages/events/Announcements'));
 const Reports = lazy(() => import('./pages/reports/Reports'));
 const GenerateReport = lazy(() => import('./pages/reports/GenerateReport'));
 const Dial100IncidentReporting = lazy(() => import('./pages/reports/Dial100IncidentReporting'));
-const UnifiedMonitors = lazy(() => import('./pages/monitors/UnifiedMonitors'));
 const UnifiedReports = lazy(() => import('./pages/reports/UnifiedReports'));
 const IntelligenceDashboard = lazy(() => import('./pages/intelligence/IntelligenceDashboard'));
 const PolicyManager = lazy(() => import('./components/PolicyManager'));
 const PersonOfInterest = lazy(() => import('./pages/POI/PersonOfInterest'));
 const POIDetail = lazy(() => import('./pages/POI/POIDetail'));
-const AccessManagement = lazy(() => import('./pages/admin/AccessManagement'));
 const UsersManagement = lazy(() => import('./pages/admin/UsersManagement'));
-const RolesManagement = lazy(() => import('./pages/admin/RolesManagement'));
 const AnalysisTools = lazy(() => import('./pages/intelligence/AnalysisTools'));
 const WebIntelligence = lazy(() => import('./pages/intelligence/WebIntelligence'));
 const OSINTLayout = lazy(() => import('./pages/osint/OSINTLayout'));
@@ -90,13 +88,13 @@ function App() {
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="sources" element={<Navigate to="/social-profiles" replace />} />
               <Route path="social-profiles" element={<SocialProfiles />} />
+              <Route path="social-profiles/:id" element={<SocialProfileDetail />} />
               <Route path="content" element={<ContentFeed />} />
               <Route path="youtube-monitor" element={<YouTubeMonitor />} />
               <Route path="x-monitor" element={<XMonitor />} />
               <Route path="facebook-monitor" element={<FacebookMonitor />} />
               <Route path="instagram-monitor" element={<InstagramMonitor />} />
               <Route path="instagram-monitor/:sourceId" element={<InstagramProfile />} />
-              <Route path="monitors" element={<UnifiedMonitors />} />
               <Route path="grievances" element={<Grievances />} />
               <Route path="alerts" element={<Alerts />} />
               <Route path="analytics" element={<Analytics />} />
@@ -115,9 +113,7 @@ function App() {
               <Route path="reports/generate/:id" element={<GenerateReport />} />
               <Route path="dial-100-incident-reporting" element={<Dial100IncidentReporting />} />
               <Route path="audit-logs" element={<AuditLogs />} />
-              <Route path="access-management" element={<AccessManagement />} />
               <Route path="users-management" element={<UsersManagement />} />
-              <Route path="roles-management" element={<RolesManagement />} />
               <Route path="person-of-interest" element={<PersonOfInterest />} />
               <Route path="person-of-interest/:id" element={<POIDetail />} />
               <Route path="analysis-tools" element={<AnalysisTools />} />

@@ -12,7 +12,7 @@ const mappingService = require('./mapping.service');
 // @access  Private (Admin)
 exports.getPolicies = async (req, res) => {
   try {
-    const policies = await listPolicies();
+    const policies = await listPolicies({ db: req.tenantPrisma });
     res.status(200).json({ success: true, count: policies.length, data: policies });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -24,7 +24,7 @@ exports.getPolicies = async (req, res) => {
 // @access  Private (Admin)
 exports.getPolicy = async (req, res) => {
   try {
-    const policy = await getPolicy(req.params.id);
+    const policy = await getPolicy(req.params.id, { db: req.tenantPrisma });
     if (!policy) {
       return res.status(404).json({ success: false, error: 'Policy not found' });
     }
@@ -39,8 +39,8 @@ exports.getPolicy = async (req, res) => {
 // @access  Private (Admin)
 exports.createPolicy = async (req, res) => {
   try {
-    const policy = await createPolicy(req.body);
-    await mappingService.forceRefresh();
+    const policy = await createPolicy(req.body, { db: req.tenantPrisma });
+    await mappingService.forceRefresh({ db: req.tenantPrisma });
     res.status(201).json({ success: true, data: policy });
   } catch (err) {
     if (err.code === 'P2002') {
@@ -55,8 +55,8 @@ exports.createPolicy = async (req, res) => {
 // @access  Private (Admin)
 exports.updatePolicy = async (req, res) => {
   try {
-    const policy = await updatePolicy(req.params.id, req.body);
-    await mappingService.forceRefresh();
+    const policy = await updatePolicy(req.params.id, req.body, { db: req.tenantPrisma });
+    await mappingService.forceRefresh({ db: req.tenantPrisma });
     res.status(200).json({ success: true, data: policy });
   } catch (err) {
     if (err.code === 'P2025') {
@@ -71,11 +71,11 @@ exports.updatePolicy = async (req, res) => {
 // @access  Private (Admin)
 exports.deletePolicy = async (req, res) => {
   try {
-    const ok = await deletePolicy(req.params.id);
+    const ok = await deletePolicy(req.params.id, { db: req.tenantPrisma });
     if (!ok) {
       return res.status(404).json({ success: false, error: 'Policy not found' });
     }
-    await mappingService.forceRefresh();
+    await mappingService.forceRefresh({ db: req.tenantPrisma });
     res.status(200).json({ success: true, data: {} });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

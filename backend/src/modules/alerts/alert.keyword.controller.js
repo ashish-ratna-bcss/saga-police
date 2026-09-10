@@ -8,10 +8,13 @@ const {
 
 const getKeywords = async (req, res) => {
   try {
-    const keywords = await listKeywords({
-      category: req.query.category,
-      active: req.query.active,
-    });
+    const keywords = await listKeywords(
+      {
+        category: req.query.category,
+        active: req.query.active,
+      },
+      { db: req.tenantPrisma }
+    );
     return res.status(200).json(keywords);
   } catch (error) {
     logger.error('[AlertsKeywords] list failed:', error);
@@ -21,7 +24,10 @@ const getKeywords = async (req, res) => {
 
 const postKeyword = async (req, res) => {
   try {
-    const result = await createKeyword(req.body || {}, { user: req.user });
+    const result = await createKeyword(req.body || {}, {
+      user: req.user,
+      db: req.tenantPrisma,
+    });
     return res.status(201).json(result);
   } catch (error) {
     logger.error('[AlertsKeywords] create failed:', error);
@@ -31,7 +37,10 @@ const postKeyword = async (req, res) => {
 
 const putKeyword = async (req, res) => {
   try {
-    const result = await updateKeyword(req.params.id, req.body || {}, { user: req.user });
+    const result = await updateKeyword(req.params.id, req.body || {}, {
+      user: req.user,
+      db: req.tenantPrisma,
+    });
     return res.status(200).json(result);
   } catch (error) {
     logger.error('[AlertsKeywords] update failed:', error);
@@ -41,7 +50,10 @@ const putKeyword = async (req, res) => {
 
 const removeKeyword = async (req, res) => {
   try {
-    const result = await deleteKeyword(req.params.id, { user: req.user });
+    const result = await deleteKeyword(req.params.id, {
+      user: req.user,
+      db: req.tenantPrisma,
+    });
     return res.status(200).json(result);
   } catch (error) {
     logger.error('[AlertsKeywords] delete failed:', error);

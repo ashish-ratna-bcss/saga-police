@@ -2,7 +2,7 @@
  * Formal Reports API — Postgres only.
  * Uses existing social_media_grievance_reports (G/S/C/Q) — no Mongo, no second reports table.
  */
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 const cacheService = require('./cache.service');
 
 const asObject = (value, fallback = {}) => {
@@ -55,7 +55,8 @@ const toFormalReportShape = (row) => {
   };
 };
 
-const generateSerialNumber = async (platform, reportType = 'grievance') => {
+const generateSerialNumber = async (platform, reportType = 'grievance', { db } = {}) => {
+  const prisma = dbOf(db);
   // Kept for callers; unique codes are owned by grievance.report.service.
   const prefix = String(reportType || 'G')[0].toUpperCase();
   const p = String(platform || 'x').toUpperCase()[0] || 'X';
@@ -81,7 +82,8 @@ const createReportFromAlert = async () => {
   throw err;
 };
 
-const getAllReports = async (filters = {}) => {
+const getAllReports = async (filters = {}, { db } = {}) => {
+  const prisma = dbOf(db);
   const {
     platform,
     status,
@@ -143,7 +145,8 @@ const getAllReports = async (filters = {}) => {
   };
 };
 
-const updateReport = async (idOrCode, updateData) => {
+const updateReport = async (idOrCode, updateData, { db } = {}) => {
+  const prisma = dbOf(db);
   const existing = await prisma.social_media_grievance_reports.findFirst({
     where: {
       OR: [{ id: String(idOrCode) }, { unique_code: String(idOrCode) }],
@@ -168,7 +171,8 @@ const updateReport = async (idOrCode, updateData) => {
   return toFormalReportShape(row);
 };
 
-const getReportStats = async () => {
+const getReportStats = async ({ db } = {}) => {
+  const prisma = dbOf(db);
   const cacheKey = 'reports:stats:v1:grievance_table';
   const cached = await cacheService.get(cacheKey);
   if (cached) return cached;

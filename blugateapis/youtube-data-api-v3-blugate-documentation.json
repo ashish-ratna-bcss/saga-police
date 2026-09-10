@@ -1,0 +1,3757 @@
+{
+  "format": "blugate-client-documentation-v1",
+  "gatewayBaseUrl": "https://blugate.blurasaga.com/api/gateway/youtube",
+  "auth": {
+    "note": "Authenticate with your BluGate client API key and client code. BluGate handles upstream credentials for you.",
+    "headers": [
+      {
+        "name": "Authorization",
+        "value": "Bearer <BLUGATE_API_KEY>",
+        "required": true,
+        "description": "BluGate client API key"
+      },
+      {
+        "name": "x-client-id",
+        "value": "<CLIENT_CODE>",
+        "required": true,
+        "description": "Your BluGate client code (e.g. SOC-EYE-001)"
+      }
+    ]
+  },
+  "endpoints": [
+    {
+      "method": "POST",
+      "route": "/abuseReports",
+      "gatewayPath": "/api/gateway/youtube/abuseReports",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/abuseReports",
+      "name": "abuseReports.insert",
+      "description": "Inserts a new resource into this collection.",
+      "groupName": "abuseReports",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter serves two purposes in this operation. It identifies the properties that the write operation will set as well as the properties that the API response will include."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/activities",
+      "gatewayPath": "/api/gateway/youtube/activities",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/activities",
+      "name": "activities.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "activities",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "publishedAfter",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies a comma-separated list of one or more activity resource properties that the API response will include. If the parameter identifies a property that contains child properties, the child properties will be included in the response. For example, in an activity resource, the snippet property contains other properties that identify the type of activity, a display title for the activity, and so forth. If you set *part=snippet*, the API response will also contain all of those nested properties."
+        },
+        {
+          "name": "regionCode",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "maxResults",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "The *maxResults* parameter specifies the maximum number of items that should be returned in the result set."
+        },
+        {
+          "name": "mine",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": ""
+        },
+        {
+          "name": "publishedBefore",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "channelId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "home",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": ""
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *pageToken* parameter identifies a specific page in the result set that should be returned. In an API response, the nextPageToken and prevPageToken properties identify other pages that could be retrieved."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/captions",
+      "gatewayPath": "/api/gateway/youtube/captions",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/captions",
+      "name": "captions.insert",
+      "description": "Inserts a new resource into this collection.",
+      "groupName": "captions",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "sync",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Extra parameter to allow automatically syncing the uploaded caption/transcript with the audio."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies the caption resource parts that the API response will include. Set the parameter value to snippet."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The actual CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "onBehalfOf",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "ID of the Google+ Page for the channel that the request is be on behalf of"
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "route": "/captions",
+      "gatewayPath": "/api/gateway/youtube/captions",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/captions",
+      "name": "captions.update",
+      "description": "Updates an existing resource.",
+      "groupName": "captions",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies a comma-separated list of one or more caption resource parts that the API response will include. The part names that you can include in the parameter value are id and snippet."
+        },
+        {
+          "name": "onBehalfOf",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "ID of the Google+ Page for the channel that the request is on behalf of."
+        },
+        {
+          "name": "sync",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Extra parameter to allow automatically syncing the uploaded caption/transcript with the audio."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The actual CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/captions",
+      "gatewayPath": "/api/gateway/youtube/captions",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/captions",
+      "name": "captions.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "captions",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOf",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "ID of the Google+ Page for the channel that the request is on behalf of."
+        },
+        {
+          "name": "videoId",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Returns the captions for the specified video."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Returns the captions with the given IDs for Stubby or Apiary."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The actual CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies a comma-separated list of one or more caption resource parts that the API response will include. The part names that you can include in the parameter value are id and snippet."
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "route": "/captions",
+      "gatewayPath": "/api/gateway/youtube/captions",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/captions",
+      "name": "captions.delete",
+      "description": "Deletes a resource.",
+      "groupName": "captions",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOf",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "ID of the Google+ Page for the channel that the request is be on behalf of"
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The actual CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/captions/{id}",
+      "gatewayPath": "/api/gateway/youtube/captions/{id}",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/captions/{id}",
+      "name": "captions.download",
+      "description": "Downloads a caption track.",
+      "groupName": "captions",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The actual CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "tfmt",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Convert the captions into this format. Supported options are sbv, srt, and vtt."
+        },
+        {
+          "name": "tlang",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "tlang is the language code; machine translate the captions into this language."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The ID of the caption track to download, required for One Platform."
+        },
+        {
+          "name": "onBehalfOf",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "ID of the Google+ Page for the channel that the request is be on behalf of"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/channelBanners/insert",
+      "gatewayPath": "/api/gateway/youtube/channelBanners/insert",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/channelBanners/insert",
+      "name": "channelBanners.insert",
+      "description": "Inserts a new resource into this collection.",
+      "groupName": "channelBanners",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The actual CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        },
+        {
+          "name": "channelId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Unused, channel_id is currently derived from the security context of the requestor."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/channels",
+      "gatewayPath": "/api/gateway/youtube/channels",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/channels",
+      "name": "channels.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "channels",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "managedByMe",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Return the channels managed by the authenticated user."
+        },
+        {
+          "name": "hl",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Stands for \"host language\". Specifies the localization language of the metadata to be filled into snippet.localized. The field is filled with the default metadata if there is no localization in the specified language. The parameter value must be a language code included in the list returned by the i18nLanguages.list method (e.g. en_US, es_MX)."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "forUsername",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return the channel associated with a YouTube username."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies a comma-separated list of one or more channel resource properties that the API response will include. If the parameter identifies a property that contains child properties, the child properties will be included in the response. For example, in a channel resource, the contentDetails property contains other properties, such as the uploads properties. As such, if you set *part=contentDetails*, the API response will also contain all of those nested properties."
+        },
+        {
+          "name": "maxResults",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "The *maxResults* parameter specifies the maximum number of items that should be returned in the result set."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return the channels with the specified IDs."
+        },
+        {
+          "name": "forHandle",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return the channel associated with a YouTube handle."
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *pageToken* parameter identifies a specific page in the result set that should be returned. In an API response, the nextPageToken and prevPageToken properties identify other pages that could be retrieved."
+        },
+        {
+          "name": "categoryId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return the channels within the specified guide category ID."
+        },
+        {
+          "name": "mine",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Return the ids of channels owned by the authenticated user."
+        },
+        {
+          "name": "mySubscribers",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Return the channels subscribed to the authenticated user"
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "route": "/channels",
+      "gatewayPath": "/api/gateway/youtube/channels",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/channels",
+      "name": "channels.update",
+      "description": "Updates an existing resource.",
+      "groupName": "channels",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter serves two purposes in this operation. It identifies the properties that the write operation will set as well as the properties that the API response will include. The API currently only allows the parameter value to be set to either brandingSettings or invideoPromotion. (You cannot update both of those parts with a single request.) Note that this method overrides the existing values for all of the mutable properties that are contained in any parts that the parameter value specifies."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *onBehalfOfContentOwner* parameter indicates that the authenticated user is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The actual CMS account that the user authenticates with needs to be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "route": "/channelSections",
+      "gatewayPath": "/api/gateway/youtube/channelSections",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/channelSections",
+      "name": "channelSections.update",
+      "description": "Updates an existing resource.",
+      "groupName": "channelSections",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter serves two purposes in this operation. It identifies the properties that the write operation will set as well as the properties that the API response will include. The part names that you can include in the parameter value are snippet and contentDetails."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "route": "/channelSections",
+      "gatewayPath": "/api/gateway/youtube/channelSections",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/channelSections",
+      "name": "channelSections.delete",
+      "description": "Deletes a resource.",
+      "groupName": "channelSections",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/channelSections",
+      "gatewayPath": "/api/gateway/youtube/channelSections",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/channelSections",
+      "name": "channelSections.insert",
+      "description": "Inserts a new resource into this collection.",
+      "groupName": "channelSections",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter serves two purposes in this operation. It identifies the properties that the write operation will set as well as the properties that the API response will include. The part names that you can include in the parameter value are snippet and contentDetails."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/channelSections",
+      "gatewayPath": "/api/gateway/youtube/channelSections",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/channelSections",
+      "name": "channelSections.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "channelSections",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "hl",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return content in specified language"
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies a comma-separated list of one or more channelSection resource properties that the API response will include. The part names that you can include in the parameter value are id, snippet, and contentDetails. If the parameter identifies a property that contains child properties, the child properties will be included in the response. For example, in a channelSection resource, the snippet property contains other properties, such as a display title for the channelSection. If you set *part=snippet*, the API response will also contain all of those nested properties."
+        },
+        {
+          "name": "mine",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Return the ChannelSections owned by the authenticated user."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return the ChannelSections with the given IDs for Stubby or Apiary."
+        },
+        {
+          "name": "channelId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return the ChannelSections owned by the specified channel ID."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "route": "/comments",
+      "gatewayPath": "/api/gateway/youtube/comments",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/comments",
+      "name": "comments.update",
+      "description": "Updates an existing resource.",
+      "groupName": "comments",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter identifies the properties that the API response will include. You must at least include the snippet part in the parameter value since that part contains all of the properties that the API request can update."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/comments",
+      "gatewayPath": "/api/gateway/youtube/comments",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/comments",
+      "name": "comments.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "comments",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Returns the comments with the given IDs for One Platform."
+        },
+        {
+          "name": "textFormat",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The requested text format for the returned comments."
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *pageToken* parameter identifies a specific page in the result set that should be returned. In an API response, the nextPageToken and prevPageToken properties identify other pages that could be retrieved."
+        },
+        {
+          "name": "maxResults",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "The *maxResults* parameter specifies the maximum number of items that should be returned in the result set."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies a comma-separated list of one or more comment resource properties that the API response will include."
+        },
+        {
+          "name": "parentId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Returns replies to the specified comment. Note, currently YouTube features only one level of replies (ie replies to top level comments). However replies to replies may be supported in the future."
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "route": "/comments",
+      "gatewayPath": "/api/gateway/youtube/comments",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/comments",
+      "name": "comments.delete",
+      "description": "Deletes a resource.",
+      "groupName": "comments",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/comments",
+      "gatewayPath": "/api/gateway/youtube/comments",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/comments",
+      "name": "comments.insert",
+      "description": "Inserts a new resource into this collection.",
+      "groupName": "comments",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter identifies the properties that the API response will include. Set the parameter value to snippet. The snippet part has a quota cost of 2 units."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/comments/markAsSpam",
+      "gatewayPath": "/api/gateway/youtube/comments/markAsSpam",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/comments/markAsSpam",
+      "name": "comments.markAsSpam",
+      "description": "Expresses the caller's opinion that one or more comments should be flagged as spam.",
+      "groupName": "comments",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Flags the comments with the given IDs as spam in the caller's opinion."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/comments/setModerationStatus",
+      "gatewayPath": "/api/gateway/youtube/comments/setModerationStatus",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/comments/setModerationStatus",
+      "name": "comments.setModerationStatus",
+      "description": "Sets the moderation status of one or more comments.",
+      "groupName": "comments",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "banAuthor",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "If set to true the author of the comment gets added to the ban list. This means all future comments of the author will autmomatically be rejected. Only valid in combination with STATUS_REJECTED."
+        },
+        {
+          "name": "moderationStatus",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Specifies the requested moderation status. Note, comments can be in statuses, which are not available through this call. For example, this call does not allow to mark a comment as 'likely spam'. Valid values: 'heldForReview', 'published' or 'rejected'."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Modifies the moderation status of the comments with the given IDs"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/commentThreads",
+      "gatewayPath": "/api/gateway/youtube/commentThreads",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/commentThreads",
+      "name": "commentThreads.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "commentThreads",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *pageToken* parameter identifies a specific page in the result set that should be returned. In an API response, the nextPageToken and prevPageToken properties identify other pages that could be retrieved."
+        },
+        {
+          "name": "channelId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Returns the comment threads for all the channel comments (ie does not include comments left on videos)."
+        },
+        {
+          "name": "searchTerms",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Limits the returned comment threads to those matching the specified key words. Not compatible with the 'id' filter."
+        },
+        {
+          "name": "maxResults",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "The *maxResults* parameter specifies the maximum number of items that should be returned in the result set."
+        },
+        {
+          "name": "textFormat",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The requested text format for the returned comments."
+        },
+        {
+          "name": "order",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "moderationStatus",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Limits the returned comment threads to those with the specified moderation status. Not compatible with the 'id' filter. Valid values: published, heldForReview, likelySpam."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Returns the comment threads with the given IDs for Stubby or Apiary."
+        },
+        {
+          "name": "videoId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Returns the comment threads of the specified video."
+        },
+        {
+          "name": "allThreadsRelatedToChannelId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Returns the comment threads of all videos of the channel and the channel comments as well."
+        },
+        {
+          "name": "postId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Returns the comment threads of the specified post."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies a comma-separated list of one or more commentThread resource properties that the API response will include."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/commentThreads",
+      "gatewayPath": "/api/gateway/youtube/commentThreads",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/commentThreads",
+      "name": "commentThreads.insert",
+      "description": "Inserts a new resource into this collection.",
+      "groupName": "commentThreads",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter identifies the properties that the API response will include. Set the parameter value to snippet. The snippet part has a quota cost of 2 units."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/i18nLanguages",
+      "gatewayPath": "/api/gateway/youtube/i18nLanguages",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/i18nLanguages",
+      "name": "i18nLanguages.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "i18nLanguages",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "hl",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies the i18nLanguage resource properties that the API response will include. Set the parameter value to snippet."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/i18nRegions",
+      "gatewayPath": "/api/gateway/youtube/i18nRegions",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/i18nRegions",
+      "name": "i18nRegions.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "i18nRegions",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "hl",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies the i18nRegion resource properties that the API response will include. Set the parameter value to snippet."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/liveBroadcasts",
+      "gatewayPath": "/api/gateway/youtube/liveBroadcasts",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveBroadcasts",
+      "name": "liveBroadcasts.insert",
+      "description": "Inserts a new stream for the authenticated user.",
+      "groupName": "liveBroadcasts",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter serves two purposes in this operation. It identifies the properties that the write operation will set as well as the properties that the API response will include. The part properties that you can include in the parameter value are id, snippet, contentDetails, and status."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "route": "/liveBroadcasts",
+      "gatewayPath": "/api/gateway/youtube/liveBroadcasts",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveBroadcasts",
+      "name": "liveBroadcasts.delete",
+      "description": "Delete a given broadcast.",
+      "groupName": "liveBroadcasts",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Broadcast to delete."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/liveBroadcasts",
+      "gatewayPath": "/api/gateway/youtube/liveBroadcasts",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveBroadcasts",
+      "name": "liveBroadcasts.list",
+      "description": "Retrieve the list of broadcasts associated with the given channel.",
+      "groupName": "liveBroadcasts",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "maxResults",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "The *maxResults* parameter specifies the maximum number of items that should be returned in the result set."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return broadcasts with the given ids from Stubby or Apiary."
+        },
+        {
+          "name": "broadcastStatus",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return broadcasts with a certain status, e.g. active broadcasts."
+        },
+        {
+          "name": "mine",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": ""
+        },
+        {
+          "name": "broadcastType",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return only broadcasts with the selected type."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies a comma-separated list of one or more liveBroadcast resource properties that the API response will include. The part names that you can include in the parameter value are id, snippet, contentDetails, status and statistics."
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *pageToken* parameter identifies a specific page in the result set that should be returned. In an API response, the nextPageToken and prevPageToken properties identify other pages that could be retrieved."
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "route": "/liveBroadcasts",
+      "gatewayPath": "/api/gateway/youtube/liveBroadcasts",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveBroadcasts",
+      "name": "liveBroadcasts.update",
+      "description": "Updates an existing broadcast for the authenticated user.",
+      "groupName": "liveBroadcasts",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter serves two purposes in this operation. It identifies the properties that the write operation will set as well as the properties that the API response will include. The part properties that you can include in the parameter value are id, snippet, contentDetails, and status. Note that this method will override the existing values for all of the mutable properties that are contained in any parts that the parameter value specifies. For example, a broadcast's privacy status is defined in the status part. As such, if your request is updating a private or unlisted broadcast, and the request's part parameter value includes the status part, the broadcast's privacy setting will be updated to whatever value the request body specifies. If the request body does not specify a value, the existing privacy setting will be removed and the broadcast will revert to the default privacy setting."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/liveBroadcasts/bind",
+      "gatewayPath": "/api/gateway/youtube/liveBroadcasts/bind",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveBroadcasts/bind",
+      "name": "liveBroadcasts.bind",
+      "description": "Bind a broadcast to a stream.",
+      "groupName": "liveBroadcasts",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "streamId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Stream to bind, if not set unbind the current one."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Broadcast to bind to the stream"
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies a comma-separated list of one or more liveBroadcast resource properties that the API response will include. The part names that you can include in the parameter value are id, snippet, contentDetails, and status."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/liveBroadcasts/cuepoint",
+      "gatewayPath": "/api/gateway/youtube/liveBroadcasts/cuepoint",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveBroadcasts/cuepoint",
+      "name": "liveBroadcasts.insertCuepoint",
+      "description": "Insert cuepoints in a broadcast",
+      "groupName": "liveBroadcasts",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Broadcast to insert ads to, or equivalently `external_video_id` for internal use."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *part* parameter specifies a comma-separated list of one or more liveBroadcast resource properties that the API response will include. The part names that you can include in the parameter value are id, snippet, contentDetails, and status."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/liveBroadcasts/transition",
+      "gatewayPath": "/api/gateway/youtube/liveBroadcasts/transition",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveBroadcasts/transition",
+      "name": "liveBroadcasts.transition",
+      "description": "Transition a broadcast to a given status.",
+      "groupName": "liveBroadcasts",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Broadcast to transition."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "broadcastStatus",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The status to which the broadcast is going to transition."
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies a comma-separated list of one or more liveBroadcast resource properties that the API response will include. The part names that you can include in the parameter value are id, snippet, contentDetails, and status."
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "route": "/liveChat/bans",
+      "gatewayPath": "/api/gateway/youtube/liveChat/bans",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveChat/bans",
+      "name": "liveChatBans.delete",
+      "description": "Deletes a chat ban.",
+      "groupName": "liveChatBans",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/liveChat/bans",
+      "gatewayPath": "/api/gateway/youtube/liveChat/bans",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveChat/bans",
+      "name": "liveChatBans.insert",
+      "description": "Inserts a new resource into this collection.",
+      "groupName": "liveChatBans",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter serves two purposes in this operation. It identifies the properties that the write operation will set as well as the properties that the API response returns. Set the parameter value to snippet."
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "route": "/liveChat/messages",
+      "gatewayPath": "/api/gateway/youtube/liveChat/messages",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveChat/messages",
+      "name": "liveChatMessages.delete",
+      "description": "Deletes a chat message.",
+      "groupName": "liveChatMessages",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/liveChat/messages",
+      "gatewayPath": "/api/gateway/youtube/liveChat/messages",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveChat/messages",
+      "name": "liveChatMessages.insert",
+      "description": "Inserts a new resource into this collection.",
+      "groupName": "liveChatMessages",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter serves two purposes. It identifies the properties that the write operation will set as well as the properties that the API response will include. Set the parameter value to snippet."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/liveChat/messages",
+      "gatewayPath": "/api/gateway/youtube/liveChat/messages",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveChat/messages",
+      "name": "liveChatMessages.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "liveChatMessages",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "liveChatId",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The id of the live chat for which comments should be returned."
+        },
+        {
+          "name": "hl",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Specifies the localization language in which the system messages should be returned."
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *pageToken* parameter identifies a specific page in the result set that should be returned. In an API response, the nextPageToken property identify other pages that could be retrieved."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies the liveChatComment resource parts that the API response will include. Supported values are id, snippet, and authorDetails."
+        },
+        {
+          "name": "profileImageSize",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Specifies the size of the profile image that should be returned for each user."
+        },
+        {
+          "name": "maxResults",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "The *maxResults* parameter specifies the maximum number of items that should be returned in the result set. Not used in the streaming RPC."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/liveChat/messages/transition",
+      "gatewayPath": "/api/gateway/youtube/liveChat/messages/transition",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveChat/messages/transition",
+      "name": "liveChatMessages.transition",
+      "description": "Transition a durable chat event.",
+      "groupName": "liveChatMessages",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "status",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The status to which the chat event is going to transition."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The ID that uniquely identify the chat message event to transition."
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "route": "/liveChat/moderators",
+      "gatewayPath": "/api/gateway/youtube/liveChat/moderators",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveChat/moderators",
+      "name": "liveChatModerators.delete",
+      "description": "Deletes a chat moderator.",
+      "groupName": "liveChatModerators",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/liveChat/moderators",
+      "gatewayPath": "/api/gateway/youtube/liveChat/moderators",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveChat/moderators",
+      "name": "liveChatModerators.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "liveChatModerators",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies the liveChatModerator resource parts that the API response will include. Supported values are id and snippet."
+        },
+        {
+          "name": "maxResults",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "The *maxResults* parameter specifies the maximum number of items that should be returned in the result set."
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *pageToken* parameter identifies a specific page in the result set that should be returned. In an API response, the nextPageToken and prevPageToken properties identify other pages that could be retrieved."
+        },
+        {
+          "name": "liveChatId",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The id of the live chat for which moderators should be returned."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/liveChat/moderators",
+      "gatewayPath": "/api/gateway/youtube/liveChat/moderators",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveChat/moderators",
+      "name": "liveChatModerators.insert",
+      "description": "Inserts a new resource into this collection.",
+      "groupName": "liveChatModerators",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter serves two purposes in this operation. It identifies the properties that the write operation will set as well as the properties that the API response returns. Set the parameter value to snippet."
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "route": "/liveStreams",
+      "gatewayPath": "/api/gateway/youtube/liveStreams",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveStreams",
+      "name": "liveStreams.delete",
+      "description": "Deletes an existing stream for the authenticated user.",
+      "groupName": "liveStreams",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/liveStreams",
+      "gatewayPath": "/api/gateway/youtube/liveStreams",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveStreams",
+      "name": "liveStreams.insert",
+      "description": "Inserts a new stream for the authenticated user.",
+      "groupName": "liveStreams",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter serves two purposes in this operation. It identifies the properties that the write operation will set as well as the properties that the API response will include. The part properties that you can include in the parameter value are id, snippet, cdn, content_details, and status."
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/liveStreams",
+      "gatewayPath": "/api/gateway/youtube/liveStreams",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveStreams",
+      "name": "liveStreams.list",
+      "description": "Retrieve the list of streams associated with the given channel. --",
+      "groupName": "liveStreams",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies a comma-separated list of one or more liveStream resource properties that the API response will include. The part names that you can include in the parameter value are id, snippet, cdn, and status."
+        },
+        {
+          "name": "mine",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": ""
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *pageToken* parameter identifies a specific page in the result set that should be returned. In an API response, the nextPageToken and prevPageToken properties identify other pages that could be retrieved."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return LiveStreams with the given ids from Stubby or Apiary."
+        },
+        {
+          "name": "maxResults",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "The *maxResults* parameter specifies the maximum number of items that should be returned in the result set."
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "route": "/liveStreams",
+      "gatewayPath": "/api/gateway/youtube/liveStreams",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveStreams",
+      "name": "liveStreams.update",
+      "description": "Updates an existing stream for the authenticated user.",
+      "groupName": "liveStreams",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter serves two purposes in this operation. It identifies the properties that the write operation will set as well as the properties that the API response will include. The part properties that you can include in the parameter value are id, snippet, cdn, and status. Note that this method will override the existing values for all of the mutable properties that are contained in any parts that the parameter value specifies. If the request body does not specify a value for a mutable property, the existing value for that property will be removed."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/members",
+      "gatewayPath": "/api/gateway/youtube/members",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/members",
+      "name": "members.list",
+      "description": "Retrieves a list of members that match the request criteria for a channel.",
+      "groupName": "members",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "mode",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Parameter that specifies which channel members to return."
+        },
+        {
+          "name": "hasAccessToLevel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter members in the results set to the ones that have access to a level."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies the member resource parts that the API response will include. Set the parameter value to snippet."
+        },
+        {
+          "name": "maxResults",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "The *maxResults* parameter specifies the maximum number of items that should be returned in the result set."
+        },
+        {
+          "name": "filterByMemberChannelId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Comma separated list of channel IDs. Only data about members that are part of this list will be included in the response."
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *pageToken* parameter identifies a specific page in the result set that should be returned. In an API response, the nextPageToken and prevPageToken properties identify other pages that could be retrieved."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/membershipsLevels",
+      "gatewayPath": "/api/gateway/youtube/membershipsLevels",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/membershipsLevels",
+      "name": "membershipsLevels.list",
+      "description": "Retrieves a list of all pricing levels offered by a creator to the fans.",
+      "groupName": "membershipsLevels",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies the membershipsLevel resource parts that the API response will include. Supported values are id and snippet."
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "route": "/playlistImages",
+      "gatewayPath": "/api/gateway/youtube/playlistImages",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/playlistImages",
+      "name": "playlistImages.delete",
+      "description": "Deletes a resource.",
+      "groupName": "playlistImages",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Id to identify this image. This is returned from by the List method."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "route": "/playlistImages",
+      "gatewayPath": "/api/gateway/youtube/playlistImages",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/playlistImages",
+      "name": "playlistImages.update",
+      "description": "Updates an existing resource.",
+      "groupName": "playlistImages",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *part* parameter specifies the properties that the API response will include."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/playlistImages",
+      "gatewayPath": "/api/gateway/youtube/playlistImages",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/playlistImages",
+      "name": "playlistImages.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "playlistImages",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        },
+        {
+          "name": "maxResults",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "The *maxResults* parameter specifies the maximum number of items that should be returned in the result set."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *part* parameter specifies a comma-separated list of one or more playlistImage resource properties that the API response will include. If the parameter identifies a property that contains child properties, the child properties will be included in the response."
+        },
+        {
+          "name": "parent",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return PlaylistImages for this playlist id."
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *pageToken* parameter identifies a specific page in the result set that should be returned. In an API response, the nextPageToken and prevPageToken properties identify other pages that could be retrieved."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/playlistImages",
+      "gatewayPath": "/api/gateway/youtube/playlistImages",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/playlistImages",
+      "name": "playlistImages.insert",
+      "description": "Inserts a new resource into this collection.",
+      "groupName": "playlistImages",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *part* parameter specifies the properties that the API response will include."
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "route": "/playlistItems",
+      "gatewayPath": "/api/gateway/youtube/playlistItems",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/playlistItems",
+      "name": "playlistItems.update",
+      "description": "Updates an existing resource.",
+      "groupName": "playlistItems",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter serves two purposes in this operation. It identifies the properties that the write operation will set as well as the properties that the API response will include. Note that this method will override the existing values for all of the mutable properties that are contained in any parts that the parameter value specifies. For example, a playlist item can specify a start time and end time, which identify the times portion of the video that should play when users watch the video in the playlist. If your request is updating a playlist item that sets these values, and the request's part parameter value includes the contentDetails part, the playlist item's start and end times will be updated to whatever value the request body specifies. If the request body does not specify values, the existing start and end times will be removed and replaced with the default settings."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/playlistItems",
+      "gatewayPath": "/api/gateway/youtube/playlistItems",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/playlistItems",
+      "name": "playlistItems.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "playlistItems",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "playlistId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return the playlist items within the given playlist."
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *pageToken* parameter identifies a specific page in the result set that should be returned. In an API response, the nextPageToken and prevPageToken properties identify other pages that could be retrieved."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies a comma-separated list of one or more playlistItem resource properties that the API response will include. If the parameter identifies a property that contains child properties, the child properties will be included in the response. For example, in a playlistItem resource, the snippet property contains numerous fields, including the title, description, position, and resourceId properties. As such, if you set *part=snippet*, the API response will contain all of those properties."
+        },
+        {
+          "name": "videoId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return the playlist items associated with the given video ID."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "maxResults",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "The *maxResults* parameter specifies the maximum number of items that should be returned in the result set."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/playlistItems",
+      "gatewayPath": "/api/gateway/youtube/playlistItems",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/playlistItems",
+      "name": "playlistItems.insert",
+      "description": "Inserts a new resource into this collection.",
+      "groupName": "playlistItems",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter serves two purposes in this operation. It identifies the properties that the write operation will set as well as the properties that the API response will include."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "route": "/playlistItems",
+      "gatewayPath": "/api/gateway/youtube/playlistItems",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/playlistItems",
+      "name": "playlistItems.delete",
+      "description": "Deletes a resource.",
+      "groupName": "playlistItems",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/playlists",
+      "gatewayPath": "/api/gateway/youtube/playlists",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/playlists",
+      "name": "playlists.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "playlists",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies a comma-separated list of one or more playlist resource properties that the API response will include. If the parameter identifies a property that contains child properties, the child properties will be included in the response. For example, in a playlist resource, the snippet property contains properties like author, title, description, tags, and timeCreated. As such, if you set *part=snippet*, the API response will contain all of those properties."
+        },
+        {
+          "name": "maxResults",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "The *maxResults* parameter specifies the maximum number of items that should be returned in the result set."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "hl",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return content in specified language"
+        },
+        {
+          "name": "channelId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return the playlists owned by the specified channel ID."
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *pageToken* parameter identifies a specific page in the result set that should be returned. In an API response, the nextPageToken and prevPageToken properties identify other pages that could be retrieved."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return the playlists with the given IDs for Stubby or Apiary."
+        },
+        {
+          "name": "mine",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Return the playlists owned by the authenticated user."
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "route": "/playlists",
+      "gatewayPath": "/api/gateway/youtube/playlists",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/playlists",
+      "name": "playlists.delete",
+      "description": "Deletes a resource.",
+      "groupName": "playlists",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/playlists",
+      "gatewayPath": "/api/gateway/youtube/playlists",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/playlists",
+      "name": "playlists.insert",
+      "description": "Inserts a new resource into this collection.",
+      "groupName": "playlists",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter serves two purposes in this operation. It identifies the properties that the write operation will set as well as the properties that the API response will include."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "route": "/playlists",
+      "gatewayPath": "/api/gateway/youtube/playlists",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/playlists",
+      "name": "playlists.update",
+      "description": "Updates an existing resource.",
+      "groupName": "playlists",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter serves two purposes in this operation. It identifies the properties that the write operation will set as well as the properties that the API response will include. Note that this method will override the existing values for mutable properties that are contained in any parts that the request body specifies. For example, a playlist's description is contained in the snippet part, which must be included in the request body. If the request does not specify a value for the snippet.description property, the playlist's existing description will be deleted."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/search",
+      "gatewayPath": "/api/gateway/youtube/search",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/search",
+      "name": "search.list",
+      "description": "Retrieves a list of search resources",
+      "groupName": "search",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "forMine",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Search for the private videos of the authenticated user."
+        },
+        {
+          "name": "locationRadius",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter on distance from the location (specified above)."
+        },
+        {
+          "name": "videoDuration",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter on the duration of the videos."
+        },
+        {
+          "name": "forContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Search owned by a content owner."
+        },
+        {
+          "name": "channelType",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Add a filter on the channel search."
+        },
+        {
+          "name": "forDeveloper",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Restrict the search to only retrieve videos uploaded using the project id of the authenticated user."
+        },
+        {
+          "name": "videoLicense",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter on the license of the videos."
+        },
+        {
+          "name": "location",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter on location of the video"
+        },
+        {
+          "name": "videoEmbeddable",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter on embeddable videos."
+        },
+        {
+          "name": "channelId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter on resources belonging to this channelId. (Force TAP rebuild)"
+        },
+        {
+          "name": "q",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Textual search terms to match."
+        },
+        {
+          "name": "type",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Restrict results to a particular set of resource types from One Platform."
+        },
+        {
+          "name": "maxResults",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "The *maxResults* parameter specifies the maximum number of items that should be returned in the result set."
+        },
+        {
+          "name": "videoDimension",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter on 3d videos."
+        },
+        {
+          "name": "videoCategoryId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter on videos in a specific category."
+        },
+        {
+          "name": "eventType",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter on the livestream status of the videos."
+        },
+        {
+          "name": "publishedAfter",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter on resources published after this date."
+        },
+        {
+          "name": "regionCode",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Display the content as seen by viewers in this country."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "videoDefinition",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter on the definition of the videos."
+        },
+        {
+          "name": "videoSyndicated",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter on syndicated videos."
+        },
+        {
+          "name": "topicId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Restrict results to a particular topic."
+        },
+        {
+          "name": "safeSearch",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Indicates whether the search results should include restricted content as well as standard content."
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *pageToken* parameter identifies a specific page in the result set that should be returned. In an API response, the nextPageToken and prevPageToken properties identify other pages that could be retrieved."
+        },
+        {
+          "name": "relevanceLanguage",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return results relevant to this language."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies a comma-separated list of one or more search resource properties that the API response will include. Set the parameter value to snippet."
+        },
+        {
+          "name": "videoCaption",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter on the presence of captions on the videos."
+        },
+        {
+          "name": "videoType",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter on videos of a specific type."
+        },
+        {
+          "name": "publishedBefore",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter on resources published before this date."
+        },
+        {
+          "name": "order",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Sort order of the results."
+        },
+        {
+          "name": "videoPaidProductPlacement",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/subscriptions",
+      "gatewayPath": "/api/gateway/youtube/subscriptions",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/subscriptions",
+      "name": "subscriptions.insert",
+      "description": "Inserts a new resource into this collection.",
+      "groupName": "subscriptions",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter serves two purposes in this operation. It identifies the properties that the write operation will set as well as the properties that the API response will include."
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "route": "/subscriptions",
+      "gatewayPath": "/api/gateway/youtube/subscriptions",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/subscriptions",
+      "name": "subscriptions.delete",
+      "description": "Deletes a resource.",
+      "groupName": "subscriptions",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/subscriptions",
+      "gatewayPath": "/api/gateway/youtube/subscriptions",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/subscriptions",
+      "name": "subscriptions.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "subscriptions",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return the subscriptions with the given IDs for Stubby or Apiary."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies a comma-separated list of one or more subscription resource properties that the API response will include. If the parameter identifies a property that contains child properties, the child properties will be included in the response. For example, in a subscription resource, the snippet property contains other properties, such as a display title for the subscription. If you set *part=snippet*, the API response will also contain all of those nested properties."
+        },
+        {
+          "name": "maxResults",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "The *maxResults* parameter specifies the maximum number of items that should be returned in the result set."
+        },
+        {
+          "name": "order",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The order of the returned subscriptions"
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *pageToken* parameter identifies a specific page in the result set that should be returned. In an API response, the nextPageToken and prevPageToken properties identify other pages that could be retrieved."
+        },
+        {
+          "name": "channelId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return the subscriptions of the given channel owner."
+        },
+        {
+          "name": "mine",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Flag for returning the subscriptions of the authenticated user."
+        },
+        {
+          "name": "mySubscribers",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Return the subscribers of the given channel owner."
+        },
+        {
+          "name": "myRecentSubscribers",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": ""
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "forChannelId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return the subscriptions to the subset of these channels that the authenticated user is subscribed to."
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/superChatEvents",
+      "gatewayPath": "/api/gateway/youtube/superChatEvents",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/superChatEvents",
+      "name": "superChatEvents.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "superChatEvents",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *pageToken* parameter identifies a specific page in the result set that should be returned. In an API response, the nextPageToken and prevPageToken properties identify other pages that could be retrieved."
+        },
+        {
+          "name": "maxResults",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "The *maxResults* parameter specifies the maximum number of items that should be returned in the result set."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies the superChatEvent resource parts that the API response will include. This parameter is currently not supported."
+        },
+        {
+          "name": "hl",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return rendered funding amounts in specified language."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/tests",
+      "gatewayPath": "/api/gateway/youtube/tests",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/tests",
+      "name": "tests.insert",
+      "description": "POST method.",
+      "groupName": "tests",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "externalChannelId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "route": "/thirdPartyLinks",
+      "gatewayPath": "/api/gateway/youtube/thirdPartyLinks",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/thirdPartyLinks",
+      "name": "thirdPartyLinks.delete",
+      "description": "Deletes a resource.",
+      "groupName": "thirdPartyLinks",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Do not use. Required for compatibility."
+        },
+        {
+          "name": "externalChannelId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Channel ID to which changes should be applied, for delegation."
+        },
+        {
+          "name": "linkingToken",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Delete the partner links with the given linking token."
+        },
+        {
+          "name": "type",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Type of the link to be deleted."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/thirdPartyLinks",
+      "gatewayPath": "/api/gateway/youtube/thirdPartyLinks",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/thirdPartyLinks",
+      "name": "thirdPartyLinks.insert",
+      "description": "Inserts a new resource into this collection.",
+      "groupName": "thirdPartyLinks",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "externalChannelId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Channel ID to which changes should be applied, for delegation."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies the thirdPartyLink resource parts that the API request and response will include. Supported values are linkingToken, status, and snippet."
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "route": "/thirdPartyLinks",
+      "gatewayPath": "/api/gateway/youtube/thirdPartyLinks",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/thirdPartyLinks",
+      "name": "thirdPartyLinks.update",
+      "description": "Updates an existing resource.",
+      "groupName": "thirdPartyLinks",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies the thirdPartyLink resource parts that the API request and response will include. Supported values are linkingToken, status, and snippet."
+        },
+        {
+          "name": "externalChannelId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Channel ID to which changes should be applied, for delegation."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/thirdPartyLinks",
+      "gatewayPath": "/api/gateway/youtube/thirdPartyLinks",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/thirdPartyLinks",
+      "name": "thirdPartyLinks.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "thirdPartyLinks",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies the thirdPartyLink resource parts that the API response will include. Supported values are linkingToken, status, and snippet."
+        },
+        {
+          "name": "type",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Get a third party link of the given type."
+        },
+        {
+          "name": "linkingToken",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Get a third party link with the given linking token."
+        },
+        {
+          "name": "externalChannelId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Channel ID to which changes should be applied, for delegation."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/thumbnails/set",
+      "gatewayPath": "/api/gateway/youtube/thumbnails/set",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/thumbnails/set",
+      "name": "thumbnails.set",
+      "description": "As this is not an insert in a strict sense (it supports uploading/setting of a thumbnail for multiple videos, which doesn't result in creation of a single resource), I use a custom verb here.",
+      "groupName": "thumbnails",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "videoId",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Returns the Thumbnail with the given video IDs for Stubby or Apiary."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The actual CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/videoAbuseReportReasons",
+      "gatewayPath": "/api/gateway/youtube/videoAbuseReportReasons",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/videoAbuseReportReasons",
+      "name": "videoAbuseReportReasons.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "videoAbuseReportReasons",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies the videoCategory resource parts that the API response will include. Supported values are id and snippet."
+        },
+        {
+          "name": "hl",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/videoCategories",
+      "gatewayPath": "/api/gateway/youtube/videoCategories",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/videoCategories",
+      "name": "videoCategories.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "videoCategories",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies the videoCategory resource properties that the API response will include. Set the parameter value to snippet."
+        },
+        {
+          "name": "hl",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "regionCode",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Returns the video categories with the given IDs for Stubby or Apiary."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/videos",
+      "gatewayPath": "/api/gateway/youtube/videos",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/videos",
+      "name": "videos.list",
+      "description": "Retrieves a list of resources, possibly filtered.",
+      "groupName": "videos",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "myRating",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return videos liked/disliked by the authenticated user. Does not support RateType.RATED_TYPE_NONE."
+        },
+        {
+          "name": "locale",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "chart",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return the videos that are in the specified chart."
+        },
+        {
+          "name": "regionCode",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Use a chart that is specific to the specified region"
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *pageToken* parameter identifies a specific page in the result set that should be returned. In an API response, the nextPageToken and prevPageToken properties identify other pages that could be retrieved. *Note:* This parameter is supported for use in conjunction with the myRating and chart parameters, but it is not supported for use in conjunction with the id parameter."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "maxWidth",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Return the player with maximum height specified in"
+        },
+        {
+          "name": "hl",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Stands for \"host language\". Specifies the localization language of the metadata to be filled into snippet.localized. The field is filled with the default metadata if there is no localization in the specified language. The parameter value must be a language code included in the list returned by the i18nLanguages.list method (e.g. en_US, es_MX)."
+        },
+        {
+          "name": "maxResults",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "The *maxResults* parameter specifies the maximum number of items that should be returned in the result set. *Note:* This parameter is supported for use in conjunction with the myRating and chart parameters, but it is not supported for use in conjunction with the id parameter."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return videos with the given ids."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter specifies a comma-separated list of one or more video resource properties that the API response will include. If the parameter identifies a property that contains child properties, the child properties will be included in the response. For example, in a video resource, the snippet property contains the channelId, title, description, tags, and categoryId properties. As such, if you set *part=snippet*, the API response will contain all of those properties."
+        },
+        {
+          "name": "videoCategoryId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Use chart that is specific to the specified video category"
+        },
+        {
+          "name": "maxHeight",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "route": "/videos",
+      "gatewayPath": "/api/gateway/youtube/videos",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/videos",
+      "name": "videos.delete",
+      "description": "Deletes a resource.",
+      "groupName": "videos",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The actual CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/videos",
+      "gatewayPath": "/api/gateway/youtube/videos",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/videos",
+      "name": "videos.insert",
+      "description": "Inserts a new resource into this collection.",
+      "groupName": "videos",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwnerChannel",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This parameter can only be used in a properly authorized request. *Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwnerChannel* parameter specifies the YouTube channel ID of the channel to which a video is being added. This parameter is required when a request specifies a value for the onBehalfOfContentOwner parameter, and it can only be used in conjunction with that parameter. In addition, the request must be authorized using a CMS account that is linked to the content owner that the onBehalfOfContentOwner parameter specifies. Finally, the channel that the onBehalfOfContentOwnerChannel parameter value specifies must be linked to the content owner that the onBehalfOfContentOwner parameter specifies. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and perform actions on behalf of the channel specified in the parameter value, without having to provide authentication credentials for each separate channel."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter serves two purposes in this operation. It identifies the properties that the write operation will set as well as the properties that the API response will include. Note that not all parts contain properties that can be set when inserting or updating a video. For example, the statistics object encapsulates statistics that YouTube calculates for a video and does not contain values that you can set or modify. If the parameter value specifies a part that does not contain mutable values, that part will still be included in the API response."
+        },
+        {
+          "name": "autoLevels",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Should auto-levels be applied to the upload."
+        },
+        {
+          "name": "notifySubscribers",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Notify the channel subscribers about the new video. As default, the notification is enabled."
+        },
+        {
+          "name": "stabilize",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Should stabilize be applied to the upload."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "route": "/videos",
+      "gatewayPath": "/api/gateway/youtube/videos",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/videos",
+      "name": "videos.update",
+      "description": "Updates an existing resource.",
+      "groupName": "videos",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The actual CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The *part* parameter serves two purposes in this operation. It identifies the properties that the write operation will set as well as the properties that the API response will include. Note that this method will override the existing values for all of the mutable properties that are contained in any parts that the parameter value specifies. For example, a video's privacy setting is contained in the status part. As such, if your request is updating a private video, and the request's part parameter value includes the status part, the video's privacy setting will be updated to whatever value the request body specifies. If the request body does not specify a value, the existing privacy setting will be removed and the video will revert to the default privacy setting. In addition, not all parts contain properties that can be set when inserting or updating a video. For example, the statistics object encapsulates statistics that YouTube calculates for a video and does not contain values that you can set or modify. If the parameter value specifies a part that does not contain mutable values, that part will still be included in the API response."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/videos:batchGetStats",
+      "gatewayPath": "/api/gateway/youtube/videos:batchGetStats",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/videos:batchGetStats",
+      "name": "videos.batchGetStats",
+      "description": "Retrieves a batch of VideoStat resources, possibly filtered. BatchGetStats is intentionally not atomic to provide a better user experience.",
+      "groupName": "videos",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Required. The `**part**` parameter specifies a comma-separated list of one or more `videoStat` resource properties that the API response will include. If the parameter identifies a property that contains child properties, the child properties will be included in the response. For example, in a `videoStat` resource, the `statistics` property contains `view_count` and `like_count`. As such, if you set `**part=snippet**`, the API response will contain all of those properties."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Optional. **Note:** This parameter is intended exclusively for YouTube content partners. The `onBehalfOfContentOwner` parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Required. Return videos with the given ids. The number of IDs specified cannot exceed 50."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/videos/getRating",
+      "gatewayPath": "/api/gateway/youtube/videos/getRating",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/videos/getRating",
+      "name": "videos.getRating",
+      "description": "Retrieves the ratings that the authorized user gave to a list of specified videos.",
+      "groupName": "videos",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/videos/rate",
+      "gatewayPath": "/api/gateway/youtube/videos/rate",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/videos/rate",
+      "name": "videos.rate",
+      "description": "Adds a like or dislike rating to a video or removes a rating from a video.",
+      "groupName": "videos",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "rating",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/videos/reportAbuse",
+      "gatewayPath": "/api/gateway/youtube/videos/reportAbuse",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/videos/reportAbuse",
+      "name": "videos.reportAbuse",
+      "description": "Report abuse for a video.",
+      "groupName": "videos",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/videoTrainability",
+      "gatewayPath": "/api/gateway/youtube/videoTrainability",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/videoTrainability",
+      "name": "videoTrainability.get",
+      "description": "Returns the trainability status of a video.",
+      "groupName": "videoTrainability",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The ID of the video to retrieve."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/watermarks/set",
+      "gatewayPath": "/api/gateway/youtube/watermarks/set",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/watermarks/set",
+      "name": "watermarks.set",
+      "description": "Allows upload of watermark image and setting it for a channel.",
+      "groupName": "watermarks",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        },
+        {
+          "name": "channelId",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/watermarks/unset",
+      "gatewayPath": "/api/gateway/youtube/watermarks/unset",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/watermarks/unset",
+      "name": "watermarks.unset",
+      "description": "Allows removal of channel watermark.",
+      "groupName": "watermarks",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "channelId",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "onBehalfOfContentOwner",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "*Note:* This parameter is intended exclusively for YouTube content partners. The *onBehalfOfContentOwner* parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/liveChat/messages/stream",
+      "gatewayPath": "/api/gateway/youtube/liveChat/messages/stream",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/youtube/liveChat/messages/stream",
+      "name": "youtube.v3.liveChat.messages.stream",
+      "description": "Allows a user to load live chat through a server-streamed RPC.",
+      "groupName": "youtube.v3.liveChat.messages",
+      "params": [
+        {
+          "name": "access_token",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "OAuth access token."
+        },
+        {
+          "name": "part",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *part* parameter specifies the liveChatComment resource parts that the API response will include. Supported values are id, snippet, and authorDetails."
+        },
+        {
+          "name": "hl",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Specifies the localization language in which the system messages should be returned."
+        },
+        {
+          "name": "pageToken",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The *pageToken* parameter identifies a specific page in the result set that should be returned. In an API response, the nextPageToken property identify other pages that could be retrieved."
+        },
+        {
+          "name": "liveChatId",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The id of the live chat for which comments should be returned."
+        },
+        {
+          "name": "profileImageSize",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Specifies the size of the profile image that should be returned for each user."
+        },
+        {
+          "name": "maxResults",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "The *maxResults* parameter specifies the maximum number of items that should be returned in the result set. Not used in the streaming RPC."
+        }
+      ]
+    }
+  ]
+}

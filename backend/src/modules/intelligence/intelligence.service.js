@@ -2,7 +2,7 @@
  * Intelligence dashboard aggregations — Postgres / Prisma (catalog).
  * Keeps the JSON contract expected by IntelligenceDashboard.jsx.
  */
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -71,6 +71,7 @@ void countMapFromGroup; // reserved for future charts
    ALERTS
    ═══════════════════════════════════════════════════════════════════ */
 const getAlertsIntelligence = async (query = {}) => {
+  const prisma = dbOf(query.db);
   const { now, from, to } = resolveRange(query);
   const alertWhere = { created_at: { gte: from, lte: to } };
   const periodLength = Math.max(1, Math.ceil((to - from) / DAY_MS));
@@ -320,6 +321,7 @@ const getAlertsIntelligence = async (query = {}) => {
    GRIEVANCES
    ═══════════════════════════════════════════════════════════════════ */
 const getGrievancesIntelligence = async (query = {}) => {
+  const prisma = dbOf(query.db);
   const { now, from, to } = resolveRange(query);
   const dateWhere = { is_active: true, posted_at: { gte: from, lte: to } };
   const periodLength = Math.max(1, Math.ceil((to - from) / DAY_MS));
@@ -479,6 +481,7 @@ const getGrievancesIntelligence = async (query = {}) => {
    PROFILES (catalog social_media_profiles + accounts)
    ═══════════════════════════════════════════════════════════════════ */
 const getProfilesIntelligence = async (query = {}) => {
+  const prisma = dbOf(query.db);
   const { now, from, to } = resolveRange(query);
 
   const [

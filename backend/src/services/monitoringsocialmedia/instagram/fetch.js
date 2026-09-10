@@ -12,10 +12,10 @@ const isRateError = (err) => {
   return err?.isRateLimit || status === 429 || msg.includes('rate') || msg.includes('too many');
 };
 
-const callWithGap = async (endpointKey, body) => {
+const callWithGap = async (endpointKey, body, auth = null) => {
   await waitForSlot();
   try {
-    return await callInstagramApi(endpointKey, body);
+    return await callInstagramApi(endpointKey, body, auth);
   } catch (err) {
     if (isRateError(err)) noteRateLimit();
     throw err;
@@ -31,7 +31,7 @@ const resolveUsername = (account) => {
  * Fetch posts + reels for an Instagram account (Blugate IG client — same pattern as facebook/youtube).
  * @returns {{ posts: object[], apiHits: number, dataPatch: object|null }}
  */
-const fetchInstagramPosts = async (account) => {
+const fetchInstagramPosts = async (account, auth = null) => {
   const username = resolveUsername(account);
   if (!username) {
     throw new Error('Instagram account needs a username/handle');
@@ -40,7 +40,7 @@ const fetchInstagramPosts = async (account) => {
   let apiHits = 0;
   const mapped = [];
 
-  const postsRaw = await callWithGap('POSTS', { username, maxId: '' });
+  const postsRaw = await callWithGap('POSTS', { username, maxId: '' }, auth);
   apiHits += 1;
   for (const node of listItems(postsRaw)) {
     const row = mapFeedItemToUpsert(node, account.id, 'post');
@@ -48,7 +48,7 @@ const fetchInstagramPosts = async (account) => {
   }
 
   try {
-    const reelsRaw = await callWithGap('REELS', { username, maxId: '' });
+    const reelsRaw = await callWithGap('REELS', { username, maxId: '' }, auth);
     apiHits += 1;
     for (const node of listItems(reelsRaw)) {
       const row = mapFeedItemToUpsert(node, account.id, 'reel');

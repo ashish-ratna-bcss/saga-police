@@ -14,6 +14,7 @@ const logger = require('../lib/logger');
 const { getJwtSecret } = require('../config/env');
 const { readAuthCookie } = require('../config/cookies');
 const { toPublicUser } = require('../modules/user/user.utils');
+const { getTenantPrisma } = require('../lib/tenantDatabase.service');
 
 const getTokenFromRequest = (req) => {
   const fromCookie = readAuthCookie(req);
@@ -84,8 +85,16 @@ const authorize = (...args) => {
       if (!user) {
         return res.status(401).json({ message: 'Not authorized, user not found' });
       }
-
       req.user = toPublicUser(user, user.roles);
+      // DB is source of truth; JWT db_name is advisory (stale tokens still work).
+      const tenantDbName = user.db_name || null;
+      if (decoded.db_name && user.db_name && decoded.db_name !== user.db_name) {
+        logger.warn(
+          `[tenant] JWT db_name=${decoded.db_name} differs from user.db_name=${user.db_name}; using DB`
+        );
+      }
+      req.tenantPrisma = getTenantPrisma(tenantDbName);
+      req.tenantDbName = tenantDbName;
 
       if (roles.length && !roleAllowed(req.user.role, roles)) {
         return res.status(403).json({
@@ -95,10 +104,6 @@ const authorize = (...args) => {
 
       if (manageUsers && !req.user.can_manage_users) {
         return res.status(403).json({ message: 'Not allowed to manage users' });
-      }
-
-      if (manageRoles && !req.user.can_manage_roles) {
-        return res.status(403).json({ message: 'Not allowed to manage roles' });
       }
 
       if (pages.length && !pageAllowed(req.user, pages)) {

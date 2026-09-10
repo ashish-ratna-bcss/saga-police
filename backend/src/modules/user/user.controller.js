@@ -3,27 +3,20 @@ const {
   createUserAccount,
   updateUserAccount,
   deleteUserAccount,
+  getUserAccess,
+  updateUserAccess,
 } = require('./user.service');
-const { ACCESS_FEATURES } = require('../auth/access_features');
-
-const uniquePages = () => {
-  const byPath = new Map();
-  for (const items of Object.values(ACCESS_FEATURES)) {
-    for (const item of items) {
-      if (!byPath.has(item.path)) byPath.set(item.path, item);
-    }
-  }
-  return [...byPath.values()];
-};
+const { PAGE_CATALOG, PLATFORM_CATALOG, grantablePagesForTarget } = require('../auth/access_features');
 
 const getMyPermissions = async (req, res) => {
   try {
-    const allowed_pages = req.user.allowed_pages || [];
     return res.json({
-      allowed_pages,
+      allowed_pages: req.user.allowed_pages || [],
+      allowed_platforms: req.user.allowed_platforms || [],
       is_super_admin: req.user.role === 'superadmin',
       can_manage_users: Boolean(req.user.can_manage_users),
-      can_manage_roles: Boolean(req.user.can_manage_roles),
+      max_profiles: req.user.max_profiles ?? null,
+      max_users: req.user.max_users ?? null,
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -32,7 +25,15 @@ const getMyPermissions = async (req, res) => {
 
 const getAllPages = async (req, res) => {
   try {
-    return res.json(uniquePages());
+    const forRole = String(req.query.for || '').toLowerCase();
+    const pages = forRole
+      ? grantablePagesForTarget(req.user, forRole)
+      : PAGE_CATALOG;
+    return res.json({
+      pages,
+      platforms: PLATFORM_CATALOG,
+      for: forRole || null,
+    });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -76,30 +77,21 @@ const deleteUser = async (req, res) => {
 
 const getUserPermissions = async (req, res) => {
   try {
-    const prisma = require('../../../prisma/client');
-    const user = await prisma.users.findUnique({
-      where: { id: Number(req.params.id) },
-      include: { roles: true },
-    });
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-    return res.json({
-      user_id: user.id,
-      role: user.roles?.slug,
-      allowed_pages: user.roles?.allowed_pages || [],
-      has_custom_permissions: false,
-    });
+    const data = await getUserAccess(req.user, req.params.id);
+    return res.json(data);
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(error.status || 500).json({ message: error.message });
   }
 };
 
-const updateUserPermissions = async (req, res) =>
-  res.status(400).json({
-    message:
-      'Per-user page permissions are deprecated. Update the role via PUT /api/roles/:id instead.',
-  });
+const updateUserPermissions = async (req, res) => {
+  try {
+    const user = await updateUserAccess(req.user, req.params.id, req.body || {});
+    return res.json({ message: 'Permissions updated', user });
+  } catch (error) {
+    return res.status(error.status || 500).json({ message: error.message });
+  }
+};
 
 module.exports = {
   getMyPermissions,

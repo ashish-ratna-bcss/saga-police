@@ -1,4 +1,4 @@
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 const { getSettingsDoc } = require('../../modules/settings/settings.service');
 const intelligenceClient = require('../../modules/intelligence/intelligence.client.service');
 const mappingService = require('../../modules/settings/mapping.service');
@@ -6,7 +6,8 @@ const { createAlertFromCatalogPost } = require('../../modules/alerts');
 
 const MAX_ATTEMPTS = Math.max(1, Number(process.env.SENTIMENT_MAX_ATTEMPTS) || 5);
 
-const matchKeywords = async (text) => {
+const matchKeywords = async (text, { db } = {}) => {
+  const prisma = dbOf(db);
   const matched = [];
   try {
     const keywords = await prisma.keywords.findMany({
@@ -31,9 +32,9 @@ const matchKeywords = async (text) => {
   return matched;
 };
 
-const loadRiskThresholds = async () => {
+const loadRiskThresholds = async ({ db } = {}) => {
   try {
-    const settings = await getSettingsDoc();
+    const settings = await getSettingsDoc({ db });
     return {
       high: settings?.high_risk_threshold ?? settings?.risk_threshold_high ?? 70,
       medium: settings?.medium_risk_threshold ?? settings?.risk_threshold_medium ?? 40,
@@ -49,12 +50,14 @@ const scoreToLevel = (score, high, medium) => {
   return 'low';
 };
 
-const persistAlert = async (post, analysis_result) => {
+const persistAlert = async (post, analysis_result, { db } = {}) => {
+  const prisma = dbOf(db);
   let alertInfo = null;
   try {
     alertInfo = await createAlertFromCatalogPost(
       { ...post, id: String(post.id) },
-      analysis_result
+      analysis_result,
+      { db }
     );
     if (alertInfo?.alert?.id) {
       analysis_result.alert_id = String(alertInfo.alert.id);
@@ -78,8 +81,10 @@ const persistAlert = async (post, analysis_result) => {
  * Run sentiment/intelligence on one catalog post and persist analysis_result.
  * Keywords enrich a successful ML result; they do not replace ML when it fails.
  * @param {string|bigint|number} postId
+ * @param {{ db?: object }} [options]
  */
-const analyzePost = async (postId) => {
+const analyzePost = async (postId, { db } = {}) => {
+  const prisma = dbOf(db);
   const id = BigInt(postId);
 
   const claimed = await prisma.social_media_posts.updateMany({
@@ -128,8 +133,8 @@ const analyzePost = async (postId) => {
     return { ok: true, skipped: true, reason: 'empty_text' };
   }
 
-  const matchedKeywords = await matchKeywords(text);
-  const { high, medium } = await loadRiskThresholds();
+  const matchedKeywords = await matchKeywords(text, { db });
+  const { high, medium } = await loadRiskThresholds({ db });
 
   let intel = null;
   try {
@@ -228,7 +233,7 @@ const analyzePost = async (postId) => {
     },
   });
 
-  const alertInfo = await persistAlert(post, analysis_result);
+  const alertInfo = await persistAlert(post, analysis_result, { db });
 
   return {
     ok: true,

@@ -1,17 +1,18 @@
-// Handles every outgoing request to the IG Downloader provider.
-// Give it an endpoint key from blugate.instagram.endpoints.js and the JSON
-// body it needs, and it takes care of the base URL, auth headers, and the
-// actual HTTP call.
+// Blugate Instagram gateway client (ig-downloader-api).
 //
-// Example:
-//   const callInstagramApi = require('./blugate.instagram.api_client');
-//   const profile = await callInstagramApi('USER_INFO', { username: 'instagram' });
+// curl -X POST 'https://blugate.blurasaga.com/api/gateway/instagram/api/instagram/userInfo' \
+//   -H 'Authorization: Bearer <ACCESS_KEY>' \
+//   -H 'x-client-id: <CLIENT_CODE>' \
+//   -H 'Content-Type: application/json' \
+//   -d '{"username":"instagram"}'
 
-const axios = require('axios');
 const env = require('./blugate.instagram.env');
 const { INSTAGRAM_ENDPOINTS } = require('./blugate.instagram.endpoints');
+const { authFromPlatformRow, blugateRequest } = require('../blugate.http');
 
-const callInstagramApi = async (endpointKey, body = {}) => {
+const authFromInstagramPlatform = (row) => authFromPlatformRow(row, 'Instagram');
+
+const callInstagramApi = async (endpointKey, body = {}, auth = null) => {
   const endpoint = INSTAGRAM_ENDPOINTS[endpointKey];
   if (!endpoint) {
     throw new Error(
@@ -19,53 +20,20 @@ const callInstagramApi = async (endpointKey, body = {}) => {
     );
   }
 
-  const baseUrl = env.getInstagramBaseUrl();
-  if (!baseUrl) {
-    throw new Error('Instagram base URL is not configured (set INSTAGRAM_BASE_URL)');
-  }
-
-  const apiKey = env.getInstagramApiKey();
-  if (!apiKey) {
-    throw new Error('Instagram API key is not configured (set INSTAGRAM_API_KEY)');
-  }
-
-  const requestUrl = `${baseUrl}${endpoint.path}`;
-  const requestHeaders = {
-    'x-rapidapi-key': apiKey,
-    'x-rapidapi-host': new URL(baseUrl).host,
-    'Content-Type': 'application/json',
-  };
-
-  try {
-    const response = await axios({
-      method: endpoint.method,
-      url: requestUrl,
-      data: body,
-      headers: requestHeaders,
-      timeout: Number(process.env.INSTAGRAM_API_TIMEOUT_MS) || 60000,
-    });
-    return response.data;
-  } catch (err) {
-    const status = err.response?.status;
-    const provider = err.response?.data;
-    const providerMsg =
-      provider && typeof provider === 'object'
-        ? provider.message || provider.response_type || null
-        : typeof provider === 'string'
-          ? provider
-          : null;
-    if (status || providerMsg) {
-      const enriched = new Error(
-        providerMsg
-          ? `Instagram ${endpointKey} HTTP ${status || '?'}: ${providerMsg}`
-          : `Instagram ${endpointKey} HTTP ${status || '?'}: ${err.message}`
-      );
-      enriched.response = err.response;
-      enriched.code = err.code;
-      throw enriched;
-    }
-    throw err;
-  }
+  return blugateRequest({
+    baseUrl: env.getInstagramBaseUrl(),
+    path: endpoint.path,
+    method: endpoint.method,
+    params: body,
+    auth,
+    timeout: Number(process.env.INSTAGRAM_API_TIMEOUT_MS) || 60000,
+    label: 'Instagram',
+    endpointKey,
+  });
 };
 
+callInstagramApi.authFromPlatformRow = authFromInstagramPlatform;
+
 module.exports = callInstagramApi;
+module.exports.authFromPlatformRow = authFromInstagramPlatform;
+module.exports.callInstagramApi = callInstagramApi;

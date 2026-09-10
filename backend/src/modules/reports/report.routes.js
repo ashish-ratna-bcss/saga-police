@@ -13,7 +13,7 @@ router.use(authorize({ pages: ['/reports', '/unified-reports', '/alerts', '/grie
  */
 router.get('/', async (req, res) => {
   try {
-    const result = await reportService.getAllReports(req.query);
+    const result = await reportService.getAllReports(req.query, { db: req.tenantPrisma });
     // Clients that expect a bare array: also accept items
     res.json(result.items);
   } catch (error) {
@@ -24,7 +24,7 @@ router.get('/', async (req, res) => {
 
 router.get('/stats', async (req, res) => {
   try {
-    const stats = await reportService.getReportStats();
+    const stats = await reportService.getReportStats({ db: req.tenantPrisma });
     res.json(stats);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -48,7 +48,7 @@ router.post('/escalate/:id', async (req, res) => {
  */
 router.put('/:id', async (req, res) => {
   try {
-    const report = await reportService.updateReport(req.params.id, req.body);
+    const report = await reportService.updateReport(req.params.id, req.body, { db: req.tenantPrisma });
     res.json(report);
   } catch (error) {
     res.status(error.status || 500).json({ error: error.message });

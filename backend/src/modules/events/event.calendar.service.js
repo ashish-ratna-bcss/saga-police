@@ -1,4 +1,4 @@
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 const { hydrateOccasion, asJson } = require('./event.utils');
 
 const OCCASION_ORIGIN = 'master_calendar';
@@ -78,7 +78,8 @@ const datesFromOccasion = (row) => {
   return { start_date: start, end_date: end };
 };
 
-const ensureLinkedEvent = async (occasionRow) => {
+const ensureLinkedEvent = async (occasionRow, { db } = {}) => {
+  const prisma = dbOf(db);
   if (!occasionRow?.id) return null;
 
   const name = String(occasionRow.title || '').trim();
@@ -145,7 +146,8 @@ const ensureLinkedEvent = async (occasionRow) => {
   });
 };
 
-const listOccasions = async ({ recurring } = {}) => {
+const listOccasions = async ({ recurring, db } = {}) => {
+  const prisma = dbOf(db);
   const where = {};
   if (recurring === 'true' || recurring === true) where.is_recurring = true;
   else if (recurring === 'false' || recurring === false) where.is_recurring = false;
@@ -163,7 +165,7 @@ const listOccasions = async ({ recurring } = {}) => {
     });
     if (!linked) {
       try {
-        await ensureLinkedEvent(row);
+        await ensureLinkedEvent(row, { db: prisma });
       } catch (_) {
         /* ignore backfill errors */
       }
@@ -173,7 +175,8 @@ const listOccasions = async ({ recurring } = {}) => {
   return rows.map(hydrateOccasion);
 };
 
-const createOccasion = async (body) => {
+const createOccasion = async (body, { db } = {}) => {
+  const prisma = dbOf(db);
   const title = body.occasion || body.title;
   const date_label = body.date || body.date_label;
   if (!title || !date_label) {
@@ -205,7 +208,7 @@ const createOccasion = async (body) => {
   });
 
   try {
-    await ensureLinkedEvent(row);
+    await ensureLinkedEvent(row, { db: prisma });
   } catch (_) {
     /* occasion saved even if link fails */
   }
@@ -213,7 +216,8 @@ const createOccasion = async (body) => {
   return hydrateOccasion(row);
 };
 
-const updateOccasion = async (id, body) => {
+const updateOccasion = async (id, body, { db } = {}) => {
+  const prisma = dbOf(db);
   const data = {};
   if (body.occasion != null || body.title != null) data.title = body.occasion || body.title;
   if (body.date != null || body.date_label != null) data.date_label = body.date || body.date_label;
@@ -241,7 +245,7 @@ const updateOccasion = async (id, body) => {
       data,
     });
     try {
-      await ensureLinkedEvent(row);
+      await ensureLinkedEvent(row, { db: prisma });
     } catch (_) {
       /* ignore */
     }
@@ -253,7 +257,8 @@ const updateOccasion = async (id, body) => {
   }
 };
 
-const deleteOccasion = async (id) => {
+const deleteOccasion = async (id, { db } = {}) => {
+  const prisma = dbOf(db);
   try {
     // Unlink + keep media history; never auto-start monitoring
     await prisma.social_media_events.updateMany({

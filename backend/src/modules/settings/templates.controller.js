@@ -50,6 +50,7 @@ const uploadTemplate = async (req, res) => {
       html_content: html,
       is_default: is_default === 'true' || is_default === true,
       created_by: req.user?.id,
+      db: req.tenantPrisma,
     });
 
     res.status(201).json(template);
@@ -64,7 +65,7 @@ const uploadTemplate = async (req, res) => {
  */
 const getTemplates = async (req, res) => {
   try {
-    const templates = await listTemplates();
+    const templates = await listTemplates({ db: req.tenantPrisma });
     res.json(templates);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -77,7 +78,7 @@ const getTemplates = async (req, res) => {
  */
 const getTemplate = async (req, res) => {
   try {
-    const template = await getTemplateDoc(req.params.id);
+    const template = await getTemplateDoc(req.params.id, { db: req.tenantPrisma });
     if (!template) {
       return res.status(404).json({ error: 'Template not found' });
     }
@@ -99,7 +100,9 @@ const updateTemplateContent = async (req, res) => {
       return res.status(400).json({ error: 'HTML content is required' });
     }
 
-    const template = await saveTemplateContent(req.params.id, html_content);
+    const template = await saveTemplateContent(req.params.id, html_content, {
+      db: req.tenantPrisma,
+    });
     res.json(template);
   } catch (error) {
     if (error.code === 'P2025') {
@@ -115,7 +118,9 @@ const updateTemplateContent = async (req, res) => {
  */
 const setDefaultTemplate = async (req, res) => {
   try {
-    const updated = await markDefaultTemplate(req.params.id);
+    const updated = await markDefaultTemplate(req.params.id, {
+      db: req.tenantPrisma,
+    });
     if (!updated) {
       return res.status(404).json({ error: 'Template not found' });
     }
@@ -131,7 +136,7 @@ const setDefaultTemplate = async (req, res) => {
  */
 const deleteTemplate = async (req, res) => {
   try {
-    const ok = await removeTemplate(req.params.id);
+    const ok = await removeTemplate(req.params.id, { db: req.tenantPrisma });
     if (!ok) {
       return res.status(404).json({ error: 'Template not found' });
     }
@@ -147,7 +152,7 @@ const deleteTemplate = async (req, res) => {
  */
 const previewTemplate = async (req, res) => {
   try {
-    const template = await getTemplateDoc(req.params.id);
+    const template = await getTemplateDoc(req.params.id, { db: req.tenantPrisma });
     if (!template) {
       return res.status(404).json({ error: 'Template not found' });
     }

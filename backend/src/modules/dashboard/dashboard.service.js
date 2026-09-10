@@ -2,7 +2,7 @@
  * Home dashboard aggregations — Postgres / Prisma only.
  * GET /api/dashboard/overview
  */
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 const { getDashboardReportStats } = require('../grievances/grievance.report.service');
 const logger = require('../../lib/logger');
 
@@ -66,7 +66,7 @@ const accountPlatformFilter = (platform) =>
       }
     : {};
 
-const buildKpis = async ({ from, to, platform }) => {
+const buildKpis = async (prisma, { from, to, platform }) => {
   const postWhere = {
     OR: [{ posted_at: { gte: from, lte: to } }, { posted_at: null, fetched_at: { gte: from, lte: to } }],
     ...platformWhere(platform),
@@ -137,7 +137,7 @@ const buildKpis = async ({ from, to, platform }) => {
   };
 };
 
-const buildRecommendations = async ({ from, platform }) => {
+const buildRecommendations = async (prisma, { from, platform }) => {
   const recs = [];
 
   const [highRisk, escalatedReports, staleEvents, stoppedMonitored] = await Promise.all([
@@ -271,7 +271,7 @@ const buildRecommendations = async ({ from, platform }) => {
   return recs.sort((a, b) => b.priority - a.priority).slice(0, 12);
 };
 
-const buildTopPosts = async ({ from, to, platform, limit = 8 }) => {
+const buildTopPosts = async (prisma, { from, to, platform, limit = 8 }) => {
   const where = {
     OR: [{ posted_at: { gte: from, lte: to } }, { posted_at: null, fetched_at: { gte: from, lte: to } }],
     ...platformWhere(platform),
@@ -325,7 +325,7 @@ const buildTopPosts = async ({ from, to, platform, limit = 8 }) => {
     .slice(0, limit);
 };
 
-const buildTopProfiles = async ({ from, to, platform, limit = 5 }) => {
+const buildTopProfiles = async (prisma, { from, to, platform, limit = 5 }) => {
   const where = {
     OR: [{ posted_at: { gte: from, lte: to } }, { posted_at: null, fetched_at: { gte: from, lte: to } }],
     ...platformWhere(platform),
@@ -375,7 +375,7 @@ const buildTopProfiles = async ({ from, to, platform, limit = 5 }) => {
     .slice(0, limit);
 };
 
-const buildAlertsPulse = async ({ from, to, platform }) => {
+const buildAlertsPulse = async (prisma, { from, to, platform }) => {
   const where = { created_at: { gte: from, lte: to }, ...platformWhere(platform) };
   const [byRisk, byPlatform, byStatus, total] = await Promise.all([
     prisma.social_media_alerts.groupBy({
@@ -407,7 +407,7 @@ const buildAlertsPulse = async ({ from, to, platform }) => {
   };
 };
 
-const buildGrievancesPulse = async ({ platform }) => {
+const buildGrievancesPulse = async (prisma, { platform }) => {
   const where = { is_active: true, ...(platform ? { platform } : {}) };
   const [byWorkflow, byPlatform, total, reportStats] = await Promise.all([
     prisma.social_media_grievances.groupBy({
@@ -421,7 +421,7 @@ const buildGrievancesPulse = async ({ platform }) => {
       _count: { _all: true },
     }),
     prisma.social_media_grievances.count({ where }),
-    getDashboardReportStats(),
+    getDashboardReportStats({ db: prisma }),
   ]);
 
   const toMap = (rows, key) =>
@@ -442,7 +442,7 @@ const buildGrievancesPulse = async ({ platform }) => {
   };
 };
 
-const buildEventsPulse = async () => {
+const buildEventsPulse = async (prisma) => {
   const events = await prisma.social_media_events.findMany({
     where: { monitoring_status: 'started' },
     orderBy: { updated_at: 'desc' },
@@ -484,17 +484,21 @@ const buildEventsPulse = async () => {
   };
 };
 
-const buildPlatformsPulse = async () => {
+const buildPlatformsPulse = async (prisma) => {
+  const platforms = await prisma.platforms.findMany({
+    where: { is_active: true },
+    select: { id: true, slug: true, name: true },
+    orderBy: { id: 'asc' },
+  });
+  if (!platforms.length) return [];
+
   const rows = await prisma.social_media_accounts.groupBy({
     by: ['platform_id'],
     where: { is_active: true },
     _count: { _all: true },
   });
-  const platforms = await prisma.platforms.findMany({
-    where: { is_active: true },
-    select: { id: true, slug: true, name: true },
-  });
-  const byId = Object.fromEntries(platforms.map((p) => [p.id, p]));
+  const countMap = Object.fromEntries(rows.map((r) => [r.platform_id, r._count._all]));
+
   const monitoring = await prisma.social_media_accounts.groupBy({
     by: ['platform_id'],
     where: { is_active: true, monitoring_status: 'started' },
@@ -502,33 +506,31 @@ const buildPlatformsPulse = async () => {
   });
   const monMap = Object.fromEntries(monitoring.map((r) => [r.platform_id, r._count._all]));
 
-  return rows
-    .map((r) => {
-      const p = byId[r.platform_id];
-      return {
-        slug: p?.slug || 'unknown',
-        name: p?.name || 'Unknown',
-        accounts: r._count._all,
-        monitoring: monMap[r.platform_id] || 0,
-      };
-    })
-    .sort((a, b) => b.accounts - a.accounts);
+  return platforms
+    .map((p) => ({
+      slug: p.slug,
+      name: p.name,
+      accounts: countMap[p.id] || 0,
+      monitoring: monMap[p.id] || 0,
+    }))
+    .sort((a, b) => b.accounts - a.accounts || a.name.localeCompare(b.name));
 };
 
 const getOverview = async (query = {}) => {
+  const prisma = dbOf(query.db);
   const { range, from, to } = resolveRange(query.range);
   const platform = normalizePlatform(query.platform);
 
   const [kpis, recommendations, top_profiles, top_posts, alerts, grievances, events, platforms] =
     await Promise.all([
-      buildKpis({ from, to, platform }),
-      buildRecommendations({ from, platform }),
-      buildTopProfiles({ from, to, platform }),
-      buildTopPosts({ from, to, platform }),
-      buildAlertsPulse({ from, to, platform }),
-      buildGrievancesPulse({ platform }),
-      buildEventsPulse(),
-      buildPlatformsPulse(),
+      buildKpis(prisma, { from, to, platform }),
+      buildRecommendations(prisma, { from, platform }),
+      buildTopProfiles(prisma, { from, to, platform }),
+      buildTopPosts(prisma, { from, to, platform }),
+      buildAlertsPulse(prisma, { from, to, platform }),
+      buildGrievancesPulse(prisma, { platform }),
+      buildEventsPulse(prisma),
+      buildPlatformsPulse(prisma),
     ]);
 
   return {

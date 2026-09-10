@@ -1,4 +1,4 @@
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 const { hydrateEvent, hydrateEventMedia, normalizeEventPayload, asJson } = require('./event.utils');
 
 const HISTORY_CAP = 200;
@@ -8,7 +8,8 @@ const appendJsonArray = (existing, entry, cap = HISTORY_CAP) => {
   return [...list, entry].slice(-cap);
 };
 
-const listEvents = async ({ monitoring_status, status } = {}) => {
+const listEvents = async ({ monitoring_status, status, db } = {}) => {
+  const prisma = dbOf(db);
   const where = {};
   // Accept legacy query ?status=active|paused|all and new ?monitoring_status=
   const raw = monitoring_status || status;
@@ -24,14 +25,16 @@ const listEvents = async ({ monitoring_status, status } = {}) => {
   return rows.map(hydrateEvent);
 };
 
-const getEventById = async (id) => {
+const getEventById = async (id, { db } = {}) => {
+  const prisma = dbOf(db);
   const numericId = Number(id);
   if (!Number.isFinite(numericId) || numericId <= 0) return null;
   const row = await prisma.social_media_events.findUnique({ where: { id: numericId } });
   return hydrateEvent(row);
 };
 
-const createEvent = async (body, user) => {
+const createEvent = async (body, user, { db } = {}) => {
+  const prisma = dbOf(db);
   const payload = normalizeEventPayload(body);
   if (!payload.name) {
     const err = new Error('name is required');
@@ -72,7 +75,8 @@ const createEvent = async (body, user) => {
   return hydrateEvent(row);
 };
 
-const updateEvent = async (id, body) => {
+const updateEvent = async (id, body, { db } = {}) => {
+  const prisma = dbOf(db);
   const existing = await prisma.social_media_events.findUnique({ where: { id: Number(id) } });
   if (!existing) {
     const err = new Error('Event not found');
@@ -112,7 +116,8 @@ const updateEvent = async (id, body) => {
 /**
  * Set monitoring to started|stopped and append monitoring_logs (Profiles pattern).
  */
-const setMonitoringStatus = async (id, nextStatus) => {
+const setMonitoringStatus = async (id, nextStatus, { db } = {}) => {
+  const prisma = dbOf(db);
   const numericId = Number(id);
   const existing = await prisma.social_media_events.findUnique({ where: { id: numericId } });
   if (!existing) {
@@ -142,7 +147,8 @@ const setMonitoringStatus = async (id, nextStatus) => {
   return hydrateEvent(row);
 };
 
-const toggleMonitoring = async (id) => {
+const toggleMonitoring = async (id, { db } = {}) => {
+  const prisma = dbOf(db);
   const existing = await prisma.social_media_events.findUnique({ where: { id: Number(id) } });
   if (!existing) {
     const err = new Error('Event not found');
@@ -150,10 +156,11 @@ const toggleMonitoring = async (id) => {
     throw err;
   }
   const next = existing.monitoring_status === 'started' ? 'stopped' : 'started';
-  return setMonitoringStatus(id, next);
+  return setMonitoringStatus(id, next, { db });
 };
 
-const deleteEvent = async (id) => {
+const deleteEvent = async (id, { db } = {}) => {
+  const prisma = dbOf(db);
   try {
     await prisma.social_media_events.delete({ where: { id: Number(id) } });
     return true;
@@ -164,7 +171,8 @@ const deleteEvent = async (id) => {
   }
 };
 
-const getDashboard = async (id) => {
+const getDashboard = async (id, { db } = {}) => {
+  const prisma = dbOf(db);
   const event = await prisma.social_media_events.findUnique({ where: { id: Number(id) } });
   if (!event) {
     const err = new Error('Event not found');
@@ -203,7 +211,8 @@ const getDashboard = async (id) => {
   };
 };
 
-const listEventContent = async (id, { page = 1, limit = 50, platform = 'all' } = {}) => {
+const listEventContent = async (id, { page = 1, limit = 50, platform = 'all', db } = {}) => {
+  const prisma = dbOf(db);
   const event = await prisma.social_media_events.findUnique({ where: { id: Number(id) } });
   if (!event) {
     const err = new Error('Event not found');
@@ -243,7 +252,8 @@ const listEventContent = async (id, { page = 1, limit = 50, platform = 'all' } =
   };
 };
 
-const getEventsReport = async () => {
+const getEventsReport = async ({ db } = {}) => {
+  const prisma = dbOf(db);
   const events = await prisma.social_media_events.findMany({
     orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
   });
@@ -266,7 +276,8 @@ const getEventsReport = async () => {
 /**
  * Update last_fetched_at and optionally append a last_fetched_history entry.
  */
-const recordFetch = async (id, historyEntry = null) => {
+const recordFetch = async (id, historyEntry = null, { db } = {}) => {
+  const prisma = dbOf(db);
   const numericId = Number(id);
   const existing = await prisma.social_media_events.findUnique({
     where: { id: numericId },
@@ -288,7 +299,7 @@ const recordFetch = async (id, historyEntry = null) => {
 };
 
 /** @deprecated use recordFetch */
-const markPolled = async (id, historyEntry = null) => recordFetch(id, historyEntry);
+const markPolled = async (id, historyEntry = null, { db } = {}) => recordFetch(id, historyEntry, { db });
 
 module.exports = {
   listEvents,

@@ -1,0 +1,366 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/tenant-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Operational schema for per-admin tenant databases (blurasaga_<user>_<title>_<id>).
+/// Not used for auth — roles/users live in the main schema only.
+
+model platforms {
+  id                    Int                     @id @default(autoincrement())
+  name                  String
+  slug                  String                  @unique
+  icon                  String?
+  color                 String?
+  /// Field schema for the add/edit account form
+  fields                Json                    @default("[]")
+  /// Per-tenant Blugate credentials
+  blugate_client_key    String?
+  api_key               String?
+  /// Viral / velocity alert thresholds (engagement counts within time window)
+  low_threshold         Int                     @default(100)
+  medium_threshold      Int                     @default(500)
+  high_threshold        Int                     @default(1000)
+  time_window_minutes   Int                     @default(60)
+  is_active             Boolean                 @default(true)
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  social_media_accounts social_media_accounts[]
+}
+
+/// Main catalog entity (person / org / page brand). Shared across platforms.
+model social_media_profiles {
+  id           Int                     @id @default(autoincrement())
+  display_name String?
+  notes        String?
+  is_active    Boolean                 @default(true)
+  created_at   DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime                @updatedAt @db.Timestamptz(6)
+  accounts     social_media_accounts[]
+
+  @@index([is_active])
+}
+
+/// One social platform account under a profile (FB / X / YT…). Holds monitoring state.
+model social_media_accounts {
+  id                    Int                       @id @default(autoincrement())
+  profile_id            Int
+  platform_id           Int
+  /// Primary searchable identity (username, url, etc.)
+  handle                String
+  /// Platform-specific field values
+  data                  Json                      @default("{}")
+  /// Full Blugate preview payload from Fetch details
+  preview_data          Json                      @default("{}")
+  is_active             Boolean                   @default(true)
+  poll_interval_minutes Int                       @default(30)
+  monitoring_status     monitoring_status_enum    @default(stopped)
+  monitoring_logs       Json                      @default("[]")
+  last_fetched_at       DateTime?                 @db.Timestamptz(6)
+  last_fetched_history  Json                      @default("[]")
+  created_at            DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime                  @updatedAt @db.Timestamptz(6)
+  profile               social_media_profiles     @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+  platforms             platforms                 @relation(fields: [platform_id], references: [id])
+  posts                 social_media_posts[]
+  grievances            social_media_grievances[]
+
+  @@unique([platform_id, handle])
+  @@index([profile_id])
+  @@index([platform_id])
+  @@index([is_active])
+  @@index([monitoring_status])
+  @@index([last_fetched_at])
+}
+
+/// Unified posts for all platforms.
+model social_media_posts {
+  id                BigInt                @id @default(autoincrement())
+  account_id        Int
+  platform          String
+  external_id       String
+  url               String?
+  text              String?               @db.Text
+  author_name       String?
+  author_handle     String?
+  media_type        String?
+  media_urls        Json                  @default("[]")
+  engagement        Json                  @default("{}")
+  posted_at         DateTime?             @db.Timestamptz(6)
+  raw_data          Json                  @default("{}")
+  fetched_at        DateTime              @default(now()) @db.Timestamptz(6)
+  /// pending → processing → done | failed | skipped
+  analysis_status   analysis_status_enum  @default(pending)
+  analysis_attempts Int                   @default(0)
+  analysis_error    String?
+  analysis_result   Json                  @default("{}")
+  analyzed_at       DateTime?             @db.Timestamptz(6)
+  updated_at        DateTime              @updatedAt @db.Timestamptz(6)
+  account           social_media_accounts @relation(fields: [account_id], references: [id], onDelete: Cascade)
+  alerts            social_media_alerts[]
+
+  @@unique([platform, external_id])
+  @@index([account_id, posted_at])
+  @@index([fetched_at])
+  @@index([analysis_status, fetched_at])
+}
+
+/// Catalog sentiment alerts.
+model social_media_alerts {
+  id                BigInt             @id @default(autoincrement())
+  post_id           BigInt
+  account_id        Int?
+  platform          String
+  external_id       String
+  title             String
+  description       String?            @db.Text
+  content_url       String?
+  author            String?
+  author_handle     String?
+  alert_type        String             @default("ai_risk")
+  risk_level        String
+  risk_score        Int                @default(0)
+  sentiment         String?
+  status            String             @default("active")
+  is_read           Boolean            @default(false)
+  matched_keywords  Json               @default("[]")
+  analysis_snapshot Json               @default("{}")
+  posted_at         DateTime?          @db.Timestamptz(6)
+  created_at        DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime           @updatedAt @db.Timestamptz(6)
+  post              social_media_posts @relation(fields: [post_id], references: [id], onDelete: Cascade)
+
+  @@unique([platform, external_id])
+  @@index([status, created_at])
+  @@index([risk_level, created_at])
+  @@index([post_id])
+  @@index([account_id])
+}
+
+/// Catalog grievances (mentions of watched accounts).
+model social_media_grievances {
+  id              BigInt                @id @default(autoincrement())
+  account_id      Int
+  platform        String
+  /// Tweet id / facebook:post:… / facebook:comment:…
+  external_id     String
+  complaint_code  String?
+  tagged_account  String
+  workflow_status String                @default("received")
+  classification  String                @default("unclassified")
+  is_active       Boolean               @default(true)
+  author_name     String?
+  author_handle   String?
+  content_url     String?
+  text            String?               @db.Text
+  posted_by       Json                  @default("{}")
+  content         Json                  @default("{}")
+  engagement      Json                  @default("{}")
+  context         Json                  @default("{}")
+  posted_at       DateTime?             @db.Timestamptz(6)
+  detected_at     DateTime              @default(now()) @db.Timestamptz(6)
+  created_at      DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime              @updatedAt @db.Timestamptz(6)
+  account         social_media_accounts @relation(fields: [account_id], references: [id], onDelete: Cascade)
+
+  @@unique([platform, external_id])
+  @@index([account_id, posted_at])
+  @@index([workflow_status, posted_at])
+  @@index([platform, posted_at])
+  @@index([is_active, posted_at])
+  @@index([tagged_account])
+}
+
+/// G / S / C / Q reports for catalog grievances.
+model social_media_grievance_reports {
+  id               String    @id @default(uuid())
+  report_type      String
+  unique_code      String    @unique
+  grievance_id     String
+  platform         String    @default("x")
+  status           String    @default("PENDING")
+  category         String    @default("Others")
+  complaint_phone  String    @default("")
+  profile_id       String?
+  profile_link     String?
+  post_link        String?
+  post_date        DateTime? @db.Timestamptz(6)
+  post_description String?   @db.Text
+  remarks          String?   @db.Text
+  message          String?   @db.Text
+  posted_by        Json      @default("{}")
+  engagement       Json      @default("{}")
+  informed_to      Json      @default("{}")
+  created_by       Json      @default("{}")
+  media_urls       Json      @default("[]")
+  media_s3_urls    Json      @default("[]")
+  status_history   Json      @default("[]")
+  meta             Json      @default("{}")
+  shared_at        DateTime? @db.Timestamptz(6)
+  shared_via       String?
+  action_taken_at  DateTime? @db.Timestamptz(6)
+  closed_at        DateTime? @db.Timestamptz(6)
+  escalated_at     DateTime? @db.Timestamptz(6)
+  report_pdf_url   String?
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@unique([report_type, grievance_id])
+  @@index([report_type, status, created_at])
+  @@index([grievance_id])
+  @@index([unique_code])
+}
+
+model social_media_grievance_contacts {
+  id          String   @id @default(uuid())
+  name        String
+  phone       String
+  department  String   @default("")
+  designation String   @default("")
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([is_active, name])
+}
+
+/// Catalog alert match keywords.
+model keywords {
+  id         Int      @id @default(autoincrement())
+  keyword    String   @unique
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([keyword])
+}
+
+/// Occasion templates (festivals / official dates).
+model social_media_occasion_calendar {
+  id                 Int                   @id @default(autoincrement())
+  sl_no              Int                   @default(0)
+  title              String
+  date_label         String                @default("")
+  monitoring_range   String                @default("")
+  suggested_keywords String                @default("")
+  remarks            String                @default("")
+  platforms          String[]              @default([])
+  is_recurring       Boolean               @default(true)
+  created_at         DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime              @updatedAt @db.Timestamptz(6)
+  events             social_media_events[]
+
+  @@index([is_recurring, sl_no])
+}
+
+/// Monitored keyword event.
+model social_media_events {
+  id                       Int                             @id @default(autoincrement())
+  name                     String
+  description              String                          @default("")
+  start_date               DateTime?                       @db.Timestamptz(6)
+  end_date                 DateTime?                       @db.Timestamptz(6)
+  location                 String                          @default("")
+  platforms                String[]                        @default([])
+  /// [{ keyword, language }]
+  keywords                 Json                            @default("[]")
+  high_risk_threshold      Int?
+  medium_risk_threshold    Int?
+  polling_interval_minutes Int                             @default(60)
+  monitoring_status        monitoring_status_enum          @default(stopped)
+  monitoring_logs          Json                            @default("[]")
+  last_fetched_at          DateTime?                       @db.Timestamptz(6)
+  last_fetched_history     Json                            @default("[]")
+  origin                   String                          @default("manual")
+  occasion_calendar_id     Int?
+  created_by               String                          @default("system")
+  created_at               DateTime                        @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime                        @updatedAt @db.Timestamptz(6)
+  occasion_calendar        social_media_occasion_calendar? @relation(fields: [occasion_calendar_id], references: [id], onDelete: SetNull)
+  media                    social_media_event_media[]
+
+  @@index([monitoring_status, created_at])
+  @@index([start_date])
+  @@index([occasion_calendar_id])
+  @@index([last_fetched_at])
+}
+
+/// Keyword-search discoveries for an event.
+model social_media_event_media {
+  id            BigInt              @id @default(autoincrement())
+  event_id      Int
+  platform      String
+  external_id   String
+  url           String?
+  text          String?             @db.Text
+  author_name   String?
+  author_handle String?
+  engagement    Json                @default("{}")
+  media         Json                @default("[]")
+  raw_data      Json                @default("{}")
+  posted_at     DateTime?           @db.Timestamptz(6)
+  fetched_at    DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime            @updatedAt @db.Timestamptz(6)
+  event         social_media_events @relation(fields: [event_id], references: [id], onDelete: Cascade)
+
+  @@unique([event_id, platform, external_id])
+  @@index([event_id, posted_at])
+  @@index([platform, posted_at])
+  @@index([fetched_at])
+}
+
+/// Global alert risk bands + viral toggle (single row).
+model alert_config {
+  id                      String   @id @default("default")
+  risk_threshold_high     Int      @default(70)
+  risk_threshold_medium   Int      @default(40)
+  velocity_alerts_enabled Boolean  @default(true)
+  updated_at              DateTime @updatedAt @db.Timestamptz(6)
+}
+
+/// Report DOCX/HTML templates.
+model report_templates {
+  id           String   @id @default(uuid())
+  name         String
+  platform     String   @default("all")
+  html_content String   @db.Text
+  is_default   Boolean  @default(false)
+  created_by   String?
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([platform, is_default])
+  @@index([created_at])
+}
+
+/// AI policy category mappings.
+model policy_mappings {
+  id                String   @id @default(uuid())
+  category_id       String   @unique
+  definition        String   @db.Text
+  legal_sections    Json     @default("[]")
+  platform_policies Json     @default("{}")
+  keywords          String[] @default([])
+  severity_level    String   @default("Medium")
+  is_active         Boolean  @default(true)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([is_active, category_id])
+}
+
+enum monitoring_status_enum {
+  started
+  stopped
+}
+
+enum analysis_status_enum {
+  pending
+  processing
+  done
+  failed
+  skipped
+}

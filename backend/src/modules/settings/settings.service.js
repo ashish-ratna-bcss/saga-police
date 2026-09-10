@@ -1,7 +1,7 @@
 /**
  * Alert config (risk bands) + viral thresholds + templates + policies — Postgres / Prisma.
  */
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 
 const CONFIG_ID = 'default';
 
@@ -28,7 +28,8 @@ const invalidateSettingsCache = () => {
   _settingsCacheTime = 0;
 };
 
-const ensureAlertConfig = async () => {
+const ensureAlertConfig = async ({ db } = {}) => {
+  const prisma = dbOf(db);
   let row = await prisma.alert_config.findUnique({ where: { id: CONFIG_ID } });
   if (!row) {
     row = await prisma.alert_config.create({
@@ -43,19 +44,24 @@ const ensureAlertConfig = async () => {
   return row;
 };
 
-const getSettingsDoc = async () => {
-  if (_settingsCache && Date.now() - _settingsCacheTime < SETTINGS_CACHE_TTL) {
+const getSettingsDoc = async ({ db } = {}) => {
+  const prisma = dbOf(db);
+  // Module cache is for main DB only
+  if (!db && _settingsCache && Date.now() - _settingsCacheTime < SETTINGS_CACHE_TTL) {
     return _settingsCache;
   }
-  const row = await ensureAlertConfig();
+  const row = await ensureAlertConfig({ db: prisma });
   const doc = toSettingsDoc(row);
-  _settingsCache = doc;
-  _settingsCacheTime = Date.now();
+  if (!db) {
+    _settingsCache = doc;
+    _settingsCacheTime = Date.now();
+  }
   return doc;
 };
 
-const updateSettingsDoc = async (body = {}) => {
-  await ensureAlertConfig();
+const updateSettingsDoc = async (body = {}, { db } = {}) => {
+  const prisma = dbOf(db);
+  await ensureAlertConfig({ db: prisma });
 
   const high =
     body.risk_threshold_high !== undefined
@@ -86,63 +92,82 @@ const updateSettingsDoc = async (body = {}) => {
   return toSettingsDoc(row);
 };
 
-const DEFAULT_THRESHOLDS = [
-  { platform: 'youtube', low_threshold: 100, medium_threshold: 500, high_threshold: 1000, time_window_minutes: 60 },
-  { platform: 'x', low_threshold: 100, medium_threshold: 500, high_threshold: 1000, time_window_minutes: 60 },
-  { platform: 'instagram', low_threshold: 100, medium_threshold: 500, high_threshold: 1000, time_window_minutes: 60 },
-  { platform: 'facebook', low_threshold: 100, medium_threshold: 500, high_threshold: 1000, time_window_minutes: 60 },
-];
+/** Map platforms row → legacy alert-threshold API shape (platform = slug). */
+const toThresholdRow = (p) => ({
+  id: String(p.id),
+  platform: p.slug,
+  name: p.name,
+  low_threshold: p.low_threshold ?? 100,
+  medium_threshold: p.medium_threshold ?? 500,
+  high_threshold: p.high_threshold ?? 1000,
+  time_window_minutes: p.time_window_minutes ?? 60,
+  is_active: p.is_active !== false,
+  created_at: p.created_at,
+});
 
-const ensureDefaultThresholds = async () => {
-  const existing = await prisma.alert_thresholds.findMany();
-  if (existing.length >= 4) return existing;
-  const have = new Set(existing.map((t) => t.platform));
-  for (const row of DEFAULT_THRESHOLDS) {
-    if (have.has(row.platform)) continue;
-    await prisma.alert_thresholds.create({ data: row });
+const listThresholds = async (platform, { db } = {}) => {
+  const prisma = dbOf(db);
+  const rows = await prisma.platforms.findMany({
+    where: platform ? { slug: String(platform) } : undefined,
+    orderBy: { slug: 'asc' },
+  });
+  return rows.map(toThresholdRow);
+};
+
+const upsertThreshold = async (platformSlug, patch = {}, { db } = {}) => {
+  const prisma = dbOf(db);
+  const slug = String(platformSlug || '').trim().toLowerCase();
+  if (!slug) throw new Error('platform is required');
+
+  const existing = await prisma.platforms.findUnique({ where: { slug } });
+  if (!existing) {
+    throw Object.assign(
+      new Error(`Platform "${slug}" not found — add it under Settings → Platforms`),
+      { status: 404 }
+    );
   }
-  return prisma.alert_thresholds.findMany({ orderBy: { platform: 'asc' } });
-};
 
-const listThresholds = async (platform) => {
-  await ensureDefaultThresholds();
-  return prisma.alert_thresholds.findMany({
-    where: platform ? { platform } : undefined,
-    orderBy: { platform: 'asc' },
-  });
-};
-
-const upsertThreshold = async (platform, patch = {}) => {
   const data = {
-    low_threshold: Number(patch.low_threshold) || 100,
-    medium_threshold: Number(patch.medium_threshold) || 500,
-    high_threshold: Number(patch.high_threshold) || 1000,
-    time_window_minutes: Number(patch.time_window_minutes) || 60,
-    is_active: patch.is_active !== false,
+    low_threshold:
+      patch.low_threshold !== undefined ? Number(patch.low_threshold) || 0 : existing.low_threshold,
+    medium_threshold:
+      patch.medium_threshold !== undefined
+        ? Number(patch.medium_threshold) || 0
+        : existing.medium_threshold,
+    high_threshold:
+      patch.high_threshold !== undefined ? Number(patch.high_threshold) || 0 : existing.high_threshold,
+    time_window_minutes:
+      patch.time_window_minutes !== undefined
+        ? Number(patch.time_window_minutes) || 0
+        : existing.time_window_minutes,
   };
-  return prisma.alert_thresholds.upsert({
-    where: { platform },
-    create: { platform, ...data },
-    update: data,
-  });
+  if (patch.is_active !== undefined) data.is_active = Boolean(patch.is_active);
+
+  const updated = await prisma.platforms.update({ where: { slug }, data });
+  return toThresholdRow(updated);
 };
 
-const bulkUpsertThresholds = async (thresholds = []) => {
+const bulkUpsertThresholds = async (thresholds = [], { db } = {}) => {
   const out = [];
   for (const t of thresholds) {
     if (!t?.platform) continue;
-    out.push(await upsertThreshold(t.platform, t));
+    out.push(await upsertThreshold(t.platform, t, { db }));
   }
   return out;
 };
 
-const listTemplates = async () =>
-  prisma.report_templates.findMany({ orderBy: { created_at: 'desc' } });
+const listTemplates = async ({ db } = {}) => {
+  const prisma = dbOf(db);
+  return prisma.report_templates.findMany({ orderBy: { created_at: 'desc' } });
+};
 
-const getTemplate = async (id) =>
-  prisma.report_templates.findUnique({ where: { id: String(id) } });
+const getTemplate = async (id, { db } = {}) => {
+  const prisma = dbOf(db);
+  return prisma.report_templates.findUnique({ where: { id: String(id) } });
+};
 
-const createTemplate = async ({ name, platform = 'all', html_content, is_default = false, created_by }) => {
+const createTemplate = async ({ name, platform = 'all', html_content, is_default = false, created_by, db }) => {
+  const prisma = dbOf(db);
   if (is_default) {
     await prisma.report_templates.updateMany({
       where: { platform },
@@ -160,14 +185,17 @@ const createTemplate = async ({ name, platform = 'all', html_content, is_default
   });
 };
 
-const updateTemplateContent = async (id, html_content) =>
-  prisma.report_templates.update({
+const updateTemplateContent = async (id, html_content, { db } = {}) => {
+  const prisma = dbOf(db);
+  return prisma.report_templates.update({
     where: { id: String(id) },
     data: { html_content },
   });
+};
 
-const setDefaultTemplate = async (id) => {
-  const template = await getTemplate(id);
+const setDefaultTemplate = async (id, { db } = {}) => {
+  const prisma = dbOf(db);
+  const template = await getTemplate(id, { db: prisma });
   if (!template) return null;
   await prisma.report_templates.updateMany({
     where: { platform: template.platform },
@@ -179,7 +207,8 @@ const setDefaultTemplate = async (id) => {
   });
 };
 
-const deleteTemplate = async (id) => {
+const deleteTemplate = async (id, { db } = {}) => {
+  const prisma = dbOf(db);
   try {
     await prisma.report_templates.delete({ where: { id: String(id) } });
     return true;
@@ -202,17 +231,20 @@ const hydratePolicy = (row) => {
   };
 };
 
-const listPolicies = async () => {
+const listPolicies = async ({ db } = {}) => {
+  const prisma = dbOf(db);
   const rows = await prisma.policy_mappings.findMany({ orderBy: { category_id: 'asc' } });
   return rows.map(hydratePolicy);
 };
 
-const getPolicy = async (id) => {
+const getPolicy = async (id, { db } = {}) => {
+  const prisma = dbOf(db);
   const row = await prisma.policy_mappings.findUnique({ where: { id: String(id) } });
   return hydratePolicy(row);
 };
 
-const createPolicy = async (body = {}) => {
+const createPolicy = async (body = {}, { db } = {}) => {
+  const prisma = dbOf(db);
   const row = await prisma.policy_mappings.create({
     data: {
       category_id: String(body.category_id || '').trim(),
@@ -230,7 +262,8 @@ const createPolicy = async (body = {}) => {
   return hydratePolicy(row);
 };
 
-const updatePolicy = async (id, body = {}) => {
+const updatePolicy = async (id, body = {}, { db } = {}) => {
+  const prisma = dbOf(db);
   const data = {};
   if (body.category_id !== undefined) data.category_id = String(body.category_id).trim();
   if (body.definition !== undefined) data.definition = String(body.definition);
@@ -245,7 +278,8 @@ const updatePolicy = async (id, body = {}) => {
   return hydratePolicy(row);
 };
 
-const deletePolicy = async (id) => {
+const deletePolicy = async (id, { db } = {}) => {
+  const prisma = dbOf(db);
   try {
     await prisma.policy_mappings.delete({ where: { id: String(id) } });
     return true;
@@ -254,7 +288,8 @@ const deletePolicy = async (id) => {
   }
 };
 
-const listActivePolicies = async () => {
+const listActivePolicies = async ({ db } = {}) => {
+  const prisma = dbOf(db);
   const rows = await prisma.policy_mappings.findMany({
     where: { is_active: true },
     orderBy: { category_id: 'asc' },

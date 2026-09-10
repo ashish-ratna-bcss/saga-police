@@ -52,6 +52,14 @@ const Sidebar = ({ open, items }) => {
   const [unreadAlerts, setUnreadAlerts] = useState(0);
 
   const refreshUnread = useCallback(async () => {
+    const hasAlertsNav = (Array.isArray(items) ? items : []).some((item) => {
+      const href = item.path || item.href || '';
+      return href === '/alerts' || href.startsWith('/alerts/');
+    });
+    if (!hasAlertsNav) {
+      setUnreadAlerts(0);
+      return;
+    }
     try {
       const res = await AlertService.getUnread();
       const count = Number(res.data?.count ?? 0);
@@ -59,7 +67,7 @@ const Sidebar = ({ open, items }) => {
     } catch {
       /* ignore — badge is best-effort */
     }
-  }, []);
+  }, [items]);
 
   useEffect(() => {
     refreshUnread();

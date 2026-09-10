@@ -1,13 +1,15 @@
-// Reads the Facebook Scraper provider's settings from the environment.
-// Set these two in .env:
-//   FACEBOOK_BASE_URL   e.g. https://facebook-scraper3.p.rapidapi.com
-//   FACEBOOK_API_KEY    your RapidAPI key for that provider
+// Facebook Blugate gateway base URL (credentials from platforms table).
+//   BLUGATE_FACEBOOK_HOST=https://blugate.blurasaga.com/api/gateway/facebook
+//   or BLUGATE_BASE_URL=https://blugate.blurasaga.com
 
-const getFacebookBaseUrl = () => process.env.FACEBOOK_BASE_URL;
+const { resolveGatewayBaseUrl } = require('../blugate.http');
 
-const getFacebookApiKey = () => process.env.FACEBOOK_API_KEY;
+const getFacebookBaseUrl = () =>
+  resolveGatewayBaseUrl('facebook', [
+    'BLUGATE_FACEBOOK_HOST',
+    'FACEBOOK_BASE_URL',
+  ]);
 
 module.exports = {
-    getFacebookBaseUrl,
-    getFacebookApiKey
+  getFacebookBaseUrl,
 };

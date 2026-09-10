@@ -1,4 +1,5 @@
 const callXApi = require('../../blugate/x/blugate.x.api_client');
+const { authFromPlatformRow } = callXApi;
 const { waitForSlot, noteRateLimit } = require('./rateLimit');
 
 const isRateError = (err) => {
@@ -7,10 +8,10 @@ const isRateError = (err) => {
   return status === 429 || msg.includes('rate') || msg.includes('too many');
 };
 
-const callWithGap = async (endpointKey, params) => {
+const callWithGap = async (endpointKey, params, auth = null) => {
   await waitForSlot();
   try {
-    return await callXApi(endpointKey, params);
+    return await callXApi(endpointKey, params, auth);
   } catch (err) {
     if (isRateError(err)) noteRateLimit();
     throw err;
@@ -20,7 +21,7 @@ const callWithGap = async (endpointKey, params) => {
 const extractUserResult = (res) =>
   res?.result?.data?.user?.result || res?.data?.user?.result || null;
 
-const resolveUserId = async (accountData = {}) => {
+const resolveUserId = async (accountData = {}, auth = null) => {
   const data = accountData && typeof accountData === 'object' ? accountData : {};
   if (data.user_id) {
     return {
@@ -36,7 +37,7 @@ const resolveUserId = async (accountData = {}) => {
   if (!username) {
     throw new Error('X account needs username or user_id in data');
   }
-  const res = await callWithGap('USER', { username });
+  const res = await callWithGap('USER', { username }, auth);
   const user = extractUserResult(res);
   const userId = user?.rest_id ? String(user.rest_id) : null;
   if (!userId) {
@@ -94,14 +95,14 @@ const collectRetweeters = (instructions = []) => {
  */
 const fetchUserTweetsForEngagerAnalysis = async (
   username,
-  { sinceDate = null, maxTweets = 200 } = {}
+  { sinceDate = null, maxTweets = 200, auth = null } = {}
 ) => {
   const clean = String(username || '')
     .trim()
     .replace(/^@/, '');
   if (!clean) throw new Error('username is required');
 
-  const resolved = await resolveUserId({ username: clean });
+  const resolved = await resolveUserId({ username: clean }, auth);
   const tweets = [];
   let cursor;
   let pages = 0;
@@ -115,7 +116,7 @@ const fetchUserTweetsForEngagerAnalysis = async (
     };
     if (cursor) params.cursor = cursor;
 
-    const response = await callWithGap('USER_TWEETS', params);
+    const response = await callWithGap('USER_TWEETS', params, auth);
     const instructions =
       response?.result?.timeline?.instructions ||
       response?.timeline?.instructions ||
@@ -161,13 +162,17 @@ const fetchUserTweetsForEngagerAnalysis = async (
 };
 
 /** List retweeters for one tweet via Blugate RETWEETS. */
-const fetchTweetRetweeters = async (tweetId, { count = 100 } = {}) => {
+const fetchTweetRetweeters = async (tweetId, { count = 100, auth = null } = {}) => {
   const pid = String(tweetId || '').trim();
   if (!pid) return [];
-  const response = await callWithGap('RETWEETS', {
-    pid,
-    count: String(Math.max(5, Math.min(Number(count) || 100, 200))),
-  });
+  const response = await callWithGap(
+    'RETWEETS',
+    {
+      pid,
+      count: String(Math.max(5, Math.min(Number(count) || 100, 200))),
+    },
+    auth
+  );
   const instructions =
     response?.result?.timeline?.instructions ||
     response?.timeline?.instructions ||
@@ -296,15 +301,23 @@ const mapXPost = (raw, accountId, fallbackHandle) => {
 
 /**
  * Fetch recent tweets for one X catalog account.
+ * @param {object} account
+ * @param {{ accessKey: string, clientId: string }|null} auth - from platforms table
  */
-const fetchXPosts = async (account) => {
+const fetchXPosts = async (account, auth = null) => {
+  const creds = auth || (account.platforms ? authFromPlatformRow(account.platforms) : null);
   const { userId, username, apiHits: resolveHits, dataPatch } = await resolveUserId(
-    account.data || {}
+    account.data || {},
+    creds
   );
-  const response = await callWithGap('USER_TWEETS', {
-    user: userId,
-    count: '20',
-  });
+  const response = await callWithGap(
+    'USER_TWEETS',
+    {
+      user: userId,
+      count: '20',
+    },
+    creds
+  );
   const instructions =
     response?.result?.timeline?.instructions ||
     response?.timeline?.instructions ||

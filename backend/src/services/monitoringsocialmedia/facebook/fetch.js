@@ -7,10 +7,10 @@ const isRateError = (err) => {
   return status === 429 || msg.includes('rate') || msg.includes('too many');
 };
 
-const callWithGap = async (endpointKey, params) => {
+const callWithGap = async (endpointKey, params, auth = null) => {
   await waitForSlot();
   try {
-    return await callFacebookApi(endpointKey, params);
+    return await callFacebookApi(endpointKey, params, auth);
   } catch (err) {
     if (isRateError(err)) noteRateLimit();
     throw err;
@@ -21,7 +21,7 @@ const callWithGap = async (endpointKey, params) => {
  * Resolve numeric page_id from profile data or PAGE_DETAILS.
  * @returns {{ pageId: string, apiHits: number, dataPatch: object|null }}
  */
-const resolvePageId = async (profileData = {}) => {
+const resolvePageId = async (profileData = {}, auth = null) => {
   const data = profileData && typeof profileData === 'object' ? profileData : {};
   if (data.page_id) {
     return { pageId: String(data.page_id), apiHits: 0, dataPatch: null };
@@ -30,7 +30,7 @@ const resolvePageId = async (profileData = {}) => {
   if (!url) {
     throw new Error('Facebook profile needs url or page_id in data');
   }
-  const details = await callWithGap('PAGE_DETAILS', { url: String(url) });
+  const details = await callWithGap('PAGE_DETAILS', { url: String(url) }, auth);
   const pageId =
     details?.results?.page_id ||
     details?.page_id ||
@@ -78,9 +78,9 @@ const mapFacebookPost = (post, accountId) => {
  * Fetch one page of posts for an account.
  * @returns {{ posts: object[], apiHits: number, dataPatch: object|null }}
  */
-const fetchFacebookPosts = async (account) => {
-  const { pageId, apiHits: resolveHits, dataPatch } = await resolvePageId(account.data || {});
-  const response = await callWithGap('PAGE_POSTS', { page_id: pageId });
+const fetchFacebookPosts = async (account, auth = null) => {
+  const { pageId, apiHits: resolveHits, dataPatch } = await resolvePageId(account.data || {}, auth);
+  const response = await callWithGap('PAGE_POSTS', { page_id: pageId }, auth);
   const results = Array.isArray(response?.results) ? response.results : [];
   const posts = results
     .filter((p) => p?.post_id)

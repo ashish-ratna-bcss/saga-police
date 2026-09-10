@@ -89,48 +89,45 @@ app.use((err, req, res, next) => {
 
 const createDefaultUsers = async () => {
   try {
+    const { ensureSystemRoles, getRoleBySlug } = require('./modules/role/role.service');
+    const { ROLE_SLUGS } = require('./modules/role/role.utils');
+    const { getDefaultAccessForRole } = require('./modules/auth/access_features');
+
+    // Always ensure system roles exist (superadmin / admin / user).
+    await ensureSystemRoles();
+    logger.info('[Startup] System roles ensured (superadmin, admin, user)');
+
     if (!shouldSeedDefaultAdmin()) {
       return;
     }
 
-    const { ensureSystemRoles, getRoleBySlug } = require('./modules/role/role.service');
-    const { ROLE_SLUGS } = require('./modules/role/role.utils');
-
-    await ensureSystemRoles();
     const superadminRole = await getRoleBySlug(ROLE_SLUGS.SUPERADMIN);
-    const adminRole = await getRoleBySlug(ROLE_SLUGS.ADMIN);
-    const userRole = await getRoleBySlug(ROLE_SLUGS.USER);
-
-    if (!superadminRole || !adminRole || !userRole) {
-      logger.error('[Startup] System roles missing after seed');
+    if (!superadminRole) {
+      logger.error('[Startup] Superadmin role missing after ensure');
       return;
     }
 
-    const defaultAccounts = [
-      { username: 'superadmin', name: 'Super Administrator', email: 'superadmin@blurahub.com', pass: 'superadmin123', roleId: superadminRole.id },
-      { username: 'admin', name: 'System Administrator', email: 'admin@blurahub.com', pass: 'admin123', roleId: adminRole.id },
-      { username: 'user', name: 'Standard User', email: 'user@blurahub.com', pass: 'user123', roleId: userRole.id },
-    ];
-
-    for (const acc of defaultAccounts) {
-      const userExists = await prisma.users.findUnique({ where: { username: acc.username } });
-      if (!userExists) {
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(acc.pass, salt);
-
-        await prisma.users.create({
-          data: {
-            name: acc.name,
-            username: acc.username,
-            email: acc.email,
-            password: hashedPassword,
-            role_id: acc.roleId,
-            ui_mode: 'light',
-          },
-        });
-        logger.info(`[Startup] Default user created: ${acc.username}`);
-      }
+    const existing = await prisma.users.findUnique({ where: { username: 'superadmin' } });
+    if (existing) {
+      return;
     }
+
+    const access = getDefaultAccessForRole(ROLE_SLUGS.SUPERADMIN);
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash('superadmin123', salt);
+
+    await prisma.users.create({
+      data: {
+        name: 'Super Administrator',
+        username: 'superadmin',
+        email: 'superadmin@blurahub.com',
+        password: hashedPassword,
+        role_id: superadminRole.id,
+        ui_mode: 'light',
+        ...access,
+      },
+    });
+    logger.info('[Startup] Default superadmin user created (username: superadmin)');
   } catch (error) {
     logger.error(`[Startup] Error creating default users: ${error.message}`);
   }
@@ -150,8 +147,9 @@ const startServer = async () => {
   startEventScheduler();
 
   const PORT = process.env.PORT || 8000;
+  const HOST = process.env.HOST || '0.0.0.0';
 
-  app.listen(PORT, async () => {
+  app.listen(PORT, HOST, async () => {
     let health = null;
     try {
       const { checkSystemHealth } = require('./modules/health/health.monitor.service');
@@ -172,7 +170,7 @@ const startServer = async () => {
 │                 BLURA SAGA — CYBER HUB                      │
 │            PostgreSQL Intelligence API Server               │
 ├─────────────────────────────────────────────────────────────┤
-│  🚀 Server Status  : Online (Port ${PORT})                  │
+│  🚀 Server Status  : Online (${HOST}:${PORT})               │
 │  🐘 PostgreSQL DB  : ${pgStatus.padEnd(39)}│
 │  🤖 Ollama / AI    : ${ollamaStatus.padEnd(39)}│
 │  🧠 Sentiment AI   : ${sentimentStatus.padEnd(39)}│

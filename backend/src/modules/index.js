@@ -1,7 +1,6 @@
 const express = require('express');
 const authRoutes = require('./auth/auth.routes');
 const userRoutes = require('./user/user.routes');
-const roleRoutes = require('./role/role.routes');
 const alertRoutes = require('./alerts/alert.routes');
 const { keywordRoutes } = require('./alerts');
 const {
@@ -32,10 +31,11 @@ const {
 const { reportRoutes } = require('./reports');
 const { uploadRoutes } = require('./uploads');
 const { bluwebRoutes } = require('./web-intel');
+const { searchRoutes } = require('./search');
 const { authorize } = require('../middleware/auth.middleware');
 const { getMyPermissions, getAllPages } = require('./user/user.controller');
-const { ensureSystemRoles, getRoleBySlug } = require('./role/role.service');
 const { ROLE_SLUGS } = require('./role/role.utils');
+const { roleRoutes } = require('./role');
 const { assertJwtConfigured, shouldSeedDefaultAdmin, isProduction } = require('../config/env');
 
 /**
@@ -79,12 +79,11 @@ router.use('/suggestions', suggestionRoutes);
 router.use('/policies', policyRoutes);
 router.use('/templates', templatesRoutes);
 router.use('/web-intelligence', bluwebRoutes);
+router.use('/search', searchRoutes);
 
 module.exports = {
   router,
   authorize,
-  ensureSystemRoles,
-  getRoleBySlug,
   ROLE_SLUGS,
   assertJwtConfigured,
   shouldSeedDefaultAdmin,

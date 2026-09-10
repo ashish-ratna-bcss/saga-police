@@ -7,6 +7,8 @@ export const socialProfilesApi = {
   deletePlatform: (id) => apiHandler.delete(`/social-profiles/platforms/${id}`),
 
   list: (params) => apiHandler.get('/social-profiles', { params }),
+  get: (id) => apiHandler.get(`/social-profiles/${id}`),
+  listPosts: (id, params) => apiHandler.get(`/social-profiles/${id}/posts`, { params }),
   create: (body) => apiHandler.post('/social-profiles', body),
   createBatch: (body) => apiHandler.post('/social-profiles/batch', body),
   update: (id, body) => apiHandler.put(`/social-profiles/${id}`, body),

@@ -1,4 +1,4 @@
-const prisma = require('../../../../prisma/client');
+const dbOf = require('../../../lib/dbOf');
 const { upsertPost } = require('../upsertPost');
 const { fetchXPosts } = require('./fetch');
 
@@ -9,7 +9,7 @@ const appendFetchHistory = (existing, entry) => {
   return [...list, entry].slice(-HISTORY_CAP);
 };
 
-const stillStarted = async (id) => {
+const stillStarted = async (id, prisma) => {
   const row = await prisma.social_media_accounts.findUnique({
     where: { id },
     select: { monitoring_status: true },
@@ -20,18 +20,24 @@ const stillStarted = async (id) => {
 /**
  * Fetch + upsert posts for one X account.
  * @param {number} accountId
- * @param {{ force?: boolean }} opts - force=true skips interval (kickoff)
+ * @param {{ force?: boolean, db?: object, dbName?: string|null }} opts - force=true skips interval (kickoff)
  */
 const runXProfile = async (accountId, opts = {}) => {
+  const prisma = dbOf(opts.db);
+  const dbName = opts.dbName || null;
   const account = await prisma.social_media_accounts.findUnique({
     where: { id: accountId },
-    include: { platforms: { select: { slug: true } } },
+    include: {
+      platforms: {
+        select: { slug: true, api_key: true, blugate_client_key: true },
+      },
+    },
   });
 
   if (!account) {
     return { ok: false, skipped: true, reason: 'not_found' };
   }
-  if (account.platforms?.slug !== 'x') {
+  if (account.platforms?.slug !== 'x' && account.platforms?.slug !== 'twitter') {
     return { ok: false, skipped: true, reason: 'not_x' };
   }
   if (account.monitoring_status !== 'started') {
@@ -53,21 +59,23 @@ const runXProfile = async (accountId, opts = {}) => {
   let postsUpdated = 0;
 
   try {
-    if (!(await stillStarted(accountId))) {
+    if (!(await stillStarted(accountId, prisma))) {
       return { ok: false, skipped: true, reason: 'stopped' };
     }
 
-    const { posts, apiHits: hits, dataPatch } = await fetchXPosts(account);
+    const { authFromPlatformRow } = require('../../blugate/x/blugate.x.api_client');
+    const auth = authFromPlatformRow(account.platforms);
+    const { posts, apiHits: hits, dataPatch } = await fetchXPosts(account, auth);
     apiHits = hits;
     postsReturned = posts.length;
 
-    if (!(await stillStarted(accountId))) {
+    if (!(await stillStarted(accountId, prisma))) {
       return { ok: false, skipped: true, reason: 'stopped_mid_fetch' };
     }
 
     for (const post of posts) {
-      if (!(await stillStarted(accountId))) break;
-      const result = await upsertPost(post);
+      if (!(await stillStarted(accountId, prisma))) break;
+      const result = await upsertPost(post, { db: prisma, dbName });
       if (result.created) postsNew += 1;
       else postsUpdated += 1;
     }

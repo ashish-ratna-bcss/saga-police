@@ -1,4 +1,4 @@
-const prisma = require('../../../../prisma/client');
+const { listTenantDbNames, getTenantPrisma } = require('../../../lib/tenantDatabase.service');
 const { runYouTubeProfile } = require('./runProfile');
 
 const TICK_MS = Number(process.env.YOUTUBE_MONITOR_TICK_MS) || 60_000;
@@ -7,7 +7,9 @@ let timer = null;
 let ticking = false;
 const inFlight = new Set();
 
-const loadDueYouTubeAccounts = async () => {
+const flightKey = (dbName, id) => `${dbName || ''}:${id}`;
+
+const loadDueYouTubeAccounts = async (prisma) => {
   const rows = await prisma.social_media_accounts.findMany({
     where: {
       monitoring_status: 'started',
@@ -30,14 +32,30 @@ const tick = async () => {
   if (ticking) return;
   ticking = true;
   try {
-    const due = await loadDueYouTubeAccounts();
-    for (const row of due) {
-      if (inFlight.has(row.id)) continue;
-      inFlight.add(row.id);
+    const dbNames = await listTenantDbNames();
+    for (const dbName of dbNames) {
+      const tenantPrisma = getTenantPrisma(dbName);
       try {
-        await runYouTubeProfile(row.id, { force: false });
-      } finally {
-        inFlight.delete(row.id);
+        const due = await loadDueYouTubeAccounts(tenantPrisma);
+        for (const row of due) {
+          const key = flightKey(dbName, row.id);
+          if (inFlight.has(key)) continue;
+          inFlight.add(key);
+          try {
+            await runYouTubeProfile(row.id, {
+              force: false,
+              db: tenantPrisma,
+              dbName,
+            });
+          } finally {
+            inFlight.delete(key);
+          }
+        }
+      } catch (error) {
+        console.error(
+          `[monitoringsocialmedia/youtube] scheduler tenant=${dbName}:`,
+          error.message
+        );
       }
     }
   } catch (error) {
@@ -60,9 +78,9 @@ const stopScheduler = () => {
   }
 };
 
-const markInFlight = (id) => inFlight.add(id);
-const clearInFlight = (id) => inFlight.delete(id);
-const isInFlight = (id) => inFlight.has(id);
+const markInFlight = (id, dbName = null) => inFlight.add(flightKey(dbName, id));
+const clearInFlight = (id, dbName = null) => inFlight.delete(flightKey(dbName, id));
+const isInFlight = (id, dbName = null) => inFlight.has(flightKey(dbName, id));
 
 module.exports = {
   startScheduler,

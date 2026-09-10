@@ -4,15 +4,18 @@ const { createAuditLog } = require('../../lib/audit');
 const { validateLogin } = require('./auth.validation');
 const { generateToken, findUserWithRole } = require('./auth.service');
 const { createAuthCookie, deleteAuthCookie } = require('../../config/cookies');
-const { ACCESS_FEATURES } = require('./access_features');
+const { sidebarForUser } = require('./access_features');
 const { toPublicUser } = require('../user/user.utils');
 
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 
-const meResponse = (user, role) => ({
-  ...toPublicUser(user, role),
-  sidebar: ACCESS_FEATURES[role?.slug || user.role] || [],
-});
+const meResponse = (user, role) => {
+  const publicUser = toPublicUser(user, role || user.roles);
+  return {
+    ...publicUser,
+    sidebar: sidebarForUser(publicUser),
+  };
+};
 
 const login = async (req, res) => {
   try {
@@ -35,7 +38,7 @@ const login = async (req, res) => {
       { ip: req.ip }
     );
 
-    createAuthCookie(res, generateToken(user.id));
+    createAuthCookie(res, generateToken(user.id, user.db_name));
     const publicUser = toPublicUser(user, user.roles);
     return res.json({
       message: 'Logged in',
@@ -60,12 +63,14 @@ const getMe = async (req, res) => {
     username: user.username,
     role: user.role,
     ui_mode: user.ui_mode === 'dark' ? 'dark' : 'light',
-    theme_color: user.theme_color || '#06b6d4',
+    theme_color: user.theme_color || 'linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)',
     theme_config: user.theme_config || {},
     blurasagatitle: user.blurasagatitle || 'BLURA SAGA',
     blurasagadescription: user.blurasagadescription || 'Cyber Intelligence Platform',
     blurasagalogo: user.blurasagalogo || '/blura_saga_logo.jpg',
-    sidebar: ACCESS_FEATURES[user.role] || [],
+    allowed_pages: user.allowed_pages || [],
+    allowed_platforms: user.allowed_platforms || [],
+    sidebar: sidebarForUser(user),
   });
 };
 
@@ -109,10 +114,12 @@ const updateMyThemeColor = async (req, res) => {
     }
 
     const isGradient = inputVal.startsWith('linear-gradient') || inputVal.startsWith('radial-gradient');
-    let primaryHex = '#06b6d4';
+    let primaryHex = '#38bdf8';
     if (isGradient) {
-      const match = inputVal.match(/#([0-9a-fA-F]{6})/);
-      if (match) primaryHex = `#${match[1]}`;
+      const matches = inputVal.match(/#([0-9a-fA-F]{6})/g);
+      if (matches?.length) {
+        primaryHex = matches[matches.length - 1];
+      }
     } else {
       if (HEX_COLOR_RE.test(inputVal)) {
         primaryHex = inputVal;
@@ -141,10 +148,73 @@ const updateMyThemeColor = async (req, res) => {
   }
 };
 
+/**
+ * Admin manages which social platforms their tenant uses (Settings → Platforms).
+ * Syncs tenant `platforms` rows and cascades to users created by this admin.
+ */
+const updateMyPlatforms = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Not authorized' });
+    }
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ message: 'Only Admin can manage platforms' });
+    }
+
+    const { PLATFORM_SLUGS, syncTenantPlatforms } = require('../../lib/platformCatalog');
+    const { getTenantPrisma } = require('../../lib/tenantDatabase.service');
+
+    const raw = Array.isArray(req.body?.allowed_platforms) ? req.body.allowed_platforms : null;
+    if (!raw) {
+      return res.status(400).json({ message: 'allowed_platforms array is required' });
+    }
+
+    const allowed = [
+      ...new Set(
+        raw
+          .map((s) => String(s || '').toLowerCase().trim())
+          .filter((s) => PLATFORM_SLUGS.includes(s))
+      ),
+    ];
+
+    const currentUser = await prisma.users.findUnique({
+      where: { id: userId },
+      include: { roles: true },
+    });
+    if (!currentUser?.db_name) {
+      return res.status(400).json({ message: 'Admin has no tenant database' });
+    }
+
+    const updated = await prisma.users.update({
+      where: { id: userId },
+      data: { allowed_platforms: allowed },
+      include: { roles: true },
+    });
+
+    // Users under this admin inherit the same platforms.
+    await prisma.users.updateMany({
+      where: {
+        created_by: userId,
+        roles: { slug: 'user' },
+      },
+      data: { allowed_platforms: allowed },
+    });
+
+    const tenantPrisma = getTenantPrisma(currentUser.db_name);
+    await syncTenantPlatforms(tenantPrisma, allowed);
+
+    return res.status(200).json(meResponse(updated, updated.roles));
+  } catch (error) {
+    return res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   login,
   logout,
   getMe,
   updateMyUiMode,
   updateMyThemeColor,
+  updateMyPlatforms,
 };

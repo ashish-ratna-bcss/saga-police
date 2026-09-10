@@ -49,7 +49,6 @@ const buildCatalogPreviewData = (platform, identifier) => {
 const markAllRead = async () => {
   await AlertService.markAllRead();
 };
-const hasFeatureAccess = () => true;
 
 const ALERT_STATUS_TABS = [
   { value: 'active', label: 'Active' },
@@ -179,10 +178,7 @@ export default function Alerts() {
   const [topAlertsHours, setTopAlertsHours] = useState(24);
   const [topAlertsCatFilter, setTopAlertsCatFilter] = useState('all');
 
-  const visibleStatusTabs = useMemo(
-    () => ALERT_STATUS_TABS.filter((tab) => hasFeatureAccess('/alerts', tab.value)),
-    []
-  );
+  const visibleStatusTabs = useMemo(() => ALERT_STATUS_TABS, []);
   const hasAnyAlertFeature = visibleStatusTabs.length > 0;
   const statusFromUrl = searchParams.get('status');
   const activeTab = useMemo(() => {

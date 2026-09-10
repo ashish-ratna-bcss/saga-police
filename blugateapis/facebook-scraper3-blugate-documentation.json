@@ -1,0 +1,1223 @@
+{
+  "format": "blugate-client-documentation-v1",
+  "gatewayBaseUrl": "https://blugate.blurasaga.com/api/gateway/facebook",
+  "auth": {
+    "note": "Authenticate with your BluGate client API key and client code. BluGate handles upstream credentials for you.",
+    "headers": [
+      {
+        "name": "Authorization",
+        "value": "Bearer <BLUGATE_API_KEY>",
+        "required": true,
+        "description": "BluGate client API key"
+      },
+      {
+        "name": "x-client-id",
+        "value": "<CLIENT_CODE>",
+        "required": true,
+        "description": "Your BluGate client code (e.g. SOC-EYE-001)"
+      }
+    ]
+  },
+  "endpoints": [
+    {
+      "method": "GET",
+      "route": "/ads/autocomplete",
+      "gatewayPath": "/api/gateway/facebook/ads/autocomplete",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/ads/autocomplete",
+      "name": "Autocomplete",
+      "description": "Get ads autocomplete suggestions",
+      "groupName": "Ads Library",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Search query text"
+        },
+        {
+          "name": "country",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Two-letter country code (e.g. US)"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/ads/details",
+      "gatewayPath": "/api/gateway/facebook/ads/details",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/ads/details",
+      "name": "Get ad details",
+      "description": "Get ad details",
+      "groupName": "Ads Library",
+      "params": [
+        {
+          "name": "ad_archive_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Ad archive ID"
+        },
+        {
+          "name": "country",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Two-letter country code"
+        },
+        {
+          "name": "page_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Facebook page ID that owns the ad"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/ads/details_id",
+      "gatewayPath": "/api/gateway/facebook/ads/details_id",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/ads/details_id",
+      "name": "Get ad details by just id",
+      "description": "Get ad details by just id. Might sometime breaks, use other endpoints in such case",
+      "groupName": "Ads Library",
+      "params": [
+        {
+          "name": "ad_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Ad ID only (confirm exact param name in playground)"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/ads/page/search",
+      "gatewayPath": "/api/gateway/facebook/ads/page/search",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/ads/page/search",
+      "name": "Get page ads",
+      "description": "Search for given page ads",
+      "groupName": "Ads Library",
+      "params": [
+        {
+          "name": "page_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Facebook page ID"
+        },
+        {
+          "name": "country",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Two-letter country code"
+        },
+        {
+          "name": "active_status",
+          "in": "query",
+          "required": true,
+          "type": "enum",
+          "description": "Typically ALL / ACTIVE / INACTIVE"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        },
+        {
+          "name": "sort_by_new",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Sort by newest first"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/ads/search",
+      "gatewayPath": "/api/gateway/facebook/ads/search",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/ads/search",
+      "name": "Search ads",
+      "description": "Search for ads",
+      "groupName": "Ads Library",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Search keyword"
+        },
+        {
+          "name": "country",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Two-letter country code"
+        },
+        {
+          "name": "active_status",
+          "in": "query",
+          "required": true,
+          "type": "enum",
+          "description": "Typically ALL / ACTIVE / INACTIVE"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/event/details",
+      "gatewayPath": "/api/gateway/facebook/event/details",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/event/details",
+      "name": "Events details by url",
+      "description": "Get events details",
+      "groupName": "Events",
+      "params": [
+        {
+          "name": "url",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Facebook event URL"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/event/details_id",
+      "gatewayPath": "/api/gateway/facebook/event/details_id",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/event/details_id",
+      "name": "Events details by id",
+      "description": "Get events details by event id",
+      "groupName": "Events",
+      "params": [
+        {
+          "name": "event_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Facebook event ID"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/page/events/future",
+      "gatewayPath": "/api/gateway/facebook/page/events/future",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/page/events/future",
+      "name": "Page events",
+      "description": "Get all future events created by page",
+      "groupName": "Events",
+      "params": [
+        {
+          "name": "page_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Facebook page ID"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/post/reactions",
+      "gatewayPath": "/api/gateway/facebook/post/reactions",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/post/reactions",
+      "name": "Post reactions",
+      "description": "Get post reactions",
+      "groupName": "Experimental",
+      "params": [
+        {
+          "name": "post_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Post ID"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/search/groups",
+      "gatewayPath": "/api/gateway/facebook/search/groups",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/search/groups",
+      "name": "Search groups",
+      "description": "Searches for facebook groups",
+      "groupName": "Experimental",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Group search keyword"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/search/hashtags",
+      "gatewayPath": "/api/gateway/facebook/search/hashtags",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/search/hashtags",
+      "name": "Search hashtag",
+      "description": "Search posts with hashtag",
+      "groupName": "Experimental",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Hashtag (with or without #)"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/gaming/games",
+      "gatewayPath": "/api/gateway/facebook/gaming/games",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/gaming/games",
+      "name": "Browse games",
+      "description": "Browse games. Use empty query for browse all games.Use cursor to get next page.",
+      "groupName": "Games",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Empty query browses all games"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/gaming/live",
+      "gatewayPath": "/api/gateway/facebook/gaming/live",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/gaming/live",
+      "name": "Game lives",
+      "description": "Get game live videosUse cursor to get next page.",
+      "groupName": "Games",
+      "params": [
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/group/details",
+      "gatewayPath": "/api/gateway/facebook/group/details",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/group/details",
+      "name": "get group details",
+      "description": "Get group summary",
+      "groupName": "Groups",
+      "params": [
+        {
+          "name": "group_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Public group ID"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/group/future_events",
+      "gatewayPath": "/api/gateway/facebook/group/future_events",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/group/future_events",
+      "name": "get group future events",
+      "description": "Get group future events. Only PUBLIC groups can be scrapped!If there are no post response, check if group is not private.Use cursor to get next page of events!",
+      "groupName": "Groups",
+      "params": [
+        {
+          "name": "group_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Public group ID only"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/group/id",
+      "gatewayPath": "/api/gateway/facebook/group/id",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/group/id",
+      "name": "get group id",
+      "description": "Getting group facebook id",
+      "groupName": "Groups",
+      "params": [
+        {
+          "name": "url",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Facebook group URL"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/group/photos",
+      "gatewayPath": "/api/gateway/facebook/group/photos",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/group/photos",
+      "name": "get group photos",
+      "description": "Get group photosOnly PUBLIC groups can be scrapped!If there are no post response, check if group is not private.Use cursor to get next page of events!",
+      "groupName": "Groups",
+      "params": [
+        {
+          "name": "group_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Public group ID only"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/group/posts",
+      "gatewayPath": "/api/gateway/facebook/group/posts",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/group/posts",
+      "name": "get group posts",
+      "description": "Get group posts. Only PUBLIC groups can be scrapped!If there are no post response, check if group is not private.",
+      "groupName": "Groups",
+      "params": [
+        {
+          "name": "group_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Public group ID only"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/group/videos",
+      "gatewayPath": "/api/gateway/facebook/group/videos",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/group/videos",
+      "name": "get group videos",
+      "description": "Get group videosOnly PUBLIC groups can be scrapped!If there are no post response, check if group is not private.Use cursor to get next page of events!",
+      "groupName": "Groups",
+      "params": [
+        {
+          "name": "group_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Public Facebook group ID"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/marketplace/details",
+      "gatewayPath": "/api/gateway/facebook/marketplace/details",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/marketplace/details",
+      "name": "Listing details",
+      "description": "Get listing details",
+      "groupName": "Marketplace",
+      "params": []
+    },
+    {
+      "method": "GET",
+      "route": "/marketplace/search",
+      "gatewayPath": "/api/gateway/facebook/marketplace/search",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/marketplace/search",
+      "name": "Search",
+      "description": "Search marketplace. Use cursor to get next page",
+      "groupName": "Marketplace",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Marketplace search keyword"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/page/details",
+      "gatewayPath": "/api/gateway/facebook/page/details",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/page/details",
+      "name": "Page details",
+      "description": "Read page details",
+      "groupName": "Pages",
+      "params": [
+        {
+          "name": "page_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Facebook page ID (or URL param if supported — check playground)"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/page/events/past",
+      "gatewayPath": "/api/gateway/facebook/page/events/past",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/page/events/past",
+      "name": "Page past events",
+      "description": "Get all past events created by page.Use cursor to get next page of results.",
+      "groupName": "Pages",
+      "params": [
+        {
+          "name": "page_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Facebook page ID"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/page/page_id",
+      "gatewayPath": "/api/gateway/facebook/page/page_id",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/page/page_id",
+      "name": "Page id",
+      "description": "get page id from url",
+      "groupName": "Pages",
+      "params": [
+        {
+          "name": "url",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Facebook page URL"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/page/photos",
+      "gatewayPath": "/api/gateway/facebook/page/photos",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/page/photos",
+      "name": "Pages photos",
+      "description": "Read page photos (from recent)Use cursor to get next page of results",
+      "groupName": "Pages",
+      "params": [
+        {
+          "name": "page_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Facebook page ID"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/page/posts",
+      "gatewayPath": "/api/gateway/facebook/page/posts",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/page/posts",
+      "name": "Pages posts",
+      "description": "Read page posts (from recent)",
+      "groupName": "Pages",
+      "params": [
+        {
+          "name": "page_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Facebook page ID"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/page/reels",
+      "gatewayPath": "/api/gateway/facebook/page/reels",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/page/reels",
+      "name": "Page reels",
+      "description": "Get page reels by page id - use reels_page_id now",
+      "groupName": "Pages",
+      "params": [
+        {
+          "name": "reels_page_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Reels page ID from page details"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/page/reviews",
+      "gatewayPath": "/api/gateway/facebook/page/reviews",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/page/reviews",
+      "name": "Page reviews",
+      "description": "Get page reviews. Use cursor to get next page",
+      "groupName": "Pages",
+      "params": [
+        {
+          "name": "page_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Facebook page ID"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/page/transparency",
+      "gatewayPath": "/api/gateway/facebook/page/transparency",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/page/transparency",
+      "name": "Page transparency info",
+      "description": "Read page transparency info",
+      "groupName": "Pages",
+      "params": [
+        {
+          "name": "page_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Facebook page ID"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/page/videos",
+      "gatewayPath": "/api/gateway/facebook/page/videos",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/page/videos",
+      "name": "Page videos",
+      "description": "Get page videos by page delegate id. YOU NEED TO USE DELEGATE ID, NOT PAGE ID.",
+      "groupName": "Pages",
+      "params": [
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/comment",
+      "gatewayPath": "/api/gateway/facebook/comment",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/comment",
+      "name": "comment by id",
+      "description": "Get comment by comment id",
+      "groupName": "Posts and comments",
+      "params": [
+        {
+          "name": "comment_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Comment ID"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/post",
+      "gatewayPath": "/api/gateway/facebook/post",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/post",
+      "name": "get post details",
+      "description": "Get post details by url or post id. If both are set, post id is used.",
+      "groupName": "Posts and comments",
+      "params": [
+        {
+          "name": "post_id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Post ID (preferred if both set)"
+        },
+        {
+          "name": "url",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Post URL (used if post_id not set)"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/post/comments",
+      "gatewayPath": "/api/gateway/facebook/post/comments",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/post/comments",
+      "name": "comments",
+      "description": "Get post comments. Use comment_id from post",
+      "groupName": "Posts and comments",
+      "params": [
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/post/comments_nested",
+      "gatewayPath": "/api/gateway/facebook/post/comments_nested",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/post/comments_nested",
+      "name": "comments - nested",
+      "description": "Get nested comments. You need to use legacy fb id",
+      "groupName": "Posts and comments",
+      "params": [
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/post/share",
+      "gatewayPath": "/api/gateway/facebook/post/share",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/post/share",
+      "name": "reshares",
+      "description": "Get post reshares",
+      "groupName": "Posts and comments",
+      "params": [
+        {
+          "name": "post_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Post ID"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/profile/details_id",
+      "gatewayPath": "/api/gateway/facebook/profile/details_id",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/profile/details_id",
+      "name": "Profiles details by id",
+      "description": "Get profiles details by id",
+      "groupName": "Profiles",
+      "params": [
+        {
+          "name": "profile_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Profile ID"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/profile/details_url",
+      "gatewayPath": "/api/gateway/facebook/profile/details_url",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/profile/details_url",
+      "name": "Profile details by url",
+      "description": "Get profile details by url",
+      "groupName": "Profiles",
+      "params": [
+        {
+          "name": "url",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Profile URL"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/profile/photos",
+      "gatewayPath": "/api/gateway/facebook/profile/photos",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/profile/photos",
+      "name": "Profiles photos",
+      "description": "Read profiles photos (from recent)Use cursor to get next page of results",
+      "groupName": "Profiles",
+      "params": [
+        {
+          "name": "profile_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Facebook profile ID"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        },
+        {
+          "name": "collection_id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Optional photo collection ID"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/profile/posts",
+      "gatewayPath": "/api/gateway/facebook/profile/posts",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/profile/posts",
+      "name": "Profile posts",
+      "description": "Read profile posts (from recent), if public",
+      "groupName": "Profiles",
+      "params": [
+        {
+          "name": "profile_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Public profile ID"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/profile/profile_id",
+      "gatewayPath": "/api/gateway/facebook/profile/profile_id",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/profile/profile_id",
+      "name": "Profile id",
+      "description": "Get profile id by url",
+      "groupName": "Profiles",
+      "params": [
+        {
+          "name": "url",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Profile URL"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/profile/reels",
+      "gatewayPath": "/api/gateway/facebook/profile/reels",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/profile/reels",
+      "name": "Profile reels",
+      "description": "Get profile reels. Get `reels_profile_id` from profile details endpoint",
+      "groupName": "Profiles",
+      "params": [
+        {
+          "name": "reels_profile_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "From profile details endpoint"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/search/events",
+      "gatewayPath": "/api/gateway/facebook/search/events",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/search/events",
+      "name": "Search events",
+      "description": "Searches for facebook events",
+      "groupName": "Search",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Search keyword"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        },
+        {
+          "name": "location_uid",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Location UID filter"
+        },
+        {
+          "name": "start_date",
+          "in": "query",
+          "required": false,
+          "type": "date",
+          "description": "yyyy-mm-dd"
+        },
+        {
+          "name": "end_date",
+          "in": "query",
+          "required": false,
+          "type": "date",
+          "description": "yyyy-mm-dd"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/search/global",
+      "gatewayPath": "/api/gateway/facebook/search/global",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/search/global",
+      "name": "Search global",
+      "description": "Performs facebook global search",
+      "groupName": "Search",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Global search keyword"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/search/groups_posts",
+      "gatewayPath": "/api/gateway/facebook/search/groups_posts",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/search/groups_posts",
+      "name": "Search groups posts",
+      "description": "Searches group for posts",
+      "groupName": "Search",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Keyword / group posts search"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/search/locations",
+      "gatewayPath": "/api/gateway/facebook/search/locations",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/search/locations",
+      "name": "locations",
+      "description": "Search for facebook locations id.If you get strange results, try add country to query and/or try without diacritic",
+      "groupName": "Search",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Location search text; try country / no diacritics if odd results"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/search/pages",
+      "gatewayPath": "/api/gateway/facebook/search/pages",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/search/pages",
+      "name": "Search pages",
+      "description": "Searches for facebook pages",
+      "groupName": "Search",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Search keyword"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/search/people",
+      "gatewayPath": "/api/gateway/facebook/search/people",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/search/people",
+      "name": "Search people",
+      "description": "Searches people",
+      "groupName": "Search",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Search keyword"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/search/places",
+      "gatewayPath": "/api/gateway/facebook/search/places",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/search/places",
+      "name": "Search place",
+      "description": "Search for fb place",
+      "groupName": "Search",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Search keyword"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/search/posts",
+      "gatewayPath": "/api/gateway/facebook/search/posts",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/search/posts",
+      "name": "Search post",
+      "description": "Performs facebook posts search",
+      "groupName": "Search",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Search keyword"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        },
+        {
+          "name": "start_date",
+          "in": "query",
+          "required": false,
+          "type": "date",
+          "description": "Optional date filter (yyyy-mm-dd)"
+        },
+        {
+          "name": "end_date",
+          "in": "query",
+          "required": false,
+          "type": "date",
+          "description": "Optional date filter (yyyy-mm-dd)"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/search/videos",
+      "gatewayPath": "/api/gateway/facebook/search/videos",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/facebook/search/videos",
+      "name": "Search video",
+      "description": "Performs facebook videos search",
+      "groupName": "Search",
+      "params": [
+        {
+          "name": "query",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Search keyword"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      ]
+    }
+  ]
+}

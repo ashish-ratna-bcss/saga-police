@@ -15,7 +15,7 @@ const { parseChannelRef } = require('./youtube/fetch');
  * Returns preview_data (JSONB shape to store on profile) + data_patch for form fields.
  * Does NOT save posts.
  */
-const previewFacebook = async (data = {}) => {
+const previewFacebook = async (data = {}, auth = null) => {
   const url = String(data.url || data.page_url || '').trim();
   const existingPageId = data.page_id ? String(data.page_id).trim() : '';
 
@@ -47,7 +47,7 @@ const previewFacebook = async (data = {}) => {
     };
   }
 
-  const details = await callFacebookApi('PAGE_DETAILS', { url });
+  const details = await callFacebookApi('PAGE_DETAILS', { url }, auth);
   const results =
     details?.results && typeof details.results === 'object'
       ? details.results
@@ -92,7 +92,7 @@ const previewFacebook = async (data = {}) => {
   };
 };
 
-const previewX = async (data = {}) => {
+const previewX = async (data = {}, auth = null) => {
   let username = String(data.username || '').trim().replace(/^@/, '');
   if (!username) {
     const err = new Error('Enter an X username');
@@ -100,7 +100,7 @@ const previewX = async (data = {}) => {
     throw err;
   }
 
-  const res = await callXApi('USER', { username });
+  const res = await callXApi('USER', { username }, auth);
   const user =
     res?.result?.data?.user?.result ||
     res?.data?.user?.result ||
@@ -143,7 +143,7 @@ const previewX = async (data = {}) => {
   };
 };
 
-const previewYouTube = async (data = {}) => {
+const previewYouTube = async (data = {}, auth = null) => {
   const { channelId: existingId, handle } = parseChannelRef(data || {});
   if (!existingId && !handle) {
     const err = new Error('Enter a YouTube channel URL, @handle, or channel_id');
@@ -158,7 +158,7 @@ const previewYouTube = async (data = {}) => {
   if (existingId) params.id = existingId;
   else params.forHandle = handle.startsWith('@') ? handle : `@${handle}`;
 
-  const res = await callYouTubeApi('CHANNELS_LIST', params);
+  const res = await callYouTubeApi('CHANNELS_LIST', params, auth);
   const channel = res?.items?.[0];
   if (!channel?.id) {
     const err = new Error('Could not resolve this YouTube channel');
@@ -210,12 +210,12 @@ const previewYouTube = async (data = {}) => {
   };
 };
 
-const previewProfile = async (platformSlug, data) => {
+const previewProfile = async (platformSlug, data, auth = null) => {
   const slug = String(platformSlug || '').toLowerCase();
-  if (slug === 'facebook') return previewFacebook(data);
-  if (slug === 'x' || slug === 'twitter') return previewX(data);
-  if (slug === 'youtube') return previewYouTube(data);
-  if (slug === 'instagram') return previewInstagram(data);
+  if (slug === 'facebook') return previewFacebook(data, auth);
+  if (slug === 'x' || slug === 'twitter') return previewX(data, auth);
+  if (slug === 'youtube') return previewYouTube(data, auth);
+  if (slug === 'instagram') return previewInstagram(data, auth);
   if (slug === 'telegram') return previewTelegram(data);
 
   const err = new Error(
@@ -225,7 +225,7 @@ const previewProfile = async (platformSlug, data) => {
   throw err;
 };
 
-const previewInstagram = async (data = {}) => {
+const previewInstagram = async (data = {}, auth = null) => {
   const username = String(data.username || data.handle || '')
     .trim()
     .replace(/^@/, '')
@@ -238,9 +238,7 @@ const previewInstagram = async (data = {}) => {
     throw err;
   }
 
-  const raw = await callInstagramApi('USER_INFO', { username }).catch(() =>
-    callInstagramApi('PROFILE', { username })
-  );
+  const raw = await callInstagramApi('USER_INFO', { username }, auth);
   const user = pickUser(raw);
   if (!user) {
     const err = new Error(`Could not load Instagram profile for @${username}`);

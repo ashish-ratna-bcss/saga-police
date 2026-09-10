@@ -1,4 +1,4 @@
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 const {
   fetchTweetRetweeters,
   fetchUserTweetsForEngagerAnalysis,
@@ -31,7 +31,8 @@ const pickAvatar = (previewData) => {
 /**
  * List X catalog accounts that have posts (no Mongo / no engager storage).
  */
-const listCatalogXAccounts = async () => {
+const listCatalogXAccounts = async ({ db } = {}) => {
+  const prisma = dbOf(db);
   const accounts = await prisma.social_media_accounts.findMany({
     where: {
       is_active: true,
@@ -64,7 +65,8 @@ const listCatalogXAccounts = async () => {
     });
 };
 
-const loadCatalogTweets = async (cleanHandle, sinceDate, maxTweets = 200) => {
+const loadCatalogTweets = async (cleanHandle, sinceDate, maxTweets = 200, { db } = {}) => {
+  const prisma = dbOf(db);
   const posts = await prisma.social_media_posts.findMany({
     where: {
       platform: 'x',
@@ -114,7 +116,7 @@ const loadCatalogTweets = async (cleanHandle, sinceDate, maxTweets = 200) => {
  * Tweets from Postgres catalog posts (Blugate USER_TWEETS fallback).
  * Retweeters from Blugate RETWEETS — nothing persisted.
  */
-const analyzeHandleLive = async (handle, { periodDays = 30 } = {}) => {
+const analyzeHandleLive = async (handle, { periodDays = 30, db } = {}) => {
   const cleanHandle = normalizeHandle(handle);
   if (!cleanHandle) {
     const err = new Error('handle is required');
@@ -127,12 +129,19 @@ const analyzeHandleLive = async (handle, { periodDays = 30 } = {}) => {
 
   logger.info(`[AlertsEngagers] Live analysis @${cleanHandle} (${safePeriod}d)`);
 
-  let pack = await loadCatalogTweets(cleanHandle, cutoff, 200);
+  let pack = await loadCatalogTweets(cleanHandle, cutoff, 200, { db });
   if (!pack?.tweets?.length) {
     logger.info(`[AlertsEngagers] No catalog posts — Blugate fallback @${cleanHandle}`);
+    const prisma = dbOf(db);
+    const platformRow = await prisma.platforms.findFirst({
+      where: { slug: { in: ['x', 'twitter'] }, is_active: true },
+    });
+    const { authFromPlatformRow } = require('../../services/blugate/x/blugate.x.api_client');
+    const auth = authFromPlatformRow(platformRow);
     pack = await fetchUserTweetsForEngagerAnalysis(cleanHandle, {
       sinceDate: cutoff,
       maxTweets: 80,
+      auth,
     });
     if (pack) pack.source = 'blugate';
   }
@@ -170,6 +179,18 @@ const analyzeHandleLive = async (handle, { periodDays = 30 } = {}) => {
   let totalRetweetEvents = 0;
   let retweeterFetchCount = 0;
 
+  let blugateAuth = null;
+  try {
+    const prisma = dbOf(db);
+    const platformRow = await prisma.platforms.findFirst({
+      where: { slug: { in: ['x', 'twitter'] }, is_active: true },
+    });
+    const { authFromPlatformRow } = require('../../services/blugate/x/blugate.x.api_client');
+    blugateAuth = authFromPlatformRow(platformRow);
+  } catch (err) {
+    logger.warn(`[AlertsEngagers] Blugate auth unavailable: ${err.message}`);
+  }
+
   for (const tweet of tweets) {
     const tweetId = String(tweet?.id || '').trim();
     if (!tweetId) continue;
@@ -194,7 +215,7 @@ const analyzeHandleLive = async (handle, { periodDays = 30 } = {}) => {
     if (isTop) {
       retweeterFetchCount += 1;
       try {
-        const retweeters = await fetchTweetRetweeters(tweetId, { count: 100 });
+        const retweeters = await fetchTweetRetweeters(tweetId, { count: 100, auth: blugateAuth });
         snapshot.retweeters_found = retweeters.length;
         totalRetweetEvents += retweeters.length;
 

@@ -1,4 +1,4 @@
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 const logger = require('../../lib/logger');
 const { searchMentions } = require('./grievance.mentions');
 const {
@@ -138,7 +138,8 @@ const buildWhere = (query = {}) => {
   return where;
 };
 
-const listCatalogGrievances = async (query = {}) => {
+const listCatalogGrievances = async (query = {}, { db } = {}) => {
+  const prisma = dbOf(db);
   const limit = Math.min(Math.max(Number(query.limit) || 30, 1), 100);
   const where = buildWhere(query);
   if (where.__empty) {
@@ -171,7 +172,8 @@ const listCatalogGrievances = async (query = {}) => {
   };
 };
 
-const getCatalogGrievance = async (id) => {
+const getCatalogGrievance = async (id, { db } = {}) => {
+  const prisma = dbOf(db);
   const rowId = BigInt(id);
   const row = await prisma.social_media_grievances.findFirst({
     where: { id: rowId, is_active: true },
@@ -179,7 +181,8 @@ const getCatalogGrievance = async (id) => {
   return row ? hydrateCatalogGrievance(row) : null;
 };
 
-const getCatalogStats = async (query = {}) => {
+const getCatalogStats = async (query = {}, { db } = {}) => {
+  const prisma = dbOf(db);
   const base = buildWhere({ ...query, tab: 'all', status_filter: undefined });
   const [total, received, escalated, closed, fir] = await Promise.all([
     prisma.social_media_grievances.count({ where: base }),
@@ -219,7 +222,9 @@ const createGrievanceIfNew = async ({
   contentUrl = null,
   text = '',
   postedAt = null,
+  db,
 }) => {
+  const prisma = dbOf(db);
   if (!externalId) return { created: false };
 
   const existing = await prisma.social_media_grievances.findUnique({
@@ -256,7 +261,7 @@ const createGrievanceIfNew = async ({
   return { created: true };
 };
 
-const upsertMentionRow = async ({ account, taggedHandle, mention }) =>
+const upsertMentionRow = async ({ account, taggedHandle, mention, db }) =>
   createGrievanceIfNew({
     accountId: account.id,
     platform: 'x',
@@ -279,11 +284,12 @@ const upsertMentionRow = async ({ account, taggedHandle, mention }) =>
     contentUrl: mention.url || null,
     text: mention.text || '',
     postedAt: mention.created_at ? new Date(mention.created_at) : new Date(),
+    db,
   });
 
-const fetchFacebookComments = async (postId) => {
+const fetchFacebookComments = async (postId, auth = null) => {
   try {
-    const response = await callFacebookApi('POST_COMMENTS', { post_id: String(postId) });
+    const response = await callFacebookApi('POST_COMMENTS', { post_id: String(postId) }, auth);
     return Array.isArray(response?.results) ? response.results : [];
   } catch (err) {
     logger.error(`[CatalogGrievances] POST_COMMENTS failed for ${postId}: ${err.message}`);
@@ -291,11 +297,11 @@ const fetchFacebookComments = async (postId) => {
   }
 };
 
-const fetchInstagramComments = async (postUrl) => {
+const fetchInstagramComments = async (postUrl, auth = null) => {
   const url = String(postUrl || '').trim();
   if (!url) return [];
   try {
-    const response = await callInstagramApi('COMMENTS', { url });
+    const response = await callInstagramApi('COMMENTS', { url }, auth);
     const raw = unwrapPayload(response);
     if (Array.isArray(raw?.comments)) return raw.comments;
     if (Array.isArray(raw)) return raw;
@@ -306,11 +312,14 @@ const fetchInstagramComments = async (postUrl) => {
   }
 };
 
-const fetchCatalogFacebookGrievances = async (account, startDate, endDate) => {
+const fetchCatalogFacebookGrievances = async (account, startDate, endDate, { db } = {}) => {
+  const prisma = dbOf(db);
   const taggedHandle = String(account.handle || '').trim();
   const displayName = account.profile?.display_name || taggedHandle;
 
   logger.info(`[CatalogGrievances] Fetching Facebook posts/comments for ${taggedHandle}`);
+
+  const auth = callFacebookApi.authFromPlatformRow(account.platforms);
 
   const accountForFetch = {
     id: account.id,
@@ -322,7 +331,7 @@ const fetchCatalogFacebookGrievances = async (account, startDate, endDate) => {
     }
   }
 
-  const { posts, dataPatch } = await fetchFacebookPosts(accountForFetch);
+  const { posts, dataPatch } = await fetchFacebookPosts(accountForFetch, auth);
   if (dataPatch) {
     await prisma.social_media_accounts.update({
       where: { id: account.id },
@@ -380,10 +389,11 @@ const fetchCatalogFacebookGrievances = async (account, startDate, endDate) => {
       contentUrl: postUrl,
       text: postText,
       postedAt: post.posted_at || new Date(),
+      db,
     });
     if (postResult.created) newCount += 1;
 
-    const comments = await fetchFacebookComments(postId);
+    const comments = await fetchFacebookComments(postId, auth);
     for (const comment of comments.slice(0, 50)) {
       const commentId = String(comment.comment_id || comment.legacy_comment_id || '').trim();
       if (!commentId) continue;
@@ -428,7 +438,8 @@ const fetchCatalogFacebookGrievances = async (account, startDate, endDate) => {
         contentUrl: commentUrl,
         text: commentText,
         postedAt: commentDate || new Date(),
-      });
+      db,
+    });
       if (commentResult.created) newCount += 1;
     }
   }
@@ -452,7 +463,8 @@ const fetchCatalogFacebookGrievances = async (account, startDate, endDate) => {
   };
 };
 
-const fetchCatalogInstagramGrievances = async (account, startDate, endDate) => {
+const fetchCatalogInstagramGrievances = async (account, startDate, endDate, { db } = {}) => {
+  const prisma = dbOf(db);
   const taggedHandle = String(account.handle || '')
     .replace(/^@/, '')
     .trim();
@@ -460,13 +472,15 @@ const fetchCatalogInstagramGrievances = async (account, startDate, endDate) => {
 
   logger.info(`[CatalogGrievances] Fetching Instagram posts/comments for @${taggedHandle}`);
 
+  const auth = callInstagramApi.authFromPlatformRow(account.platforms);
+
   const accountForFetch = {
     id: account.id,
     handle: taggedHandle,
     data: asObject(account.data),
   };
 
-  const { posts, dataPatch } = await fetchInstagramPosts(accountForFetch);
+  const { posts, dataPatch } = await fetchInstagramPosts(accountForFetch, auth);
   if (dataPatch) {
     await prisma.social_media_accounts.update({
       where: { id: account.id },
@@ -524,10 +538,11 @@ const fetchCatalogInstagramGrievances = async (account, startDate, endDate) => {
       contentUrl: postUrl,
       text: postText,
       postedAt: post.posted_at || new Date(),
+      db,
     });
     if (postResult.created) newCount += 1;
 
-    const comments = await fetchInstagramComments(postUrl);
+    const comments = await fetchInstagramComments(postUrl, auth);
     for (const comment of comments.slice(0, 50)) {
       const commentId = String(comment.pk || comment.id || comment.strong_id__ || '').trim();
       if (!commentId) continue;
@@ -574,7 +589,8 @@ const fetchCatalogInstagramGrievances = async (account, startDate, endDate) => {
         contentUrl: commentUrl,
         text: commentText,
         postedAt: commentDate || new Date(),
-      });
+      db,
+    });
       if (commentResult.created) newCount += 1;
     }
   }
@@ -598,7 +614,8 @@ const fetchCatalogInstagramGrievances = async (account, startDate, endDate) => {
   };
 };
 
-const fetchCatalogTelegramGrievances = async (account, startDate, endDate) => {
+const fetchCatalogTelegramGrievances = async (account, startDate, endDate, { db } = {}) => {
+  const prisma = dbOf(db);
   const data = asObject(account.data);
   const taggedHandle =
     cleanTelegramUsername(data.username || data.handle || account.handle) ||
@@ -712,7 +729,7 @@ const fetchCatalogTelegramGrievances = async (account, startDate, endDate) => {
       continue;
     }
 
-    const postResult = await createGrievanceIfNew(payload);
+    const postResult = await createGrievanceIfNew({ ...payload, db });
     if (postResult.created) newCount += 1;
   }
 
@@ -735,7 +752,8 @@ const fetchCatalogTelegramGrievances = async (account, startDate, endDate) => {
   };
 };
 
-const fetchCatalogXGrievances = async (account, startDate, endDate) => {
+const fetchCatalogXGrievances = async (account, startDate, endDate, { db } = {}) => {
+  const prisma = dbOf(db);
   const clean = String(account.handle || '')
     .replace(/^@/, '')
     .trim();
@@ -747,7 +765,7 @@ const fetchCatalogXGrievances = async (account, startDate, endDate) => {
   let newCount = 0;
   for (const mention of mentions) {
     try {
-      const result = await upsertMentionRow({ account, taggedHandle, mention });
+      const result = await upsertMentionRow({ account, taggedHandle, mention, db });
       if (result.created) newCount += 1;
     } catch (err) {
       logger.error(
@@ -775,34 +793,35 @@ const fetchCatalogXGrievances = async (account, startDate, endDate) => {
   };
 };
 
-const fetchCatalogAccountGrievances = async (account, startDate, endDate) => {
+const fetchCatalogAccountGrievances = async (account, startDate, endDate, { db } = {}) => {
   const platform = normalizePlatform(account.platforms?.slug, 'x');
   if (platform === 'facebook') {
-    return fetchCatalogFacebookGrievances(account, startDate, endDate);
+    return fetchCatalogFacebookGrievances(account, startDate, endDate, { db });
   }
   if (platform === 'instagram') {
-    return fetchCatalogInstagramGrievances(account, startDate, endDate);
+    return fetchCatalogInstagramGrievances(account, startDate, endDate, { db });
   }
   if (platform === 'x') {
-    return fetchCatalogXGrievances(account, startDate, endDate);
+    return fetchCatalogXGrievances(account, startDate, endDate, { db });
   }
   if (platform === 'telegram') {
-    return fetchCatalogTelegramGrievances(account, startDate, endDate);
+    return fetchCatalogTelegramGrievances(account, startDate, endDate, { db });
   }
   const err = new Error(`Catalog grievance fetch does not support platform: ${platform}`);
   err.status = 400;
   throw err;
 };
 
-const fetchAllCatalogGrievances = async (startDate, endDate) => {
+const fetchAllCatalogGrievances = async (startDate, endDate, { db } = {}) => {
+  const prisma = dbOf(db);
   const accounts = await prisma.social_media_accounts.findMany({
     where: {
       is_active: true,
-      platforms: { slug: { in: ['x', 'facebook', 'instagram', 'telegram'] } },
+      platforms: { slug: { in: ['x', 'twitter', 'facebook', 'instagram', 'telegram'] } },
     },
     include: {
       profile: { select: { display_name: true } },
-      platforms: { select: { slug: true } },
+      platforms: { select: { slug: true, api_key: true, blugate_client_key: true } },
     },
   });
 
@@ -810,7 +829,7 @@ const fetchAllCatalogGrievances = async (startDate, endDate) => {
   let total = 0;
   for (const account of accounts) {
     try {
-      const result = await fetchCatalogAccountGrievances(account, startDate, endDate);
+      const result = await fetchCatalogAccountGrievances(account, startDate, endDate, { db });
       newGrievances += result.newGrievances || 0;
       total += result.total || 0;
     } catch (err) {

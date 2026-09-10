@@ -1,4 +1,4 @@
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 const monitoringSocialMedia = require('../../services/monitoringsocialmedia');
 const { previewProfile } = require('../../services/monitoringsocialmedia/previewProfile');
 const { attachRelevanceToAccounts } = require('./catalogRelevance.service');
@@ -18,7 +18,8 @@ const parsePollInterval = (value, { required = false } = {}) => {
   return n;
 };
 
-const resolvePlatform = async (slug, { activeOnly = true } = {}) => {
+const resolvePlatform = async (slug, { activeOnly = true, db } = {}) => {
+  const prisma = dbOf(db);
   if (!slug) return null;
   return prisma.platforms.findFirst({
     where: { slug, ...(activeOnly ? { is_active: true } : {}) },
@@ -111,17 +112,18 @@ const accountInclude = {
 };
 
 const listPlatforms = async (req, res) => {
+  const prisma = dbOf(req.tenantPrisma);
   try {
-    try {
-      const { ensureTelegramPlatform } = require('../../services/monitoringsocialmedia/telegram');
-      await ensureTelegramPlatform();
-    } catch (_) {}
+    const { ensureOpsSchema } = require('../../../prisma/ensureOpsSchema');
+    const { revealPlatformSecrets, migratePlaintextPlatformSecrets } = require('../../lib/platformSecrets');
+    await ensureOpsSchema(prisma);
+    await migratePlaintextPlatformSecrets(prisma);
     const includeInactive = req.query.all === '1' || req.query.all === 'true';
     const platforms = await prisma.platforms.findMany({
       where: includeInactive ? undefined : { is_active: true },
       orderBy: { id: 'asc' },
     });
-    res.json(platforms);
+    res.json(platforms.map(revealPlatformSecrets));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -134,19 +136,59 @@ const normalizeSlug = (value) =>
     .replace(/\s+/g, '-')
     .replace(/[^a-z0-9-_]/g, '');
 
+/** Keep admin.allowed_platforms in sync with active tenant platform slugs. */
+const syncAdminAllowedPlatforms = async (req) => {
+  const adminId = req.user?.id;
+  if (!adminId || req.user?.role !== 'admin') return;
+  const prismaMain = require('../../../prisma/client');
+  const tenant = dbOf(req.tenantPrisma);
+  const rows = await tenant.platforms.findMany({
+    where: { is_active: true },
+    select: { slug: true },
+  });
+  const allowed = rows.map((r) => r.slug).filter(Boolean);
+  await prismaMain.users.update({
+    where: { id: adminId },
+    data: { allowed_platforms: allowed },
+  });
+  await prismaMain.users.updateMany({
+    where: { created_by: adminId, roles: { slug: 'user' } },
+    data: { allowed_platforms: allowed },
+  });
+};
+
+const parseThresholdInt = (value, fallback) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : fallback;
+};
+
 const createPlatform = async (req, res) => {
+  const prisma = dbOf(req.tenantPrisma);
   try {
+    const { PLATFORM_CATALOG_DEFS } = require('../../lib/platformCatalog');
+    const { encryptPlatformSecret, revealPlatformSecrets } = require('../../lib/platformSecrets');
     const name = String(req.body.name || '').trim();
     const slug = normalizeSlug(req.body.slug || name);
     const icon = String(req.body.icon || 'Globe2').trim() || 'Globe2';
     const color = req.body.color ? String(req.body.color).trim() : null;
-    const fields = normalizeFields(req.body.fields);
+    const blugateClientKey = String(req.body.blugate_client_key || '').trim();
+    const apiKey = String(req.body.api_key || '').trim();
+    let fields = normalizeFields(req.body.fields);
 
     if (!name || !slug) {
       return res.status(400).json({ error: 'name and slug are required' });
     }
+    if (!blugateClientKey) {
+      return res.status(400).json({ error: 'Blugate client key is required' });
+    }
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key is required' });
+    }
+
     if (fields.length === 0) {
-      return res.status(400).json({ error: 'Add at least one field (e.g. username or url)' });
+      const def = PLATFORM_CATALOG_DEFS.find((p) => p.slug === slug);
+      fields = def ? normalizeFields(def.fields) : [{ key: 'username', label: 'Username', type: 'text', required: true }];
     }
 
     const existing = await prisma.platforms.findUnique({ where: { slug } });
@@ -158,22 +200,34 @@ const createPlatform = async (req, res) => {
       data: {
         name,
         slug,
-        icon,
-        color,
+        icon: icon || PLATFORM_CATALOG_DEFS.find((p) => p.slug === slug)?.icon || 'Globe2',
+        color: color || PLATFORM_CATALOG_DEFS.find((p) => p.slug === slug)?.color || null,
         fields,
+        blugate_client_key: encryptPlatformSecret(blugateClientKey),
+        api_key: encryptPlatformSecret(apiKey),
+        low_threshold: parseThresholdInt(req.body.low_threshold, 100),
+        medium_threshold: parseThresholdInt(req.body.medium_threshold, 500),
+        high_threshold: parseThresholdInt(req.body.high_threshold, 1000),
+        time_window_minutes: parseThresholdInt(req.body.time_window_minutes, 60),
         is_active: req.body.is_active !== false,
       },
     });
-    res.status(201).json(platform);
+    await syncAdminAllowedPlatforms(req);
+    res.status(201).json(revealPlatformSecrets(platform));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
 const updatePlatform = async (req, res) => {
+  const prisma = dbOf(req.tenantPrisma);
   try {
+    const { encryptPlatformSecret, revealPlatformSecrets } = require('../../lib/platformSecrets');
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'invalid id' });
+
+    const existing = await prisma.platforms.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'platform not found' });
 
     const data = {};
     if (req.body.name !== undefined) data.name = String(req.body.name).trim();
@@ -181,11 +235,39 @@ const updatePlatform = async (req, res) => {
     if (req.body.icon !== undefined) data.icon = String(req.body.icon || 'Globe2').trim() || 'Globe2';
     if (req.body.color !== undefined) data.color = req.body.color ? String(req.body.color).trim() : null;
     if (req.body.is_active !== undefined) data.is_active = !!req.body.is_active;
+
+    // Blank = keep existing encrypted secret; new value = re-encrypt
+    if (req.body.blugate_client_key !== undefined) {
+      const next = String(req.body.blugate_client_key || '').trim();
+      if (next) data.blugate_client_key = encryptPlatformSecret(next);
+      else if (!existing.blugate_client_key) {
+        return res.status(400).json({ error: 'Blugate client key is required' });
+      }
+    }
+    if (req.body.api_key !== undefined) {
+      const next = String(req.body.api_key || '').trim();
+      if (next) data.api_key = encryptPlatformSecret(next);
+      else if (!existing.api_key) {
+        return res.status(400).json({ error: 'API key is required' });
+      }
+    }
     if (req.body.fields !== undefined) {
       data.fields = normalizeFields(req.body.fields);
       if (data.fields.length === 0) {
         return res.status(400).json({ error: 'Add at least one field (e.g. username or url)' });
       }
+    }
+    if (req.body.low_threshold !== undefined) {
+      data.low_threshold = parseThresholdInt(req.body.low_threshold, 100);
+    }
+    if (req.body.medium_threshold !== undefined) {
+      data.medium_threshold = parseThresholdInt(req.body.medium_threshold, 500);
+    }
+    if (req.body.high_threshold !== undefined) {
+      data.high_threshold = parseThresholdInt(req.body.high_threshold, 1000);
+    }
+    if (req.body.time_window_minutes !== undefined) {
+      data.time_window_minutes = parseThresholdInt(req.body.time_window_minutes, 60);
     }
 
     if (data.slug) {
@@ -201,7 +283,8 @@ const updatePlatform = async (req, res) => {
     }
 
     const platform = await prisma.platforms.update({ where: { id }, data });
-    res.json(platform);
+    await syncAdminAllowedPlatforms(req);
+    res.json(revealPlatformSecrets(platform));
   } catch (error) {
     if (error.code === 'P2025') return res.status(404).json({ error: 'platform not found' });
     res.status(500).json({ error: error.message });
@@ -209,6 +292,7 @@ const updatePlatform = async (req, res) => {
 };
 
 const deletePlatform = async (req, res) => {
+  const prisma = dbOf(req.tenantPrisma);
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'invalid id' });
@@ -221,6 +305,7 @@ const deletePlatform = async (req, res) => {
     }
 
     await prisma.platforms.delete({ where: { id } });
+    await syncAdminAllowedPlatforms(req);
     res.status(204).send();
   } catch (error) {
     if (error.code === 'P2025') return res.status(404).json({ error: 'platform not found' });
@@ -229,12 +314,13 @@ const deletePlatform = async (req, res) => {
 };
 
 const listProfiles = async (req, res) => {
+  const prisma = dbOf(req.tenantPrisma);
   try {
     const { platform, status, search } = req.query;
     const where = {};
 
     if (platform) {
-      const platformRow = await resolvePlatform(platform);
+      const platformRow = await resolvePlatform(platform, { db: prisma });
       where.platform_id = platformRow ? platformRow.id : -1;
     }
     if (status === 'active') where.is_active = true;
@@ -258,7 +344,9 @@ const listProfiles = async (req, res) => {
 
     const countsById = counts.reduce((acc, c) => ({ ...acc, [c.platform_id]: c._count._all }), {});
     const byPlatform = allPlatforms.reduce((acc, p) => ({ ...acc, [p.slug]: countsById[p.id] || 0 }), {});
-    const flattened = await attachRelevanceToAccounts(accounts.map(flattenAccount));
+    const flattened = await attachRelevanceToAccounts(accounts.map(flattenAccount), {
+      db: prisma,
+    });
 
     res.json({
       profiles: flattened,
@@ -267,6 +355,131 @@ const listProfiles = async (req, res) => {
         active: flattened.filter((p) => p.is_active).length,
         paused: flattened.filter((p) => !p.is_active).length,
         byPlatform,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const serializePost = (row) => {
+  const engagement =
+    row.engagement && typeof row.engagement === 'object' && !Array.isArray(row.engagement)
+      ? row.engagement
+      : {};
+  const mediaUrls = Array.isArray(row.media_urls) ? row.media_urls : [];
+  return {
+    id: row.id != null ? String(row.id) : null,
+    account_id: row.account_id,
+    platform: row.platform,
+    external_id: row.external_id,
+    url: row.url || null,
+    text: row.text || '',
+    author_name: row.author_name || null,
+    author_handle: row.author_handle || null,
+    media_type: row.media_type || null,
+    media_urls: mediaUrls,
+    engagement,
+    posted_at: row.posted_at,
+    fetched_at: row.fetched_at,
+    analysis_status: row.analysis_status,
+    analysis_result:
+      row.analysis_result && typeof row.analysis_result === 'object' ? row.analysis_result : {},
+  };
+};
+
+const getProfile = async (req, res) => {
+  const prisma = dbOf(req.tenantPrisma);
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'Invalid profile id' });
+    }
+    const account = await prisma.social_media_accounts.findUnique({
+      where: { id },
+      include: accountInclude,
+    });
+    if (!account) return res.status(404).json({ error: 'Profile not found' });
+
+    const siblings = await prisma.social_media_accounts.findMany({
+      where: { profile_id: account.profile_id },
+      include: accountInclude,
+      orderBy: { id: 'asc' },
+    });
+
+    const flattenedAll = await attachRelevanceToAccounts(siblings.map(flattenAccount), {
+      db: prisma,
+    });
+    const current = flattenedAll.find((a) => Number(a.id) === id) || flattenedAll[0];
+    if (!current) return res.status(404).json({ error: 'Profile not found' });
+
+    return res.json({
+      ...current,
+      profile_id: account.profile_id,
+      accounts: flattenedAll,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const listProfilePosts = async (req, res) => {
+  const prisma = dbOf(req.tenantPrisma);
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'Invalid profile id' });
+    }
+
+    const account = await prisma.social_media_accounts.findUnique({
+      where: { id },
+      select: { id: true, profile_id: true },
+    });
+    if (!account) return res.status(404).json({ error: 'Profile not found' });
+
+    const scope = String(req.query.scope || 'account').toLowerCase();
+    let accountIds = [id];
+    if (scope === 'all' || scope === 'profile' || scope === 'entity') {
+      const siblings = await prisma.social_media_accounts.findMany({
+        where: { profile_id: account.profile_id },
+        select: { id: true },
+      });
+      accountIds = siblings.map((s) => s.id);
+    } else if (req.query.account_id) {
+      const wanted = Number(req.query.account_id);
+      if (Number.isInteger(wanted) && wanted > 0) {
+        const ok = await prisma.social_media_accounts.findFirst({
+          where: { id: wanted, profile_id: account.profile_id },
+          select: { id: true },
+        });
+        if (!ok) return res.status(404).json({ error: 'Account not found on this profile' });
+        accountIds = [wanted];
+      }
+    }
+
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 30));
+    const skip = (page - 1) * limit;
+    const where = { account_id: { in: accountIds } };
+
+    const [total, rows] = await Promise.all([
+      prisma.social_media_posts.count({ where }),
+      prisma.social_media_posts.findMany({
+        where,
+        orderBy: [{ posted_at: 'desc' }, { fetched_at: 'desc' }],
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    return res.json({
+      posts: rows.map(serializePost),
+      account_ids: accountIds,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
       },
     });
   } catch (error) {
@@ -333,7 +546,9 @@ const createOneAccount = async ({
   pollInterval,
   preview_data,
   profile_id,
+  db,
 }) => {
+  const prisma = dbOf(db);
   const { normalized, handle } = prepareAccountFields({
     platformRow,
     data,
@@ -383,9 +598,15 @@ const createOneAccount = async ({
 };
 
 const createProfile = async (req, res) => {
+  const prisma = dbOf(req.tenantPrisma);
   try {
     const { platform, display_name, notes, profile_id, entity_id } = req.body;
-    const platformRow = await resolvePlatform(platform);
+    const parentId = profile_id || entity_id || null;
+    if (!parentId) {
+      const { assertUnderProfileQuota } = require('../user/user.quotas');
+      await assertUnderProfileQuota(req.user, { db: prisma, adding: 1 });
+    }
+    const platformRow = await resolvePlatform(platform, { db: prisma });
     if (!platformRow) {
       return res.status(400).json({ error: 'platform is invalid or not active' });
     }
@@ -397,8 +618,8 @@ const createProfile = async (req, res) => {
       });
     }
 
-    const parentId = profile_id || entity_id || null;
     const account = await createOneAccount({
+      db: prisma,
       platformRow,
       data: req.body.data,
       display_name,
@@ -419,11 +640,14 @@ const createProfile = async (req, res) => {
 
 /** Create several platform accounts under one profile. */
 const createProfilesBatch = async (req, res) => {
+  const prisma = dbOf(req.tenantPrisma);
   try {
     const { display_name, notes, accounts } = req.body || {};
     if (!Array.isArray(accounts) || accounts.length === 0) {
       return res.status(400).json({ error: 'accounts array is required' });
     }
+    const { assertUnderProfileQuota } = require('../user/user.quotas');
+    await assertUnderProfileQuota(req.user, { db: prisma, adding: 1 });
 
     const pollInterval = parsePollInterval(req.body.poll_interval_minutes);
     if (req.body.poll_interval_minutes !== undefined && pollInterval === null) {
@@ -441,11 +665,12 @@ const createProfilesBatch = async (req, res) => {
 
     const created = [];
     for (const account of accounts) {
-      const platformRow = await resolvePlatform(account.platform);
+      const platformRow = await resolvePlatform(account.platform, { db: prisma });
       if (!platformRow) {
         return res.status(400).json({ error: `platform is invalid: ${account.platform}` });
       }
       const row = await createOneAccount({
+      db: prisma,
         platformRow,
         data: account.data,
         display_name,
@@ -480,6 +705,7 @@ const createProfilesBatch = async (req, res) => {
 
 /** Update one account (and optionally parent profile display_name / notes). */
 const updateProfile = async (req, res) => {
+  const prisma = dbOf(req.tenantPrisma);
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'invalid id' });
@@ -494,7 +720,7 @@ const updateProfile = async (req, res) => {
     let platformRow = existing.platforms;
 
     if (req.body.platform !== undefined) {
-      platformRow = await resolvePlatform(req.body.platform);
+      platformRow = await resolvePlatform(req.body.platform, { db: prisma });
       if (!platformRow) return res.status(400).json({ error: 'platform is invalid or not active' });
       data.platform_id = platformRow.id;
     }
@@ -569,6 +795,7 @@ const updateProfile = async (req, res) => {
 };
 
 const deleteProfile = async (req, res) => {
+  const prisma = dbOf(req.tenantPrisma);
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'invalid id' });
@@ -602,6 +829,7 @@ const appendMonitoringLog = (existingLogs, entry) => {
 
 /** Start or stop monitoring for one platform account. */
 const toggleMonitoring = async (req, res) => {
+  const prisma = dbOf(req.tenantPrisma);
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'invalid id' });
@@ -636,13 +864,17 @@ const toggleMonitoring = async (req, res) => {
     });
 
     if (nextStatus === 'started') {
-      monitoringSocialMedia.startProfile(account.id).catch((err) => {
-        console.error('[toggleMonitoring] startProfile:', err.message);
-      });
+      monitoringSocialMedia
+        .startProfile(account.id, { db: prisma, dbName: req.tenantDbName })
+        .catch((err) => {
+          console.error('[toggleMonitoring] startProfile:', err.message);
+        });
     } else {
-      monitoringSocialMedia.stopProfile(account.id).catch((err) => {
-        console.error('[toggleMonitoring] stopProfile:', err.message);
-      });
+      monitoringSocialMedia
+        .stopProfile(account.id, { db: prisma, dbName: req.tenantDbName })
+        .catch((err) => {
+          console.error('[toggleMonitoring] stopProfile:', err.message);
+        });
     }
 
     res.json(flattenAccount(account));
@@ -653,11 +885,12 @@ const toggleMonitoring = async (req, res) => {
 
 /** Start monitoring on every account that is not already started. */
 const startAllMonitoring = async (req, res) => {
+  const prisma = dbOf(req.tenantPrisma);
   try {
     const platformFilter = req.body?.platform || req.query?.platform;
     const where = { monitoring_status: { not: 'started' } };
     if (platformFilter) {
-      const platformRow = await resolvePlatform(platformFilter);
+      const platformRow = await resolvePlatform(platformFilter, { db: prisma });
       where.platform_id = platformRow ? platformRow.id : -1;
     }
 
@@ -684,9 +917,11 @@ const startAllMonitoring = async (req, res) => {
           monitoring_logs: appendMonitoringLog(existing.monitoring_logs, logEntry),
         },
       });
-      monitoringSocialMedia.startProfile(existing.id).catch((err) => {
-        console.error('[startAllMonitoring] startProfile:', err.message);
-      });
+      monitoringSocialMedia
+        .startProfile(existing.id, { db: prisma, dbName: req.tenantDbName })
+        .catch((err) => {
+          console.error('[startAllMonitoring] startProfile:', err.message);
+        });
       started += 1;
     }
 
@@ -698,11 +933,12 @@ const startAllMonitoring = async (req, res) => {
 
 /** Stop monitoring on every account that is currently started. */
 const stopAllMonitoring = async (req, res) => {
+  const prisma = dbOf(req.tenantPrisma);
   try {
     const platformFilter = req.body?.platform || req.query?.platform;
     const where = { monitoring_status: 'started' };
     if (platformFilter) {
-      const platformRow = await resolvePlatform(platformFilter);
+      const platformRow = await resolvePlatform(platformFilter, { db: prisma });
       where.platform_id = platformRow ? platformRow.id : -1;
     }
 
@@ -728,9 +964,11 @@ const stopAllMonitoring = async (req, res) => {
           monitoring_logs: appendMonitoringLog(existing.monitoring_logs, logEntry),
         },
       });
-      monitoringSocialMedia.stopProfile(existing.id).catch((err) => {
-        console.error('[stopAllMonitoring] stopProfile:', err.message);
-      });
+      monitoringSocialMedia
+        .stopProfile(existing.id, { db: prisma, dbName: req.tenantDbName })
+        .catch((err) => {
+          console.error('[stopAllMonitoring] stopProfile:', err.message);
+        });
       stopped += 1;
     }
 
@@ -741,13 +979,14 @@ const stopAllMonitoring = async (req, res) => {
 };
 
 const bulkToggleStatus = async (req, res) => {
+  const prisma = dbOf(req.tenantPrisma);
   try {
     const { platform, is_active } = req.body;
     if (typeof is_active !== 'boolean') return res.status(400).json({ error: 'is_active must be a boolean' });
 
     const where = {};
     if (platform) {
-      const platformRow = await resolvePlatform(platform);
+      const platformRow = await resolvePlatform(platform, { db: prisma });
       where.platform_id = platformRow ? platformRow.id : -1;
     }
 
@@ -760,16 +999,33 @@ const bulkToggleStatus = async (req, res) => {
 
 /** Resolve identity + preview for Add/Edit form (does not save posts). */
 const previewProfileIdentity = async (req, res) => {
+  const prisma = dbOf(req.tenantPrisma);
   try {
     const { platform, data } = req.body || {};
     if (!platform) return res.status(400).json({ error: 'platform is required' });
 
-    const platformRow = await resolvePlatform(platform);
+    const platformRow = await resolvePlatform(platform, { db: prisma });
     if (!platformRow) {
       return res.status(400).json({ error: 'platform is invalid or not active' });
     }
 
-    const result = await previewProfile(platformRow.slug, data || {});
+    let auth = null;
+    const slug = String(platformRow.slug || '').toLowerCase();
+    if (slug === 'x' || slug === 'twitter') {
+      const { authFromPlatformRow } = require('../../services/blugate/x/blugate.x.api_client');
+      auth = authFromPlatformRow(platformRow);
+    } else if (slug === 'facebook') {
+      const { authFromPlatformRow } = require('../../services/blugate/facebook/blugate.facebook.api_client');
+      auth = authFromPlatformRow(platformRow);
+    } else if (slug === 'instagram') {
+      const { authFromPlatformRow } = require('../../services/blugate/instagram/blugate.instagram.api_client');
+      auth = authFromPlatformRow(platformRow);
+    } else if (slug === 'youtube') {
+      const { authFromPlatformRow } = require('../../services/blugate/youtube/blugate.youtube.api_client');
+      auth = authFromPlatformRow(platformRow);
+    }
+
+    const result = await previewProfile(platformRow.slug, data || {}, auth);
     res.json(result);
   } catch (error) {
     const status = error.status || 500;
@@ -783,6 +1039,8 @@ module.exports = {
   updatePlatform,
   deletePlatform,
   listProfiles,
+  getProfile,
+  listProfilePosts,
   createProfile,
   createProfilesBatch,
   updateProfile,

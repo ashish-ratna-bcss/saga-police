@@ -112,9 +112,26 @@ export const AuthProvider = ({ children }) => {
     return me;
   };
 
+  const updatePlatforms = async (allowed_platforms) => {
+    const response = await authApi.updatePlatforms(allowed_platforms);
+    const me = response.data;
+    cacheUser(me);
+    setUser(me);
+    return me;
+  };
+
   return (
     <AuthContext.Provider
-      value={{ user, login, logout, loading, fetchMe, updateUiMode, updateThemeColor }}
+      value={{
+        user,
+        login,
+        logout,
+        loading,
+        fetchMe,
+        updateUiMode,
+        updateThemeColor,
+        updatePlatforms,
+      }}
     >
       {children}
     </AuthContext.Provider>

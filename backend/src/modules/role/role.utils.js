@@ -8,13 +8,17 @@ const SYSTEM_SLUGS = new Set(Object.values(ROLE_SLUGS));
 
 const isSystemSlug = (slug) => SYSTEM_SLUGS.has(String(slug || '').toLowerCase());
 
-// Whether `actorSlug` may assign `targetRole` (the full role record, so
-// custom roles' `assignable_by` list is respected, not just the 3 system slugs).
+/**
+ * Hardcoded assignment hierarchy (roles are identity-only):
+ * - superadmin → admin only
+ * - admin → user only
+ */
 const canAssignRole = (actorSlug, targetRole) => {
   const actor = String(actorSlug || '').toLowerCase();
-  if (actor === ROLE_SLUGS.SUPERADMIN) return true;
-  const list = Array.isArray(targetRole?.assignable_by) ? targetRole.assignable_by : [];
-  return list.map((s) => String(s).toLowerCase()).includes(actor);
+  const target = String(targetRole?.slug || targetRole || '').toLowerCase();
+  if (actor === ROLE_SLUGS.SUPERADMIN) return target === ROLE_SLUGS.ADMIN;
+  if (actor === ROLE_SLUGS.ADMIN) return target === ROLE_SLUGS.USER;
+  return false;
 };
 
 module.exports = { ROLE_SLUGS, SYSTEM_SLUGS, isSystemSlug, canAssignRole };

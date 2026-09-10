@@ -2,7 +2,7 @@
  * Resolve catalog grievances for report sync helpers.
  * Lives in modules/grievances (Postgres catalog only).
  */
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 const { getCatalogGrievance } = require('./grievance.service');
 const { asJson } = require('./grievance.utils');
 
@@ -11,7 +11,8 @@ const asObject = (value, fallback = {}) => {
   return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback;
 };
 
-const wrapCatalogGrievance = (apiRow) => {
+const wrapCatalogGrievance = (apiRow, { db } = {}) => {
+  const prisma = dbOf(db);
   const doc = {
     id: String(apiRow.id),
     store: 'catalog',
@@ -69,10 +70,10 @@ const wrapCatalogGrievance = (apiRow) => {
   return doc;
 };
 
-const findGrievanceDocForReport = async (grievanceId) => {
-  const row = await getCatalogGrievance(String(grievanceId || '').trim());
+const findGrievanceDocForReport = async (grievanceId, { db } = {}) => {
+  const row = await getCatalogGrievance(String(grievanceId || '').trim(), { db });
   if (!row) return null;
-  return wrapCatalogGrievance(row);
+  return wrapCatalogGrievance(row, { db });
 };
 
 module.exports = {

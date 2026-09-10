@@ -4,7 +4,7 @@ const intelligenceService = require('./intelligence.service');
 /** GET /api/intelligence/alerts — Postgres catalog */
 const getAlertsIntelligence = async (req, res) => {
   try {
-    const data = await intelligenceService.getAlertsIntelligence(req.query);
+    const data = await intelligenceService.getAlertsIntelligence({ ...req.query, db: req.tenantPrisma });
     return res.status(200).json(data);
   } catch (error) {
     logger.error('Alerts intelligence error:', error);
@@ -15,7 +15,7 @@ const getAlertsIntelligence = async (req, res) => {
 /** GET /api/intelligence/grievances — Postgres catalog */
 const getGrievancesIntelligence = async (req, res) => {
   try {
-    const data = await intelligenceService.getGrievancesIntelligence(req.query);
+    const data = await intelligenceService.getGrievancesIntelligence({ ...req.query, db: req.tenantPrisma });
     return res.status(200).json(data);
   } catch (error) {
     logger.error('Grievances intelligence error:', error);
@@ -26,7 +26,7 @@ const getGrievancesIntelligence = async (req, res) => {
 /** GET /api/intelligence/profiles — Postgres catalog profiles/accounts */
 const getProfilesIntelligence = async (req, res) => {
   try {
-    const data = await intelligenceService.getProfilesIntelligence(req.query);
+    const data = await intelligenceService.getProfilesIntelligence({ ...req.query, db: req.tenantPrisma });
     return res.status(200).json(data);
   } catch (error) {
     logger.error('Profiles intelligence error:', error);

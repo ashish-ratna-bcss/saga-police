@@ -1,4 +1,4 @@
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 const {
   buildKeywordMatchers,
   scoreProfileStatic,
@@ -28,9 +28,11 @@ const previewBio = (preview) => {
 };
 
 /** Collect live catalog keywords (+ event keywords). No hard-coded list. */
-const loadCatalogKeywordTerms = async () => {
+const loadCatalogKeywordTerms = async ({ db } = {}) => {
+  const prisma = dbOf(db);
   const now = Date.now();
-  if (keywordCache.matchers.length && now - keywordCache.at < KEYWORD_CACHE_MS) {
+  // Module-level keyword cache is main-db only; skip when a tenant client is passed.
+  if (!db && keywordCache.matchers.length && now - keywordCache.at < KEYWORD_CACHE_MS) {
     return keywordCache;
   }
 
@@ -62,12 +64,13 @@ const loadCatalogKeywordTerms = async () => {
   }
 
   const termList = [...terms];
-  keywordCache = {
+  const pack = {
     at: now,
     terms: termList,
     matchers: buildKeywordMatchers(termList),
   };
-  return keywordCache;
+  if (!db) keywordCache = pack;
+  return pack;
 };
 
 const computeAccountRelevance = (account, posts = [], matchers = [], keywordCount = 0) => {
@@ -136,10 +139,11 @@ const computeAccountRelevance = (account, posts = [], matchers = [], keywordCoun
  * Recent posts: this account first; if none, sibling accounts on the same profile.
  * No DB write / no schema column.
  */
-const attachRelevanceToAccounts = async (accounts = []) => {
+const attachRelevanceToAccounts = async (accounts = [], { db } = {}) => {
+  const prisma = dbOf(db);
   if (!accounts.length) return accounts;
 
-  const { matchers, terms } = await loadCatalogKeywordTerms();
+  const { matchers, terms } = await loadCatalogKeywordTerms({ db: prisma });
 
   const accountIds = accounts.map((a) => a.id).filter((id) => Number.isInteger(id));
   const profileIds = [

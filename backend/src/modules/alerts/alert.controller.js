@@ -23,11 +23,13 @@ const listAlerts = async (req, res) => {
       if (!Number.isNaN(c) && c > 0) page = c;
     }
     const includeStats = String(req.query.includeStats || '').toLowerCase() === 'true';
+    const db = req.tenantPrisma;
 
     const result = await listCatalogAlerts({
       query: req.query,
       page,
       limit: limitNum,
+      db,
     });
 
     const payload = {
@@ -36,7 +38,7 @@ const listAlerts = async (req, res) => {
     };
 
     if (includeStats) {
-      payload.stats = await buildCatalogStats(req.query);
+      payload.stats = await buildCatalogStats(req.query, { db });
     }
 
     return res.status(200).json(payload);
@@ -48,7 +50,7 @@ const listAlerts = async (req, res) => {
 
 const getAlert = async (req, res) => {
   try {
-    const alert = await getCatalogAlertById(req.params.id);
+    const alert = await getCatalogAlertById(req.params.id, { db: req.tenantPrisma });
     if (!alert) return res.status(404).json({ message: 'Alert not found' });
     return res.status(200).json(alert);
   } catch (error) {
@@ -60,7 +62,7 @@ const getAlert = async (req, res) => {
 const getAlertsBulk = async (req, res) => {
   try {
     const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
-    const alerts = await getCatalogAlertsByIds(ids);
+    const alerts = await getCatalogAlertsByIds(ids, { db: req.tenantPrisma });
     return res.status(200).json({ alerts });
   } catch (error) {
     logger.error('[Alerts] bulk failed:', error);
@@ -70,7 +72,9 @@ const getAlertsBulk = async (req, res) => {
 
 const putAlert = async (req, res) => {
   try {
-    const alert = await updateCatalogAlert(req.params.id, req.body || {});
+    const alert = await updateCatalogAlert(req.params.id, req.body || {}, {
+      db: req.tenantPrisma,
+    });
     return res.status(200).json(alert);
   } catch (error) {
     logger.error('[Alerts] update failed:', error);
@@ -80,7 +84,7 @@ const putAlert = async (req, res) => {
 
 const getStats = async (req, res) => {
   try {
-    const stats = await buildCatalogStats(req.query || {});
+    const stats = await buildCatalogStats(req.query || {}, { db: req.tenantPrisma });
     return res.status(200).json(stats);
   } catch (error) {
     logger.error('[Alerts] stats failed:', error);
@@ -90,9 +94,15 @@ const getStats = async (req, res) => {
 
 const getUnread = async (req, res) => {
   try {
-    const count = await getUnreadCount();
+    if (!req.tenantDbName || !req.tenantPrisma) {
+      return res.status(200).json({ count: 0 });
+    }
+    const count = await getUnreadCount({ db: req.tenantPrisma });
     return res.status(200).json({ count });
   } catch (error) {
+    if (error.code === 'P2021' || error.code === 'NO_TENANT_DB') {
+      return res.status(200).json({ count: 0 });
+    }
     logger.error('[Alerts] unread failed:', error);
     return res.status(500).json({ message: error.message });
   }
@@ -100,7 +110,7 @@ const getUnread = async (req, res) => {
 
 const putMarkAllRead = async (req, res) => {
   try {
-    const updated = await markAllRead();
+    const updated = await markAllRead({ db: req.tenantPrisma });
     return res.status(200).json({ updated });
   } catch (error) {
     logger.error('[Alerts] mark read failed:', error);
@@ -115,6 +125,7 @@ const getTopByCategory = async (req, res) => {
     const data = await listTopCatalogAlertsByCategory({
       hours,
       topNPerCategory: topN,
+      db: req.tenantPrisma,
     });
     return res.status(200).json(data);
   } catch (error) {
@@ -153,7 +164,7 @@ const getWorkflowKpi = async (req, res) => {
       return res.status(400).json({ message: 'Invalid date range' });
     }
 
-    const data = await getCatalogWorkflowKpi({ start, end });
+    const data = await getCatalogWorkflowKpi({ start, end, db: req.tenantPrisma });
 
     if (format === 'csv') {
       const header = ['date', ...data.statuses, 'total'];

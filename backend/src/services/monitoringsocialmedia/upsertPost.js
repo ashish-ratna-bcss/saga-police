@@ -1,12 +1,15 @@
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 const { enqueuePost } = require('../sentimentanalysis');
 
 /**
  * Upsert a normalized post into social_media_posts.
  * New posts (and text changes) are queued for sentiment analysis.
+ * @param {object} row
+ * @param {{ db?: object, dbName?: string|null }} [options]
  * @returns {{ created: boolean, id: bigint|number }}
  */
-const upsertPost = async (row) => {
+const upsertPost = async (row, { db, dbName } = {}) => {
+  const prisma = dbOf(db);
   const platform = String(row.platform || '').toLowerCase();
   const external_id = String(row.external_id || '');
   if (!platform || !external_id) {
@@ -68,7 +71,7 @@ const upsertPost = async (row) => {
     });
 
     if (shouldReanalyze) {
-      enqueuePost(updated.id);
+      enqueuePost(updated.id, { dbName });
     }
     return { created: false, id: updated.id };
   }
@@ -79,7 +82,7 @@ const upsertPost = async (row) => {
       analysis_status: 'pending',
     },
   });
-  enqueuePost(created.id);
+  enqueuePost(created.id, { dbName });
   return { created: true, id: created.id };
 };
 

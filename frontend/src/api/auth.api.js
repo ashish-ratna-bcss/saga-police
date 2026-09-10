@@ -14,6 +14,9 @@ export const authApi = {
 
   updateThemeColor: (theme_color) =>
     apiHandler.patch('/me/theme-color', { theme_color }),
+
+  updatePlatforms: (allowed_platforms) =>
+    apiHandler.patch('/me/platforms', { allowed_platforms }),
 };
 
 export default authApi;

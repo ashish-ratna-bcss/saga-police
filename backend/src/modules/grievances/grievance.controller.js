@@ -13,7 +13,9 @@ const logger = require('../../lib/logger');
 
 const listSources = async (req, res) => {
   try {
-    const sources = await listCatalogSources(req.query.platform);
+    const sources = await listCatalogSources(req.query.platform, {
+      db: req.tenantPrisma,
+    });
     return res.status(200).json(sources);
   } catch (error) {
     logger.error('[Grievances] listSources failed:', error.message);
@@ -27,7 +29,8 @@ const fetchSource = async (req, res) => {
     const result = await fetchCatalogSourceGrievances(
       req.params.id,
       start_date,
-      end_date
+      end_date,
+      { db: req.tenantPrisma }
     );
     return res.status(200).json(result);
   } catch (error) {
@@ -40,7 +43,9 @@ const fetchSource = async (req, res) => {
 const fetchAll = async (req, res) => {
   try {
     const { start_date, end_date } = req.body || {};
-    const result = await fetchAllCatalogGrievances(start_date, end_date);
+    const result = await fetchAllCatalogGrievances(start_date, end_date, {
+      db: req.tenantPrisma,
+    });
     return res.status(200).json(result);
   } catch (error) {
     logger.error('[Grievances] fetchAll failed:', error.message);
@@ -50,7 +55,9 @@ const fetchAll = async (req, res) => {
 
 const listGrievances = async (req, res) => {
   try {
-    const payload = await listCatalogGrievances(req.query);
+    const payload = await listCatalogGrievances(req.query, {
+      db: req.tenantPrisma,
+    });
     return res.status(200).json(payload);
   } catch (error) {
     logger.error('[Grievances] list failed:', error.message);
@@ -60,7 +67,9 @@ const listGrievances = async (req, res) => {
 
 const getGrievance = async (req, res) => {
   try {
-    const row = await getCatalogGrievance(req.params.id);
+    const row = await getCatalogGrievance(req.params.id, {
+      db: req.tenantPrisma,
+    });
     if (!row) return res.status(404).json({ message: 'Grievance not found' });
     return res.status(200).json(row);
   } catch (error) {
@@ -71,7 +80,7 @@ const getGrievance = async (req, res) => {
 
 const getStats = async (req, res) => {
   try {
-    const stats = await getCatalogStats(req.query);
+    const stats = await getCatalogStats(req.query, { db: req.tenantPrisma });
     return res.status(200).json(stats);
   } catch (error) {
     logger.error('[Grievances] stats failed:', error.message);
@@ -81,7 +90,7 @@ const getStats = async (req, res) => {
 
 const getReportStats = async (req, res) => {
   try {
-    const stats = await getDashboardReportStats();
+    const stats = await getDashboardReportStats({ db: req.tenantPrisma });
     return res.status(200).json(stats);
   } catch (error) {
     logger.error('[Grievances] report-stats failed:', error.message);

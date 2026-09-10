@@ -23,9 +23,9 @@ class MappingService {
         if (this.refreshTimer.unref) this.refreshTimer.unref();
     }
 
-    async loadMappings() {
+    async loadMappings({ db } = {}) {
         try {
-            const mappings = await listActivePolicies();
+            const mappings = await listActivePolicies({ db });
 
             this.mappingData.category_mappings = mappings.map((m) => ({
                 category_id: m.category_id,
@@ -81,9 +81,9 @@ class MappingService {
     }
 
     // Method to force refresh (e.g., after Admin API update)
-    async forceRefresh() {
+    async forceRefresh({ db } = {}) {
         logger.info("[MappingService] Force refreshing mappings...");
-        await this.loadMappings();
+        await this.loadMappings({ db });
     }
 
     /**

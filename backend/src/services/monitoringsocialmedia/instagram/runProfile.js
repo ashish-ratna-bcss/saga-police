@@ -1,4 +1,4 @@
-const prisma = require('../../../../prisma/client');
+const dbOf = require('../../../lib/dbOf');
 const { upsertPost } = require('../upsertPost');
 const { fetchInstagramPosts } = require('./fetch');
 
@@ -9,7 +9,7 @@ const appendFetchHistory = (existing, entry) => {
   return [...list, entry].slice(-HISTORY_CAP);
 };
 
-const stillStarted = async (id) => {
+const stillStarted = async (id, prisma) => {
   const row = await prisma.social_media_accounts.findUnique({
     where: { id },
     select: { monitoring_status: true },
@@ -18,9 +18,13 @@ const stillStarted = async (id) => {
 };
 
 const runInstagramProfile = async (accountId, opts = {}) => {
+  const prisma = dbOf(opts.db);
+  const dbName = opts.dbName || null;
   const account = await prisma.social_media_accounts.findUnique({
     where: { id: accountId },
-    include: { platforms: { select: { slug: true } } },
+    include: {
+      platforms: { select: { slug: true, api_key: true, blugate_client_key: true } },
+    },
   });
 
   if (!account) return { ok: false, skipped: true, reason: 'not_found' };
@@ -46,21 +50,23 @@ const runInstagramProfile = async (accountId, opts = {}) => {
   let postsUpdated = 0;
 
   try {
-    if (!(await stillStarted(accountId))) {
+    if (!(await stillStarted(accountId, prisma))) {
       return { ok: false, skipped: true, reason: 'stopped' };
     }
 
-    const { posts, apiHits: hits, dataPatch } = await fetchInstagramPosts(account);
+    const { authFromPlatformRow } = require('../../blugate/instagram/blugate.instagram.api_client');
+    const auth = authFromPlatformRow(account.platforms);
+    const { posts, apiHits: hits, dataPatch } = await fetchInstagramPosts(account, auth);
     apiHits = hits;
     postsReturned = posts.length;
 
-    if (!(await stillStarted(accountId))) {
+    if (!(await stillStarted(accountId, prisma))) {
       return { ok: false, skipped: true, reason: 'stopped_mid_fetch' };
     }
 
     for (const post of posts) {
-      if (!(await stillStarted(accountId))) break;
-      const result = await upsertPost(post);
+      if (!(await stillStarted(accountId, prisma))) break;
+      const result = await upsertPost(post, { db: prisma, dbName });
       if (result.created) postsNew += 1;
       else postsUpdated += 1;
     }

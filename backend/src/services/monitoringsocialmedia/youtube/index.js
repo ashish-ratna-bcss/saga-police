@@ -7,18 +7,18 @@ const {
   isInFlight,
 } = require('./scheduler');
 
-const startProfile = async (accountId) => {
-  if (isInFlight(accountId)) return;
-  markInFlight(accountId);
+const startProfile = async (accountId, { db, dbName } = {}) => {
+  if (isInFlight(accountId, dbName)) return;
+  markInFlight(accountId, dbName);
   try {
-    await runYouTubeProfile(accountId, { force: true });
+    await runYouTubeProfile(accountId, { force: true, db, dbName });
   } finally {
-    clearInFlight(accountId);
+    clearInFlight(accountId, dbName);
   }
 };
 
-const stopProfile = (accountId) => {
-  clearInFlight(accountId);
+const stopProfile = (accountId, { dbName } = {}) => {
+  clearInFlight(accountId, dbName);
 };
 
 module.exports = {

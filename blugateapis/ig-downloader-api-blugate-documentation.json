@@ -1,0 +1,384 @@
+{
+  "format": "blugate-client-documentation-v1",
+  "gatewayBaseUrl": "https://blugate.blurasaga.com/api/gateway/instagram",
+  "auth": {
+    "note": "Authenticate with your BluGate client API key and client code. BluGate handles upstream credentials for you.",
+    "headers": [
+      {
+        "name": "Authorization",
+        "value": "Bearer <BLUGATE_API_KEY>",
+        "required": true,
+        "description": "BluGate client API key"
+      },
+      {
+        "name": "x-client-id",
+        "value": "<CLIENT_CODE>",
+        "required": true,
+        "description": "Your BluGate client code (e.g. SOC-EYE-001)"
+      }
+    ]
+  },
+  "endpoints": [
+    {
+      "method": "POST",
+      "route": "/api/instagram/followings",
+      "gatewayPath": "/api/gateway/instagram/api/instagram/followings",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/instagram/api/instagram/followings",
+      "name": "following",
+      "description": "Returns the accounts followed by a given public user, including username, display name, avatar URL, and verification and privacy flags.",
+      "groupName": "Difference vs Instagram120",
+      "params": [
+        {
+          "name": "username",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Instagram username"
+        },
+        {
+          "name": "userId",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Numeric user ID"
+        },
+        {
+          "name": "maxId",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor if supported"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/instagram/comments",
+      "gatewayPath": "/api/gateway/instagram/api/instagram/comments",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/instagram/api/instagram/comments",
+      "name": "comments",
+      "description": "Returns the comments on a given public post or video, including comment text, author, like count, timestamp, and replies.",
+      "groupName": null,
+      "params": [
+        {
+          "name": "url",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "Full Instagram post URL"
+        },
+        {
+          "name": "maxId",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor if supported"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/instagram/followers",
+      "gatewayPath": "/api/gateway/instagram/api/instagram/followers",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/instagram/api/instagram/followers",
+      "name": "followers",
+      "description": "Returns the followers of a given public account, including username, display name, avatar URL, and verification and privacy flags.",
+      "groupName": null,
+      "params": [
+        {
+          "name": "username",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Instagram username"
+        },
+        {
+          "name": "userId",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Numeric user ID"
+        },
+        {
+          "name": "maxId",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor if supported"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/instagram/highlights",
+      "gatewayPath": "/api/gateway/instagram/api/instagram/highlights",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/instagram/api/instagram/highlights",
+      "name": "highlights",
+      "description": "Returns the highlight collections for a specified public account, including collection ID, title, and cover image.",
+      "groupName": null,
+      "params": [
+        {
+          "name": "username",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "Instagram username"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/instagram/highlightStories",
+      "gatewayPath": "/api/gateway/instagram/api/instagram/highlightStories",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/instagram/api/instagram/highlightStories",
+      "name": "highlight stories",
+      "description": "Returns the stories within a specified highlight collection, including direct media links and timestamps.",
+      "groupName": null,
+      "params": [
+        {
+          "name": "highlightId",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "Highlight ID from highlights (e.g. `highlight:17936913893330057`)"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/instagram/likers",
+      "gatewayPath": "/api/gateway/instagram/api/instagram/likers",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/instagram/api/instagram/likers",
+      "name": "likers",
+      "description": "Returns the users who liked a given public post or video, including username, display name, avatar URL, and verification status.",
+      "groupName": null,
+      "params": [
+        {
+          "name": "url",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "Full Instagram post URL"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/instagram/links",
+      "gatewayPath": "/api/gateway/instagram/api/instagram/links",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/instagram/api/instagram/links",
+      "name": "links",
+      "description": "Returns direct video and image file links for a specified public URL.",
+      "groupName": null,
+      "params": [
+        {
+          "name": "url",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "Full Instagram post/reel URL"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/instagram/mediaByShortcode",
+      "gatewayPath": "/api/gateway/instagram/api/instagram/mediaByShortcode",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/instagram/api/instagram/mediaByShortcode",
+      "name": "mediaByShortcode",
+      "description": "Returns a post or short-form video for a given shortcode, including direct media links, caption, owner details, and engagement statistics.",
+      "groupName": null,
+      "params": [
+        {
+          "name": "shortcode",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "Media shortcode from the Instagram URL"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/instagram/posts",
+      "gatewayPath": "/api/gateway/instagram/api/instagram/posts",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/instagram/api/instagram/posts",
+      "name": "posts",
+      "description": "Returns the posts for a given user ID or username. Pass the `end_cursor` from the previous response as the optional `maxId` parameter to retrieve the next 12 items.",
+      "groupName": null,
+      "params": [
+        {
+          "name": "username",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Username (or use userId)"
+        },
+        {
+          "name": "userId",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Numeric user ID (or use username)"
+        },
+        {
+          "name": "maxId",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor (`end_cursor`)"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/instagram/profile",
+      "gatewayPath": "/api/gateway/instagram/api/instagram/profile",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/instagram/api/instagram/profile",
+      "name": "profile",
+      "description": "Returns the public profile data for a specified user account, including display name, biography, avatar URL, counters, and verified and private flags.",
+      "groupName": null,
+      "params": [
+        {
+          "name": "username",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "Instagram username"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/instagram/reels",
+      "gatewayPath": "/api/gateway/instagram/api/instagram/reels",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/instagram/api/instagram/reels",
+      "name": "reels",
+      "description": "Returns the reels for a given user ID or username. Pass the `end_cursor` from the previous response as the optional `maxId` parameter to retrieve the next 12 items.",
+      "groupName": null,
+      "params": [
+        {
+          "name": "username",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Username (or use userId)"
+        },
+        {
+          "name": "userId",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Numeric user ID (or use username)"
+        },
+        {
+          "name": "maxId",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor (`end_cursor`)"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/instagram/stories",
+      "gatewayPath": "/api/gateway/instagram/api/instagram/stories",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/instagram/api/instagram/stories",
+      "name": "stories",
+      "description": "Returns the currently active stories for a specified public account, including direct media links and timestamps.",
+      "groupName": null,
+      "params": [
+        {
+          "name": "username",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "Instagram username"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/instagram/story",
+      "gatewayPath": "/api/gateway/instagram/api/instagram/story",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/instagram/api/instagram/story",
+      "name": "story",
+      "description": "Returns a specific story for a given username and story ID, including the direct media link and timestamp.",
+      "groupName": null,
+      "params": [
+        {
+          "name": "username",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "Instagram username"
+        },
+        {
+          "name": "storyId",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "Story ID"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/instagram/taggedPosts",
+      "gatewayPath": "/api/gateway/instagram/api/instagram/taggedPosts",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/instagram/api/instagram/taggedPosts",
+      "name": "tagged posts",
+      "description": "Returns public posts tagging a given user, including media links, captions, owner details, engagement statistics, and timestamps. Supports pagination.",
+      "groupName": null,
+      "params": [
+        {
+          "name": "username",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Instagram username"
+        },
+        {
+          "name": "userId",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Numeric user ID"
+        },
+        {
+          "name": "maxId",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor if supported"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/instagram/userInfo",
+      "gatewayPath": "/api/gateway/instagram/api/instagram/userInfo",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/instagram/api/instagram/userInfo",
+      "name": "userInfo",
+      "description": "Returns public account details for a given user ID or username, including display name, biography, avatar URL, counters, and verified and private flags.",
+      "groupName": null,
+      "params": [
+        {
+          "name": "username",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Instagram username (use this OR userId)"
+        },
+        {
+          "name": "userId",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Numeric user ID (use this OR username)"
+        }
+      ]
+    }
+  ]
+}

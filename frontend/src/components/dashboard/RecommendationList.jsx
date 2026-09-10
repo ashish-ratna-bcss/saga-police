@@ -46,7 +46,7 @@ const RecommendationList = ({ items = [], className }) => (
         </div>
       </div>
       <Link
-        to="/intelligence-dashboard"
+        to="/reports"
         className="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-primary hover:underline"
       >
         Reports <ArrowRight className="h-3 w-3" />

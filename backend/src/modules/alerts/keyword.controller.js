@@ -10,7 +10,7 @@ const { createAuditLog } = require('../../lib/audit');
 // @route   GET /api/keywords
 const getKeywords = async (req, res) => {
   try {
-    const keywords = await listKeywords();
+    const keywords = await listKeywords({}, { db: req.tenantPrisma });
     return res.status(200).json(keywords);
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -23,7 +23,7 @@ const postKeyword = async (req, res) => {
   try {
     const result = await createKeyword(
       { ...(req.body || {}), rescan_catalog: true },
-      { user: req.user }
+      { user: req.user, db: req.tenantPrisma }
     );
     return res.status(result.already_exists ? 200 : 201).json(result.keyword);
   } catch (error) {
@@ -38,7 +38,7 @@ const putKeyword = async (req, res) => {
     const result = await updateKeyword(
       req.params.id,
       { ...(req.body || {}), rescan_catalog: true },
-      { user: req.user }
+      { user: req.user, db: req.tenantPrisma }
     );
     return res.status(200).json(result.keyword);
   } catch (error) {
@@ -50,7 +50,7 @@ const putKeyword = async (req, res) => {
 // @route   DELETE /api/keywords/:id
 const removeKeyword = async (req, res) => {
   try {
-    await deleteKeyword(req.params.id, { user: req.user });
+    await deleteKeyword(req.params.id, { user: req.user, db: req.tenantPrisma });
     return res.status(204).json(null);
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
@@ -62,7 +62,7 @@ const removeKeyword = async (req, res) => {
 const catalogRescan = async (req, res) => {
   try {
     const { rescanAllCatalogPostsForKeywords } = require('./alert.keyword.service');
-    const result = await rescanAllCatalogPostsForKeywords();
+    const result = await rescanAllCatalogPostsForKeywords({ db: req.tenantPrisma });
     try {
       await createAuditLog(req.user, 'scan', 'keyword', 'catalog_rescan', result);
     } catch (_) {

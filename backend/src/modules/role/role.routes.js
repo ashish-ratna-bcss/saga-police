@@ -1,18 +1,19 @@
 const express = require('express');
-const { getRoles, getAssignableRoles, postRole, putRole, removeRole } = require('./role.controller');
 const { authorize } = require('../../middleware/auth.middleware');
+const {
+  list,
+  listAssignable,
+  create,
+  update,
+  remove,
+} = require('./role.controller');
 
 const router = express.Router();
 
-// Any user who can manage accounts needs to see which roles they're allowed
-// to hand out — this must stay outside the manageRoles gate below.
-router.get('/assignable', authorize({ manageUsers: true }), getAssignableRoles);
-
-router.use(authorize({ manageRoles: true }));
-
-router.get('/', getRoles);
-router.post('/', postRole);
-router.put('/:id', putRole);
-router.delete('/:id', removeRole);
+router.get('/assignable', authorize({ manageUsers: true }), listAssignable);
+router.get('/', authorize({ manageRoles: true }), list);
+router.post('/', authorize({ manageRoles: true }), create);
+router.put('/:id', authorize({ manageRoles: true }), update);
+router.delete('/:id', authorize({ manageRoles: true }), remove);
 
 module.exports = router;

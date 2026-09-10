@@ -1,77 +1,78 @@
 /**
- * IG Downloader API (RapidAPI: ig-downloader-api) — 14 routes.
- * (Provider `/likers` is broken — omitted.)
- * Host via INSTAGRAM_BASE_URL (see blugate.instagram.env.js).
+ * Instagram Blugate gateway routes (ig-downloader-api docs only).
+ * Base: https://blugate.blurasaga.com/api/gateway/instagram/api/instagram
+ * Full paths are /api/instagram/<name> (see blugateapis/ig-downloader-api-*.json).
+ * Profile preview uses USER_INFO only.
  */
 const INSTAGRAM_ENDPOINTS = {
   LINKS: {
     method: 'POST',
-    path: '/api/instagram/links',
+    path: '/links',
     usedFor: 'Direct media download links from a post/reel URL',
   },
   MEDIA_BY_SHORTCODE: {
     method: 'POST',
-    path: '/api/instagram/mediaByShortcode',
+    path: '/mediaByShortcode',
     usedFor: 'Post/reel detail by shortcode',
   },
   PROFILE: {
     method: 'POST',
-    path: '/api/instagram/profile',
+    path: '/profile',
     usedFor: 'Public profile by username',
   },
   USER_INFO: {
     method: 'POST',
-    path: '/api/instagram/userInfo',
-    usedFor: 'Public profile by username or userId',
+    path: '/userInfo',
+    usedFor: 'Public profile by username or userId — preview identity',
   },
   POSTS: {
     method: 'POST',
-    path: '/api/instagram/posts',
+    path: '/posts',
     usedFor: 'User posts feed (paginate with maxId)',
   },
   REELS: {
     method: 'POST',
-    path: '/api/instagram/reels',
+    path: '/reels',
     usedFor: 'User reels feed (paginate with maxId)',
   },
   TAGGED_POSTS: {
     method: 'POST',
-    path: '/api/instagram/taggedPosts',
+    path: '/taggedPosts',
     usedFor: 'Posts tagging a user',
   },
   STORIES: {
     method: 'POST',
-    path: '/api/instagram/stories',
+    path: '/stories',
     usedFor: 'Active stories for a username',
   },
   STORY: {
     method: 'POST',
-    path: '/api/instagram/story',
+    path: '/story',
     usedFor: 'Single story by username + storyId',
   },
   HIGHLIGHTS: {
     method: 'POST',
-    path: '/api/instagram/highlights',
+    path: '/highlights',
     usedFor: 'Highlight collections for a username',
   },
   HIGHLIGHT_STORIES: {
     method: 'POST',
-    path: '/api/instagram/highlightStories',
+    path: '/highlightStories',
     usedFor: 'Stories inside a highlight collection',
   },
   COMMENTS: {
     method: 'POST',
-    path: '/api/instagram/comments',
+    path: '/comments',
     usedFor: 'Comments on a post URL',
   },
   FOLLOWERS: {
     method: 'POST',
-    path: '/api/instagram/followers',
+    path: '/followers',
     usedFor: 'Followers of a user',
   },
   FOLLOWINGS: {
     method: 'POST',
-    path: '/api/instagram/followings',
+    path: '/followings',
     usedFor: 'Accounts a user follows',
   },
 };

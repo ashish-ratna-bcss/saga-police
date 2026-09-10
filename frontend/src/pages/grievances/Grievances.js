@@ -44,8 +44,6 @@ import { SuggestionPopup } from '../../components/grievances/SuggestionPopup';
 import { SuggestionReports } from '../../components/grievances/SuggestionReports';
 import { GrievanceService } from '../../api';
 
-const hasFeatureAccess = () => true;
-
 const DEFAULT_SOCIAL_ACTION_OVERLAY = {
     visible: false,
     platformLabel: '',
@@ -508,13 +506,11 @@ const Grievances = () => {
         reports: 'reports',
     }), []);
 
-    const canAccessGrievanceReports = hasFeatureAccess('/grievances', 'reports');
+    const canAccessGrievanceReports = true;
 
     const allowedNavbarStatuses = useMemo(
-        () => Object.keys(grievanceStatusFeatureMap).filter((status) => (
-            hasFeatureAccess('/grievances', grievanceStatusFeatureMap[status])
-        )),
-        [grievanceStatusFeatureMap, hasFeatureAccess]
+        () => Object.keys(grievanceStatusFeatureMap),
+        [grievanceStatusFeatureMap]
     );
 
     // Enforce feature access on navbarStatus.
@@ -994,7 +990,13 @@ const Grievances = () => {
             const rows = Array.isArray(res.data) ? res.data : [];
             setSources(rows.filter((source) => {
                 const p = String(source?.platform || '').toLowerCase();
-                return p === 'x' || p === 'facebook' || p === 'instagram' || p === 'telegram';
+                return (
+                  p === 'x' ||
+                  p === 'twitter' ||
+                  p === 'facebook' ||
+                  p === 'instagram' ||
+                  p === 'telegram'
+                );
             }));
         } catch (error) {
             console.error('Failed to fetch sources', error);
@@ -1234,7 +1236,12 @@ const Grievances = () => {
             const targets = (
                 navbarPlatform === 'all'
                     ? sources
-                    : sources.filter((s) => String(s.platform).toLowerCase() === navbarPlatform)
+                    : sources.filter((s) => {
+                        const p = String(s.platform || '').toLowerCase();
+                        const want = String(navbarPlatform || '').toLowerCase();
+                        if (want === 'x' || want === 'twitter') return p === 'x' || p === 'twitter';
+                        return p === want;
+                      })
             ).filter((s) => s?.id);
 
             if (targets.length === 0) {
@@ -1780,6 +1787,7 @@ const Grievances = () => {
                 grievances={grievances}
                 sources={sources}
                 allowedStatuses={allowedNavbarStatuses}
+                allowedPlatforms={authUser?.allowed_platforms}
                 onAddSource={() => navigate('/social-profiles')}
                 onRemoveSource={(source) => setDeleteConfirmSource(source)}
                 onFetchSourceHistory={(source) => handleFetchForSource(source)}
@@ -1881,7 +1889,7 @@ const Grievances = () => {
                                     ? 'Nothing matches the current search or account filter.'
                                     : hasNoCatalogData
                                         ? sources.length === 0
-                                            ? 'Add official accounts on Social Profiles, then fetch mentions or Facebook / Instagram / Telegram activity.'
+                                            ? 'Add official accounts on Social Profiles, then use Fetch mentions to pull activity.'
                                             : navbarPlatform === 'facebook' || navbarPlatform === 'instagram'
                                                 ? 'Click Fetch posts & comments to pull page activity into Postgres.'
                                                 : navbarPlatform === 'telegram'

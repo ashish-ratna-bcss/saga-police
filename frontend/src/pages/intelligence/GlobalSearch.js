@@ -84,13 +84,24 @@ const PLATFORMS = {
     telegram: { label: 'Telegram', icon: TelegramBrandLogo, color: 'from-sky-500 to-sky-700', bg: 'bg-sky-50 dark:bg-sky-900/30', text: 'text-sky-700 dark:text-sky-300', border: 'border-sky-200' },
 };
 
-const PROFILE_PLATFORMS = ['x', 'youtube', 'facebook', 'instagram', 'telegram'];
-const CONTENT_PLATFORMS = ['x', 'youtube', 'facebook', 'instagram', 'telegram'];
+const KNOWN_SEARCH_PLATFORMS = ['x', 'youtube', 'facebook', 'telegram'];
 
 const normalizePlatformKey = (platform) => {
     const p = String(platform || '').trim().toLowerCase();
     if (p === 'twitter') return 'x';
     return p;
+};
+
+const normalizeConfiguredPlatforms = (list) => {
+    const seen = new Set();
+    const out = [];
+    for (const raw of Array.isArray(list) ? list : []) {
+        const key = normalizePlatformKey(raw);
+        if (!KNOWN_SEARCH_PLATFORMS.includes(key) || seen.has(key)) continue;
+        seen.add(key);
+        out.push(key);
+    }
+    return out;
 };
 
 const stripHandle = (value) => String(value || '').trim().replace(/^@+/, '').toLowerCase();
@@ -410,6 +421,8 @@ const ContentCard = memo(({ item, index, getContentUrl, onMonitor, highlightQuer
 const GlobalSearch = () => {
     const location = useLocation();
     const navigate = useNavigate();
+    const [configuredPlatforms, setConfiguredPlatforms] = useState([]);
+    const [platformsLoading, setPlatformsLoading] = useState(true);
     const [platform, setPlatform] = useState('all');
     const [searchType, setSearchType] = useState('profiles');
     const [resultLimit, setResultLimit] = useState('20');
@@ -461,6 +474,23 @@ const GlobalSearch = () => {
     useEffect(() => {
         loadMonitoredCatalog();
     }, [loadMonitoredCatalog]);
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            setPlatformsLoading(true);
+            try {
+                const res = await api.get('/search/platforms');
+                if (cancelled) return;
+                setConfiguredPlatforms(normalizeConfiguredPlatforms(res.data?.platforms));
+            } catch (_) {
+                if (!cancelled) setConfiguredPlatforms([]);
+            } finally {
+                if (!cancelled) setPlatformsLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, []);
 
     // Abort controller ref
     const abortRef = useRef(null);
@@ -557,6 +587,14 @@ const GlobalSearch = () => {
     const handleSearch = useCallback(async (e) => {
         e?.preventDefault?.();
         if (!query.trim()) return;
+        if (!configuredPlatforms.length) {
+            toast.error('No platforms configured. Add platforms under Settings → Platforms.');
+            return;
+        }
+        if (platform !== 'all' && !configuredPlatforms.includes(platform)) {
+            toast.error('Selected platform is not configured for this account.');
+            return;
+        }
 
         const isContentSearch = searchType === 'content';
         const activeLimit = isContentSearch ? Number(resultLimit) : 20;
@@ -582,7 +620,7 @@ const GlobalSearch = () => {
             let combinedCounts = {};
 
             if (platform === 'all') {
-                const platformKeys = searchType === 'content' ? CONTENT_PLATFORMS : PROFILE_PLATFORMS;
+                const platformKeys = configuredPlatforms;
 
                 // Create an abort-aware wrapper that rejects immediately on abort
                 const abortPromise = new Promise((_, reject) => {
@@ -607,7 +645,6 @@ const GlobalSearch = () => {
 
                 const combined = [];
                 const errors = {};
-                // Process in fixed order: x, youtube, facebook, instagram
                 settled.forEach((result, idx) => {
                     const p = platformKeys[idx];
                     if (result.status === 'fulfilled') {
@@ -678,7 +715,7 @@ const GlobalSearch = () => {
                 setLoading(false);
             }
         }
-    }, [query, platform, searchType, resultLimit]);
+    }, [query, platform, searchType, resultLimit, configuredPlatforms]);
 
     const buildSocialProfilePrefill = useCallback((source) => {
         const sourcePlatform = String(source._platform || source.platform || platform || '')
@@ -1221,13 +1258,17 @@ const GlobalSearch = () => {
 
     // How many platforms are done (for loading progress)
     const totalPlatforms = platform === 'all'
-        ? (searchType === 'content' ? CONTENT_PLATFORMS.length : PROFILE_PLATFORMS.length)
+        ? configuredPlatforms.length
         : 1;
     const donePlatforms = completedPlatforms.size;
 
-    const historyPlatformList = historyFilters.searchType === 'content'
-        ? ['all', ...CONTENT_PLATFORMS]
-        : ['all', ...PROFILE_PLATFORMS];
+    const historyPlatformList = ['all', ...configuredPlatforms];
+
+    useEffect(() => {
+        if (platform !== 'all' && configuredPlatforms.length && !configuredPlatforms.includes(platform)) {
+            setPlatform('all');
+        }
+    }, [configuredPlatforms, platform]);
 
     const handleLeftNavClick = useCallback(() => {
         if (viewMode === 'history') {
@@ -1271,7 +1312,11 @@ const GlobalSearch = () => {
                                 <p className="text-[11px] text-muted-foreground">
                                     {viewMode === 'history'
                                         ? 'Browse saved searches grouped by date'
-                                        : 'Search profiles & content across all platforms'}
+                                        : platformsLoading
+                                            ? 'Loading configured platforms…'
+                                            : configuredPlatforms.length
+                                                ? `Search profiles & content across ${configuredPlatforms.length} platform${configuredPlatforms.length === 1 ? '' : 's'}`
+                                                : 'No platforms configured — add them in Settings'}
                                 </p>
                             </div>
                         </div>
@@ -1311,7 +1356,7 @@ const GlobalSearch = () => {
                                     </SelectTrigger>
                                     <SelectContent className="bg-popover border border-border shadow-lg">
                                         {Object.entries(PLATFORMS)
-                                            .filter(([key]) => key === 'all' || (searchType === 'content' ? CONTENT_PLATFORMS.includes(key) : PROFILE_PLATFORMS.includes(key)))
+                                            .filter(([key]) => key === 'all' || configuredPlatforms.includes(key))
                                             .map(([key, cfg]) => {
                                             const Icon = cfg.icon;
                                             return (
@@ -1425,7 +1470,7 @@ const GlobalSearch = () => {
                                         >
                                             All ({results.length})
                                         </button>
-                                        {(searchType === 'content' ? CONTENT_PLATFORMS : PROFILE_PLATFORMS).filter(p => platformCounts[p]).map(p => {
+                                        {configuredPlatforms.filter(p => platformCounts[p]).map(p => {
                                             const count = platformCounts[p];
                                             const cfg = PLATFORMS[p];
                                             const Icon = cfg.icon;
@@ -1456,7 +1501,7 @@ const GlobalSearch = () => {
                             {/* Platform progress dots */}
                             {platform === 'all' && (
                                 <div className="flex items-center gap-3 mt-5">
-                                    {(searchType === 'content' ? CONTENT_PLATFORMS : PROFILE_PLATFORMS).map(p => {
+                                    {configuredPlatforms.map(p => {
                                         const cfg = PLATFORMS[p];
                                         const Icon = cfg.icon;
                                         const done = completedPlatforms.has(p);
@@ -1481,10 +1526,12 @@ const GlobalSearch = () => {
                             </div>
                             <h3 className="text-lg font-semibold text-foreground mb-2">Search across platforms</h3>
                             <p className="text-sm text-muted-foreground text-center max-w-md">
-                                Find users, channels, and pages or discover content by keywords across X, YouTube, Facebook, Instagram, and Telegram.
+                                {configuredPlatforms.length
+                                    ? 'Find users, channels, and pages or discover content by keywords on your configured platforms.'
+                                    : 'No platforms configured yet. Add platforms under Settings → Platforms to enable search.'}
                             </p>
                             <div className="flex gap-3 mt-6">
-                                {(searchType === 'content' ? CONTENT_PLATFORMS : PROFILE_PLATFORMS).map(p => {
+                                {configuredPlatforms.map(p => {
                                     const cfg = PLATFORMS[p];
                                     const Icon = cfg.icon;
                                     return (

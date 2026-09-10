@@ -1,39 +1,18 @@
 /**
- * Ensure Postgres has tables matching prisma/schema.prisma.
- * Handles the roles + users.role_id migration without force-reset.
- * Migrates legacy fat social_media_profiles → profiles + accounts.
- * Creates catalog / events / settings tables when missing.
+ * Ensure main Postgres has auth tables matching prisma/schema.prisma (roles + users).
+ * Operational tables live in per-admin tenant DBs — see ensureOpsSchema.js / tenant schema.
  */
 require('dotenv').config();
 
 const path = require('path');
 const { execSync } = require('child_process');
 const { PrismaClient } = require('@prisma/client');
-const { ACCESS_FEATURES } = require('../src/modules/auth/access_features');
+const { getDefaultAccessForRole, PLATFORM_CATALOG } = require('../src/modules/auth/access_features');
 
 const BACKEND_ROOT = path.join(__dirname, '..');
 
-/** Must match every `model` in prisma/schema.prisma (BASE TABLEs only). */
-const REQUIRED_TABLES = [
-  'roles',
-  'users',
-  'platforms',
-  'social_media_profiles',
-  'social_media_accounts',
-  'social_media_posts',
-  'social_media_alerts',
-  'social_media_grievances',
-  'social_media_grievance_reports',
-  'social_media_grievance_contacts',
-  'keywords',
-  'social_media_occasion_calendar',
-  'social_media_events',
-  'social_media_event_media',
-  'alert_config',
-  'alert_thresholds',
-  'report_templates',
-  'policy_mappings',
-];
+/** Must match every `model` in prisma/schema.prisma (main auth only). */
+const REQUIRED_TABLES = ['roles', 'users'];
 
 async function countPublicTables(prisma) {
   const rows = await prisma.$queryRaw`
@@ -92,10 +71,8 @@ async function columnExists(prisma, table, column) {
   return Boolean(rows[0]?.exists);
 }
 
-const pagesFor = (role) => (ACCESS_FEATURES[role] || []).map((item) => item.path);
-
 /**
- * Create roles + backfill users.role_id before prisma db push can set NOT NULL.
+ * Create roles (identity only) + backfill users.role_id.
  */
 async function migrateRolesAndRoleId(prisma) {
   console.log('[postgres] preparing roles + users.role_id…');
@@ -105,67 +82,30 @@ async function migrateRolesAndRoleId(prisma) {
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       slug TEXT NOT NULL UNIQUE,
-      allowed_pages TEXT[] NOT NULL DEFAULT '{}',
-      assignable_by TEXT[] NOT NULL DEFAULT '{superadmin}',
-      can_manage_users BOOLEAN NOT NULL DEFAULT false,
-      can_manage_roles BOOLEAN NOT NULL DEFAULT false,
       is_system BOOLEAN NOT NULL DEFAULT false,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
 
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE roles
-    ADD COLUMN IF NOT EXISTS assignable_by TEXT[] NOT NULL DEFAULT '{superadmin}'
-  `);
-
   const systemRoles = [
-    {
-      slug: 'superadmin',
-      name: 'Super Admin',
-      pages: pagesFor('superadmin'),
-      assignable_by: ['superadmin'],
-      can_manage_users: true,
-      can_manage_roles: true,
-    },
-    {
-      slug: 'admin',
-      name: 'Admin',
-      pages: pagesFor('admin'),
-      assignable_by: ['superadmin'],
-      can_manage_users: true,
-      can_manage_roles: false,
-    },
-    {
-      slug: 'user',
-      name: 'User',
-      pages: pagesFor('user'),
-      assignable_by: ['superadmin', 'admin'],
-      can_manage_users: false,
-      can_manage_roles: false,
-    },
+    { slug: 'superadmin', name: 'Super Admin' },
+    { slug: 'admin', name: 'Admin' },
+    { slug: 'user', name: 'User' },
   ];
 
   for (const role of systemRoles) {
     await prisma.$executeRawUnsafe(
       `
-      INSERT INTO roles (name, slug, allowed_pages, assignable_by, can_manage_users, can_manage_roles, is_system)
-      VALUES ($1, $2, $3::text[], $4::text[], $5, $6, true)
+      INSERT INTO roles (name, slug, is_system)
+      VALUES ($1, $2, true)
       ON CONFLICT (slug) DO UPDATE SET
         name = EXCLUDED.name,
-        allowed_pages = EXCLUDED.allowed_pages,
-        can_manage_users = EXCLUDED.can_manage_users,
-        can_manage_roles = EXCLUDED.can_manage_roles,
         is_system = true,
         updated_at = NOW()
       `,
       role.name,
-      role.slug,
-      role.pages,
-      role.assignable_by,
-      role.can_manage_users,
-      role.can_manage_roles
+      role.slug
     );
   }
 
@@ -210,8 +150,126 @@ async function migrateRolesAndRoleId(prisma) {
   console.log('[postgres] roles + users.role_id ready');
 }
 
+/**
+ * Move access from roles → users, then drop role access columns.
+ */
+async function migrateUserAccessColumns(prisma) {
+  if (!(await tableExists(prisma, 'users'))) return;
+
+  console.log('[postgres] ensuring per-user access columns…');
+
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS allowed_pages TEXT[] NOT NULL DEFAULT '{}'::text[]
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS allowed_platforms TEXT[] NOT NULL DEFAULT '{}'::text[]
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS can_manage_users BOOLEAN NOT NULL DEFAULT false
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS can_manage_roles BOOLEAN NOT NULL DEFAULT false
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS max_profiles INTEGER NULL
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS max_users INTEGER NULL
+  `);
+
+  // Copy from role if role still has legacy columns and user pages are empty.
+  if (await columnExists(prisma, 'roles', 'allowed_pages')) {
+    await prisma.$executeRawUnsafe(`
+      UPDATE users u
+      SET
+        allowed_pages = COALESCE(NULLIF(r.allowed_pages, '{}'::text[]), u.allowed_pages),
+        can_manage_users = COALESCE(r.can_manage_users, u.can_manage_users),
+        can_manage_roles = COALESCE(r.can_manage_roles, u.can_manage_roles)
+      FROM roles r
+      WHERE u.role_id = r.id
+        AND (u.allowed_pages IS NULL OR cardinality(u.allowed_pages) = 0)
+    `);
+  }
+
+  // Platforms default: full catalog when empty.
+  await prisma.$executeRawUnsafe(
+    `
+    UPDATE users
+    SET allowed_platforms = $1::text[]
+    WHERE allowed_platforms IS NULL OR cardinality(allowed_platforms) = 0
+    `,
+    PLATFORM_CATALOG
+  );
+
+  // Backfill empty pages from role-slug defaults.
+  const usersNeedingPages = await prisma.$queryRawUnsafe(`
+    SELECT u.id, r.slug
+    FROM users u
+    JOIN roles r ON r.id = u.role_id
+    WHERE u.allowed_pages IS NULL OR cardinality(u.allowed_pages) = 0
+  `);
+  for (const row of usersNeedingPages) {
+    const defaults = getDefaultAccessForRole(row.slug);
+    await prisma.$executeRawUnsafe(
+      `
+      UPDATE users
+      SET
+        allowed_pages = $2::text[],
+        allowed_platforms = CASE
+          WHEN cardinality(allowed_platforms) = 0 THEN $3::text[]
+          ELSE allowed_platforms
+        END,
+        can_manage_users = $4,
+        can_manage_roles = $5
+      WHERE id = $1
+      `,
+      row.id,
+      defaults.allowed_pages,
+      defaults.allowed_platforms,
+      defaults.can_manage_users,
+      defaults.can_manage_roles
+    );
+  }
+
+  // Slim roles table — drop access columns if present.
+  if (await tableExists(prisma, 'roles')) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE roles DROP COLUMN IF EXISTS allowed_pages`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE roles DROP COLUMN IF EXISTS assignable_by`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE roles DROP COLUMN IF EXISTS can_manage_users`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE roles DROP COLUMN IF EXISTS can_manage_roles`);
+  }
+
+  console.log('[postgres] per-user access columns ready');
+
+  // Keep superadmin on console pages only (no ops).
+  const { SUPERADMIN_PAGE_PATHS } = require('../src/modules/auth/access_features');
+  await prisma.$executeRawUnsafe(
+    `
+    UPDATE users u
+    SET
+      allowed_pages = $1::text[],
+      allowed_platforms = '{}'::text[],
+      can_manage_users = true,
+      can_manage_roles = true
+    FROM roles r
+    WHERE u.role_id = r.id AND r.slug = 'superadmin'
+    `,
+    SUPERADMIN_PAGE_PATHS
+  );
+}
+
 async function ensureUserThemeColumns(prisma) {
   if (!(await tableExists(prisma, 'users'))) return;
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS db_name TEXT NULL
+  `);
   await prisma.$executeRawUnsafe(`
     ALTER TABLE users
     ADD COLUMN IF NOT EXISTS ui_mode TEXT NOT NULL DEFAULT 'light'
@@ -227,7 +285,7 @@ async function ensureUserThemeColumns(prisma) {
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'theme_color'
       ) THEN
-        ALTER TABLE users ADD COLUMN theme_color JSONB NOT NULL DEFAULT '{"type":"solid","value":"#06b6d4","primary_hex":"#06b6d4"}'::jsonb;
+        ALTER TABLE users ADD COLUMN theme_color JSONB NOT NULL DEFAULT '{"type":"gradient","value":"linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)","primary_hex":"#38bdf8"}'::jsonb;
       ELSIF EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'theme_color' AND data_type != 'jsonb'
@@ -239,7 +297,7 @@ async function ensureUserThemeColumns(prisma) {
               jsonb_build_object(
                 'type', 'gradient',
                 'value', theme_color::text,
-                'primary_hex', COALESCE(substring(theme_color::text from '#[0-9a-fA-F]{6}'), '#06b6d4')
+                'primary_hex', COALESCE(substring(theme_color::text from '#[0-9a-fA-F]{6}'), '#38bdf8')
               )
             ELSE
               jsonb_build_object(
@@ -249,9 +307,16 @@ async function ensureUserThemeColumns(prisma) {
               )
           END
         );
-        ALTER TABLE users ALTER COLUMN theme_color SET DEFAULT '{"type":"solid","value":"#06b6d4","primary_hex":"#06b6d4"}'::jsonb;
+        ALTER TABLE users ALTER COLUMN theme_color SET DEFAULT '{"type":"gradient","value":"linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)","primary_hex":"#38bdf8"}'::jsonb;
       END IF;
     END $$;
+  `);
+
+  // Align legacy solid cyan DB default with Settings "BEST DEFAULT" gradient.
+  await prisma.$executeRawUnsafe(`
+    UPDATE users
+    SET theme_color = theme_color || '{"type":"gradient","value":"linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)","primary_hex":"#38bdf8"}'::jsonb
+    WHERE theme_color->>'value' = '#06b6d4'
   `);
 }
 
@@ -282,6 +347,15 @@ async function ensurePlatformFields(prisma) {
       {"key":"channel_id","label":"Channel ID","type":"text","required":false,"placeholder":"UCxxxxxxxx"}
     ]'::jsonb
     WHERE slug = 'youtube'
+      AND (fields = '[]'::jsonb OR fields IS NULL)
+  `);
+  await prisma.$executeRawUnsafe(`
+    UPDATE platforms SET fields = '[
+      {"key":"username","label":"Username","type":"text","required":false,"placeholder":"e.g. somchannel"},
+      {"key":"url","label":"t.me URL","type":"url","required":false,"placeholder":"https://t.me/..."},
+      {"key":"channel_id","label":"Channel ID","type":"text","required":false,"placeholder":"numeric id"}
+    ]'::jsonb
+    WHERE slug = 'telegram'
       AND (fields = '[]'::jsonb OR fields IS NULL)
   `);
 }
@@ -918,7 +992,7 @@ async function ensureSettingsTables(prisma) {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
-  for (const platform of ['x', 'facebook', 'youtube', 'instagram']) {
+  for (const platform of ['x', 'facebook', 'youtube', 'instagram', 'telegram']) {
     await prisma.$executeRawUnsafe(
       `
       INSERT INTO alert_thresholds (id, platform, created_at, updated_at)
@@ -971,13 +1045,15 @@ async function ensureSettingsTables(prisma) {
 }
 
 async function pushPrismaSchema() {
-  console.log('[postgres] syncing Prisma schema (db push)…');
-  execSync('npx prisma db push --skip-generate --accept-data-loss', {
+  console.log('[postgres] syncing main Prisma schema (db push)…');
+  // Do NOT pass --accept-data-loss: main DB may still hold legacy ops tables;
+  // the main schema only models roles/users and must not drop the rest.
+  execSync('npx prisma db push --skip-generate', {
     cwd: BACKEND_ROOT,
     stdio: 'inherit',
     env: process.env,
   });
-  execSync('npx prisma generate', {
+  execSync('npm run prisma:generate', {
     cwd: BACKEND_ROOT,
     stdio: 'inherit',
     env: process.env,
@@ -1015,21 +1091,7 @@ async function main() {
     }
 
     await ensureUserThemeColumns(prisma);
-    await ensurePlatformFields(prisma);
-    await migrateCatalogSplit(prisma);
-    await ensureCatalogColumns(prisma);
-    await ensureSettingsTables(prisma);
-
-    const stillLegacy =
-      (await tableExists(prisma, 'social_media_profiles')) &&
-      (await columnExists(prisma, 'social_media_profiles', 'platform_id'));
-    if (stillLegacy) {
-      console.log('[postgres] legacy profile shape still present — syncing Prisma schema…');
-      await pushPrismaSchema();
-      await migrateCatalogSplit(prisma);
-      await ensureCatalogColumns(prisma);
-      await ensureSettingsTables(prisma);
-    }
+    await migrateUserAccessColumns(prisma);
 
     const after = await countPublicTables(prisma);
     const stillMissing = await missingRequiredTables(prisma);
@@ -1039,7 +1101,7 @@ async function main() {
       return;
     }
     console.log(
-      `[postgres] schema ready (${REQUIRED_TABLES.length} required tables, ${after} public)`
+      `[postgres] main auth schema ready (${REQUIRED_TABLES.length} required tables, ${after} public)`
     );
   } catch (error) {
     console.error('[postgres] schema ensure failed:', error.message);

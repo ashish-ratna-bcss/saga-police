@@ -192,7 +192,7 @@ const ModulePulseCharts = ({
         </header>
         {platforms.length === 0 ? (
           <p className="flex flex-1 items-center px-3 text-[11px] text-muted-foreground">
-            No accounts yet
+            No platforms configured yet
           </p>
         ) : (
           <ul className="min-h-0 flex-1 overflow-y-auto px-3 py-1">

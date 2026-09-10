@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, Plus, Pencil, Trash2, Loader2, PlayCircle, StopCircle,
-  Twitter, Facebook, Instagram, Youtube, Globe2, Settings2, Square, History, BarChart3, Download, Timer,
+  Twitter, Facebook, Instagram, Youtube, Globe2, Square, History, BarChart3, Download, Timer,
   ChevronDown, User, FileText, CheckCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -206,44 +206,6 @@ const ProfileRelevanceBadge = ({ row }) => {
   );
 };
 
-const FIELD_PRESETS = [
-  { key: 'username', label: 'Username', type: 'text', required: true, placeholder: 'e.g. narendramodi' },
-  { key: 'url', label: 'Profile / page URL', type: 'url', required: true, placeholder: 'https://…' },
-  { key: 'page_id', label: 'Page ID', type: 'text', required: false, placeholder: 'Numeric page id' },
-  { key: 'channel_id', label: 'Channel ID', type: 'text', required: false, placeholder: 'e.g. UCxxxx' },
-  { key: 'channel_url', label: 'Channel URL', type: 'url', required: true, placeholder: 'https://youtube.com/@…' },
-];
-
-const blankField = () => ({
-  key: '',
-  label: '',
-  type: 'text',
-  required: true,
-  placeholder: '',
-});
-
-const emptyPlatformForm = () => ({
-  name: '',
-  slug: '',
-  icon: 'Globe2',
-  is_active: true,
-  fields: [{ ...FIELD_PRESETS[0] }],
-});
-
-const slugify = (v) =>
-  String(v || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-_]/g, '');
-
-const fieldKeyify = (v) =>
-  String(v || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9_]/g, '');
-
 const formatWhen = (iso) => {
   if (!iso) return '—';
   try {
@@ -435,7 +397,6 @@ const SocialProfiles = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [platforms, setPlatforms] = useState([]);
-  const [allPlatforms, setAllPlatforms] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [stats, setStats] = useState({ total: 0, active: 0, paused: 0, byPlatform: {} });
   const [loading, setLoading] = useState(true);
@@ -472,12 +433,6 @@ const SocialProfiles = () => {
     return () => clearInterval(id);
   }, [anyMonitoring]);
 
-  const [manageOpen, setManageOpen] = useState(false);
-  const [platformOpen, setPlatformOpen] = useState(false);
-  const [editingPlatform, setEditingPlatform] = useState(null);
-  const [platformForm, setPlatformForm] = useState(emptyPlatformForm());
-  const [savingPlatform, setSavingPlatform] = useState(false);
-  const [deletePlatform, setDeletePlatform] = useState(null);
 
   const allAccountsFetched = useMemo(
     () =>
@@ -496,15 +451,10 @@ const SocialProfiles = () => {
   );
 
   const loadPlatforms = useCallback(async () => {
-    const [activeRes, allRes] = await Promise.all([
-      socialProfilesApi.listPlatforms(),
-      socialProfilesApi.listPlatforms({ all: 1 }),
-    ]);
+    const activeRes = await socialProfilesApi.listPlatforms();
     const active = Array.isArray(activeRes.data) ? activeRes.data : [];
-    const all = Array.isArray(allRes.data) ? allRes.data : [];
     setPlatforms(active);
-    setAllPlatforms(all);
-    return { active, all };
+    return { active };
   }, []);
 
   const loadProfiles = useCallback(async ({ silent = false } = {}) => {
@@ -601,7 +551,7 @@ const SocialProfiles = () => {
         poll_interval_minutes: minutes,
         poll_preset: resolvePollPreset(minutes),
       notes: row.notes || '',
-        accounts: siblings.map((s) => rowToAccountSlot(s, [...platforms, ...allPlatforms])),
+        accounts: siblings.map((s) => rowToAccountSlot(s, platforms)),
       });
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to load profile');
@@ -862,80 +812,6 @@ const SocialProfiles = () => {
     }
   };
 
-  const openAddPlatform = () => {
-    setEditingPlatform(null);
-    setPlatformForm(emptyPlatformForm());
-    setPlatformOpen(true);
-  };
-
-  const openEditPlatform = (row) => {
-    setEditingPlatform(row);
-    setPlatformForm({
-      name: row.name || '',
-      slug: row.slug || '',
-      icon: row.icon || 'Globe2',
-      is_active: row.is_active !== false,
-      fields: Array.isArray(row.fields) && row.fields.length
-        ? row.fields.map((f) => ({ ...blankField(), ...f }))
-        : [blankField()],
-    });
-    setPlatformOpen(true);
-  };
-
-  const savePlatform = async (e) => {
-    e.preventDefault();
-    const fields = platformForm.fields
-      .map((f) => ({
-        ...f,
-        key: fieldKeyify(f.key || f.label),
-        label: f.label.trim() || f.key,
-      }))
-      .filter((f) => f.key);
-    if (!fields.length) {
-      toast.error('Add at least one field');
-      return;
-    }
-    setSavingPlatform(true);
-    try {
-      const payload = {
-        name: platformForm.name.trim(),
-        slug: slugify(platformForm.slug || platformForm.name),
-        icon: platformForm.icon,
-        is_active: platformForm.is_active,
-        fields,
-      };
-      if (editingPlatform) {
-        await socialProfilesApi.updatePlatform(editingPlatform.id, payload);
-        toast.success('Platform updated');
-      } else {
-        await socialProfilesApi.createPlatform(payload);
-        toast.success('Platform added');
-      }
-      setPlatformOpen(false);
-      const { active } = await loadPlatforms();
-      if (platformTab !== 'all' && !active.some((p) => p.slug === platformTab)) {
-        setPlatformTab('all');
-      }
-      await loadProfiles();
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Save failed');
-    } finally {
-      setSavingPlatform(false);
-    }
-  };
-
-  const confirmDeletePlatform = async () => {
-    if (!deletePlatform) return;
-    try {
-      await socialProfilesApi.deletePlatform(deletePlatform.id);
-      toast.success('Platform deleted');
-      setDeletePlatform(null);
-      await loadPlatforms();
-      await loadProfiles();
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Delete failed');
-    }
-  };
 
   const tabCounts = useMemo(() => {
     const by = stats.byPlatform || {};
@@ -969,10 +845,6 @@ const SocialProfiles = () => {
             <span className="tabular-nums font-semibold text-foreground">{stats.paused}</span>
             <span>paused</span>
           </span>
-          <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setManageOpen(true)}>
-            <Settings2 className="h-3.5 w-3.5" />
-            Platforms
-          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -1000,10 +872,6 @@ const SocialProfiles = () => {
               <StopCircle className="h-3.5 w-3.5" />
             )}
             Stop all services
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={openAddPlatform}>
-            <Plus className="h-3.5 w-3.5" />
-            Add platform
           </Button>
           <Button size="sm" className="h-8 gap-1.5" onClick={openAddProfile}>
             <Plus className="h-3.5 w-3.5" />
@@ -1116,8 +984,18 @@ const SocialProfiles = () => {
                   return (
                     <tr key={row.id} className="border-b border-border/60 hover:bg-muted/25">
                       <td className="px-2.5 py-2 align-top">
-                        <p className="font-medium text-[13px] leading-tight">{row.display_name || row.handle}</p>
-                        <p className="text-[11px] text-muted-foreground truncate max-w-[180px]">{row.handle}</p>
+                        <button
+                          type="button"
+                          className="text-left group"
+                          onClick={() => navigate(`/social-profiles/${row.id}`)}
+                        >
+                          <p className="font-medium text-[13px] leading-tight text-foreground group-hover:text-primary group-hover:underline">
+                            {row.display_name || row.handle}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground truncate max-w-[180px]">
+                            {row.handle}
+                          </p>
+                        </button>
                         {phase.phase === 'waiting' ? (
                           <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-amber-800">
                             <Timer className="h-2.5 w-2.5" />
@@ -1642,222 +1520,6 @@ const SocialProfiles = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Manage platforms list */}
-      <Dialog open={manageOpen} onOpenChange={setManageOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Manage platforms</DialogTitle>
-            <DialogDescription>
-              Platforms like X, Facebook, YouTube. Each one asks for different info when you add a profile.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="max-h-[50vh] space-y-2 overflow-y-auto">
-            {allPlatforms.map((row) => {
-              const Icon = ICONS[row.icon] || Globe2;
-              const fieldNames = (row.fields || []).map((f) => f.label || f.key).join(', ') || 'nothing set';
-              return (
-                <div key={row.id} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Icon className="h-4 w-4 shrink-0" />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{row.name}</p>
-                      <p className="truncate text-[11px] text-muted-foreground">Asks for: {fieldNames}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => openEditPlatform(row)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600" onClick={() => setDeletePlatform(row)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <DialogFooter className="sm:justify-between">
-            <Button variant="outline" className="gap-1.5" onClick={openAddPlatform}>
-              <Plus className="h-4 w-4" /> Add platform
-            </Button>
-            <Button onClick={() => setManageOpen(false)}>Done</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add / Edit platform — simple */}
-      <Dialog open={platformOpen} onOpenChange={setPlatformOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingPlatform ? 'Edit platform' : 'Add platform'}</DialogTitle>
-            <DialogDescription>
-              Example: for X you need a username; for Facebook you need a page URL.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={savePlatform} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Platform name</Label>
-                <Input
-                required
-                value={platformForm.name}
-                onChange={(e) => {
-                  const name = e.target.value;
-                  setPlatformForm((f) => ({
-                    ...f,
-                    name,
-                    slug: editingPlatform ? f.slug : slugify(name),
-                  }));
-                }}
-                placeholder="e.g. Telegram"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-              <Label>Icon</Label>
-              <Select value={platformForm.icon} onValueChange={(v) => setPlatformForm((f) => ({ ...f, icon: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                  {ICON_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-            <div className="space-y-2">
-              <Label>What should we ask when adding a profile?</Label>
-              <p className="text-xs text-muted-foreground">
-                Tap to add. You can turn off “Must fill” if the field is optional.
-              </p>
-
-              <div className="flex flex-wrap gap-1.5">
-                {FIELD_PRESETS.map((preset) => {
-                  const already = platformForm.fields.some((f) => f.key === preset.key);
-                  return (
-                    <Button
-                      key={preset.key}
-                      type="button"
-                      size="sm"
-                      variant={already ? 'secondary' : 'outline'}
-                      className="h-8"
-                      disabled={already}
-                      onClick={() =>
-                        setPlatformForm((f) => ({
-                          ...f,
-                          fields: [...f.fields, { ...preset }],
-                        }))
-                      }
-                    >
-                      + {preset.label}
-                    </Button>
-                  );
-                })}
-            </div>
-
-              <div className="space-y-2 pt-1">
-                {platformForm.fields.length === 0 ? (
-                  <p className="rounded-md border border-dashed px-3 py-8 text-center text-xs text-muted-foreground">
-                    Add at least one — Username or Profile URL is usual.
-                  </p>
-                ) : (
-                  platformForm.fields.map((field, idx) => (
-                    <div
-                      key={`${field.key}-${idx}`}
-                      className="flex items-center justify-between gap-3 rounded-md border px-3 py-2.5"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium">{field.label}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {field.type === 'url' ? 'Link / URL' : 'Text'}
-                          {field.required ? ' · must fill' : ' · optional'}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-                          <Switch
-                            checked={field.required}
-                            onCheckedChange={(checked) => {
-                              const fields = [...platformForm.fields];
-                              fields[idx] = { ...fields[idx], required: checked };
-                              setPlatformForm((f) => ({ ...f, fields }));
-                            }}
-                          />
-                          Must fill
-                        </label>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-red-600"
-                          onClick={() =>
-                            setPlatformForm((f) => ({
-                              ...f,
-                              fields: f.fields.filter((_, i) => i !== idx),
-                            }))
-                          }
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-            </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between rounded-md border px-3 py-2">
-              <div>
-                <p className="text-sm font-medium">Show in app</p>
-                <p className="text-[11px] text-muted-foreground">Off = hidden from filters</p>
-              </div>
-              <Switch
-                checked={platformForm.is_active}
-                onCheckedChange={(v) => setPlatformForm((f) => ({ ...f, is_active: v }))}
-              />
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setPlatformOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={savingPlatform || platformForm.fields.length === 0}>
-                {savingPlatform ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {editingPlatform ? 'Save' : 'Add platform'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={!!deleteProfile} onOpenChange={(o) => !o && setDeleteProfile(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete profile?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Removes “{deleteProfile?.display_name || deleteProfile?.handle}” from the catalog.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteProfile} disabled={deleting}>
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={!!deletePlatform} onOpenChange={(o) => !o && setDeletePlatform(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete platform?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Permanently removes “{deletePlatform?.name}”. Blocked if profiles still use it.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeletePlatform}>Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };

@@ -1,4 +1,4 @@
-const prisma = require('../../../prisma/client');
+const dbOf = require('../../lib/dbOf');
 const facebook = require('./facebook');
 const x = require('./x');
 const youtube = require('./youtube');
@@ -14,7 +14,8 @@ const ADAPTERS = {
   telegram,
 };
 
-const resolveSlug = async (accountId) => {
+const resolveSlug = async (accountId, { db } = {}) => {
+  const prisma = dbOf(db);
   const row = await prisma.social_media_accounts.findUnique({
     where: { id: accountId },
     include: { platforms: { select: { slug: true } } },
@@ -23,11 +24,11 @@ const resolveSlug = async (accountId) => {
 };
 
 /** Route Start kickoff to the right platform folder. */
-const startProfile = async (accountId) => {
-  const slug = await resolveSlug(accountId);
+const startProfile = async (accountId, { db, dbName } = {}) => {
+  const slug = await resolveSlug(accountId, { db });
   const adapter = ADAPTERS[slug];
   if (adapter?.startProfile) {
-    return adapter.startProfile(accountId);
+    return adapter.startProfile(accountId, { db, dbName });
   }
   console.log(
     `[monitoringsocialmedia] start skipped — no adapter for platform "${slug}" (id=${accountId})`
@@ -35,11 +36,11 @@ const startProfile = async (accountId) => {
 };
 
 /** Route Stop cleanup. */
-const stopProfile = async (accountId) => {
-  const slug = await resolveSlug(accountId);
+const stopProfile = async (accountId, { db, dbName } = {}) => {
+  const slug = await resolveSlug(accountId, { db });
   const adapter = ADAPTERS[slug];
   if (adapter?.stopProfile) {
-    return adapter.stopProfile(accountId);
+    return adapter.stopProfile(accountId, { db, dbName });
   }
 };
 
