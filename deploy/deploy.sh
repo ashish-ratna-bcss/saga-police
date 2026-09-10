@@ -16,7 +16,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="${APP_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 SITES_JSON="${SITES_JSON:-$SCRIPT_DIR/sites.json}"
-NGINX_SITE="${NGINX_SITE:-sockeye}"
+NGINX_SITE="${NGINX_SITE:-blurasaga}"
 NODE_ENV="${NODE_ENV:-production}"
 
 SKIP_NGINX=0
@@ -109,7 +109,7 @@ for s in d.get('sites') or []:
     if s.get('enabled', True):
         print(s['admin'], int(s['backend_port']))
 " "$SITES_JSON" | while read -r admin port; do
-    name="sockeye-${admin}"
+    name="blurasaga-${admin}"
     log "API $name on ${BACKEND_BIND}:${port}"
     if pm2 describe "$name" >/dev/null 2>&1; then
       (cd "$APP_DIR/backend" && HOST="$BACKEND_BIND" PORT="$port" NODE_ENV="$NODE_ENV" pm2 restart "$name" --update-env)

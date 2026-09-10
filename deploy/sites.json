@@ -1,6 +1,6 @@
 {
   "ip": "100.49.109.96",
-  "web_root": "/var/www/sockeye/frontend/build",
+  "web_root": "/home/ubuntu/blurasaga/frontend/build",
   "backend_bind": "127.0.0.1",
   "sites": [
     {
