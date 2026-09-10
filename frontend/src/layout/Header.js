@@ -1,6 +1,7 @@
 import React from 'react';
 import { LogOut, Menu } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { resolvePublicAssetUrl } from '../lib/publicAssetUrl';
 
 const Header = ({ user, sidebarOpen, onToggleSidebar, onLogout }) => (
   <header
@@ -18,7 +19,9 @@ const Header = ({ user, sidebarOpen, onToggleSidebar, onLogout }) => (
         <Menu className="h-5 w-5" />
       </Button>
       <img
-        src={user?.blurasagalogo || user?.theme_logo || '/blura_saga_logo.jpg'}
+        src={resolvePublicAssetUrl(
+          user?.blurasagalogo || user?.theme_logo || '/blura_saga_logo.jpg'
+        )}
         alt={user?.blurasagatitle || user?.theme_name || 'Blura Saga'}
         className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-cyan-500/50"
       />

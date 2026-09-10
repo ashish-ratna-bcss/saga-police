@@ -118,10 +118,11 @@ const PlatformsTab = () => {
   const applyPreset = (slug) => {
     const preset = KNOWN_PLATFORM_PRESETS.find((p) => p.slug === slug);
     if (!preset) return;
+    // Always sync name + slug + icon together when switching quick picks.
     setForm((f) => ({
       ...f,
       slug: preset.slug,
-      name: f.name.trim() ? f.name : preset.name,
+      name: preset.name,
       icon: preset.icon,
     }));
   };
@@ -307,7 +308,7 @@ const PlatformsTab = () => {
                     <Button
                       key={p.slug}
                       type="button"
-                      variant="outline"
+                      variant={form.slug === p.slug ? 'default' : 'outline'}
                       size="sm"
                       className="h-7 text-xs"
                       onClick={() => applyPreset(p.slug)}

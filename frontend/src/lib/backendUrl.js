@@ -3,12 +3,12 @@
  * can import BACKEND_URL without pulling the HTTP client.
  */
 const getDefaultBackendUrl = () => {
-  if (typeof window === 'undefined') return 'http://localhost:8000';
+  if (typeof window === 'undefined') return 'http://localhost:5005';
 
   const { hostname, origin, port } = window.location;
   const isIP = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(hostname);
 
-  // If explicitly set in environment, use that UNLESS it's localhost and we are on an IP
+  // Explicit override (production CDN / separate API host)
   if (process.env.REACT_APP_BACKEND_URL) {
     const envUrl = process.env.REACT_APP_BACKEND_URL;
     const envIsLocalhost = envUrl.includes('localhost') || envUrl.includes('127.0.0.1');
@@ -17,17 +17,17 @@ const getDefaultBackendUrl = () => {
     }
   }
 
-  // Handle local development (localhost or 127.0.0.1)
+  // Local CRA/Vite — API on separate port
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return 'http://localhost:8000';
+    return 'http://localhost:5005';
   }
 
-  // If accessing via IP (local network testing) or dev port 3000, assume backend is on port 8000
-  if (isIP || port === '3000') {
-    return `http://${hostname}:8000`;
+  // Deployed behind nginx (same host: /api and /files proxied) — use page origin.
+  // Also covers LAN IP + nginx on :3000.
+  if (!port || port === '80' || port === '443' || port === '3000' || isIP) {
+    return origin;
   }
 
-  // Default fallback
   return origin;
 };
 

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../../lib/api';
+import { resolvePublicAssetUrl } from '../../lib/publicAssetUrl';
 import { useAuth } from '../../context/auth.context';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -310,7 +311,17 @@ const UsersManagement = () => {
 
       if (res.data?.uploads?.length > 0) {
         const uploadedUrl = res.data.uploads[0].url;
-        setForm((f) => ({ ...f, blurasagalogo: uploadedUrl }));
+        // Prefer same-origin /files path so deploy/nginx works
+        let stored = uploadedUrl;
+        try {
+          const u = new URL(uploadedUrl, window.location.origin);
+          if (u.pathname.startsWith('/files/') || u.pathname.startsWith('/api/files/')) {
+            stored = u.pathname;
+          }
+        } catch {
+          // keep uploadedUrl
+        }
+        setForm((f) => ({ ...f, blurasagalogo: stored }));
         toast.success('Logo uploaded successfully');
       }
     } catch (error) {
@@ -705,7 +716,7 @@ const UsersManagement = () => {
                       <div className="flex items-center gap-2">
                         {form.blurasagalogo && (
                           <img
-                            src={form.blurasagalogo}
+                            src={resolvePublicAssetUrl(form.blurasagalogo)}
                             alt="Logo preview"
                             className="h-9 w-9 shrink-0 rounded-lg border border-border object-cover bg-muted/30"
                             onError={(e) => {

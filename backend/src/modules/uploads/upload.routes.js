@@ -23,7 +23,8 @@ const uploadLimiter = rateLimit({
 router.use(uploadLimiter);
 
 const STORAGE_DIR = process.env.REPORT_STORAGE_DIR || path.join(__dirname, '..', '..', '..', 'storage');
-const PUBLIC_BASE = (process.env.PUBLIC_BACKEND_URL || `http://localhost:${process.env.PORT || 8000}`).replace(/\/+$/, '');
+/** Absolute CDN/base only when explicitly set. Otherwise return same-origin `/files/...` paths. */
+const PUBLIC_BASE = (process.env.PUBLIC_BACKEND_URL || '').replace(/\/+$/, '');
 const UPLOAD_FOLDER = process.env.UPLOAD_FOLDER || 'uploads';
 
 const DEFAULT_PROXY_HOST_SUFFIXES = [
@@ -46,8 +47,10 @@ const upload = multer({
   limits: { fileSize: 100 * 1024 * 1024 } // 100MB limit
 });
 
-const buildPublicUrl = (key) =>
-  `${PUBLIC_BASE}/files/${key.split('/').map(encodeURIComponent).join('/')}`;
+const buildPublicUrl = (key) => {
+  const pathPart = `/files/${key.split('/').map(encodeURIComponent).join('/')}`;
+  return PUBLIC_BASE ? `${PUBLIC_BASE}${pathPart}` : pathPart;
+};
 
 const sanitizeStorageKey = (customKey) => {
   if (customKey == null || customKey === '' || customKey === 'undefined' || customKey === 'null') {

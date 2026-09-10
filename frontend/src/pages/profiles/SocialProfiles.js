@@ -1520,6 +1520,41 @@ const SocialProfiles = () => {
         </DialogContent>
       </Dialog>
 
+      <AlertDialog
+        open={Boolean(deleteProfile)}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteProfile(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete profile?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes{' '}
+              <span className="font-medium text-foreground">
+                {deleteProfile?.display_name || deleteProfile?.handle || 'this account'}
+              </span>{' '}
+              ({deleteProfile?.platform_name || deleteProfile?.platform}) and stops monitoring. Stored
+              posts for this account may remain until cleaned up separately.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleting}
+              onClick={(e) => {
+                e.preventDefault();
+                confirmDeleteProfile();
+              }}
+            >
+              {deleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 };
