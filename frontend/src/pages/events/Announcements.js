@@ -381,9 +381,11 @@ const Announcements = () => {
                         location: data.location || event.location || '',
                         start_date: selectedDate,
                         end_date: selectedDate,
-                        keywords_en: (data.keywords_by_language?.english || []).join(', '),
-                        keywords_te: (data.keywords_by_language?.telugu || []).join(', '),
-                        keywords_hi: (data.keywords_by_language?.hindi || []).join(', '),
+                        keywords: [
+                            ...(data.keywords_by_language?.english || []),
+                            ...(data.keywords_by_language?.telugu || []),
+                            ...(data.keywords_by_language?.hindi || []),
+                        ].join(', '),
                     }
                 }
             });

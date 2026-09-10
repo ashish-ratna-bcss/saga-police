@@ -232,7 +232,7 @@ const listEventContent = async (id, { page = 1, limit = 50, platform = 'all', db
   const [rows, total] = await Promise.all([
     prisma.social_media_event_media.findMany({
       where,
-      orderBy: [{ posted_at: 'desc' }, { fetched_at: 'desc' }],
+      orderBy: [{ posted_at: 'desc' }, { fetched_at: 'desc' }, { id: 'desc' }],
       skip,
       take,
     }),

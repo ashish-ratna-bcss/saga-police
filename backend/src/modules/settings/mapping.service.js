@@ -25,7 +25,31 @@ class MappingService {
 
     async loadMappings({ db } = {}) {
         try {
-            const mappings = await listActivePolicies({ db });
+            let mappings = await listActivePolicies({ db });
+
+            // Startup / interval path has no tenant db. Also pull active
+            // overrides from every provisioned tenant so keyword inference
+            // is not stuck on an empty policy_mappings table forever.
+            if (!db) {
+                try {
+                    const { forEachTenant } = require('../../lib/tenantDatabase.service');
+                    const seen = new Set(mappings.map((m) => String(m.id || m.category_id)));
+                    await forEachTenant(async (tenantPrisma) => {
+                        const rows = await listActivePolicies({ db: tenantPrisma });
+                        for (const row of rows) {
+                            if (row.is_global) continue;
+                            const key = String(row.id || row.category_id);
+                            if (seen.has(key)) continue;
+                            seen.add(key);
+                            mappings.push(row);
+                        }
+                    });
+                } catch (tenantErr) {
+                    logger.warn(
+                        `[MappingService] Tenant policy merge skipped: ${tenantErr.message}`
+                    );
+                }
+            }
 
             this.mappingData.category_mappings = mappings.map((m) => ({
                 category_id: m.category_id,

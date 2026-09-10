@@ -27,20 +27,20 @@ const EventMonthSidebar = ({ selectedMonth, selectedYear, monthCounts = {}, onSe
     <div className="hidden lg:flex shrink-0 w-[88px] border-r border-gray-200 dark:border-slate-700 flex-col bg-white dark:bg-slate-900 overflow-hidden">
 
       {/* Year selector */}
-      <div className="shrink-0 px-2 py-2.5 border-b border-gray-100 dark:border-slate-800">
-        <div className="flex items-center justify-between gap-1">
+      <div className="shrink-0 px-1 py-2 border-b border-gray-100 dark:border-slate-800">
+        <div className="flex items-center justify-between">
           <button
             onClick={() => onChangeYear(selectedYear - 1)}
-            className="h-6 w-6 flex items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 dark:text-gray-400 transition-colors"
+            className="h-6 w-5 flex items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 dark:text-gray-400 transition-colors"
             title="Previous year"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </button>
-          <span className="text-xs font-bold text-gray-800 dark:text-gray-200 tabular-nums">{selectedYear}</span>
+          <span className="text-[11px] font-bold text-gray-800 dark:text-gray-200 tabular-nums">{selectedYear}</span>
           <button
             onClick={() => onChangeYear(selectedYear + 1)}
             disabled={selectedYear >= currentYear}
-            className="h-6 w-6 flex items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 dark:text-gray-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="h-6 w-5 flex items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 dark:text-gray-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             title="Next year"
           >
             <ChevronRight className="h-3.5 w-3.5" />
@@ -52,17 +52,17 @@ const EventMonthSidebar = ({ selectedMonth, selectedYear, monthCounts = {}, onSe
       <div className="shrink-0 px-1.5 pt-1.5">
         <button
           onClick={() => onSelectMonth(null)}
-          className={`w-full flex items-center justify-between gap-1 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200
+          className={`w-full flex items-center justify-between gap-0.5 px-1.5 py-2 rounded-lg text-[11px] font-semibold transition-all duration-200
             ${selectedMonth === null
               ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-sm'
               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800'
             }`}
         >
-          <div className="flex items-center gap-1.5">
-            <Calendar className="h-3 w-3" />
+          <div className="flex items-center gap-1 min-w-0">
+            <Calendar className="h-3 w-3 shrink-0" />
             <span>All</span>
           </div>
-          <span className={`text-[10px] font-bold tabular-nums min-w-[20px] text-center rounded-full px-1.5 py-0.5
+          <span className={`text-[10px] font-bold tabular-nums shrink-0 rounded-full px-1 py-0.5
             ${selectedMonth === null
               ? 'bg-white/20 dark:bg-gray-900/20'
               : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400'
@@ -83,20 +83,20 @@ const EventMonthSidebar = ({ selectedMonth, selectedYear, monthCounts = {}, onSe
             <button
               key={m.key}
               onClick={() => onSelectMonth(m.key)}
-              className={`w-full flex items-center justify-between gap-1 px-2.5 py-[7px] rounded-lg text-[11px] font-medium transition-all duration-200 border
+              className={`w-full flex items-center justify-between gap-0.5 px-1.5 py-[7px] rounded-lg text-[11px] font-medium transition-all duration-200 border
                 ${isSelected
-                  ? `${m.activeBg} ${m.activeBorder} ${m.activeText} shadow-md font-bold ring-1 ring-offset-1 ring-offset-white dark:ring-offset-slate-900 ${m.activeBorder.replace('border-', 'ring-')}`
+                  ? `${m.activeBg} ${m.activeBorder} ${m.activeText} shadow-md font-bold`
                   : count > 0
                     ? `${m.bg} border-transparent ${m.text} hover:${m.border}`
                     : 'bg-transparent border-transparent text-gray-400 dark:text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-gray-500 dark:hover:text-gray-400'
                 }`}
             >
-              <div className="flex items-center gap-1.5" title={m.full}>
+              <div className="flex items-center gap-1 min-w-0" title={m.full}>
                 <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isSelected ? 'bg-white' : count > 0 ? m.dot : 'bg-gray-300 dark:bg-gray-700'} ${isCurrent && !isSelected ? 'ring-2 ring-offset-1 ring-amber-400' : ''}`} />
-                <span className="whitespace-nowrap">{m.label}</span>
+                <span className="truncate">{m.label}</span>
               </div>
               {count > 0 && (
-                <span className={`text-[10px] font-bold tabular-nums min-w-[18px] text-center rounded-full px-1 py-0
+                <span className={`text-[10px] font-bold tabular-nums shrink-0 rounded-full px-1 py-0
                   ${isSelected
                     ? 'bg-white/30'
                     : 'bg-white/80 dark:bg-slate-800'

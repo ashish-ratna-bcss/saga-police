@@ -41,39 +41,29 @@ const splitKeywords = (value) => {
   return value.split(/\n|,|;/g).map((s) => s.trim()).filter(Boolean);
 };
 
-/** Guess language bucket from script (calendar keywords are often language: "all"). */
-const detectKeywordLanguage = (keyword) => {
-  const text = String(keyword || '');
-  if (/[\u0C00-\u0C7F]/.test(text)) return 'te';
-  if (/[\u0900-\u097F]/.test(text)) return 'hi';
-  return 'en';
-};
-
-/** Split event keywords into Telugu / Hindi / English form fields. */
-const keywordsToLangFields = (keywords = []) => {
-  const buckets = { te: [], hi: [], en: [] };
+/** Flatten event keywords into one comma-separated form field (any language / script). */
+const keywordsToSingleField = (keywords = []) => {
+  const out = [];
+  const seen = new Set();
   for (const entry of keywords || []) {
     const raw = typeof entry === 'string' ? entry : entry?.keyword;
     if (!raw || !String(raw).trim()) continue;
-    const tagged = String(entry?.language || '').toLowerCase();
-    // Expand legacy comma-joined blobs that were dumped into one field.
     for (const text of splitKeywords(raw)) {
-      const byScript = detectKeywordLanguage(text);
-      const lang =
-        byScript !== 'en'
-          ? byScript
-          : tagged === 'te' || tagged === 'hi' || tagged === 'en'
-            ? tagged
-            : 'en';
-      buckets[lang].push(text);
+      const key = text.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(text);
     }
   }
-  return {
-    te: buckets.te.join(', '),
-    hi: buckets.hi.join(', '),
-    en: buckets.en.join(', '),
-  };
+  return out.join(', ');
 };
+
+/** Build keyword objects from one free-text field — any language, no language buckets. */
+const parseKeywordsField = (value) =>
+  splitKeywords(value).map((keyword) => ({
+    keyword,
+    language: 'all',
+  }));
 
 const formatWhen = (iso) => {
   if (!iso) return '—';
@@ -571,33 +561,21 @@ const EventPlatformPicker = ({ value = [], onChange, options = [], loading = fal
   );
 };
 
-const KEYWORD_LANG_FIELDS = [
-  { key: 'te', label: 'Telugu', placeholder: 'e.g. ఎన్నిక, ఓటు' },
-  { key: 'hi', label: 'Hindi', placeholder: 'e.g. चुनाव, वोट' },
-  { key: 'en', label: 'English', placeholder: 'e.g. election, vote' },
-];
-
-const EventKeywordsFields = ({ values, onChange }) => (
+const EventKeywordsFields = ({ value, onChange }) => (
   <div className="space-y-2">
     <div>
       <Label className="text-xs font-semibold">Keywords</Label>
       <p className="text-[11px] text-muted-foreground mt-0.5">
-        What should we search for? Add words in any language you need.
+        One box for every word you want to search — any language or script. Separate with commas.
       </p>
     </div>
-    <div className="space-y-2">
-      {KEYWORD_LANG_FIELDS.map(({ key, label, placeholder }) => (
-        <div key={key} className="flex items-center gap-2.5">
-          <span className="w-16 shrink-0 text-[11px] font-medium text-muted-foreground">{label}</span>
-          <Input
-            value={values[key] || ''}
-            onChange={(e) => onChange(key, e.target.value)}
-            placeholder={placeholder}
-            className="h-9 text-sm"
-          />
-        </div>
-      ))}
-    </div>
+    <textarea
+      value={value || ''}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="Type any keywords here, e.g. election, ନିର୍ବାଚନ, vote, #Odisha"
+      rows={3}
+      className="flex min-h-[72px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+    />
   </div>
 );
 
@@ -883,7 +861,7 @@ const Events = () => {
   // ── Core state ──
   const [events, setEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
-  const [sidebarWidth, setSidebarWidth] = useState(380);
+  const [sidebarWidth, setSidebarWidth] = useState(260);
   const [isResizing, setIsResizing] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [dashboard, setDashboard] = useState(null);
@@ -915,7 +893,7 @@ const Events = () => {
     const startX = e.clientX;
     const startWidth = sidebarWidth;
     const onMouseMove = (e) => {
-      const newWidth = Math.min(500, Math.max(200, startWidth + (e.clientX - startX)));
+      const newWidth = Math.min(340, Math.max(200, startWidth + (e.clientX - startX)));
       setSidebarWidth(newWidth);
     };
     const onMouseUp = () => {
@@ -962,7 +940,7 @@ const Events = () => {
   const [nrSaving, setNrSaving] = useState(false);
   const [nrForm, setNrForm] = useState({
     name: '', location: '', start_date: '', end_date: '',
-    keywords_te: '', keywords_hi: '', keywords_en: '',
+    keywords: '',
     polling_interval_minutes: 60, poll_preset: '60',
     platforms: [],
   });
@@ -980,9 +958,7 @@ const Events = () => {
   const [location, setLocation] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [keywordsTe, setKeywordsTe] = useState('');
-  const [keywordsHi, setKeywordsHi] = useState('');
-  const [keywordsEn, setKeywordsEn] = useState('');
+  const [keywords, setKeywords] = useState('');
   const [eventPollMinutes, setEventPollMinutes] = useState(60);
   const [eventPollPreset, setEventPollPreset] = useState('60');
   const [platformOptions, setPlatformOptions] = useState([]);
@@ -1079,7 +1055,7 @@ const Events = () => {
     setNrEditId(null);
     setNrForm({
       name: '', location: '', start_date: '', end_date: '',
-      keywords_te: '', keywords_hi: '', keywords_en: '',
+      keywords: '',
       polling_interval_minutes: 60, poll_preset: '60',
       platforms: dbPlatformSlugs,
     });
@@ -1087,7 +1063,6 @@ const Events = () => {
   };
   const openNrEdit = (evt) => {
     setNrEditId(evt.id);
-    const kwFields = keywordsToLangFields(evt.keywords || []);
     const plats = Array.isArray(evt.platforms) ? evt.platforms.filter(Boolean) : [];
     const minutes = Number(evt.polling_interval_minutes) || 60;
     setNrForm({
@@ -1095,9 +1070,7 @@ const Events = () => {
       location: evt.location || '',
       start_date: evt.start_date ? new Date(evt.start_date).toISOString().split('T')[0] : '',
       end_date: evt.end_date ? new Date(evt.end_date).toISOString().split('T')[0] : '',
-      keywords_te: kwFields.te,
-      keywords_hi: kwFields.hi,
-      keywords_en: kwFields.en,
+      keywords: keywordsToSingleField(evt.keywords || []),
       polling_interval_minutes: minutes,
       poll_preset: resolvePollPreset(minutes),
       platforms: plats.length ? plats : dbPlatformSlugs,
@@ -1118,10 +1091,7 @@ const Events = () => {
     }
     setNrSaving(true);
     try {
-      const kw = [];
-      nrForm.keywords_te.split(/[,\n]/).filter(Boolean).forEach(k => kw.push({ keyword: k.trim(), language: 'te' }));
-      nrForm.keywords_hi.split(/[,\n]/).filter(Boolean).forEach(k => kw.push({ keyword: k.trim(), language: 'hi' }));
-      nrForm.keywords_en.split(/[,\n]/).filter(Boolean).forEach(k => kw.push({ keyword: k.trim(), language: 'en' }));
+      const kw = parseKeywordsField(nrForm.keywords);
       const payload = {
         name: nrForm.name, location: nrForm.location,
         keywords: kw, platforms: nrForm.platforms,
@@ -1368,9 +1338,12 @@ const Events = () => {
       setLocation(prefill.location || '');
       setStartDate(prefill.start_date || '');
       setEndDate(prefill.end_date || '');
-      setKeywordsEn(prefill.keywords_en || '');
-      setKeywordsTe(prefill.keywords_te || '');
-      setKeywordsHi(prefill.keywords_hi || '');
+      setKeywords(
+        prefill.keywords ||
+          [prefill.keywords_te, prefill.keywords_hi, prefill.keywords_en]
+            .filter(Boolean)
+            .join(', ')
+      );
       setEditingEvent(null);
       closeActionOverlays();
       setEventFormOpen(true);
@@ -1537,7 +1510,16 @@ const Events = () => {
 
 
   const filteredRecentContent = useMemo(() => {
-    return contentItems;
+    const ts = (c) => {
+      const raw = c?.published_at || c?.posted_at || c?.fetched_at || c?.created_at;
+      const n = raw ? new Date(raw).getTime() : 0;
+      return Number.isFinite(n) ? n : 0;
+    };
+    return [...contentItems].sort((a, b) => {
+      const diff = ts(b) - ts(a);
+      if (diff !== 0) return diff;
+      return Number(b.id) - Number(a.id);
+    });
   }, [contentItems]);
 
 
@@ -1571,14 +1553,10 @@ const Events = () => {
 
   // ── Actions ──
   const buildPayload = () => {
-    const kw = [];
-    splitKeywords(keywordsTe).forEach((k) => kw.push({ keyword: k, language: 'te' }));
-    splitKeywords(keywordsHi).forEach((k) => kw.push({ keyword: k, language: 'hi' }));
-    splitKeywords(keywordsEn).forEach((k) => kw.push({ keyword: k, language: 'en' }));
     const payload = {
       name,
       location,
-      keywords: kw,
+      keywords: parseKeywordsField(keywords),
       platforms: selectedPlatforms,
       polling_interval_minutes: Number(eventPollMinutes) || 60,
     };
@@ -1590,7 +1568,7 @@ const Events = () => {
 
   const resetForm = () => {
     setName(''); setLocation(''); setStartDate(''); setEndDate('');
-    setKeywordsTe(''); setKeywordsHi(''); setKeywordsEn('');
+    setKeywords('');
     setEventPollMinutes(60); setEventPollPreset('60');
     setSelectedPlatforms(dbPlatformSlugs);
   };
@@ -1599,14 +1577,11 @@ const Events = () => {
   const handleStartEdit = () => {
     if (!selectedEvent) return;
     closeActionOverlays();
-    const kwFields = keywordsToLangFields(selectedEvent.keywords || []);
     setName(selectedEvent.name || '');
     setLocation(selectedEvent.location || '');
     setStartDate(selectedEvent.start_date ? new Date(selectedEvent.start_date).toISOString().split('T')[0] : '');
     setEndDate(selectedEvent.end_date ? new Date(selectedEvent.end_date).toISOString().split('T')[0] : '');
-    setKeywordsTe(kwFields.te);
-    setKeywordsHi(kwFields.hi);
-    setKeywordsEn(kwFields.en);
+    setKeywords(keywordsToSingleField(selectedEvent.keywords || []));
     const minutes = Number(selectedEvent.polling_interval_minutes) || 60;
     setEventPollMinutes(minutes);
     setEventPollPreset(resolvePollPreset(minutes));
@@ -2165,7 +2140,7 @@ const Events = () => {
   // ══════════════════════════════════════════════════════
   return (
     <div
-      className="flex h-[calc(100dvh-7.5rem)] min-h-[420px] flex-col gap-2.5 max-w-[1600px] mx-auto w-full"
+      className="flex h-[calc(100dvh-7.5rem)] min-h-[420px] flex-col gap-2.5 w-full"
       data-testid="events-page"
     >
       {/* Title row — counts fill the middle (Grievances-style), actions stay right */}
@@ -2824,14 +2799,9 @@ const Events = () => {
                     </div>
                   ) : (
                     <>
-                      {/* Manual masonry: split items across two columns by
-                          alternating index. Each column is an independent
-                          vertical flex stack, so a tall card in one column
-                          doesn't push the other column down — short cards
-                          pack tightly upward instead of leaving grid gaps. */}
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start w-full">
-                        {[0, 1].map(col => (
-                          <div key={col} className="flex flex-col gap-4 min-w-0">
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start w-full">
+                        {[0, 1].map((col) => (
+                          <div key={col} className="flex flex-col gap-3 min-w-0">
                             {filteredRecentContent
                               .filter((_, idx) => idx % 2 === col)
                               .map((c, idx) => (
@@ -2917,12 +2887,8 @@ const Events = () => {
 
 
             <EventKeywordsFields
-              values={{ te: keywordsTe, hi: keywordsHi, en: keywordsEn }}
-              onChange={(key, value) => {
-                if (key === 'te') setKeywordsTe(value);
-                else if (key === 'hi') setKeywordsHi(value);
-                else setKeywordsEn(value);
-              }}
+              value={keywords}
+              onChange={setKeywords}
             />
 
 
@@ -3236,11 +3202,8 @@ const Events = () => {
               />
             </div>
             <EventKeywordsFields
-              values={{ te: nrForm.keywords_te, hi: nrForm.keywords_hi, en: nrForm.keywords_en }}
-              onChange={(key, value) => {
-                const field = key === 'te' ? 'keywords_te' : key === 'hi' ? 'keywords_hi' : 'keywords_en';
-                setNrForm({ ...nrForm, [field]: value });
-              }}
+              value={nrForm.keywords}
+              onChange={(keywords) => setNrForm({ ...nrForm, keywords })}
             />
             <DialogFooter className="gap-2 sm:gap-0">
               <Button type="button" variant="outline" onClick={() => setNrFormOpen(false)}>Cancel</Button>

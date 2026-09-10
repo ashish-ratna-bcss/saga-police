@@ -274,8 +274,8 @@ const OpsDashboard = () => {
           />
           <RecommendationList items={overview.recommendations} />
           <div className="grid gap-4 lg:grid-cols-2">
-            <TopProfilesCard profiles={overview.top_profiles} />
-            <TopPostsCard posts={overview.top_posts} />
+            <TopProfilesCard items={overview.top_profiles} />
+            <TopPostsCard items={overview.top_posts} />
           </div>
         </>
       )}

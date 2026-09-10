@@ -287,12 +287,12 @@ const MediaGrid = ({ media, platformTheme, platform, contentUrl, contentId }) =>
         extractYouTubeId(url);
 
       return (
-        <div key={idx} className={`relative rounded-xl overflow-hidden ${platformTheme.border} border group ${validItems.length > 1 ? 'aspect-square' : 'aspect-video'} bg-zinc-900`}>
+        <div key={idx} className={`relative w-full overflow-hidden rounded-xl ${platformTheme.border} border group bg-zinc-900 ${validItems.length > 1 ? 'h-40' : 'h-52'}`}>
           {isYouTube && youtubeId ? (
             <iframe
               src={`https://www.youtube.com/embed/${youtubeId}?rel=0&modestbranding=1`}
               title={`youtube-${youtubeId}`}
-              className="absolute top-0 left-0 w-full h-full"
+              className="absolute inset-0 h-full w-full"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               referrerPolicy="strict-origin-when-cross-origin"
               allowFullScreen
@@ -308,7 +308,7 @@ const MediaGrid = ({ media, platformTheme, platform, contentUrl, contentId }) =>
           ) : isFacebook ? (
             <FacebookVideoPlayer videoUrl={videoUrl || url} preview={preview} contentUrl={contentUrl} fallbackUrls={fallbackUrls} />
           ) : (
-            <div className="absolute top-0 left-0 w-full h-full">
+            <div className="absolute inset-0 h-full w-full overflow-hidden">
               <VideoPlayer
                 url={videoUrl || url}
                 preview={preview || undefined}
@@ -329,18 +329,18 @@ const MediaGrid = ({ media, platformTheme, platform, contentUrl, contentId }) =>
 
     /* Photo rendering with Facebook fallback chain */
     return (
-      <div key={idx} className={`relative rounded-xl overflow-hidden ${platformTheme.border} border group ${validItems.length > 1 ? 'aspect-square' : ''}`}>
+      <div key={idx} className={`relative rounded-xl overflow-hidden ${platformTheme.border} border group ${validItems.length > 1 ? 'aspect-square max-h-40' : 'max-h-56'}`}>
         {isFacebook ? (
           <FacebookImage
             urls={fallbackUrls.length > 0 ? fallbackUrls : [url]}
             alt=""
-            className={`w-full h-full object-cover ${validItems.length === 1 ? 'max-h-[500px]' : ''}`}
+            className="w-full h-full max-h-56 object-cover"
           />
         ) : (
           <img
             src={url}
             alt=""
-            className={`w-full h-full object-cover ${validItems.length === 1 ? 'max-h-[500px]' : ''}`}
+            className="w-full h-full max-h-56 object-cover"
             loading="lazy"
             onError={(e) => { e.target.closest('div').style.display = 'none'; }}
           />

@@ -312,19 +312,24 @@ const deletePolicy = async (id, { db } = {}) => {
 };
 
 const listActivePolicies = async ({ db } = {}) => {
-  const prisma = dbOf(db);
-  const tenantRows = await prisma.policy_mappings.findMany({
-    where: { is_active: true },
-    orderBy: { category_id: 'asc' },
-  });
+  // Background MappingService refresh has no request-scoped tenant client.
+  // Always load global defaults; merge tenant overrides only when db is present.
+  let tenantRows = [];
+  if (db) {
+    const prisma = dbOf(db);
+    tenantRows = await prisma.policy_mappings.findMany({
+      where: { is_active: true },
+      orderBy: { category_id: 'asc' },
+    });
+  }
   const globalRows = await mainPrisma.default_policies.findMany({
     where: { is_active: true },
     orderBy: { category_id: 'asc' },
   });
-  
+
   const mappedTenant = tenantRows.map(hydratePolicy);
-  const mappedGlobal = globalRows.map(r => ({ ...hydratePolicy(r), is_global: true }));
-  
+  const mappedGlobal = globalRows.map((r) => ({ ...hydratePolicy(r), is_global: true }));
+
   return [...mappedGlobal, ...mappedTenant];
 };
 

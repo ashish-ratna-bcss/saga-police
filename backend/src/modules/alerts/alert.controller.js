@@ -189,6 +189,24 @@ const getWorkflowKpi = async (req, res) => {
   }
 };
 
+const translateAlertContent = async (req, res) => {
+  try {
+    const { text, target = 'en' } = req.body || {};
+    if (!text || !String(text).trim()) {
+      return res.status(400).json({ message: 'Text to translate is required' });
+    }
+    const { translateText } = require('../../services/translation.service');
+    const translatedText = await translateText(String(text), target || 'en');
+    return res.status(200).json({
+      translatedText,
+      originalText: text,
+    });
+  } catch (error) {
+    logger.error('[Alerts] Translation failed:', error.message);
+    return res.status(500).json({ message: error.message || 'Translation failed' });
+  }
+};
+
 module.exports = {
   listAlerts,
   getAlert,
@@ -199,6 +217,7 @@ module.exports = {
   putMarkAllRead,
   getTopByCategory,
   getWorkflowKpi,
+  translateAlertContent,
   // used by sentiment pipeline
   createAlertFromCatalogPost,
 };

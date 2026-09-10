@@ -10,6 +10,7 @@ const {
   putMarkAllRead,
   getTopByCategory,
   getWorkflowKpi,
+  translateAlertContent,
 } = require('./alert.controller');
 const { getKeywords, postKeyword, putKeyword, removeKeyword } = require('./alert.keyword.controller');
 const {
@@ -51,7 +52,7 @@ router.post('/engagers/:handle', postEngagersForHandle);
 
 router.post('/investigate', authorize({ pages: ['/alerts'] }), goneMongo('investigate'));
 router.post('/public-investigate', goneMongo('investigate'));
-router.post('/translate', goneMongo('translate'));
+router.post('/translate', translateAlertContent);
 router.post('/bulk', getAlertsBulk);
 router.get('/debug', (req, res) =>
   res.json({ version: '2.0.0', store: 'postgres-catalog', timestamp: new Date() })
