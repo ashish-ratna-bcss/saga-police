@@ -109,7 +109,7 @@ for s in d.get('sites') or []:
     if s.get('enabled', True):
         print(s['admin'], int(s['backend_port']))
 " "$SITES_JSON" | while read -r admin port; do
-    name="blurasaga-${admin}"
+    name="${admin}-api"
     log "API $name on ${BACKEND_BIND}:${port}"
     if pm2 describe "$name" >/dev/null 2>&1; then
       (cd "$APP_DIR/backend" && HOST="$BACKEND_BIND" PORT="$port" NODE_ENV="$NODE_ENV" pm2 restart "$name" --update-env)
