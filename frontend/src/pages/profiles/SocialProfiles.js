@@ -798,7 +798,10 @@ const SocialProfiles = () => {
 
     setStartingAll(true);
     try {
-      const params = platformTab !== 'all' ? { platform: platformTab } : undefined;
+      const params = {
+        type: 'profile',
+        ...(platformTab !== 'all' ? { platform: platformTab } : {}),
+      };
       const res = await socialProfilesApi.startAllMonitoring(params);
       const started = res.data?.started ?? 0;
       toast.success(
@@ -832,7 +835,10 @@ const SocialProfiles = () => {
   const stopAllServices = async () => {
     setStoppingAll(true);
     try {
-      const params = platformTab !== 'all' ? { platform: platformTab } : undefined;
+      const params = {
+        type: 'profile',
+        ...(platformTab !== 'all' ? { platform: platformTab } : {}),
+      };
       const res = await socialProfilesApi.stopAllMonitoring(params);
       const stopped = res.data?.stopped ?? 0;
       toast.success(

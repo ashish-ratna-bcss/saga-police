@@ -13,7 +13,7 @@ export const DEFAULT_BLURA_SAGA = tenantData.default || {
 
 /**
  * Determine the target username from param, URL query (?username, ?user, ?port),
- * or window.location.port mapped via tenantBranding.json.
+ * hostname domain, or window.location.port mapped via tenantBranding.json.
  */
 export function resolveTargetUsername(paramUsername) {
   const tenants = tenantData.tenants || [];
@@ -41,7 +41,29 @@ export function resolveTargetUsername(paramUsername) {
     ).trim().toLowerCase();
     if (queryUser) return queryUser;
 
-    // 3. Port match from window.location.port (e.g. 3000, 3001, 3002)
+    // 3. Hostname / domain match (e.g. odisha.blurasaga.com on :443)
+    const host = String(window.location.hostname || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\.$/, '');
+    if (host) {
+      const matchedByDomain = tenants.find((t) => {
+        const domains = Array.isArray(t.domains) ? t.domains : t.domain ? [t.domain] : [];
+        return domains.some((d) => String(d || '').trim().toLowerCase() === host);
+      });
+      if (matchedByDomain?.username) return matchedByDomain.username;
+
+      // Also allow subdomain prefix: odisha.blurasaga.com → odisha
+      const firstLabel = host.split('.')[0];
+      if (firstLabel) {
+        const matchedByLabel = tenants.find(
+          (t) => String(t.username || '').toLowerCase() === firstLabel
+        );
+        if (matchedByLabel?.username) return matchedByLabel.username;
+      }
+    }
+
+    // 4. Port match from window.location.port (e.g. 3000, 3001, 3002)
     if (window.location.port) {
       const portNum = parseInt(window.location.port, 10);
       const matched = tenants.find((t) => t.port === portNum);

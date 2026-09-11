@@ -388,7 +388,15 @@ const listProfiles = async (req, res) => {
         include: accountInclude,
         orderBy: { created_at: 'desc' },
       }),
-      prisma.social_media_accounts.groupBy({ by: ['platform_id'], _count: { _all: true } }),
+      // Tab badges must use the same type filter (don't mix grievance sources into Topic Catalog).
+      prisma.social_media_accounts.groupBy({
+        by: ['platform_id'],
+        where: {
+          type: where.type,
+          ...(where.is_active !== undefined ? { is_active: where.is_active } : {}),
+        },
+        _count: { _all: true },
+      }),
     ]);
 
     const countsById = counts.reduce((acc, c) => ({ ...acc, [c.platform_id]: c._count._all }), {});
@@ -1007,7 +1015,11 @@ const startAllMonitoring = async (req, res) => {
     }
 
     const platformFilter = req.body?.platform || req.query?.platform;
-    const where = { monitoring_status: { not: 'started' } };
+    const typeFilter = req.body?.type || req.query?.type || 'profile';
+    const where = {
+      monitoring_status: { not: 'started' },
+      type: String(typeFilter),
+    };
     if (platformFilter) {
       const platformRow = await resolvePlatform(platformFilter, { db: prisma });
       where.platform_id = platformRow ? platformRow.id : -1;
@@ -1055,7 +1067,11 @@ const stopAllMonitoring = async (req, res) => {
   const prisma = dbOf(req.tenantPrisma);
   try {
     const platformFilter = req.body?.platform || req.query?.platform;
-    const where = { monitoring_status: 'started' };
+    const typeFilter = req.body?.type || req.query?.type || 'profile';
+    const where = {
+      monitoring_status: 'started',
+      type: String(typeFilter),
+    };
     if (platformFilter) {
       const platformRow = await resolvePlatform(platformFilter, { db: prisma });
       where.platform_id = platformRow ? platformRow.id : -1;
