@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import { sessionCache, AUTH_ME_CACHE_KEY } from '../lib/sessionCache';
 import { applyThemeColor } from '../lib/theme';
 
+import { resolvePublicAssetUrl } from '../lib/publicAssetUrl';
+
 const AuthContext = createContext(null);
 
 export const useAuth = () => {
@@ -21,6 +23,21 @@ const applyUserTheme = (me) => {
   }
   const colorVal = typeof me.theme_color === 'object' ? me.theme_color?.value : me.theme_color;
   if (colorVal) applyThemeColor(colorVal);
+
+  const title = me.blurasagatitle || me.theme_name || 'DRISHTI';
+  const desc = me.blurasagadescription || me.theme_description || 'Cyber Intelligence Platform';
+  document.title = `${title} — ${desc}`;
+
+  const logoPath = me.blurasagalogo || me.theme_logo;
+  if (logoPath) {
+    let link = document.querySelector("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.getElementsByTagName('head')[0].appendChild(link);
+    }
+    link.href = resolvePublicAssetUrl(logoPath);
+  }
 };
 
 const cacheUser = (me) => {

@@ -2,6 +2,7 @@ const dbOf = require('../../lib/dbOf');
 const monitoringSocialMedia = require('../../services/monitoringsocialmedia');
 const { previewProfile } = require('../../services/monitoringsocialmedia/previewProfile');
 const { attachRelevanceToAccounts } = require('./catalogRelevance.service');
+const { listActivePolicies } = require('../settings/settings.service');
 
 const FIELD_TYPES = new Set(['text', 'url']);
 const MIN_POLL_MINUTES = 1;
@@ -111,6 +112,16 @@ const accountInclude = {
   _count: { select: { posts: true } },
 };
 
+const pagePlatformsConfig = require('../../config/pagePlatforms.json');
+
+const getPagePlatformsMapping = async (_req, res) => {
+  try {
+    return res.json(pagePlatformsConfig);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 const listPlatforms = async (req, res) => {
   const prisma = dbOf(req.tenantPrisma);
   try {
@@ -119,10 +130,37 @@ const listPlatforms = async (req, res) => {
     await ensureOpsSchema(prisma);
     await migratePlaintextPlatformSecrets(prisma);
     const includeInactive = req.query.all === '1' || req.query.all === 'true';
-    const platforms = await prisma.platforms.findMany({
+    const page = String(req.query.page || '').trim().toLowerCase();
+
+    let platforms = await prisma.platforms.findMany({
       where: includeInactive ? undefined : { is_active: true },
       orderBy: { id: 'asc' },
     });
+
+    // 1. If page parameter is specified (e.g., 'alerts', 'grievances', 'events', 'global_search'),
+    // restrict to the fixed platforms defined in backend config/pagePlatforms.json
+    if (page && pagePlatformsConfig[page]) {
+      const allowedForPage = new Set(pagePlatformsConfig[page]);
+      platforms = platforms.filter((p) => {
+        const slug = String(p.slug || '').toLowerCase();
+        const canonical = slug === 'twitter' ? 'x' : slug;
+        return allowedForPage.has(canonical);
+      });
+    }
+
+    // 2. If the user has allowed_platforms restrictions, filter against those as well
+    const userAllowed = Array.isArray(req.user?.allowed_platforms) && req.user.allowed_platforms.length > 0
+      ? new Set(req.user.allowed_platforms.map((s) => String(s).toLowerCase().replace(/^twitter$/, 'x')))
+      : null;
+
+    if (userAllowed) {
+      platforms = platforms.filter((p) => {
+        const slug = String(p.slug || '').toLowerCase();
+        const canonical = slug === 'twitter' ? 'x' : slug;
+        return userAllowed.has(canonical);
+      });
+    }
+
     res.json(platforms.map(revealPlatformSecrets));
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -847,6 +885,37 @@ const appendMonitoringLog = (existingLogs, entry) => {
 };
 
 /** Start or stop monitoring for one platform account. */
+const checkMonitoringPrerequisites = async (prisma) => {
+  const db = dbOf(prisma);
+  const keywordCount = await db.keywords.count();
+  const policies = await listActivePolicies({ db });
+  const policyCount = policies.length;
+
+  const hasKeywords = keywordCount > 0;
+  const hasPolicies = policyCount > 0;
+  const canStart = hasKeywords && hasPolicies;
+
+  return {
+    canStart,
+    hasKeywords,
+    hasPolicies,
+    missingKeywords: !hasKeywords,
+    missingPolicies: !hasPolicies,
+    keywordCount,
+    policyCount,
+  };
+};
+
+const getMonitoringPrerequisites = async (req, res) => {
+  try {
+    const prisma = dbOf(req.tenantPrisma);
+    const prereqs = await checkMonitoringPrerequisites(prisma);
+    res.json(prereqs);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 const toggleMonitoring = async (req, res) => {
   const prisma = dbOf(req.tenantPrisma);
   try {
@@ -857,6 +926,23 @@ const toggleMonitoring = async (req, res) => {
     if (!existing) return res.status(404).json({ error: 'profile not found' });
 
     const nextStatus = existing.monitoring_status === 'started' ? 'stopped' : 'started';
+
+    if (nextStatus === 'started') {
+      const prereqs = await checkMonitoringPrerequisites(prisma);
+      if (!prereqs.canStart) {
+        let errorMsg = 'Cannot start monitoring: Policies and Keywords must be configured first.';
+        if (prereqs.missingKeywords && !prereqs.missingPolicies) {
+          errorMsg = 'Cannot start monitoring: At least one Keyword must be configured first.';
+        } else if (prereqs.missingPolicies && !prereqs.missingKeywords) {
+          errorMsg = 'Cannot start monitoring: At least one Policy must be configured first.';
+        }
+        return res.status(400).json({
+          error: errorMsg,
+          prerequisites: prereqs,
+        });
+      }
+    }
+
     const now = new Date().toISOString();
     const logEntry =
       nextStatus === 'started'
@@ -906,6 +992,20 @@ const toggleMonitoring = async (req, res) => {
 const startAllMonitoring = async (req, res) => {
   const prisma = dbOf(req.tenantPrisma);
   try {
+    const prereqs = await checkMonitoringPrerequisites(prisma);
+    if (!prereqs.canStart) {
+      let errorMsg = 'Cannot start monitoring: Policies and Keywords must be configured first.';
+      if (prereqs.missingKeywords && !prereqs.missingPolicies) {
+        errorMsg = 'Cannot start monitoring: At least one Keyword must be configured first.';
+      } else if (prereqs.missingPolicies && !prereqs.missingKeywords) {
+        errorMsg = 'Cannot start monitoring: At least one Policy must be configured first.';
+      }
+      return res.status(400).json({
+        error: errorMsg,
+        prerequisites: prereqs,
+      });
+    }
+
     const platformFilter = req.body?.platform || req.query?.platform;
     const where = { monitoring_status: { not: 'started' } };
     if (platformFilter) {
@@ -1053,6 +1153,7 @@ const previewProfileIdentity = async (req, res) => {
 };
 
 module.exports = {
+  getPagePlatformsMapping,
   listPlatforms,
   createPlatform,
   updatePlatform,
@@ -1069,4 +1170,5 @@ module.exports = {
   stopAllMonitoring,
   bulkToggleStatus,
   previewProfileIdentity,
+  getMonitoringPrerequisites,
 };

@@ -22,6 +22,7 @@ import { useAuth } from '../../context/auth.context';
 import { cn } from '../../lib/utils';
 import { socialProfilesApi } from '../../api/socialProfiles.api';
 import GrievancesTab from './GrievancesTab';
+import AlertKeywordsSection from '../../components/settings/AlertKeywordsSection';
 
 const KNOWN_PLATFORM_PRESETS = [
   { slug: 'x', name: 'X (Twitter)', icon: 'twitter' },
@@ -1514,6 +1515,9 @@ const Settings = () => {
               </div>
             )}
           </section>
+
+          {/* Alert Keywords Management */}
+          <AlertKeywordsSection />
         </TabsContent>
 
 

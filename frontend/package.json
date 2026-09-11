@@ -79,6 +79,9 @@
   },
   "scripts": {
     "start": "react-scripts start",
+    "start:3000": "PORT=3000 react-scripts start",
+    "start:3001": "PORT=3001 react-scripts start",
+    "start:3002": "PORT=3002 react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test"
   },

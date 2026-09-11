@@ -384,6 +384,13 @@ const SocialProfiles = () => {
   const [monitoringId, setMonitoringId] = useState(null);
   const [startingAll, setStartingAll] = useState(false);
   const [stoppingAll, setStoppingAll] = useState(false);
+  const [prereqAlert, setPrereqAlert] = useState({
+    open: false,
+    missingKeywords: false,
+    missingPolicies: false,
+    keywordCount: 0,
+    policyCount: 0,
+  });
 
   // Live clock while any profile is monitoring — powers Waiting countdown
   const [monitorNow, setMonitorNow] = useState(() => Date.now());
@@ -699,6 +706,26 @@ const SocialProfiles = () => {
   };
 
   const toggleMonitoring = async (row) => {
+    const isStarting = row.monitoring_status !== 'started';
+    if (isStarting) {
+      try {
+        const prereqRes = await socialProfilesApi.getPrerequisites();
+        const prereqData = prereqRes.data || {};
+        if (!prereqData.canStart) {
+          setPrereqAlert({
+            open: true,
+            missingKeywords: Boolean(prereqData.missingKeywords),
+            missingPolicies: Boolean(prereqData.missingPolicies),
+            keywordCount: prereqData.keywordCount || 0,
+            policyCount: prereqData.policyCount || 0,
+          });
+          return;
+        }
+      } catch (err) {
+        console.warn('Prerequisites pre-check failed:', err);
+      }
+    }
+
     setMonitoringId(row.id);
     try {
       const res = await socialProfilesApi.toggleMonitoring(row.id);
@@ -728,6 +755,16 @@ const SocialProfiles = () => {
         }, 4000);
       }
     } catch (error) {
+      if (error.response?.data?.prerequisites) {
+        const p = error.response.data.prerequisites;
+        setPrereqAlert({
+          open: true,
+          missingKeywords: Boolean(p.missingKeywords),
+          missingPolicies: Boolean(p.missingPolicies),
+          keywordCount: p.keywordCount || 0,
+          policyCount: p.policyCount || 0,
+        });
+      }
       toast.error(error.response?.data?.error || 'Monitoring update failed');
     } finally {
       setMonitoringId(null);
@@ -735,6 +772,30 @@ const SocialProfiles = () => {
   };
 
   const startAllServices = async () => {
+    try {
+      const prereqRes = await socialProfilesApi.getPrerequisites();
+      const prereqData = prereqRes.data || {};
+      if (!prereqData.canStart) {
+        setPrereqAlert({
+          open: true,
+          missingKeywords: Boolean(prereqData.missingKeywords),
+          missingPolicies: Boolean(prereqData.missingPolicies),
+          keywordCount: prereqData.keywordCount || 0,
+          policyCount: prereqData.policyCount || 0,
+        });
+        toast.error(
+          prereqData.missingKeywords && prereqData.missingPolicies
+            ? 'Cannot start monitoring: Policies and Keywords are required.'
+            : prereqData.missingKeywords
+              ? 'Cannot start monitoring: Keywords are required.'
+              : 'Cannot start monitoring: Policies are required.'
+        );
+        return;
+      }
+    } catch (err) {
+      console.warn('Prerequisites pre-check failed:', err);
+    }
+
     setStartingAll(true);
     try {
       const params = platformTab !== 'all' ? { platform: platformTab } : undefined;
@@ -752,6 +813,16 @@ const SocialProfiles = () => {
         }, 4000);
       }
     } catch (error) {
+      if (error.response?.data?.prerequisites) {
+        const p = error.response.data.prerequisites;
+        setPrereqAlert({
+          open: true,
+          missingKeywords: Boolean(p.missingKeywords),
+          missingPolicies: Boolean(p.missingPolicies),
+          keywordCount: p.keywordCount || 0,
+          policyCount: p.policyCount || 0,
+        });
+      }
       toast.error(error.response?.data?.error || 'Failed to start all services');
     } finally {
       setStartingAll(false);
@@ -1516,6 +1587,135 @@ const SocialProfiles = () => {
               {deleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Delete
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Prerequisites missing Alert Modal */}
+      <AlertDialog
+        open={prereqAlert.open}
+        onOpenChange={(open) => {
+          if (!open) setPrereqAlert((prev) => ({ ...prev, open: false }));
+        }}
+      >
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2.5 text-amber-600">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/10 border border-amber-500/20">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <AlertDialogTitle className="text-base font-semibold text-foreground">
+                Policies & Keywords Required
+              </AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-xs text-muted-foreground pt-1.5 leading-relaxed">
+              Before starting social media monitoring, you must configure policies and keywords. They are required to detect content, evaluate AI risk categories, and trigger platform alerts.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-2 py-2 text-xs">
+            {/* Policies status */}
+            <div
+              className={`flex items-start gap-2.5 rounded-lg border p-2.5 ${
+                prereqAlert.missingPolicies
+                  ? 'border-amber-500/30 bg-amber-500/5'
+                  : 'border-emerald-500/30 bg-emerald-500/5'
+              }`}
+            >
+              <div className="mt-0.5">
+                {prereqAlert.missingPolicies ? (
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                ) : (
+                  <CheckCircle className="h-4 w-4 text-emerald-600" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium text-foreground">Policies</p>
+                  <Badge
+                    variant="outline"
+                    className={`h-4 text-[10px] px-1.5 ${
+                      prereqAlert.missingPolicies
+                        ? 'border-amber-500/30 text-amber-700 bg-amber-500/10'
+                        : 'border-emerald-500/30 text-emerald-700 bg-emerald-500/10'
+                    }`}
+                  >
+                    {prereqAlert.missingPolicies ? 'Missing' : `${prereqAlert.policyCount} Active`}
+                  </Badge>
+                </div>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {prereqAlert.missingPolicies
+                    ? 'No active policies found. Please configure policy categories & rules.'
+                    : 'Policies are configured and active.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Keywords status */}
+            <div
+              className={`flex items-start gap-2.5 rounded-lg border p-2.5 ${
+                prereqAlert.missingKeywords
+                  ? 'border-amber-500/30 bg-amber-500/5'
+                  : 'border-emerald-500/30 bg-emerald-500/5'
+              }`}
+            >
+              <div className="mt-0.5">
+                {prereqAlert.missingKeywords ? (
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                ) : (
+                  <CheckCircle className="h-4 w-4 text-emerald-600" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium text-foreground">Keywords</p>
+                  <Badge
+                    variant="outline"
+                    className={`h-4 text-[10px] px-1.5 ${
+                      prereqAlert.missingKeywords
+                        ? 'border-amber-500/30 text-amber-700 bg-amber-500/10'
+                        : 'border-emerald-500/30 text-emerald-700 bg-emerald-500/10'
+                    }`}
+                  >
+                    {prereqAlert.missingKeywords ? 'Missing' : `${prereqAlert.keywordCount} Available`}
+                  </Badge>
+                </div>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {prereqAlert.missingKeywords
+                    ? 'No catalog keywords found. Please add target keywords for content filtering.'
+                    : 'Keywords are configured and ready.'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <AlertDialogFooter className="flex-wrap gap-2 sm:gap-2">
+            <AlertDialogCancel className="h-8 text-xs">Close</AlertDialogCancel>
+            {prereqAlert.missingPolicies && (
+              <Button
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => {
+                  setPrereqAlert((prev) => ({ ...prev, open: false }));
+                  navigate('/policies');
+                }}
+              >
+                Add Policies
+              </Button>
+            )}
+            {prereqAlert.missingKeywords && (
+              <Button
+                size="sm"
+                variant={prereqAlert.missingPolicies ? 'outline' : 'default'}
+                className="h-8 text-xs"
+                onClick={() => {
+                  setPrereqAlert((prev) => ({ ...prev, open: false }));
+                  navigate('/alerts?manageKeywords=true');
+                }}
+              >
+                Add Keywords
+              </Button>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

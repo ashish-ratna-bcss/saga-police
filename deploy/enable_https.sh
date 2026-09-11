@@ -20,7 +20,7 @@ sudo -n mkdir -p /var/www/certbot
 sudo -n chmod 755 /var/www/certbot
 
 # Ensure HTTP domain blocks expose ACME path (force_https off until certs exist)
-python3 "$APP_DIR/deploy/render_nginx.py" "$SITES_JSON" --out "$APP_DIR/deploy/nginx.conf"
+node "$APP_DIR/deploy/render_nginx.js" "$SITES_JSON" --out "$APP_DIR/deploy/nginx.conf"
 sudo -n cp "$APP_DIR/deploy/nginx.conf" "/etc/nginx/sites-available/$NGINX_SITE"
 sudo -n ln -sf "/etc/nginx/sites-available/$NGINX_SITE" "/etc/nginx/sites-enabled/$NGINX_SITE"
 sudo -n rm -f /etc/nginx/sites-enabled/default
@@ -29,14 +29,10 @@ sudo -n chmod 711 /home/ubuntu || true
 sudo -n nginx -t
 sudo -n systemctl reload nginx
 
-mapfile -t DOMAINS < <(python3 - <<PY
-import json
-d=json.load(open("$SITES_JSON"))
-for s in d.get("sites") or []:
-    if s.get("enabled", True) and s.get("domain"):
-        print(s["domain"].strip())
-PY
-)
+mapfile -t DOMAINS < <(node -e "
+const d = require('$SITES_JSON');
+(d.sites || []).filter(s => s.enabled !== false && s.domain).forEach(s => console.log(s.domain.trim()));
+")
 
 if [[ ${#DOMAINS[@]} -eq 0 ]]; then
   echo "No domains in $SITES_JSON" >&2
@@ -56,7 +52,7 @@ for domain in "${DOMAINS[@]}"; do
 done
 
 echo "==> Re-render nginx with HTTPS"
-python3 "$APP_DIR/deploy/render_nginx.py" "$SITES_JSON" --out "$APP_DIR/deploy/nginx.conf"
+node "$APP_DIR/deploy/render_nginx.js" "$SITES_JSON" --out "$APP_DIR/deploy/nginx.conf"
 sudo -n cp "$APP_DIR/deploy/nginx.conf" "/etc/nginx/sites-available/$NGINX_SITE"
 sudo -n nginx -t
 sudo -n systemctl reload nginx

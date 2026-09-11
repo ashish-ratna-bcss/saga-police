@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/auth.context';
 import {
@@ -8,6 +8,12 @@ import {
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
+import {
+  fetchTenantBranding,
+  getInitialBranding,
+  getLogoUrl,
+  DEFAULT_BLURA_SAGA,
+} from '../../lib/tenantBranding';
 
 const CAPABILITIES = [
   { icon: Radio, title: 'Live Monitoring', desc: 'Track social platforms in real time', color: 'from-cyan-500/20 to-blue-500/10 text-cyan-400' },
@@ -19,12 +25,50 @@ const CAPABILITIES = [
 ];
 
 const Login = () => {
+  const [branding, setBranding] = useState(() => getInitialBranding());
+  const logoUrl = getLogoUrl(branding.logo);
+
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { login, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  // Dynamically fetch title, logo, description live from database
+  useEffect(() => {
+    let isMounted = true;
+    fetchTenantBranding().then((data) => {
+      if (isMounted && data) {
+        setBranding(data);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Dynamically update document title and browser tab favicon based on tenant branding
+  useEffect(() => {
+    if (branding?.title) {
+      document.title = `${branding.title} — ${branding.subtitle || 'Cyber Intelligence'}`;
+    }
+
+    if (logoUrl) {
+      let link = document.querySelector("link[rel*='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = logoUrl;
+
+      let appleLink = document.querySelector("link[rel='apple-touch-icon']");
+      if (appleLink) {
+        appleLink.href = logoUrl;
+      }
+    }
+  }, [branding?.title, logoUrl]);
 
   if (authLoading) {
     return (
@@ -103,35 +147,53 @@ const Login = () => {
               <div className="relative group">
                 <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-cyan-500 to-amber-500 opacity-60 blur transition group-hover:opacity-100" />
                 <img
-                  src="/blura_saga_logo.jpg"
-                  alt="Blura Saga Logo"
+                  src={logoUrl}
+                  alt={branding.title}
                   className="relative h-12 w-auto max-w-[180px] object-contain sm:h-14 sm:max-w-[280px]"
+                  onError={(e) => {
+                    e.currentTarget.src = '/blura_saga_logo.jpg';
+                  }}
                 />
               </div>
               <div className="hidden leading-tight min-[480px]:block">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-heading text-lg font-bold tracking-[0.16em] text-white sm:text-xl">
-                    BLURA SAGA
+                    {branding.title}
                   </span>
                   <span className="inline-flex items-center rounded-full bg-cyan-500/15 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-cyan-300 ring-1 ring-cyan-500/30">
                     Enterprise v2.0
                   </span>
                 </div>
                 <p className="text-[10px] uppercase tracking-[0.22em] text-cyan-400/90 sm:text-[11px]">
-                  Cyber Intelligence & Observability
+                  {branding.subtitle || 'Cyber Intelligence & Observability'}
                 </p>
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-2.5 py-1.5 sm:gap-2.5 sm:px-3 sm:py-2">
-              <span className="whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.14em] text-white/55 sm:text-[10px]">
-                Powered by
-              </span>
-              <img
-                src="/Logo.png"
-                alt="Blue Cloud Softech Solutions Limited"
-                className="h-8 w-auto max-w-[110px] object-contain opacity-95 sm:h-10 sm:max-w-[180px]"
-              />
+            <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
+              {branding.title !== 'BLURA SAGA' && (
+                <div className="flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-2.5 py-1.5 sm:px-3 sm:py-2">
+                  <span className="whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.14em] text-white/55 sm:text-[10px]">
+                    Platform
+                  </span>
+                  <img
+                    src="/blura_saga_logo.jpg"
+                    alt="Blura Saga"
+                    className="h-7 w-auto max-w-[100px] object-contain sm:h-8 sm:max-w-[120px]"
+                  />
+                </div>
+              )}
+
+              <div className="flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-2.5 py-1.5 sm:gap-2.5 sm:px-3 sm:py-2">
+                <span className="whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.14em] text-white/55 sm:text-[10px]">
+                  Powered by
+                </span>
+                <img
+                  src="/Logo.png"
+                  alt="Blue Cloud Softech Solutions Limited"
+                  className="h-8 w-auto max-w-[110px] object-contain opacity-95 sm:h-10 sm:max-w-[180px]"
+                />
+              </div>
             </div>
           </div>
 
@@ -145,20 +207,20 @@ const Login = () => {
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-400" />
               </span>
               <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-300">
-                BLURA SAGA · CYBER INTELLIGENCE
+                {branding.title} · {branding.subtitle ? branding.subtitle.toUpperCase() : 'CYBER INTELLIGENCE'}
               </span>
             </div>
 
             {/* Giant Title */}
             <h1 className="mb-4 font-heading text-5xl font-black uppercase leading-none tracking-[0.1em] sm:text-6xl xl:text-7xl">
               <span className="bg-gradient-to-r from-white via-cyan-100 to-amber-200 bg-clip-text text-transparent drop-shadow-sm">
-                BLURA SAGA
+                {branding.title}
               </span>
             </h1>
 
             {/* Description */}
             <p className="max-w-xl text-sm leading-relaxed text-white/70 sm:text-base">
-              Next-generation Social Media Observation, Threat Monitoring &amp; Cyber Intelligence Platform — built for real-time situational awareness and rapid investigation.
+              {branding.description}
             </p>
 
             {/* Capability Cards Grid */}
@@ -193,7 +255,7 @@ const Login = () => {
 
           {/* Footer Copyright */}
           <p className="hidden text-xs font-medium text-white/35 lg:block">
-            © 2026 BLURA SAGA · Cyber Intelligence Platform · All Rights Reserved
+            © 2026 {branding.title} · Cyber Intelligence Platform · All Rights Reserved
           </p>
         </section>
 
@@ -211,14 +273,17 @@ const Login = () => {
               <div className="relative">
                 <div className="absolute -inset-0.5 rounded-xl bg-cyan-500/40 blur-sm" />
                 <img
-                  src="/blura_saga_logo.jpg"
-                  alt="Blura Saga Emblem"
+                  src={logoUrl}
+                  alt={branding.title}
                   className="relative h-9 w-auto max-w-[160px] object-contain"
+                  onError={(e) => {
+                    e.currentTarget.src = '/blura_saga_logo.jpg';
+                  }}
                 />
               </div>
               <div className="leading-tight">
                 <p className="text-sm font-bold text-white">System Portal</p>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-cyan-400">BLURA SAGA SECURE ACCESS</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-cyan-400">{branding.title} SECURE ACCESS</p>
               </div>
             </div>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.2)]">
@@ -313,7 +378,7 @@ const Login = () => {
                   </span>
                 ) : (
                   <span className="flex items-center justify-center gap-2">
-                    Access System
+                    Access {branding.title}
                     <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
                   </span>
                 )}
@@ -344,7 +409,7 @@ const Login = () => {
               Restricted system — authorized personnel only. All access events are recorded and audited.
             </p>
             <p className="mt-2 text-[10px] font-medium tracking-wide text-white/30 text-center lg:hidden">
-              © 2026 BLURA SAGA · Cyber Intelligence
+              © 2026 {branding.title} · Cyber Intelligence
             </p>
           </div>
         </section>

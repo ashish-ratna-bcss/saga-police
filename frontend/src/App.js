@@ -58,6 +58,7 @@ const WhatsMyNameSearch = lazy(() => import('./pages/intelligence/WhatsMyNameSea
 const AiAssistant = lazy(() => import('./pages/intelligence/AiAssistant'));
 const PostLocationLookup = lazy(() => import('./pages/intelligence/PostLocationLookup'));
 const SystemHealth = lazy(() => import('./pages/admin/SystemHealth'));
+const InitialSetupWizard = lazy(() => import('./pages/setup/InitialSetupWizard'));
 
 // Loading fallback
 const PageLoader = () => (
@@ -72,7 +73,7 @@ function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Toaster position="top-right" expand={true} richColors />
+        <Toaster position="top-right" expand={true} richColors closeButton duration={1000} />
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/login" element={<Login />} />
@@ -103,6 +104,7 @@ function App() {
               <Route path="announcements" element={<Announcements />} />
               <Route path="unified-reports" element={<UnifiedReports />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="setup" element={<InitialSetupWizard />} />
               <Route path="intelligence-dashboard" element={<IntelligenceDashboard />} />
               <Route path="policies" element={<PolicyManager />} />
               <Route path="active-threats" element={<ActiveThreats />} />

@@ -55,8 +55,60 @@ const logout = (req, res) => {
   return res.status(200).json({ message: 'Logged out' });
 };
 
+const checkTenantSetupStatus = async (dbName) => {
+  if (!dbName) {
+    return {
+      is_configured: true,
+      platform_count: 0,
+      keyword_count: 0,
+      needs_platforms: false,
+      needs_keywords: false,
+    };
+  }
+  try {
+    const { getTenantPrisma } = require('../../lib/tenantDatabase.service');
+    const { ensureOpsSchema } = require('../../../prisma/ensureOpsSchema');
+    const tenantPrisma = getTenantPrisma(dbName);
+    await ensureOpsSchema(tenantPrisma);
+
+    const [platformCount, keywordCount] = await Promise.all([
+      tenantPrisma.platforms.count({ where: { is_active: true } }),
+      tenantPrisma.keywords.count(),
+    ]);
+
+    return {
+      is_configured: platformCount > 0 && keywordCount > 0,
+      platform_count: platformCount,
+      keyword_count: keywordCount,
+      needs_platforms: platformCount === 0,
+      needs_keywords: keywordCount === 0,
+    };
+  } catch (error) {
+    logger.error(`[SetupStatus] error checking setup status for ${dbName}: ${error.message}`);
+    return {
+      is_configured: true,
+      platform_count: 0,
+      keyword_count: 0,
+      needs_platforms: false,
+      needs_keywords: false,
+      error: error.message,
+    };
+  }
+};
+
+const getSetupStatus = async (req, res) => {
+  try {
+    const status = await checkTenantSetupStatus(req.user?.db_name);
+    return res.status(200).json(status);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 const getMe = async (req, res) => {
   const user = req.user || {};
+  const setupStatus = await checkTenantSetupStatus(user.db_name);
+
   return res.status(200).json({
     ...user,
     name: user.name,
@@ -70,6 +122,7 @@ const getMe = async (req, res) => {
     blurasagalogo: user.blurasagalogo || '/blura_saga_logo.jpg',
     allowed_pages: user.allowed_pages || [],
     allowed_platforms: user.allowed_platforms || [],
+    setup_status: setupStatus,
     sidebar: sidebarForUser(user),
   });
 };
@@ -258,8 +311,10 @@ module.exports = {
   login,
   logout,
   getMe,
+  getSetupStatus,
   updateMyUiMode,
   updateMyThemeColor,
   updateMyPlatforms,
   changePassword,
 };
+

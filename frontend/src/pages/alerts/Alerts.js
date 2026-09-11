@@ -18,6 +18,16 @@ import { socialProfilesApi } from '../../api/socialProfiles.api';
 import { abortAlertsListFetchOnUnmount } from './alertsFetchGuard';
 import { mapInstagramStoryToAlert, mergeInstagramStoriesByIdentity } from './instagramStoryMedia';
 import { PlatformBrandIcon } from '../../components/PlatformBrandIcon';
+import { useAuth } from '../../context/auth.context';
+
+const PLATFORM_LABELS = {
+  x: 'Twitter (X)',
+  twitter: 'Twitter (X)',
+  youtube: 'YouTube',
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  telegram: 'Telegram',
+};
 
 const normalizeAddPlatform = (platform) => {
   const value = String(platform || '').trim().toLowerCase();
@@ -119,10 +129,50 @@ export default function Alerts() {
   const debouncedSearchQueryRef = useRef(debouncedSearchQuery);
   debouncedSearchQueryRef.current = debouncedSearchQuery;
   const [platformFilter, setPlatformFilter] = useState('all');
+  const [availablePlatforms, setAvailablePlatforms] = useState([]);
+  const [platformsLoading, setPlatformsLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await socialProfilesApi.listPlatforms({ page: 'alerts' });
+        if (mounted && Array.isArray(res.data)) {
+          const platforms = res.data.map((p) => {
+            const rawSlug = String(p.slug || '').toLowerCase();
+            const slug = rawSlug === 'twitter' ? 'x' : rawSlug;
+            return {
+              slug,
+              label: p.name || PLATFORM_LABELS[slug] || slug,
+            };
+          });
+          setAvailablePlatforms(platforms);
+        }
+      } catch {
+        // fallback
+      } finally {
+        if (mounted) setPlatformsLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (availablePlatforms.length === 1 && platformFilter === 'all') {
+      setPlatformFilter(availablePlatforms[0].slug);
+    }
+  }, [availablePlatforms, platformFilter]);
+
   const [keywordFilter, setKeywordFilter] = useState('all');
   const [availableKeywords, setAvailableKeywords] = useState([]);
   const [keywordRecords, setKeywordRecords] = useState([]);
-  const [keywordManageOpen, setKeywordManageOpen] = useState(false);
+  const [keywordManageOpen, setKeywordManageOpen] = useState(() => searchParams.get('manageKeywords') === 'true');
+
+  useEffect(() => {
+    if (searchParams.get('manageKeywords') === 'true') {
+      setKeywordManageOpen(true);
+    }
+  }, [searchParams]);
   const [keywordForm, setKeywordForm] = useState({ id: null, keyword: '' });
   const [keywordSaving, setKeywordSaving] = useState(false);
   const [keywordBusyId, setKeywordBusyId] = useState(null);
@@ -2219,61 +2269,36 @@ export default function Alerts() {
 
               {/* Compact Filter Controls */}
               <div className="flex items-center gap-1.5 flex-wrap">
-                <Select value={platformFilter} onValueChange={setPlatformFilter}>
+                <Select
+                  value={availablePlatforms.length === 0 ? undefined : platformFilter}
+                  onValueChange={setPlatformFilter}
+                  disabled={platformsLoading || availablePlatforms.length === 0}
+                >
                   <SelectTrigger className="w-[150px] h-8 text-[11px]">
-                    <SelectValue placeholder="Platform" />
+                    <SelectValue placeholder={platformsLoading ? 'Loading…' : (availablePlatforms.length === 0 ? 'No platforms' : 'Platform')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">
-                      <span className="flex items-center gap-2">
-                        <PlatformBrandIcon platform="all" className="h-3.5 w-3.5" />
-                        All Platforms
-                      </span>
-                    </SelectItem>
-                    <SelectItem value="x">
-                      <span className="flex items-center gap-2">
-                        <PlatformBrandIcon platform="x" className="h-3.5 w-3.5" />
-                        Twitter (X)
-                      </span>
-                    </SelectItem>
-                    <SelectItem value="youtube">
-                      <span className="flex items-center gap-2">
-                        <PlatformBrandIcon platform="youtube" className="h-3.5 w-3.5" />
-                        YouTube
-                      </span>
-                    </SelectItem>
-                    <SelectItem value="facebook">
-                      <span className="flex items-center gap-2">
-                        <PlatformBrandIcon platform="facebook" className="h-3.5 w-3.5" />
-                        Facebook
-                      </span>
-                    </SelectItem>
-                    <SelectItem value="instagram">
-                      <span className="flex items-center gap-2">
-                        <PlatformBrandIcon platform="instagram" className="h-3.5 w-3.5" />
-                        Instagram
-                      </span>
-                    </SelectItem>
-                    <SelectItem value="telegram">
-                      <span className="flex items-center gap-2">
-                        <PlatformBrandIcon platform="telegram" className="h-3.5 w-3.5" />
-                        Telegram
-                      </span>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={sourceCategoryFilter} onValueChange={setSourceCategoryFilter}>
-                  <SelectTrigger className="w-[130px] h-8 text-[11px]">
-                    <SelectValue placeholder="Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {SOURCE_CATEGORY_OPTIONS.map((cat) => (
-                      <SelectItem key={cat.value} value={cat.value} className="capitalize">
-                        {cat.label}
+                    {availablePlatforms.length > 1 && (
+                      <SelectItem value="all">
+                        <span className="flex items-center gap-2">
+                          <PlatformBrandIcon platform="all" className="h-3.5 w-3.5" />
+                          All Platforms
+                        </span>
+                      </SelectItem>
+                    )}
+                    {availablePlatforms.map((p) => (
+                      <SelectItem key={p.slug} value={p.slug}>
+                        <span className="flex items-center gap-2">
+                          <PlatformBrandIcon platform={p.slug} className="h-3.5 w-3.5" />
+                          {p.label}
+                        </span>
                       </SelectItem>
                     ))}
+                    {availablePlatforms.length === 0 && (
+                      <SelectItem value="none" disabled>
+                        No platforms configured
+                      </SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
 
@@ -2288,98 +2313,6 @@ export default function Alerts() {
                     ))}
                   </SelectContent>
                 </Select>
-
-                <Dialog
-                  open={keywordManageOpen}
-                  onOpenChange={(open) => {
-                    setKeywordManageOpen(open);
-                    if (!open) resetKeywordForm();
-                    if (open) fetchKeywords();
-                  }}
-                >
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 px-2 text-[11px] gap-1">
-                      <Filter className="h-3.5 w-3.5" />
-                      Keywords
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[420px]">
-                    <DialogHeader>
-                      <DialogTitle className="text-base">Manage keywords</DialogTitle>
-                      <DialogDescription className="text-xs">
-                        Add, edit, or delete keywords used to create catalog alerts.
-                      </DialogDescription>
-                    </DialogHeader>
-
-                    <form onSubmit={handleSaveKeyword} className="flex items-center gap-2">
-                      <Input
-                        value={keywordForm.keyword}
-                        onChange={(e) => setKeywordForm((prev) => ({ ...prev, keyword: e.target.value }))}
-                        placeholder="Enter keyword"
-                        required
-                        className="h-9 text-xs flex-1"
-                        autoComplete="off"
-                      />
-                      <Button type="submit" size="sm" className="h-9 text-xs shrink-0" disabled={keywordSaving}>
-                        {keywordSaving ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : keywordForm.id ? (
-                          'Update'
-                        ) : (
-                          <>
-                            <Plus className="h-3.5 w-3.5 mr-1" />
-                            Add
-                          </>
-                        )}
-                      </Button>
-                      {keywordForm.id ? (
-                        <Button type="button" variant="ghost" size="sm" className="h-9 text-xs shrink-0" onClick={resetKeywordForm}>
-                          Cancel
-                        </Button>
-                      ) : null}
-                    </form>
-
-                    <div className="border rounded-md max-h-[280px] overflow-y-auto">
-                      {keywordRecords.length === 0 ? (
-                        <p className="text-xs text-muted-foreground text-center py-8">No keywords yet</p>
-                      ) : (
-                        <ul className="divide-y">
-                          {keywordRecords.map((kw) => (
-                            <li key={kw.id} className="flex items-center gap-2 px-3 py-2 text-xs">
-                              <span className="min-w-0 flex-1 font-medium truncate">{kw.keyword}</span>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 w-7 p-0"
-                                disabled={keywordBusyId === kw.id}
-                                onClick={() => handleEditKeyword(kw)}
-                                title="Edit"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                                disabled={keywordBusyId === kw.id}
-                                onClick={() => handleDeleteKeyword(kw)}
-                                title="Delete"
-                              >
-                                {keywordBusyId === kw.id ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                )}
-                              </Button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </DialogContent>
-                </Dialog>
 
                 <div className="h-8 px-1.5 border border-input rounded-md bg-background flex items-center gap-1">
                   <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />

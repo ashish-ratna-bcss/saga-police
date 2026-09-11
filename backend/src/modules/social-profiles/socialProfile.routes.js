@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const {
+  getPagePlatformsMapping,
   listPlatforms,
   createPlatform,
   updatePlatform,
@@ -17,16 +18,18 @@ const {
   stopAllMonitoring,
   bulkToggleStatus,
   previewProfileIdentity,
+  getMonitoringPrerequisites,
 } = require('./socialProfile.controller');
 
 const { authorize } = require('../../middleware/auth.middleware');
 
-/** Social Profiles page + Settings Grievances tab (add/list/remove grievance sources). */
-const PROFILE_ALLOWED_PAGES = ['/social-profiles', '/settings'];
-/** Settings → Platforms manage (add/edit/delete) */
-const PLATFORM_MANAGE_PAGES = ['/settings', '/social-profiles'];
+/** Social Profiles page + Settings Grievances tab + Grievances page (add/list/remove grievance sources). */
+const PROFILE_ALLOWED_PAGES = ['/social-profiles', '/settings', '/grievances'];
+/** Settings → Platforms manage (add/edit/delete), plus initial /setup onboarding */
+const PLATFORM_MANAGE_PAGES = ['/settings', '/social-profiles', '/setup'];
 
-router.get('/platforms', authorize({ pages: PLATFORM_MANAGE_PAGES }), listPlatforms);
+router.get('/platforms/page-mapping', authorize(), getPagePlatformsMapping);
+router.get('/platforms', authorize(), listPlatforms);
 router.post('/platforms', authorize({ pages: PLATFORM_MANAGE_PAGES }), createPlatform);
 router.put('/platforms/:id', authorize({ pages: PLATFORM_MANAGE_PAGES }), updatePlatform);
 router.delete('/platforms/:id', authorize({ pages: PLATFORM_MANAGE_PAGES }), deletePlatform);
@@ -41,6 +44,7 @@ router.route('/')
   .post(createProfile);
 
 router.put('/bulk-status', bulkToggleStatus);
+router.get('/monitoring/prerequisites', getMonitoringPrerequisites);
 router.put('/monitoring/start-all', startAllMonitoring);
 router.put('/monitoring/stop-all', stopAllMonitoring);
 

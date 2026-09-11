@@ -1,0 +1,25 @@
+{
+  "alerts": [
+    "x",
+    "youtube",
+    "facebook",
+    "instagram"
+  ],
+  "grievances": [
+    "x",
+    "facebook",
+    "instagram"
+  ],
+  "events": [
+    "x",
+    "youtube",
+    "facebook",
+    "telegram"
+  ],
+  "global_search": [
+    "x",
+    "youtube",
+    "facebook",
+    "telegram"
+  ]
+}

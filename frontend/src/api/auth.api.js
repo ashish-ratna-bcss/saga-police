@@ -17,6 +17,8 @@ export const authApi = {
 
   updatePlatforms: (allowed_platforms) =>
     apiHandler.patch('/me/platforms', { allowed_platforms }),
+
+  getSetupStatus: () => apiHandler.get('/auth/setup-status'),
 };
 
 export default authApi;

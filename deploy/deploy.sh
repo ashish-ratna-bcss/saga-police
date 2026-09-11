@@ -47,7 +47,6 @@ require_cmd() {
 
 require_cmd node
 require_cmd npm
-require_cmd python3
 
 if [[ ! -f "$SITES_JSON" ]]; then
   echo "Missing $SITES_JSON" >&2
@@ -59,11 +58,11 @@ if [[ ! -d "$APP_DIR/backend" || ! -d "$APP_DIR/frontend" ]]; then
   exit 1
 fi
 
-WEB_ROOT="${WEB_ROOT:-$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('web_root') or '')" "$SITES_JSON")}"
+WEB_ROOT="${WEB_ROOT:-$(node -e "const d=require('$SITES_JSON'); console.log(d.web_root || '');")}"
 if [[ -z "$WEB_ROOT" ]]; then
   WEB_ROOT="$APP_DIR/frontend/build"
 fi
-BACKEND_BIND="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('backend_bind') or '127.0.0.1')" "$SITES_JSON")"
+BACKEND_BIND="$(node -e "const d=require('$SITES_JSON'); console.log(d.backend_bind || '127.0.0.1');")"
 
 cd "$APP_DIR"
 log "Deploying from $APP_DIR (NODE_ENV=$NODE_ENV)"
@@ -100,33 +99,21 @@ export NODE_ENV
 
 # ── Process manager: one PM2 app per enabled site ─────────────────────────
 log "Rendering nginx from sites.json"
-python3 "$SCRIPT_DIR/render_nginx.py" "$SITES_JSON" --web-root "$WEB_ROOT" --out "$SCRIPT_DIR/nginx.conf"
+node "$SCRIPT_DIR/render_nginx.js" "$SITES_JSON" --web-root "$WEB_ROOT" --out "$SCRIPT_DIR/nginx.conf"
 
 if command -v pm2 >/dev/null 2>&1; then
-  python3 -c "import json,sys
-d=json.load(open(sys.argv[1]))
-for s in d.get('sites') or []:
-    if s.get('enabled', True):
-        print(s['admin'], int(s['backend_port']))
-" "$SITES_JSON" | while read -r admin port; do
-    name="${admin}-api"
-    log "API $name on ${BACKEND_BIND}:${port}"
-    if pm2 describe "$name" >/dev/null 2>&1; then
-      (cd "$APP_DIR/backend" && HOST="$BACKEND_BIND" PORT="$port" NODE_ENV="$NODE_ENV" pm2 restart "$name" --update-env)
-    else
-      (cd "$APP_DIR/backend" && HOST="$BACKEND_BIND" PORT="$port" NODE_ENV="$NODE_ENV" pm2 start src/index.js --name "$name" --update-env)
-    fi
-  done
+  log "Starting/reloading independent PM2 apps from ecosystem.config.js"
+  pm2 startOrReload "$APP_DIR/ecosystem.config.js" --update-env
   pm2 save || true
 else
   echo "pm2 not found — start each site from $SITES_JSON manually, e.g.:" >&2
-  python3 -c "import json,sys
-d=json.load(open(sys.argv[1]))
-bind=d.get('backend_bind') or '127.0.0.1'
-for s in d.get('sites') or []:
-    if s.get('enabled', True):
-        print(f\"  HOST={bind} PORT={s['backend_port']} NODE_ENV=production node src/index.js   # {s['admin']}\")
-" "$SITES_JSON" >&2
+  node -e "
+const d = require('$SITES_JSON');
+const bind = d.backend_bind || '127.0.0.1';
+(d.sites || []).filter(s => s.enabled !== false).forEach(s => {
+  console.log(\`  HOST=\${bind} PORT=\${s.backend_port} NODE_ENV=production node src/index.js   # \${s.admin}\`);
+});
+" >&2
 fi
 
 # ── Nginx ─────────────────────────────────────────────────────────────────
@@ -157,14 +144,12 @@ fi
 log "Done"
 echo "  Frontend: $WEB_ROOT"
 echo "  Registry: $SITES_JSON"
-python3 -c "import json,sys
-d=json.load(open(sys.argv[1]))
-ip=d.get('ip') or 'HOST'
-for s in d.get('sites') or []:
-    if not s.get('enabled', True):
-        continue
-    line=f\"  {s['admin']}: UI http://{ip}:{s['frontend_port']}/  API {ip}:{s['backend_port']}/\"
-    if s.get('domain'):
-        line += f\"  →  http://{s['domain']}/\"
-    print(line)
-" "$SITES_JSON"
+node -e "
+const d = require('$SITES_JSON');
+const ip = d.ip || 'HOST';
+(d.sites || []).filter(s => s.enabled !== false).forEach(s => {
+  let line = \`  \${s.admin}: UI http://\${ip}:\${s.frontend_port}/  API \${ip}:\${s.backend_port}/\`;
+  if (s.domain) line += \`  →  http://\${s.domain}/\`;
+  console.log(line);
+});
+"

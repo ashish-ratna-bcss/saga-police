@@ -10,8 +10,13 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger
 } from '../ui/tooltip';
 import { XBrandLogo, FacebookBrandLogo, InstagramBrandLogo } from '../PlatformBrandIcon';
+const PLATFORM_ICONS = {
+  x: XBrandLogo,
+  facebook: FacebookBrandLogo,
+  instagram: InstagramBrandLogo,
+};
 
-const ALL_PLATFORMS = [
+const DEFAULT_PLATFORMS = [
   { id: 'all', label: 'All', icon: Globe },
   { id: 'x', label: 'X', icon: XBrandLogo },
   { id: 'facebook', label: 'Facebook', icon: FacebookBrandLogo },
@@ -61,6 +66,7 @@ export const GrievanceTopNavbar = ({
   searchQuery = '',
   onSearchChange,
   onManageContacts,
+  onConfigureSettings,
 }) => {
   const visiblePlatforms = useMemo(() => {
     const allowed = Array.isArray(allowedPlatforms)
@@ -68,10 +74,10 @@ export const GrievanceTopNavbar = ({
       : null;
 
     // No restriction configured → show all known platforms
-    if (!allowed) return ALL_PLATFORMS;
+    if (!allowed) return DEFAULT_PLATFORMS;
 
     const allowedSet = new Set(allowed);
-    const platforms = ALL_PLATFORMS.filter(
+    const platforms = DEFAULT_PLATFORMS.filter(
       (p) => p.id === 'all' || allowedSet.has(p.id)
     );
 
@@ -281,17 +287,6 @@ export const GrievanceTopNavbar = ({
               Official X, Facebook &amp; Instagram accounts you are monitoring for grievances.
             </TooltipContent>
           </Tooltip>
-          {typeof onManageContacts === 'function' && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 gap-1.5"
-              onClick={onManageContacts}
-            >
-              <BookUser className="h-3.5 w-3.5" />
-              Contacts
-            </Button>
-          )}
           {typeof onFetchAll === 'function' && platformSources.length > 0 && !isReportsMode && (
             <Button
               size="sm"
@@ -307,10 +302,6 @@ export const GrievanceTopNavbar = ({
               {fetchLabel}
             </Button>
           )}
-          <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={onAddSource}>
-            <Plus className="h-3.5 w-3.5" />
-            Manage Profiles
-          </Button>
         </div>
       </div>
 
@@ -418,10 +409,15 @@ export const GrievanceTopNavbar = ({
             {platformSources.length === 0 ? (
               <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border px-3 py-2">
                 <p className="text-xs text-muted-foreground">
-                  No accounts for this platform. Add them from Social Profiles.
+                  No grievance profiles for this platform. Configure them in Settings.
                 </p>
-                <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={onAddSource}>
-                  Open profiles
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 shrink-0 text-xs"
+                  onClick={onConfigureSettings || onAddSource}
+                >
+                  Configure in Settings
                 </Button>
               </div>
             ) : (
@@ -513,15 +509,15 @@ export const GrievanceTopNavbar = ({
                 {platformSources.length === 0 ? (
                   <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border px-3 py-2.5">
                     <p className="text-xs text-muted-foreground">
-                      No accounts for this platform. Add them from Social Profiles.
+                      No grievance profiles for this platform. Configure them in Settings.
                     </p>
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-8 shrink-0"
-                      onClick={onAddSource}
+                      className="h-8 shrink-0 text-xs"
+                      onClick={onConfigureSettings || onAddSource}
                     >
-                      Open profiles
+                      Configure in Settings
                     </Button>
                   </div>
                 ) : (

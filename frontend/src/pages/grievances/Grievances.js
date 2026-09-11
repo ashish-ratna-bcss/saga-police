@@ -32,7 +32,6 @@ import { format } from 'date-fns';
 import { VideoPlayer, normalizeMediaList } from '../../components/AlertCards';
 import { GrievanceCard } from '../../components/grievances/GrievanceCard';
 import { GrievanceTopNavbar } from '../../components/grievances/GrievanceTopNavbar';
-import { ManageContactsDialog } from '../../components/grievances/ManageContactsDialog';
 import { CriticismPopup } from '../../components/grievances/CriticismPopup';
 import { CriticismReports } from '../../components/grievances/CriticismReports';
 import { GrievancePopup } from '../../components/grievances/GrievancePopup';
@@ -43,6 +42,7 @@ import { QueryReports } from '../../components/grievances/QueryReports';
 import { SuggestionPopup } from '../../components/grievances/SuggestionPopup';
 import { SuggestionReports } from '../../components/grievances/SuggestionReports';
 import { GrievanceService } from '../../api';
+import { socialProfilesApi } from '../../api/socialProfiles.api';
 
 const DEFAULT_SOCIAL_ACTION_OVERLAY = {
     visible: false,
@@ -461,7 +461,6 @@ const Grievances = () => {
     const [statusChangePopup, setStatusChangePopup] = useState(null); // { grievance, targetStatus }
     const [queryPopupGrievance, setQueryPopupGrievance] = useState(null);
     const [suggestionPopupGrievance, setSuggestionPopupGrievance] = useState(null);
-    const [manageContactsOpen, setManageContactsOpen] = useState(false);
 
     // Selected grievance
     const [selectedGrievance, setSelectedGrievance] = useState(null);
@@ -490,6 +489,25 @@ const Grievances = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [platformFilter, setPlatformFilter] = useState('all');
     const [dateRange, setDateRange] = useState({ from: null, to: null });
+    const [grievancePlatforms, setGrievancePlatforms] = useState(null);
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                const res = await socialProfilesApi.listPlatforms({ page: 'grievances' });
+                if (mounted && Array.isArray(res.data)) {
+                    setGrievancePlatforms(res.data.map((p) => {
+                        const raw = String(p.slug || '').toLowerCase();
+                        return raw === 'twitter' ? 'x' : raw;
+                    }));
+                }
+            } catch {
+                // ignore
+            }
+        })();
+        return () => { mounted = false; };
+    }, []);
 
     // Top Navbar Filters
     const [navbarPlatform, setNavbarPlatform] = useState('all');
@@ -1192,19 +1210,19 @@ const Grievances = () => {
     };
 
     const handleDeleteSource = async (source) => {
-        if (source?.store === 'catalog') {
-            toast.info('Manage catalog accounts on Social Profiles');
-            navigate('/social-profiles');
-            setDeleteConfirmSource(null);
-            return;
-        }
         try {
-            await GrievanceService.deleteSource(source.id);
+            if (source?.store === 'catalog') {
+                const idToDelete = source?.catalog_account_id || source?.id;
+                await socialProfilesApi.remove(idToDelete);
+            } else {
+                await GrievanceService.deleteSource(source.id);
+            }
             toast.success(`Source "${source.handle}" removed`);
             setSources(prev => prev.filter(s => s.id !== source.id));
             setDeleteConfirmSource(null);
+            fetchSources();
         } catch (error) {
-            toast.error('Failed to delete source');
+            toast.error(error?.response?.data?.message || 'Failed to delete source');
         }
     };
 
@@ -1786,24 +1804,13 @@ const Grievances = () => {
                 grievances={grievances}
                 sources={sources}
                 allowedStatuses={allowedNavbarStatuses}
-                allowedPlatforms={authUser?.allowed_platforms}
-                onAddSource={() => navigate('/social-profiles')}
-                onRemoveSource={(source) => setDeleteConfirmSource(source)}
-                onEditSource={(source) => {
-                    toast.info('Edit this account on Social Profiles');
-                    navigate('/social-profiles');
-                }}
+                allowedPlatforms={grievancePlatforms}
+                onConfigureSettings={() => navigate('/settings?tab=grievances')}
                 onFetchSourceHistory={(source) => handleFetchForSource(source)}
                 onFetchAll={handleFetchAll}
                 fetchingAll={fetchingSource === 'all'}
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}
-                onManageContacts={() => setManageContactsOpen(true)}
-            />
-
-            <ManageContactsDialog
-                open={manageContactsOpen}
-                onOpenChange={setManageContactsOpen}
             />
 
             {/* ─── Reports Tab Content ─── */}
@@ -1892,7 +1899,7 @@ const Grievances = () => {
                                     ? 'Nothing matches the current search or account filter.'
                                     : hasNoCatalogData
                                         ? sources.length === 0
-                                            ? 'Add official accounts on Social Profiles, then use Fetch mentions to pull activity.'
+                                            ? 'Add official accounts in Settings > Grievances, then use Fetch mentions to pull activity.'
                                             : navbarPlatform === 'facebook' || navbarPlatform === 'instagram'
                                                 ? 'Click Fetch posts & comments to pull page activity.'
                                                 : 'Click Fetch mentions to pull @tags from watched accounts.'
@@ -1904,8 +1911,8 @@ const Grievances = () => {
                                         Clear filters
                                     </Button>
                                 ) : sources.length === 0 ? (
-                                    <Button size="sm" onClick={() => navigate('/social-profiles')}>
-                                        Open Social Profiles
+                                    <Button size="sm" onClick={() => navigate('/settings?tab=grievances')}>
+                                        Configure in Settings
                                     </Button>
                                 ) : (
                                     <Button

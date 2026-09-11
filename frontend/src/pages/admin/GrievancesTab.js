@@ -4,6 +4,7 @@ import { Badge } from '../../components/ui/badge';
 import { Loader2, Plus, Trash2, ShieldAlert, Pencil } from 'lucide-react';
 import { socialProfilesApi } from '../../api/socialProfiles.api';
 import AddSocialProfileDialog from '../../components/AddSocialProfileDialog';
+import GrievanceContactsSection from '../../components/settings/GrievanceContactsSection';
 import { toast } from 'sonner';
 
 export default function GrievancesTab() {
@@ -139,6 +140,9 @@ export default function GrievancesTab() {
         }
         onSuccess={load}
       />
+
+      {/* Grievance Contacts */}
+      <GrievanceContactsSection />
     </div>
   );
 }

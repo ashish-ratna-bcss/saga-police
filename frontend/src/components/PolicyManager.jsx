@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
+import { useAuth } from '../context/auth.context';
 import {
   Plus,
   Search,
@@ -15,9 +16,8 @@ import {
   Gavel,
   Scale,
   ChevronRight,
-  ArrowLeft,
   Loader2,
-  Tag,
+  Lock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
@@ -37,12 +37,13 @@ import {
  * Settings-aligned Policy Manager — category definitions for AI analysis.
  */
 const PolicyManager = () => {
+  const { user } = useAuth();
+  const orgTitle = user?.blurasagatitle || user?.theme_name || 'Organization';
   const location = useLocation();
   const navigate = useNavigate();
   const [policies, setPolicies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [keywordDraft, setKeywordDraft] = useState('');
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState(null);
   const [originalData, setOriginalData] = useState(null);
@@ -97,7 +98,6 @@ const PolicyManager = () => {
 
   const handleOpenPanel = (policy = null) => {
     setActiveTab('basic');
-    setKeywordDraft('');
     if (policy) {
       setEditingPolicy(policy);
       const meta = [
@@ -168,23 +168,6 @@ const PolicyManager = () => {
     const next = [...formData[platformField]];
     next[index][field] = value;
     setFormData({ ...formData, [platformField]: next });
-  };
-
-  const addKeyword = () => {
-    const value = keywordDraft.trim();
-    if (!value) return;
-    if (formData.keywords.some((k) => k.toLowerCase() === value.toLowerCase())) {
-      setKeywordDraft('');
-      return;
-    }
-    setFormData({ ...formData, keywords: [...formData.keywords, value] });
-    setKeywordDraft('');
-  };
-
-  const removeKeyword = (index) => {
-    const next = [...formData.keywords];
-    next.splice(index, 1);
-    setFormData({ ...formData, keywords: next });
   };
 
   const filteredPolicies = policies.filter(
@@ -422,10 +405,32 @@ const PolicyManager = () => {
               className="group text-left rounded-xl border border-border bg-card p-4 hover:border-primary/40 transition-colors flex flex-col"
             >
               <div className="flex items-start justify-between gap-2 mb-2">
-                <Badge variant="secondary" className="text-[10px] font-semibold">
-                  {(policy.category_id || '').replace(/_/g, ' ')}
-                </Badge>
-                <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Badge variant="secondary" className="text-[10px] font-semibold">
+                    {(policy.category_id || '').replace(/_/g, ' ')}
+                  </Badge>
+                  {policy.is_global ? (
+                    <Badge
+                      variant="outline"
+                      className="text-[9px] px-1.5 py-0 h-4 border-sky-500/30 bg-sky-500/10 text-sky-700 font-medium"
+                    >
+                      Default
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="text-[9px] px-1.5 py-0 h-4 border-purple-500/30 bg-purple-500/10 text-purple-700 font-medium"
+                    >
+                      {orgTitle}
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {policy.is_global ? (
+                    <Lock className="h-3.5 w-3.5 text-muted-foreground/60" title="Global default policy (View only)" />
+                  ) : null}
+                  <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                </div>
               </div>
               <p className="text-xs text-muted-foreground line-clamp-3 flex-1 leading-relaxed">
                 {policy.definition || 'No definition'}
@@ -439,12 +444,6 @@ const PolicyManager = () => {
                   <Globe className="h-3 w-3 text-primary/70" />
                   {ruleCount(policy)} rules
                 </span>
-                {(policy.keywords?.length || 0) > 0 && (
-                  <span className="inline-flex items-center gap-1">
-                    <Tag className="h-3 w-3 text-primary/70" />
-                    {policy.keywords.length} keywords
-                  </span>
-                )}
               </div>
             </button>
           ))}
@@ -457,17 +456,30 @@ const PolicyManager = () => {
           <div className="relative w-full max-w-xl bg-background h-full shadow-2xl border-l border-border flex flex-col animate-in slide-in-from-right duration-200">
             <div className="px-5 py-3.5 border-b border-border flex justify-between items-center bg-muted/20">
               <div>
-                <h3 className="text-sm font-semibold tracking-tight">
-                  {editingPolicy ? 'Edit policy' : 'New policy'}
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold tracking-tight">
+                    {editingPolicy?.is_global ? 'View Policy' : editingPolicy ? 'Edit policy' : 'New policy'}
+                  </h3>
+                  {editingPolicy?.is_global ? (
+                    <Badge variant="outline" className="text-[10px] border-sky-500/30 bg-sky-500/10 text-sky-700 font-medium">
+                      Default (View only)
+                    </Badge>
+                  ) : editingPolicy ? (
+                    <Badge variant="outline" className="text-[10px] border-purple-500/30 bg-purple-500/10 text-purple-700 font-medium">
+                      {orgTitle}
+                    </Badge>
+                  ) : null}
+                </div>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {editingPolicy
-                    ? (editingPolicy.category_id || '').replace(/_/g, ' ')
-                    : 'General · Legal · Platform rules'}
+                  {editingPolicy?.is_global
+                    ? 'Global default policy is standard across tenants and cannot be edited.'
+                    : editingPolicy
+                      ? (editingPolicy.category_id || '').replace(/_/g, ' ')
+                      : 'General · Legal · Platform rules (stored in your database)'}
                 </p>
               </div>
               <div className="flex items-center gap-1">
-                {editingPolicy && (
+                {editingPolicy && !editingPolicy.is_global && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -511,6 +523,12 @@ const PolicyManager = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 bg-muted/5">
+              {editingPolicy?.is_global && (
+                <div className="mb-4 flex items-center gap-2 rounded-lg border border-sky-500/20 bg-sky-500/10 p-2.5 text-xs text-sky-800">
+                  <Info className="h-4 w-4 shrink-0 text-sky-600" />
+                  <span>Global default policies are system standards and cannot be edited. To define custom rules, create a new policy.</span>
+                </div>
+              )}
               <form id="panelForm" onSubmit={handleSaveClick} className="space-y-5">
                 {activeTab === 'basic' && (
                   <div className="space-y-4">
@@ -518,6 +536,7 @@ const PolicyManager = () => {
                       <label className="text-xs font-medium">Category name</label>
                       <Input
                         value={formData.category_id}
+                        disabled={editingPolicy?.is_global}
                         onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
                         placeholder="e.g. Hate Speech"
                         className="h-8 text-xs"
@@ -530,6 +549,7 @@ const PolicyManager = () => {
                       <label className="text-xs font-medium">AI definition</label>
                       <Textarea
                         value={formData.definition}
+                        disabled={editingPolicy?.is_global}
                         onChange={(e) => setFormData({ ...formData, definition: e.target.value })}
                         placeholder="Describe what content belongs in this category…"
                         className="min-h-[140px] text-xs leading-relaxed"
@@ -537,47 +557,6 @@ const PolicyManager = () => {
                       <p className="text-[10px] text-muted-foreground">
                         The model reads this when classifying posts for Cyber Intelligence SOC.
                       </p>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium inline-flex items-center gap-1.5">
-                        <Tag className="h-3 w-3" /> Keywords
-                      </label>
-                      <div className="flex gap-2">
-                        <Input
-                          value={keywordDraft}
-                          onChange={(e) => setKeywordDraft(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              addKeyword();
-                            }
-                          }}
-                          placeholder="Add keyword and press Enter"
-                          className="h-8 text-xs"
-                        />
-                        <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={addKeyword}>
-                          Add
-                        </Button>
-                      </div>
-                      {formData.keywords.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5 pt-1">
-                          {formData.keywords.map((kw, idx) => (
-                            <Badge key={`${kw}-${idx}`} variant="outline" className="gap-1 text-[10px] pr-1">
-                              {kw}
-                              <button
-                                type="button"
-                                className="rounded-sm p-0.5 hover:bg-muted"
-                                onClick={() => removeKeyword(idx)}
-                                aria-label={`Remove ${kw}`}
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-[10px] text-muted-foreground">No keywords yet.</p>
-                      )}
                     </div>
                   </div>
                 )}
@@ -595,25 +574,27 @@ const PolicyManager = () => {
                         <Gavel className="h-3.5 w-3.5 text-muted-foreground" />
                         Mapped sections
                       </div>
-                      <div className="flex items-center gap-2">
-                        <NativeSelect
-                          onChange={handleQuickAddLegal}
-                          defaultValue=""
-                          className="h-8 text-xs max-w-[200px]"
-                        >
-                          <option value="" disabled>
-                            Add existing…
-                          </option>
-                          {existingLegalSections.map((s) => (
-                            <option key={s.code} value={s.code}>
-                              {s.code} — {s.title?.length > 40 ? `${s.title.slice(0, 40)}…` : s.title}
+                      {!editingPolicy?.is_global && (
+                        <div className="flex items-center gap-2">
+                          <NativeSelect
+                            onChange={handleQuickAddLegal}
+                            defaultValue=""
+                            className="h-8 text-xs max-w-[200px]"
+                          >
+                            <option value="" disabled>
+                              Add existing…
                             </option>
-                          ))}
-                        </NativeSelect>
-                        <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={addLegalSection}>
-                          <Plus className="h-3 w-3 mr-1" /> New
-                        </Button>
-                      </div>
+                            {existingLegalSections.map((s) => (
+                              <option key={s.code} value={s.code}>
+                                {s.code} — {s.title?.length > 40 ? `${s.title.slice(0, 40)}…` : s.title}
+                              </option>
+                            ))}
+                          </NativeSelect>
+                          <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={addLegalSection}>
+                            <Plus className="h-3 w-3 mr-1" /> New
+                          </Button>
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       {formData.legal_sections.map((section, idx) => (
@@ -622,25 +603,29 @@ const PolicyManager = () => {
                             <Input
                               placeholder="Code"
                               value={section.code}
+                              disabled={editingPolicy?.is_global}
                               onChange={(e) => updateLegalSection(idx, 'code', e.target.value)}
                               className="h-8 text-xs w-24"
                             />
                             <Input
                               placeholder="Description"
                               value={section.title}
+                              disabled={editingPolicy?.is_global}
                               onChange={(e) => updateLegalSection(idx, 'title', e.target.value)}
                               className="h-8 text-xs flex-1"
                             />
                           </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            onClick={() => removeLegalSection(idx)}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
+                          {!editingPolicy?.is_global && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() => removeLegalSection(idx)}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                         </div>
                       ))}
                       {formData.legal_sections.length === 0 && (
@@ -671,31 +656,33 @@ const PolicyManager = () => {
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <h4 className="text-xs font-medium">{platform.label}</h4>
-                          <div className="flex items-center gap-2">
-                            <NativeSelect
-                              onChange={(e) => handleQuickAddPlatform(platform.field, platform.list, e)}
-                              defaultValue=""
-                              className="h-8 text-xs max-w-[180px]"
-                            >
-                              <option value="" disabled>
-                                Add existing…
-                              </option>
-                              {platform.list.map((p) => (
-                                <option key={p.name} value={p.name}>
-                                  {p.name.length > 40 ? `${p.name.slice(0, 40)}…` : p.name}
+                          {!editingPolicy?.is_global && (
+                            <div className="flex items-center gap-2">
+                              <NativeSelect
+                                onChange={(e) => handleQuickAddPlatform(platform.field, platform.list, e)}
+                                defaultValue=""
+                                className="h-8 text-xs max-w-[180px]"
+                              >
+                                <option value="" disabled>
+                                  Add existing…
                                 </option>
-                              ))}
-                            </NativeSelect>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="h-8 text-xs"
-                              onClick={() => addPlatformPolicy(platform.field)}
-                            >
-                              <Plus className="h-3 w-3 mr-1" /> New
-                            </Button>
-                          </div>
+                                {platform.list.map((p) => (
+                                  <option key={p.name} value={p.name}>
+                                    {p.name.length > 40 ? `${p.name.slice(0, 40)}…` : p.name}
+                                  </option>
+                                ))}
+                              </NativeSelect>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-xs"
+                                onClick={() => addPlatformPolicy(platform.field)}
+                              >
+                                <Plus className="h-3 w-3 mr-1" /> New
+                              </Button>
+                            </div>
+                          )}
                         </div>
                         <div className="space-y-1.5">
                           {formData[platform.field].map((p, i) => (
@@ -703,20 +690,23 @@ const PolicyManager = () => {
                               <Input
                                 placeholder="Policy name"
                                 value={p.name}
+                                disabled={editingPolicy?.is_global}
                                 onChange={(e) =>
                                   updatePlatformPolicy(platform.field, i, 'name', e.target.value)
                                 }
                                 className="h-8 text-xs flex-1"
                               />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                onClick={() => removePlatformPolicy(platform.field, i)}
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </Button>
+                              {!editingPolicy?.is_global && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                  onClick={() => removePlatformPolicy(platform.field, i)}
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
                             </div>
                           ))}
                           {formData[platform.field].length === 0 && (
@@ -734,12 +724,14 @@ const PolicyManager = () => {
 
             <div className="p-4 border-t border-border bg-muted/20 flex justify-end gap-2">
               <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setIsPanelOpen(false)}>
-                Cancel
+                {editingPolicy?.is_global ? 'Close' : 'Cancel'}
               </Button>
-              <Button size="sm" className="h-8 text-xs min-w-[110px]" onClick={handleSaveClick} disabled={!isDirty}>
-                <Save className="h-3.5 w-3.5 mr-1.5" />
-                Save Changes
-              </Button>
+              {!editingPolicy?.is_global && (
+                <Button size="sm" className="h-8 text-xs min-w-[110px]" onClick={handleSaveClick} disabled={!isDirty}>
+                  <Save className="h-3.5 w-3.5 mr-1.5" />
+                  Save Changes
+                </Button>
+              )}
             </div>
           </div>
         </div>
