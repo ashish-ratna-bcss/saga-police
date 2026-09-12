@@ -1180,6 +1180,26 @@ async function main() {
     const roleIdReady = (await tableExists(prisma, 'users')) && (await hasUsersRoleId(prisma));
     if (!rolesReady || !roleIdReady) {
       await migrateRolesAndRoleId(prisma);
+    } else if (rolesReady) {
+      // Table exists but may be empty (fresh DB) — always upsert system roles
+      for (const role of [
+        { slug: 'superadmin', name: 'Super Admin' },
+        { slug: 'admin', name: 'Admin' },
+        { slug: 'user', name: 'User' },
+      ]) {
+        await prisma.$executeRawUnsafe(
+          `
+          INSERT INTO roles (name, slug, is_system)
+          VALUES ($1, $2, true)
+          ON CONFLICT (slug) DO UPDATE SET
+            name = EXCLUDED.name,
+            is_system = true,
+            updated_at = NOW()
+          `,
+          role.name,
+          role.slug
+        );
+      }
     }
 
     await ensureUserThemeColumns(prisma);
