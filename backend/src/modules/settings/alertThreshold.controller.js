@@ -57,7 +57,14 @@ const createAlertThreshold = async (req, res) => {
       { db: req.tenantPrisma }
     );
 
-    await createAuditLog(req.user, 'update', 'alert_threshold', threshold.id, req.body);
+    await createAuditLog({
+      req,
+      user: req.user,
+      action: 'update',
+      resourceType: 'alert_threshold',
+      resourceId: threshold.id,
+      newData: req.body,
+    });
     res.status(200).json(threshold);
   } catch (error) {
     sendServiceError(res, error);
@@ -94,7 +101,21 @@ const updateAlertThreshold = async (req, res) => {
       { db: req.tenantPrisma }
     );
 
-    await createAuditLog(req.user, 'update', 'alert_threshold', req.params.id, req.body);
+    await createAuditLog({
+      req,
+      user: req.user,
+      action: 'update',
+      resourceType: 'alert_threshold',
+      resourceId: req.params.id,
+      oldData: {
+        low_threshold: existing.low_threshold,
+        medium_threshold: existing.medium_threshold,
+        high_threshold: existing.high_threshold,
+        time_window_minutes: existing.time_window_minutes,
+        is_active: existing.is_active,
+      },
+      newData: req.body,
+    });
     res.status(200).json(updated);
   } catch (error) {
     sendServiceError(res, error);
@@ -128,8 +149,13 @@ const bulkUpdateThresholds = async (req, res) => {
     }
 
     const results = await bulkUpsertThresholds(thresholds, { db: req.tenantPrisma });
-    await createAuditLog(req.user, 'bulk_update', 'alert_threshold', 'bulk', {
-      count: results.length,
+    await createAuditLog({
+      req,
+      user: req.user,
+      action: 'bulk_update',
+      resourceType: 'alert_threshold',
+      resourceId: 'bulk',
+      newData: { count: results.length, thresholds },
     });
 
     res.status(200).json(results);

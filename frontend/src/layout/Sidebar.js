@@ -17,6 +17,7 @@ import {
   HelpCircle,
   Circle,
   Globe,
+  ScrollText,
 } from 'lucide-react';
 import { AlertService } from '../api';
 import { cn } from '../lib/utils';
@@ -38,6 +39,7 @@ const ICONS = {
   Activity,
   HelpCircle,
   Globe,
+  ScrollText,
 };
 
 const formatBadgeCount = (n) => {

@@ -381,6 +381,42 @@ async function ensureOpsSchema(prisma) {
     CREATE INDEX IF NOT EXISTS idx_search_history_user
     ON search_history (user_id, created_at DESC)
   `);
+
+  await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      user_id INTEGER NULL,
+      username TEXT NULL,
+      email TEXT NULL,
+      name TEXT NULL,
+      role_slug TEXT NULL,
+      action TEXT NOT NULL,
+      resource_type TEXT NULL,
+      resource_id TEXT NULL,
+      method TEXT NULL,
+      path TEXT NULL,
+      old_data JSONB NULL,
+      new_data JSONB NULL,
+      details JSONB NULL,
+      ip TEXT NULL,
+      user_agent TEXT NULL,
+      device_label TEXT NULL
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS audit_logs_created_at_idx ON audit_logs (created_at DESC)
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS audit_logs_user_id_created_at_idx ON audit_logs (user_id, created_at DESC)
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS audit_logs_action_created_at_idx ON audit_logs (action, created_at DESC)
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS audit_logs_resource_type_created_at_idx ON audit_logs (resource_type, created_at DESC)
+  `);
 }
 
 module.exports = {

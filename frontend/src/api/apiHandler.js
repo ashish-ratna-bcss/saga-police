@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { BACKEND_URL } from '../lib/backendUrl';
+import { sessionCache, AUTH_ME_CACHE_KEY } from '../lib/sessionCache';
 
 export { BACKEND_URL };
 
@@ -35,6 +36,10 @@ apiHandler.interceptors.response.use(
       !(isAuthCheck || isMeCheck) &&
       !onLoginPage
     ) {
+      if (error.response?.data?.code === 'SESSION_REVOKED') {
+        sessionCache.clear(AUTH_ME_CACHE_KEY);
+        sessionCache.clear();
+      }
       window.location.href = '/login';
     }
     return Promise.reject(error);

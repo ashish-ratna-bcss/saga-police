@@ -34,7 +34,9 @@ const { bluwebRoutes } = require('./web-intel');
 const { searchRoutes } = require('./search');
 const { mediaRoutes } = require('./media');
 const { brandingRoutes } = require('./branding/branding.routes');
+const { auditRoutes } = require('./audit/audit.routes');
 const { authorize } = require('../middleware/auth.middleware');
+const { auditMutationMiddleware } = require('../lib/audit');
 const { getMyPermissions, getAllPages } = require('./user/user.controller');
 const { ROLE_SLUGS } = require('./role/role.utils');
 const { roleRoutes } = require('./role');
@@ -48,11 +50,15 @@ const router = express.Router();
 // Public (no auth) — login page branding by port
 router.use('/branding', brandingRoutes);
 
+// Log every mutating request (theme, users, settings, …) into tenant audit_logs
+router.use(auditMutationMiddleware);
+
 router.use(authRoutes);
 
 router.get('/me/permissions', authorize(), getMyPermissions);
 router.get('/pages', authorize({ manageUsers: true }), getAllPages);
 
+router.use('/audit', auditRoutes);
 router.use('/users', userRoutes);
 router.use('/roles', roleRoutes);
 router.use('/alerts', alertRoutes);

@@ -53,7 +53,7 @@ const rescanCatalogPostsForKeyword = async (keyword, { db } = {}) => {
   return { reset: result.count };
 };
 
-const createKeyword = async (body = {}, { user, db } = {}) => {
+const createKeyword = async (body = {}, { user, db, req } = {}) => {
   const prisma = dbOf(db);
   const keyword = String(body.keyword || '').trim();
   if (!keyword) {
@@ -94,10 +94,17 @@ const createKeyword = async (body = {}, { user, db } = {}) => {
 
   if (user) {
     try {
-      await createAuditLog(user, 'create', 'keyword', String(created.id), {
-        keyword: created.keyword,
-        via: 'alerts',
-        store: 'postgres',
+      await createAuditLog({
+        req,
+        user,
+        action: 'create',
+        resourceType: 'keyword',
+        resourceId: String(created.id),
+        newData: {
+          keyword: created.keyword,
+          via: 'alerts',
+          store: 'postgres',
+        },
       });
     } catch (auditErr) {
       logger.warn('[AlertsKeywords] audit failed:', auditErr.message);
@@ -117,7 +124,7 @@ const createKeyword = async (body = {}, { user, db } = {}) => {
   return { keyword: toProp(created), rescan };
 };
 
-const updateKeyword = async (id, body = {}, { user, db } = {}) => {
+const updateKeyword = async (id, body = {}, { user, db, req } = {}) => {
   const prisma = dbOf(db);
   const numericId = Number(id);
   if (!Number.isFinite(numericId)) {
@@ -157,10 +164,14 @@ const updateKeyword = async (id, body = {}, { user, db } = {}) => {
 
   if (user) {
     try {
-      await createAuditLog(user, 'update', 'keyword', String(updated.id), {
-        keyword: updated.keyword,
-        via: 'alerts',
-        store: 'postgres',
+      await createAuditLog({
+        req,
+        user,
+        action: 'update',
+        resourceType: 'keyword',
+        resourceId: String(updated.id),
+        oldData: { keyword: existing.keyword },
+        newData: { keyword: updated.keyword, via: 'alerts', store: 'postgres' },
       });
     } catch (auditErr) {
       logger.warn('[AlertsKeywords] audit failed:', auditErr.message);
@@ -185,7 +196,7 @@ const updateKeyword = async (id, body = {}, { user, db } = {}) => {
   return { keyword: toProp(updated), rescan };
 };
 
-const deleteKeyword = async (id, { user, db } = {}) => {
+const deleteKeyword = async (id, { user, db, req } = {}) => {
   const prisma = dbOf(db);
   const numericId = Number(id);
   if (!Number.isFinite(numericId)) {
@@ -205,10 +216,13 @@ const deleteKeyword = async (id, { user, db } = {}) => {
 
   if (user) {
     try {
-      await createAuditLog(user, 'delete', 'keyword', String(numericId), {
-        keyword: existing.keyword,
-        via: 'alerts',
-        store: 'postgres',
+      await createAuditLog({
+        req,
+        user,
+        action: 'delete',
+        resourceType: 'keyword',
+        resourceId: String(numericId),
+        oldData: { keyword: existing.keyword, via: 'alerts', store: 'postgres' },
       });
     } catch (auditErr) {
       logger.warn('[AlertsKeywords] audit failed:', auditErr.message);

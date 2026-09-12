@@ -68,6 +68,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [sessionConflict, setSessionConflict] = useState(null);
   const { login, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
@@ -140,18 +141,38 @@ const Login = () => {
     return <Navigate to="/dashboard" replace />;
   }
 
+  const finishLogin = (userData) => {
+    if (userData?.role === 'dial100') {
+      navigate('/dial-100-incident-reporting');
+    } else {
+      navigate('/dashboard');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setSessionConflict(null);
     try {
       const userData = await login(username, password);
-      if (userData?.role === 'dial100') {
-        navigate('/dial-100-incident-reporting');
-      } else {
-        navigate('/dashboard');
+      finishLogin(userData);
+    } catch (error) {
+      if (error.response?.status === 409 && error.response?.data?.code === 'SESSION_ACTIVE') {
+        setSessionConflict(error.response.data.session || {});
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForceLogin = async () => {
+    setLoading(true);
+    try {
+      const userData = await login(username, password, { force: true });
+      setSessionConflict(null);
+      finishLogin(userData);
     } catch {
-      // AuthContext handles toast
+      // toast from context
     } finally {
       setLoading(false);
     }
@@ -183,6 +204,12 @@ const Login = () => {
         }
         .login-screen .login-logo-sticker {
           animation: login-sticker-float 16s ease-in-out infinite;
+          /* Drop solid black/white plate behind crest logos */
+          mix-blend-mode: lighten;
+        }
+        .login-screen .login-brand-logo {
+          /* Same: black JPG plate blends into dark page (no sticker box) */
+          mix-blend-mode: lighten;
         }
         .login-screen input:-webkit-autofill,
         .login-screen input:-webkit-autofill:hover,
@@ -248,14 +275,12 @@ const Login = () => {
 
           <div className="relative z-10 lg:flex lg:flex-1 lg:flex-col lg:justify-center">
             <div className="flex items-center gap-3 lg:block">
-              <div className="shrink-0 rounded-md bg-white p-1.5 shadow-sm shadow-black/20 sm:p-2 lg:mb-8 lg:inline-block lg:p-2.5">
-                <img
-                  key={logoUrl}
-                  src={logoUrl}
-                  alt=""
-                  className="h-10 w-auto max-w-[100px] object-contain sm:h-12 sm:max-w-[120px] lg:h-16 lg:max-w-[220px] xl:h-20 xl:max-w-[240px]"
-                />
-              </div>
+              <img
+                key={logoUrl}
+                src={logoUrl}
+                alt=""
+                className="login-brand-logo h-12 w-auto max-w-[120px] shrink-0 object-contain sm:h-14 sm:max-w-[140px] lg:mb-8 lg:h-20 lg:max-w-[280px] xl:h-24 xl:max-w-[300px]"
+              />
               <div className="min-w-0 lg:contents">
                 <h1 className="font-heading text-2xl font-bold uppercase leading-none tracking-[0.1em] text-white sm:text-3xl lg:text-5xl xl:text-6xl 2xl:text-7xl lg:leading-[0.95] lg:tracking-[0.12em]">
                   {branding.title}
@@ -345,6 +370,63 @@ const Login = () => {
                   Authorized credentials only.
                 </p>
               </div>
+
+              {sessionConflict && (
+                <div
+                  className="rounded-lg border border-amber-400/40 bg-amber-500/10 p-4 text-sm text-amber-50"
+                  data-testid="session-conflict"
+                >
+                  <p className="font-semibold text-amber-200">Account already logged in</p>
+                  <p className="mt-1 text-amber-100/80">
+                    This account is active on another device. Continue here to end that session.
+                  </p>
+                  <dl className="mt-3 space-y-1 text-[13px] text-amber-50/90">
+                    <div className="flex gap-2">
+                      <dt className="w-20 shrink-0 text-amber-200/70">Device</dt>
+                      <dd>{sessionConflict.device_label || 'Unknown device'}</dd>
+                    </div>
+                    <div className="flex gap-2">
+                      <dt className="w-20 shrink-0 text-amber-200/70">IP</dt>
+                      <dd>{sessionConflict.ip || '—'}</dd>
+                    </div>
+                    <div className="flex gap-2">
+                      <dt className="w-20 shrink-0 text-amber-200/70">Since</dt>
+                      <dd>
+                        {sessionConflict.created_at
+                          ? new Date(sessionConflict.created_at).toLocaleString()
+                          : '—'}
+                      </dd>
+                    </div>
+                    <div className="flex gap-2">
+                      <dt className="w-20 shrink-0 text-amber-200/70">Last seen</dt>
+                      <dd>
+                        {sessionConflict.last_seen_at
+                          ? new Date(sessionConflict.last_seen_at).toLocaleString()
+                          : '—'}
+                      </dd>
+                    </div>
+                  </dl>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      onClick={handleForceLogin}
+                      disabled={loading}
+                      className="h-10 bg-amber-400 text-slate-950 hover:bg-amber-300"
+                    >
+                      {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Login here
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setSessionConflict(null)}
+                      className="h-10 text-amber-100 hover:bg-amber-500/20 hover:text-white"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label

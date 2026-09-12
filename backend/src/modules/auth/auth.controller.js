@@ -3,9 +3,22 @@ const prisma = require('../../../prisma/client');
 const { createAuditLog } = require('../../lib/audit');
 const { validateLogin } = require('./auth.validation');
 const { generateToken, findUserWithRole } = require('./auth.service');
-const { createAuthCookie, deleteAuthCookie } = require('../../config/cookies');
+const { createAuthCookie, deleteAuthCookie, readAuthCookie } = require('../../config/cookies');
 const { sidebarForUser } = require('./access_features');
 const { toPublicUser } = require('../user/user.utils');
+const {
+  findActiveSession,
+  createSession,
+  revokeOtherSessions,
+  revokeSession,
+  revokeAllSessions,
+  toPublicSession,
+} = require('./auth.session');
+const { getTenantPrisma } = require('../../lib/tenantDatabase.service');
+const { ensureOpsSchema } = require('../../../prisma/ensureOpsSchema');
+const jwt = require('jsonwebtoken');
+const { getJwtSecret } = require('../../config/env');
+const logger = require('../../lib/logger');
 
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 
@@ -24,33 +37,94 @@ const login = async (req, res) => {
       return res.status(validated.status).json({ message: validated.message });
     }
 
-    const { username, password } = validated.data;
+    const { username, password, force } = validated.data;
     const user = await findUserWithRole({ username });
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    await createAuditLog(
-      { id: user.id, email: user.email, full_name: user.name },
-      'login',
-      'user',
-      user.id,
-      { ip: req.ip }
-    );
+    const active = await findActiveSession(user.id);
+    if (active && !force) {
+      return res.status(409).json({
+        code: 'SESSION_ACTIVE',
+        message: 'This account is already logged in on another device',
+        session: toPublicSession(active),
+      });
+    }
 
-    createAuthCookie(res, generateToken(user.id, user.db_name), req);
+    if (active && force) {
+      await revokeOtherSessions(user.id, null);
+    }
+
+    const session = await createSession(user.id, req);
+    if (force) {
+      await revokeOtherSessions(user.id, session.id);
+    }
+
     const publicUser = toPublicUser(user, user.roles);
+    if (user.db_name) {
+      try {
+        const tenantPrisma = getTenantPrisma(user.db_name);
+        await ensureOpsSchema(tenantPrisma);
+        await createAuditLog({
+          req,
+          user: publicUser,
+          action: force ? 'login_force' : 'login',
+          resourceType: 'user',
+          resourceId: user.id,
+          newData: toPublicSession(session),
+          tenantPrisma,
+        });
+      } catch {
+        // audit best-effort
+      }
+    }
+
+    createAuthCookie(res, generateToken(user.id, user.db_name, session.id), req);
     return res.json({
-      message: 'Logged in',
+      message: force ? 'Logged in (previous session ended)' : 'Logged in',
       ui_mode: publicUser.ui_mode,
       theme_color: publicUser.theme_color,
+      forced: Boolean(force),
     });
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
   }
 };
 
-const logout = (req, res) => {
+const logout = async (req, res) => {
+  try {
+    const token = readAuthCookie(req);
+    let sid = null;
+    let userId = null;
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, getJwtSecret());
+        sid = decoded.sid || null;
+        userId = decoded.user_id || null;
+      } catch {
+        // ignore invalid token on logout
+      }
+    }
+    if (sid) await revokeSession(sid);
+
+    if (userId) {
+      const user = await findUserWithRole({ id: userId });
+      if (user?.db_name) {
+        await createAuditLog({
+          req,
+          user: toPublicUser(user, user.roles),
+          action: 'logout',
+          resourceType: 'user',
+          resourceId: user.id,
+          details: { sid },
+          tenantPrisma: getTenantPrisma(user.db_name),
+        });
+      }
+    }
+  } catch {
+    // best-effort
+  }
   deleteAuthCookie(res, req);
   return res.status(200).json({ message: 'Logged out' });
 };
@@ -145,6 +219,16 @@ const updateMyUiMode = async (req, res) => {
       include: { roles: true },
     });
 
+    await createAuditLog({
+      req,
+      user: req.user,
+      action: 'update',
+      resourceType: 'theme',
+      resourceId: userId,
+      oldData: { ui_mode: req.user?.ui_mode },
+      newData: { ui_mode: mode },
+    });
+
     return res.status(200).json(meResponse(updated, updated.roles));
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
@@ -193,6 +277,16 @@ const updateMyThemeColor = async (req, res) => {
         theme_color: themePayload,
       },
       include: { roles: true },
+    });
+
+    await createAuditLog({
+      req,
+      user: req.user,
+      action: 'update',
+      resourceType: 'theme',
+      resourceId: userId,
+      oldData: { theme_color: existingTc },
+      newData: { theme_color: themePayload },
     });
 
     return res.status(200).json(meResponse(updated, updated.roles));
@@ -257,6 +351,17 @@ const updateMyPlatforms = async (req, res) => {
     const tenantPrisma = getTenantPrisma(currentUser.db_name);
     await syncTenantPlatforms(tenantPrisma, allowed);
 
+    await createAuditLog({
+      req,
+      user: req.user,
+      action: 'update',
+      resourceType: 'platforms',
+      resourceId: userId,
+      oldData: { allowed_platforms: currentUser.allowed_platforms || [] },
+      newData: { allowed_platforms: allowed },
+      tenantPrisma,
+    });
+
     return res.status(200).json(meResponse(updated, updated.roles));
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
@@ -293,15 +398,18 @@ const changePassword = async (req, res) => {
       data: { password: hashedPassword },
     });
 
-    await createAuditLog(
-      { id: user.id, email: user.email, full_name: user.name },
-      'change_password',
-      'user',
-      user.id,
-      { ip: req.ip }
-    );
+    await revokeAllSessions(userId);
 
-    return res.status(200).json({ message: 'Password updated successfully' });
+    await createAuditLog({
+      req,
+      user: req.user,
+      action: 'change_password',
+      resourceType: 'user',
+      resourceId: user.id,
+    });
+
+    deleteAuthCookie(res, req);
+    return res.status(200).json({ message: 'Password updated successfully. Please log in again.' });
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
   }

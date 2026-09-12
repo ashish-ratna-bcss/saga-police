@@ -16,6 +16,7 @@ const PAGE_CATALOG = [
   { name: 'Reports', label: 'Reports', path: '/reports', icon: 'FileText' },
   { name: 'AI Assistant', label: 'AI', path: '/ai-assistant', icon: 'Bot' },
   { name: 'Users Management', label: 'Users', path: '/users-management', icon: 'Users' },
+  { name: 'Audit Logs', label: 'Audit', path: '/audit-logs', icon: 'ScrollText' },
   { name: 'Settings', label: 'Settings', path: '/settings', icon: 'Settings' },
   { name: 'Policies', label: 'Policies', path: '/policies', icon: 'Shield' },
   { name: 'System Health', label: 'Health', path: '/system-health', icon: 'Activity' },
@@ -53,6 +54,7 @@ const OPS_PAGE_PATHS = [
 const ADMIN_PAGE_PATHS = [
   ...OPS_PAGE_PATHS,
   '/users-management',
+  '/audit-logs',
 ];
 
 /** Pages Superadmin may grant to an Admin (ops + users management). */
@@ -120,7 +122,13 @@ const sidebarForUser = (user) => {
   if (!allowed.size && user?.role === 'superadmin') {
     return PAGE_CATALOG.filter((item) => SUPERADMIN_PAGE_PATHS.includes(item.path));
   }
-  return PAGE_CATALOG.filter((item) => allowed.has(item.path));
+  const items = PAGE_CATALOG.filter((item) => allowed.has(item.path));
+  // Admins who can manage users always see Audit Logs
+  if (user?.can_manage_users && !items.some((i) => i.path === '/audit-logs')) {
+    const audit = PAGE_CATALOG.find((p) => p.path === '/audit-logs');
+    if (audit) items.push(audit);
+  }
+  return items;
 };
 
 module.exports = {

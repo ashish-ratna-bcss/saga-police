@@ -80,9 +80,9 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, []);
 
-  const login = async (username, password) => {
+  const login = async (username, password, { force = false } = {}) => {
     try {
-      const loginRes = await authApi.login(username, password);
+      const loginRes = await authApi.login(username, password, { force });
       if (loginRes.data?.ui_mode || loginRes.data?.theme_color) {
         applyUserTheme({
           ui_mode: loginRes.data.ui_mode,
@@ -90,9 +90,13 @@ export const AuthProvider = ({ children }) => {
         });
       }
       const me = await fetchMe({ bypassCache: true });
-      toast.success('Logged in successfully');
+      toast.success(force ? 'Logged in — previous session ended' : 'Logged in successfully');
       return me;
     } catch (error) {
+      if (error.response?.status === 409 && error.response?.data?.code === 'SESSION_ACTIVE') {
+        // Let Login page show takeover dialog — don't toast generic failure
+        throw error;
+      }
       sessionCache.clear(AUTH_ME_CACHE_KEY);
       setUser(null);
       toast.error(error.response?.data?.message || 'Login failed');

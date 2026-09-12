@@ -88,6 +88,11 @@ export type report_templates = $Result.DefaultSelection<Prisma.$report_templates
  * AI policy category mappings.
  */
 export type policy_mappings = $Result.DefaultSelection<Prisma.$policy_mappingsPayload>
+/**
+ * Model audit_logs
+ * Per-tenant application change log (old/new, actor, IP, device).
+ */
+export type audit_logs = $Result.DefaultSelection<Prisma.$audit_logsPayload>
 
 /**
  * Enums
@@ -388,6 +393,16 @@ export class PrismaClient<
     * ```
     */
   get policy_mappings(): Prisma.policy_mappingsDelegate<ExtArgs, ClientOptions>;
+
+  /**
+   * `prisma.audit_logs`: Exposes CRUD operations for the **audit_logs** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more Audit_logs
+    * const audit_logs = await prisma.audit_logs.findMany()
+    * ```
+    */
+  get audit_logs(): Prisma.audit_logsDelegate<ExtArgs, ClientOptions>;
 }
 
 export namespace Prisma {
@@ -843,7 +858,8 @@ export namespace Prisma {
     social_media_event_media: 'social_media_event_media',
     alert_config: 'alert_config',
     report_templates: 'report_templates',
-    policy_mappings: 'policy_mappings'
+    policy_mappings: 'policy_mappings',
+    audit_logs: 'audit_logs'
   };
 
   export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -862,7 +878,7 @@ export namespace Prisma {
       omit: GlobalOmitOptions
     }
     meta: {
-      modelProps: "platforms" | "social_media_profiles" | "social_media_accounts" | "social_media_posts" | "social_media_alerts" | "social_media_grievances" | "social_media_grievance_reports" | "social_media_grievance_contacts" | "keywords" | "social_media_occasion_calendar" | "social_media_events" | "social_media_event_media" | "alert_config" | "report_templates" | "policy_mappings"
+      modelProps: "platforms" | "social_media_profiles" | "social_media_accounts" | "social_media_posts" | "social_media_alerts" | "social_media_grievances" | "social_media_grievance_reports" | "social_media_grievance_contacts" | "keywords" | "social_media_occasion_calendar" | "social_media_events" | "social_media_event_media" | "alert_config" | "report_templates" | "policy_mappings" | "audit_logs"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -1976,6 +1992,80 @@ export namespace Prisma {
           }
         }
       }
+      audit_logs: {
+        payload: Prisma.$audit_logsPayload<ExtArgs>
+        fields: Prisma.audit_logsFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.audit_logsFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$audit_logsPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.audit_logsFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$audit_logsPayload>
+          }
+          findFirst: {
+            args: Prisma.audit_logsFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$audit_logsPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.audit_logsFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$audit_logsPayload>
+          }
+          findMany: {
+            args: Prisma.audit_logsFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$audit_logsPayload>[]
+          }
+          create: {
+            args: Prisma.audit_logsCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$audit_logsPayload>
+          }
+          createMany: {
+            args: Prisma.audit_logsCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.audit_logsCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$audit_logsPayload>[]
+          }
+          delete: {
+            args: Prisma.audit_logsDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$audit_logsPayload>
+          }
+          update: {
+            args: Prisma.audit_logsUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$audit_logsPayload>
+          }
+          deleteMany: {
+            args: Prisma.audit_logsDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.audit_logsUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateManyAndReturn: {
+            args: Prisma.audit_logsUpdateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$audit_logsPayload>[]
+          }
+          upsert: {
+            args: Prisma.audit_logsUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$audit_logsPayload>
+          }
+          aggregate: {
+            args: Prisma.Audit_logsAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateAudit_logs>
+          }
+          groupBy: {
+            args: Prisma.audit_logsGroupByArgs<ExtArgs>
+            result: $Utils.Optional<Audit_logsGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.audit_logsCountArgs<ExtArgs>
+            result: $Utils.Optional<Audit_logsCountAggregateOutputType> | number
+          }
+        }
+      }
     }
   } & {
     other: {
@@ -2087,6 +2177,7 @@ export namespace Prisma {
     alert_config?: alert_configOmit
     report_templates?: report_templatesOmit
     policy_mappings?: policy_mappingsOmit
+    audit_logs?: audit_logsOmit
   }
 
   /* Types for Logging */
@@ -20109,6 +20200,1192 @@ export namespace Prisma {
 
 
   /**
+   * Model audit_logs
+   */
+
+  export type AggregateAudit_logs = {
+    _count: Audit_logsCountAggregateOutputType | null
+    _avg: Audit_logsAvgAggregateOutputType | null
+    _sum: Audit_logsSumAggregateOutputType | null
+    _min: Audit_logsMinAggregateOutputType | null
+    _max: Audit_logsMaxAggregateOutputType | null
+  }
+
+  export type Audit_logsAvgAggregateOutputType = {
+    user_id: number | null
+  }
+
+  export type Audit_logsSumAggregateOutputType = {
+    user_id: number | null
+  }
+
+  export type Audit_logsMinAggregateOutputType = {
+    id: string | null
+    created_at: Date | null
+    user_id: number | null
+    username: string | null
+    email: string | null
+    name: string | null
+    role_slug: string | null
+    action: string | null
+    resource_type: string | null
+    resource_id: string | null
+    method: string | null
+    path: string | null
+    ip: string | null
+    user_agent: string | null
+    device_label: string | null
+  }
+
+  export type Audit_logsMaxAggregateOutputType = {
+    id: string | null
+    created_at: Date | null
+    user_id: number | null
+    username: string | null
+    email: string | null
+    name: string | null
+    role_slug: string | null
+    action: string | null
+    resource_type: string | null
+    resource_id: string | null
+    method: string | null
+    path: string | null
+    ip: string | null
+    user_agent: string | null
+    device_label: string | null
+  }
+
+  export type Audit_logsCountAggregateOutputType = {
+    id: number
+    created_at: number
+    user_id: number
+    username: number
+    email: number
+    name: number
+    role_slug: number
+    action: number
+    resource_type: number
+    resource_id: number
+    method: number
+    path: number
+    old_data: number
+    new_data: number
+    details: number
+    ip: number
+    user_agent: number
+    device_label: number
+    _all: number
+  }
+
+
+  export type Audit_logsAvgAggregateInputType = {
+    user_id?: true
+  }
+
+  export type Audit_logsSumAggregateInputType = {
+    user_id?: true
+  }
+
+  export type Audit_logsMinAggregateInputType = {
+    id?: true
+    created_at?: true
+    user_id?: true
+    username?: true
+    email?: true
+    name?: true
+    role_slug?: true
+    action?: true
+    resource_type?: true
+    resource_id?: true
+    method?: true
+    path?: true
+    ip?: true
+    user_agent?: true
+    device_label?: true
+  }
+
+  export type Audit_logsMaxAggregateInputType = {
+    id?: true
+    created_at?: true
+    user_id?: true
+    username?: true
+    email?: true
+    name?: true
+    role_slug?: true
+    action?: true
+    resource_type?: true
+    resource_id?: true
+    method?: true
+    path?: true
+    ip?: true
+    user_agent?: true
+    device_label?: true
+  }
+
+  export type Audit_logsCountAggregateInputType = {
+    id?: true
+    created_at?: true
+    user_id?: true
+    username?: true
+    email?: true
+    name?: true
+    role_slug?: true
+    action?: true
+    resource_type?: true
+    resource_id?: true
+    method?: true
+    path?: true
+    old_data?: true
+    new_data?: true
+    details?: true
+    ip?: true
+    user_agent?: true
+    device_label?: true
+    _all?: true
+  }
+
+  export type Audit_logsAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which audit_logs to aggregate.
+     */
+    where?: audit_logsWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of audit_logs to fetch.
+     */
+    orderBy?: audit_logsOrderByWithRelationInput | audit_logsOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: audit_logsWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` audit_logs from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` audit_logs.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned audit_logs
+    **/
+    _count?: true | Audit_logsCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to average
+    **/
+    _avg?: Audit_logsAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: Audit_logsSumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: Audit_logsMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: Audit_logsMaxAggregateInputType
+  }
+
+  export type GetAudit_logsAggregateType<T extends Audit_logsAggregateArgs> = {
+        [P in keyof T & keyof AggregateAudit_logs]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateAudit_logs[P]>
+      : GetScalarType<T[P], AggregateAudit_logs[P]>
+  }
+
+
+
+
+  export type audit_logsGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: audit_logsWhereInput
+    orderBy?: audit_logsOrderByWithAggregationInput | audit_logsOrderByWithAggregationInput[]
+    by: Audit_logsScalarFieldEnum[] | Audit_logsScalarFieldEnum
+    having?: audit_logsScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: Audit_logsCountAggregateInputType | true
+    _avg?: Audit_logsAvgAggregateInputType
+    _sum?: Audit_logsSumAggregateInputType
+    _min?: Audit_logsMinAggregateInputType
+    _max?: Audit_logsMaxAggregateInputType
+  }
+
+  export type Audit_logsGroupByOutputType = {
+    id: string
+    created_at: Date
+    user_id: number | null
+    username: string | null
+    email: string | null
+    name: string | null
+    role_slug: string | null
+    action: string
+    resource_type: string | null
+    resource_id: string | null
+    method: string | null
+    path: string | null
+    old_data: JsonValue | null
+    new_data: JsonValue | null
+    details: JsonValue | null
+    ip: string | null
+    user_agent: string | null
+    device_label: string | null
+    _count: Audit_logsCountAggregateOutputType | null
+    _avg: Audit_logsAvgAggregateOutputType | null
+    _sum: Audit_logsSumAggregateOutputType | null
+    _min: Audit_logsMinAggregateOutputType | null
+    _max: Audit_logsMaxAggregateOutputType | null
+  }
+
+  type GetAudit_logsGroupByPayload<T extends audit_logsGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<Audit_logsGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof Audit_logsGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], Audit_logsGroupByOutputType[P]>
+            : GetScalarType<T[P], Audit_logsGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type audit_logsSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    created_at?: boolean
+    user_id?: boolean
+    username?: boolean
+    email?: boolean
+    name?: boolean
+    role_slug?: boolean
+    action?: boolean
+    resource_type?: boolean
+    resource_id?: boolean
+    method?: boolean
+    path?: boolean
+    old_data?: boolean
+    new_data?: boolean
+    details?: boolean
+    ip?: boolean
+    user_agent?: boolean
+    device_label?: boolean
+  }, ExtArgs["result"]["audit_logs"]>
+
+  export type audit_logsSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    created_at?: boolean
+    user_id?: boolean
+    username?: boolean
+    email?: boolean
+    name?: boolean
+    role_slug?: boolean
+    action?: boolean
+    resource_type?: boolean
+    resource_id?: boolean
+    method?: boolean
+    path?: boolean
+    old_data?: boolean
+    new_data?: boolean
+    details?: boolean
+    ip?: boolean
+    user_agent?: boolean
+    device_label?: boolean
+  }, ExtArgs["result"]["audit_logs"]>
+
+  export type audit_logsSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    created_at?: boolean
+    user_id?: boolean
+    username?: boolean
+    email?: boolean
+    name?: boolean
+    role_slug?: boolean
+    action?: boolean
+    resource_type?: boolean
+    resource_id?: boolean
+    method?: boolean
+    path?: boolean
+    old_data?: boolean
+    new_data?: boolean
+    details?: boolean
+    ip?: boolean
+    user_agent?: boolean
+    device_label?: boolean
+  }, ExtArgs["result"]["audit_logs"]>
+
+  export type audit_logsSelectScalar = {
+    id?: boolean
+    created_at?: boolean
+    user_id?: boolean
+    username?: boolean
+    email?: boolean
+    name?: boolean
+    role_slug?: boolean
+    action?: boolean
+    resource_type?: boolean
+    resource_id?: boolean
+    method?: boolean
+    path?: boolean
+    old_data?: boolean
+    new_data?: boolean
+    details?: boolean
+    ip?: boolean
+    user_agent?: boolean
+    device_label?: boolean
+  }
+
+  export type audit_logsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "created_at" | "user_id" | "username" | "email" | "name" | "role_slug" | "action" | "resource_type" | "resource_id" | "method" | "path" | "old_data" | "new_data" | "details" | "ip" | "user_agent" | "device_label", ExtArgs["result"]["audit_logs"]>
+
+  export type $audit_logsPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "audit_logs"
+    objects: {}
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      created_at: Date
+      user_id: number | null
+      username: string | null
+      email: string | null
+      name: string | null
+      role_slug: string | null
+      action: string
+      resource_type: string | null
+      resource_id: string | null
+      method: string | null
+      path: string | null
+      old_data: Prisma.JsonValue | null
+      new_data: Prisma.JsonValue | null
+      details: Prisma.JsonValue | null
+      ip: string | null
+      user_agent: string | null
+      device_label: string | null
+    }, ExtArgs["result"]["audit_logs"]>
+    composites: {}
+  }
+
+  type audit_logsGetPayload<S extends boolean | null | undefined | audit_logsDefaultArgs> = $Result.GetResult<Prisma.$audit_logsPayload, S>
+
+  type audit_logsCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> =
+    Omit<audit_logsFindManyArgs, 'select' | 'include' | 'distinct' | 'omit'> & {
+      select?: Audit_logsCountAggregateInputType | true
+    }
+
+  export interface audit_logsDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['audit_logs'], meta: { name: 'audit_logs' } }
+    /**
+     * Find zero or one Audit_logs that matches the filter.
+     * @param {audit_logsFindUniqueArgs} args - Arguments to find a Audit_logs
+     * @example
+     * // Get one Audit_logs
+     * const audit_logs = await prisma.audit_logs.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends audit_logsFindUniqueArgs>(args: SelectSubset<T, audit_logsFindUniqueArgs<ExtArgs>>): Prisma__audit_logsClient<$Result.GetResult<Prisma.$audit_logsPayload<ExtArgs>, T, "findUnique", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find one Audit_logs that matches the filter or throw an error with `error.code='P2025'`
+     * if no matches were found.
+     * @param {audit_logsFindUniqueOrThrowArgs} args - Arguments to find a Audit_logs
+     * @example
+     * // Get one Audit_logs
+     * const audit_logs = await prisma.audit_logs.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends audit_logsFindUniqueOrThrowArgs>(args: SelectSubset<T, audit_logsFindUniqueOrThrowArgs<ExtArgs>>): Prisma__audit_logsClient<$Result.GetResult<Prisma.$audit_logsPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first Audit_logs that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {audit_logsFindFirstArgs} args - Arguments to find a Audit_logs
+     * @example
+     * // Get one Audit_logs
+     * const audit_logs = await prisma.audit_logs.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends audit_logsFindFirstArgs>(args?: SelectSubset<T, audit_logsFindFirstArgs<ExtArgs>>): Prisma__audit_logsClient<$Result.GetResult<Prisma.$audit_logsPayload<ExtArgs>, T, "findFirst", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first Audit_logs that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {audit_logsFindFirstOrThrowArgs} args - Arguments to find a Audit_logs
+     * @example
+     * // Get one Audit_logs
+     * const audit_logs = await prisma.audit_logs.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends audit_logsFindFirstOrThrowArgs>(args?: SelectSubset<T, audit_logsFindFirstOrThrowArgs<ExtArgs>>): Prisma__audit_logsClient<$Result.GetResult<Prisma.$audit_logsPayload<ExtArgs>, T, "findFirstOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find zero or more Audit_logs that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {audit_logsFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all Audit_logs
+     * const audit_logs = await prisma.audit_logs.findMany()
+     * 
+     * // Get first 10 Audit_logs
+     * const audit_logs = await prisma.audit_logs.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const audit_logsWithIdOnly = await prisma.audit_logs.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends audit_logsFindManyArgs>(args?: SelectSubset<T, audit_logsFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$audit_logsPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
+
+    /**
+     * Create a Audit_logs.
+     * @param {audit_logsCreateArgs} args - Arguments to create a Audit_logs.
+     * @example
+     * // Create one Audit_logs
+     * const Audit_logs = await prisma.audit_logs.create({
+     *   data: {
+     *     // ... data to create a Audit_logs
+     *   }
+     * })
+     * 
+     */
+    create<T extends audit_logsCreateArgs>(args: SelectSubset<T, audit_logsCreateArgs<ExtArgs>>): Prisma__audit_logsClient<$Result.GetResult<Prisma.$audit_logsPayload<ExtArgs>, T, "create", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Create many Audit_logs.
+     * @param {audit_logsCreateManyArgs} args - Arguments to create many Audit_logs.
+     * @example
+     * // Create many Audit_logs
+     * const audit_logs = await prisma.audit_logs.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends audit_logsCreateManyArgs>(args?: SelectSubset<T, audit_logsCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many Audit_logs and returns the data saved in the database.
+     * @param {audit_logsCreateManyAndReturnArgs} args - Arguments to create many Audit_logs.
+     * @example
+     * // Create many Audit_logs
+     * const audit_logs = await prisma.audit_logs.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many Audit_logs and only return the `id`
+     * const audit_logsWithIdOnly = await prisma.audit_logs.createManyAndReturn({
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends audit_logsCreateManyAndReturnArgs>(args?: SelectSubset<T, audit_logsCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$audit_logsPayload<ExtArgs>, T, "createManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Delete a Audit_logs.
+     * @param {audit_logsDeleteArgs} args - Arguments to delete one Audit_logs.
+     * @example
+     * // Delete one Audit_logs
+     * const Audit_logs = await prisma.audit_logs.delete({
+     *   where: {
+     *     // ... filter to delete one Audit_logs
+     *   }
+     * })
+     * 
+     */
+    delete<T extends audit_logsDeleteArgs>(args: SelectSubset<T, audit_logsDeleteArgs<ExtArgs>>): Prisma__audit_logsClient<$Result.GetResult<Prisma.$audit_logsPayload<ExtArgs>, T, "delete", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Update one Audit_logs.
+     * @param {audit_logsUpdateArgs} args - Arguments to update one Audit_logs.
+     * @example
+     * // Update one Audit_logs
+     * const audit_logs = await prisma.audit_logs.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends audit_logsUpdateArgs>(args: SelectSubset<T, audit_logsUpdateArgs<ExtArgs>>): Prisma__audit_logsClient<$Result.GetResult<Prisma.$audit_logsPayload<ExtArgs>, T, "update", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Delete zero or more Audit_logs.
+     * @param {audit_logsDeleteManyArgs} args - Arguments to filter Audit_logs to delete.
+     * @example
+     * // Delete a few Audit_logs
+     * const { count } = await prisma.audit_logs.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends audit_logsDeleteManyArgs>(args?: SelectSubset<T, audit_logsDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more Audit_logs.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {audit_logsUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many Audit_logs
+     * const audit_logs = await prisma.audit_logs.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends audit_logsUpdateManyArgs>(args: SelectSubset<T, audit_logsUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more Audit_logs and returns the data updated in the database.
+     * @param {audit_logsUpdateManyAndReturnArgs} args - Arguments to update many Audit_logs.
+     * @example
+     * // Update many Audit_logs
+     * const audit_logs = await prisma.audit_logs.updateManyAndReturn({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Update zero or more Audit_logs and only return the `id`
+     * const audit_logsWithIdOnly = await prisma.audit_logs.updateManyAndReturn({
+     *   select: { id: true },
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    updateManyAndReturn<T extends audit_logsUpdateManyAndReturnArgs>(args: SelectSubset<T, audit_logsUpdateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$audit_logsPayload<ExtArgs>, T, "updateManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Create or update one Audit_logs.
+     * @param {audit_logsUpsertArgs} args - Arguments to update or create a Audit_logs.
+     * @example
+     * // Update or create a Audit_logs
+     * const audit_logs = await prisma.audit_logs.upsert({
+     *   create: {
+     *     // ... data to create a Audit_logs
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the Audit_logs we want to update
+     *   }
+     * })
+     */
+    upsert<T extends audit_logsUpsertArgs>(args: SelectSubset<T, audit_logsUpsertArgs<ExtArgs>>): Prisma__audit_logsClient<$Result.GetResult<Prisma.$audit_logsPayload<ExtArgs>, T, "upsert", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+
+    /**
+     * Count the number of Audit_logs.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {audit_logsCountArgs} args - Arguments to filter Audit_logs to count.
+     * @example
+     * // Count the number of Audit_logs
+     * const count = await prisma.audit_logs.count({
+     *   where: {
+     *     // ... the filter for the Audit_logs we want to count
+     *   }
+     * })
+    **/
+    count<T extends audit_logsCountArgs>(
+      args?: Subset<T, audit_logsCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], Audit_logsCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a Audit_logs.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {Audit_logsAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends Audit_logsAggregateArgs>(args: Subset<T, Audit_logsAggregateArgs>): Prisma.PrismaPromise<GetAudit_logsAggregateType<T>>
+
+    /**
+     * Group by Audit_logs.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {audit_logsGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends audit_logsGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: audit_logsGroupByArgs['orderBy'] }
+        : { orderBy?: audit_logsGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, audit_logsGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetAudit_logsGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the audit_logs model
+   */
+  readonly fields: audit_logsFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for audit_logs.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__audit_logsClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the audit_logs model
+   */
+  interface audit_logsFieldRefs {
+    readonly id: FieldRef<"audit_logs", 'String'>
+    readonly created_at: FieldRef<"audit_logs", 'DateTime'>
+    readonly user_id: FieldRef<"audit_logs", 'Int'>
+    readonly username: FieldRef<"audit_logs", 'String'>
+    readonly email: FieldRef<"audit_logs", 'String'>
+    readonly name: FieldRef<"audit_logs", 'String'>
+    readonly role_slug: FieldRef<"audit_logs", 'String'>
+    readonly action: FieldRef<"audit_logs", 'String'>
+    readonly resource_type: FieldRef<"audit_logs", 'String'>
+    readonly resource_id: FieldRef<"audit_logs", 'String'>
+    readonly method: FieldRef<"audit_logs", 'String'>
+    readonly path: FieldRef<"audit_logs", 'String'>
+    readonly old_data: FieldRef<"audit_logs", 'Json'>
+    readonly new_data: FieldRef<"audit_logs", 'Json'>
+    readonly details: FieldRef<"audit_logs", 'Json'>
+    readonly ip: FieldRef<"audit_logs", 'String'>
+    readonly user_agent: FieldRef<"audit_logs", 'String'>
+    readonly device_label: FieldRef<"audit_logs", 'String'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * audit_logs findUnique
+   */
+  export type audit_logsFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the audit_logs
+     */
+    select?: audit_logsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the audit_logs
+     */
+    omit?: audit_logsOmit<ExtArgs> | null
+    /**
+     * Filter, which audit_logs to fetch.
+     */
+    where: audit_logsWhereUniqueInput
+  }
+
+  /**
+   * audit_logs findUniqueOrThrow
+   */
+  export type audit_logsFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the audit_logs
+     */
+    select?: audit_logsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the audit_logs
+     */
+    omit?: audit_logsOmit<ExtArgs> | null
+    /**
+     * Filter, which audit_logs to fetch.
+     */
+    where: audit_logsWhereUniqueInput
+  }
+
+  /**
+   * audit_logs findFirst
+   */
+  export type audit_logsFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the audit_logs
+     */
+    select?: audit_logsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the audit_logs
+     */
+    omit?: audit_logsOmit<ExtArgs> | null
+    /**
+     * Filter, which audit_logs to fetch.
+     */
+    where?: audit_logsWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of audit_logs to fetch.
+     */
+    orderBy?: audit_logsOrderByWithRelationInput | audit_logsOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for audit_logs.
+     */
+    cursor?: audit_logsWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` audit_logs from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` audit_logs.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of audit_logs.
+     */
+    distinct?: Audit_logsScalarFieldEnum | Audit_logsScalarFieldEnum[]
+  }
+
+  /**
+   * audit_logs findFirstOrThrow
+   */
+  export type audit_logsFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the audit_logs
+     */
+    select?: audit_logsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the audit_logs
+     */
+    omit?: audit_logsOmit<ExtArgs> | null
+    /**
+     * Filter, which audit_logs to fetch.
+     */
+    where?: audit_logsWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of audit_logs to fetch.
+     */
+    orderBy?: audit_logsOrderByWithRelationInput | audit_logsOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for audit_logs.
+     */
+    cursor?: audit_logsWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` audit_logs from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` audit_logs.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of audit_logs.
+     */
+    distinct?: Audit_logsScalarFieldEnum | Audit_logsScalarFieldEnum[]
+  }
+
+  /**
+   * audit_logs findMany
+   */
+  export type audit_logsFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the audit_logs
+     */
+    select?: audit_logsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the audit_logs
+     */
+    omit?: audit_logsOmit<ExtArgs> | null
+    /**
+     * Filter, which audit_logs to fetch.
+     */
+    where?: audit_logsWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of audit_logs to fetch.
+     */
+    orderBy?: audit_logsOrderByWithRelationInput | audit_logsOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing audit_logs.
+     */
+    cursor?: audit_logsWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` audit_logs from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` audit_logs.
+     */
+    skip?: number
+    distinct?: Audit_logsScalarFieldEnum | Audit_logsScalarFieldEnum[]
+  }
+
+  /**
+   * audit_logs create
+   */
+  export type audit_logsCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the audit_logs
+     */
+    select?: audit_logsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the audit_logs
+     */
+    omit?: audit_logsOmit<ExtArgs> | null
+    /**
+     * The data needed to create a audit_logs.
+     */
+    data: XOR<audit_logsCreateInput, audit_logsUncheckedCreateInput>
+  }
+
+  /**
+   * audit_logs createMany
+   */
+  export type audit_logsCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many audit_logs.
+     */
+    data: audit_logsCreateManyInput | audit_logsCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * audit_logs createManyAndReturn
+   */
+  export type audit_logsCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the audit_logs
+     */
+    select?: audit_logsSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the audit_logs
+     */
+    omit?: audit_logsOmit<ExtArgs> | null
+    /**
+     * The data used to create many audit_logs.
+     */
+    data: audit_logsCreateManyInput | audit_logsCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * audit_logs update
+   */
+  export type audit_logsUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the audit_logs
+     */
+    select?: audit_logsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the audit_logs
+     */
+    omit?: audit_logsOmit<ExtArgs> | null
+    /**
+     * The data needed to update a audit_logs.
+     */
+    data: XOR<audit_logsUpdateInput, audit_logsUncheckedUpdateInput>
+    /**
+     * Choose, which audit_logs to update.
+     */
+    where: audit_logsWhereUniqueInput
+  }
+
+  /**
+   * audit_logs updateMany
+   */
+  export type audit_logsUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update audit_logs.
+     */
+    data: XOR<audit_logsUpdateManyMutationInput, audit_logsUncheckedUpdateManyInput>
+    /**
+     * Filter which audit_logs to update
+     */
+    where?: audit_logsWhereInput
+    /**
+     * Limit how many audit_logs to update.
+     */
+    limit?: number
+  }
+
+  /**
+   * audit_logs updateManyAndReturn
+   */
+  export type audit_logsUpdateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the audit_logs
+     */
+    select?: audit_logsSelectUpdateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the audit_logs
+     */
+    omit?: audit_logsOmit<ExtArgs> | null
+    /**
+     * The data used to update audit_logs.
+     */
+    data: XOR<audit_logsUpdateManyMutationInput, audit_logsUncheckedUpdateManyInput>
+    /**
+     * Filter which audit_logs to update
+     */
+    where?: audit_logsWhereInput
+    /**
+     * Limit how many audit_logs to update.
+     */
+    limit?: number
+  }
+
+  /**
+   * audit_logs upsert
+   */
+  export type audit_logsUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the audit_logs
+     */
+    select?: audit_logsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the audit_logs
+     */
+    omit?: audit_logsOmit<ExtArgs> | null
+    /**
+     * The filter to search for the audit_logs to update in case it exists.
+     */
+    where: audit_logsWhereUniqueInput
+    /**
+     * In case the audit_logs found by the `where` argument doesn't exist, create a new audit_logs with this data.
+     */
+    create: XOR<audit_logsCreateInput, audit_logsUncheckedCreateInput>
+    /**
+     * In case the audit_logs was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<audit_logsUpdateInput, audit_logsUncheckedUpdateInput>
+  }
+
+  /**
+   * audit_logs delete
+   */
+  export type audit_logsDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the audit_logs
+     */
+    select?: audit_logsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the audit_logs
+     */
+    omit?: audit_logsOmit<ExtArgs> | null
+    /**
+     * Filter which audit_logs to delete.
+     */
+    where: audit_logsWhereUniqueInput
+  }
+
+  /**
+   * audit_logs deleteMany
+   */
+  export type audit_logsDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which audit_logs to delete
+     */
+    where?: audit_logsWhereInput
+    /**
+     * Limit how many audit_logs to delete.
+     */
+    limit?: number
+  }
+
+  /**
+   * audit_logs without action
+   */
+  export type audit_logsDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the audit_logs
+     */
+    select?: audit_logsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the audit_logs
+     */
+    omit?: audit_logsOmit<ExtArgs> | null
+  }
+
+
+  /**
    * Enums
    */
 
@@ -20420,6 +21697,30 @@ export namespace Prisma {
   export type Policy_mappingsScalarFieldEnum = (typeof Policy_mappingsScalarFieldEnum)[keyof typeof Policy_mappingsScalarFieldEnum]
 
 
+  export const Audit_logsScalarFieldEnum: {
+    id: 'id',
+    created_at: 'created_at',
+    user_id: 'user_id',
+    username: 'username',
+    email: 'email',
+    name: 'name',
+    role_slug: 'role_slug',
+    action: 'action',
+    resource_type: 'resource_type',
+    resource_id: 'resource_id',
+    method: 'method',
+    path: 'path',
+    old_data: 'old_data',
+    new_data: 'new_data',
+    details: 'details',
+    ip: 'ip',
+    user_agent: 'user_agent',
+    device_label: 'device_label'
+  };
+
+  export type Audit_logsScalarFieldEnum = (typeof Audit_logsScalarFieldEnum)[keyof typeof Audit_logsScalarFieldEnum]
+
+
   export const SortOrder: {
     asc: 'asc',
     desc: 'desc'
@@ -20433,6 +21734,14 @@ export namespace Prisma {
   };
 
   export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
+
+
+  export const NullableJsonNullValueInput: {
+    DbNull: typeof DbNull,
+    JsonNull: typeof JsonNull
+  };
+
+  export type NullableJsonNullValueInput = (typeof NullableJsonNullValueInput)[keyof typeof NullableJsonNullValueInput]
 
 
   export const QueryMode: {
@@ -22100,6 +23409,125 @@ export namespace Prisma {
     is_active?: BoolWithAggregatesFilter<"policy_mappings"> | boolean
     created_at?: DateTimeWithAggregatesFilter<"policy_mappings"> | Date | string
     updated_at?: DateTimeWithAggregatesFilter<"policy_mappings"> | Date | string
+  }
+
+  export type audit_logsWhereInput = {
+    AND?: audit_logsWhereInput | audit_logsWhereInput[]
+    OR?: audit_logsWhereInput[]
+    NOT?: audit_logsWhereInput | audit_logsWhereInput[]
+    id?: StringFilter<"audit_logs"> | string
+    created_at?: DateTimeFilter<"audit_logs"> | Date | string
+    user_id?: IntNullableFilter<"audit_logs"> | number | null
+    username?: StringNullableFilter<"audit_logs"> | string | null
+    email?: StringNullableFilter<"audit_logs"> | string | null
+    name?: StringNullableFilter<"audit_logs"> | string | null
+    role_slug?: StringNullableFilter<"audit_logs"> | string | null
+    action?: StringFilter<"audit_logs"> | string
+    resource_type?: StringNullableFilter<"audit_logs"> | string | null
+    resource_id?: StringNullableFilter<"audit_logs"> | string | null
+    method?: StringNullableFilter<"audit_logs"> | string | null
+    path?: StringNullableFilter<"audit_logs"> | string | null
+    old_data?: JsonNullableFilter<"audit_logs">
+    new_data?: JsonNullableFilter<"audit_logs">
+    details?: JsonNullableFilter<"audit_logs">
+    ip?: StringNullableFilter<"audit_logs"> | string | null
+    user_agent?: StringNullableFilter<"audit_logs"> | string | null
+    device_label?: StringNullableFilter<"audit_logs"> | string | null
+  }
+
+  export type audit_logsOrderByWithRelationInput = {
+    id?: SortOrder
+    created_at?: SortOrder
+    user_id?: SortOrderInput | SortOrder
+    username?: SortOrderInput | SortOrder
+    email?: SortOrderInput | SortOrder
+    name?: SortOrderInput | SortOrder
+    role_slug?: SortOrderInput | SortOrder
+    action?: SortOrder
+    resource_type?: SortOrderInput | SortOrder
+    resource_id?: SortOrderInput | SortOrder
+    method?: SortOrderInput | SortOrder
+    path?: SortOrderInput | SortOrder
+    old_data?: SortOrderInput | SortOrder
+    new_data?: SortOrderInput | SortOrder
+    details?: SortOrderInput | SortOrder
+    ip?: SortOrderInput | SortOrder
+    user_agent?: SortOrderInput | SortOrder
+    device_label?: SortOrderInput | SortOrder
+  }
+
+  export type audit_logsWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    AND?: audit_logsWhereInput | audit_logsWhereInput[]
+    OR?: audit_logsWhereInput[]
+    NOT?: audit_logsWhereInput | audit_logsWhereInput[]
+    created_at?: DateTimeFilter<"audit_logs"> | Date | string
+    user_id?: IntNullableFilter<"audit_logs"> | number | null
+    username?: StringNullableFilter<"audit_logs"> | string | null
+    email?: StringNullableFilter<"audit_logs"> | string | null
+    name?: StringNullableFilter<"audit_logs"> | string | null
+    role_slug?: StringNullableFilter<"audit_logs"> | string | null
+    action?: StringFilter<"audit_logs"> | string
+    resource_type?: StringNullableFilter<"audit_logs"> | string | null
+    resource_id?: StringNullableFilter<"audit_logs"> | string | null
+    method?: StringNullableFilter<"audit_logs"> | string | null
+    path?: StringNullableFilter<"audit_logs"> | string | null
+    old_data?: JsonNullableFilter<"audit_logs">
+    new_data?: JsonNullableFilter<"audit_logs">
+    details?: JsonNullableFilter<"audit_logs">
+    ip?: StringNullableFilter<"audit_logs"> | string | null
+    user_agent?: StringNullableFilter<"audit_logs"> | string | null
+    device_label?: StringNullableFilter<"audit_logs"> | string | null
+  }, "id">
+
+  export type audit_logsOrderByWithAggregationInput = {
+    id?: SortOrder
+    created_at?: SortOrder
+    user_id?: SortOrderInput | SortOrder
+    username?: SortOrderInput | SortOrder
+    email?: SortOrderInput | SortOrder
+    name?: SortOrderInput | SortOrder
+    role_slug?: SortOrderInput | SortOrder
+    action?: SortOrder
+    resource_type?: SortOrderInput | SortOrder
+    resource_id?: SortOrderInput | SortOrder
+    method?: SortOrderInput | SortOrder
+    path?: SortOrderInput | SortOrder
+    old_data?: SortOrderInput | SortOrder
+    new_data?: SortOrderInput | SortOrder
+    details?: SortOrderInput | SortOrder
+    ip?: SortOrderInput | SortOrder
+    user_agent?: SortOrderInput | SortOrder
+    device_label?: SortOrderInput | SortOrder
+    _count?: audit_logsCountOrderByAggregateInput
+    _avg?: audit_logsAvgOrderByAggregateInput
+    _max?: audit_logsMaxOrderByAggregateInput
+    _min?: audit_logsMinOrderByAggregateInput
+    _sum?: audit_logsSumOrderByAggregateInput
+  }
+
+  export type audit_logsScalarWhereWithAggregatesInput = {
+    AND?: audit_logsScalarWhereWithAggregatesInput | audit_logsScalarWhereWithAggregatesInput[]
+    OR?: audit_logsScalarWhereWithAggregatesInput[]
+    NOT?: audit_logsScalarWhereWithAggregatesInput | audit_logsScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"audit_logs"> | string
+    created_at?: DateTimeWithAggregatesFilter<"audit_logs"> | Date | string
+    user_id?: IntNullableWithAggregatesFilter<"audit_logs"> | number | null
+    username?: StringNullableWithAggregatesFilter<"audit_logs"> | string | null
+    email?: StringNullableWithAggregatesFilter<"audit_logs"> | string | null
+    name?: StringNullableWithAggregatesFilter<"audit_logs"> | string | null
+    role_slug?: StringNullableWithAggregatesFilter<"audit_logs"> | string | null
+    action?: StringWithAggregatesFilter<"audit_logs"> | string
+    resource_type?: StringNullableWithAggregatesFilter<"audit_logs"> | string | null
+    resource_id?: StringNullableWithAggregatesFilter<"audit_logs"> | string | null
+    method?: StringNullableWithAggregatesFilter<"audit_logs"> | string | null
+    path?: StringNullableWithAggregatesFilter<"audit_logs"> | string | null
+    old_data?: JsonNullableWithAggregatesFilter<"audit_logs">
+    new_data?: JsonNullableWithAggregatesFilter<"audit_logs">
+    details?: JsonNullableWithAggregatesFilter<"audit_logs">
+    ip?: StringNullableWithAggregatesFilter<"audit_logs"> | string | null
+    user_agent?: StringNullableWithAggregatesFilter<"audit_logs"> | string | null
+    device_label?: StringNullableWithAggregatesFilter<"audit_logs"> | string | null
   }
 
   export type platformsCreateInput = {
@@ -23876,6 +25304,153 @@ export namespace Prisma {
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
+  export type audit_logsCreateInput = {
+    id?: string
+    created_at?: Date | string
+    user_id?: number | null
+    username?: string | null
+    email?: string | null
+    name?: string | null
+    role_slug?: string | null
+    action: string
+    resource_type?: string | null
+    resource_id?: string | null
+    method?: string | null
+    path?: string | null
+    old_data?: NullableJsonNullValueInput | InputJsonValue
+    new_data?: NullableJsonNullValueInput | InputJsonValue
+    details?: NullableJsonNullValueInput | InputJsonValue
+    ip?: string | null
+    user_agent?: string | null
+    device_label?: string | null
+  }
+
+  export type audit_logsUncheckedCreateInput = {
+    id?: string
+    created_at?: Date | string
+    user_id?: number | null
+    username?: string | null
+    email?: string | null
+    name?: string | null
+    role_slug?: string | null
+    action: string
+    resource_type?: string | null
+    resource_id?: string | null
+    method?: string | null
+    path?: string | null
+    old_data?: NullableJsonNullValueInput | InputJsonValue
+    new_data?: NullableJsonNullValueInput | InputJsonValue
+    details?: NullableJsonNullValueInput | InputJsonValue
+    ip?: string | null
+    user_agent?: string | null
+    device_label?: string | null
+  }
+
+  export type audit_logsUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    user_id?: NullableIntFieldUpdateOperationsInput | number | null
+    username?: NullableStringFieldUpdateOperationsInput | string | null
+    email?: NullableStringFieldUpdateOperationsInput | string | null
+    name?: NullableStringFieldUpdateOperationsInput | string | null
+    role_slug?: NullableStringFieldUpdateOperationsInput | string | null
+    action?: StringFieldUpdateOperationsInput | string
+    resource_type?: NullableStringFieldUpdateOperationsInput | string | null
+    resource_id?: NullableStringFieldUpdateOperationsInput | string | null
+    method?: NullableStringFieldUpdateOperationsInput | string | null
+    path?: NullableStringFieldUpdateOperationsInput | string | null
+    old_data?: NullableJsonNullValueInput | InputJsonValue
+    new_data?: NullableJsonNullValueInput | InputJsonValue
+    details?: NullableJsonNullValueInput | InputJsonValue
+    ip?: NullableStringFieldUpdateOperationsInput | string | null
+    user_agent?: NullableStringFieldUpdateOperationsInput | string | null
+    device_label?: NullableStringFieldUpdateOperationsInput | string | null
+  }
+
+  export type audit_logsUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    user_id?: NullableIntFieldUpdateOperationsInput | number | null
+    username?: NullableStringFieldUpdateOperationsInput | string | null
+    email?: NullableStringFieldUpdateOperationsInput | string | null
+    name?: NullableStringFieldUpdateOperationsInput | string | null
+    role_slug?: NullableStringFieldUpdateOperationsInput | string | null
+    action?: StringFieldUpdateOperationsInput | string
+    resource_type?: NullableStringFieldUpdateOperationsInput | string | null
+    resource_id?: NullableStringFieldUpdateOperationsInput | string | null
+    method?: NullableStringFieldUpdateOperationsInput | string | null
+    path?: NullableStringFieldUpdateOperationsInput | string | null
+    old_data?: NullableJsonNullValueInput | InputJsonValue
+    new_data?: NullableJsonNullValueInput | InputJsonValue
+    details?: NullableJsonNullValueInput | InputJsonValue
+    ip?: NullableStringFieldUpdateOperationsInput | string | null
+    user_agent?: NullableStringFieldUpdateOperationsInput | string | null
+    device_label?: NullableStringFieldUpdateOperationsInput | string | null
+  }
+
+  export type audit_logsCreateManyInput = {
+    id?: string
+    created_at?: Date | string
+    user_id?: number | null
+    username?: string | null
+    email?: string | null
+    name?: string | null
+    role_slug?: string | null
+    action: string
+    resource_type?: string | null
+    resource_id?: string | null
+    method?: string | null
+    path?: string | null
+    old_data?: NullableJsonNullValueInput | InputJsonValue
+    new_data?: NullableJsonNullValueInput | InputJsonValue
+    details?: NullableJsonNullValueInput | InputJsonValue
+    ip?: string | null
+    user_agent?: string | null
+    device_label?: string | null
+  }
+
+  export type audit_logsUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    user_id?: NullableIntFieldUpdateOperationsInput | number | null
+    username?: NullableStringFieldUpdateOperationsInput | string | null
+    email?: NullableStringFieldUpdateOperationsInput | string | null
+    name?: NullableStringFieldUpdateOperationsInput | string | null
+    role_slug?: NullableStringFieldUpdateOperationsInput | string | null
+    action?: StringFieldUpdateOperationsInput | string
+    resource_type?: NullableStringFieldUpdateOperationsInput | string | null
+    resource_id?: NullableStringFieldUpdateOperationsInput | string | null
+    method?: NullableStringFieldUpdateOperationsInput | string | null
+    path?: NullableStringFieldUpdateOperationsInput | string | null
+    old_data?: NullableJsonNullValueInput | InputJsonValue
+    new_data?: NullableJsonNullValueInput | InputJsonValue
+    details?: NullableJsonNullValueInput | InputJsonValue
+    ip?: NullableStringFieldUpdateOperationsInput | string | null
+    user_agent?: NullableStringFieldUpdateOperationsInput | string | null
+    device_label?: NullableStringFieldUpdateOperationsInput | string | null
+  }
+
+  export type audit_logsUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    user_id?: NullableIntFieldUpdateOperationsInput | number | null
+    username?: NullableStringFieldUpdateOperationsInput | string | null
+    email?: NullableStringFieldUpdateOperationsInput | string | null
+    name?: NullableStringFieldUpdateOperationsInput | string | null
+    role_slug?: NullableStringFieldUpdateOperationsInput | string | null
+    action?: StringFieldUpdateOperationsInput | string
+    resource_type?: NullableStringFieldUpdateOperationsInput | string | null
+    resource_id?: NullableStringFieldUpdateOperationsInput | string | null
+    method?: NullableStringFieldUpdateOperationsInput | string | null
+    path?: NullableStringFieldUpdateOperationsInput | string | null
+    old_data?: NullableJsonNullValueInput | InputJsonValue
+    new_data?: NullableJsonNullValueInput | InputJsonValue
+    details?: NullableJsonNullValueInput | InputJsonValue
+    ip?: NullableStringFieldUpdateOperationsInput | string | null
+    user_agent?: NullableStringFieldUpdateOperationsInput | string | null
+    device_label?: NullableStringFieldUpdateOperationsInput | string | null
+  }
+
   export type IntFilter<$PrismaModel = never> = {
     equals?: number | IntFieldRefInput<$PrismaModel>
     in?: number[] | ListIntFieldRefInput<$PrismaModel>
@@ -25121,6 +26696,120 @@ export namespace Prisma {
     created_at?: SortOrder
     updated_at?: SortOrder
   }
+  export type JsonNullableFilter<$PrismaModel = never> =
+    | PatchUndefined<
+        Either<Required<JsonNullableFilterBase<$PrismaModel>>, Exclude<keyof Required<JsonNullableFilterBase<$PrismaModel>>, 'path'>>,
+        Required<JsonNullableFilterBase<$PrismaModel>>
+      >
+    | OptionalFlat<Omit<Required<JsonNullableFilterBase<$PrismaModel>>, 'path'>>
+
+  export type JsonNullableFilterBase<$PrismaModel = never> = {
+    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+    path?: string[]
+    mode?: QueryMode | EnumQueryModeFieldRefInput<$PrismaModel>
+    string_contains?: string | StringFieldRefInput<$PrismaModel>
+    string_starts_with?: string | StringFieldRefInput<$PrismaModel>
+    string_ends_with?: string | StringFieldRefInput<$PrismaModel>
+    array_starts_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_ends_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_contains?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    lt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    lte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    gt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    gte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+  }
+
+  export type audit_logsCountOrderByAggregateInput = {
+    id?: SortOrder
+    created_at?: SortOrder
+    user_id?: SortOrder
+    username?: SortOrder
+    email?: SortOrder
+    name?: SortOrder
+    role_slug?: SortOrder
+    action?: SortOrder
+    resource_type?: SortOrder
+    resource_id?: SortOrder
+    method?: SortOrder
+    path?: SortOrder
+    old_data?: SortOrder
+    new_data?: SortOrder
+    details?: SortOrder
+    ip?: SortOrder
+    user_agent?: SortOrder
+    device_label?: SortOrder
+  }
+
+  export type audit_logsAvgOrderByAggregateInput = {
+    user_id?: SortOrder
+  }
+
+  export type audit_logsMaxOrderByAggregateInput = {
+    id?: SortOrder
+    created_at?: SortOrder
+    user_id?: SortOrder
+    username?: SortOrder
+    email?: SortOrder
+    name?: SortOrder
+    role_slug?: SortOrder
+    action?: SortOrder
+    resource_type?: SortOrder
+    resource_id?: SortOrder
+    method?: SortOrder
+    path?: SortOrder
+    ip?: SortOrder
+    user_agent?: SortOrder
+    device_label?: SortOrder
+  }
+
+  export type audit_logsMinOrderByAggregateInput = {
+    id?: SortOrder
+    created_at?: SortOrder
+    user_id?: SortOrder
+    username?: SortOrder
+    email?: SortOrder
+    name?: SortOrder
+    role_slug?: SortOrder
+    action?: SortOrder
+    resource_type?: SortOrder
+    resource_id?: SortOrder
+    method?: SortOrder
+    path?: SortOrder
+    ip?: SortOrder
+    user_agent?: SortOrder
+    device_label?: SortOrder
+  }
+
+  export type audit_logsSumOrderByAggregateInput = {
+    user_id?: SortOrder
+  }
+  export type JsonNullableWithAggregatesFilter<$PrismaModel = never> =
+    | PatchUndefined<
+        Either<Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, Exclude<keyof Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, 'path'>>,
+        Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>
+      >
+    | OptionalFlat<Omit<Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, 'path'>>
+
+  export type JsonNullableWithAggregatesFilterBase<$PrismaModel = never> = {
+    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+    path?: string[]
+    mode?: QueryMode | EnumQueryModeFieldRefInput<$PrismaModel>
+    string_contains?: string | StringFieldRefInput<$PrismaModel>
+    string_starts_with?: string | StringFieldRefInput<$PrismaModel>
+    string_ends_with?: string | StringFieldRefInput<$PrismaModel>
+    array_starts_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_ends_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_contains?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    lt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    lte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    gt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    gte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedJsonNullableFilter<$PrismaModel>
+    _max?: NestedJsonNullableFilter<$PrismaModel>
+  }
 
   export type social_media_accountsCreateNestedManyWithoutPlatformsInput = {
     create?: XOR<social_media_accountsCreateWithoutPlatformsInput, social_media_accountsUncheckedCreateWithoutPlatformsInput> | social_media_accountsCreateWithoutPlatformsInput[] | social_media_accountsUncheckedCreateWithoutPlatformsInput[]
@@ -25878,6 +27567,29 @@ export namespace Prisma {
     gt?: number | FloatFieldRefInput<$PrismaModel>
     gte?: number | FloatFieldRefInput<$PrismaModel>
     not?: NestedFloatNullableFilter<$PrismaModel> | number | null
+  }
+  export type NestedJsonNullableFilter<$PrismaModel = never> =
+    | PatchUndefined<
+        Either<Required<NestedJsonNullableFilterBase<$PrismaModel>>, Exclude<keyof Required<NestedJsonNullableFilterBase<$PrismaModel>>, 'path'>>,
+        Required<NestedJsonNullableFilterBase<$PrismaModel>>
+      >
+    | OptionalFlat<Omit<Required<NestedJsonNullableFilterBase<$PrismaModel>>, 'path'>>
+
+  export type NestedJsonNullableFilterBase<$PrismaModel = never> = {
+    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+    path?: string[]
+    mode?: QueryMode | EnumQueryModeFieldRefInput<$PrismaModel>
+    string_contains?: string | StringFieldRefInput<$PrismaModel>
+    string_starts_with?: string | StringFieldRefInput<$PrismaModel>
+    string_ends_with?: string | StringFieldRefInput<$PrismaModel>
+    array_starts_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_ends_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_contains?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    lt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    lte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    gt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    gte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
   }
 
   export type social_media_accountsCreateWithoutPlatformsInput = {

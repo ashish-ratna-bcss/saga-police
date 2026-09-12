@@ -353,6 +353,33 @@ model policy_mappings {
   @@index([is_active, category_id])
 }
 
+/// Per-tenant application change log (old/new, actor, IP, device).
+model audit_logs {
+  id            String   @id @default(uuid())
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  user_id       Int?
+  username      String?
+  email         String?
+  name          String?
+  role_slug     String?
+  action        String
+  resource_type String?
+  resource_id   String?
+  method        String?
+  path          String?
+  old_data      Json?
+  new_data      Json?
+  details       Json?
+  ip            String?
+  user_agent    String?  @db.Text
+  device_label  String?
+
+  @@index([created_at])
+  @@index([user_id, created_at])
+  @@index([action, created_at])
+  @@index([resource_type, created_at])
+}
+
 enum monitoring_status_enum {
   started
   stopped

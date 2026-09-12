@@ -382,6 +382,31 @@ async function ensureUserThemeColumns(prisma) {
   `);
 }
 
+async function ensureAuthSessionsTable(prisma) {
+  await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS auth_sessions (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      revoked_at TIMESTAMPTZ NULL,
+      ip TEXT NULL,
+      user_agent TEXT NULL,
+      device_label TEXT NULL,
+      frontend_port INTEGER NULL
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS auth_sessions_user_id_revoked_at_idx
+    ON auth_sessions (user_id, revoked_at)
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS auth_sessions_user_id_created_at_idx
+    ON auth_sessions (user_id, created_at DESC)
+  `);
+}
+
 async function ensurePlatformFields(prisma) {
   if (!(await tableExists(prisma, 'platforms'))) return;
   await prisma.$executeRawUnsafe(`
@@ -1159,6 +1184,7 @@ async function main() {
 
     await ensureUserThemeColumns(prisma);
     await migrateUserAccessColumns(prisma);
+    await ensureAuthSessionsTable(prisma);
 
     const after = await countPublicTables(prisma);
     const stillMissing = await missingRequiredTables(prisma);

@@ -29,7 +29,14 @@ const updateSettings = async (req, res) => {
     }
 
     const settings = await updateSettingsDoc(req.body || {}, { db: req.tenantPrisma });
-    await createAuditLog(req.user, 'update', 'settings', 'global_settings', req.body);
+    await createAuditLog({
+      req,
+      user: req.user,
+      action: 'update',
+      resourceType: 'settings',
+      resourceId: 'global_settings',
+      newData: req.body,
+    });
 
     res.status(200).json(settings);
   } catch (error) {

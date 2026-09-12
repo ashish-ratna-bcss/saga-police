@@ -374,12 +374,38 @@ exports.Prisma.Policy_mappingsScalarFieldEnum = {
   updated_at: 'updated_at'
 };
 
+exports.Prisma.Audit_logsScalarFieldEnum = {
+  id: 'id',
+  created_at: 'created_at',
+  user_id: 'user_id',
+  username: 'username',
+  email: 'email',
+  name: 'name',
+  role_slug: 'role_slug',
+  action: 'action',
+  resource_type: 'resource_type',
+  resource_id: 'resource_id',
+  method: 'method',
+  path: 'path',
+  old_data: 'old_data',
+  new_data: 'new_data',
+  details: 'details',
+  ip: 'ip',
+  user_agent: 'user_agent',
+  device_label: 'device_label'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
 };
 
 exports.Prisma.JsonNullValueInput = {
+  JsonNull: Prisma.JsonNull
+};
+
+exports.Prisma.NullableJsonNullValueInput = {
+  DbNull: Prisma.DbNull,
   JsonNull: Prisma.JsonNull
 };
 
@@ -426,7 +452,8 @@ exports.Prisma.ModelName = {
   social_media_event_media: 'social_media_event_media',
   alert_config: 'alert_config',
   report_templates: 'report_templates',
-  policy_mappings: 'policy_mappings'
+  policy_mappings: 'policy_mappings',
+  audit_logs: 'audit_logs'
 };
 
 /**

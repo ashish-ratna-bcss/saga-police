@@ -2,8 +2,8 @@ import apiHandler from './apiHandler';
 
 /** Auth endpoints — login, session, theme */
 export const authApi = {
-  login: (username, password) =>
-    apiHandler.post('/login', { username, password }),
+  login: (username, password, { force = false } = {}) =>
+    apiHandler.post('/login', { username, password, ...(force ? { force: true } : {}) }),
 
   logout: () => apiHandler.post('/logout'),
 

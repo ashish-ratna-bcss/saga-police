@@ -311,6 +311,8 @@ const AuditLogs = () => {
         (log.user_email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (log.action || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (log.resource_type || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (log.tenant_label || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (log.tenant_db || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (JSON.stringify(log.details || {}).toLowerCase().includes(searchTerm.toLowerCase()));
       
       const matchesAction = actionFilter === 'all' || log.action === actionFilter;
@@ -500,7 +502,8 @@ const AuditLogs = () => {
                 <TableHead>User</TableHead>
                 <TableHead>Action</TableHead>
                 <TableHead>Resource</TableHead>
-                <TableHead className="min-w-[300px]">Details</TableHead>
+                <TableHead>Device / IP</TableHead>
+                <TableHead className="min-w-[280px]">Change</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -511,12 +514,13 @@ const AuditLogs = () => {
                     <TableCell><div className="h-4 w-32 bg-gray-200 dark:bg-slate-700 animate-pulse rounded" /></TableCell>
                     <TableCell><div className="h-6 w-20 bg-gray-200 dark:bg-slate-700 animate-pulse rounded" /></TableCell>
                     <TableCell><div className="h-4 w-24 bg-gray-200 dark:bg-slate-700 animate-pulse rounded" /></TableCell>
+                    <TableCell><div className="h-4 w-28 bg-gray-200 dark:bg-slate-700 animate-pulse rounded" /></TableCell>
                     <TableCell><div className="h-4 w-48 bg-gray-200 dark:bg-slate-700 animate-pulse rounded" /></TableCell>
                   </TableRow>
                 ))
               ) : filteredLogs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     No logs found matching your criteria
                   </TableCell>
                 </TableRow>
@@ -537,7 +541,14 @@ const AuditLogs = () => {
                           <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
                             {(log.user_name || log.user_email || 'U').charAt(0).toUpperCase()}
                           </div>
-                          <span>{log.user_name || log.user_email || 'Unknown User'}</span>
+                          <div className="flex flex-col min-w-0">
+                            <span>{log.user_name || log.user_email || 'Unknown User'}</span>
+                            {(log.tenant_label || log.tenant_db) && (
+                              <span className="text-xs text-muted-foreground truncate" title={log.tenant_db || ''}>
+                                {log.tenant_label || log.tenant_db}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -548,10 +559,23 @@ const AuditLogs = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="capitalize">{log.resource_type || 'unknown'}</TableCell>
-                      <TableCell className="max-w-md">
-                        <div className="truncate" title={JSON.stringify(log.details || {})}>
-                          {JSON.stringify(log.details || {})}
-                        </div>
+                      <TableCell className="text-xs text-muted-foreground">
+                        <div>{log.device_label || '—'}</div>
+                        <div>{log.ip || ''}</div>
+                      </TableCell>
+                      <TableCell className="max-w-md text-xs">
+                        {(log.old_data || log.new_data) ? (
+                          <details>
+                            <summary className="cursor-pointer text-primary">View old / new</summary>
+                            <pre className="mt-2 max-h-40 overflow-auto rounded bg-muted p-2 whitespace-pre-wrap break-all">
+{JSON.stringify({ old: log.old_data, new: log.new_data }, null, 2)}
+                            </pre>
+                          </details>
+                        ) : (
+                          <div className="truncate" title={JSON.stringify(log.details || {})}>
+                            {JSON.stringify(log.details || {})}
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   );

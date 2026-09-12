@@ -15,6 +15,7 @@ const { getJwtSecret } = require('../config/env');
 const { readAuthCookie } = require('../config/cookies');
 const { toPublicUser } = require('../modules/user/user.utils');
 const { getTenantPrisma } = require('../lib/tenantDatabase.service');
+const { getSessionById, touchSession } = require('../modules/auth/auth.session');
 
 const getTokenFromRequest = (req) => {
   const fromCookie = readAuthCookie(req);
@@ -109,8 +110,29 @@ const authorize = (...args) => {
       if (!user) {
         return res.status(401).json({ message: 'Not authorized, user not found' });
       }
+
+      // Single-device: JWT must carry an active session id
+      if (!decoded.sid) {
+        return res.status(401).json({
+          code: 'SESSION_REVOKED',
+          message: 'Session expired. Please log in again.',
+        });
+      }
+      const session = await getSessionById(decoded.sid);
+      if (!session || session.user_id !== user.id || session.revoked_at) {
+        return res.status(401).json({
+          code: 'SESSION_REVOKED',
+          message: 'This account was signed in on another device.',
+        });
+      }
+      // Throttle last_seen updates (about once per minute)
+      const lastSeenMs = session.last_seen_at ? new Date(session.last_seen_at).getTime() : 0;
+      if (Date.now() - lastSeenMs > 60_000) {
+        touchSession(session.id).catch(() => {});
+      }
+      req.sessionId = session.id;
+
       req.user = toPublicUser(user, user.roles);
-      // DB is source of truth; JWT db_name is advisory (stale tokens still work).
       const tenantDbName = user.db_name || null;
       if (decoded.db_name && user.db_name && decoded.db_name !== user.db_name) {
         logger.warn(
