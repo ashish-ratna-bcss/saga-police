@@ -103,7 +103,7 @@ node "$SCRIPT_DIR/render_nginx.js" "$SITES_JSON" --web-root "$WEB_ROOT" --out "$
 
 if command -v pm2 >/dev/null 2>&1; then
   log "Starting/reloading independent PM2 apps from ecosystem.config.js"
-  pm2 startOrReload "$APP_DIR/ecosystem.config.js" --update-env
+  pm2 startOrReload "$APP_DIR/deploy/ecosystem.config.js" --update-env
   pm2 save || true
 else
   echo "pm2 not found — start each site from $SITES_JSON manually, e.g.:" >&2

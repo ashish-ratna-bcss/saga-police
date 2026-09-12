@@ -5,7 +5,7 @@
  *   pm2 start ecosystem.config.js
  *   pm2 restart odisha-api
  *   pm2 restart delhipolice-api
- *   pm2 restart ukpolice-api
+ *   pm2 restart uttarakhandpolice-api
  *   pm2 logs odisha-api
  *   pm2 logs delhipolice-api
  */
@@ -14,7 +14,7 @@ const path = require('path');
 const fs = require('fs');
 
 let sitesConfig = { sites: [], backend_bind: '127.0.0.1', ip: '100.49.109.96' };
-const sitesJsonPath = path.join(__dirname, 'deploy', 'sites.json');
+const sitesJsonPath = path.join(__dirname, 'sites.json');
 
 if (fs.existsSync(sitesJsonPath)) {
   try {
@@ -24,7 +24,8 @@ if (fs.existsSync(sitesJsonPath)) {
   }
 }
 
-const backendDir = path.join(__dirname, 'backend');
+const appRoot = path.join(__dirname, '..');
+const backendDir = path.join(appRoot, 'backend');
 const logsDir = path.join(backendDir, 'logs');
 if (!fs.existsSync(logsDir)) {
   try {

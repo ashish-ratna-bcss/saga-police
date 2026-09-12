@@ -15,12 +15,14 @@
     {
       "admin": "delhipolice",
       "frontend_port": 3001,
-      "backend_port": 5006
+      "backend_port": 5006,
+      "domain": "delhipolice.blurasaga.com"
     },
     {
       "admin": "uttarakhandpolice",
       "frontend_port": 3002,
-      "backend_port": 5007
+      "backend_port": 5007,
+      "domain": "uttarakhandpolice.blurasaga.com"
     }
   ]
 }

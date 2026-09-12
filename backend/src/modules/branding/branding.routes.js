@@ -61,16 +61,12 @@ const findByHost = async (host) => {
   );
 };
 
-const toBrandingPayload = (user, req) => {
+const toBrandingPayload = (user) => {
   const app = readApplicationDetails(user);
-  const logoPath = resolveLogoUrl(user);
-  // Absolute logo URL so login <img> always hits the API (not the CRA origin)
-  const proto = req.get('x-forwarded-proto') || req.protocol || 'http';
-  const host = req.get('x-forwarded-host') || req.get('host');
-  const logo =
-    logoPath.startsWith('http://') || logoPath.startsWith('https://')
-      ? logoPath
-      : `${proto}://${host}${logoPath}`;
+  // Keep logo relative (/api/branding/logo?…) so the browser uses the page
+  // origin (incl. :3000/:3001/:3002). Absolute URLs built from nginx $host
+  // drop the UI port and hit :80 (vLLM) instead of the tenant proxy.
+  const logo = resolveLogoUrl(user);
 
   return {
     title: app.title,
@@ -103,7 +99,7 @@ router.get('/', async (req, res) => {
     }
 
     if (!user) return res.json(DEFAULT);
-    return res.json(toBrandingPayload(user, req));
+    return res.json(toBrandingPayload(user));
   } catch (error) {
     logger.error('[Branding] lookup failed:', error.message);
     return res.status(500).json({ message: 'Failed to load branding' });

@@ -177,6 +177,13 @@ const Login = () => {
         .login-screen .anim-drift {
           animation: login-drift 18s ease-in-out infinite;
         }
+        @keyframes login-sticker-float {
+          0%, 100% { transform: translate(-50%, -50%) rotate(-6deg) scale(1); }
+          50% { transform: translate(-50%, calc(-50% - 10px)) rotate(-4deg) scale(1.03); }
+        }
+        .login-screen .login-logo-sticker {
+          animation: login-sticker-float 16s ease-in-out infinite;
+        }
         .login-screen input:-webkit-autofill,
         .login-screen input:-webkit-autofill:hover,
         .login-screen input:-webkit-autofill:focus {
@@ -201,12 +208,6 @@ const Login = () => {
         />
         <div className="anim-drift absolute -left-[10%] top-[-20%] h-[70vmin] w-[70vmin] rounded-full bg-[radial-gradient(circle,rgba(14,116,144,0.35)_0%,transparent_68%)] blur-2xl" />
         <div className="anim-drift absolute bottom-[-15%] right-[-5%] h-[55vmin] w-[55vmin] rounded-full bg-[radial-gradient(circle,rgba(180,83,9,0.22)_0%,transparent_70%)] blur-2xl" style={{ animationDelay: '-6s' }} />
-        <img
-          key={`wm-${logoUrl}`}
-          src={logoUrl}
-          alt=""
-          className="absolute right-[4%] top-[42%] h-[48vmin] w-auto max-w-[42%] -translate-y-1/2 object-contain opacity-[0.05]"
-        />
       </div>
 
       {/* Mobile atmosphere */}
@@ -224,15 +225,37 @@ const Login = () => {
 
       <div className="relative z-10 flex min-h-screen w-full flex-col lg:grid lg:grid-cols-[1fr_26rem] xl:grid-cols-[1fr_28rem]">
         {/* Compact brand — mobile top / desktop left */}
-        <section className="anim-brand relative flex flex-col px-5 pt-6 pb-2 sm:px-8 lg:min-h-screen lg:justify-between lg:px-16 lg:py-12 xl:px-20">
-          <div className="lg:flex lg:flex-1 lg:flex-col lg:justify-center">
+        <section className="anim-brand relative flex flex-col overflow-hidden px-5 pt-6 pb-2 sm:px-8 lg:min-h-screen lg:justify-between lg:px-16 lg:py-12 xl:px-20">
+          {/* Logo sticker — large faint mark behind capabilities */}
+          <div
+            className="pointer-events-none absolute inset-0 z-0 hidden lg:block"
+            aria-hidden="true"
+          >
+            <img
+              key={`sticker-${logoUrl}`}
+              src={logoUrl}
+              alt=""
+              className="login-logo-sticker absolute left-[52%] top-[54%] h-[min(58vmin,520px)] w-auto max-w-[70%] -translate-x-1/2 -translate-y-1/2 rotate-[-6deg] object-contain opacity-[0.11] select-none"
+              style={{
+                filter: 'drop-shadow(0 0 40px rgba(56,189,248,0.12))',
+                maskImage:
+                  'radial-gradient(ellipse at center, black 35%, transparent 78%)',
+                WebkitMaskImage:
+                  'radial-gradient(ellipse at center, black 35%, transparent 78%)',
+              }}
+            />
+          </div>
+
+          <div className="relative z-10 lg:flex lg:flex-1 lg:flex-col lg:justify-center">
             <div className="flex items-center gap-3 lg:block">
-              <img
-                key={logoUrl}
-                src={logoUrl}
-                alt=""
-                className="h-12 w-auto max-w-[120px] shrink-0 object-contain sm:h-14 sm:max-w-[140px] lg:mb-8 lg:h-20 lg:max-w-[280px] xl:h-24 xl:max-w-[300px]"
-              />
+              <div className="shrink-0 rounded-md bg-white p-1.5 shadow-sm shadow-black/20 sm:p-2 lg:mb-8 lg:inline-block lg:p-2.5">
+                <img
+                  key={logoUrl}
+                  src={logoUrl}
+                  alt=""
+                  className="h-10 w-auto max-w-[100px] object-contain sm:h-12 sm:max-w-[120px] lg:h-16 lg:max-w-[220px] xl:h-20 xl:max-w-[240px]"
+                />
+              </div>
               <div className="min-w-0 lg:contents">
                 <h1 className="font-heading text-2xl font-bold uppercase leading-none tracking-[0.1em] text-white sm:text-3xl lg:text-5xl xl:text-6xl 2xl:text-7xl lg:leading-[0.95] lg:tracking-[0.12em]">
                   {branding.title}
@@ -246,11 +269,11 @@ const Login = () => {
             </div>
 
             {/* Capabilities — desktop only here; mobile below form */}
-            <div className="mt-10 hidden max-w-3xl lg:block">
+            <div className="relative mt-10 hidden max-w-3xl lg:block">
               <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-300/80">
                 What you can do
               </p>
-              <ul className="grid grid-cols-2 gap-x-10 gap-y-5">
+              <ul className="relative z-10 grid grid-cols-2 gap-x-10 gap-y-5">
                 {CAPABILITIES.map(({ icon: Icon, title, desc }) => (
                   <li key={title} className="flex gap-3.5">
                     <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-cyan-300/90 ring-1 ring-white/10">
@@ -266,35 +289,39 @@ const Login = () => {
             </div>
           </div>
 
-          <div className="mt-auto hidden flex-wrap items-end justify-between gap-6 border-t border-white/10 pt-6 lg:flex">
-            <div className="flex flex-wrap items-center gap-8">
+          <div className="relative z-10 mt-auto hidden flex-wrap items-end justify-between gap-6 border-t border-white/10 pt-6 lg:flex">
+            <div className="flex flex-wrap items-center gap-10">
               {branding.port != null && (
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/40">
+                <div className="flex items-center gap-3.5">
+                  <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/45">
                     Platform
                   </span>
-                  <img
-                    src="/blura_saga_logo.jpg"
-                    alt="Blura Saga"
-                    className="h-8 w-auto max-w-[120px] object-contain opacity-90"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
+                  <span className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 shadow-sm shadow-black/20">
+                    <img
+                      src="/blura_saga_logo.jpg"
+                      alt="Blura Saga"
+                      className="h-11 w-auto max-w-[160px] object-contain"
+                      onError={(e) => {
+                        e.currentTarget.closest('span')?.remove();
+                      }}
+                    />
+                  </span>
                 </div>
               )}
-              <div className="flex items-center gap-3">
-                <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/40">
+              <div className="flex items-center gap-3.5">
+                <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/45">
                   Powered by
                 </span>
-                <img
-                  src="/Logo.png"
-                  alt="Blue Cloud Softech Solutions Limited"
-                  className="h-9 w-auto max-w-[160px] object-contain opacity-90"
-                />
+                <span className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 shadow-sm shadow-black/20">
+                  <img
+                    src="/Logo.png"
+                    alt="Blue Cloud Softech Solutions Limited"
+                    className="h-12 w-auto max-w-[200px] object-contain"
+                  />
+                </span>
               </div>
             </div>
-            <p className="text-[11px] text-white/40">© 2026 {branding.title}</p>
+            <p className="text-xs text-white/45">© 2026 {branding.title}</p>
           </div>
         </section>
 
@@ -421,33 +448,37 @@ const Login = () => {
             ))}
           </ul>
 
-          <div className="mt-8 flex flex-wrap items-center gap-5 border-t border-white/10 pt-6">
+          <div className="mt-8 flex flex-wrap items-center gap-6 border-t border-white/10 pt-6">
             {branding.port != null && (
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] font-medium uppercase tracking-[0.16em] text-white/40">
+              <div className="flex items-center gap-2.5">
+                <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-white/45">
                   Platform
                 </span>
-                <img
-                  src="/blura_saga_logo.jpg"
-                  alt="Blura Saga"
-                  className="h-6 w-auto max-w-[90px] object-contain opacity-90"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                  }}
-                />
+                <span className="inline-flex items-center rounded-md bg-white px-2 py-1 shadow-sm shadow-black/20">
+                  <img
+                    src="/blura_saga_logo.jpg"
+                    alt="Blura Saga"
+                    className="h-8 w-auto max-w-[120px] object-contain"
+                    onError={(e) => {
+                      e.currentTarget.closest('span')?.remove();
+                    }}
+                  />
+                </span>
               </div>
             )}
-            <div className="flex items-center gap-2">
-              <span className="text-[9px] font-medium uppercase tracking-[0.16em] text-white/40">
+            <div className="flex items-center gap-2.5">
+              <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-white/45">
                 Powered by
               </span>
-              <img
-                src="/Logo.png"
-                alt="Blue Cloud Softech Solutions Limited"
-                className="h-7 w-auto max-w-[120px] object-contain opacity-90"
-              />
+              <span className="inline-flex items-center rounded-md bg-white px-2 py-1 shadow-sm shadow-black/20">
+                <img
+                  src="/Logo.png"
+                  alt="Blue Cloud Softech Solutions Limited"
+                  className="h-9 w-auto max-w-[150px] object-contain"
+                />
+              </span>
             </div>
-            <p className="w-full text-[11px] text-white/40">© 2026 {branding.title}</p>
+            <p className="w-full text-xs text-white/45">© 2026 {branding.title}</p>
           </div>
         </section>
       </div>

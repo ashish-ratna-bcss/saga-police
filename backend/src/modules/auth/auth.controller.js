@@ -38,7 +38,7 @@ const login = async (req, res) => {
       { ip: req.ip }
     );
 
-    createAuthCookie(res, generateToken(user.id, user.db_name));
+    createAuthCookie(res, generateToken(user.id, user.db_name), req);
     const publicUser = toPublicUser(user, user.roles);
     return res.json({
       message: 'Logged in',
@@ -51,7 +51,7 @@ const login = async (req, res) => {
 };
 
 const logout = (req, res) => {
-  deleteAuthCookie(res);
+  deleteAuthCookie(res, req);
   return res.status(200).json({ message: 'Logged out' });
 };
 

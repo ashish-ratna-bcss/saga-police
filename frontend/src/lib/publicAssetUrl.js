@@ -17,7 +17,9 @@ export const resolvePublicAssetUrl = (raw) => {
       const localHost = u.hostname === 'localhost' || u.hostname === '127.0.0.1';
       const filesPath =
         u.pathname.startsWith('/files/') || u.pathname.startsWith('/api/files/');
-      if (localHost && filesPath) {
+      const brandingPath = u.pathname.startsWith('/api/branding/');
+      // Rewrite loopback or portless branding/file URLs onto the current API origin
+      if ((localHost && (filesPath || brandingPath)) || brandingPath) {
         return `${BACKEND_URL}${u.pathname}${u.search}`;
       }
       return value;

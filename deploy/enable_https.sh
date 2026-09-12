@@ -57,14 +57,13 @@ sudo -n cp "$APP_DIR/deploy/nginx.conf" "/etc/nginx/sites-available/$NGINX_SITE"
 sudo -n nginx -t
 sudo -n systemctl reload nginx
 
-# Cookies / public URL for first domain
+# Public URL for first domain (cookie Secure follows request HTTPS automatically)
 FIRST="${DOMAINS[0]}"
 ENV_FILE="$APP_DIR/backend/.env"
 if [[ -f "$ENV_FILE" ]]; then
+  # Drop legacy COOKIE_SECURE — Secure is derived from X-Forwarded-Proto
   if grep -q '^COOKIE_SECURE=' "$ENV_FILE"; then
-    sed -i 's/^COOKIE_SECURE=.*/COOKIE_SECURE=true/' "$ENV_FILE"
-  else
-    printf '\nCOOKIE_SECURE=true\n' >> "$ENV_FILE"
+    sed -i '/^COOKIE_SECURE=/d' "$ENV_FILE"
   fi
   if grep -q '^PUBLIC_BACKEND_URL=' "$ENV_FILE"; then
     sed -i "s|^PUBLIC_BACKEND_URL=.*|PUBLIC_BACKEND_URL=https://$FIRST|" "$ENV_FILE"

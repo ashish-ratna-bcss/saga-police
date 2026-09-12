@@ -135,7 +135,8 @@ function proxyBlock(upstream, indent = '        ', longTimeout = false) {
   const lines = [
     `${indent}proxy_pass ${upstream};`,
     `${indent}proxy_http_version 1.1;`,
-    `${indent}proxy_set_header Host $host;`,
+    `${indent}proxy_set_header Host $http_host;`,
+    `${indent}proxy_set_header X-Forwarded-Host $http_host;`,
     `${indent}proxy_set_header X-Real-IP $remote_addr;`,
     `${indent}proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`,
     `${indent}proxy_set_header X-Forwarded-Proto $scheme;`,
