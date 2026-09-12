@@ -98,14 +98,14 @@ const PlatformsTab = () => {
     setDialogOpen(true);
   };
 
-  const openEdit = (row) => {
+  const openEdit = async (row) => {
     setEditing(row);
     setForm({
       name: row.name || '',
       slug: row.slug || '',
       icon: row.icon || 'Globe2',
-      blugate_client_key: row.blugate_client_key || '',
-      api_key: row.api_key || '',
+      blugate_client_key: '',
+      api_key: '',
       low_threshold: row.low_threshold ?? 100,
       medium_threshold: row.medium_threshold ?? 500,
       high_threshold: row.high_threshold ?? 1000,
@@ -115,6 +115,26 @@ const PlatformsTab = () => {
     setShowBlugateKey(false);
     setShowApiKey(false);
     setDialogOpen(true);
+    try {
+      // List is masked; managers fetch one platform to fill decrypted keys
+      const res = await socialProfilesApi.getPlatform(row.id);
+      const full = res.data || {};
+      setEditing((prev) => ({ ...(prev || row), ...full }));
+      setForm((f) => ({
+        ...f,
+        blugate_client_key: full.blugate_client_key || '',
+        api_key: full.api_key || '',
+        name: full.name || f.name,
+        icon: full.icon || f.icon,
+        low_threshold: full.low_threshold ?? f.low_threshold,
+        medium_threshold: full.medium_threshold ?? f.medium_threshold,
+        high_threshold: full.high_threshold ?? f.high_threshold,
+        time_window_minutes: full.time_window_minutes ?? f.time_window_minutes,
+        is_active: full.is_active !== false,
+      }));
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Could not load platform keys');
+    }
   };
 
   const applyPreset = (slug) => {

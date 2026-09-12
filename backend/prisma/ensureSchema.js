@@ -318,6 +318,68 @@ async function ensureUserThemeColumns(prisma) {
     SET theme_color = theme_color || '{"type":"gradient","value":"linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)","primary_hex":"#38bdf8"}'::jsonb
     WHERE theme_color->>'value' = '#06b6d4'
   `);
+
+  // Logo binary columns — store admin logos in DB instead of local disk/paths.
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS logo_data BYTEA NULL
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS logo_mime TEXT NULL
+  `);
+
+  // Branding outside theme_color; login resolves by port.
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS application_details JSONB NULL
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS port INTEGER NULL
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE UNIQUE INDEX IF NOT EXISTS users_port_key ON users (port)
+    WHERE port IS NOT NULL
+  `);
+
+  // One-time migrate branding fields out of theme_color → application_details
+  await prisma.$executeRawUnsafe(`
+    UPDATE users
+    SET application_details = jsonb_strip_nulls(jsonb_build_object(
+      'title', COALESCE(theme_color->>'blurasagatitle', theme_color->>'title'),
+      'subtitle', theme_color->>'subtitle',
+      'description', COALESCE(theme_color->>'blurasagadescription', theme_color->>'description'),
+      'application_name', COALESCE(theme_color->>'blurasagatitle', theme_color->>'title', name)
+    ))
+    WHERE application_details IS NULL
+      AND (
+        theme_color ? 'blurasagatitle'
+        OR theme_color ? 'blurasagadescription'
+        OR theme_color ? 'title'
+        OR theme_color ? 'description'
+      )
+  `);
+
+  // Keep theme_color as theme-only keys
+  await prisma.$executeRawUnsafe(`
+    UPDATE users
+    SET theme_color = jsonb_strip_nulls(jsonb_build_object(
+      'type', COALESCE(theme_color->>'type', 'gradient'),
+      'value', COALESCE(
+        theme_color->>'value',
+        'linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)'
+      ),
+      'primary_hex', COALESCE(theme_color->>'primary_hex', '#38bdf8')
+    ))
+    WHERE theme_color ? 'blurasagatitle'
+       OR theme_color ? 'blurasagadescription'
+       OR theme_color ? 'blurasagalogo'
+       OR theme_color ? 'logo'
+       OR theme_color ? 'title'
+       OR theme_color ? 'description'
+       OR theme_color ? 'subtitle'
+  `);
 }
 
 async function ensurePlatformFields(prisma) {

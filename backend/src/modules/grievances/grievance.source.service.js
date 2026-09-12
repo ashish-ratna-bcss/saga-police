@@ -58,7 +58,7 @@ const listCatalogSources = async (platformFilter = 'all', { db } = {}) => {
     },
     include: {
       profile: { select: { display_name: true } },
-      platforms: { select: { slug: true, api_key: true, blugate_client_key: true } },
+      platforms: { select: { slug: true } },
       _count: { select: { grievances: true } },
     },
     orderBy: { updated_at: 'desc' },

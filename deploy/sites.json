@@ -10,23 +10,17 @@
       "backend_port": 5005,
       "domain": "odisha.blurasaga.com",
       "ssl_certificate": "/etc/letsencrypt/live/odisha.blurasaga.com/fullchain.pem",
-      "ssl_certificate_key": "/etc/letsencrypt/live/odisha.blurasaga.com/privkey.pem",
-      "force_https": true,
-      "enabled": true
+      "ssl_certificate_key": "/etc/letsencrypt/live/odisha.blurasaga.com/privkey.pem"
     },
     {
       "admin": "delhipolice",
       "frontend_port": 3001,
-      "backend_port": 5006,
-      "domain": "",
-      "enabled": true
+      "backend_port": 5006
     },
     {
-      "admin": "ukpolice",
+      "admin": "uttarakhandpolice",
       "frontend_port": 3002,
-      "backend_port": 5007,
-      "domain": "",
-      "enabled": true
+      "backend_port": 5007
     }
   ]
 }

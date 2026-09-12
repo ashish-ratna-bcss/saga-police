@@ -1,117 +1,95 @@
-import tenantData from './tenantBranding.json';
+import { resolvePublicAssetUrl } from './publicAssetUrl';
 import { BACKEND_URL } from './backendUrl';
 
-export const DEFAULT_BLURA_SAGA = tenantData.default || {
-  application_name: 'Blura Saga',
-  username: 'default',
+export const DEFAULT_BLURA_SAGA = {
   title: 'BLURA SAGA',
-  subtitle: 'Cyber Intelligence & Observability',
   logo: '/blura_saga_logo.jpg',
   description:
     'Next-generation Social Media Observation, Threat Monitoring & Cyber Intelligence Platform — built for real-time situational awareness and rapid investigation.',
+  port: null,
 };
 
-/**
- * Determine the target username from param, URL query (?username, ?user, ?port),
- * hostname domain, or window.location.port mapped via tenantBranding.json.
- */
-export function resolveTargetUsername(paramUsername) {
-  const tenants = tenantData.tenants || [];
+/** Current UI port (CRA :3000/:3001/:3002) or ?port= override */
+export function resolveTargetPort() {
+  if (typeof window === 'undefined') return null;
 
-  let target = (paramUsername || '').toString().trim().toLowerCase();
-  if (target) return target;
-
-  if (typeof window !== 'undefined') {
-    const searchParams = new URLSearchParams(window.location.search || '');
-
-    // 1. Direct query param: ?port=3000
-    const queryPort = searchParams.get('port');
-    if (queryPort) {
-      const p = parseInt(queryPort, 10);
-      const matchedByPort = tenants.find((t) => t.port === p);
-      if (matchedByPort?.username) return matchedByPort.username;
-    }
-
-    // 2. Direct query param: ?username=odisha or ?user=odisha or ?tenant=odisha
-    const queryUser = (
-      searchParams.get('username') ||
-      searchParams.get('user') ||
-      searchParams.get('tenant') ||
-      ''
-    ).trim().toLowerCase();
-    if (queryUser) return queryUser;
-
-    // 3. Hostname / domain match (e.g. odisha.blurasaga.com on :443)
-    const host = String(window.location.hostname || '')
-      .trim()
-      .toLowerCase()
-      .replace(/\.$/, '');
-    if (host) {
-      const matchedByDomain = tenants.find((t) => {
-        const domains = Array.isArray(t.domains) ? t.domains : t.domain ? [t.domain] : [];
-        return domains.some((d) => String(d || '').trim().toLowerCase() === host);
-      });
-      if (matchedByDomain?.username) return matchedByDomain.username;
-
-      // Also allow subdomain prefix: odisha.blurasaga.com → odisha
-      const firstLabel = host.split('.')[0];
-      if (firstLabel) {
-        const matchedByLabel = tenants.find(
-          (t) => String(t.username || '').toLowerCase() === firstLabel
-        );
-        if (matchedByLabel?.username) return matchedByLabel.username;
-      }
-    }
-
-    // 4. Port match from window.location.port (e.g. 3000, 3001, 3002)
-    if (window.location.port) {
-      const portNum = parseInt(window.location.port, 10);
-      const matched = tenants.find((t) => t.port === portNum);
-      if (matched?.username) return matched.username;
-    }
+  const searchParams = new URLSearchParams(window.location.search || '');
+  const queryPort = searchParams.get('port');
+  if (queryPort) {
+    const p = parseInt(queryPort, 10);
+    if (Number.isInteger(p) && p > 0) return p;
   }
 
-  return '';
+  if (window.location.port) {
+    const p = parseInt(window.location.port, 10);
+    if (Number.isInteger(p) && p > 0) return p;
+  }
+
+  return null;
+}
+
+export function resolveTargetHost() {
+  if (typeof window === 'undefined') return '';
+  return String(window.location.hostname || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\.$/, '');
+}
+
+export function getInitialBranding() {
+  return {
+    ...DEFAULT_BLURA_SAGA,
+    port: resolveTargetPort(),
+  };
+}
+
+/** @deprecated use getInitialBranding */
+export function getTenantBranding() {
+  return getInitialBranding();
 }
 
 /**
- * Synchronously retrieves tenant branding from tenantBranding.json.
+ * Public login branding (no auth / no cookies).
+ * GET /api/branding?port=3002 → { title, description, logo }
  */
-export function getTenantBranding(paramUsername) {
-  const tenants = tenantData.tenants || [];
-  const username = resolveTargetUsername(paramUsername);
-  if (!username) return DEFAULT_BLURA_SAGA;
-  const configEntry = tenants.find((t) => t.username.toLowerCase() === username.toLowerCase());
-  if (configEntry) {
+export async function fetchTenantBranding() {
+  const port = resolveTargetPort();
+  const host = resolveTargetHost();
+  const fallback = getInitialBranding();
+
+  const params = new URLSearchParams();
+  if (port) {
+    params.set('port', String(port));
+  } else if (host && host !== 'localhost' && host !== '127.0.0.1') {
+    params.set('host', host);
+  } else {
+    return fallback;
+  }
+
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/branding?${params.toString()}`, {
+      method: 'GET',
+      // Public endpoint — do not send cookies / Authorization
+      credentials: 'omit',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return fallback;
+    const data = await res.json();
     return {
-      ...DEFAULT_BLURA_SAGA,
-      ...configEntry,
+      title: data.title || fallback.title,
+      description: data.description || fallback.description,
+      logo: data.logo || fallback.logo,
+      port: data.port ?? port,
     };
+  } catch {
+    return fallback;
   }
-  return DEFAULT_BLURA_SAGA;
 }
 
-export const getInitialBranding = getTenantBranding;
-
-/**
- * Promise-based getter for components expecting an async call.
- */
-export async function fetchTenantBranding(paramUsername) {
-  return getTenantBranding(paramUsername);
-}
-
-/**
- * Resolves logo URL (prepends backend origin if relative path from upload).
- */
+/** Resolve logo path for <img src> (API logo links go to backend). */
 export function getLogoUrl(logo) {
   if (!logo) return '/blura_saga_logo.jpg';
-  if (
-    logo.startsWith('http://') ||
-    logo.startsWith('https://') ||
-    logo.startsWith('blob:') ||
-    logo.startsWith('data:')
-  ) {
-    return logo;
-  }
-  return `${BACKEND_URL}${logo}`;
+  if (typeof logo === 'string' && logo.startsWith('data:')) return logo;
+  if (typeof logo === 'string' && /^https?:\/\//i.test(logo)) return logo;
+  return resolvePublicAssetUrl(logo) || '/blura_saga_logo.jpg';
 }

@@ -56,6 +56,10 @@ const emptyForm = (currentUser) => ({
   blurasagatitle: currentUser?.blurasagatitle || 'BLURA SAGA',
   blurasagadescription: currentUser?.blurasagadescription || 'Cyber Intelligence Platform',
   blurasagalogo: currentUser?.blurasagalogo || '/blura_saga_logo.jpg',
+  port: currentUser?.port != null ? String(currentUser.port) : '',
+  domains: Array.isArray(currentUser?.application_details?.domains)
+    ? currentUser.application_details.domains.join(', ')
+    : '',
   theme_color: currentUser?.theme_color || 'linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)',
 });
 
@@ -199,6 +203,12 @@ const UsersManagement = () => {
       blurasagatitle: row.blurasagatitle || user?.blurasagatitle || 'BLURA SAGA',
       blurasagadescription: row.blurasagadescription || user?.blurasagadescription || 'Cyber Intelligence Platform',
       blurasagalogo: row.blurasagalogo || user?.blurasagalogo || '/blura_saga_logo.jpg',
+      port: row.port != null ? String(row.port) : '',
+      domains: Array.isArray(row.application_details?.domains)
+        ? row.application_details.domains.join(', ')
+        : Array.isArray(row.domains)
+          ? row.domains.join(', ')
+          : '',
       theme_color: row.theme_color || user?.theme_color || 'linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)',
     });
     setModalOpen(true);
@@ -257,10 +267,29 @@ const UsersManagement = () => {
         role: form.role,
         blurasagatitle: form.blurasagatitle,
         blurasagadescription: form.blurasagadescription,
-        blurasagalogo: form.blurasagalogo,
         theme_color: form.theme_color,
         allowed_pages: form.allowed_pages,
       };
+      if (form.role === 'admin') {
+        if (form.port !== '' && form.port != null) {
+          payload.port = Number(form.port);
+        }
+        if (form.domains != null) {
+          payload.domains = String(form.domains)
+            .split(',')
+            .map((d) => d.trim())
+            .filter(Boolean);
+        }
+      }
+      // Only send logo when a new data-URL was picked; existing /api/branding URLs stay as-is in DB
+      if (
+        typeof form.blurasagalogo === 'string' &&
+        form.blurasagalogo.startsWith('data:')
+      ) {
+        payload.blurasagalogo = form.blurasagalogo;
+      } else if (!editing && form.blurasagalogo) {
+        payload.blurasagalogo = form.blurasagalogo;
+      }
       if (form.password.trim()) payload.password = form.password;
 
       if (user?.role === 'superadmin' && form.role === 'admin') {
@@ -300,39 +329,27 @@ const UsersManagement = () => {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('files', file);
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
 
     try {
       setUploadingLogo(true);
-      const res = await api.post('/uploads/s3', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      // Store as data URL → backend saves into users.logo_data (BYTEA), not disk
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsDataURL(file);
       });
-
-      if (res.data?.uploads?.length > 0) {
-        const uploadedUrl = res.data.uploads[0].url;
-        // Prefer same-origin /files path so deploy/nginx works
-        let stored = uploadedUrl;
-        try {
-          const u = new URL(uploadedUrl, window.location.origin);
-          if (u.pathname.startsWith('/files/') || u.pathname.startsWith('/api/files/')) {
-            stored = u.pathname;
-          }
-        } catch {
-          // keep uploadedUrl
-        }
-        setForm((f) => ({ ...f, blurasagalogo: stored }));
-        toast.success('Logo uploaded successfully');
-      }
-    } catch (error) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setForm((f) => ({ ...f, blurasagalogo: reader.result }));
-        toast.success('Logo uploaded');
-      };
-      reader.readAsDataURL(file);
+      setForm((f) => ({ ...f, blurasagalogo: dataUrl }));
+      toast.success('Logo ready — save user to store in database');
+    } catch {
+      toast.error('Logo upload failed');
     } finally {
       setUploadingLogo(false);
+      e.target.value = '';
     }
   };
 
@@ -684,23 +701,52 @@ const UsersManagement = () => {
                   <div className="space-y-3 rounded-md border border-border/80 p-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        Blura Saga Branding
+                        Application details
                       </span>
-                      <span className="text-[10px] font-semibold text-primary">Custom Title & Logo</span>
+                      <span className="text-[10px] font-semibold text-primary">
+                        Stored in DB (not theme_color)
+                      </span>
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label htmlFor="blurasagatitle">Blura Saga Title</Label>
+                      <Label htmlFor="app-port">Frontend port</Label>
+                      <Input
+                        id="app-port"
+                        type="number"
+                        min={1}
+                        max={65535}
+                        placeholder="e.g. 3000, 3001, 3002"
+                        value={form.port}
+                        onChange={(e) => setForm((f) => ({ ...f, port: e.target.value }))}
+                        required={form.role === 'admin'}
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Login branding is loaded by this port (e.g. open UI on :3002).
+                      </p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="app-domains">Domains (optional, comma-separated)</Label>
+                      <Input
+                        id="app-domains"
+                        placeholder="e.g. odisha.blurasaga.com"
+                        value={form.domains}
+                        onChange={(e) => setForm((f) => ({ ...f, domains: e.target.value }))}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="blurasagatitle">Title</Label>
                       <Input
                         id="blurasagatitle"
-                        placeholder="e.g. BLURA SAGA"
+                        placeholder="e.g. SATARK"
                         value={form.blurasagatitle}
                         onChange={(e) => setForm((f) => ({ ...f, blurasagatitle: e.target.value }))}
                       />
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label htmlFor="blurasagadescription">Blura Saga Description</Label>
+                      <Label htmlFor="blurasagadescription">Description</Label>
                       <Input
                         id="blurasagadescription"
                         placeholder="e.g. Cyber Intelligence Platform"
@@ -712,7 +758,7 @@ const UsersManagement = () => {
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label htmlFor="blurasagalogo">Blura Saga Logo Upload / Path</Label>
+                      <Label htmlFor="blurasagalogo">Org logo (stored in database)</Label>
                       <div className="flex items-center gap-2">
                         {form.blurasagalogo && (
                           <img
@@ -726,9 +772,14 @@ const UsersManagement = () => {
                         )}
                         <Input
                           id="blurasagalogo"
-                          placeholder="e.g. /blura_saga_logo.jpg or upload"
-                          value={form.blurasagalogo}
-                          onChange={(e) => setForm((f) => ({ ...f, blurasagalogo: e.target.value }))}
+                          placeholder="Upload an image — saved on this user in the DB"
+                          value={
+                            typeof form.blurasagalogo === 'string' &&
+                            form.blurasagalogo.startsWith('data:')
+                              ? '(new image ready to save)'
+                              : form.blurasagalogo || ''
+                          }
+                          readOnly
                           className="flex-1"
                         />
                         <Label
@@ -751,6 +802,10 @@ const UsersManagement = () => {
                           disabled={uploadingLogo}
                         />
                       </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Image → users.logo_data; title/description → users.application_details; lookup by
+                        users.port.
+                      </p>
                     </div>
                   </div>
                 )}

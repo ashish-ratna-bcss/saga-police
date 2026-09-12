@@ -10,6 +10,73 @@ const {
   DEFAULT_ADMIN_MAX_USERS,
 } = require('../auth/access_features');
 const { validateCreateUser, validateUpdateUser } = require('./user.validation');
+const { parseLogoInput } = require('./user.logo');
+const {
+  buildApplicationDetails,
+  readApplicationDetails,
+  themeOnly,
+  parsePort,
+} = require('./user.application');
+
+const USER_LIST_SELECT = {
+  id: true,
+  name: true,
+  username: true,
+  email: true,
+  role_id: true,
+  created_by: true,
+  db_name: true,
+  allowed_pages: true,
+  allowed_platforms: true,
+  can_manage_users: true,
+  can_manage_roles: true,
+  max_profiles: true,
+  max_users: true,
+  ui_mode: true,
+  theme_color: true,
+  application_details: true,
+  port: true,
+  logo_mime: true,
+  created_at: true,
+  updated_at: true,
+  roles: true,
+};
+
+const applyLogoFields = (data, bodyLogo) => {
+  const parsed = parseLogoInput(bodyLogo);
+  if (parsed.kind === 'binary') {
+    data.logo_data = parsed.buffer;
+    data.logo_mime = parsed.mime;
+    return { ok: true };
+  }
+  if (parsed.kind === 'legacy_path' || parsed.kind === 'unchanged') {
+    return { ok: true };
+  }
+  if (parsed.kind === 'empty') {
+    if (bodyLogo === '') {
+      data.logo_data = null;
+      data.logo_mime = null;
+    }
+    return { ok: true };
+  }
+  return { ok: false, message: parsed.message || 'Invalid logo' };
+};
+
+const assertPortAvailable = async (port, excludeUserId = null) => {
+  if (port == null) return;
+  const existing = await prisma.users.findFirst({
+    where: {
+      port,
+      ...(excludeUserId ? { id: { not: Number(excludeUserId) } } : {}),
+    },
+    select: { id: true, username: true },
+  });
+  if (existing) {
+    const err = new Error(`Port ${port} is already used by ${existing.username}`);
+    err.status = 400;
+    throw err;
+  }
+};
 
 const listUsers = async (actor) => {
   const isSuperadmin = actor?.role === ROLE_SLUGS.SUPERADMIN;
@@ -30,7 +97,7 @@ const listUsers = async (actor) => {
 
   const users = await prisma.users.findMany({
     where,
-    include: { roles: true },
+    select: USER_LIST_SELECT,
     orderBy: { name: 'asc' },
   });
   return users.map((u) => toPublicUser(u, u.roles));
@@ -111,27 +178,11 @@ const createUserAccount = async (actor, body) => {
   if (actor?.id) {
     actorUser = await prisma.users.findUnique({ where: { id: actor.id } });
   }
-  const actorTc =
-    actorUser && typeof actorUser.theme_color === 'object' && actorUser.theme_color
-      ? actorUser.theme_color
-      : {};
-
-  const creatorTitle = actorTc.blurasagatitle || actor?.blurasagatitle || 'BLURA SAGA';
-  const creatorDesc =
-    actorTc.blurasagadescription || actor?.blurasagadescription || 'Cyber Intelligence Platform';
-  const creatorLogo = actorTc.blurasagalogo || actor?.blurasagalogo || '/blura_saga_logo.jpg';
+  const actorApp = readApplicationDetails(actorUser || {});
   const creatorColor =
-    actorTc.value || actor?.theme_color || 'linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)';
-
-  const themePayload = {
-    blurasagatitle: body.blurasagatitle || creatorTitle,
-    blurasagadescription: body.blurasagadescription || creatorDesc,
-    blurasagalogo: body.blurasagalogo || creatorLogo,
-    value: body.theme_color || creatorColor,
-    primary_hex: '#38bdf8',
-  };
-
-  const { provisionAdminDatabase } = require('../../lib/tenantDatabase.service');
+    (typeof actorUser?.theme_color === 'object' && actorUser?.theme_color?.value) ||
+    actor?.theme_color ||
+    'linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)';
 
   let assignedDbName = null;
   if (assignedRole.slug === ROLE_SLUGS.USER) {
@@ -146,31 +197,73 @@ const createUserAccount = async (actor, body) => {
     quotaData.max_users = parseQuota(body.max_users, DEFAULT_ADMIN_MAX_USERS);
   }
 
+  const createData = {
+    name,
+    username,
+    email,
+    password: hashedPassword,
+    role_id: assignedRole.id,
+    created_by: actor.id,
+    db_name: assignedDbName,
+    ui_mode: 'light',
+    theme_color: themeOnly(actorUser?.theme_color, body.theme_color || creatorColor),
+    ...access,
+    ...quotaData,
+  };
+
+  // Admin tenants get application_details + port; child users inherit creator branding
+  if (assignedRole.slug === ROLE_SLUGS.ADMIN) {
+    const port = parsePort(body.port);
+    if (port == null) {
+      const err = new Error('Admin accounts require a frontend port (e.g. 3000)');
+      err.status = 400;
+      throw err;
+    }
+    await assertPortAvailable(port);
+    createData.port = port;
+    createData.application_details = buildApplicationDetails(null, body, {
+      title: body.blurasagatitle || 'BLURA SAGA',
+      description: body.blurasagadescription || 'Cyber Intelligence Platform',
+    });
+  } else {
+    createData.port = null;
+    createData.application_details = buildApplicationDetails(
+      actorUser?.application_details,
+      {},
+      actorApp
+    );
+  }
+
+  const logoResult = applyLogoFields(createData, body.blurasagalogo);
+  if (!logoResult.ok) {
+    const err = new Error(logoResult.message);
+    err.status = 400;
+    throw err;
+  }
+
+  if (
+    !createData.logo_data &&
+    actorUser?.logo_data &&
+    actorUser?.logo_mime &&
+    body.blurasagalogo === undefined
+  ) {
+    createData.logo_data = actorUser.logo_data;
+    createData.logo_mime = actorUser.logo_mime;
+  }
+
+  const { provisionAdminDatabase } = require('../../lib/tenantDatabase.service');
+
   let user = await prisma.users.create({
-    data: {
-      name,
-      username,
-      email,
-      password: hashedPassword,
-      role_id: assignedRole.id,
-      created_by: actor.id,
-      db_name: assignedDbName,
-      ui_mode: 'light',
-      theme_color: themePayload,
-      ...access,
-      ...quotaData,
-    },
+    data: createData,
     include: { roles: true },
   });
 
   if (assignedRole.slug === ROLE_SLUGS.ADMIN) {
     try {
-      const titleFromTheme =
-        themePayload.blurasagatitle ||
-        (typeof themePayload === 'object' ? themePayload.blurasagatitle : null);
+      const titleFromApp = createData.application_details?.title || 'BLURA SAGA';
       const adminDbName = await provisionAdminDatabase(user.id, {
         username: user.username,
-        blurasagatitle: titleFromTheme || 'BLURA SAGA',
+        blurasagatitle: titleFromApp,
       });
       user = await prisma.users.update({
         where: { id: user.id },
@@ -237,30 +330,51 @@ const updateUserAccount = async (actor, userId, body) => {
   if (
     body.blurasagatitle !== undefined ||
     body.blurasagadescription !== undefined ||
+    body.application_name !== undefined ||
+    body.domains !== undefined ||
+    body.domain !== undefined ||
+    body.port !== undefined ||
     body.blurasagalogo !== undefined ||
     body.theme_color !== undefined
   ) {
-    const existingTheme =
-      typeof user.theme_color === 'object' && user.theme_color ? user.theme_color : {};
-    data.theme_color = {
-      ...existingTheme,
-      blurasagatitle:
-        body.blurasagatitle !== undefined
-          ? body.blurasagatitle
-          : existingTheme.blurasagatitle || 'BLURA SAGA',
-      blurasagadescription:
-        body.blurasagadescription !== undefined
-          ? body.blurasagadescription
-          : existingTheme.blurasagadescription || 'Cyber Intelligence Platform',
-      blurasagalogo:
-        body.blurasagalogo !== undefined
-          ? body.blurasagalogo
-          : existingTheme.blurasagalogo || '/blura_saga_logo.jpg',
-      value:
-        body.theme_color ||
-        existingTheme.value ||
-        'linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)',
-    };
+    if (body.blurasagalogo !== undefined) {
+      const logoResult = applyLogoFields(data, body.blurasagalogo);
+      if (!logoResult.ok) {
+        const err = new Error(logoResult.message);
+        err.status = 400;
+        throw err;
+      }
+    }
+
+    if (body.theme_color !== undefined) {
+      data.theme_color = themeOnly(user.theme_color, body.theme_color);
+    }
+
+    const brandingTouched =
+      body.blurasagatitle !== undefined ||
+      body.blurasagadescription !== undefined ||
+      body.application_name !== undefined ||
+      body.domains !== undefined ||
+      body.domain !== undefined;
+
+    if (brandingTouched) {
+      data.application_details = buildApplicationDetails(
+        user.application_details,
+        body,
+        readApplicationDetails(user)
+      );
+    }
+
+    if (body.port !== undefined) {
+      const port = parsePort(body.port);
+      if (body.port !== null && body.port !== '' && port == null) {
+        const err = new Error('Invalid port number');
+        err.status = 400;
+        throw err;
+      }
+      await assertPortAvailable(port, user.id);
+      data.port = port;
+    }
   }
 
   // Optional access fields on user update (preserve platforms when omitted)

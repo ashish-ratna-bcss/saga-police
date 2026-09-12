@@ -33,6 +33,7 @@ const { uploadRoutes } = require('./uploads');
 const { bluwebRoutes } = require('./web-intel');
 const { searchRoutes } = require('./search');
 const { mediaRoutes } = require('./media');
+const { brandingRoutes } = require('./branding/branding.routes');
 const { authorize } = require('../middleware/auth.middleware');
 const { getMyPermissions, getAllPages } = require('./user/user.controller');
 const { ROLE_SLUGS } = require('./role/role.utils');
@@ -43,6 +44,9 @@ const { assertJwtConfigured, shouldSeedDefaultAdmin, isProduction } = require('.
  * Unified API router mounted at `/api`.
  */
 const router = express.Router();
+
+// Public (no auth) — login page branding by port
+router.use('/branding', brandingRoutes);
 
 router.use(authRoutes);
 

@@ -2,31 +2,67 @@ import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/auth.context';
 import {
-  Shield, Eye, EyeOff, Lock, User, ArrowRight, Loader2,
-  Radio, BarChart3, Bell, Search, Activity, MapPin, CheckCircle2,
+  Eye,
+  EyeOff,
+  Lock,
+  User,
+  ArrowRight,
+  Loader2,
+  Radio,
+  Bell,
+  BarChart3,
+  Search,
+  MapPin,
+  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import {
   fetchTenantBranding,
-  getInitialBranding,
   getLogoUrl,
-  DEFAULT_BLURA_SAGA,
 } from '../../lib/tenantBranding';
 
 const CAPABILITIES = [
-  { icon: Radio, title: 'Live Monitoring', desc: 'Track social platforms in real time', color: 'from-cyan-500/20 to-blue-500/10 text-cyan-400' },
-  { icon: Bell, title: 'Smart Alerts', desc: 'Risk-scored threat notifications', color: 'from-amber-500/20 to-orange-500/10 text-amber-400' },
-  { icon: BarChart3, title: 'Intelligence', desc: 'Dashboards & daily briefings', color: 'from-emerald-500/20 to-teal-500/10 text-emerald-400' },
-  { icon: Search, title: 'OSINT Tools', desc: 'Profile & content investigation', color: 'from-purple-500/20 to-indigo-500/10 text-purple-400' },
-  { icon: MapPin, title: 'Events Map', desc: 'Geo-tagged situational awareness', color: 'from-rose-500/20 to-pink-500/10 text-rose-400' },
-  { icon: Activity, title: 'System Health', desc: 'Always-on operational status', color: 'from-sky-500/20 to-blue-500/10 text-sky-400' },
+  {
+    icon: Radio,
+    title: 'Live monitoring',
+    desc: 'Track X, Facebook, Instagram, YouTube and Telegram in real time.',
+  },
+  {
+    icon: Bell,
+    title: 'Risk alerts',
+    desc: 'Keyword and AI-scored threats with virality thresholds.',
+  },
+  {
+    icon: BarChart3,
+    title: 'Intelligence briefs',
+    desc: 'Dashboards, daily reports and operational summaries.',
+  },
+  {
+    icon: Search,
+    title: 'OSINT tools',
+    desc: 'Profile lookup, content search and source investigation.',
+  },
+  {
+    icon: MapPin,
+    title: 'Events & map',
+    desc: 'Geo-tagged occasions and situational awareness.',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Controlled access',
+    desc: 'Role-based pages, audited logins and encrypted credentials.',
+  },
 ];
 
+const fieldClass =
+  'h-12 w-full rounded-lg border border-white/15 bg-[#07111f] pl-10 text-[15px] text-white placeholder:text-white/35 shadow-none transition focus-visible:border-cyan-400/70 focus-visible:ring-1 focus-visible:ring-cyan-400/40';
+
 const Login = () => {
-  const [branding, setBranding] = useState(() => getInitialBranding());
-  const logoUrl = getLogoUrl(branding.logo);
+  const [branding, setBranding] = useState(null);
+  const [brandingLoading, setBrandingLoading] = useState(true);
+  const logoUrl = getLogoUrl(branding?.logo);
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -35,45 +71,67 @@ const Login = () => {
   const { login, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Dynamically fetch title, logo, description live from database
   useEffect(() => {
     let isMounted = true;
-    fetchTenantBranding().then((data) => {
-      if (isMounted && data) {
-        setBranding(data);
-      }
-    });
+    setBrandingLoading(true);
+    fetchTenantBranding()
+      .then((data) => {
+        if (!isMounted || !data) return;
+        setBranding({
+          title: data.title,
+          description: data.description,
+          logo: data.logo,
+          port: data.port,
+        });
+      })
+      .finally(() => {
+        if (isMounted) setBrandingLoading(false);
+      });
     return () => {
       isMounted = false;
     };
   }, []);
 
-  // Dynamically update document title and browser tab favicon based on tenant branding
   useEffect(() => {
-    if (branding?.title) {
-      document.title = `${branding.title} — ${branding.subtitle || 'Cyber Intelligence'}`;
-    }
+    if (!branding?.title) return;
+
+    document.title = branding.description
+      ? `${branding.title} — ${branding.description}`
+      : branding.title;
 
     if (logoUrl) {
-      let link = document.querySelector("link[rel*='icon']");
+      document.querySelectorAll("link[rel='icon'], link[rel='shortcut icon']").forEach((el) => {
+        el.setAttribute('href', logoUrl);
+      });
+      let link = document.getElementById('app-favicon');
       if (!link) {
         link = document.createElement('link');
+        link.id = 'app-favicon';
         link.rel = 'icon';
         document.head.appendChild(link);
       }
       link.href = logoUrl;
 
-      let appleLink = document.querySelector("link[rel='apple-touch-icon']");
-      if (appleLink) {
-        appleLink.href = logoUrl;
+      let appleLink = document.getElementById('app-apple-icon');
+      if (!appleLink) {
+        appleLink = document.createElement('link');
+        appleLink.id = 'app-apple-icon';
+        appleLink.rel = 'apple-touch-icon';
+        document.head.appendChild(appleLink);
+      }
+      appleLink.href = logoUrl;
+
+      const metaDesc = document.querySelector('meta[name="description"]');
+      if (metaDesc && branding.description) {
+        metaDesc.setAttribute('content', branding.description);
       }
     }
-  }, [branding?.title, logoUrl]);
+  }, [branding?.title, branding?.description, logoUrl]);
 
-  if (authLoading) {
+  if (authLoading || brandingLoading || !branding) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#060d1a]">
-        <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
+        <Loader2 className="h-7 w-7 animate-spin text-cyan-400/80" />
       </div>
     );
   }
@@ -93,236 +151,188 @@ const Login = () => {
         navigate('/dashboard');
       }
     } catch {
-      // AuthContext handles toast notification
+      // AuthContext handles toast
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="login-blura relative min-h-screen w-full overflow-hidden bg-[#060d1a] text-white selection:bg-cyan-500/30 selection:text-cyan-200">
+    <div className="login-screen relative min-h-screen w-full overflow-hidden bg-[#060d1a] text-white">
       <style>{`
-        @keyframes blura-rise {
-          from { opacity: 0; transform: translateY(20px); }
+        @keyframes login-fade-up {
+          from { opacity: 0; transform: translateY(18px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        @keyframes blura-pulse {
-          0%, 100% { transform: scale(1); opacity: 0.5; }
-          50% { transform: scale(1.08); opacity: 0.8; }
+        @keyframes login-drift {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(2%, -1%) scale(1.04); }
         }
-        .login-blura .rise { animation: blura-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
-        .login-blura .rise-delay { animation: blura-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both; }
-        .login-blura .pulse-glow { animation: blura-pulse 6s ease-in-out infinite; }
+        .login-screen .anim-brand {
+          animation: login-fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        .login-screen .anim-form {
+          animation: login-fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both;
+        }
+        .login-screen .anim-drift {
+          animation: login-drift 18s ease-in-out infinite;
+        }
+        .login-screen input:-webkit-autofill,
+        .login-screen input:-webkit-autofill:hover,
+        .login-screen input:-webkit-autofill:focus {
+          -webkit-text-fill-color: #f8fafc !important;
+          caret-color: #f8fafc;
+          box-shadow: 0 0 0 1000px #07111f inset !important;
+          transition: background-color 99999s ease-in-out 0s;
+        }
       `}</style>
 
-      {/* Futuristic Glowing Atmosphere */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-        {/* Background Mesh Gradients */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_20%_20%,rgba(6,182,212,0.18)_0%,transparent_50%),radial-gradient(ellipse_at_80%_80%,rgba(245,158,11,0.14)_0%,transparent_50%),linear-gradient(160deg,#040914_0%,#09152b_50%,#050b18_100%)]" />
-        
-        {/* Tech Grid Pattern */}
+      {/* Atmosphere — desktop left plane only */}
+      <div className="pointer-events-none absolute inset-0 hidden lg:block lg:right-[26rem] xl:right-[28rem]" aria-hidden="true">
+        <div className="absolute inset-0 bg-[linear-gradient(145deg,#030812_0%,#0a1a32_42%,#071525_100%)]" />
         <div
-          className="absolute inset-0 opacity-[0.06]"
+          className="absolute inset-0 opacity-[0.07]"
           style={{
             backgroundImage:
-              'linear-gradient(rgba(255,255,255,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.4) 1px, transparent 1px)',
-            backgroundSize: '48px 48px',
+              'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
+            backgroundSize: '64px 64px',
+            maskImage: 'radial-gradient(ellipse at 40% 45%, black 20%, transparent 75%)',
           }}
         />
-
-        {/* Floating Glowing Orbs */}
-        <div className="pulse-glow absolute -top-32 -left-20 h-[36rem] w-[36rem] rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-600/20 blur-[140px]" />
-        <div className="pulse-glow absolute -bottom-40 -right-20 h-[40rem] w-[40rem] rounded-full bg-gradient-to-tl from-amber-500/25 to-orange-600/15 blur-[150px]" />
+        <div className="anim-drift absolute -left-[10%] top-[-20%] h-[70vmin] w-[70vmin] rounded-full bg-[radial-gradient(circle,rgba(14,116,144,0.35)_0%,transparent_68%)] blur-2xl" />
+        <div className="anim-drift absolute bottom-[-15%] right-[-5%] h-[55vmin] w-[55vmin] rounded-full bg-[radial-gradient(circle,rgba(180,83,9,0.22)_0%,transparent_70%)] blur-2xl" style={{ animationDelay: '-6s' }} />
+        <img
+          key={`wm-${logoUrl}`}
+          src={logoUrl}
+          alt=""
+          className="absolute right-[4%] top-[42%] h-[48vmin] w-auto max-w-[42%] -translate-y-1/2 object-contain opacity-[0.05]"
+        />
       </div>
 
-      {/* Main Responsive Grid Layout */}
-      <div className="relative z-10 grid min-h-screen w-full lg:grid-cols-[1.15fr_0.85fr]">
-        
-        {/* LEFT COLUMN — Brand Showcase & Platform Info */}
-        <section className="rise flex flex-col justify-between px-6 py-8 sm:px-10 lg:px-14 xl:px-16 lg:py-10">
-          
-          {/* Top Brand Header */}
-          <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4">
-            <div className="flex min-w-0 items-center gap-3.5">
-              <div className="relative group">
-                <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-cyan-500 to-amber-500 opacity-60 blur transition group-hover:opacity-100" />
-                <img
-                  src={logoUrl}
-                  alt={branding.title}
-                  className="relative h-12 w-auto max-w-[180px] object-contain sm:h-14 sm:max-w-[280px]"
-                  onError={(e) => {
-                    e.currentTarget.src = '/blura_saga_logo.jpg';
-                  }}
-                />
-              </div>
-              <div className="hidden leading-tight min-[480px]:block">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-heading text-lg font-bold tracking-[0.16em] text-white sm:text-xl">
-                    {branding.title}
-                  </span>
-                  <span className="inline-flex items-center rounded-full bg-cyan-500/15 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-cyan-300 ring-1 ring-cyan-500/30">
-                    Enterprise v2.0
-                  </span>
-                </div>
-                <p className="text-[10px] uppercase tracking-[0.22em] text-cyan-400/90 sm:text-[11px]">
-                  {branding.subtitle || 'Cyber Intelligence & Observability'}
-                </p>
+      {/* Mobile atmosphere */}
+      <div className="pointer-events-none absolute inset-0 lg:hidden" aria-hidden="true">
+        <div className="absolute inset-0 bg-[linear-gradient(165deg,#030812_0%,#0a1a32_50%,#060d1a_100%)]" />
+        <div
+          className="absolute inset-0 opacity-[0.05]"
+          style={{
+            backgroundImage:
+              'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
+            backgroundSize: '40px 40px',
+          }}
+        />
+      </div>
+
+      <div className="relative z-10 flex min-h-screen w-full flex-col lg:grid lg:grid-cols-[1fr_26rem] xl:grid-cols-[1fr_28rem]">
+        {/* Compact brand — mobile top / desktop left */}
+        <section className="anim-brand relative flex flex-col px-5 pt-6 pb-2 sm:px-8 lg:min-h-screen lg:justify-between lg:px-16 lg:py-12 xl:px-20">
+          <div className="lg:flex lg:flex-1 lg:flex-col lg:justify-center">
+            <div className="flex items-center gap-3 lg:block">
+              <img
+                key={logoUrl}
+                src={logoUrl}
+                alt=""
+                className="h-12 w-auto max-w-[120px] shrink-0 object-contain sm:h-14 sm:max-w-[140px] lg:mb-8 lg:h-20 lg:max-w-[280px] xl:h-24 xl:max-w-[300px]"
+              />
+              <div className="min-w-0 lg:contents">
+                <h1 className="font-heading text-2xl font-bold uppercase leading-none tracking-[0.1em] text-white sm:text-3xl lg:text-5xl xl:text-6xl 2xl:text-7xl lg:leading-[0.95] lg:tracking-[0.12em]">
+                  {branding.title}
+                </h1>
+                {branding.description ? (
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-white/60 sm:text-xs lg:mt-4 lg:line-clamp-none lg:max-w-2xl lg:text-base lg:leading-relaxed lg:text-white/70 xl:text-lg">
+                    {branding.description}
+                  </p>
+                ) : null}
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
-              {branding.title !== 'BLURA SAGA' && (
-                <div className="flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-2.5 py-1.5 sm:px-3 sm:py-2">
-                  <span className="whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.14em] text-white/55 sm:text-[10px]">
+            {/* Capabilities — desktop only here; mobile below form */}
+            <div className="mt-10 hidden max-w-3xl lg:block">
+              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-300/80">
+                What you can do
+              </p>
+              <ul className="grid grid-cols-2 gap-x-10 gap-y-5">
+                {CAPABILITIES.map(({ icon: Icon, title, desc }) => (
+                  <li key={title} className="flex gap-3.5">
+                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-cyan-300/90 ring-1 ring-white/10">
+                      <Icon className="h-4 w-4" strokeWidth={1.75} />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-white">{title}</p>
+                      <p className="mt-0.5 text-[13px] leading-snug text-white/50">{desc}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="mt-auto hidden flex-wrap items-end justify-between gap-6 border-t border-white/10 pt-6 lg:flex">
+            <div className="flex flex-wrap items-center gap-8">
+              {branding.port != null && (
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/40">
                     Platform
                   </span>
                   <img
                     src="/blura_saga_logo.jpg"
                     alt="Blura Saga"
-                    className="h-7 w-auto max-w-[100px] object-contain sm:h-8 sm:max-w-[120px]"
+                    className="h-8 w-auto max-w-[120px] object-contain opacity-90"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
                   />
                 </div>
               )}
-
-              <div className="flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-2.5 py-1.5 sm:gap-2.5 sm:px-3 sm:py-2">
-                <span className="whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.14em] text-white/55 sm:text-[10px]">
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/40">
                   Powered by
                 </span>
                 <img
                   src="/Logo.png"
                   alt="Blue Cloud Softech Solutions Limited"
-                  className="h-8 w-auto max-w-[110px] object-contain opacity-95 sm:h-10 sm:max-w-[180px]"
+                  className="h-9 w-auto max-w-[160px] object-contain opacity-90"
                 />
               </div>
             </div>
+            <p className="text-[11px] text-white/40">© 2026 {branding.title}</p>
           </div>
-
-          {/* Center Content Section */}
-          <div className="my-10 flex flex-1 flex-col justify-center lg:my-0">
-            
-            {/* Tagline Badge */}
-            <div className="mb-4 inline-flex items-center gap-2.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3.5 py-1.5 backdrop-blur-md self-start">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-400" />
-              </span>
-              <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-300">
-                {branding.title} · {branding.subtitle ? branding.subtitle.toUpperCase() : 'CYBER INTELLIGENCE'}
-              </span>
-            </div>
-
-            {/* Giant Title */}
-            <h1 className="mb-4 font-heading text-5xl font-black uppercase leading-none tracking-[0.1em] sm:text-6xl xl:text-7xl">
-              <span className="bg-gradient-to-r from-white via-cyan-100 to-amber-200 bg-clip-text text-transparent drop-shadow-sm">
-                {branding.title}
-              </span>
-            </h1>
-
-            {/* Description */}
-            <p className="max-w-xl text-sm leading-relaxed text-white/70 sm:text-base">
-              {branding.description}
-            </p>
-
-            {/* Capability Cards Grid */}
-            <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {CAPABILITIES.map(({ icon: Icon, title, desc, color }) => (
-                <div
-                  key={title}
-                  className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-cyan-500/40 hover:bg-white/[0.07] hover:shadow-[0_8px_30px_rgba(6,182,212,0.15)]"
-                >
-                  <div className={`mb-2.5 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${color} ring-1 ring-white/10 transition-transform duration-300 group-hover:scale-110`}>
-                    <Icon className="h-4.5 w-4.5" />
-                  </div>
-                  <p className="text-sm font-bold text-white group-hover:text-cyan-200">{title}</p>
-                  <p className="mt-0.5 text-[11px] leading-snug text-white/50">{desc}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Trust Badges */}
-            <div className="mt-8 flex flex-wrap gap-6 border-t border-white/10 pt-6 text-[11px] font-medium uppercase tracking-wider text-white/50">
-              <span className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" /> End-to-end Encrypted
-              </span>
-              <span className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-amber-400" /> Fine-Grained RBAC
-              </span>
-              <span className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-cyan-400" /> Immutable Audit Logs
-              </span>
-            </div>
-          </div>
-
-          {/* Footer Copyright */}
-          <p className="hidden text-xs font-medium text-white/35 lg:block">
-            © 2026 {branding.title} · Cyber Intelligence Platform · All Rights Reserved
-          </p>
         </section>
 
-        {/* RIGHT COLUMN — Floating Glass Auth Card & Dock */}
-        <section className="rise-delay relative flex min-h-[75vh] flex-col justify-between p-6 sm:p-10 lg:p-12 lg:bg-white/[0.015] lg:backdrop-blur-2xl">
-          
-          {/* Subtle Ambient Behind Right Side */}
-          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[28rem] w-[28rem] rounded-full bg-cyan-500/10 blur-[120px]" />
-          </div>
-
-          {/* Dock Top Header Strip */}
-          <div className="relative z-10 flex items-center justify-between gap-3 border-b border-white/10 pb-4.5">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="absolute -inset-0.5 rounded-xl bg-cyan-500/40 blur-sm" />
-                <img
-                  src={logoUrl}
-                  alt={branding.title}
-                  className="relative h-9 w-auto max-w-[160px] object-contain"
-                  onError={(e) => {
-                    e.currentTarget.src = '/blura_saga_logo.jpg';
-                  }}
-                />
-              </div>
-              <div className="leading-tight">
-                <p className="text-sm font-bold text-white">System Portal</p>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-cyan-400">{branding.title} SECURE ACCESS</p>
-              </div>
-            </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.2)]">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Online
-            </span>
-          </div>
-
-          {/* Form Floating Glass Container */}
-          <div className="relative z-10 mx-auto my-auto w-full max-w-md rounded-3xl border border-white/12 bg-white/[0.04] p-7 shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl sm:p-9">
-            
-            {/* Header Lock Icon & Titles */}
-            <div className="mb-7 text-center sm:text-left">
-              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/20 via-cyan-500/10 to-amber-500/10 ring-1 ring-cyan-400/40 shadow-[0_0_20px_rgba(6,182,212,0.25)]">
-                <Shield className="h-6 w-6 text-cyan-400" />
-              </div>
-              <h2 className="font-heading text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                Sign in
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-white/60">
-                Enter your authorized system credentials to proceed.
-              </p>
-            </div>
-
-            {/* Login Form */}
+        {/* Form — immediately under brand on mobile */}
+        <section className="anim-form relative flex flex-col justify-center bg-[#050b16]/90 px-5 py-6 sm:px-8 lg:min-h-screen lg:border-l lg:border-white/10 lg:bg-[#050b16] lg:px-10 lg:py-12">
+          <div
+            className="pointer-events-none absolute inset-0 hidden opacity-40 lg:block"
+            aria-hidden="true"
+            style={{
+              background:
+                'radial-gradient(ellipse at 50% 0%, rgba(8,47,73,0.55) 0%, transparent 55%)',
+            }}
+          />
+          <div className="relative z-10 mx-auto w-full max-w-sm">
             <form onSubmit={handleSubmit} className="w-full space-y-5" data-testid="login-form">
-              
-              {/* Username Input */}
+              <div>
+                <h2 className="font-heading text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                  Sign in
+                </h2>
+                <p className="mt-1.5 text-sm text-white/50">
+                  Authorized credentials only.
+                </p>
+              </div>
+
               <div className="space-y-2">
-                <Label htmlFor="username" className="text-xs font-semibold uppercase tracking-wider text-white/80">
+                <Label
+                  htmlFor="username"
+                  className="text-[11px] font-medium uppercase tracking-[0.14em] text-white/55"
+                >
                   Username
                 </Label>
-                <div className="relative group">
-                  <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-cyan-400/70 transition-colors group-focus-within:text-cyan-300" />
+                <div className="relative">
+                  <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
                   <Input
                     id="username"
                     type="text"
                     autoComplete="username"
-                    placeholder="Enter username"
+                    placeholder="Username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value.toLowerCase())}
                     autoCapitalize="none"
@@ -330,33 +340,35 @@ const Login = () => {
                     spellCheck={false}
                     required
                     data-testid="username-input"
-                    className="h-12 rounded-xl border-white/15 bg-black/25 pl-10 text-white placeholder:text-white/35 backdrop-blur-md transition hover:border-white/25 focus-visible:border-cyan-400 focus-visible:ring-2 focus-visible:ring-cyan-400/30"
+                    className={fieldClass}
                   />
                 </div>
               </div>
 
-              {/* Password Input */}
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-wider text-white/80">
+                <Label
+                  htmlFor="password"
+                  className="text-[11px] font-medium uppercase tracking-[0.14em] text-white/55"
+                >
                   Password
                 </Label>
-                <div className="relative group">
-                  <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-cyan-400/70 transition-colors group-focus-within:text-cyan-300" />
+                <div className="relative">
+                  <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
                   <Input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
                     autoComplete="current-password"
-                    placeholder="Enter password"
+                    placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     data-testid="password-input"
-                    className="h-12 rounded-xl border-white/15 bg-black/25 pl-10 pr-11 text-white placeholder:text-white/35 backdrop-blur-md transition hover:border-white/25 focus-visible:border-cyan-400 focus-visible:ring-2 focus-visible:ring-cyan-400/30"
+                    className={`${fieldClass} pr-11`}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded-lg p-1 text-white/40 transition hover:bg-white/10 hover:text-white"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-white/40 transition hover:text-white/80"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -364,56 +376,80 @@ const Login = () => {
                 </div>
               </div>
 
-              {/* Action Submit Button */}
               <Button
                 type="submit"
                 disabled={loading}
                 data-testid="login-submit-btn"
-                className="group relative h-12 w-full overflow-hidden rounded-xl border-0 bg-amber-500 text-base font-bold text-gray-950 shadow-[0_0_25px_rgba(245,158,11,0.4)] transition-all duration-300 hover:bg-amber-400 hover:shadow-[0_0_35px_rgba(245,158,11,0.6)] hover:scale-[1.01] active:scale-[0.98]"
+                className="group h-12 w-full rounded-lg border-0 bg-amber-500 text-[15px] font-semibold text-[#0a0f18] shadow-none transition hover:bg-amber-400"
               >
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    Authenticating credentials…
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Signing in…
                   </span>
                 ) : (
                   <span className="flex items-center justify-center gap-2">
-                    Access {branding.title}
-                    <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
+                    Continue
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                   </span>
                 )}
               </Button>
             </form>
 
-            {/* Quick Metrics Bar */}
-            <div className="mt-8 grid grid-cols-3 gap-3">
-              {[
-                { n: '24/7', l: 'Live Watch' },
-                { n: 'RBAC', l: 'Strict Control' },
-                { n: 'TLS', l: 'Encrypted' },
-              ].map((item) => (
-                <div
-                  key={item.l}
-                  className="rounded-xl border border-white/10 bg-white/[0.03] px-2 py-3 text-center backdrop-blur-md transition hover:border-cyan-500/40"
-                >
-                  <p className="text-sm font-bold text-cyan-300">{item.n}</p>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">{item.l}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Dock Bottom Notice */}
-          <div className="relative z-10 border-t border-white/10 pt-4.5">
-            <p className="text-[11px] leading-relaxed text-white/45 text-center sm:text-left">
-              Restricted system — authorized personnel only. All access events are recorded and audited.
-            </p>
-            <p className="mt-2 text-[10px] font-medium tracking-wide text-white/30 text-center lg:hidden">
-              © 2026 {branding.title} · Cyber Intelligence
+            <p className="mt-6 text-[11px] leading-relaxed text-white/35 lg:mt-10">
+              Restricted system. Access is audited.
             </p>
           </div>
         </section>
 
+        {/* Mobile capabilities + partners (after sign-in) */}
+        <section className="anim-brand border-t border-white/10 px-5 py-8 sm:px-8 lg:hidden">
+          <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-300/80">
+            What you can do
+          </p>
+          <ul className="space-y-4">
+            {CAPABILITIES.map(({ icon: Icon, title, desc }) => (
+              <li key={title} className="flex gap-3">
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/[0.06] text-cyan-300/90 ring-1 ring-white/10">
+                  <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white">{title}</p>
+                  <p className="mt-0.5 text-xs leading-snug text-white/50">{desc}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-8 flex flex-wrap items-center gap-5 border-t border-white/10 pt-6">
+            {branding.port != null && (
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-medium uppercase tracking-[0.16em] text-white/40">
+                  Platform
+                </span>
+                <img
+                  src="/blura_saga_logo.jpg"
+                  alt="Blura Saga"
+                  className="h-6 w-auto max-w-[90px] object-contain opacity-90"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-medium uppercase tracking-[0.16em] text-white/40">
+                Powered by
+              </span>
+              <img
+                src="/Logo.png"
+                alt="Blue Cloud Softech Solutions Limited"
+                className="h-7 w-auto max-w-[120px] object-contain opacity-90"
+              />
+            </div>
+            <p className="w-full text-[11px] text-white/40">© 2026 {branding.title}</p>
+          </div>
+        </section>
       </div>
     </div>
   );

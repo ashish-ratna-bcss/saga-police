@@ -77,7 +77,34 @@ const migratePlaintextPlatformSecrets = async (prisma) => {
   }
 };
 
-/** Admin UI: return decrypted secrets so edit form + eye toggle can show them. */
+/** Never put ciphertext or plaintext secrets in list/create/update JSON. */
+const maskPlatformSecrets = (row) => {
+  if (!row || typeof row !== 'object') return row;
+  const blugateStored = row.blugate_client_key;
+  const apiStored = row.api_key;
+  const blugate = decryptPlatformSecret(blugateStored);
+  const api = decryptPlatformSecret(apiStored);
+  const {
+    blugate_client_key: _b,
+    api_key: _a,
+    ...rest
+  } = row;
+  return {
+    ...rest,
+    blugate_client_key: '',
+    api_key: '',
+    blugate_client_key_set: Boolean(blugateStored),
+    api_key_set: Boolean(apiStored),
+    /** True when value was bcrypt'd earlier and must be re-entered */
+    blugate_client_key_needs_reset: Boolean(blugateStored) && !blugate,
+    api_key_needs_reset: Boolean(apiStored) && !api,
+  };
+};
+
+/**
+ * Decrypt secrets for platform managers (single-platform fetch only).
+ * Do not use on list endpoints.
+ */
 const revealPlatformSecrets = (row) => {
   if (!row || typeof row !== 'object') return row;
   const blugateStored = row.blugate_client_key;
@@ -90,21 +117,22 @@ const revealPlatformSecrets = (row) => {
     api_key: api || '',
     blugate_client_key_set: Boolean(blugateStored),
     api_key_set: Boolean(apiStored),
-    /** True when value was bcrypt'd earlier and must be re-entered */
     blugate_client_key_needs_reset: Boolean(blugateStored) && !blugate,
     api_key_needs_reset: Boolean(apiStored) && !api,
   };
 };
 
+const redactPlatformSecrets = maskPlatformSecrets;
+
 // Back-compat alias used by older call sites
 const hashPlatformSecret = encryptPlatformSecret;
-const redactPlatformSecrets = revealPlatformSecrets;
 
 module.exports = {
   encryptPlatformSecret,
   decryptPlatformSecret,
   hashPlatformSecret,
   migratePlaintextPlatformSecrets,
+  maskPlatformSecrets,
   revealPlatformSecrets,
   redactPlatformSecrets,
   isBcryptHash,

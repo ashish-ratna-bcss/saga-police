@@ -67,6 +67,30 @@ const pageAllowed = (user, requiredPages) => {
   });
 };
 
+const USER_AUTH_SELECT = {
+  id: true,
+  name: true,
+  username: true,
+  email: true,
+  role_id: true,
+  created_by: true,
+  db_name: true,
+  allowed_pages: true,
+  allowed_platforms: true,
+  can_manage_users: true,
+  can_manage_roles: true,
+  max_profiles: true,
+  max_users: true,
+  ui_mode: true,
+  theme_color: true,
+  application_details: true,
+  port: true,
+  logo_mime: true,
+  created_at: true,
+  updated_at: true,
+  roles: true,
+};
+
 const authorize = (...args) => {
   const { roles, pages, manageUsers, manageRoles } = parseOptions(args);
 
@@ -80,7 +104,7 @@ const authorize = (...args) => {
       const decoded = jwt.verify(token, getJwtSecret());
       const user = await prisma.users.findUnique({
         where: { id: decoded.user_id },
-        include: { roles: true },
+        select: USER_AUTH_SELECT,
       });
       if (!user) {
         return res.status(401).json({ message: 'Not authorized, user not found' });

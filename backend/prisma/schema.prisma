@@ -37,7 +37,15 @@ model users {
   max_profiles       Int?
   max_users          Int?
   ui_mode            String   @default("light")
+  /// Visual theme only (gradient / hex). Branding lives in application_details + logo_*.
   theme_color        Json     @default("{\"type\":\"gradient\",\"value\":\"linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)\",\"primary_hex\":\"#38bdf8\"}")
+  /// Login branding: { title, description, application_name, domains[] }
+  application_details Json?
+  /// Frontend port for this admin tenant (e.g. 3000). Login branding resolves by port.
+  port               Int?     @unique
+  /// Org / login logo stored in DB. Served via GET /api/branding/logo?port=
+  logo_data          Bytes?
+  logo_mime          String?
   created_at         DateTime @default(now()) @db.Timestamptz(6)
   updated_at         DateTime @default(now()) @updatedAt @db.Timestamptz(6)
   roles              roles    @relation(fields: [role_id], references: [id], onUpdate: NoAction)

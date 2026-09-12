@@ -2,6 +2,7 @@ import apiHandler from './apiHandler';
 
 export const socialProfilesApi = {
   listPlatforms: (params) => apiHandler.get('/social-profiles/platforms', { params }),
+  getPlatform: (id) => apiHandler.get(`/social-profiles/platforms/${id}`),
   getPagePlatformsMapping: () => apiHandler.get('/social-profiles/platforms/page-mapping'),
   createPlatform: (body) => apiHandler.post('/social-profiles/platforms', body),
   updatePlatform: (id, body) => apiHandler.put(`/social-profiles/platforms/${id}`, body),

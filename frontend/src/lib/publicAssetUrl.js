@@ -26,7 +26,11 @@ export const resolvePublicAssetUrl = (raw) => {
     // fall through
   }
 
-  if (value.startsWith('/files/') || value.startsWith('/api/files/')) {
+  if (
+    value.startsWith('/files/') ||
+    value.startsWith('/api/files/') ||
+    value.startsWith('/api/branding/')
+  ) {
     return `${BACKEND_URL}${value}`;
   }
 

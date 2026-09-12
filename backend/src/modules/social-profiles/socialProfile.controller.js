@@ -126,7 +126,7 @@ const listPlatforms = async (req, res) => {
   const prisma = dbOf(req.tenantPrisma);
   try {
     const { ensureOpsSchema } = require('../../../prisma/ensureOpsSchema');
-    const { revealPlatformSecrets, migratePlaintextPlatformSecrets } = require('../../lib/platformSecrets');
+    const { maskPlatformSecrets, migratePlaintextPlatformSecrets } = require('../../lib/platformSecrets');
     await ensureOpsSchema(prisma);
     await migratePlaintextPlatformSecrets(prisma);
     const includeInactive = req.query.all === '1' || req.query.all === 'true';
@@ -161,9 +161,27 @@ const listPlatforms = async (req, res) => {
       });
     }
 
-    res.json(platforms.map(revealPlatformSecrets));
+    // Never return plaintext or ciphertext credentials in list responses
+    res.json(platforms.map(maskPlatformSecrets));
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+/** Single platform with decrypted keys — managers only (edit form). */
+const getPlatform = async (req, res) => {
+  const prisma = dbOf(req.tenantPrisma);
+  try {
+    const { revealPlatformSecrets } = require('../../lib/platformSecrets');
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'invalid id' });
+
+    const platform = await prisma.platforms.findUnique({ where: { id } });
+    if (!platform) return res.status(404).json({ error: 'platform not found' });
+
+    return res.json(revealPlatformSecrets(platform));
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -205,7 +223,7 @@ const createPlatform = async (req, res) => {
   const prisma = dbOf(req.tenantPrisma);
   try {
     const { PLATFORM_CATALOG_DEFS } = require('../../lib/platformCatalog');
-    const { encryptPlatformSecret, revealPlatformSecrets } = require('../../lib/platformSecrets');
+    const { encryptPlatformSecret, maskPlatformSecrets } = require('../../lib/platformSecrets');
     const name = String(req.body.name || '').trim();
     const slug = normalizeSlug(req.body.slug || name);
     const icon = String(req.body.icon || 'Globe2').trim() || 'Globe2';
@@ -251,7 +269,7 @@ const createPlatform = async (req, res) => {
       },
     });
     await syncAdminAllowedPlatforms(req);
-    res.status(201).json(revealPlatformSecrets(platform));
+    res.status(201).json(maskPlatformSecrets(platform));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -260,7 +278,7 @@ const createPlatform = async (req, res) => {
 const updatePlatform = async (req, res) => {
   const prisma = dbOf(req.tenantPrisma);
   try {
-    const { encryptPlatformSecret, revealPlatformSecrets } = require('../../lib/platformSecrets');
+    const { encryptPlatformSecret, maskPlatformSecrets } = require('../../lib/platformSecrets');
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'invalid id' });
 
@@ -322,7 +340,7 @@ const updatePlatform = async (req, res) => {
 
     const platform = await prisma.platforms.update({ where: { id }, data });
     await syncAdminAllowedPlatforms(req);
-    res.json(revealPlatformSecrets(platform));
+    res.json(maskPlatformSecrets(platform));
   } catch (error) {
     if (error.code === 'P2025') return res.status(404).json({ error: 'platform not found' });
     res.status(500).json({ error: error.message });
@@ -1171,6 +1189,7 @@ const previewProfileIdentity = async (req, res) => {
 module.exports = {
   getPagePlatformsMapping,
   listPlatforms,
+  getPlatform,
   createPlatform,
   updatePlatform,
   deletePlatform,

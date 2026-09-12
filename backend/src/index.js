@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
-const { assertJwtConfigured, shouldSeedDefaultAdmin, isProduction } = require('./config/env');
+const { assertJwtConfigured, shouldSeedDefaultAdmin } = require('./config/env');
 const { startScheduler: startCatalogMonitoringScheduler } = require('./services/monitoringsocialmedia');
 const { startScheduler: startSentimentAnalysisScheduler } = require('./services/sentimentanalysis');
 const { startScheduler: startEventScheduler } = require('./modules/events');
@@ -39,19 +39,30 @@ const app = express();
 
 app.set('trust proxy', 1);
 
-app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    // Allow <img src="http://localhost:5005/..."> from CRA ports :3000/:3001/:3002
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginEmbedderPolicy: false,
+  })
+);
 
-if (isProduction() && !process.env.CORS_ORIGINS) {
-  throw new Error('CORS_ORIGINS is required in production (comma-separated allowlist).');
-}
-
-app.use(cors({
-  origin: process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
-    : true,
-  credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning', 'x-requested-with'],
-}));
+// Open CORS — reflect any Origin (multi-port tenants :3000/:3001/:3002 + cookie credentials).
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'ngrok-skip-browser-warning',
+      'x-requested-with',
+    ],
+  })
+);
+app.options('*', cors({ origin: true, credentials: true }));
 app.use(cookieParser());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -70,6 +81,19 @@ const reportStaticOptions = {
 app.use('/files', express.static(reportStorageDir, reportStaticOptions));
 app.use('/api/files', express.static(reportStorageDir, reportStaticOptions));
 
+// Default login / branding assets: serve from frontend/public and a local
+// copy under storage/public so /blura_saga_logo.jpg never 404s on the API
+// when the UI accidentally prefixes BACKEND_URL.
+const brandingStaticDirs = [
+  path.join(__dirname, '..', '..', 'frontend', 'public'),
+  path.join(reportStorageDir, 'public'),
+];
+for (const dir of brandingStaticDirs) {
+  if (fs.existsSync(dir)) {
+    app.use(express.static(dir, { index: false, fallthrough: true }));
+  }
+}
+
 app.use('/api', require('./modules').router);
 
 app.get('/api/verify-v2', (req, res) => res.json({ status: 'ok', version: 'v2-diagnostic', timestamp: new Date() }));
@@ -87,60 +111,12 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ message: err.message || 'Internal server error' });
 });
 
-const createDefaultUsers = async () => {
-  try {
-    const { ensureSystemRoles, getRoleBySlug } = require('./modules/role/role.service');
-    const { ROLE_SLUGS } = require('./modules/role/role.utils');
-    const { getDefaultAccessForRole } = require('./modules/auth/access_features');
-
-    // Always ensure system roles exist (superadmin / admin / user).
-    await ensureSystemRoles();
-    logger.info('[Startup] System roles ensured (superadmin, admin, user)');
-
-    if (!shouldSeedDefaultAdmin()) {
-      return;
-    }
-
-    const superadminRole = await getRoleBySlug(ROLE_SLUGS.SUPERADMIN);
-    if (!superadminRole) {
-      logger.error('[Startup] Superadmin role missing after ensure');
-      return;
-    }
-
-    const existing = await prisma.users.findUnique({ where: { username: 'superadmin' } });
-    if (existing) {
-      return;
-    }
-
-    const access = getDefaultAccessForRole(ROLE_SLUGS.SUPERADMIN);
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash('superadmin123', salt);
-
-    await prisma.users.create({
-      data: {
-        name: 'Super Administrator',
-        username: 'superadmin',
-        email: 'superadmin@blurahub.com',
-        password: hashedPassword,
-        role_id: superadminRole.id,
-        ui_mode: 'light',
-        ...access,
-      },
-    });
-    logger.info('[Startup] Default superadmin user created (username: superadmin)');
-  } catch (error) {
-    logger.error(`[Startup] Error creating default users: ${error.message}`);
-  }
-};
-
 const startServer = async () => {
   try {
     await require('./modules/settings/mapping.service').start();
   } catch (mappingErr) {
     logger.error(`[MappingService] Initial load failed: ${mappingErr.message}`);
   }
-
-  await createDefaultUsers();
 
   startCatalogMonitoringScheduler();
   startSentimentAnalysisScheduler();

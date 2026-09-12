@@ -1,3 +1,6 @@
+const { publicLogoUrl } = require('./user.logo');
+const { readApplicationDetails } = require('./user.application');
+
 const DEFAULT_THEME_VALUE = 'linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)';
 
 const extractThemeColor = (tc) => {
@@ -7,9 +10,20 @@ const extractThemeColor = (tc) => {
   return DEFAULT_THEME_VALUE;
 };
 
+const resolveLogoUrl = (user) => {
+  if (user.logo_mime || user.logo_data) {
+    return publicLogoUrl({
+      port: user.port,
+      username: user.username,
+      updatedAt: user.updated_at,
+    });
+  }
+  return '/blura_saga_logo.jpg';
+};
+
 const toPublicUser = (user, role) => {
   const roleSlug = role?.slug || null;
-  const tc = typeof user.theme_color === 'object' && user.theme_color ? user.theme_color : {};
+  const app = readApplicationDetails(user);
   return {
     id: user.id,
     name: user.name,
@@ -26,15 +40,18 @@ const toPublicUser = (user, role) => {
     max_profiles: user.max_profiles ?? null,
     max_users: user.max_users ?? null,
     created_by: user.created_by ?? null,
+    port: user.port ?? null,
     ui_mode: user.ui_mode === 'dark' ? 'dark' : 'light',
     theme_color: extractThemeColor(user.theme_color),
-    blurasagatitle: tc.blurasagatitle || tc.title || 'BLURA SAGA',
-    blurasagadescription: tc.blurasagadescription || tc.description || 'Cyber Intelligence Platform',
-    blurasagalogo: tc.blurasagalogo || tc.logo || '/blura_saga_logo.jpg',
+    application_details: app,
+    blurasagatitle: app.title,
+    blurasagadescription: app.description,
+    blurasagalogo: resolveLogoUrl(user),
+    has_logo: Boolean(user.logo_mime || user.logo_data),
     db_name: user.db_name || null,
     created_at: user.created_at,
     is_active: true,
   };
 };
 
-module.exports = { toPublicUser };
+module.exports = { toPublicUser, resolveLogoUrl };

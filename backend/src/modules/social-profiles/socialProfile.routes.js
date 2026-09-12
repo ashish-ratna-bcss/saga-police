@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   getPagePlatformsMapping,
   listPlatforms,
+  getPlatform,
   createPlatform,
   updatePlatform,
   deletePlatform,
@@ -30,6 +31,7 @@ const PLATFORM_MANAGE_PAGES = ['/settings', '/social-profiles', '/setup'];
 
 router.get('/platforms/page-mapping', authorize(), getPagePlatformsMapping);
 router.get('/platforms', authorize(), listPlatforms);
+router.get('/platforms/:id', authorize({ pages: PLATFORM_MANAGE_PAGES }), getPlatform);
 router.post('/platforms', authorize({ pages: PLATFORM_MANAGE_PAGES }), createPlatform);
 router.put('/platforms/:id', authorize({ pages: PLATFORM_MANAGE_PAGES }), updatePlatform);
 router.delete('/platforms/:id', authorize({ pages: PLATFORM_MANAGE_PAGES }), deletePlatform);

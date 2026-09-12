@@ -4,7 +4,7 @@ const ALERT_INCLUDE = {
       account: {
         include: {
           profile: true,
-          platforms: true,
+          platforms: { select: { slug: true, name: true } },
         },
       },
     },
