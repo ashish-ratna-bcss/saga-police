@@ -145,16 +145,31 @@ const upsertMedia = async ({ eventId, platform, externalId, payload, db }) => {
   return { isNew: false };
 };
 
-const normalizeFbMedia = (media) =>
-  (Array.isArray(media) ? media : [])
-    .map((m) => {
-      if (!m) return null;
-      if (typeof m === 'string') return { type: 'photo', url: m };
-      const url = m.url || m.preview || null;
-      if (!url) return null;
-      return { type: m.type || 'photo', url, preview: m.preview || url };
-    })
-    .filter(Boolean);
+/**
+ * Build media items from a raw facebook-scraper3 post object.
+ * The API has no `media` array — real image/video CDN URLs live at
+ * `image.uri`, `album_preview[].image_file_uri`, and `video_files.video_sd_file`.
+ * `video` and `album_preview[].url` are Facebook PAGE permalinks (e.g.
+ * facebook.com/photo.php?...&type=3), not media files — using them as an
+ * <img>/<video> src 404s (browsers block cross-origin embedding of the page).
+ */
+const normalizeFbMedia = (post) => {
+  const items = [];
+  if (post?.image?.uri) {
+    items.push({ type: 'photo', url: post.image.uri, preview: post.image.uri });
+  }
+  if (Array.isArray(post?.album_preview)) {
+    for (const a of post.album_preview) {
+      const uri = a?.image_file_uri;
+      if (uri) items.push({ type: 'photo', url: uri, preview: uri });
+    }
+  }
+  const videoFile = post?.video_files?.video_sd_file || post?.video_files?.video_hd_file;
+  if (videoFile) {
+    items.push({ type: 'video', url: videoFile, preview: post?.video_thumbnail || null });
+  }
+  return items;
+};
 
 /* ── Blugate X search helpers ── */
 
@@ -636,7 +651,7 @@ const runScanEventOnce = async (event, options = {}) => {
               reactions: p.reactions_count ?? p.reactions ?? 0,
               shares: p.shares ?? p.reshare_count ?? 0,
             },
-            media: normalizeFbMedia(p.media),
+            media: normalizeFbMedia(p),
             raw_data: p.raw_data || p,
           },
         });

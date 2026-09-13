@@ -1,6 +1,24 @@
 const eventService = require('./event.service');
 const { scanEventOnce } = require('./event.scan.service');
+const { normalizeEventPlatformSlug } = require('./event.utils');
 const dbOf = require('../../lib/dbOf');
+
+/**
+ * Manually-triggered scans (Start's kickoff, Fetch Now) should only touch
+ * platforms the clicking user can actually access — otherwise a restricted
+ * user's click still fetches platforms hidden from them everywhere else in
+ * the UI. Scheduled/background monitoring is unaffected (not user-triggered).
+ * Returns a shallow copy of `event` with `platforms` intersected against
+ * `user.allowed_platforms`; unrestricted users (empty/missing list) pass through.
+ */
+const restrictEventToUserPlatforms = (event, user) => {
+  const allowedRaw = Array.isArray(user?.allowed_platforms) ? user.allowed_platforms : [];
+  if (!allowedRaw.length) return event;
+  const allowed = new Set(allowedRaw.map(normalizeEventPlatformSlug));
+  const platforms = (Array.isArray(event.platforms) ? event.platforms : [])
+    .filter((p) => allowed.has(normalizeEventPlatformSlug(p)));
+  return { ...event, platforms };
+};
 
 const listEvents = async (req, res) => {
   try {
@@ -74,7 +92,10 @@ const toggleMonitoring = async (req, res) => {
           const row = await dbOf(tenantDb).social_media_events.findUnique({
             where: { id: Number(event.id) },
           });
-          if (row) await scanEventOnce(row, { source: 'kickoff', db: tenantDb });
+          if (row) {
+            const scanRow = restrictEventToUserPlatforms(row, req.user);
+            await scanEventOnce(scanRow, { source: 'kickoff', db: tenantDb });
+          }
         } catch (_) {
           /* kickoff errors are recorded in last_fetched_history when possible */
         }
@@ -118,7 +139,10 @@ const resumeEvent = async (req, res) => {
           const row = await dbOf(tenantDb).social_media_events.findUnique({
             where: { id: Number(event.id) },
           });
-          if (row) await scanEventOnce(row, { source: 'kickoff', db: tenantDb });
+          if (row) {
+            const scanRow = restrictEventToUserPlatforms(row, req.user);
+            await scanEventOnce(scanRow, { source: 'kickoff', db: tenantDb });
+          }
         } catch (_) {
           /* ignore */
         }
@@ -174,7 +198,8 @@ const runEventScan = async (req, res) => {
       where: { id: Number(req.params.id) },
     });
     if (!row) return res.status(404).json({ message: 'Event not found' });
-    const result = await scanEventOnce(row, {
+    const scanRow = restrictEventToUserPlatforms(row, req.user);
+    const result = await scanEventOnce(scanRow, {
       source: 'manual',
       db: req.tenantPrisma,
     });

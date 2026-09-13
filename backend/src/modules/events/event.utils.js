@@ -247,6 +247,7 @@ module.exports = {
   hydrateEvent,
   hydrateEventMedia,
   hydrateOccasion,
+  normalizeEventPlatformSlug,
   listActiveEventPlatforms,
   resolveEventPlatforms,
 };

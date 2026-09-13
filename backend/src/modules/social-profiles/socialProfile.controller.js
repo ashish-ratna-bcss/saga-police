@@ -2,6 +2,7 @@ const dbOf = require('../../lib/dbOf');
 const monitoringSocialMedia = require('../../services/monitoringsocialmedia');
 const { previewProfile } = require('../../services/monitoringsocialmedia/previewProfile');
 const { attachRelevanceToAccounts } = require('./catalogRelevance.service');
+const { attachProfileRelevanceToAccounts } = require('./profileRelevance.service');
 const { listActivePolicies } = require('../settings/settings.service');
 
 const FIELD_TYPES = new Set(['text', 'url']);
@@ -419,9 +420,10 @@ const listProfiles = async (req, res) => {
 
     const countsById = counts.reduce((acc, c) => ({ ...acc, [c.platform_id]: c._count._all }), {});
     const byPlatform = allPlatforms.reduce((acc, p) => ({ ...acc, [p.slug]: countsById[p.id] || 0 }), {});
-    const flattened = await attachRelevanceToAccounts(accounts.map(flattenAccount), {
+    const withRelevance = await attachRelevanceToAccounts(accounts.map(flattenAccount), {
       db: prisma,
     });
+    const flattened = await attachProfileRelevanceToAccounts(withRelevance, { db: prisma });
 
     res.json({
       profiles: flattened,
@@ -482,9 +484,10 @@ const getProfile = async (req, res) => {
       orderBy: { id: 'asc' },
     });
 
-    const flattenedAll = await attachRelevanceToAccounts(siblings.map(flattenAccount), {
+    const withRelevance = await attachRelevanceToAccounts(siblings.map(flattenAccount), {
       db: prisma,
     });
+    const flattenedAll = await attachProfileRelevanceToAccounts(withRelevance, { db: prisma });
     const current = flattenedAll.find((a) => Number(a.id) === id) || flattenedAll[0];
     if (!current) return res.status(404).json({ error: 'Profile not found' });
 

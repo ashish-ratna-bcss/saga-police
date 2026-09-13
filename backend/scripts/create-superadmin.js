@@ -1,6 +1,6 @@
 /**
- * One-shot: upsert superadmin / superadmin123
- * Usage: node scripts/create-superadmin.js
+ * One-shot: upsert the superadmin user.
+ * Usage: SUPERADMIN_PASSWORD=... node scripts/create-superadmin.js
  */
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
@@ -9,9 +9,15 @@ const { getDefaultAccessForRole } = require('../src/modules/auth/access_features
 
 (async () => {
   const username = process.env.SUPERADMIN_USERNAME || 'superadmin';
-  const password = process.env.SUPERADMIN_PASSWORD || 'superadmin123';
+  const password = String(process.env.SUPERADMIN_PASSWORD || '').trim();
   const email = process.env.SUPERADMIN_EMAIL || 'superadmin@blurasaga.local';
   const name = process.env.SUPERADMIN_NAME || 'Super Administrator';
+
+  if (password.length < 12) {
+    throw new Error(
+      'SUPERADMIN_PASSWORD is required (min 12 chars). Set it in the environment — do not hardcode it.'
+    );
+  }
 
   let role = await prisma.roles.findUnique({ where: { slug: 'superadmin' } });
   if (!role) {

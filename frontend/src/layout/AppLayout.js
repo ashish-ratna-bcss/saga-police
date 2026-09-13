@@ -26,7 +26,39 @@ const AppLayout = () => {
         document.getElementsByTagName('head')[0].appendChild(link);
       }
       const logoPath = user.blurasagalogo || user.theme_logo || '/favicon.ico';
-      link.href = resolvePublicAssetUrl(logoPath);
+      const rawUrl = resolvePublicAssetUrl(logoPath);
+      link.href = rawUrl;
+
+      // Browsers render the favicon image as-is with no CSS, so to get rounded
+      // corners in the tab we draw it onto a canvas with a rounded clip and use
+      // that as the favicon instead. Falls back to the raw image on any failure
+      // (network error, or a cross-origin image without CORS headers tainting
+      // the canvas) so the favicon never ends up broken.
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const size = 64;
+          const radius = size * 0.2;
+          const canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          ctx.beginPath();
+          ctx.moveTo(radius, 0);
+          ctx.arcTo(size, 0, size, size, radius);
+          ctx.arcTo(size, size, 0, size, radius);
+          ctx.arcTo(0, size, 0, 0, radius);
+          ctx.arcTo(0, 0, size, 0, radius);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(img, 0, 0, size, size);
+          link.href = canvas.toDataURL('image/png');
+        } catch {
+          // Tainted canvas (no CORS on the image) — keep the raw favicon set above.
+        }
+      };
+      img.src = rawUrl;
     }
   }, [user]);
 

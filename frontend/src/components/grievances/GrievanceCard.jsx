@@ -677,8 +677,6 @@ const ParentFacebookPost = ({ context, getProxiedMediaUrl, onAction, grievance }
 
     return (
         <div className="mb-4 pb-4 border-b border-gray-100 dark:border-slate-700 relative">
-            <div className="absolute left-5 top-12 bottom-0 w-[2px] bg-slate-200 dark:bg-slate-700" />
-
             <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10 ring-1 ring-slate-200">
                     <AvatarImage src={user.profile_image_url} />

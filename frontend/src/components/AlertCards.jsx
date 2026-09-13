@@ -4412,7 +4412,7 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                     )}
 
                     {/* Metadata Line — timestamps only; engagement is platform-aware below */}
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground py-2.5 border-y border-border/50">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground py-2.5">
                         <span>{timeStr}</span>
                         <span className="text-border">·</span>
                         <span>{dateStr}</span>

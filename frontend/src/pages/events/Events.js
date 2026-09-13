@@ -974,14 +974,8 @@ const Events = () => {
     (async () => {
       setPlatformsLoading(true);
       try {
-        let rows = [];
-        try {
-          const res = await socialProfilesApi.listPlatforms();
-          rows = Array.isArray(res.data) ? res.data : [];
-        } catch (_) {
-          const res = await api.get('/search/platforms');
-          rows = (Array.isArray(res.data?.platforms) ? res.data.platforms : []).map((slug) => ({ slug }));
-        }
+        const res = await socialProfilesApi.listPlatforms({ page: 'events' });
+        const rows = Array.isArray(res.data) ? res.data : [];
         const seen = new Set();
         const options = [];
         for (const row of rows) {
@@ -1004,8 +998,11 @@ const Events = () => {
           const kept = current.filter((p) => allowed.has(normalizeEventPlatformSlug(p)));
           return { ...prev, platforms: kept.length ? kept : slugs };
         });
-      } catch (_) {
-        if (!cancelled) setPlatformOptions([]);
+      } catch (error) {
+        if (!cancelled) {
+          setPlatformOptions([]);
+          toast.error(error.response?.data?.error || error.message || 'Failed to load platforms');
+        }
       } finally {
         if (!cancelled) setPlatformsLoading(false);
       }
@@ -1529,13 +1526,28 @@ const Events = () => {
   }, [dashboard, contentPlatform]);
 
   const eventPlatformTabs = useMemo(() => {
-    const activePlats = dashboard?.stats?.content_by_platform
-      ? Object.keys(dashboard.stats.content_by_platform).filter(k => dashboard.stats.content_by_platform[k] > 0)
-      : [];
-    return Object.entries(PLATFORM_CONFIG).filter(
-      ([key]) => key === 'all' || activePlats.includes(key)
-    );
-  }, [dashboard?.stats?.content_by_platform]);
+    const tenantSlugs = platformOptions.map((p) => p.value).filter(Boolean);
+    const entries = [['all', PLATFORM_CONFIG.all]];
+    for (const slug of tenantSlugs) {
+      const cfg = PLATFORM_CONFIG[slug] || {
+        label: platformOptions.find((p) => p.value === slug)?.label || slug,
+        icon: Globe,
+        color: 'text-muted-foreground',
+      };
+      entries.push([slug, cfg]);
+    }
+    return entries;
+  }, [platformOptions]);
+
+  // Count only the platforms on this event that the current user can actually
+  // see/access (intersect with platformOptions), not the event's raw config —
+  // otherwise this stat shows platforms the user has no visibility into.
+  const accessibleEventPlatformCount = useMemo(() => {
+    if (!selectedEvent) return 0;
+    const allowed = new Set(platformOptions.map((p) => p.value).filter(Boolean));
+    const plats = Array.isArray(selectedEvent.platforms) ? selectedEvent.platforms.filter(Boolean) : [];
+    return plats.filter((p) => allowed.has(normalizeEventPlatformSlug(p))).length;
+  }, [selectedEvent, platformOptions]);
 
   useEffect(() => {
     if (contentPlatform === 'all') return;
@@ -2332,9 +2344,12 @@ const Events = () => {
                         {isRecurringEvent(e) ? 'Festival' : e.occasion_calendar_id || e.origin_calendar_id ? 'One-time' : 'Manual'}
                       </p>
                       <div className="flex flex-wrap gap-1 mb-1">
-                        {(Array.isArray(e.platforms) ? e.platforms : []).slice(0, 4).map((p) => (
-                          <span key={p} className="text-[9px] font-bold uppercase text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-slate-800 rounded px-1.5 py-0.5">{p}</span>
-                        ))}
+                        {(Array.isArray(e.platforms) ? e.platforms : [])
+                          .filter((p) => dbPlatformSlugs.includes(normalizeEventPlatformSlug(p)))
+                          .slice(0, 4)
+                          .map((p) => (
+                            <span key={p} className="text-[9px] font-bold uppercase text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-slate-800 rounded px-1.5 py-0.5">{p}</span>
+                          ))}
                       </div>
                       <div className="flex items-center gap-2 text-[10px] text-gray-400">
                         {e.location && (<span className="flex items-center gap-0.5 truncate"><MapPin className="h-2.5 w-2.5 shrink-0" />{e.location}</span>)}
@@ -2697,9 +2712,7 @@ const Events = () => {
                     { label: 'Recent', value: dashboard?.stats?.content_recent_24h || 0, icon: Activity, color: 'text-amber-500 dark:text-amber-400', valueClass: 'text-gray-900 dark:text-white' },
                     {
                       label: 'Platforms',
-                      value:
-                        dashboard?.stats?.platforms_configured ??
-                        (Array.isArray(selectedEvent.platforms) ? selectedEvent.platforms.filter(Boolean).length : 0),
+                      value: accessibleEventPlatformCount,
                       icon: Globe,
                       color: 'text-emerald-600 dark:text-emerald-400',
                       valueClass: 'text-gray-900 dark:text-white',
