@@ -1306,16 +1306,29 @@ export const GrievanceCard = ({ grievance, onAction, getProxiedMediaUrl, downloa
                     {grievance.tagged_account ? `Watched ${grievance.tagged_account} · ` : ''}
                     Detected {timeAgo(grievance.detected_date || grievance.created_at)} ago
                 </span>
-                <button
-                    type="button"
-                    className="text-foreground/70 hover:text-foreground flex items-center gap-1 transition-colors"
-                    onClick={() => onAction?.('view', { grievance })}
-                >
-                    Details
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
-                        <path d="m9 18 6-6-6-6" />
-                    </svg>
-                </button>
+                <div className="flex items-center gap-3">
+                    {(grievance.content_url || grievance.tweet_url || grievance.url) && (
+                        <a
+                            href={grievance.content_url || grievance.tweet_url || grievance.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-foreground/70 hover:text-foreground flex items-center gap-1 transition-colors"
+                        >
+                            Original
+                            <ExternalLink className="h-3 w-3" />
+                        </a>
+                    )}
+                    <button
+                        type="button"
+                        className="text-foreground/70 hover:text-foreground flex items-center gap-1 transition-colors"
+                        onClick={() => onAction?.('view', { grievance })}
+                    >
+                        Details
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
+                            <path d="m9 18 6-6-6-6" />
+                        </svg>
+                    </button>
+                </div>
             </div>
         </Card>
     );

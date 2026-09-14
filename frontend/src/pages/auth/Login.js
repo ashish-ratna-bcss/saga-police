@@ -262,7 +262,7 @@ const Login = () => {
               key={`sticker-${logoUrl}`}
               src={logoUrl}
               alt=""
-              className="login-logo-sticker absolute left-[52%] top-[54%] h-[min(58vmin,520px)] w-auto max-w-[70%] -translate-x-1/2 -translate-y-1/2 rotate-[-6deg] object-contain opacity-[0.11] select-none"
+              className="login-logo-sticker absolute left-[52%] top-[54%] h-[min(58vmin,520px)] w-auto max-w-[70%] -translate-x-1/2 -translate-y-1/2 rotate-[-6deg] rounded-[20%] object-contain opacity-[0.11] select-none"
               style={{
                 filter: 'drop-shadow(0 0 40px rgba(56,189,248,0.12))',
                 maskImage:
@@ -279,7 +279,7 @@ const Login = () => {
                 key={logoUrl}
                 src={logoUrl}
                 alt=""
-                className="login-brand-logo h-12 w-auto max-w-[120px] shrink-0 object-contain sm:h-14 sm:max-w-[140px] lg:mb-8 lg:h-20 lg:max-w-[280px] xl:h-24 xl:max-w-[300px]"
+                className="login-brand-logo h-12 w-auto max-w-[120px] shrink-0 rounded-[20%] object-contain sm:h-14 sm:max-w-[140px] lg:mb-8 lg:h-20 lg:max-w-[280px] xl:h-24 xl:max-w-[300px]"
               />
               <div className="min-w-0 lg:contents">
                 <h1 className="font-heading text-2xl font-bold uppercase leading-none tracking-[0.1em] text-white sm:text-3xl lg:text-5xl xl:text-6xl 2xl:text-7xl lg:leading-[0.95] lg:tracking-[0.12em]">

@@ -23,6 +23,12 @@
       "frontend_port": 3002,
       "backend_port": 5007,
       "domain": "uttarakhandpolice.blurasaga.com"
+    },
+    {
+      "admin": "test",
+      "frontend_port": 3003,
+      "backend_port": 5008,
+      "domain": "test.blurasaga.com"
     }
   ]
 }
