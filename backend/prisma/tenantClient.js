@@ -24,12 +24,10 @@ function createTenantPrisma(url) {
   });
 }
 
-/**
- * Default tenant-schema client pointed at DATABASE_URL.
- * Used as dbOf() fallback and for getTenantPrisma(null|main).
- */
-const defaultTenantPrisma = createTenantPrisma();
-
-module.exports = defaultTenantPrisma;
-module.exports.PrismaClient = PrismaClient;
-module.exports.createTenantPrisma = createTenantPrisma;
+// No default/eager client here — dbOf() throws on a missing db rather than
+// silently falling back, and getTenantPrisma(null|main) returns null directly
+// (tenantDatabase.service.js), so an always-open "default" pool was pure
+// unused overhead: one extra PrismaClient (and connection pool) per process
+// that nothing ever queried. Only create a tenant client when one is actually
+// requested, via createTenantPrisma(url).
+module.exports = { createTenantPrisma, PrismaClient };
