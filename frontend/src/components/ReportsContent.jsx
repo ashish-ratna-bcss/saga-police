@@ -58,7 +58,7 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
     // Filters
     const [dateRange, setDateRange] = useState({ from: undefined, to: undefined });
     const [platformFilter, setPlatformFilter] = useState('all');
-    const [statusFilter, setStatusFilter] = useState('sent_to_intermediary');
+    const [statusFilter, setStatusFilter] = useState('all');
     const [keywordFilter, setKeywordFilter] = useState('all');
     const [riskFilter, setRiskFilter] = useState('all');
     const [viralityFilter, setViralityFilter] = useState('all');
@@ -391,7 +391,7 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
         Boolean(dateRange.from) ||
         Boolean(dateRange.to) ||
         platformFilter !== 'all' ||
-        statusFilter !== 'sent_to_intermediary' ||
+        statusFilter !== 'all' ||
         (searchQuery || '').trim() !== '' ||
         keywordFilter !== 'all' ||
         riskFilter !== 'all' ||
@@ -401,7 +401,7 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
     const clearFilters = () => {
         setDateRange({ from: undefined, to: undefined });
         setPlatformFilter('all');
-        setStatusFilter('sent_to_intermediary');
+        setStatusFilter('all');
         setSearchQuery('');
         setKeywordFilter('all');
         setRiskFilter('all');
@@ -808,6 +808,7 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
                                     <SelectValue placeholder="Status" />
                                 </SelectTrigger>
                                 <SelectContent>
+                                    <SelectItem value="all">All Statuses</SelectItem>
                                     <SelectItem value="sent_to_intermediary">Sent to Intermediary</SelectItem>
                                     <SelectItem value="closed">Closed</SelectItem>
                                 </SelectContent>

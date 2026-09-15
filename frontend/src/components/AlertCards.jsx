@@ -548,17 +548,8 @@ export const DownloadMenu = ({
     const validItems = Array.isArray(mediaItems) ? mediaItems : [];
     const hasImages = validItems.some((m) => isImageMediaItem(m));
     const hasVideos = validItems.some((m) => isVideoMediaItem(m));
-
-    // Allow download if:
-    // 1. Explicit media items exist
-    // 2. OR it's a supported social media link (we can try scraping it for media even if frontend didn't detect it yet)
-    const isLink = mediaUrl && (
-        mediaUrl.includes('twitter.com') || mediaUrl.includes('x.com') ||
-        mediaUrl.includes('facebook.com') || mediaUrl.includes('fb.watch') ||
-        mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be') ||
-        mediaUrl.includes('instagram.com')
-    );
-    const hasMedia = hasImages || hasVideos || isLink;
+    // Only show download when there is real image/video media — not a bare post URL.
+    const hasMedia = hasImages || hasVideos;
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -808,7 +799,7 @@ export const DownloadMenu = ({
         : 'Download';
 
     // If only link (no explicit items detected/passed yet), label as "Download Media"
-    const simpleMode = !hasImages && !hasVideos && isLink;
+    const simpleMode = false;
 
     return (
         <div className="relative" ref={menuRef}>
@@ -3392,20 +3383,16 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
         fallbackInlineMedia,
         resolvedFacebookMediaItems: resolvedPlatformMediaItems
     }), [alert?.platform, fallbackInlineMedia, inlineMediaItems, resolvedPlatformMediaItems]);
-    const isDownloadableLink = isDownloadableSocialLink(mediaUrl);
 
-    // Merge uniqueMediaItems with resolved platform media for downloads
-    // This ensures DownloadMenu has the same resolved video URLs that VideoPlayer uses
+    // Prefer cardMediaItems (includes resolved Facebook/Instagram video URLs)
     const downloadMediaItems = React.useMemo(() => {
         const merged = [];
         const seen = new Set();
-        // Prefer cardMediaItems (includes resolved Facebook/Instagram video URLs)
         for (const item of cardMediaItems) {
             if (!item?.url || seen.has(item.url)) continue;
             seen.add(item.url);
             merged.push(item);
         }
-        // Add any additional media from uniqueMediaItems not already covered
         for (const item of uniqueMediaItems) {
             if (!item?.url || seen.has(item.url)) continue;
             seen.add(item.url);
@@ -3414,7 +3401,8 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
         return merged;
     }, [cardMediaItems, uniqueMediaItems]);
 
-    const canDownload = uniqueMediaItems.length > 0 || cardMediaItems.length > 0 || isDownloadableLink;
+    // Only show download when the card has real image/video media (not a bare post URL).
+    const canDownload = downloadMediaItems.length > 0;
 
 
 
@@ -5143,7 +5131,7 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
                             {alert.status !== 'escalated' && <span>Format & Share</span>}
                         </button>
 
-                        {mediaUrl && (
+                        {youtubeVideoId && (
                             <DownloadMenu
                                 mediaItems={[{ type: 'video', url: mediaUrl }]}
                                 mediaUrl={mediaUrl}

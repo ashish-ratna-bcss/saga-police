@@ -790,7 +790,12 @@ const XLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState = {}, 
                             </div>
                             <WorkflowMeta grievance={grievance} onAction={onAction} />
                         </div>
-                        <ActionButtons grievance={grievance} onAction={onAction} isDownloading={!!downloadState?.downloading} />
+                        <ActionButtons
+                            grievance={grievance}
+                            onAction={onAction}
+                            isDownloading={!!downloadState?.downloading}
+                            showDownload={normalizeMediaList(media).length > 0}
+                        />
                     </div>
                     {/* Only show "Replying to" if we DON'T show the parent thread above (fallback) */}
                     {!hasThread && ctx.in_reply_to?.posted_by?.handle && (
@@ -928,7 +933,12 @@ const FacebookLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
                             <WorkflowMeta grievance={grievance} onAction={onAction} />
                         </div>
                     </div>
-                    <ActionButtons grievance={grievance} onAction={onAction} isDownloading={!!downloadState?.downloading} />
+                    <ActionButtons
+                        grievance={grievance}
+                        onAction={onAction}
+                        isDownloading={!!downloadState?.downloading}
+                        showDownload={normalizeMediaList(media).length > 0}
+                    />
                 </div>
                 {text && <div className="mt-3 text-[15px] text-[#050505] dark:text-slate-100 leading-5 whitespace-pre-wrap break-words">{highlightMentions(text)}</div>}
                 {media.length > 0 && <div className="mt-3 -mx-4"><FacebookMediaGrid media={media} getProxiedMediaUrl={getProxiedMediaUrl} /></div>}
@@ -1024,6 +1034,7 @@ const TelegramLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
                     grievance={grievance}
                     onAction={onAction}
                     isDownloading={!!downloadState?.downloading}
+                    showDownload={hasRenderableMedia}
                 />
             </div>
 
@@ -1138,7 +1149,12 @@ const InstagramLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadStat
                             <WorkflowMeta grievance={grievance} onAction={onAction} />
                         </div>
                     </div>
-                    <ActionButtons grievance={grievance} onAction={onAction} isDownloading={!!downloadState?.downloading} />
+                    <ActionButtons
+                        grievance={grievance}
+                        onAction={onAction}
+                        isDownloading={!!downloadState?.downloading}
+                        showDownload={normalizeMediaList(media).length > 0}
+                    />
                 </div>
                 {text && (
                     <div className="mt-3 text-[15px] text-[#050505] dark:text-slate-100 leading-5 whitespace-pre-wrap break-words">
@@ -1209,7 +1225,12 @@ const WhatsAppLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
                     <p className="text-[12.5px] font-semibold text-[#0f172a] truncate">{displayName}</p>
                     <WorkflowMeta grievance={grievance} onAction={onAction} />
                 </div>
-                <ActionButtons grievance={grievance} onAction={onAction} isDownloading={!!downloadState?.downloading} />
+                <ActionButtons
+                    grievance={grievance}
+                    onAction={onAction}
+                    isDownloading={!!downloadState?.downloading}
+                    showDownload={normalizeMediaList(media).length > 0}
+                />
             </div>
             <div className="flex justify-center mb-3">
                 <span className="bg-[#e1f3fb] text-[#54656f] text-[11px] font-medium px-3 py-1 rounded-lg shadow-sm">

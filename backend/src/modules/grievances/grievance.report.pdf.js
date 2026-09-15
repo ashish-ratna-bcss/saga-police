@@ -97,11 +97,25 @@ const attachGrievanceContext = async (report, { db } = {}) => {
   }
 };
 
+const resolveChromeExecutable = () => {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
+  const candidates = [
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+  ];
+  return candidates.find((p) => fs.existsSync(p)) || undefined;
+};
+
 let browserPromise = null;
 const getBrowser = async () => {
   if (!browserPromise) {
+    const executablePath = resolveChromeExecutable();
     browserPromise = puppeteer.launch({
       headless: 'new',
+      ...(executablePath ? { executablePath } : {}),
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
     });
     browserPromise.catch(() => {

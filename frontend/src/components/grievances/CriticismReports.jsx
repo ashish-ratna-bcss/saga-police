@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api, { BACKEND_URL } from '../../lib/api';
+import { isPublicFileReachable, resolvePublicAssetUrl } from '../../lib/publicAssetUrl';
 import { toast } from 'sonner';
 import {
     Download, Loader2, ExternalLink, RefreshCw, ChevronDown, ChevronUp,
@@ -128,8 +129,10 @@ const CriticismReportDetailView = ({ report: r, onClose, onPrint, onUpdate }) =>
     const isVideo = (url) => typeof url === 'string' && (url.toLowerCase().endsWith('.mp4') || url.toLowerCase().includes('/video/'));
     const [pdfGenerating, setPdfGenerating] = useState(false);
     const [pdfUrl, setPdfUrl] = useState(r?.report_pdf_url || null);
+    const resolvedPdfUrl = resolvePublicAssetUrl(pdfUrl || r?.report_pdf_url) || '';
     const pdfGeneratingRef = useRef(false);
     pdfGeneratingRef.current = pdfGenerating;
+    const pdfEnsureAttemptedRef = useRef(false);
     const reportRef = useRef(r);
     reportRef.current = r;
     const onUpdateRef = useRef(onUpdate);
@@ -147,7 +150,7 @@ const CriticismReportDetailView = ({ report: r, onClose, onPrint, onUpdate }) =>
                 toast.success('PDF generated successfully');
             }
         } catch (err) {
-            toast.error(err?.response?.data?.detail || 'PDF generation failed');
+            toast.error(err?.response?.data?.detail || err?.response?.data?.error || 'PDF generation failed');
             console.error(err);
         } finally {
             setPdfGenerating(false);
@@ -155,10 +158,22 @@ const CriticismReportDetailView = ({ report: r, onClose, onPrint, onUpdate }) =>
     }, []);
 
     React.useEffect(() => {
-        if (!pdfUrl && r?.id && !pdfGeneratingRef.current) {
-            handleGeneratePdf();
-        }
-    }, [pdfUrl, r?.id, handleGeneratePdf]);
+        if (!r?.id || pdfGeneratingRef.current || pdfEnsureAttemptedRef.current) return;
+        pdfEnsureAttemptedRef.current = true;
+        let cancelled = false;
+        (async () => {
+            const existing = pdfUrl || r?.report_pdf_url;
+            if (existing) {
+                const ok = await isPublicFileReachable(existing);
+                if (cancelled) return;
+                if (ok) return;
+                setPdfUrl(null);
+                onUpdateRef.current?.({ ...reportRef.current, report_pdf_url: null });
+            }
+            if (!cancelled) handleGeneratePdf();
+        })();
+        return () => { cancelled = true; };
+    }, [pdfUrl, r?.id, r?.report_pdf_url, handleGeneratePdf]);
 
     // Derived state for status timeline
     const timelineSteps = React.useMemo(() => {
@@ -243,11 +258,11 @@ const CriticismReportDetailView = ({ report: r, onClose, onPrint, onUpdate }) =>
                             <div style={{ fontSize: '18pt', fontWeight: 900, letterSpacing: '0.05em', fontFamily: 'monospace', color: '#f59e0b' }}>{r.unique_code || '—'}</div>
                             <div style={{ fontSize: '7pt', opacity: 0.7, marginTop: 2 }}>UNIQUE REPORT ID</div>
                         </div>
-                        {(pdfUrl || r.report_pdf_url) ? (
+                        {(resolvedPdfUrl) ? (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                                 <div style={{ background: '#ffffff', padding: '4px', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
                                     <QRCodeSVG
-                                        value={pdfUrl || r.report_pdf_url}
+                                        value={resolvedPdfUrl}
                                         size={72}
                                         level="M"
                                         includeMargin={false}
@@ -298,11 +313,11 @@ const CriticismReportDetailView = ({ report: r, onClose, onPrint, onUpdate }) =>
                         <p className="text-xs text-slate-400 uppercase tracking-wider font-medium">Criticism Unique ID</p>
                         <p className="text-lg font-bold font-mono tracking-wide text-amber-400">{r.unique_code || '—'}</p>
                     </div>
-                    {(pdfUrl || r.report_pdf_url) ? (
+                    {(resolvedPdfUrl) ? (
                         <div className="flex flex-col items-center gap-1 ml-2">
                             <div className="bg-white p-1.5 rounded-lg shadow-sm">
                                 <QRCodeSVG
-                                    value={pdfUrl || r.report_pdf_url}
+                                    value={resolvedPdfUrl}
                                     size={52}
                                     level="M"
                                     includeMargin={false}
@@ -324,9 +339,9 @@ const CriticismReportDetailView = ({ report: r, onClose, onPrint, onUpdate }) =>
                     <Badge className="bg-white/10 text-white/70 border-white/20 text-[10px]">
                         Created {new Date(r.created_at).toLocaleString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </Badge>
-                    {(pdfUrl || r.report_pdf_url) ? (
+                    {(resolvedPdfUrl) ? (
                         <a
-                            href={pdfUrl || r.report_pdf_url}
+                            href={resolvedPdfUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-semibold transition-colors"
@@ -343,7 +358,7 @@ const CriticismReportDetailView = ({ report: r, onClose, onPrint, onUpdate }) =>
                         {pdfGenerating ? (
                             <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
                         ) : (
-                            <><FileText className="h-3.5 w-3.5" /> {(pdfUrl || r.report_pdf_url) ? 'Regenerate PDF' : 'Generate PDF'}</>
+                            <><FileText className="h-3.5 w-3.5" /> {resolvedPdfUrl ? 'Regenerate PDF' : 'Generate PDF'}</>
                         )}
                     </button>
                 </div>

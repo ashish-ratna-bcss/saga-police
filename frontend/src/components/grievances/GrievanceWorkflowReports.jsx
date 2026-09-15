@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import api, { BACKEND_URL } from '../../lib/api';
+import { isPublicFileReachable } from '../../lib/publicAssetUrl';
 import { toast } from 'sonner';
 import {
     Download, Loader2, ExternalLink, RefreshCw, ChevronDown,
@@ -227,6 +228,7 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
     const resolvedPdfUrl = toApiFilesUrl(pdfUrl || report?.report_pdf_url);
     const pdfGeneratingRef = useRef(false);
     pdfGeneratingRef.current = pdfGenerating;
+    const pdfEnsureAttemptedRef = useRef(false);
     const reportRef = useRef(report);
     reportRef.current = report;
     const onUpdateRef = useRef(onUpdate);
@@ -244,7 +246,7 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
                 toast.success('PDF generated successfully');
             }
         } catch (err) {
-            toast.error(err?.response?.data?.detail || 'PDF generation failed');
+            toast.error(err?.response?.data?.detail || err?.response?.data?.error || 'PDF generation failed');
             console.error(err);
         } finally {
             setPdfGenerating(false);
@@ -252,10 +254,22 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
     }, []);
 
     useEffect(() => {
-        if (!pdfUrl && report?.id && !pdfGeneratingRef.current) {
-            handleGeneratePdf();
-        }
-    }, [pdfUrl, report?.id, handleGeneratePdf]);
+        if (!report?.id || pdfGeneratingRef.current || pdfEnsureAttemptedRef.current) return;
+        pdfEnsureAttemptedRef.current = true;
+        let cancelled = false;
+        (async () => {
+            const existing = pdfUrl || report?.report_pdf_url;
+            if (existing) {
+                const ok = await isPublicFileReachable(existing);
+                if (cancelled) return;
+                if (ok) return;
+                setPdfUrl(null);
+                onUpdateRef.current?.({ ...reportRef.current, report_pdf_url: null });
+            }
+            if (!cancelled) handleGeneratePdf();
+        })();
+        return () => { cancelled = true; };
+    }, [pdfUrl, report?.id, report?.report_pdf_url, handleGeneratePdf]);
 
     const simModeOptions = {
         user: ['X POST', 'X DM', 'WHATSAPP CALL', 'WHATSAPP DM', 'FB POST'],

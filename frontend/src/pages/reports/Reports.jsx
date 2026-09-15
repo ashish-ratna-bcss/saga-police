@@ -509,8 +509,12 @@ const Reports = () => {
     }
     if (results[5].status === 'fulfilled') {
       const data = results[5].value?.data;
-      const list = Array.isArray(data) ? data : data?.data || [];
-      next.catalog = list.length;
+      if (data?.pagination?.total != null) {
+        next.catalog = parseCount(data.pagination.total);
+      } else {
+        const list = Array.isArray(data) ? data : data?.items || data?.data || [];
+        next.catalog = list.length;
+      }
     }
     if (results[6].status === 'fulfilled') {
       const data = results[6].value?.data;

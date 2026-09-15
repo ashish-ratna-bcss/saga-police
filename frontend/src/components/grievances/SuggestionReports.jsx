@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api, { BACKEND_URL } from '../../lib/api';
+import { isPublicFileReachable, resolvePublicAssetUrl } from '../../lib/publicAssetUrl';
 import { toast } from 'sonner';
 import {
     Download, Loader2, ExternalLink, RefreshCw, ChevronDown,
@@ -104,8 +105,10 @@ const ExpandableText = ({ text, limit = 150, className }) => {
 const SuggestionReportDetailView = ({ report, onUpdate }) => {
     const [pdfGenerating, setPdfGenerating] = useState(false);
     const [pdfUrl, setPdfUrl] = useState(report?.report_pdf_url || null);
+    const resolvedPdfUrl = resolvePublicAssetUrl(pdfUrl || report?.report_pdf_url) || '';
     const pdfGeneratingRef = useRef(false);
     pdfGeneratingRef.current = pdfGenerating;
+    const pdfEnsureAttemptedRef = useRef(false);
     const reportRef = useRef(report);
     reportRef.current = report;
     const onUpdateRef = useRef(onUpdate);
@@ -123,7 +126,7 @@ const SuggestionReportDetailView = ({ report, onUpdate }) => {
                 toast.success('PDF generated successfully');
             }
         } catch (err) {
-            toast.error(err?.response?.data?.detail || 'PDF generation failed');
+            toast.error(err?.response?.data?.detail || err?.response?.data?.error || 'PDF generation failed');
             console.error(err);
         } finally {
             setPdfGenerating(false);
@@ -131,10 +134,22 @@ const SuggestionReportDetailView = ({ report, onUpdate }) => {
     }, []);
 
     useEffect(() => {
-        if (!pdfUrl && report?.id && !pdfGeneratingRef.current) {
-            handleGeneratePdf();
-        }
-    }, [pdfUrl, report?.id, handleGeneratePdf]);
+        if (!report?.id || pdfGeneratingRef.current || pdfEnsureAttemptedRef.current) return;
+        pdfEnsureAttemptedRef.current = true;
+        let cancelled = false;
+        (async () => {
+            const existing = pdfUrl || report?.report_pdf_url;
+            if (existing) {
+                const ok = await isPublicFileReachable(existing);
+                if (cancelled) return;
+                if (ok) return;
+                setPdfUrl(null);
+                onUpdateRef.current?.({ ...reportRef.current, report_pdf_url: null });
+            }
+            if (!cancelled) handleGeneratePdf();
+        })();
+        return () => { cancelled = true; };
+    }, [pdfUrl, report?.id, report?.report_pdf_url, handleGeneratePdf]);
 
     const r = report || {};
     const mediaUrls = (Array.isArray(r.media_s3_urls) && r.media_s3_urls.length > 0 ? r.media_s3_urls : r.media_urls || []);
@@ -155,11 +170,11 @@ const SuggestionReportDetailView = ({ report, onUpdate }) => {
                             <div style={{ fontSize: '18pt', fontWeight: 900, letterSpacing: '0.05em', fontFamily: 'monospace', color: '#a855f7' }}>{r.unique_code || '—'}</div>
                             <div style={{ fontSize: '7pt', opacity: 0.7, marginTop: 2 }}>UNIQUE REPORT ID</div>
                         </div>
-                        {(pdfUrl || r.report_pdf_url) ? (
+                        {(resolvedPdfUrl) ? (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                                 <div style={{ background: '#ffffff', padding: '4px', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
                                     <QRCodeSVG
-                                        value={pdfUrl || r.report_pdf_url}
+                                        value={resolvedPdfUrl}
                                         size={72}
                                         level="M"
                                         includeMargin={false}
@@ -202,11 +217,11 @@ const SuggestionReportDetailView = ({ report, onUpdate }) => {
                         <p className="text-xs text-slate-400 uppercase tracking-wider font-medium">Suggestion Unique ID</p>
                         <p className="text-lg font-bold font-mono tracking-wide text-purple-400">{r.unique_code || '—'}</p>
                     </div>
-                    {(pdfUrl || r.report_pdf_url) ? (
+                    {(resolvedPdfUrl) ? (
                         <div className="flex flex-col items-center gap-1 ml-2">
                             <div className="bg-white p-1.5 rounded-lg shadow-sm">
                                 <QRCodeSVG
-                                    value={pdfUrl || r.report_pdf_url}
+                                    value={resolvedPdfUrl}
                                     size={52}
                                     level="M"
                                     includeMargin={false}
@@ -228,9 +243,9 @@ const SuggestionReportDetailView = ({ report, onUpdate }) => {
                     <Badge className="bg-white/10 text-white/70 border-white/20 text-[10px]">
                         Created {new Date(r.created_at).toLocaleString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </Badge>
-                    {(pdfUrl || r.report_pdf_url) ? (
+                    {(resolvedPdfUrl) ? (
                         <a
-                            href={pdfUrl || r.report_pdf_url}
+                            href={resolvedPdfUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-semibold transition-colors"
@@ -247,7 +262,7 @@ const SuggestionReportDetailView = ({ report, onUpdate }) => {
                         {pdfGenerating ? (
                             <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
                         ) : (
-                            <><FileText className="h-3.5 w-3.5" /> {(pdfUrl || r.report_pdf_url) ? 'Regenerate PDF' : 'Generate PDF'}</>
+                            <><FileText className="h-3.5 w-3.5" /> {resolvedPdfUrl ? 'Regenerate PDF' : 'Generate PDF'}</>
                         )}
                     </button>
                 </div>
