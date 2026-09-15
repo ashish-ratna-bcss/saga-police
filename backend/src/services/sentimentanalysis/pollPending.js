@@ -6,7 +6,7 @@ const BATCH = Math.max(1, Number(process.env.SENTIMENT_POLL_BATCH) || 20);
 
 let timer = null;
 
-/** Claim pending/failed posts from each tenant DB and push into memory queue. */
+/** Claim pending/failed catalog posts + event media and push into memory queue. */
 const pollPending = async () => {
   try {
     const dbNames = await listTenantDbNames();
@@ -15,7 +15,8 @@ const pollPending = async () => {
     for (const dbName of dbNames) {
       try {
         const prisma = getTenantPrisma(dbName);
-        const rows = await prisma.social_media_posts.findMany({
+
+        const posts = await prisma.social_media_posts.findMany({
           where: {
             analysis_status: { in: ['pending', 'failed'] },
             analysis_attempts: { lt: maxAttempts },
@@ -24,9 +25,30 @@ const pollPending = async () => {
           orderBy: { fetched_at: 'asc' },
           take: BATCH,
         });
+        for (const row of posts) {
+          enqueue({ postId: row.id, dbName, kind: 'catalog' });
+        }
 
-        for (const row of rows) {
-          enqueue({ postId: row.id, dbName });
+        // Event discoveries (may lack columns until ensureOpsSchema runs)
+        if (prisma.social_media_event_media?.findMany) {
+          try {
+            const media = await prisma.social_media_event_media.findMany({
+              where: {
+                analysis_status: { in: ['pending', 'failed'] },
+                analysis_attempts: { lt: maxAttempts },
+              },
+              select: { id: true },
+              orderBy: { fetched_at: 'asc' },
+              take: BATCH,
+            });
+            for (const row of media) {
+              enqueue({ postId: row.id, dbName, kind: 'event' });
+            }
+          } catch (mediaErr) {
+            if (!/analysis_status|does not exist/i.test(mediaErr.message || '')) {
+              throw mediaErr;
+            }
+          }
         }
       } catch (err) {
         console.error(`[sentimentanalysis] pollPending tenant=${dbName}:`, err.message);

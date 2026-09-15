@@ -16,13 +16,17 @@
       "admin": "delhipolice",
       "frontend_port": 3001,
       "backend_port": 5006,
-      "domain": "delhipolice.blurasaga.com"
+      "domain": "delhipolice.blurasaga.com",
+      "ssl_certificate": "/etc/letsencrypt/live/delhipolice.blurasaga.com/fullchain.pem",
+      "ssl_certificate_key": "/etc/letsencrypt/live/delhipolice.blurasaga.com/privkey.pem"
     },
     {
       "admin": "uttarakhandpolice",
       "frontend_port": 3002,
       "backend_port": 5007,
-      "domain": "uttarakhandpolice.blurasaga.com"
+      "domain": "uttarakhandpolice.blurasaga.com",
+      "ssl_certificate": "/etc/letsencrypt/live/uttarakhandpolice.blurasaga.com/fullchain.pem",
+      "ssl_certificate_key": "/etc/letsencrypt/live/uttarakhandpolice.blurasaga.com/privkey.pem"
     },
     {
       "admin": "test",

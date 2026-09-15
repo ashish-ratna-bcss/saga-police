@@ -1,14 +1,13 @@
 /**
- * In-memory job queue for catalog post sentiment analysis.
- * Concurrency + optional max queue size; overflow stays as DB `pending`
- * and is picked up by the pending poller.
- * Jobs carry { postId, dbName } for multi-tenant routing.
+ * In-memory job queue for sentiment analysis.
+ * Jobs: { postId, dbName, kind: 'catalog'|'event' }
+ * kind=event → social_media_event_media; default catalog → social_media_posts.
  */
 const CONCURRENCY = Math.max(1, Number(process.env.SENTIMENT_QUEUE_CONCURRENCY) || 1);
 const MAX_QUEUE = Math.max(1, Number(process.env.SENTIMENT_QUEUE_MAX) || 500);
 
 const queue = [];
-const inFlight = new Set(); // `${dbName}:${postId}`
+const inFlight = new Set();
 let active = 0;
 let processor = null;
 
@@ -19,7 +18,8 @@ const stats = {
   dropped: 0,
 };
 
-const jobKey = (job) => `${job.dbName || ''}:${String(job.postId)}`;
+const jobKey = (job) =>
+  `${job.kind || 'catalog'}:${job.dbName || ''}:${String(job.postId)}`;
 
 const setProcessor = (fn) => {
   processor = fn;
@@ -50,14 +50,15 @@ const pump = () => {
 };
 
 /**
- * @param {{ postId: string|bigint|number, dbName?: string|null }} job
- * @returns {boolean} true if accepted into memory queue
+ * @param {{ postId: string|bigint|number, dbName?: string|null, kind?: 'catalog'|'event' }} job
+ * @returns {boolean}
  */
 const enqueue = (job) => {
   const postId = String(job.postId);
   if (!postId || postId === 'undefined' || postId === 'null') return false;
   const dbName = job.dbName || null;
-  const key = jobKey({ postId, dbName });
+  const kind = job.kind === 'event' ? 'event' : 'catalog';
+  const key = jobKey({ postId, dbName, kind });
   if (inFlight.has(key)) return false;
   if (queue.some((j) => jobKey(j) === key)) return false;
 
@@ -66,7 +67,7 @@ const enqueue = (job) => {
     return false;
   }
 
-  queue.push({ postId, dbName });
+  queue.push({ postId, dbName, kind });
   stats.enqueued += 1;
   pump();
   return true;
@@ -79,9 +80,4 @@ const getStats = () => ({
   concurrency: CONCURRENCY,
 });
 
-module.exports = {
-  enqueue,
-  setProcessor,
-  getStats,
-  pump,
-};
+module.exports = { enqueue, setProcessor, getStats };

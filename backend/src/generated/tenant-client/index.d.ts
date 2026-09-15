@@ -15898,11 +15898,13 @@ export namespace Prisma {
   export type Social_media_event_mediaAvgAggregateOutputType = {
     id: number | null
     event_id: number | null
+    analysis_attempts: number | null
   }
 
   export type Social_media_event_mediaSumAggregateOutputType = {
     id: bigint | null
     event_id: number | null
+    analysis_attempts: number | null
   }
 
   export type Social_media_event_mediaMinAggregateOutputType = {
@@ -15917,6 +15919,10 @@ export namespace Prisma {
     posted_at: Date | null
     fetched_at: Date | null
     updated_at: Date | null
+    analysis_status: $Enums.analysis_status_enum | null
+    analysis_error: string | null
+    analysis_attempts: number | null
+    analyzed_at: Date | null
   }
 
   export type Social_media_event_mediaMaxAggregateOutputType = {
@@ -15931,6 +15937,10 @@ export namespace Prisma {
     posted_at: Date | null
     fetched_at: Date | null
     updated_at: Date | null
+    analysis_status: $Enums.analysis_status_enum | null
+    analysis_error: string | null
+    analysis_attempts: number | null
+    analyzed_at: Date | null
   }
 
   export type Social_media_event_mediaCountAggregateOutputType = {
@@ -15948,6 +15958,11 @@ export namespace Prisma {
     posted_at: number
     fetched_at: number
     updated_at: number
+    analysis_status: number
+    analysis_result: number
+    analysis_error: number
+    analysis_attempts: number
+    analyzed_at: number
     _all: number
   }
 
@@ -15955,11 +15970,13 @@ export namespace Prisma {
   export type Social_media_event_mediaAvgAggregateInputType = {
     id?: true
     event_id?: true
+    analysis_attempts?: true
   }
 
   export type Social_media_event_mediaSumAggregateInputType = {
     id?: true
     event_id?: true
+    analysis_attempts?: true
   }
 
   export type Social_media_event_mediaMinAggregateInputType = {
@@ -15974,6 +15991,10 @@ export namespace Prisma {
     posted_at?: true
     fetched_at?: true
     updated_at?: true
+    analysis_status?: true
+    analysis_error?: true
+    analysis_attempts?: true
+    analyzed_at?: true
   }
 
   export type Social_media_event_mediaMaxAggregateInputType = {
@@ -15988,6 +16009,10 @@ export namespace Prisma {
     posted_at?: true
     fetched_at?: true
     updated_at?: true
+    analysis_status?: true
+    analysis_error?: true
+    analysis_attempts?: true
+    analyzed_at?: true
   }
 
   export type Social_media_event_mediaCountAggregateInputType = {
@@ -16005,6 +16030,11 @@ export namespace Prisma {
     posted_at?: true
     fetched_at?: true
     updated_at?: true
+    analysis_status?: true
+    analysis_result?: true
+    analysis_error?: true
+    analysis_attempts?: true
+    analyzed_at?: true
     _all?: true
   }
 
@@ -16109,6 +16139,11 @@ export namespace Prisma {
     posted_at: Date | null
     fetched_at: Date
     updated_at: Date
+    analysis_status: $Enums.analysis_status_enum
+    analysis_result: JsonValue | null
+    analysis_error: string | null
+    analysis_attempts: number
+    analyzed_at: Date | null
     _count: Social_media_event_mediaCountAggregateOutputType | null
     _avg: Social_media_event_mediaAvgAggregateOutputType | null
     _sum: Social_media_event_mediaSumAggregateOutputType | null
@@ -16145,6 +16180,11 @@ export namespace Prisma {
     posted_at?: boolean
     fetched_at?: boolean
     updated_at?: boolean
+    analysis_status?: boolean
+    analysis_result?: boolean
+    analysis_error?: boolean
+    analysis_attempts?: boolean
+    analyzed_at?: boolean
     event?: boolean | social_media_eventsDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["social_media_event_media"]>
 
@@ -16163,6 +16203,11 @@ export namespace Prisma {
     posted_at?: boolean
     fetched_at?: boolean
     updated_at?: boolean
+    analysis_status?: boolean
+    analysis_result?: boolean
+    analysis_error?: boolean
+    analysis_attempts?: boolean
+    analyzed_at?: boolean
     event?: boolean | social_media_eventsDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["social_media_event_media"]>
 
@@ -16181,6 +16226,11 @@ export namespace Prisma {
     posted_at?: boolean
     fetched_at?: boolean
     updated_at?: boolean
+    analysis_status?: boolean
+    analysis_result?: boolean
+    analysis_error?: boolean
+    analysis_attempts?: boolean
+    analyzed_at?: boolean
     event?: boolean | social_media_eventsDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["social_media_event_media"]>
 
@@ -16199,9 +16249,14 @@ export namespace Prisma {
     posted_at?: boolean
     fetched_at?: boolean
     updated_at?: boolean
+    analysis_status?: boolean
+    analysis_result?: boolean
+    analysis_error?: boolean
+    analysis_attempts?: boolean
+    analyzed_at?: boolean
   }
 
-  export type social_media_event_mediaOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "event_id" | "platform" | "external_id" | "url" | "text" | "author_name" | "author_handle" | "engagement" | "media" | "raw_data" | "posted_at" | "fetched_at" | "updated_at", ExtArgs["result"]["social_media_event_media"]>
+  export type social_media_event_mediaOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "event_id" | "platform" | "external_id" | "url" | "text" | "author_name" | "author_handle" | "engagement" | "media" | "raw_data" | "posted_at" | "fetched_at" | "updated_at" | "analysis_status" | "analysis_result" | "analysis_error" | "analysis_attempts" | "analyzed_at", ExtArgs["result"]["social_media_event_media"]>
   export type social_media_event_mediaInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     event?: boolean | social_media_eventsDefaultArgs<ExtArgs>
   }
@@ -16232,6 +16287,11 @@ export namespace Prisma {
       posted_at: Date | null
       fetched_at: Date
       updated_at: Date
+      analysis_status: $Enums.analysis_status_enum
+      analysis_result: Prisma.JsonValue | null
+      analysis_error: string | null
+      analysis_attempts: number
+      analyzed_at: Date | null
     }, ExtArgs["result"]["social_media_event_media"]>
     composites: {}
   }
@@ -16670,6 +16730,11 @@ export namespace Prisma {
     readonly posted_at: FieldRef<"social_media_event_media", 'DateTime'>
     readonly fetched_at: FieldRef<"social_media_event_media", 'DateTime'>
     readonly updated_at: FieldRef<"social_media_event_media", 'DateTime'>
+    readonly analysis_status: FieldRef<"social_media_event_media", 'analysis_status_enum'>
+    readonly analysis_result: FieldRef<"social_media_event_media", 'Json'>
+    readonly analysis_error: FieldRef<"social_media_event_media", 'String'>
+    readonly analysis_attempts: FieldRef<"social_media_event_media", 'Int'>
+    readonly analyzed_at: FieldRef<"social_media_event_media", 'DateTime'>
   }
     
 
@@ -21650,7 +21715,12 @@ export namespace Prisma {
     raw_data: 'raw_data',
     posted_at: 'posted_at',
     fetched_at: 'fetched_at',
-    updated_at: 'updated_at'
+    updated_at: 'updated_at',
+    analysis_status: 'analysis_status',
+    analysis_result: 'analysis_result',
+    analysis_error: 'analysis_error',
+    analysis_attempts: 'analysis_attempts',
+    analyzed_at: 'analyzed_at'
   };
 
   export type Social_media_event_mediaScalarFieldEnum = (typeof Social_media_event_mediaScalarFieldEnum)[keyof typeof Social_media_event_mediaScalarFieldEnum]
@@ -23128,6 +23198,11 @@ export namespace Prisma {
     posted_at?: DateTimeNullableFilter<"social_media_event_media"> | Date | string | null
     fetched_at?: DateTimeFilter<"social_media_event_media"> | Date | string
     updated_at?: DateTimeFilter<"social_media_event_media"> | Date | string
+    analysis_status?: Enumanalysis_status_enumFilter<"social_media_event_media"> | $Enums.analysis_status_enum
+    analysis_result?: JsonNullableFilter<"social_media_event_media">
+    analysis_error?: StringNullableFilter<"social_media_event_media"> | string | null
+    analysis_attempts?: IntFilter<"social_media_event_media"> | number
+    analyzed_at?: DateTimeNullableFilter<"social_media_event_media"> | Date | string | null
     event?: XOR<Social_media_eventsScalarRelationFilter, social_media_eventsWhereInput>
   }
 
@@ -23146,6 +23221,11 @@ export namespace Prisma {
     posted_at?: SortOrderInput | SortOrder
     fetched_at?: SortOrder
     updated_at?: SortOrder
+    analysis_status?: SortOrder
+    analysis_result?: SortOrderInput | SortOrder
+    analysis_error?: SortOrderInput | SortOrder
+    analysis_attempts?: SortOrder
+    analyzed_at?: SortOrderInput | SortOrder
     event?: social_media_eventsOrderByWithRelationInput
   }
 
@@ -23168,6 +23248,11 @@ export namespace Prisma {
     posted_at?: DateTimeNullableFilter<"social_media_event_media"> | Date | string | null
     fetched_at?: DateTimeFilter<"social_media_event_media"> | Date | string
     updated_at?: DateTimeFilter<"social_media_event_media"> | Date | string
+    analysis_status?: Enumanalysis_status_enumFilter<"social_media_event_media"> | $Enums.analysis_status_enum
+    analysis_result?: JsonNullableFilter<"social_media_event_media">
+    analysis_error?: StringNullableFilter<"social_media_event_media"> | string | null
+    analysis_attempts?: IntFilter<"social_media_event_media"> | number
+    analyzed_at?: DateTimeNullableFilter<"social_media_event_media"> | Date | string | null
     event?: XOR<Social_media_eventsScalarRelationFilter, social_media_eventsWhereInput>
   }, "id" | "event_id_platform_external_id">
 
@@ -23186,6 +23271,11 @@ export namespace Prisma {
     posted_at?: SortOrderInput | SortOrder
     fetched_at?: SortOrder
     updated_at?: SortOrder
+    analysis_status?: SortOrder
+    analysis_result?: SortOrderInput | SortOrder
+    analysis_error?: SortOrderInput | SortOrder
+    analysis_attempts?: SortOrder
+    analyzed_at?: SortOrderInput | SortOrder
     _count?: social_media_event_mediaCountOrderByAggregateInput
     _avg?: social_media_event_mediaAvgOrderByAggregateInput
     _max?: social_media_event_mediaMaxOrderByAggregateInput
@@ -23211,6 +23301,11 @@ export namespace Prisma {
     posted_at?: DateTimeNullableWithAggregatesFilter<"social_media_event_media"> | Date | string | null
     fetched_at?: DateTimeWithAggregatesFilter<"social_media_event_media"> | Date | string
     updated_at?: DateTimeWithAggregatesFilter<"social_media_event_media"> | Date | string
+    analysis_status?: Enumanalysis_status_enumWithAggregatesFilter<"social_media_event_media"> | $Enums.analysis_status_enum
+    analysis_result?: JsonNullableWithAggregatesFilter<"social_media_event_media">
+    analysis_error?: StringNullableWithAggregatesFilter<"social_media_event_media"> | string | null
+    analysis_attempts?: IntWithAggregatesFilter<"social_media_event_media"> | number
+    analyzed_at?: DateTimeNullableWithAggregatesFilter<"social_media_event_media"> | Date | string | null
   }
 
   export type alert_configWhereInput = {
@@ -24976,6 +25071,11 @@ export namespace Prisma {
     posted_at?: Date | string | null
     fetched_at?: Date | string
     updated_at?: Date | string
+    analysis_status?: $Enums.analysis_status_enum
+    analysis_result?: NullableJsonNullValueInput | InputJsonValue
+    analysis_error?: string | null
+    analysis_attempts?: number
+    analyzed_at?: Date | string | null
     event: social_media_eventsCreateNestedOneWithoutMediaInput
   }
 
@@ -24994,6 +25094,11 @@ export namespace Prisma {
     posted_at?: Date | string | null
     fetched_at?: Date | string
     updated_at?: Date | string
+    analysis_status?: $Enums.analysis_status_enum
+    analysis_result?: NullableJsonNullValueInput | InputJsonValue
+    analysis_error?: string | null
+    analysis_attempts?: number
+    analyzed_at?: Date | string | null
   }
 
   export type social_media_event_mediaUpdateInput = {
@@ -25010,6 +25115,11 @@ export namespace Prisma {
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    analysis_status?: Enumanalysis_status_enumFieldUpdateOperationsInput | $Enums.analysis_status_enum
+    analysis_result?: NullableJsonNullValueInput | InputJsonValue
+    analysis_error?: NullableStringFieldUpdateOperationsInput | string | null
+    analysis_attempts?: IntFieldUpdateOperationsInput | number
+    analyzed_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     event?: social_media_eventsUpdateOneRequiredWithoutMediaNestedInput
   }
 
@@ -25028,6 +25138,11 @@ export namespace Prisma {
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    analysis_status?: Enumanalysis_status_enumFieldUpdateOperationsInput | $Enums.analysis_status_enum
+    analysis_result?: NullableJsonNullValueInput | InputJsonValue
+    analysis_error?: NullableStringFieldUpdateOperationsInput | string | null
+    analysis_attempts?: IntFieldUpdateOperationsInput | number
+    analyzed_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   }
 
   export type social_media_event_mediaCreateManyInput = {
@@ -25045,6 +25160,11 @@ export namespace Prisma {
     posted_at?: Date | string | null
     fetched_at?: Date | string
     updated_at?: Date | string
+    analysis_status?: $Enums.analysis_status_enum
+    analysis_result?: NullableJsonNullValueInput | InputJsonValue
+    analysis_error?: string | null
+    analysis_attempts?: number
+    analyzed_at?: Date | string | null
   }
 
   export type social_media_event_mediaUpdateManyMutationInput = {
@@ -25061,6 +25181,11 @@ export namespace Prisma {
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    analysis_status?: Enumanalysis_status_enumFieldUpdateOperationsInput | $Enums.analysis_status_enum
+    analysis_result?: NullableJsonNullValueInput | InputJsonValue
+    analysis_error?: NullableStringFieldUpdateOperationsInput | string | null
+    analysis_attempts?: IntFieldUpdateOperationsInput | number
+    analyzed_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   }
 
   export type social_media_event_mediaUncheckedUpdateManyInput = {
@@ -25078,6 +25203,11 @@ export namespace Prisma {
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    analysis_status?: Enumanalysis_status_enumFieldUpdateOperationsInput | $Enums.analysis_status_enum
+    analysis_result?: NullableJsonNullValueInput | InputJsonValue
+    analysis_error?: NullableStringFieldUpdateOperationsInput | string | null
+    analysis_attempts?: IntFieldUpdateOperationsInput | number
+    analyzed_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   }
 
   export type alert_configCreateInput = {
@@ -26530,6 +26660,29 @@ export namespace Prisma {
     polling_interval_minutes?: SortOrder
     occasion_calendar_id?: SortOrder
   }
+  export type JsonNullableFilter<$PrismaModel = never> =
+    | PatchUndefined<
+        Either<Required<JsonNullableFilterBase<$PrismaModel>>, Exclude<keyof Required<JsonNullableFilterBase<$PrismaModel>>, 'path'>>,
+        Required<JsonNullableFilterBase<$PrismaModel>>
+      >
+    | OptionalFlat<Omit<Required<JsonNullableFilterBase<$PrismaModel>>, 'path'>>
+
+  export type JsonNullableFilterBase<$PrismaModel = never> = {
+    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+    path?: string[]
+    mode?: QueryMode | EnumQueryModeFieldRefInput<$PrismaModel>
+    string_contains?: string | StringFieldRefInput<$PrismaModel>
+    string_starts_with?: string | StringFieldRefInput<$PrismaModel>
+    string_ends_with?: string | StringFieldRefInput<$PrismaModel>
+    array_starts_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_ends_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_contains?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    lt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    lte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    gt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    gte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+  }
 
   export type Social_media_eventsScalarRelationFilter = {
     is?: social_media_eventsWhereInput
@@ -26557,11 +26710,17 @@ export namespace Prisma {
     posted_at?: SortOrder
     fetched_at?: SortOrder
     updated_at?: SortOrder
+    analysis_status?: SortOrder
+    analysis_result?: SortOrder
+    analysis_error?: SortOrder
+    analysis_attempts?: SortOrder
+    analyzed_at?: SortOrder
   }
 
   export type social_media_event_mediaAvgOrderByAggregateInput = {
     id?: SortOrder
     event_id?: SortOrder
+    analysis_attempts?: SortOrder
   }
 
   export type social_media_event_mediaMaxOrderByAggregateInput = {
@@ -26576,6 +26735,10 @@ export namespace Prisma {
     posted_at?: SortOrder
     fetched_at?: SortOrder
     updated_at?: SortOrder
+    analysis_status?: SortOrder
+    analysis_error?: SortOrder
+    analysis_attempts?: SortOrder
+    analyzed_at?: SortOrder
   }
 
   export type social_media_event_mediaMinOrderByAggregateInput = {
@@ -26590,11 +26753,42 @@ export namespace Prisma {
     posted_at?: SortOrder
     fetched_at?: SortOrder
     updated_at?: SortOrder
+    analysis_status?: SortOrder
+    analysis_error?: SortOrder
+    analysis_attempts?: SortOrder
+    analyzed_at?: SortOrder
   }
 
   export type social_media_event_mediaSumOrderByAggregateInput = {
     id?: SortOrder
     event_id?: SortOrder
+    analysis_attempts?: SortOrder
+  }
+  export type JsonNullableWithAggregatesFilter<$PrismaModel = never> =
+    | PatchUndefined<
+        Either<Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, Exclude<keyof Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, 'path'>>,
+        Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>
+      >
+    | OptionalFlat<Omit<Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, 'path'>>
+
+  export type JsonNullableWithAggregatesFilterBase<$PrismaModel = never> = {
+    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+    path?: string[]
+    mode?: QueryMode | EnumQueryModeFieldRefInput<$PrismaModel>
+    string_contains?: string | StringFieldRefInput<$PrismaModel>
+    string_starts_with?: string | StringFieldRefInput<$PrismaModel>
+    string_ends_with?: string | StringFieldRefInput<$PrismaModel>
+    array_starts_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_ends_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_contains?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    lt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    lte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    gt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    gte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedJsonNullableFilter<$PrismaModel>
+    _max?: NestedJsonNullableFilter<$PrismaModel>
   }
 
   export type alert_configCountOrderByAggregateInput = {
@@ -26696,29 +26890,6 @@ export namespace Prisma {
     created_at?: SortOrder
     updated_at?: SortOrder
   }
-  export type JsonNullableFilter<$PrismaModel = never> =
-    | PatchUndefined<
-        Either<Required<JsonNullableFilterBase<$PrismaModel>>, Exclude<keyof Required<JsonNullableFilterBase<$PrismaModel>>, 'path'>>,
-        Required<JsonNullableFilterBase<$PrismaModel>>
-      >
-    | OptionalFlat<Omit<Required<JsonNullableFilterBase<$PrismaModel>>, 'path'>>
-
-  export type JsonNullableFilterBase<$PrismaModel = never> = {
-    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
-    path?: string[]
-    mode?: QueryMode | EnumQueryModeFieldRefInput<$PrismaModel>
-    string_contains?: string | StringFieldRefInput<$PrismaModel>
-    string_starts_with?: string | StringFieldRefInput<$PrismaModel>
-    string_ends_with?: string | StringFieldRefInput<$PrismaModel>
-    array_starts_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
-    array_ends_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
-    array_contains?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
-    lt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    lte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    gt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    gte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
-  }
 
   export type audit_logsCountOrderByAggregateInput = {
     id?: SortOrder
@@ -26783,32 +26954,6 @@ export namespace Prisma {
 
   export type audit_logsSumOrderByAggregateInput = {
     user_id?: SortOrder
-  }
-  export type JsonNullableWithAggregatesFilter<$PrismaModel = never> =
-    | PatchUndefined<
-        Either<Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, Exclude<keyof Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, 'path'>>,
-        Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>
-      >
-    | OptionalFlat<Omit<Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, 'path'>>
-
-  export type JsonNullableWithAggregatesFilterBase<$PrismaModel = never> = {
-    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
-    path?: string[]
-    mode?: QueryMode | EnumQueryModeFieldRefInput<$PrismaModel>
-    string_contains?: string | StringFieldRefInput<$PrismaModel>
-    string_starts_with?: string | StringFieldRefInput<$PrismaModel>
-    string_ends_with?: string | StringFieldRefInput<$PrismaModel>
-    array_starts_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
-    array_ends_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
-    array_contains?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
-    lt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    lte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    gt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    gte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
-    _count?: NestedIntNullableFilter<$PrismaModel>
-    _min?: NestedJsonNullableFilter<$PrismaModel>
-    _max?: NestedJsonNullableFilter<$PrismaModel>
   }
 
   export type social_media_accountsCreateNestedManyWithoutPlatformsInput = {
@@ -28598,6 +28743,11 @@ export namespace Prisma {
     posted_at?: Date | string | null
     fetched_at?: Date | string
     updated_at?: Date | string
+    analysis_status?: $Enums.analysis_status_enum
+    analysis_result?: NullableJsonNullValueInput | InputJsonValue
+    analysis_error?: string | null
+    analysis_attempts?: number
+    analyzed_at?: Date | string | null
   }
 
   export type social_media_event_mediaUncheckedCreateWithoutEventInput = {
@@ -28614,6 +28764,11 @@ export namespace Prisma {
     posted_at?: Date | string | null
     fetched_at?: Date | string
     updated_at?: Date | string
+    analysis_status?: $Enums.analysis_status_enum
+    analysis_result?: NullableJsonNullValueInput | InputJsonValue
+    analysis_error?: string | null
+    analysis_attempts?: number
+    analyzed_at?: Date | string | null
   }
 
   export type social_media_event_mediaCreateOrConnectWithoutEventInput = {
@@ -28698,6 +28853,11 @@ export namespace Prisma {
     posted_at?: DateTimeNullableFilter<"social_media_event_media"> | Date | string | null
     fetched_at?: DateTimeFilter<"social_media_event_media"> | Date | string
     updated_at?: DateTimeFilter<"social_media_event_media"> | Date | string
+    analysis_status?: Enumanalysis_status_enumFilter<"social_media_event_media"> | $Enums.analysis_status_enum
+    analysis_result?: JsonNullableFilter<"social_media_event_media">
+    analysis_error?: StringNullableFilter<"social_media_event_media"> | string | null
+    analysis_attempts?: IntFilter<"social_media_event_media"> | number
+    analyzed_at?: DateTimeNullableFilter<"social_media_event_media"> | Date | string | null
   }
 
   export type social_media_eventsCreateWithoutMediaInput = {
@@ -29325,6 +29485,11 @@ export namespace Prisma {
     posted_at?: Date | string | null
     fetched_at?: Date | string
     updated_at?: Date | string
+    analysis_status?: $Enums.analysis_status_enum
+    analysis_result?: NullableJsonNullValueInput | InputJsonValue
+    analysis_error?: string | null
+    analysis_attempts?: number
+    analyzed_at?: Date | string | null
   }
 
   export type social_media_event_mediaUpdateWithoutEventInput = {
@@ -29341,6 +29506,11 @@ export namespace Prisma {
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    analysis_status?: Enumanalysis_status_enumFieldUpdateOperationsInput | $Enums.analysis_status_enum
+    analysis_result?: NullableJsonNullValueInput | InputJsonValue
+    analysis_error?: NullableStringFieldUpdateOperationsInput | string | null
+    analysis_attempts?: IntFieldUpdateOperationsInput | number
+    analyzed_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   }
 
   export type social_media_event_mediaUncheckedUpdateWithoutEventInput = {
@@ -29357,6 +29527,11 @@ export namespace Prisma {
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    analysis_status?: Enumanalysis_status_enumFieldUpdateOperationsInput | $Enums.analysis_status_enum
+    analysis_result?: NullableJsonNullValueInput | InputJsonValue
+    analysis_error?: NullableStringFieldUpdateOperationsInput | string | null
+    analysis_attempts?: IntFieldUpdateOperationsInput | number
+    analyzed_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   }
 
   export type social_media_event_mediaUncheckedUpdateManyWithoutEventInput = {
@@ -29373,6 +29548,11 @@ export namespace Prisma {
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    analysis_status?: Enumanalysis_status_enumFieldUpdateOperationsInput | $Enums.analysis_status_enum
+    analysis_result?: NullableJsonNullValueInput | InputJsonValue
+    analysis_error?: NullableStringFieldUpdateOperationsInput | string | null
+    analysis_attempts?: IntFieldUpdateOperationsInput | number
+    analyzed_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   }
 
 

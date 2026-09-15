@@ -94,7 +94,11 @@ const toggleMonitoring = async (req, res) => {
           });
           if (row) {
             const scanRow = restrictEventToUserPlatforms(row, req.user);
-            await scanEventOnce(scanRow, { source: 'kickoff', db: tenantDb });
+            await scanEventOnce(scanRow, {
+              source: 'kickoff',
+              db: tenantDb,
+              dbName: req.tenantDbName,
+            });
           }
         } catch (_) {
           /* kickoff errors are recorded in last_fetched_history when possible */
@@ -141,7 +145,11 @@ const resumeEvent = async (req, res) => {
           });
           if (row) {
             const scanRow = restrictEventToUserPlatforms(row, req.user);
-            await scanEventOnce(scanRow, { source: 'kickoff', db: tenantDb });
+            await scanEventOnce(scanRow, {
+              source: 'kickoff',
+              db: tenantDb,
+              dbName: req.tenantDbName,
+            });
           }
         } catch (_) {
           /* ignore */
@@ -202,6 +210,7 @@ const runEventScan = async (req, res) => {
     const result = await scanEventOnce(scanRow, {
       source: 'manual',
       db: req.tenantPrisma,
+      dbName: req.tenantDbName,
     });
     return res.status(200).json({ message: 'Event scan completed', ...result });
   } catch (error) {

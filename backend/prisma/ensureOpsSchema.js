@@ -328,6 +328,38 @@ async function ensureOpsSchema(prisma) {
     )
   `);
 
+  // Sentiment pipeline columns on event discoveries (same enum as catalog posts)
+  await prisma.$executeRawUnsafe(`
+    DO $$ BEGIN
+      CREATE TYPE analysis_status_enum AS ENUM ('pending', 'processing', 'done', 'failed', 'skipped');
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_event_media
+      ADD COLUMN IF NOT EXISTS analysis_status analysis_status_enum NOT NULL DEFAULT 'pending'
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_event_media
+      ADD COLUMN IF NOT EXISTS analysis_result JSONB NULL
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_event_media
+      ADD COLUMN IF NOT EXISTS analysis_error TEXT NULL
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_event_media
+      ADD COLUMN IF NOT EXISTS analysis_attempts INTEGER NOT NULL DEFAULT 0
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_event_media
+      ADD COLUMN IF NOT EXISTS analyzed_at TIMESTAMPTZ NULL
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS social_media_event_media_analysis_status_fetched_at_idx
+    ON social_media_event_media (analysis_status, fetched_at)
+  `);
+
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS alert_config (
       id TEXT PRIMARY KEY DEFAULT 'default',

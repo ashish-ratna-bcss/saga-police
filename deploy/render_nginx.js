@@ -26,20 +26,31 @@ function resolveSslPaths(site) {
   const domain = (site.domain || '').trim();
   let cert = (site.ssl_certificate || '').trim();
   let key = (site.ssl_certificate_key || '').trim();
+  const explicit = Boolean(cert && key);
 
-  if (!cert && domain) {
-    const defaultCert = `/etc/letsencrypt/live/${domain}/fullchain.pem`;
-    const defaultKey = `/etc/letsencrypt/live/${domain}/privkey.pem`;
-    const liveDir = `/etc/letsencrypt/live/${domain}`;
-    if (fs.existsSync(liveDir) || fs.existsSync(defaultCert)) {
-      cert = defaultCert;
-      key = defaultKey;
-    }
+  const candidates = [];
+  if (cert && key) candidates.push([cert, key]);
+  if (domain) {
+    candidates.push([
+      `/etc/letsencrypt/live/${domain}/fullchain.pem`,
+      `/etc/letsencrypt/live/${domain}/privkey.pem`,
+    ]);
+  }
+  for (const a of site.domain_aliases || []) {
+    const d = String(a || '').trim();
+    if (!d) continue;
+    candidates.push([
+      `/etc/letsencrypt/live/${d}/fullchain.pem`,
+      `/etc/letsencrypt/live/${d}/privkey.pem`,
+    ]);
   }
 
-  if (cert && key) {
-    return [cert, key];
+  for (const [c, k] of candidates) {
+    // Prefer readable PEMs; if explicit and unreadable (root-only), still trust explicit
+    if (fs.existsSync(c) && fs.existsSync(k)) return [c, k];
   }
+
+  if (explicit) return [cert, key];
   return ['', ''];
 }
 
@@ -109,6 +120,17 @@ function loadSites(filePath) {
     s.frontend_port = frontendPort;
     s.backend_port = backendPort;
     s.domain = String(s.domain || '').trim();
+    const aliases = Array.isArray(s.domain_aliases)
+      ? s.domain_aliases.map((d) => String(d || '').trim()).filter(Boolean)
+      : [];
+    // unique server names: primary domain first
+    const names = [];
+    if (s.domain) names.push(s.domain);
+    for (const a of aliases) {
+      if (!names.includes(a)) names.push(a);
+    }
+    s.domain_names = names;
+    s.server_name = names.join(' ');
 
     const [cert, key] = resolveSslPaths(s);
     s.ssl_certificate = cert;
@@ -317,9 +339,10 @@ function render(data, webRoot) {
     );
 
     if (domain) {
+      const serverNames = s.server_name || domain;
       parts.push(
         httpDomainBlock({
-          domain,
+          domain: serverNames,
           webRoot,
           bind,
           backendPort,
@@ -331,7 +354,7 @@ function render(data, webRoot) {
         parts.push(
           serverBlock({
             listen: '443',
-            serverName: domain,
+            serverName: serverNames,
             webRoot,
             bind,
             backendPort,
@@ -376,6 +399,9 @@ function main() {
   }
   for (const s of data.sites) {
     let extra = s.domain ? `  domain=${s.domain}` : '  (set domain later)';
+    if (s.domain_names && s.domain_names.length > 1) {
+      extra += `  aliases=${s.domain_names.slice(1).join(',')}`;
+    }
     if (s.ssl_certificate) {
       extra += '  https=on';
     }

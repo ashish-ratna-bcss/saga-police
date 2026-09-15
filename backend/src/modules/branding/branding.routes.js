@@ -67,12 +67,15 @@ const toBrandingPayload = (user) => {
   // origin (incl. :3000/:3001/:3002). Absolute URLs built from nginx $host
   // drop the UI port and hit :80 (vLLM) instead of the tenant proxy.
   const logo = resolveLogoUrl(user);
+  const hasLogo = Boolean(user.logo_mime);
 
   return {
+    application_name: app.application_name,
     title: app.title,
     description: app.description,
     logo,
     port: user.port ?? null,
+    has_logo: hasLogo,
   };
 };
 

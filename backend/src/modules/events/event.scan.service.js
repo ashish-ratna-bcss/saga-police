@@ -98,7 +98,7 @@ const fetchUniqueByQueries = async (queries, fetcher) => {
   return uniqueById(merged);
 };
 
-const upsertMedia = async ({ eventId, platform, externalId, payload, db }) => {
+const upsertMedia = async ({ eventId, platform, externalId, payload, db, dbName }) => {
   const prisma = dbOf(db);
   const existing = await prisma.social_media_event_media.findUnique({
     where: {
@@ -110,8 +110,10 @@ const upsertMedia = async ({ eventId, platform, externalId, payload, db }) => {
     },
   });
 
+  const { enqueueEventMedia } = require('../../services/sentimentanalysis');
+
   if (!existing) {
-    await prisma.social_media_event_media.create({
+    const created = await prisma.social_media_event_media.create({
       data: {
         event_id: Number(eventId),
         platform,
@@ -124,12 +126,23 @@ const upsertMedia = async ({ eventId, platform, externalId, payload, db }) => {
         media: payload.media || [],
         raw_data: payload.raw_data || {},
         posted_at: payload.posted_at || null,
+        analysis_status: 'pending',
       },
     });
-    return { isNew: true };
+    try {
+      enqueueEventMedia(created.id, { dbName });
+    } catch (_) {
+      /* queue optional */
+    }
+    return { isNew: true, id: created.id };
   }
 
-  await prisma.social_media_event_media.update({
+  const textChanged =
+    payload.text &&
+    String(payload.text).trim() &&
+    String(payload.text).trim() !== String(existing.text || '').trim();
+
+  const updated = await prisma.social_media_event_media.update({
     where: { id: existing.id },
     data: {
       url: payload.url || existing.url,
@@ -140,9 +153,25 @@ const upsertMedia = async ({ eventId, platform, externalId, payload, db }) => {
       media: payload.media?.length ? payload.media : existing.media,
       raw_data: payload.raw_data || existing.raw_data,
       posted_at: payload.posted_at || existing.posted_at,
+      ...(textChanged
+        ? {
+            analysis_status: 'pending',
+            analysis_error: null,
+            analysis_attempts: 0,
+          }
+        : {}),
     },
   });
-  return { isNew: false };
+
+  if (textChanged || existing.analysis_status === 'pending' || existing.analysis_status === 'failed') {
+    try {
+      enqueueEventMedia(updated.id, { dbName });
+    } catch (_) {
+      /* optional */
+    }
+  }
+
+  return { isNew: false, id: updated.id };
 };
 
 /**
@@ -481,6 +510,7 @@ const scanEventOnce = async (event, options = {}) => {
 
 const runScanEventOnce = async (event, options = {}) => {
   const db = options.db;
+  const dbName = options.dbName || null;
   const source = options.source || 'scheduler';
   const queries = buildEventQueries(event);
   if (!queries.length) {
@@ -546,6 +576,7 @@ const runScanEventOnce = async (event, options = {}) => {
       for (const t of relevant) {
         const { isNew } = await upsertMedia({
           db,
+          dbName,
           eventId: event.id,
           platform: 'x',
           externalId: t.id,
@@ -588,6 +619,7 @@ const runScanEventOnce = async (event, options = {}) => {
         const text = `${v.title || ''}\n${v.description || ''}`.trim();
         const { isNew } = await upsertMedia({
           db,
+          dbName,
           eventId: event.id,
           platform: 'youtube',
           externalId: v.id,
@@ -637,6 +669,7 @@ const runScanEventOnce = async (event, options = {}) => {
         if (!pid) continue;
         const { isNew } = await upsertMedia({
           db,
+          dbName,
           eventId: event.id,
           platform: 'facebook',
           externalId: String(pid),
@@ -681,6 +714,7 @@ const runScanEventOnce = async (event, options = {}) => {
           (handle && !/\s/.test(handle) ? `https://t.me/${handle}` : null);
         const { isNew } = await upsertMedia({
           db,
+          dbName,
           eventId: event.id,
           platform: 'telegram',
           externalId: String(pid),

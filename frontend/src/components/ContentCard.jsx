@@ -433,13 +433,46 @@ const ContentCard = ({ item, index, onDownload, onAddSource }) => {
     <div className={`rounded-2xl border ${theme.border} ${theme.bg} overflow-hidden shadow-sm hover:shadow-md transition-shadow`} data-testid={`content-item-${index}`}>
       <div className="p-4 space-y-2.5">
 
-        {/* Top Bar: Platform + Timestamp + Actions */}
-        <div className="flex items-center justify-between">
-          <div className={`flex items-center gap-2 text-xs ${theme.muted}`}>
+        {/* Top Bar: Platform + Timestamp + Sentiment + Actions */}
+        <div className="flex items-center justify-between gap-2">
+          <div className={`flex flex-wrap items-center gap-2 text-xs ${theme.muted}`}>
             {theme.icon}
             <span className="font-medium">{new Date(item.published_at).toLocaleString()}</span>
+            {item.sentiment ? (
+              <span
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${
+                  String(item.sentiment).toLowerCase() === 'negative'
+                    ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
+                    : String(item.sentiment).toLowerCase() === 'positive'
+                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                      : 'bg-slate-500/15 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                {item.sentiment}
+              </span>
+            ) : item.analysis_status && item.analysis_status !== 'done' ? (
+              <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300 capitalize">
+                {item.analysis_status === 'pending' || item.analysis_status === 'processing'
+                  ? 'analyzing…'
+                  : item.analysis_status}
+              </span>
+            ) : null}
+            {item.risk_level ? (
+              <span
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${
+                  String(item.risk_level).toLowerCase() === 'high' ||
+                  String(item.risk_level).toLowerCase() === 'critical'
+                    ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
+                    : String(item.risk_level).toLowerCase() === 'medium'
+                      ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                      : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                }`}
+              >
+                risk: {item.risk_level}
+              </span>
+            ) : null}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             {onDownload && (
               <Button variant="ghost" size="sm" onClick={() => onDownload(item)}
                 className={`h-7 px-2 text-[11px] ${theme.muted} hover:opacity-80 gap-1`}>

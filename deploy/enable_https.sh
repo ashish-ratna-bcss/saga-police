@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Issue/renew Let's Encrypt cert for site domains and reload nginx (HTTP+HTTPS).
 # Keeps vLLM on default :80. Does not remove vLLM.
+# Supports domain_aliases (SAN certs: primary + aliases on one cert-name).
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/home/ubuntu/blurasaga}"
@@ -24,31 +25,48 @@ node "$APP_DIR/deploy/render_nginx.js" "$SITES_JSON" --out "$APP_DIR/deploy/ngin
 sudo -n cp "$APP_DIR/deploy/nginx.conf" "/etc/nginx/sites-available/$NGINX_SITE"
 sudo -n ln -sf "/etc/nginx/sites-available/$NGINX_SITE" "/etc/nginx/sites-enabled/$NGINX_SITE"
 sudo -n rm -f /etc/nginx/sites-enabled/default
-# home traverse for nginx static files
 sudo -n chmod 711 /home/ubuntu || true
 sudo -n nginx -t
 sudo -n systemctl reload nginx
 
-mapfile -t DOMAINS < <(node -e "
+mapfile -t CERT_GROUPS < <(node -e "
 const d = require('$SITES_JSON');
-(d.sites || []).filter(s => s.enabled !== false && s.domain).forEach(s => console.log(s.domain.trim()));
+(d.sites || []).filter(s => s.enabled !== false && s.domain).forEach(s => {
+  const names = [String(s.domain).trim()];
+  for (const a of s.domain_aliases || []) {
+    const t = String(a || '').trim();
+    if (t && !names.includes(t)) names.push(t);
+  }
+  console.log(names.join(' '));
+});
 ")
 
-if [[ ${#DOMAINS[@]} -eq 0 ]]; then
+if [[ ${#CERT_GROUPS[@]} -eq 0 ]]; then
   echo "No domains in $SITES_JSON" >&2
   exit 1
 fi
 
-for domain in "${DOMAINS[@]}"; do
-  echo "==> Certbot for $domain"
-  sudo -n certbot certonly \
+for group in "${CERT_GROUPS[@]}"; do
+  # shellcheck disable=SC2206
+  args=( $group )
+  primary="${args[0]}"
+  echo "==> Certbot for $primary (${#args[@]} name(s))"
+  cert_args=()
+  for dname in "${args[@]}"; do
+    cert_args+=( -d "$dname" )
+  done
+  if ! sudo -n certbot certonly \
     --webroot -w /var/www/certbot \
-    -d "$domain" \
+    "${cert_args[@]}" \
+    --cert-name "$primary" \
     --email "$EMAIL" \
     --agree-tos \
     --non-interactive \
     --keep-until-expiring \
-    --rsa-key-size 2048
+    --rsa-key-size 2048 \
+    --expand; then
+    echo "WARN: certbot failed for $primary (check DNS A → this server)" >&2
+  fi
 done
 
 echo "==> Re-render nginx with HTTPS"
@@ -57,11 +75,9 @@ sudo -n cp "$APP_DIR/deploy/nginx.conf" "/etc/nginx/sites-available/$NGINX_SITE"
 sudo -n nginx -t
 sudo -n systemctl reload nginx
 
-# Public URL for first domain (cookie Secure follows request HTTPS automatically)
-FIRST="${DOMAINS[0]}"
+FIRST="$(echo "${CERT_GROUPS[0]}" | awk '{print $1}')"
 ENV_FILE="$APP_DIR/backend/.env"
 if [[ -f "$ENV_FILE" ]]; then
-  # Drop legacy COOKIE_SECURE — Secure is derived from X-Forwarded-Proto
   if grep -q '^COOKIE_SECURE=' "$ENV_FILE"; then
     sed -i '/^COOKIE_SECURE=/d' "$ENV_FILE"
   fi

@@ -210,6 +210,11 @@ const hydrateEventMedia = (row) => {
     media,
     raw_data: raw,
     event_ids: [String(row.event_id)],
+    analysis_status: row.analysis_status || null,
+    analysis_result: asJson(row.analysis_result, null),
+    sentiment: asJson(row.analysis_result, null)?.sentiment || null,
+    risk_level: asJson(row.analysis_result, null)?.risk_level || null,
+    risk_score: asJson(row.analysis_result, null)?.risk_score ?? null,
   });
 };
 

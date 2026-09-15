@@ -8,12 +8,15 @@ import {
 import { Button } from '../../components/ui/button';
 import { useReactToPrint } from 'react-to-print';
 import { format } from 'date-fns';
+import { useAuth } from '../../context/auth.context';
+import { buildNoticeDefaults, rewriteStaleJurisdictionText, resolveNoticeJurisdiction } from '../../lib/noticeJurisdiction';
 
 const RichTextEditor = lazy(() => import('../../components/RichTextEditor'));
 
 const GenerateReport = () => {
     const { id } = useParams();
     const location = useLocation();
+    const { user } = useAuth();
     const [alert, setAlert] = useState(null);
     const [content, setContent] = useState(null);
     const [report, setReport] = useState(null);
@@ -38,7 +41,7 @@ const GenerateReport = () => {
     // ... (rest of states remain same)
 
     // --- SECTION-LEVEL EDITABLE STATES ---
-    const [headerGovt, setHeaderGovt] = useState('Government of Telangana');
+    const [headerGovt, setHeaderGovt] = useState('');
     const [headerDept, setHeaderDept] = useState('(POLICE DEPARTMENT)');
     const [dateLine, setDateLine] = useState('');
     const [subject, setSubject] = useState('');
@@ -117,25 +120,15 @@ const GenerateReport = () => {
                 const operator = alertData.platform === 'x' ? 'X Corp.' : alertData.platform === 'facebook' ? 'Meta' : 'Google';
                 const domain = alertData.platform === 'x' ? 'www.x.com' : alertData.platform === 'facebook' ? 'www.facebook.com' : 'www.youtube.com';
 
-                // Load existing edits or defaults
-                const edits = reportData?.edited_content || {};
-
+                // Load existing edits or defaults (overridden below if stale Telangana boilerplate)
                 const dd = format(new Date(), 'dd');
                 const mm = format(new Date(), 'MM');
                 const yyyy = format(new Date(), 'yyyy');
                 setSerialNumber(reportData?.serial_number || `${pCode.substring(0, 1)}0001 - ${dd}${mm}${yyyy} `);
 
-                setHeaderGovt(edits.headerGovt || 'Government of Telangana');
-                setHeaderDept(edits.headerDept || '(POLICE DEPARTMENT)');
-                setDateLine(edits.dateLine || `Date: ${new Date().toLocaleDateString('en-GB').replace(/\//g, '.')} `);
-
                 const sectionsList = alertData.legal_sections?.length > 0
                     ? alertData.legal_sections.map(s => s.section).join(', ')
                     : '505, 353, 153A, 196';
-                setSubject(edits.subject || `NOTICE: U/Sec: 69(A) & 79(3) Information Technology Amendment Act 2008 and 94 BNSS of India. (Cr.No 11/2026, U/Sec ${sectionsList} of BNS of IT Cell, Hyderabad City)`);
-
-                setGreeting(edits.greeting || 'Sir/Madam,');
-                setIntroText(edits.introText || `I am the Inspector of Police, presently working at IT Cell, Hyderabad City, Telangana, India. I am investigating the above-referenced crime, which pertains to the circulation of objectionable and communally sensitive content on the social media platform ${platform} (formerly Twitter) operated by ${operator}.`);
 
                 let postDateStr = 'recent date';
                 try {
@@ -146,7 +139,37 @@ const GenerateReport = () => {
                 }
 
                 const intent = alertData.threat_details?.intent || 'circulation of sensitive content';
-                setBodyText(edits.bodyText || `It is brought to notice that on ${postDateStr}, posts/videos were uploaded through the below-mentioned ${platform} account, containing content relating to the ${intent}. The said content is highly sensitive in nature, and its continued circulation is likely to incite communal disharmony, thereby posing a serious threat to public order and law & order in Hyderabad City and across the State of Telangana, India.`);
+                const noticeDefaults = buildNoticeDefaults(user, {
+                    platform,
+                    operator,
+                    sectionsList,
+                    postDateStr,
+                    intent,
+                    domain,
+                });
+
+                // Ignore previously saved Telangana/Hyderabad boilerplate when this site isn't Telangana
+                const editsRaw = reportData?.edited_content || {};
+                const jurisdictionKey = String(noticeDefaults.jurisdiction?.state || '').toLowerCase();
+                const staleTelangana =
+                    jurisdictionKey &&
+                    jurisdictionKey !== 'telangana' &&
+                    /hyderabad|telangana/i.test(JSON.stringify(editsRaw));
+                const edits = staleTelangana ? {} : editsRaw;
+                const j = noticeDefaults.jurisdiction;
+
+                const pick = (saved, fresh) => {
+                    if (staleTelangana || saved == null || saved === '') return fresh;
+                    return rewriteStaleJurisdictionText(saved, j) || fresh;
+                };
+
+                setHeaderGovt(pick(edits.headerGovt, noticeDefaults.headerGovt));
+                setHeaderDept(edits.headerDept || noticeDefaults.headerDept);
+                setDateLine(edits.dateLine || `Date: ${new Date().toLocaleDateString('en-GB').replace(/\//g, '.')} `);
+                setSubject(pick(edits.subject, noticeDefaults.subject));
+                setGreeting(edits.greeting || 'Sir/Madam,');
+                setIntroText(pick(edits.introText, noticeDefaults.introText));
+                setBodyText(pick(edits.bodyText, noticeDefaults.bodyText));
 
                 setAccountHeader(edits.accountHeader || `Alleged ${platform} Account URL`);
 
@@ -201,13 +224,7 @@ const GenerateReport = () => {
                     `I further declare that the information requested shall be used only for the purpose of the investigation of this case and shall not be disclosed directly or indirectly to any other agency or person without the consent of the competent authority of ${operator}`
                 ));
 
-                setAddressBlock(edits.addressBlock || (
-                    `IT Cell, 4th Floor, Commissioner of Police office, Hyderabad City,\n` +
-                    `Telangana Integrated Command and Control Center (TGICCC) Road No. 12,\n` +
-                    `adj. Sri Puri Jagannath Temple, Bhavani Nagar, Banjara Hills, Hyderabad,\n` +
-                    `Telangana. India, Mobile No: 8712660777\n` +
-                    `e-mail ID: smu-hyderabad@tspolice.gov.in`
-                ));
+                setAddressBlock(pick(edits.addressBlock, noticeDefaults.addressBlock));
 
                 setRecipientBlock(edits.recipientBlock || (
                     `To\n` +
@@ -217,11 +234,7 @@ const GenerateReport = () => {
                     `${alertData.platform === 'x' ? 'San Francisco, CA 94103' : 'Menlo Park, CA 94025'}`
                 ));
 
-                setSignatureBlock(edits.signatureBlock || (
-                    `Inspector of Police,\n` +
-                    `IT Cell, Hyderabad\n` +
-                    `TELANGANA.`
-                ));
+                setSignatureBlock(pick(edits.signatureBlock, noticeDefaults.signatureBlock));
 
                 // --- SIMILAR ALERTS CHECK (Run Once) ---
                 const textToCheck = contentData?.text || alertData.description;
@@ -247,7 +260,7 @@ const GenerateReport = () => {
             }
         };
         fetchData();
-    }, [id]);
+    }, [id, user]);
 
     const loadTemplateHtml = useCallback(async (templateId) => {
         if (!templateId) {
@@ -258,7 +271,8 @@ const GenerateReport = () => {
         try {
             setTemplateLoading(true);
             const res = await api.post(`/templates/${templateId}/generate/${id}`);
-            setTemplateHtml(res.data.html);
+            const j = resolveNoticeJurisdiction(user);
+            setTemplateHtml(rewriteStaleJurisdictionText(res.data.html || '', j) || res.data.html || '');
             setUseCustomTemplate(true);
         } catch (err) {
             console.error('Failed to load template:', err);
@@ -266,7 +280,7 @@ const GenerateReport = () => {
         } finally {
             setTemplateLoading(false);
         }
-    }, [id]);
+    }, [id, user]);
 
     // Fetch templates for this platform and restore previously selected template
     useEffect(() => {
@@ -275,15 +289,16 @@ const GenerateReport = () => {
             try {
                 const res = await api.get(`/templates?platform=${alert.platform || 'x'}`);
                 setTemplates(res.data || []);
+                const j = resolveNoticeJurisdiction(user);
 
                 // Check if report has a previously selected template
                 const savedTemplateId = report?.edited_content?.selectedTemplateId;
                 const savedTemplateHtml = report?.edited_content?.templateHtml;
 
                 if (savedTemplateId && savedTemplateHtml) {
-                    // Restore saved template and HTML
+                    // Restore saved template and HTML (rewrite stale Telangana/Hyderabad)
                     setSelectedTemplateId(savedTemplateId);
-                    setTemplateHtml(savedTemplateHtml);
+                    setTemplateHtml(rewriteStaleJurisdictionText(savedTemplateHtml, j) || savedTemplateHtml);
                     setUseCustomTemplate(true);
                 } else {
                     // Auto-select default template if exists
@@ -298,7 +313,7 @@ const GenerateReport = () => {
             }
         };
         fetchTemplates();
-    }, [alert, report, loadTemplateHtml]);
+    }, [alert, report, loadTemplateHtml, user]);
 
     // Track unsaved changes
     useEffect(() => {

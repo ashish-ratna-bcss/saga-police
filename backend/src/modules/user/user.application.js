@@ -9,6 +9,7 @@ const DEFAULT_APP = {
   description: 'Digital Intelligence Platform for Digital India',
   application_name: 'Blura Saga',
   domains: [],
+  notice: null,
 };
 
 const asObject = (raw) =>
@@ -28,6 +29,10 @@ const readApplicationDetails = (user) => {
   const ad = asObject(user?.application_details);
   const tc = asObject(user?.theme_color); // legacy fallback during migration
   const { subtitle: _ignored, ...restAd } = ad;
+  const notice =
+    restAd.notice && typeof restAd.notice === 'object' && !Array.isArray(restAd.notice)
+      ? restAd.notice
+      : null;
   return {
     title:
       restAd.title ||
@@ -48,6 +53,7 @@ const readApplicationDetails = (user) => {
       tc.blurasagatitle ||
       DEFAULT_APP.application_name,
     domains: normalizeDomains(restAd.domains || restAd.domain),
+    notice,
   };
 };
 
@@ -70,13 +76,23 @@ const buildApplicationDetails = (existing, body = {}, fallback = {}) => {
   if (body.domains !== undefined || body.domain !== undefined) {
     next.domains = normalizeDomains(body.domains ?? body.domain);
   }
+  if (body.notice !== undefined) {
+    next.notice =
+      body.notice && typeof body.notice === 'object' && !Array.isArray(body.notice)
+        ? body.notice
+        : null;
+  }
 
-  return {
+  const out = {
     title: String(next.title || DEFAULT_APP.title),
     description: String(next.description || DEFAULT_APP.description),
     application_name: String(next.application_name || next.title || DEFAULT_APP.application_name),
     domains: normalizeDomains(next.domains),
   };
+  if (next.notice && typeof next.notice === 'object') {
+    out.notice = next.notice;
+  }
+  return out;
 };
 
 /** theme_color should only hold visual theme — strip branding keys */

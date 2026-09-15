@@ -339,7 +339,12 @@ exports.Prisma.Social_media_event_mediaScalarFieldEnum = {
   raw_data: 'raw_data',
   posted_at: 'posted_at',
   fetched_at: 'fetched_at',
-  updated_at: 'updated_at'
+  updated_at: 'updated_at',
+  analysis_status: 'analysis_status',
+  analysis_result: 'analysis_result',
+  analysis_error: 'analysis_error',
+  analysis_attempts: 'analysis_attempts',
+  analyzed_at: 'analyzed_at'
 };
 
 exports.Prisma.Alert_configScalarFieldEnum = {
