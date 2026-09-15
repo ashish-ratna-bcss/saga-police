@@ -10,18 +10,26 @@ const extractThemeColor = (tc) => {
   return DEFAULT_THEME_VALUE;
 };
 
-const resolveLogoUrl = (user) => {
-  if (user.logo_mime || user.logo_data) {
+const resolveLogoUrl = (user, creator = null) => {
+  if (user?.logo_mime || user?.logo_data) {
     return publicLogoUrl({
       port: user.port,
       username: user.username,
       updatedAt: user.updated_at,
     });
   }
+  // Users created by an admin often had no logo_data copied — fall back to creator branding.
+  if (creator && (creator.logo_mime || creator.logo_data)) {
+    return publicLogoUrl({
+      port: creator.port,
+      username: creator.username,
+      updatedAt: creator.updated_at,
+    });
+  }
   return '/blura_saga_logo.jpg';
 };
 
-const toPublicUser = (user, role) => {
+const toPublicUser = (user, role, { creator = null } = {}) => {
   const roleSlug = role?.slug || null;
   const app = readApplicationDetails(user);
   return {
@@ -46,8 +54,8 @@ const toPublicUser = (user, role) => {
     application_details: app,
     blurasagatitle: app.title,
     blurasagadescription: app.description,
-    blurasagalogo: resolveLogoUrl(user),
-    has_logo: Boolean(user.logo_mime || user.logo_data),
+    blurasagalogo: resolveLogoUrl(user, creator),
+    has_logo: Boolean(user.logo_mime || user.logo_data || creator?.logo_mime || creator?.logo_data),
     db_name: user.db_name || null,
     created_at: user.created_at,
     is_active: true,

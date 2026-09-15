@@ -819,7 +819,7 @@ export const QueryReports = ({ externalStatusFilter = 'all', onStatsUpdate }) =>
                                         <thead className="bg-slate-50 sticky top-0 z-20">
                                             <tr className="border-b border-slate-200">
                                                 {[
-                                                    { key: 'si_no', label: 'Sl.No', width: 'w-16' },
+                                                    { key: 'si_no', label: 'Sl.No', width: 'w-12' },
                                                     { key: 'status', label: 'Status', width: 'w-28', sortable: true },
                                                     { key: 'unique_id', label: 'Unique ID', width: 'w-32' },
                                                     { key: 'post_date', label: 'Post Date', width: 'w-32', sortable: true },
@@ -830,6 +830,7 @@ export const QueryReports = ({ externalStatusFilter = 'all', onStatsUpdate }) =>
                                                     { key: 'remarks', label: 'Remarks', width: 'min-w-[150px]' },
                                                     { key: 'informed_to', label: 'Informed to Officer', width: 'min-w-[150px]' },
                                                     { key: 'action_date', label: 'Action Taken', width: 'w-32', sortable: true },
+                                                    { key: 'view', label: 'View', width: 'w-14' },
                                                 ].map((col) => (
                                                     <th
                                                         key={col.key}
@@ -861,30 +862,11 @@ export const QueryReports = ({ externalStatusFilter = 'all', onStatsUpdate }) =>
                                                         transition={{ delay: idx * 0.02 }}
                                                         className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group"
                                                     >
-                                                        {/* 1. Sl.No + Eye */}
+                                                        {/* 1. Sl.No */}
                                                         <td className="py-2.5 px-3 text-center">
-                                                            <div className="flex flex-col items-center gap-1">
-                                                                <span className="text-slate-400 font-mono text-[10px]">
-                                                                    {(page - 1) * 50 + idx + 1}
-                                                                </span>
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="sm"
-                                                                            className="h-6 w-6 p-0 rounded-full hover:bg-violet-100 transition-colors"
-                                                                            onClick={() => {
-                                                                                setSelectedReport(r);
-                                                                                setWaPhone(r.informed_to?.phone || '');
-                                                                                setActiveTab('details');
-                                                                            }}
-                                                                        >
-                                                                            <Eye className="h-3.5 w-3.5 text-violet-600" />
-                                                                        </Button>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent><p className="text-xs">View Details</p></TooltipContent>
-                                                                </Tooltip>
-                                                            </div>
+                                                            <span className="text-slate-400 font-mono text-[10px]">
+                                                                {(page - 1) * 50 + idx + 1}
+                                                            </span>
                                                         </td>
 
                                                         {/* 2. Status */}
@@ -994,6 +976,27 @@ export const QueryReports = ({ externalStatusFilter = 'all', onStatsUpdate }) =>
                                                                     <span className="text-[9px] text-slate-400">{fmtRelativeTime(r.action_taken_at)}</span>
                                                                 </div>
                                                             ) : <span className="text-slate-400 text-xs italic">—</span>}
+                                                        </td>
+
+                                                        {/* 12. View */}
+                                                        <td className="py-2.5 px-3 text-center">
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="h-7 w-7 p-0 rounded-md hover:bg-violet-100"
+                                                                        onClick={() => {
+                                                                            setSelectedReport(r);
+                                                                            setWaPhone(r.informed_to?.phone || '');
+                                                                            setActiveTab('details');
+                                                                        }}
+                                                                    >
+                                                                        <Eye className="h-4 w-4 text-violet-600" />
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent><p className="text-xs">View details</p></TooltipContent>
+                                                            </Tooltip>
                                                         </td>
                                                     </motion.tr>
                                                 );

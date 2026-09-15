@@ -132,7 +132,20 @@ const authorize = (...args) => {
       }
       req.sessionId = session.id;
 
-      req.user = toPublicUser(user, user.roles);
+      let creator = null;
+      if (!user.logo_mime && user.created_by) {
+        creator = await prisma.users.findUnique({
+          where: { id: user.created_by },
+          select: {
+            port: true,
+            username: true,
+            logo_mime: true,
+            updated_at: true,
+          },
+        });
+      }
+
+      req.user = toPublicUser(user, user.roles, { creator });
       const tenantDbName = user.db_name || null;
       if (decoded.db_name && user.db_name && decoded.db_name !== user.db_name) {
         logger.warn(

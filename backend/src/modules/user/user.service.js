@@ -241,11 +241,15 @@ const createUserAccount = async (actor, body) => {
     throw err;
   }
 
+  // Child users inherit the admin org logo unless a new image was uploaded.
+  // Frontend often sends the admin's /api/branding/logo?… URL (unchanged) — that must
+  // NOT block inheritance (previously only ran when blurasagalogo was undefined).
+  const logoParsed = parseLogoInput(body.blurasagalogo);
   if (
     !createData.logo_data &&
+    logoParsed.kind !== 'binary' &&
     actorUser?.logo_data &&
-    actorUser?.logo_mime &&
-    body.blurasagalogo === undefined
+    actorUser?.logo_mime
   ) {
     createData.logo_data = actorUser.logo_data;
     createData.logo_mime = actorUser.logo_mime;

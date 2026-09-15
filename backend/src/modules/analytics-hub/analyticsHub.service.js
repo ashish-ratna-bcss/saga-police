@@ -180,30 +180,102 @@ const bucketForScore = (score) => {
   return 'low';
 };
 
+const normalizePlatform = (raw) => {
+  const p = String(raw || 'all')
+    .trim()
+    .toLowerCase()
+    .replace(/^twitter$/, 'x');
+  if (!p || p === 'all') return null;
+  return p;
+};
+
+const OPEN_ALERT_STATUSES = new Set(['active', 'new', 'open', 'acknowledged', 'escalated']);
+const HIGH_RISK_LEVELS = new Set(['high', 'critical']);
+
 const getProfilesAnalytics = async (query = {}) => {
   const prisma = dbOf(query.db);
   const { range, from, to } = resolveRange(query.range);
+  const platform = normalizePlatform(query.platform);
 
-  const [allPlatforms, accounts, accountCountsRaw, postPlatformRaw, trendRows] = await Promise.all([
+  const accountWhere = {
+    type: 'profile',
+    ...(platform ? { platforms: { slug: platform } } : {}),
+  };
+
+  const [allPlatforms, accounts, accountCountsRaw] = await Promise.all([
     prisma.platforms.findMany({ where: { is_active: true }, orderBy: { id: 'asc' } }),
     prisma.social_media_accounts.findMany({
-      where: { type: 'profile' },
-      select: { id: true, profile_id: true, is_active: true },
+      where: accountWhere,
+      select: {
+        id: true,
+        profile_id: true,
+        handle: true,
+        is_active: true,
+        monitoring_status: true,
+        last_fetched_at: true,
+        platforms: { select: { slug: true, name: true } },
+        profile: { select: { id: true, display_name: true, is_active: true } },
+      },
     }),
     prisma.social_media_accounts.groupBy({
       by: ['platform_id'],
       where: { type: 'profile' },
       _count: { _all: true },
     }),
-    prisma.social_media_posts.groupBy({
-      by: ['platform'],
-      where: { fetched_at: { gte: from, lte: to } },
-      _count: { _all: true },
-    }),
-    prisma.social_media_posts.findMany({
-      where: { fetched_at: { gte: from, lte: to } },
-      select: { fetched_at: true },
-    }),
+  ]);
+
+  const accountIds = accounts.map((a) => a.id);
+  const postBaseWhere = {
+    account_id: { in: accountIds.length ? accountIds : [-1] },
+    ...(platform ? { platform } : {}),
+  };
+
+  const [postPlatformRaw, trendRows, postsInRange, postsTotal, alertsInRange] = await Promise.all([
+    accountIds.length
+      ? prisma.social_media_posts.groupBy({
+          by: ['platform'],
+          where: { ...postBaseWhere, fetched_at: { gte: from, lte: to } },
+          _count: { _all: true },
+        })
+      : Promise.resolve([]),
+    accountIds.length
+      ? prisma.social_media_posts.findMany({
+          where: { ...postBaseWhere, fetched_at: { gte: from, lte: to } },
+          select: { fetched_at: true },
+        })
+      : Promise.resolve([]),
+    accountIds.length
+      ? prisma.social_media_posts.groupBy({
+          by: ['account_id'],
+          where: { ...postBaseWhere, fetched_at: { gte: from, lte: to } },
+          _count: { _all: true },
+        })
+      : Promise.resolve([]),
+    accountIds.length
+      ? prisma.social_media_posts.groupBy({
+          by: ['account_id'],
+          where: postBaseWhere,
+          _count: { _all: true },
+        })
+      : Promise.resolve([]),
+    accountIds.length
+      ? prisma.social_media_alerts.findMany({
+          where: {
+            created_at: { gte: from, lte: to },
+            ...(platform ? { platform } : {}),
+            OR: [
+              { account_id: { in: accountIds } },
+              { post: { account_id: { in: accountIds } } },
+            ],
+          },
+          select: {
+            account_id: true,
+            status: true,
+            risk_level: true,
+            post: { select: { account_id: true } },
+          },
+        })
+      : Promise.resolve([]),
   ]);
 
   const accountsByPlatformId = accountCountsRaw.reduce(
@@ -223,16 +295,136 @@ const getProfilesAnalytics = async (query = {}) => {
   // Reuses the existing per-account relevance scoring (profileRelevance.service.js)
   // instead of a new risk formula — just buckets the already-computed score.
   const scored = await attachProfileRelevanceToAccounts(accounts, { db: prisma });
+  const scoreByAccountId = new Map(
+    scored.map((a) => [a.id, a.profile_relevance?.profile_relevance_score || 0])
+  );
   const risk_distribution = RELEVANCE_BUCKETS.reduce((acc, b) => ({ ...acc, [b]: 0 }), {});
   for (const a of scored) {
     const bucket = bucketForScore(a.profile_relevance?.profile_relevance_score || 0);
     risk_distribution[bucket] += 1;
   }
 
+  const postsFetchedByAccount = new Map(postsInRange.map((r) => [r.account_id, r._count._all]));
+  const postsTotalByAccount = new Map(postsTotal.map((r) => [r.account_id, r._count._all]));
+
+  const alertsByAccount = new Map();
+  for (const alert of alertsInRange) {
+    const aid = alert.account_id || alert.post?.account_id;
+    if (!aid) continue;
+    const cur = alertsByAccount.get(aid) || { total: 0, open: 0, high: 0 };
+    cur.total += 1;
+    if (OPEN_ALERT_STATUSES.has(String(alert.status || '').toLowerCase())) cur.open += 1;
+    if (HIGH_RISK_LEVELS.has(String(alert.risk_level || '').toLowerCase())) cur.high += 1;
+    alertsByAccount.set(aid, cur);
+  }
+
+  // Roll accounts up to catalog profiles (one row per profile_id).
+  const byProfile = new Map();
+  for (const account of accounts) {
+    const profileId = account.profile_id || account.profile?.id;
+    if (!profileId) continue;
+    const row =
+      byProfile.get(profileId) ||
+      {
+        profile_id: profileId,
+        // Detail route uses social_media_accounts.id (not catalog profile id).
+        account_id: account.id,
+        display_name: account.profile?.display_name || account.handle,
+        is_active: Boolean(account.profile?.is_active),
+        accounts_count: 0,
+        platforms: [],
+        handles: [],
+        posts_fetched: 0,
+        posts_total: 0,
+        alerts_count: 0,
+        alerts_open: 0,
+        alerts_high: 0,
+        last_fetched_at: null,
+        monitoring: 'stopped',
+        monitoring_started: 0,
+        monitoring_stopped: 0,
+        relevance_score: 0,
+        relevance_bucket: 'low',
+      };
+
+    if (!row.account_id) row.account_id = account.id;
+    // Prefer a live account for drill-down; otherwise keep the first.
+    if (account.monitoring_status === 'started') row.account_id = account.id;
+    row.accounts_count += 1;
+    if (account.profile?.display_name) row.display_name = account.profile.display_name;
+    row.is_active = row.is_active || Boolean(account.profile?.is_active) || account.is_active;
+    const slug = account.platforms?.slug;
+    if (slug && !row.platforms.includes(slug)) row.platforms.push(slug);
+    if (account.handle && !row.handles.includes(account.handle)) row.handles.push(account.handle);
+
+    row.posts_fetched += postsFetchedByAccount.get(account.id) || 0;
+    row.posts_total += postsTotalByAccount.get(account.id) || 0;
+
+    const alertStats = alertsByAccount.get(account.id);
+    if (alertStats) {
+      row.alerts_count += alertStats.total;
+      row.alerts_open += alertStats.open;
+      row.alerts_high += alertStats.high;
+    }
+
+    if (account.last_fetched_at) {
+      const ts = new Date(account.last_fetched_at).getTime();
+      if (!row.last_fetched_at || ts > new Date(row.last_fetched_at).getTime()) {
+        row.last_fetched_at = account.last_fetched_at;
+      }
+    }
+
+    if (account.monitoring_status === 'started') row.monitoring_started += 1;
+    else row.monitoring_stopped += 1;
+
+    const score = scoreByAccountId.get(account.id) || 0;
+    if (score > row.relevance_score) row.relevance_score = score;
+
+    byProfile.set(profileId, row);
+  }
+
+  const profiles = [...byProfile.values()]
+    .map((row) => {
+      const monitoring =
+        row.monitoring_started > 0
+          ? 'started'
+          : row.monitoring_stopped > 0
+            ? 'stopped'
+            : 'stopped';
+      const relevance_bucket = bucketForScore(row.relevance_score);
+      return {
+        profile_id: row.profile_id,
+        account_id: row.account_id,
+        display_name: row.display_name,
+        is_active: row.is_active,
+        accounts_count: row.accounts_count,
+        platforms: row.platforms,
+        handles: row.handles,
+        posts_fetched: row.posts_fetched,
+        posts_total: row.posts_total,
+        alerts_count: row.alerts_count,
+        alerts_open: row.alerts_open,
+        alerts_high: row.alerts_high,
+        last_fetched_at: row.last_fetched_at
+          ? new Date(row.last_fetched_at).toISOString()
+          : null,
+        monitoring,
+        relevance_score: Math.round(row.relevance_score),
+        relevance_bucket,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.posts_fetched - a.posts_fetched ||
+        b.alerts_count - a.alerts_count ||
+        String(a.display_name || '').localeCompare(String(b.display_name || ''))
+    );
+
   const trend = bucketRowsByDay(trendRows, { from, to, dateField: 'fetched_at' });
 
   return {
     range,
+    platform: platform || 'all',
     from: from.toISOString(),
     to: to.toISOString(),
     total,
@@ -242,6 +434,7 @@ const getProfilesAnalytics = async (query = {}) => {
     content_by_platform,
     risk_distribution,
     trend,
+    profiles,
   };
 };
 

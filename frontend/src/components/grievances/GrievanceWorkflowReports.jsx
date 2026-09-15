@@ -1699,7 +1699,7 @@ export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStats
                                         <thead className="bg-slate-50 sticky top-0 z-20">
                                             <tr className="border-b border-slate-200">
                                                 {[
-                                                    { key: 'si_no', label: 'Sl.No', style: { width: 56, minWidth: 56 } },
+                                                    { key: 'si_no', label: 'Sl.No', style: { width: 48, minWidth: 48 } },
                                                     { key: 'status', label: 'Status', sortable: true, style: { width: 110, minWidth: 110 } },
                                                     { key: 'unique_id', label: 'Unique ID', style: { width: 168, minWidth: 168 } },
                                                     { key: 'post_date', label: 'Post Date', sortable: true, style: { width: 140, minWidth: 140 } },
@@ -1715,6 +1715,7 @@ export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStats
                                                     { key: 'escalated_to_officer_time', label: 'Escalated to Officer', style: { width: 150, minWidth: 140 } },
                                                     { key: 'closing_remarks', label: 'Closing Remarks', style: { width: 180, minWidth: 160 } },
                                                     { key: 'fir_number', label: 'FIR Number', style: { width: 110, minWidth: 110 } },
+                                                    { key: 'view', label: 'View', style: { width: 56, minWidth: 56 } },
                                                 ].map((col) => (
                                                     <th
                                                         key={col.key}
@@ -1747,24 +1748,10 @@ export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStats
                                                         key={r.id}
                                                         className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group"
                                                     >
-                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap">
-                                                            <div className="flex flex-col items-center gap-0.5">
-                                                                <span className="text-slate-400 font-mono text-[11px]">
-                                                                    {(page - 1) * 50 + idx + 1}
-                                                                </span>
-                                                                <button
-                                                                    type="button"
-                                                                    className="h-6 w-6 inline-flex items-center justify-center rounded-full hover:bg-violet-100"
-                                                                    title="View details"
-                                                                    onClick={() => {
-                                                                        setSelectedReport(r);
-                                                                        setWaPhone(r.informed_to?.phone || r.complaint_phone || '');
-                                                                        setActiveTab('details');
-                                                                    }}
-                                                                >
-                                                                    <Eye className="h-3.5 w-3.5 text-violet-600" />
-                                                                </button>
-                                                            </div>
+                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap text-center">
+                                                            <span className="text-slate-400 font-mono text-[11px]">
+                                                                {(page - 1) * 50 + idx + 1}
+                                                            </span>
                                                         </td>
 
                                                         <td className="py-2 px-2.5 align-top whitespace-nowrap">
@@ -1948,6 +1935,21 @@ export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStats
                                                                     {firInfo.firNumber}
                                                                 </Badge>
                                                             ) : <span className="text-slate-400 text-xs">—</span>}
+                                                        </td>
+
+                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap text-center">
+                                                            <button
+                                                                type="button"
+                                                                className="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-violet-100"
+                                                                title="View details"
+                                                                onClick={() => {
+                                                                    setSelectedReport(r);
+                                                                    setWaPhone(r.informed_to?.phone || r.complaint_phone || '');
+                                                                    setActiveTab('details');
+                                                                }}
+                                                            >
+                                                                <Eye className="h-4 w-4 text-violet-600" />
+                                                            </button>
                                                         </td>
                                                     </tr>
                                                 );

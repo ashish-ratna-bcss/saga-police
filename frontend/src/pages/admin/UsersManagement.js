@@ -281,13 +281,12 @@ const UsersManagement = () => {
             .filter(Boolean);
         }
       }
-      // Only send logo when a new data-URL was picked; existing /api/branding URLs stay as-is in DB
+      // Only send logo when a new data-URL was picked. Do not send /api/branding/…
+      // URLs on create — that blocked logo inheritance for admin-created users.
       if (
         typeof form.blurasagalogo === 'string' &&
         form.blurasagalogo.startsWith('data:')
       ) {
-        payload.blurasagalogo = form.blurasagalogo;
-      } else if (!editing && form.blurasagalogo) {
         payload.blurasagalogo = form.blurasagalogo;
       }
       if (form.password.trim()) payload.password = form.password;

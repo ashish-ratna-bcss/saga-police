@@ -1137,7 +1137,7 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
                                         <thead className="bg-slate-50 sticky top-0 z-20">
                                             <tr className="border-b border-slate-200">
                                                 {[
-                                                    { key: 'si_no', label: 'Sl.No', width: 'w-16' },
+                                                    { key: 'si_no', label: 'Sl.No', width: 'w-12' },
                                                     { key: 'category', label: 'Category', width: 'w-32', sortable: true },
                                                     { key: 'unique_code', label: 'Unique ID', width: 'w-32', sortable: true },
                                                     { key: 'post_date', label: 'Post Date', width: 'w-32', sortable: true },
@@ -1145,7 +1145,8 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
                                                     { key: 'post_link', label: 'Link', width: 'w-16' },
                                                     { key: 'description', label: 'Description', width: 'min-w-[200px]' },
                                                     { key: 'remarks', label: 'Remarks', width: 'min-w-[180px]' },
-                                                    { key: 'informed_to', label: 'Informed To', width: 'min-w-[200px]', sortable: true }
+                                                    { key: 'informed_to', label: 'Informed To', width: 'min-w-[200px]', sortable: true },
+                                                    { key: 'view', label: 'View', width: 'w-14' },
                                                 ].map((col) => (
                                                     <th
                                                         key={col.key}
@@ -1175,28 +1176,10 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
                                                         key={r.id}
                                                         className="hover:bg-slate-50/50 transition-colors group"
                                                     >
-                                                        <td className="py-3 px-3 align-top">
-                                                            <div className="flex flex-col items-center gap-1">
-                                                                <span className="text-slate-500 font-mono text-[11px]">
-                                                                    {(page - 1) * 50 + idx + 1}
-                                                                </span>
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="sm"
-                                                                            className="h-6 w-6 p-0 rounded-full hover:bg-violet-100"
-                                                                            onClick={() => {
-                                                                                setSelectedReport(r);
-                                                                                setWaPhone(r.informed_to?.phone || '');
-                                                                            }}
-                                                                        >
-                                                                            <Eye className="h-3.5 w-3.5 text-violet-600" />
-                                                                        </Button>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent><p className="text-xs">View Details</p></TooltipContent>
-                                                                </Tooltip>
-                                                            </div>
+                                                        <td className="py-3 px-3 align-top text-center">
+                                                            <span className="text-slate-500 font-mono text-[11px]">
+                                                                {(page - 1) * 50 + idx + 1}
+                                                            </span>
                                                         </td>
 
                                                         <td className="py-3 px-3 align-top">
@@ -1324,6 +1307,25 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
                                                             ) : (
                                                                 <span className="text-slate-400 text-sm">—</span>
                                                             )}
+                                                        </td>
+
+                                                        <td className="py-3 px-3 align-top text-center">
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="h-7 w-7 p-0 rounded-md hover:bg-violet-100"
+                                                                        onClick={() => {
+                                                                            setSelectedReport(r);
+                                                                            setWaPhone(r.informed_to?.phone || '');
+                                                                        }}
+                                                                    >
+                                                                        <Eye className="h-4 w-4 text-violet-600" />
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent><p className="text-xs">View details</p></TooltipContent>
+                                                            </Tooltip>
                                                         </td>
                                                     </tr>
                                                 );

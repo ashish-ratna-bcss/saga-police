@@ -61,7 +61,15 @@ const login = async (req, res) => {
       await revokeOtherSessions(user.id, session.id);
     }
 
-    const publicUser = toPublicUser(user, user.roles);
+    let creator = null;
+    if (!user.logo_mime && user.created_by) {
+      creator = await prisma.users.findUnique({
+        where: { id: user.created_by },
+        select: { port: true, username: true, logo_mime: true, updated_at: true },
+      });
+    }
+
+    const publicUser = toPublicUser(user, user.roles, { creator });
     if (user.db_name) {
       try {
         const tenantPrisma = getTenantPrisma(user.db_name);
