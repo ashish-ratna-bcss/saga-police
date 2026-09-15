@@ -20,7 +20,7 @@ import { Textarea } from './ui/textarea';
 import { HoverCard, HoverCardTrigger, HoverCardContent } from './ui/hover-card';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Calendar } from './ui/calendar';
-import api from '../lib/api';
+import api, { BACKEND_URL } from '../lib/api';
 import { toast } from 'sonner';
 import ReasonModal from './ReasonModal';
 import { AlertService } from '../api';
@@ -253,18 +253,23 @@ const correctFilenameForContentType = (filename, contentType) => {
 
 const triggerBlobDownload = async (url, filename, expectedMediaType = null) => {
     try {
-        const response = await fetch(url);
+        let fetchUrl = String(url || '').trim();
+        if (!fetchUrl) return false;
+        if (fetchUrl.startsWith('/')) {
+            fetchUrl = `${BACKEND_URL}${fetchUrl}`;
+        }
+        const response = await fetch(fetchUrl, { credentials: 'include' });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const blob = await response.blob();
         const ct = (blob.type || '').split(';')[0].trim().toLowerCase();
 
         // If we expected video but got image (or HTML), reject so caller can try next URL
         if (expectedMediaType === 'video' && (ct.startsWith('image/') || ct.startsWith('text/'))) {
-            console.warn(`Expected video but got ${ct} from ${url}`);
+            console.warn(`Expected video but got ${ct} from ${fetchUrl}`);
             return false;
         }
         if (expectedMediaType === 'image' && ct.startsWith('text/')) {
-            console.warn(`Expected image but got ${ct} from ${url}`);
+            console.warn(`Expected image but got ${ct} from ${fetchUrl}`);
             return false;
         }
 
@@ -659,16 +664,14 @@ export const DownloadMenu = ({
             // Filter video items
             const videoItems = validItems.filter((m) => isVideoMediaItem(m));
 
-            // Strategy 1: Try direct download from CDN/S3 video URLs
+            // Strategy 1: Try direct download from CDN/S3 video URLs only (not page URLs).
             const directVideoUrls = videoItems
                 .map(v => {
-                    // Gather all URL candidates for the video item
                     const candidates = [v.s3_url, v.url, ...(v.fallbackUrls || [])].filter(Boolean);
-                    // Prefer URLs that are actually video URLs over thumbnails
-                    return candidates.find(u => isLikelyVideoUrl(u)) || candidates[0];
+                    return candidates.find(u => isLikelyVideoUrl(u) || VIDEO_URL_RE.test(u)) || null;
                 })
                 .filter(Boolean)
-                .filter(u => !isLikelyYouTubeUrl(u) && (VIDEO_URL_RE.test(u) || isLikelyVideoUrl(u) || /^https?:\/\//i.test(u)));
+                .filter(u => !isLikelyYouTubeUrl(u) && !isDownloadableSocialLink(u));
 
             if (directVideoUrls.length > 0) {
                 let allSucceeded = true;
@@ -691,10 +694,10 @@ export const DownloadMenu = ({
                 // If direct download failed, fall through to backend API
             }
 
-            // Strategy 2: Fall back to backend download-video API (uses RapidAPI / yt-dlp)
+            // Strategy 2: Fall back to backend download-video API (CDN fetch or yt-dlp)
             const response = await api.post('/media/download-video', {
-                media_url: mediaUrl || videoItems[0]?.url,
-                video_urls: videoItems.map(v => v.url).filter(Boolean),
+                media_url: mediaUrl || videoItems[0]?.s3_url || videoItems[0]?.url,
+                video_urls: videoItems.flatMap(v => [v.s3_url, v.url, ...(v.fallbackUrls || [])]).filter(Boolean),
                 content_id: contentId
             });
 
