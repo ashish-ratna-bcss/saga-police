@@ -12,6 +12,7 @@ const {
 } = require('./grievances');
 const { eventRoutes, occasionCalendarRoutes } = require('./events');
 const { dashboardRoutes } = require('./dashboard');
+const { analyticsHubRoutes } = require('./analytics-hub');
 const { healthRoutes } = require('./health');
 const { socialProfileRoutes } = require('./social-profiles');
 const { intelligenceRoutes } = require('./intelligence');
@@ -67,6 +68,7 @@ router.use('/events', eventRoutes);
 router.use('/occasion-calendar', occasionCalendarRoutes);
 router.use('/master-calendar', occasionCalendarRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/analytics-hub', analyticsHubRoutes);
 
 // Additional module routes
 router.use('/health', healthRoutes);
@@ -101,6 +103,7 @@ module.exports = {
   shouldSeedDefaultAdmin,
   isProduction,
   healthRoutes,
+  analyticsHubRoutes,
   socialProfileRoutes,
   intelligenceRoutes,
   keywordRoutes,

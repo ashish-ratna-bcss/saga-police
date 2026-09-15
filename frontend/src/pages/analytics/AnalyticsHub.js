@@ -1,0 +1,448 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import {
+  BarChart3, AlertTriangle, MessageSquare, CalendarDays, Contact2, Loader2, RefreshCw,
+} from 'lucide-react';
+import {
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
+  PieChart, Pie, Cell, BarChart, Bar, Legend,
+} from 'recharts';
+import { toast } from 'sonner';
+import { analyticsHubApi } from '../../api';
+import { Card, CardContent } from '../../components/ui/card';
+import { Tabs, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Button } from '../../components/ui/button';
+
+/* Same platform colors as UnifiedReportsAnalyticsPanel.jsx, for visual consistency. */
+const PLATFORM_COLORS = {
+  x: '#000000', twitter: '#000000', youtube: '#FF0000', facebook: '#1877F2',
+  instagram: '#E4405F', telegram: '#229ED9', unknown: '#94a3b8',
+};
+const RISK_COLORS = { critical: '#ef4444', high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
+const STATUS_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#22c55e', '#ef4444', '#94a3b8'];
+
+const colorFor = (key, map, fallback, idx = 0) =>
+  map[String(key || '').toLowerCase()] || fallback[idx % fallback.length] || '#94a3b8';
+
+const RANGE_OPTIONS = [
+  { value: '24h', label: 'Last 24 hours' },
+  { value: '7d', label: 'Last 7 days' },
+  { value: '30d', label: 'Last 30 days' },
+  { value: '90d', label: 'Last 90 days' },
+];
+
+const TABS = [
+  { value: 'all', label: 'All', icon: BarChart3 },
+  { value: 'events', label: 'Events', icon: CalendarDays },
+  { value: 'alerts', label: 'Alerts', icon: AlertTriangle },
+  { value: 'grievances', label: 'Grievances', icon: MessageSquare },
+  { value: 'profiles', label: 'Profiles', icon: Contact2 },
+];
+
+const StatTile = ({ label, value, accent = 'text-foreground' }) => (
+  <Card>
+    <CardContent className="p-4">
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={`mt-1 text-2xl font-bold tabular-nums ${accent}`}>
+        {typeof value === 'number' ? value.toLocaleString('en-IN') : value ?? '—'}
+      </p>
+    </CardContent>
+  </Card>
+);
+
+const EmptyChartNote = () => (
+  <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+    No data in this range
+  </div>
+);
+
+const TrendChart = ({ data, dataKeys, colorMap, height = 220 }) => {
+  const hasData = Array.isArray(data) && data.some((d) => d.total > 0);
+  return (
+    <div style={{ height }}>
+      {!hasData ? (
+        <EmptyChartNote />
+      ) : (
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+            <XAxis dataKey="date" tick={{ fontSize: 10 }} minTickGap={24} />
+            <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+            <RechartsTooltip
+              contentStyle={{ fontSize: 12, borderRadius: 8 }}
+              labelFormatter={(v) => v}
+            />
+            {(dataKeys || ['total']).map((key, i) => (
+              <Area
+                key={key}
+                type="monotone"
+                dataKey={key}
+                stackId={dataKeys?.length > 1 ? '1' : undefined}
+                stroke={colorMap ? colorFor(key, colorMap, STATUS_COLORS, i) : STATUS_COLORS[i % STATUS_COLORS.length]}
+                fill={colorMap ? colorFor(key, colorMap, STATUS_COLORS, i) : STATUS_COLORS[i % STATUS_COLORS.length]}
+                fillOpacity={0.18}
+              />
+            ))}
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+};
+
+const BreakdownPie = ({ breakdown, colorMap, fallbackColors = STATUS_COLORS, height = 200 }) => {
+  const data = Object.entries(breakdown || {})
+    .filter(([, v]) => v > 0)
+    .map(([name, value]) => ({ name, value }));
+  return (
+    <div style={{ height }}>
+      {!data.length ? (
+        <EmptyChartNote />
+      ) : (
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={data} dataKey="value" nameKey="name" innerRadius={40} outerRadius={70} paddingAngle={2}>
+              {data.map((entry, i) => (
+                <Cell key={entry.name} fill={colorFor(entry.name, colorMap || {}, fallbackColors, i)} />
+              ))}
+            </Pie>
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <RechartsTooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+          </PieChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+};
+
+const BreakdownBar = ({ breakdown, colorMap, fallbackColors = STATUS_COLORS, height = 200 }) => {
+  const data = Object.entries(breakdown || {}).map(([name, value]) => ({ name, value }));
+  return (
+    <div style={{ height }}>
+      {!data.some((d) => d.value > 0) ? (
+        <EmptyChartNote />
+      ) : (
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+            <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+            <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+            <RechartsTooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+              {data.map((entry, i) => (
+                <Cell key={entry.name} fill={colorFor(entry.name, colorMap || {}, fallbackColors, i)} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+};
+
+const SectionCard = ({ title, children }) => (
+  <Card>
+    <CardContent className="p-4">
+      <h3 className="mb-3 text-sm font-semibold text-foreground">{title}</h3>
+      {children}
+    </CardContent>
+  </Card>
+);
+
+/* ── All tab ── */
+const AllTab = ({ data }) => {
+  if (!data) return null;
+  const { kpis = {}, alerts = {}, grievances = {}, events = {}, platforms = [] } = data;
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatTile label="Accounts" value={kpis.accounts_total} />
+        <StatTile label="High risk open" value={kpis.high_risk_open} accent="text-red-600" />
+        <StatTile label="Open grievances" value={kpis.open_grievances} accent="text-amber-600" />
+        <StatTile label="Events started" value={kpis.events_started} />
+        <StatTile label="Unread alerts" value={kpis.unread_alerts} />
+        <StatTile label="Posts in range" value={kpis.posts_in_range} />
+        <StatTile label="Accounts monitoring" value={kpis.accounts_monitoring} />
+        <StatTile label="Accounts active" value={kpis.accounts_active} />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <SectionCard title="Alerts by risk">
+          <BreakdownPie breakdown={alerts.by_risk} colorMap={RISK_COLORS} />
+        </SectionCard>
+        <SectionCard title="Grievances by workflow status">
+          <BreakdownPie breakdown={grievances.by_workflow} />
+        </SectionCard>
+        <SectionCard title="Accounts by platform">
+          <BreakdownBar
+            breakdown={platforms.reduce((acc, p) => ({ ...acc, [p.slug]: p.accounts }), {})}
+            colorMap={PLATFORM_COLORS}
+          />
+        </SectionCard>
+      </div>
+      <SectionCard title={`Events currently monitoring (${events.started ?? 0} of ${events.total ?? 0})`}>
+        {!events.items?.length ? (
+          <p className="text-xs text-muted-foreground">No events currently started.</p>
+        ) : (
+          <ul className="divide-y divide-border text-sm">
+            {events.items.map((e) => (
+              <li key={e.id} className="flex items-center justify-between py-2">
+                <span className="truncate font-medium">{e.name}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{e.media_count} items</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SectionCard>
+    </div>
+  );
+};
+
+/* ── Events tab ── */
+const EventsTab = ({ data }) => {
+  if (!data) return null;
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatTile label="Total events" value={data.total} />
+        <StatTile
+          label="Started"
+          value={data.by_status?.started || 0}
+          accent="text-emerald-600"
+        />
+        <StatTile
+          label="Stopped"
+          value={data.by_status?.stopped || 0}
+          accent="text-muted-foreground"
+        />
+        <StatTile
+          label="Content discovered (range)"
+          value={data.trend?.reduce((s, d) => s + d.total, 0) || 0}
+        />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <SectionCard title="By status">
+          <BreakdownPie breakdown={data.by_status} />
+        </SectionCard>
+        <SectionCard title="By origin">
+          <BreakdownPie breakdown={data.by_origin} />
+        </SectionCard>
+      </div>
+      <SectionCard title="Content discovered by platform (all-time)">
+        <BreakdownBar breakdown={data.content_by_platform} colorMap={PLATFORM_COLORS} />
+      </SectionCard>
+      <SectionCard title="Content discovered per day">
+        <TrendChart data={data.trend} />
+      </SectionCard>
+    </div>
+  );
+};
+
+/* ── Alerts tab ── */
+const AlertsTab = ({ data }) => {
+  if (!data) return null;
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatTile label="Total alerts" value={data.total} />
+        <StatTile label="High / critical" value={(data.by_risk?.high || 0) + (data.by_risk?.critical || 0)} accent="text-red-600" />
+        <StatTile label="Medium risk" value={data.by_risk?.medium || 0} accent="text-amber-600" />
+        <StatTile label="Active" value={data.by_status?.active || 0} />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <SectionCard title="By risk level">
+          <BreakdownPie breakdown={data.by_risk} colorMap={RISK_COLORS} />
+        </SectionCard>
+        <SectionCard title="By platform">
+          <BreakdownPie breakdown={data.by_platform} colorMap={PLATFORM_COLORS} />
+        </SectionCard>
+        <SectionCard title="By status">
+          <BreakdownBar breakdown={data.by_status} />
+        </SectionCard>
+      </div>
+      <SectionCard title="Workflow activity per day (acknowledged / escalated / resolved / false positive)">
+        <TrendChart
+          data={data.trend}
+          dataKeys={['acknowledged', 'escalated', 'resolved', 'false_positive']}
+        />
+      </SectionCard>
+    </div>
+  );
+};
+
+/* ── Grievances tab ── */
+const GrievancesTab = ({ data }) => {
+  if (!data) return null;
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatTile label="Total grievances" value={data.total} />
+        <StatTile label="Received" value={data.by_workflow?.received || 0} />
+        <StatTile label="Escalated" value={data.by_workflow?.escalated || 0} accent="text-amber-600" />
+        <StatTile label="Reports sent" value={data.reports?.total || 0} />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <SectionCard title="By workflow status">
+          <BreakdownPie breakdown={data.by_workflow} />
+        </SectionCard>
+        <SectionCard title="By platform">
+          <BreakdownPie breakdown={data.by_platform} colorMap={PLATFORM_COLORS} />
+        </SectionCard>
+        <SectionCard title="By classification">
+          <BreakdownBar breakdown={data.by_classification} />
+        </SectionCard>
+      </div>
+      <SectionCard title="Grievances detected per day">
+        <TrendChart data={data.trend} />
+      </SectionCard>
+    </div>
+  );
+};
+
+/* ── Profiles tab ── */
+const ProfilesTab = ({ data }) => {
+  if (!data) return null;
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatTile label="Total profiles" value={data.total} />
+        <StatTile label="Active" value={data.active} accent="text-emerald-600" />
+        <StatTile label="Paused" value={data.paused} accent="text-muted-foreground" />
+        <StatTile
+          label="High relevance"
+          value={data.risk_distribution?.high || 0}
+          accent="text-red-600"
+        />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <SectionCard title="Accounts by platform">
+          <BreakdownPie breakdown={data.byPlatform} colorMap={PLATFORM_COLORS} />
+        </SectionCard>
+        <SectionCard title="Content volume by platform (range)">
+          <BreakdownBar breakdown={data.content_by_platform} colorMap={PLATFORM_COLORS} />
+        </SectionCard>
+        <SectionCard title="Relevance distribution">
+          <BreakdownPie breakdown={data.risk_distribution} colorMap={RISK_COLORS} />
+        </SectionCard>
+      </div>
+      <SectionCard title="Posts collected per day">
+        <TrendChart data={data.trend} />
+      </SectionCard>
+    </div>
+  );
+};
+
+const TAB_LOADERS = {
+  all: analyticsHubApi.overview,
+  events: analyticsHubApi.events,
+  alerts: analyticsHubApi.alerts,
+  grievances: analyticsHubApi.grievances,
+  profiles: analyticsHubApi.profiles,
+};
+
+const AnalyticsHub = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = TAB_LOADERS[searchParams.get('tab')] ? searchParams.get('tab') : 'all';
+  const [range, setRange] = useState('30d');
+  const [loading, setLoading] = useState(true);
+  const [dataByTab, setDataByTab] = useState({});
+
+  const load = useCallback(async (tab, currentRange) => {
+    setLoading(true);
+    try {
+      const res = await TAB_LOADERS[tab]({ range: currentRange });
+      setDataByTab((prev) => ({ ...prev, [tab]: res.data }));
+    } catch (error) {
+      toast.error(error.response?.data?.error || `Failed to load ${tab} analytics`);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load(activeTab, range);
+  }, [activeTab, range, load]);
+
+  const setTab = (value) => setSearchParams((prev) => {
+    const next = new URLSearchParams(prev);
+    next.set('tab', value);
+    return next;
+  }, { replace: true });
+
+  const currentData = dataByTab[activeTab];
+
+  const tabContent = useMemo(() => {
+    switch (activeTab) {
+      case 'events': return <EventsTab data={currentData} />;
+      case 'alerts': return <AlertsTab data={currentData} />;
+      case 'grievances': return <GrievancesTab data={currentData} />;
+      case 'profiles': return <ProfilesTab data={currentData} />;
+      default: return <AllTab data={currentData} />;
+    }
+  }, [activeTab, currentData]);
+
+  return (
+    <div className="flex h-[calc(100dvh-7.5rem)] min-h-[420px] flex-col gap-4 overflow-y-auto">
+      <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <BarChart3 className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="font-heading text-xl font-bold tracking-wide sm:text-2xl">Analytics</h1>
+            <p className="text-sm text-muted-foreground">Complete analytics across Events, Alerts, Grievances, and Profiles</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={range} onValueChange={setRange}>
+            <SelectTrigger className="h-9 w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {RANGE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-9 w-9"
+            onClick={() => load(activeTab, range)}
+            disabled={loading}
+            aria-label="Refresh"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          </Button>
+        </div>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setTab}>
+        <TabsList>
+          {TABS.map((t) => {
+            const Icon = t.icon;
+            return (
+              <TabsTrigger key={t.value} value={t.value} className="gap-1.5">
+                <Icon className="h-3.5 w-3.5" />
+                {t.label}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+      </Tabs>
+
+      <div className="min-h-0 flex-1">
+        {loading && !currentData ? (
+          <div className="flex h-full items-center justify-center text-muted-foreground">
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+            Loading…
+          </div>
+        ) : (
+          tabContent
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default AnalyticsHub;

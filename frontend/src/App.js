@@ -10,6 +10,7 @@ import Login from './pages/auth/Login';
 // Lazy load heavy pages
 const Dashboard = lazy(() => import('./pages/dashboard/DashboardNew'));
 const SocialProfiles = lazy(() => import('./pages/profiles/SocialProfiles'));
+const AnalyticsHub = lazy(() => import('./pages/analytics/AnalyticsHub'));
 const SocialProfileDetail = lazy(() => import('./pages/profiles/SocialProfileDetail'));
 const ContentFeed = lazy(() => import('./pages/monitors/ContentFeed'));
 const YouTubeMonitor = lazy(() => import('./pages/monitors/YouTubeMonitor'));
@@ -89,6 +90,7 @@ function App() {
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="sources" element={<Navigate to="/social-profiles" replace />} />
               <Route path="social-profiles" element={<SocialProfiles />} />
+              <Route path="analytics-hub" element={<AnalyticsHub />} />
               <Route path="social-profiles/:id" element={<SocialProfileDetail />} />
               <Route path="content" element={<ContentFeed />} />
               <Route path="youtube-monitor" element={<YouTubeMonitor />} />
