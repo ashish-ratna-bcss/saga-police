@@ -207,10 +207,11 @@ const analyzePost = async (postId, { db, dbName } = {}) => {
     sentiment_confidence: intel.sentiment_confidence ?? null,
     risk_score: riskScore,
     risk_level: riskLevel,
-    // Additive: null until the Sentiment API returns a stance object (older
+    // Additive: null until the Sentiment API returns a stance (older
     // deployments simply omit it — see intelligence.client.service.js).
-    stance: intel.stance || null,
-    stance_confidence: intel.stance_confidence || null,
+    // ?? not || : stance_confidence can legitimately be 0.0.
+    stance: intel.stance ?? null,
+    stance_confidence: intel.stance_confidence ?? null,
     // Auditable record of what tenant_name was actually sent, so a stance
     // misattribution across tenants would be visible on the row itself.
     tenant_name: tenantName || null,

@@ -477,17 +477,21 @@ const ContentCard = ({ item, index, onDownload, onAddSource }) => {
             {item.stance ? (
               <span
                 className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${
-                  String(item.stance).toLowerCase() === 'against'
+                  String(item.stance).toLowerCase() === 'oppose'
                     ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
-                    : String(item.stance).toLowerCase() === 'in_favour'
+                    : String(item.stance).toLowerCase() === 'support'
                       ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
                       : String(item.stance).toLowerCase() === 'unclear'
                         ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
                         : 'bg-slate-500/15 text-slate-700 dark:text-slate-300'
                 }`}
-                title={item.stance_confidence ? `Confidence: ${item.stance_confidence}` : undefined}
+                title={
+                  typeof item.stance_confidence === 'number'
+                    ? `Confidence: ${Math.round(item.stance_confidence * 100)}%`
+                    : undefined
+                }
               >
-                stance: {String(item.stance).replace('_', ' ')}
+                stance: {item.stance}
               </span>
             ) : null}
           </div>

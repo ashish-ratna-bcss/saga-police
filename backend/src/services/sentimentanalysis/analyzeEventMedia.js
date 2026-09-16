@@ -127,8 +127,9 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
     sentiment_confidence: intel.sentiment_confidence ?? null,
     risk_score: riskScore,
     risk_level: riskLevel,
-    stance: intel.stance || null,
-    stance_confidence: intel.stance_confidence || null,
+    // ?? not || : stance_confidence can legitimately be 0.0.
+    stance: intel.stance ?? null,
+    stance_confidence: intel.stance_confidence ?? null,
     tenant_name: tenantName || null,
     category: resolvedCategory,
     intent: intel.intent || resolvedCategory || null,

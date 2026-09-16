@@ -216,7 +216,9 @@ const hydrateEventMedia = (row) => {
     risk_level: asJson(row.analysis_result, null)?.risk_level || null,
     risk_score: asJson(row.analysis_result, null)?.risk_score ?? null,
     stance: asJson(row.analysis_result, null)?.stance || null,
-    stance_confidence: asJson(row.analysis_result, null)?.stance_confidence || null,
+    // ?? not || : a genuine 0.0 confidence (e.g. stance "unclear") must not
+    // be coerced into null.
+    stance_confidence: asJson(row.analysis_result, null)?.stance_confidence ?? null,
   });
 };
 

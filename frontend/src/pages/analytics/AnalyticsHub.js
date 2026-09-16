@@ -26,8 +26,9 @@ const RISK_COLORS = { critical: '#ef4444', high: '#ef4444', medium: '#f59e0b', l
 const SENTIMENT_COLORS = { positive: '#22c55e', neutral: '#94a3b8', negative: '#ef4444' };
 // Stance is a separate judgment from sentiment (author's position toward the
 // tenant, not the post's overall tone) — kept as its own color map so the two
-// charts are never visually implied to be the same metric.
-const STANCE_COLORS = { in_favour: '#22c55e', against: '#ef4444', neutral: '#94a3b8', unclear: '#f59e0b' };
+// charts are never visually implied to be the same metric. Keys match the
+// Sentiment API's STANCE_LABELS (Support|Oppose|Neutral|Unclear), lowercased.
+const STANCE_COLORS = { support: '#22c55e', oppose: '#ef4444', neutral: '#94a3b8', unclear: '#f59e0b' };
 const STATUS_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#22c55e', '#ef4444', '#94a3b8'];
 
 const colorFor = (key, map, fallback, idx = 0) =>

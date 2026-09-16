@@ -34,8 +34,10 @@ const MAX_TENANT_NAME_CHARS = 200;
 
 // Stance is additive: older/unmigrated Sentiment API deployments simply won't
 // return this key, and any label outside this set is treated as absent
-// rather than trusted verbatim.
-const VALID_STANCES = ['in_favour', 'against', 'neutral', 'unclear'];
+// rather than trusted verbatim. Matches config.STANCE_LABELS in the
+// Sentiment API repo (Support|Oppose|Neutral|Unclear), lowercased here to
+// match this codebase's existing convention for sentiment/risk_level.
+const VALID_STANCES = ['support', 'oppose', 'neutral', 'unclear'];
 
 const parseEnvInt = (raw, fallback) => {
   const n = Number(raw);
@@ -260,6 +262,18 @@ function buildPolicyPack() {
   return pack;
 }
 
+// Strips control chars and length-caps a resolved tenant display name before
+// it goes into the request body. Pulled out as its own pure function so the
+// sanitization the Sentiment API's own _validate_tenant_name requires (no
+// control chars, <=200 chars) is unit-testable without a network call.
+function sanitizeTenantName(tenantName) {
+  return String(tenantName || '')
+    .replace(/[\x00-\x1f\x7f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_TENANT_NAME_CHARS);
+}
+
 function truncateText(text) {
   const trimmed = String(text || '').trim();
   if (trimmed.length <= MAX_TEXT_CHARS) return trimmed;
@@ -289,10 +303,16 @@ function flattenResult(pipelineItem) {
   const category = String(intel.category || 'Normal').trim() || 'Normal';
   const intent = String(intel.intent || category).trim() || category;
 
-  const stanceRaw = intel.stance && typeof intel.stance === 'object' ? intel.stance : null;
-  const stanceLabel = String(stanceRaw?.label || '').toLowerCase();
+  // intelligence.stance / intelligence.stance_confidence are flat sibling
+  // fields (same shape as category/risk_score), not a nested object — the
+  // Sentiment API's IntelligenceResult dataclass is asdict()'d flat.
+  const stanceLabel = String(intel.stance || '').toLowerCase();
   const stance = VALID_STANCES.includes(stanceLabel) ? stanceLabel : null;
-  const stanceConfidence = stance ? String(stanceRaw?.confidence || '').toLowerCase() || null : null;
+  let stanceConfidence = null;
+  if (stance) {
+    const n = Number(intel.stance_confidence);
+    stanceConfidence = Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : null;
+  }
 
   return {
     category,
@@ -332,9 +352,14 @@ async function requestIntelligence(text, { laneName, timeoutMs, tenantName }) {
   // Additive/optional: older Sentiment API deployments ignore an unknown
   // field; omitting it entirely (rather than sending null/empty) keeps the
   // request identical to pre-stance behavior when no tenant is resolved.
-  const trimmedTenantName = String(tenantName || '').trim().slice(0, MAX_TENANT_NAME_CHARS);
-  if (trimmedTenantName) {
-    body.tenant_name = trimmedTenantName;
+  // Sanitized defensively: the Sentiment API rejects a bad tenant_name with
+  // a 422 for the WHOLE request (see its _validate_tenant_name), which would
+  // also take sentiment/risk down with it since it's one shared call — this
+  // must never happen just because an admin's free-text branding title
+  // contains a stray control character.
+  const sanitizedTenantName = sanitizeTenantName(tenantName);
+  if (sanitizedTenantName) {
+    body.tenant_name = sanitizedTenantName;
   }
 
   let lastError = null;
@@ -434,6 +459,7 @@ module.exports = {
   usesSentimentService,
   buildPolicyPack,
   flattenResult,
+  sanitizeTenantName,
   SERVICE_URL,
   getQueueStats: () => ({
     bulk: lanes.bulk.getStats(),
