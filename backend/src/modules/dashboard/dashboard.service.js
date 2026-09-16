@@ -280,7 +280,7 @@ const buildTopPosts = async (prisma, { from, to, platform, limit = 8 }) => {
   // Pull a capped set and rank in JS (engagement JSON shapes vary by platform).
   const rows = await prisma.social_media_posts.findMany({
     where,
-    orderBy: [{ posted_at: 'desc' }, { fetched_at: 'desc' }],
+    orderBy: [{ fetched_at: 'desc' }, { updated_at: 'desc' }, { id: 'desc' }],
     take: 400,
     select: {
       id: true,
@@ -319,9 +319,14 @@ const buildTopPosts = async (prisma, { from, to, platform, limit = 8 }) => {
         engagement: asEngagement(row.engagement),
         score,
         posted_at: row.posted_at || row.fetched_at,
+        fetched_at: row.fetched_at,
       };
     })
-    .sort((a, b) => b.score - a.score || new Date(b.posted_at) - new Date(a.posted_at))
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        new Date(b.fetched_at || b.posted_at || 0) - new Date(a.fetched_at || a.posted_at || 0)
+    )
     .slice(0, limit);
 };
 
@@ -333,7 +338,7 @@ const buildTopProfiles = async (prisma, { from, to, platform, limit = 5 }) => {
 
   const rows = await prisma.social_media_posts.findMany({
     where,
-    orderBy: [{ posted_at: 'desc' }],
+    orderBy: [{ fetched_at: 'desc' }, { updated_at: 'desc' }, { id: 'desc' }],
     take: 800,
     select: {
       account_id: true,

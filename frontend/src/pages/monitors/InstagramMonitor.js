@@ -724,7 +724,9 @@ const InstagramMonitor = () => {
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'latest':
-          return new Date(b.published_at) - new Date(a.published_at);
+          // Newest ingested first (alert/post created_at), not original publish date
+          return new Date(b.created_at || b.fetched_at || b.published_at || 0)
+            - new Date(a.created_at || a.fetched_at || a.published_at || 0);
         case 'risk':
           return (b.risk_score || b.analysis?.violence_score || 0) - (a.risk_score || a.analysis?.violence_score || 0);
         case 'views':

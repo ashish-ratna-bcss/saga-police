@@ -145,23 +145,56 @@ const buildWhere = (query = {}) => {
 const listCatalogGrievances = async (query = {}, { db } = {}) => {
   const prisma = dbOf(db);
   const limit = Math.min(Math.max(Number(query.limit) || 30, 1), 100);
-  const where = buildWhere(query);
-  if (where.__empty) {
+  const baseWhere = buildWhere(query);
+  if (baseWhere.__empty) {
     return {
       grievances: [],
       pagination: { page: 1, limit, total: 0, pages: 0, hasMore: false, nextCursor: null },
     };
   }
 
+  let where = baseWhere;
+
+  // Cursor: "isoTimestamp|id" from the last row of the previous page (created_at order)
+  const rawCursor = String(query.cursor || '').trim();
+  if (rawCursor) {
+    try {
+      const sep = rawCursor.lastIndexOf('|');
+      const ts = sep >= 0 ? rawCursor.slice(0, sep) : '';
+      const idStr = sep >= 0 ? rawCursor.slice(sep + 1) : rawCursor;
+      const cursorId = BigInt(idStr);
+      const cursorAt = ts ? new Date(ts) : null;
+      const cursorClause =
+        cursorAt && !Number.isNaN(cursorAt.getTime())
+          ? {
+              OR: [
+                { created_at: { lt: cursorAt } },
+                { AND: [{ created_at: cursorAt }, { id: { lt: cursorId } }] },
+              ],
+            }
+          : { id: { lt: cursorId } };
+      where = { AND: [baseWhere, cursorClause] };
+    } catch (_) {
+      /* ignore bad cursor — return first page */
+    }
+  }
+
   const rows = await prisma.social_media_grievances.findMany({
     where,
-    orderBy: [{ posted_at: 'desc' }, { id: 'desc' }],
+    // Newest ingested first (Fetch / detect time), not original social post date
+    orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
     take: limit + 1,
   });
 
   const hasMore = rows.length > limit;
   const pageRows = hasMore ? rows.slice(0, limit) : rows;
-  const total = await prisma.social_media_grievances.count({ where });
+  const total = await prisma.social_media_grievances.count({ where: baseWhere });
+
+  const last = pageRows[pageRows.length - 1];
+  const nextCursor =
+    hasMore && last
+      ? `${last.created_at ? new Date(last.created_at).toISOString() : ''}|${String(last.id)}`
+      : null;
 
   return {
     grievances: pageRows.map(hydrateCatalogGrievance),
@@ -169,9 +202,9 @@ const listCatalogGrievances = async (query = {}, { db } = {}) => {
       page: Number(query.page) || 1,
       limit,
       total,
-      pages: Math.ceil(total / limit),
+      pages: Math.ceil(total / limit) || 1,
       hasMore,
-      nextCursor: null,
+      nextCursor,
     },
   };
 };

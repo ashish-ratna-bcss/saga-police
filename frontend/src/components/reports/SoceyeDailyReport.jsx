@@ -42,6 +42,7 @@ import api from '../../lib/api';
 import { AlertService } from '../../api';
 import { TwitterAlertCard, YoutubeAlertCard } from '../AlertCards';
 import ContentCard from '../ContentCard';
+import { getScrollParent } from '../../lib/utils';
 
 /* ───────────────────────── helpers ───────────────────────── */
 const fmtNum = (n) => (n == null ? '—' : Number(n).toLocaleString('en-IN'));
@@ -882,6 +883,8 @@ const EventCardWithPosts = ({ ev, defaultExpanded = false }) => {
   const [platform, setPlatform] = useState('all');
   const [error, setError] = useState('');
   const [loadedOnce, setLoadedOnce] = useState(false);
+  const postsSentinelRef = useRef(null);
+  const loadMorePostsRef = useRef(() => {});
 
   const fetchPosts = useCallback(async (p = 1, plat = platform, replace = false) => {
     if (!ev?.event_id) return;
@@ -894,14 +897,56 @@ const EventCardWithPosts = ({ ev, defaultExpanded = false }) => {
       const items = res.data?.content || [];
       setPosts((prev) => replace ? items : [...prev, ...items]);
       setPage(p);
-      setHasMore(res.data?.has_more !== false);
+      const more =
+        typeof res.data?.has_more === 'boolean'
+          ? res.data.has_more
+          : typeof res.data?.pagination?.hasMore === 'boolean'
+            ? res.data.pagination.hasMore
+            : items.length >= 24;
+      setHasMore(more);
       setLoadedOnce(true);
     } catch (e) {
       setError(e?.response?.data?.message || e.message || 'Failed to load posts');
+      setHasMore(false);
     } finally {
       setLoading(false);
     }
   }, [ev?.event_id, platform]);
+
+  loadMorePostsRef.current = () => {
+    if (!hasMore || loading || !ev?.event_id) return;
+    fetchPosts(page + 1, platform, false);
+  };
+
+  useEffect(() => {
+    if (!expanded || !hasMore) return undefined;
+    const el = postsSentinelRef.current;
+    if (!el) return undefined;
+    const root = getScrollParent(el);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMorePostsRef.current();
+      },
+      { root, rootMargin: '200px', threshold: 0 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [expanded, hasMore, posts.length, loading]);
+
+  useEffect(() => {
+    if (!expanded || !hasMore || loading) return;
+    const el = postsSentinelRef.current;
+    if (!el) return;
+    const root = getScrollParent(el);
+    const elRect = el.getBoundingClientRect();
+    const rootRect = root?.getBoundingClientRect?.() || {
+      top: 0,
+      bottom: typeof window !== 'undefined' ? window.innerHeight : 0,
+    };
+    if (elRect.top <= rootRect.bottom + 200) {
+      loadMorePostsRef.current();
+    }
+  }, [expanded, hasMore, loading, posts.length]);
 
   const toggle = useCallback(() => {
     const next = !expanded;
@@ -1013,16 +1058,10 @@ const EventCardWithPosts = ({ ev, defaultExpanded = false }) => {
                   ))}
                 </div>
                 {hasMore && (
-                  <div className="flex justify-center mt-3">
-                    <button
-                      type="button"
-                      onClick={() => fetchPosts(page + 1, platform, false)}
-                      disabled={loading}
-                      className="inline-flex items-center gap-1.5 text-[12px] rounded-md border border-slate-200 bg-white px-3 py-1.5 hover:bg-slate-50 disabled:opacity-50"
-                    >
-                      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                      {loading ? 'Loading…' : 'Load more'}
-                    </button>
+                  <div ref={postsSentinelRef} className="flex items-center justify-center mt-3 py-2 min-h-8">
+                    {loading && posts.length > 0 && (
+                      <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                    )}
                   </div>
                 )}
               </>

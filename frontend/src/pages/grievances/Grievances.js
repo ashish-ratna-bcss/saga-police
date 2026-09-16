@@ -22,7 +22,7 @@ import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '../../components/ui/select';
 import { toast } from 'sonner';
-import { cn } from '../../lib/utils';
+import { cn, getScrollParent } from '../../lib/utils';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
@@ -79,7 +79,7 @@ const DetailPopupMediaTile = ({ media, getProxiedMediaUrl, activeVideoRef, class
                     videoElement.pause();
                 }
             },
-            { threshold: 0.15 }
+            { root: getScrollParent(videoElement), threshold: 0.15 }
         );
 
         observer.observe(videoElement);
@@ -435,6 +435,9 @@ const Grievances = () => {
         criticism: null,
     });
     const [pagination, setPagination] = useState({ hasMore: false, nextCursor: null, total: 0 });
+    const grievanceSentinelRef = useRef(null);
+    const grievanceLoadMoreRef = useRef(() => {});
+    const loadingMoreRef = useRef(false);
 
     // Sources
     const [sources, setSources] = useState([]);
@@ -1180,6 +1183,29 @@ const Grievances = () => {
         fetchDashboardStats();
         fetchGrievances();
     }, [activeTab, platformFilter, dateRange, debouncedSearch, navbarPlatform, navbarStatus, selectedHandle, allowedNavbarStatuses, fetchDashboardStats, fetchGrievances]);
+
+    loadingMoreRef.current = loadingMore;
+    grievanceLoadMoreRef.current = () => {
+        if (!pagination.hasMore || loading || loadingMoreRef.current || !pagination.nextCursor) return;
+        fetchGrievances(pagination.nextCursor);
+    };
+
+    // Infinite scroll like Alerts: observe against layout <main>
+    useEffect(() => {
+        const el = grievanceSentinelRef.current;
+        if (!el || !pagination.hasMore || !pagination.nextCursor || grievances.length === 0) {
+            return undefined;
+        }
+        const root = document.querySelector('main') || getScrollParent(el);
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0]?.isIntersecting) grievanceLoadMoreRef.current();
+            },
+            { root, rootMargin: '300px', threshold: 0.1 }
+        );
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [pagination.hasMore, pagination.nextCursor, grievances.length === 0]);
 
     /* ─── Source Management ─── */
     const handleAddSource = async () => {
@@ -1967,16 +1993,10 @@ const Grievances = () => {
                                 </div>
 
                                 {pagination.hasMore && (
-                                    <div className="flex justify-center py-3">
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => fetchGrievances(pagination.nextCursor)}
-                                            disabled={loadingMore}
-                                            className="gap-2"
-                                        >
-                                            {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronDown className="h-4 w-4" />}
-                                            Load more
-                                        </Button>
+                                    <div ref={grievanceSentinelRef} className="flex items-center justify-center py-4 min-h-8">
+                                        {loadingMore && (
+                                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                        )}
                                     </div>
                                 )}
                             </div>

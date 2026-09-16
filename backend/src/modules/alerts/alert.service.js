@@ -341,7 +341,7 @@ const listTopCatalogAlertsByCategory = async ({
       ],
     },
     include: ALERT_INCLUDE,
-    orderBy: [{ risk_score: 'desc' }, { posted_at: 'desc' }, { id: 'desc' }],
+    orderBy: [{ risk_score: 'desc' }, { created_at: 'desc' }, { id: 'desc' }],
     take: 2500,
   });
 
@@ -359,8 +359,9 @@ const listTopCatalogAlertsByCategory = async ({
     list.sort((a, b) => {
       const scoreDiff = (Number(b.risk_score) || 0) - (Number(a.risk_score) || 0);
       if (scoreDiff !== 0) return scoreDiff;
-      const ta = new Date(a.posted_at || a.created_at || 0).getTime();
-      const tb = new Date(b.posted_at || b.created_at || 0).getTime();
+      // Newest ingested first within the same risk score
+      const ta = new Date(a.created_at || a.posted_at || 0).getTime();
+      const tb = new Date(b.created_at || b.posted_at || 0).getTime();
       return tb - ta;
     });
 

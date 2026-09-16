@@ -206,6 +206,8 @@ const hydrateEventMedia = (row) => {
     author: row.author_name || row.author_handle || 'Unknown',
     author_handle: row.author_handle || '',
     published_at: row.posted_at,
+    fetched_at: row.fetched_at,
+    updated_at: row.updated_at,
     engagement: asJson(row.engagement, {}),
     media,
     raw_data: raw,

@@ -410,6 +410,13 @@ const ContentCard = ({ item, index, onDownload, onAddSource }) => {
   const [copied, setCopied] = useState(false);
   const theme = PLATFORM_THEMES[item.platform] || DEFAULT_THEME;
 
+  // Flat stance fields from hydrate, with analysis_result as fallback.
+  const analysis = item?.analysis_result && typeof item.analysis_result === 'object'
+    ? item.analysis_result
+    : {};
+  const stanceLabel = item?.stance || analysis.stance || null;
+  const stanceConfidence = item?.stance_confidence ?? analysis.stance_confidence ?? null;
+
   const handleCopyText = useCallback(() => {
     const text = item.text || '';
     navigator.clipboard.writeText(text).then(() => {
@@ -474,24 +481,24 @@ const ContentCard = ({ item, index, onDownload, onAddSource }) => {
             {/* Stance is a separate judgment from sentiment above (author's
                 position toward the tenant, not the post's overall tone) —
                 kept as its own labeled badge so the two are never conflated. */}
-            {item.stance ? (
+            {stanceLabel ? (
               <span
                 className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${
-                  String(item.stance).toLowerCase() === 'oppose'
+                  String(stanceLabel).toLowerCase() === 'oppose'
                     ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
-                    : String(item.stance).toLowerCase() === 'support'
+                    : String(stanceLabel).toLowerCase() === 'support'
                       ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                      : String(item.stance).toLowerCase() === 'unclear'
+                      : String(stanceLabel).toLowerCase() === 'unclear'
                         ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
                         : 'bg-slate-500/15 text-slate-700 dark:text-slate-300'
                 }`}
                 title={
-                  typeof item.stance_confidence === 'number'
-                    ? `Confidence: ${Math.round(item.stance_confidence * 100)}%`
+                  typeof stanceConfidence === 'number'
+                    ? `Confidence: ${Math.round(stanceConfidence * 100)}%`
                     : undefined
                 }
               >
-                stance: {item.stance}
+                stance: {stanceLabel}
               </span>
             ) : null}
           </div>

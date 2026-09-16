@@ -544,7 +544,7 @@ const listProfilePosts = async (req, res) => {
       prisma.social_media_posts.count({ where }),
       prisma.social_media_posts.findMany({
         where,
-        orderBy: [{ posted_at: 'desc' }, { fetched_at: 'desc' }],
+        orderBy: [{ fetched_at: 'desc' }, { updated_at: 'desc' }, { id: 'desc' }],
         skip,
         take: limit,
       }),

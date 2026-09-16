@@ -23,6 +23,7 @@ import { TwitterAlertCard, YoutubeAlertCard } from '../../components/AlertCards'
 import ManageProfileImageDialog from './ManageProfileImageDialog';
 import AddSourceModal from '../../components/AddSourceModal';
 import api from '../../lib/api'; // Use authenticated API helper
+import { getScrollParent } from '../../lib/utils';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '../../components/ui/dialog';
@@ -87,6 +88,9 @@ const getSocialMediaUrl = (platform, handle) => {
 
 const POIDetail = () => {
     const observerTarget = React.useRef(null);
+    const feedScrollRef = React.useRef(null);
+    const reportsSentinelRef = React.useRef(null);
+    const loadMoreReportsRef = React.useRef(() => {});
     const reportRef = React.useRef(null);
     const lastFetchedRef = React.useRef({ sourceId: null, platform: null, handle: null, selectedSourceId: null });
     const fetchIdRef = React.useRef(0);
@@ -1673,35 +1677,84 @@ const POIDetail = () => {
         }
     }, [selectedSourceId, linkedHandles, fetchContent, fetchEscalationStats]);
 
-    // Infinite Scroll Observer implementation
+    // Infinite Scroll Observer — must use the feed panel as root (nested overflow-y-auto),
+    // not the window, or scrolling the panel never triggers the next page.
     useEffect(() => {
+        const currentTarget = observerTarget.current;
+        if (!currentTarget) return undefined;
+
+        const root = feedScrollRef.current || null;
         const observer = new IntersectionObserver(
-            entries => {
-                // Check isFetchingFeedRef.current SYNCHRONOUSLY before anything else
-                if (entries[0].isIntersecting && hasMore && !loadingFeed && !isFetchingMore && !isFetchingFeedRef.current && linkedHandles.length > 0) {
-                    // Start a tiny delay to allow the DOM to settle
+            (entries) => {
+                if (
+                    entries[0]?.isIntersecting &&
+                    hasMore &&
+                    !loadingFeed &&
+                    !isFetchingMore &&
+                    !isFetchingFeedRef.current &&
+                    linkedHandles.length > 0
+                ) {
                     setTimeout(() => {
-                        // Re-check EVERYTHING inside the timeout to ensure no other fetch started
-                        if (observerTarget.current && entries[0].isIntersecting && !isFetchingFeedRef.current) {
+                        if (observerTarget.current && !isFetchingFeedRef.current) {
                             fetchContent(linkedHandles, true);
                         }
-                    }, 100); // 100ms for safety
+                    }, 100);
                 }
             },
-            { threshold: 0.1, rootMargin: '200px' } // Trigger early as sentinel approaches viewport
+            { root, threshold: 0.1, rootMargin: '200px' }
         );
 
-        const currentTarget = observerTarget.current;
-        if (currentTarget) {
-            observer.observe(currentTarget);
-        }
+        observer.observe(currentTarget);
+        return () => observer.disconnect();
+    }, [hasMore, loadingFeed, isFetchingMore, linkedHandles, selectedPlatform, fetchContent, contentFeed.length]);
 
-        return () => {
-            if (currentTarget) {
-                observer.unobserve(currentTarget);
-            }
-        };
-    }, [hasMore, loadingFeed, isFetchingMore, linkedHandles, selectedPlatform, fetchContent]);
+    // Retry if the sentinel stays in view after a fetch settled (observer may have
+    // fired while loading and been ignored).
+    useEffect(() => {
+        if (!hasMore || loadingFeed || isFetchingMore || isFetchingFeedRef.current) return;
+        if (!linkedHandles.length || !contentFeed.length) return;
+        const el = observerTarget.current;
+        const root = feedScrollRef.current;
+        if (!el || !root) return;
+        const elRect = el.getBoundingClientRect();
+        const rootRect = root.getBoundingClientRect();
+        if (elRect.top <= rootRect.bottom + 200) {
+            fetchContent(linkedHandles, true);
+        }
+    }, [hasMore, loadingFeed, isFetchingMore, linkedHandles, contentFeed.length, fetchContent]);
+
+    loadMoreReportsRef.current = () => {
+        if (!hasMoreReports || loadingMoreReports || isFetchingReportsRef.current) return;
+        if (!linkedHandles.length) return;
+        fetchEscalationStats(linkedHandles, true);
+    };
+
+    useEffect(() => {
+        if (rightPanelTab !== 'reports' || !hasMoreReports) return undefined;
+        const el = reportsSentinelRef.current;
+        if (!el) return undefined;
+        const root = feedScrollRef.current || getScrollParent(el);
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0]?.isIntersecting) loadMoreReportsRef.current();
+            },
+            { root, rootMargin: '200px', threshold: 0 }
+        );
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [rightPanelTab, hasMoreReports, reports.length, loadingMoreReports]);
+
+    useEffect(() => {
+        if (rightPanelTab !== 'reports' || !hasMoreReports || loadingMoreReports) return;
+        const el = reportsSentinelRef.current;
+        const root = feedScrollRef.current;
+        if (!el || !root) return;
+        const elRect = el.getBoundingClientRect();
+        const rootRect = root.getBoundingClientRect();
+        if (elRect.top <= rootRect.bottom + 200) {
+            loadMoreReportsRef.current();
+        }
+    }, [rightPanelTab, hasMoreReports, loadingMoreReports, reports.length]);
 
     // Link Handlers
     const handleLinkSource = (source) => {
@@ -3786,7 +3839,7 @@ const POIDetail = () => {
                         </div>
 
                         {/* Feed Content Area */}
-                        <div className="flex-1 overflow-y-auto bg-gray-50/50 p-6 relative custom-scrollbar">
+                        <div ref={feedScrollRef} className="flex-1 overflow-y-auto bg-gray-50/50 p-6 relative custom-scrollbar">
                             {/* CASE 1: No Platform Selected */}
                             {!selectedPlatform && (
                                 <div className="h-full w-full flex flex-col items-center justify-center text-center opacity-40">
@@ -4290,23 +4343,10 @@ const POIDetail = () => {
                                                                 </table>
 
                                                                 {hasMoreReports && (
-                                                                    <div className="p-4 border-t border-gray-100 flex justify-center">
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="sm"
-                                                                            className="text-blue-600 font-bold text-xs"
-                                                                            onClick={() => fetchEscalationStats(linkedHandles, true)}
-                                                                            disabled={loadingMoreReports}
-                                                                        >
-                                                                            {loadingMoreReports ? (
-                                                                                <>
-                                                                                    <Loader2 className="w-3 h-3 animate-spin mr-2" />
-                                                                                    Loading...
-                                                                                </>
-                                                                            ) : (
-                                                                                'Load More Reports'
-                                                                            )}
-                                                                        </Button>
+                                                                    <div ref={reportsSentinelRef} className="p-4 border-t border-gray-100 flex justify-center min-h-10">
+                                                                        {loadingMoreReports && (
+                                                                            <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                                                                        )}
                                                                     </div>
                                                                 )}
                                                             </div>

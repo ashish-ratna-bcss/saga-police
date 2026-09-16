@@ -872,7 +872,9 @@ const Events = () => {
   const [contentItems, setContentItems] = useState([]);
   const [contentPage, setContentPage] = useState(1);
   const [contentHasMore, setContentHasMore] = useState(true);
+  const [contentTotal, setContentTotal] = useState(0);
   const [contentLoadingMore, setContentLoadingMore] = useState(false);
+  const contentScrollViewportRef = useRef(null);
   const [processingAction, setProcessingAction] = useState(false);
   const [monitoringBusyId, setMonitoringBusyId] = useState(null);
   const monitoringBusyRef = useRef(null);
@@ -1163,15 +1165,25 @@ const Events = () => {
         params: { page, limit: 50, platform }
       });
       const data = res.data || {};
+      const batch = Array.isArray(data.content) ? data.content : [];
       if (page === 1) {
-        setContentItems(data.content || []);
+        setContentItems(batch);
       } else {
-        setContentItems(prev => [...prev, ...(data.content || [])]);
+        setContentItems((prev) => [...prev, ...batch]);
       }
       setContentPage(page);
-      setContentHasMore(data.has_more !== false);
+      const total = Number(data.pagination?.total);
+      if (Number.isFinite(total)) setContentTotal(total);
+      const hasMore =
+        typeof data.has_more === 'boolean'
+          ? data.has_more
+          : typeof data.pagination?.hasMore === 'boolean'
+            ? data.pagination.hasMore
+            : batch.length >= 50;
+      setContentHasMore(hasMore);
     } catch {
       toast.error('Failed to load content');
+      setContentHasMore(false);
     } finally {
       setContentLoadingMore(false);
     }
@@ -1507,14 +1519,16 @@ const Events = () => {
 
 
   const filteredRecentContent = useMemo(() => {
-    const ts = (c) => {
-      const raw = c?.published_at || c?.posted_at || c?.fetched_at || c?.created_at;
+    const time = (raw) => {
       const n = raw ? new Date(raw).getTime() : 0;
       return Number.isFinite(n) ? n : 0;
     };
     return [...contentItems].sort((a, b) => {
-      const diff = ts(b) - ts(a);
-      if (diff !== 0) return diff;
+      // Newest ingested first (fetch time), not original social post date
+      const fetchedDiff = time(b.fetched_at || b.updated_at) - time(a.fetched_at || a.updated_at);
+      if (fetchedDiff !== 0) return fetchedDiff;
+      const postedDiff = time(b.published_at || b.posted_at) - time(a.published_at || a.posted_at);
+      if (postedDiff !== 0) return postedDiff;
       return Number(b.id) - Number(a.id);
     });
   }, [contentItems]);
@@ -1755,15 +1769,35 @@ const Events = () => {
   useEffect(() => {
     const el = contentSentinelRef.current;
     if (!el) return;
+    // Must use the ScrollArea viewport as root — window root misses scroll
+    // events inside Radix ScrollArea, so page 2+ never loads.
+    const root = contentScrollViewportRef.current || null;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) loadMoreRef.current();
+        if (entries[0]?.isIntersecting) loadMoreRef.current();
       },
-      { root: null, rootMargin: '200px', threshold: 0 }
+      { root, rootMargin: '240px', threshold: 0 }
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [selectedId]);
+  }, [selectedId, contentItems.length, contentHasMore]);
+
+  // If the first page is short and the sentinel stays in view, the observer
+  // may have fired while loading and been ignored — retry after load settles.
+  useEffect(() => {
+    if (!selectedId || contentLoadingMore || !contentHasMore) return;
+    const el = contentSentinelRef.current;
+    const root = contentScrollViewportRef.current;
+    if (!el) return;
+    const elRect = el.getBoundingClientRect();
+    const rootRect = root?.getBoundingClientRect?.() || {
+      top: 0,
+      bottom: typeof window !== 'undefined' ? window.innerHeight : 0,
+    };
+    if (elRect.top <= rootRect.bottom + 240) {
+      loadMoreRef.current();
+    }
+  }, [selectedId, contentLoadingMore, contentHasMore, contentItems.length]);
 
 
   const handleOpenAddSource = (item) => {
@@ -2753,7 +2787,7 @@ const Events = () => {
                 <p className="text-xs text-muted-foreground mt-1 max-w-sm">Pick an event on the left, or create one with New Event.</p>
               </div>
             ) : (
-              <ScrollArea className="h-full w-full">
+              <ScrollArea className="h-full w-full" viewportRef={contentScrollViewportRef}>
                 <div className="px-4 sm:px-6 pt-4 pb-8 w-full max-w-full overflow-x-hidden">
 
 
@@ -2787,14 +2821,24 @@ const Events = () => {
 
 
                   {/* Content feed */}
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between mb-3 gap-3">
                     <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
                       Detected Content ({
                         contentPlatform === 'all' 
-                          ? (dashboard?.stats?.content_total ?? filteredRecentContent.length)
-                          : (dashboard?.stats?.content_by_platform?.[contentPlatform] ?? filteredRecentContent.length)
+                          ? (dashboard?.stats?.content_total ?? contentTotal ?? filteredRecentContent.length)
+                          : (dashboard?.stats?.content_by_platform?.[contentPlatform] ?? contentTotal ?? filteredRecentContent.length)
                       })
                     </h3>
+                    {filteredRecentContent.length > 0 && (
+                      <span className="text-[10px] text-muted-foreground shrink-0">
+                        Showing {filteredRecentContent.length}
+                        {(contentTotal || dashboard?.stats?.content_total)
+                          ? ` of ${contentPlatform === 'all'
+                              ? (contentTotal || dashboard?.stats?.content_total)
+                              : (contentTotal || dashboard?.stats?.content_by_platform?.[contentPlatform] || filteredRecentContent.length)}`
+                          : ''}
+                      </span>
+                    )}
                   </div>
 
 

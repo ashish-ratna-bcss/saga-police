@@ -82,7 +82,7 @@ const loadCatalogTweets = async (cleanHandle, sinceDate, maxTweets = 200, { db }
         include: { profile: { select: { display_name: true } } },
       },
     },
-    orderBy: { posted_at: 'desc' },
+    orderBy: [{ fetched_at: 'desc' }, { updated_at: 'desc' }, { id: 'desc' }],
     take: maxTweets,
   });
 
@@ -96,6 +96,7 @@ const loadCatalogTweets = async (cleanHandle, sinceDate, maxTweets = 200, { db }
         id: String(p.external_id),
         text: p.text,
         created_at: p.posted_at,
+        fetched_at: p.fetched_at,
         url: p.url || `https://x.com/${cleanHandle}/status/${p.external_id}`,
         author: p.author_name || first.account?.profile?.display_name || cleanHandle,
         metrics: { retweets: Number(eng.retweets) || 0 },
