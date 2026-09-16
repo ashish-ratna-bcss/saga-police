@@ -1,9 +1,18 @@
 const mainPrisma = require('../../prisma/client');
 const { PrismaClient: TenantPrismaClient, createTenantPrisma } = require('../../prisma/tenantClient');
 const { ensureOpsSchema } = require('../../prisma/ensureOpsSchema');
+const { readApplicationDetails } = require('../modules/user/user.application');
 
 // Map to cache tenant PrismaClient instances per dbName
 const tenantPrismaPool = new Map();
+
+// dbName -> { name, expiresAt }. Tenant display name rarely changes; avoids a
+// main-DB round trip on every single post analyzed for the same tenant.
+// ponytail: process-local TTL cache, no cross-process invalidation on rename —
+// upgrade to event-based invalidation if a renamed tenant's stale name in the
+// intelligence pipeline ever becomes an actual complaint.
+const TENANT_NAME_CACHE_TTL_MS = 5 * 60 * 1000;
+const tenantNameCache = new Map();
 
 /**
  * Database name from a Postgres connection URL (pathname without leading /).
@@ -185,6 +194,44 @@ async function listTenantDbNames() {
 }
 
 /**
+ * Tenant display name (e.g. "Tenant 1 Police") for a given tenant database.
+ *
+ * Authoritative source: application_details.title on the admin `users` row
+ * that owns this dbName (the same field the login branding UI already
+ * reads — see user.application.js / branding.routes.js). Only the admin row
+ * has `port` set (child users inherit branding but not a port), so filtering
+ * on `port: { not: null }` picks the tenant's own admin row deterministically
+ * instead of an arbitrary child user row.
+ *
+ * Resolved server-side from `dbName` only — never accept this as caller
+ * input. This is what makes it safe to forward to the shared Sentiment API
+ * as `tenant_name` without risking cross-tenant leakage.
+ *
+ * @param {string|null} dbName
+ * @returns {Promise<string|null>}
+ */
+async function resolveTenantName(dbName) {
+  if (!dbName) return null;
+
+  const cached = tenantNameCache.get(dbName);
+  if (cached && cached.expiresAt > Date.now()) return cached.name;
+
+  const admin =
+    (await mainPrisma.users.findFirst({
+      where: { db_name: dbName, port: { not: null } },
+      select: { application_details: true },
+    })) ||
+    (await mainPrisma.users.findFirst({
+      where: { db_name: dbName },
+      select: { application_details: true },
+    }));
+
+  const name = admin ? readApplicationDetails(admin).title || null : null;
+  tenantNameCache.set(dbName, { name, expiresAt: Date.now() + TENANT_NAME_CACHE_TTL_MS });
+  return name;
+}
+
+/**
  * Run fn(tenantPrisma, dbName) for each tenant; log and continue on failure.
  */
 async function forEachTenant(fn) {
@@ -209,5 +256,6 @@ module.exports = {
   ensureTenantSchema,
   listTenantDbNames,
   forEachTenant,
+  resolveTenantName,
   TenantPrismaClient,
 };

@@ -23,6 +23,11 @@ const PLATFORM_COLORS = {
   instagram: '#E4405F', telegram: '#229ED9', unknown: '#94a3b8',
 };
 const RISK_COLORS = { critical: '#ef4444', high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
+const SENTIMENT_COLORS = { positive: '#22c55e', neutral: '#94a3b8', negative: '#ef4444' };
+// Stance is a separate judgment from sentiment (author's position toward the
+// tenant, not the post's overall tone) — kept as its own color map so the two
+// charts are never visually implied to be the same metric.
+const STANCE_COLORS = { in_favour: '#22c55e', against: '#ef4444', neutral: '#94a3b8', unclear: '#f59e0b' };
 const STATUS_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#22c55e', '#ef4444', '#94a3b8'];
 
 const colorFor = (key, map, fallback, idx = 0) =>
@@ -310,6 +315,14 @@ const EventsTab = ({ data }) => {
       <SectionCard title="Content discovered by platform (all-time)">
         <BreakdownBar breakdown={data.content_by_platform} colorMap={PLATFORM_COLORS} />
       </SectionCard>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <SectionCard title="Raw sentiment (analyzed content, all-time)">
+          <BreakdownPie breakdown={data.by_sentiment} colorMap={SENTIMENT_COLORS} />
+        </SectionCard>
+        <SectionCard title="Stance toward tenant (analyzed content, all-time)">
+          <BreakdownPie breakdown={data.by_stance} colorMap={STANCE_COLORS} />
+        </SectionCard>
+      </div>
       <SectionCard title="Content discovered per day">
         <TrendChart data={data.trend} />
       </SectionCard>

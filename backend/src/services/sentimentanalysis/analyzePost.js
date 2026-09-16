@@ -3,6 +3,7 @@ const { getSettingsDoc } = require('../../modules/settings/settings.service');
 const intelligenceClient = require('../../modules/intelligence/intelligence.client.service');
 const mappingService = require('../../modules/settings/mapping.service');
 const { createAlertFromCatalogPost } = require('../../modules/alerts');
+const { resolveTenantName } = require('../../lib/tenantDatabase.service');
 
 const MAX_ATTEMPTS = Math.max(1, Number(process.env.SENTIMENT_MAX_ATTEMPTS) || 5);
 
@@ -81,9 +82,9 @@ const persistAlert = async (post, analysis_result, { db } = {}) => {
  * Run sentiment/intelligence on one catalog post and persist analysis_result.
  * Keywords enrich a successful ML result; they do not replace ML when it fails.
  * @param {string|bigint|number} postId
- * @param {{ db?: object }} [options]
+ * @param {{ db?: object, dbName?: string|null }} [options]
  */
-const analyzePost = async (postId, { db } = {}) => {
+const analyzePost = async (postId, { db, dbName } = {}) => {
   const prisma = dbOf(db);
   const id = BigInt(postId);
 
@@ -135,11 +136,15 @@ const analyzePost = async (postId, { db } = {}) => {
 
   const matchedKeywords = await matchKeywords(text, { db });
   const { high, medium } = await loadRiskThresholds({ db });
+  // Resolved server-side from this job's own dbName — never from caller input
+  // (see resolveTenantName). Best-effort: a lookup failure must not block
+  // sentiment/risk, so stance is simply skipped for this run, not fatal.
+  const tenantName = await resolveTenantName(dbName).catch(() => null);
 
   let intel = null;
   try {
     // Sentiment API only: POST /analyze/intelligence (via intelligenceClient)
-    intel = await intelligenceClient.analyzeText(text, { lane: 'bulk' });
+    intel = await intelligenceClient.analyzeText(text, { lane: 'bulk', tenantName });
   } catch (err) {
     const attempts = (post.analysis_attempts || 0) + 1;
     const isBusy =
@@ -202,6 +207,13 @@ const analyzePost = async (postId, { db } = {}) => {
     sentiment_confidence: intel.sentiment_confidence ?? null,
     risk_score: riskScore,
     risk_level: riskLevel,
+    // Additive: null until the Sentiment API returns a stance object (older
+    // deployments simply omit it — see intelligence.client.service.js).
+    stance: intel.stance || null,
+    stance_confidence: intel.stance_confidence || null,
+    // Auditable record of what tenant_name was actually sent, so a stance
+    // misattribution across tenants would be visible on the row itself.
+    tenant_name: tenantName || null,
     category: resolvedCategory,
     intent: intel.intent || resolvedCategory || null,
     reasoning: intel.reasoning || null,

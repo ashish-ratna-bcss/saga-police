@@ -471,6 +471,25 @@ const ContentCard = ({ item, index, onDownload, onAddSource }) => {
                 risk: {item.risk_level}
               </span>
             ) : null}
+            {/* Stance is a separate judgment from sentiment above (author's
+                position toward the tenant, not the post's overall tone) —
+                kept as its own labeled badge so the two are never conflated. */}
+            {item.stance ? (
+              <span
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${
+                  String(item.stance).toLowerCase() === 'against'
+                    ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
+                    : String(item.stance).toLowerCase() === 'in_favour'
+                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                      : String(item.stance).toLowerCase() === 'unclear'
+                        ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                        : 'bg-slate-500/15 text-slate-700 dark:text-slate-300'
+                }`}
+                title={item.stance_confidence ? `Confidence: ${item.stance_confidence}` : undefined}
+              >
+                stance: {String(item.stance).replace('_', ' ')}
+              </span>
+            ) : null}
           </div>
           <div className="flex items-center gap-1 shrink-0">
             {onDownload && (

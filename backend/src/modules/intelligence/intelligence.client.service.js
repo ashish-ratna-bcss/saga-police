@@ -30,6 +30,12 @@ const INTENT_MODE = String(process.env.INTELLIGENCE_INTENT_MODE || 'free').toLow
 
 const MAX_TEXT_CHARS = Math.max(800, Number(process.env.INTELLIGENCE_MAX_TEXT_CHARS || 4500));
 const MAX_ATTEMPTS = Math.max(1, Number(process.env.INTELLIGENCE_MAX_ATTEMPTS || 1));
+const MAX_TENANT_NAME_CHARS = 200;
+
+// Stance is additive: older/unmigrated Sentiment API deployments simply won't
+// return this key, and any label outside this set is treated as absent
+// rather than trusted verbatim.
+const VALID_STANCES = ['in_favour', 'against', 'neutral', 'unclear'];
 
 const parseEnvInt = (raw, fallback) => {
   const n = Number(raw);
@@ -283,11 +289,18 @@ function flattenResult(pipelineItem) {
   const category = String(intel.category || 'Normal').trim() || 'Normal';
   const intent = String(intel.intent || category).trim() || category;
 
+  const stanceRaw = intel.stance && typeof intel.stance === 'object' ? intel.stance : null;
+  const stanceLabel = String(stanceRaw?.label || '').toLowerCase();
+  const stance = VALID_STANCES.includes(stanceLabel) ? stanceLabel : null;
+  const stanceConfidence = stance ? String(stanceRaw?.confidence || '').toLowerCase() || null : null;
+
   return {
     category,
     intent,
     sentiment: finalSentiment,
     risk_score: riskScore,
+    stance,
+    stance_confidence: stanceConfidence,
     reasoning: String(intel.reasoning || ''),
     summary: String(intel.summary || ''),
     recommended_action: String(intel.recommended_action || ''),
@@ -307,7 +320,7 @@ function flattenResult(pipelineItem) {
   };
 }
 
-async function requestIntelligence(text, { laneName, timeoutMs }) {
+async function requestIntelligence(text, { laneName, timeoutMs, tenantName }) {
   await mappingService.waitForLoad();
   const pack = buildPolicyPack();
   const body = {
@@ -316,6 +329,13 @@ async function requestIntelligence(text, { laneName, timeoutMs }) {
     intent_mode: INTENT_MODE,
     timeout_s: Math.max(5, Math.min(600, Math.floor(timeoutMs / 1000) - 5))
   };
+  // Additive/optional: older Sentiment API deployments ignore an unknown
+  // field; omitting it entirely (rather than sending null/empty) keeps the
+  // request identical to pre-stance behavior when no tenant is resolved.
+  const trimmedTenantName = String(tenantName || '').trim().slice(0, MAX_TENANT_NAME_CHARS);
+  if (trimmedTenantName) {
+    body.tenant_name = trimmedTenantName;
+  }
 
   let lastError = null;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -369,7 +389,7 @@ async function requestIntelligence(text, { laneName, timeoutMs }) {
 /**
  * Analyze text via the sentiment-api intelligence endpoint.
  * @param {string} text
- * @param {{ lane?: 'bulk'|'interactive' }} [options]
+ * @param {{ lane?: 'bulk'|'interactive', tenantName?: string|null }} [options]
  * @returns {Promise<object|null>} flat result or null on failure
  */
 async function analyzeText(text, options = {}) {
@@ -388,7 +408,7 @@ async function analyzeText(text, options = {}) {
 
   try {
     return await lane.enqueue(() =>
-      requestIntelligence(trimmed, { laneName, timeoutMs: lane.timeoutMs })
+      requestIntelligence(trimmed, { laneName, timeoutMs: lane.timeoutMs, tenantName: options.tenantName })
     );
   } catch (err) {
     logger.warn(`[Intelligence/${laneName}] ${err.message}`);
@@ -413,6 +433,7 @@ module.exports = {
   getEngineMode,
   usesSentimentService,
   buildPolicyPack,
+  flattenResult,
   SERVICE_URL,
   getQueueStats: () => ({
     bulk: lanes.bulk.getStats(),

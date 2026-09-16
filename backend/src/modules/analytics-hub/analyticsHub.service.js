@@ -25,6 +25,15 @@ const resolveRange = (rangeKey = '30d') => {
   return { range: key, from, to };
 };
 
+/**
+ * {label,count} rows (from a raw JSON-path groupBy) -> {[label]: count}.
+ * Rows with a null/missing label (not yet analyzed for this field) are
+ * dropped rather than bucketed as "unclassified" — matches how `classified_*`
+ * denominators are defined for sentiment/risk elsewhere in this file.
+ */
+const rowsToBreakdown = (rows) =>
+  rows.reduce((acc, r) => (r.label ? { ...acc, [r.label]: Number(r.count) } : acc), {});
+
 const istDateKey = (d) =>
   new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Kolkata',
@@ -67,16 +76,33 @@ const getEventsAnalytics = async (query = {}) => {
   const prisma = dbOf(query.db);
   const { range, from, to } = resolveRange(query.range);
 
-  const [total, byStatusRaw, byOriginRaw, contentByPlatformRaw, trendRows] = await Promise.all([
-    prisma.social_media_events.count(),
-    prisma.social_media_events.groupBy({ by: ['monitoring_status'], _count: { _all: true } }),
-    prisma.social_media_events.groupBy({ by: ['origin'], _count: { _all: true } }),
-    prisma.social_media_event_media.groupBy({ by: ['platform'], _count: { _all: true } }),
-    prisma.social_media_event_media.findMany({
-      where: { fetched_at: { gte: from, lte: to } },
-      select: { fetched_at: true },
-    }),
-  ]);
+  const [total, byStatusRaw, byOriginRaw, contentByPlatformRaw, trendRows, sentimentRaw, stanceRaw] =
+    await Promise.all([
+      prisma.social_media_events.count(),
+      prisma.social_media_events.groupBy({ by: ['monitoring_status'], _count: { _all: true } }),
+      prisma.social_media_events.groupBy({ by: ['origin'], _count: { _all: true } }),
+      prisma.social_media_event_media.groupBy({ by: ['platform'], _count: { _all: true } }),
+      prisma.social_media_event_media.findMany({
+        where: { fetched_at: { gte: from, lte: to } },
+        select: { fetched_at: true },
+      }),
+      // sentiment/stance live inside the analysis_result JSON blob, not a
+      // typed column, so Prisma's groupBy can't reach them — a JSON-path
+      // groupBy is the smallest way to get the same {label: count} shape
+      // getAlertsAnalytics() already returns for by_risk (a typed column).
+      prisma.$queryRaw`
+        SELECT analysis_result->>'sentiment' AS label, COUNT(*)::int AS count
+        FROM social_media_event_media
+        WHERE analysis_status = 'done' AND analysis_result->>'sentiment' IS NOT NULL
+        GROUP BY label
+      `,
+      prisma.$queryRaw`
+        SELECT analysis_result->>'stance' AS label, COUNT(*)::int AS count
+        FROM social_media_event_media
+        WHERE analysis_status = 'done' AND analysis_result->>'stance' IS NOT NULL
+        GROUP BY label
+      `,
+    ]);
 
   const by_status = byStatusRaw.reduce((acc, r) => ({ ...acc, [r.monitoring_status]: r._count._all }), {});
   const by_origin = byOriginRaw.reduce((acc, r) => ({ ...acc, [r.origin || 'manual']: r._count._all }), {});
@@ -85,6 +111,8 @@ const getEventsAnalytics = async (query = {}) => {
     {}
   );
   const trend = bucketRowsByDay(trendRows, { from, to, dateField: 'fetched_at' });
+  const by_sentiment = rowsToBreakdown(sentimentRaw);
+  const by_stance = rowsToBreakdown(stanceRaw);
 
   return {
     range,
@@ -95,6 +123,8 @@ const getEventsAnalytics = async (query = {}) => {
     by_origin,
     content_by_platform,
     trend,
+    by_sentiment,
+    by_stance,
   };
 };
 

@@ -3,6 +3,7 @@ const intelligenceClient = require('../../modules/intelligence/intelligence.clie
 const mappingService = require('../../modules/settings/mapping.service');
 const { matchKeywords, scoreToLevel } = require('./analyzePost');
 const { getSettingsDoc } = require('../../modules/settings/settings.service');
+const { resolveTenantName } = require('../../lib/tenantDatabase.service');
 
 const MAX_ATTEMPTS = Math.max(1, Number(process.env.SENTIMENT_MAX_ATTEMPTS) || 5);
 
@@ -21,9 +22,9 @@ const loadRiskThresholds = async ({ db } = {}) => {
 /**
  * Run sentiment/intelligence on one event media row and persist analysis_result.
  * @param {string|bigint|number} mediaId
- * @param {{ db?: object }} [options]
+ * @param {{ db?: object, dbName?: string|null }} [options]
  */
-const analyzeEventMedia = async (mediaId, { db } = {}) => {
+const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
   const prisma = dbOf(db);
   const id = BigInt(mediaId);
 
@@ -64,10 +65,11 @@ const analyzeEventMedia = async (mediaId, { db } = {}) => {
 
   const matchedKeywords = await matchKeywords(text, { db });
   const { high, medium } = await loadRiskThresholds({ db });
+  const tenantName = await resolveTenantName(dbName).catch(() => null);
 
   let intel = null;
   try {
-    intel = await intelligenceClient.analyzeText(text, { lane: 'bulk' });
+    intel = await intelligenceClient.analyzeText(text, { lane: 'bulk', tenantName });
   } catch (err) {
     const attempts = (row.analysis_attempts || 0) + 1;
     const isBusy =
@@ -125,6 +127,9 @@ const analyzeEventMedia = async (mediaId, { db } = {}) => {
     sentiment_confidence: intel.sentiment_confidence ?? null,
     risk_score: riskScore,
     risk_level: riskLevel,
+    stance: intel.stance || null,
+    stance_confidence: intel.stance_confidence || null,
+    tenant_name: tenantName || null,
     category: resolvedCategory,
     intent: intel.intent || resolvedCategory || null,
     reasoning: intel.reasoning || null,

@@ -215,6 +215,8 @@ const hydrateEventMedia = (row) => {
     sentiment: asJson(row.analysis_result, null)?.sentiment || null,
     risk_level: asJson(row.analysis_result, null)?.risk_level || null,
     risk_score: asJson(row.analysis_result, null)?.risk_score ?? null,
+    stance: asJson(row.analysis_result, null)?.stance || null,
+    stance_confidence: asJson(row.analysis_result, null)?.stance_confidence || null,
   });
 };
 

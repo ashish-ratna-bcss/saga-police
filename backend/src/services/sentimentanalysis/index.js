@@ -7,10 +7,10 @@ const { getTenantPrisma } = require('../../lib/tenantDatabase.service');
 queue.setProcessor(async (job) => {
   const db = getTenantPrisma(job.dbName);
   if (job.kind === 'event') {
-    await analyzeEventMedia(job.postId, { db });
+    await analyzeEventMedia(job.postId, { db, dbName: job.dbName });
     return;
   }
-  await analyzePost(job.postId, { db });
+  await analyzePost(job.postId, { db, dbName: job.dbName });
 });
 
 /** Enqueue a catalog post for sentiment (after upsert). */
