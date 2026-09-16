@@ -179,6 +179,13 @@ const hydrateCatalogAlert = (row) => {
     }
   }
 
+  const ocrData =
+    snap.ocr ||
+    snap.image_analysis ||
+    asJson(post?.raw_data, {})?.ocr ||
+    asJson(post?.analysis_result, {})?.ocr ||
+    null;
+
   const analysis = {
     category: category || null,
     intent: snap.intent || category || null,
@@ -193,6 +200,8 @@ const hydrateCatalogAlert = (row) => {
     analyzed_at: post?.analyzed_at || row.updated_at || null,
     legal_sections: legalSections,
     violated_policies: violatedPolicies,
+    ocr: ocrData,
+    image_analysis: ocrData,
   };
 
   const llm_analysis = {
@@ -204,6 +213,8 @@ const hydrateCatalogAlert = (row) => {
     summary: analysis.summary || '',
     platform_policies_violated: violatedPolicies,
     bns_sections_violated: legalSections,
+    ocr: ocrData,
+    image_analysis: ocrData,
   };
 
   return serialize({
@@ -212,6 +223,8 @@ const hydrateCatalogAlert = (row) => {
     platform: normalizePlatform(row.platform),
     title: row.title,
     description: row.description,
+    ocr: ocrData,
+    image_analysis: ocrData,
     content_url: row.content_url || post?.url || null,
     author: row.author,
     author_handle: row.author_handle || post?.author_handle || account?.handle || null,

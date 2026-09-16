@@ -1,5 +1,5 @@
 const dbOf = require('../../lib/dbOf');
-const { enqueuePost } = require('../sentimentanalysis');
+const { enqueuePost } = require('../media_post_analysis');
 
 /**
  * Upsert a normalized post into social_media_posts.

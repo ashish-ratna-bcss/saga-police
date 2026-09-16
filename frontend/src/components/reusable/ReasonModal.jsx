@@ -2,17 +2,63 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Image as ImageIcon } from 'lucide-react';
 
 // Reusable Reason Modal Component - Clean Table Design
 const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
     const [isContentExpanded, setIsContentExpanded] = useState(false);
+    const [isImageOcrExpanded, setIsImageOcrExpanded] = useState(false);
 
     // --- DATA EXTRACTION (Priority: LLM -> Manual/Root -> Fallback) ---
     const isExpert = !!alert?.llm_analysis;
     const intentLabel = alert?.llm_analysis?.category || alert?.threat_details?.intent || analysis?.intent || alert?.primary_intent || '';
     const llmIntent = alert?.llm_analysis?.intent || '';
     const llmSentiment = alert?.llm_analysis?.sentiment || '';
+
+    // Extract OCR / Image Analysis data
+    const imageAnalysis =
+        alert?.image_analysis ||
+        alert?.ocr ||
+        alert?.analysis_snapshot?.image_analysis ||
+        alert?.analysis_snapshot?.ocr ||
+        alert?.llm_analysis?.image_analysis ||
+        alert?.llm_analysis?.ocr ||
+        alert?.content_details?.analysis?.image_analysis ||
+        alert?.content_details?.analysis?.ocr ||
+        alert?.content_details?.ocr ||
+        analysis?.image_analysis ||
+        analysis?.ocr ||
+        content?.raw_data?.ocr ||
+        null;
+
+    const ocrText = alert?.ocr_text || content?.ocr_text || (typeof imageAnalysis === 'string'
+        ? imageAnalysis
+        : imageAnalysis?.full_text || imageAnalysis?.text || '');
+
+    const detectedLangs = Array.isArray(imageAnalysis?.detected_languages)
+        ? imageAnalysis.detected_languages
+        : [];
+
+    const blocksCount = Array.isArray(imageAnalysis?.blocks)
+        ? imageAnalysis.blocks.length
+        : 0;
+
+    const hasImageThumbnail = Boolean(
+        alert?.content_details?.image ||
+        alert?.content_details?.picture ||
+        alert?.content_details?.full_picture ||
+        alert?.content_details?.thumbnail ||
+        (Array.isArray(alert?.media) && alert.media.some(m => m?.type === 'photo' || m?.type === 'image' || String(m?.url || '').match(/\.(jpe?g|png|webp)/i))) ||
+        (Array.isArray(content?.media_urls) && content.media_urls.some(u => String(u || '').match(/\.(jpe?g|png|webp)/i) || String(u || '').includes('twimg.com'))) ||
+        (Array.isArray(alert?.content_details?.media_urls) && alert.content_details.media_urls.some(u => String(u || '').match(/\.(jpe?g|png|webp)/i) || String(u || '').includes('twimg.com')))
+    );
+
+    const isVideoPost =
+        (alert?.content_type === 'video' ||
+        content?.media_type === 'video' ||
+        alert?.platform === 'youtube' ||
+        (Array.isArray(alert?.media) && alert.media.some(m => m.type === 'video'))) &&
+        !hasImageThumbnail;
 
     // Expert Logic or Reasons
     const reasons = alert?.llm_analysis?.reasoning ? [alert.llm_analysis.reasoning] : (alert?.threat_details?.reasons || analysis?.reasons || []);
@@ -230,6 +276,66 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
                                         >
                                             {isContentExpanded ? 'View Less' : 'View More'}
                                         </button>
+                                    )}
+                                </td>
+                            </tr>
+
+                            {/* Image Analysis (OCR Extraction) */}
+                            <tr className="border-b">
+                                <td className="py-3 pr-4 font-medium text-gray-600 dark:text-gray-400 align-top">
+                                    <div className="flex items-center gap-1.5">
+                                        <ImageIcon className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                                        <span>Image Analysis</span>
+                                    </div>
+                                </td>
+                                <td className="py-3">
+                                    {ocrText ? (
+                                        <div className="space-y-2">
+                                            {/* Language & Block count badges */}
+                                            {(detectedLangs.length > 0 || blocksCount > 0) && (
+                                                <div className="flex flex-wrap items-center gap-1.5">
+                                                    {detectedLangs.map((lang, idx) => (
+                                                        <Badge
+                                                            key={idx}
+                                                            variant="outline"
+                                                            className="text-[10px] uppercase font-semibold bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400"
+                                                        >
+                                                            {lang}
+                                                        </Badge>
+                                                    ))}
+                                                    {blocksCount > 0 && (
+                                                        <span className="text-[11px] text-gray-400">
+                                                            {blocksCount} text {blocksCount === 1 ? 'block' : 'blocks'} detected
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Extracted text container */}
+                                            <div className="p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/80 text-xs text-gray-800 dark:text-gray-200 leading-relaxed font-sans whitespace-pre-wrap break-words">
+                                                <div className={isImageOcrExpanded ? '' : 'line-clamp-4'}>
+                                                    {ocrText}
+                                                </div>
+                                            </div>
+
+                                            {ocrText.length > 180 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsImageOcrExpanded(!isImageOcrExpanded)}
+                                                    className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline block"
+                                                >
+                                                    {isImageOcrExpanded ? 'Show Less' : 'Show Full Extracted Image Text'}
+                                                </button>
+                                            )}
+                                        </div>
+                                    ) : imageAnalysis?.error ? (
+                                        <div className="text-xs text-amber-600 dark:text-amber-400 italic">
+                                            Extraction failed: {imageAnalysis.error}
+                                        </div>
+                                    ) : isVideoPost ? (
+                                        <span className="text-gray-400 italic text-xs">Video content — no image OCR required</span>
+                                    ) : (
+                                        <span className="text-gray-400 italic text-xs">No image text extracted or text-only post</span>
                                     )}
                                 </td>
                             </tr>

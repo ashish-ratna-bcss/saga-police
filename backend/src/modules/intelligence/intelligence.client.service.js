@@ -340,7 +340,7 @@ function flattenResult(pipelineItem) {
   };
 }
 
-async function requestIntelligence(text, { laneName, timeoutMs, tenantName, tenantKey }) {
+async function requestIntelligence(text, { laneName, timeoutMs, tenantName, tenantKey, imageAnalysis }) {
   await mappingService.waitForLoad();
   const pack = buildPolicyPack();
   const body = {
@@ -369,6 +369,9 @@ async function requestIntelligence(text, { laneName, timeoutMs, tenantName, tena
   const sanitizedTenantKey = sanitizeTenantName(tenantKey);
   if (sanitizedTenantKey) {
     body.tenant_key = sanitizedTenantKey;
+  }
+  if (imageAnalysis) {
+    body.image_analysis = imageAnalysis;
   }
 
   let lastError = null;
@@ -423,7 +426,7 @@ async function requestIntelligence(text, { laneName, timeoutMs, tenantName, tena
 /**
  * Analyze text via the sentiment-api intelligence endpoint.
  * @param {string} text
- * @param {{ lane?: 'bulk'|'interactive', tenantName?: string|null, tenantKey?: string|null }} [options]
+ * @param {{ lane?: 'bulk'|'interactive', tenantName?: string|null, tenantKey?: string|null, imageAnalysis?: object|null }} [options]
  * @returns {Promise<object|null>} flat result or null on failure
  */
 async function analyzeText(text, options = {}) {
@@ -447,6 +450,7 @@ async function analyzeText(text, options = {}) {
         timeoutMs: lane.timeoutMs,
         tenantName: options.tenantName,
         tenantKey: options.tenantKey,
+        imageAnalysis: options.imageAnalysis,
       })
     );
   } catch (err) {

@@ -348,7 +348,8 @@ const isLikelyVideoUrl = (url) => typeof url === 'string' && (
     /\/o1\/v\/t\d+/i.test(url) ||
     /video[^.]*\.fbcdn\.net/i.test(url) ||
     (/\.fbcdn\.net\/v\/t\d+\.\d+-\d+/i.test(url) && !IMAGE_URL_RE.test(url)) ||
-    VIDEO_URL_RE.test(url)
+    VIDEO_URL_RE.test(url) ||
+    isLikelyYouTubeUrl(url)
 );
 
 const isLikelyImageUrl = (url) => typeof url === 'string' && IMAGE_URL_RE.test(url);
@@ -3401,8 +3402,13 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
             seen.add(item.url);
             merged.push(item);
         }
+        const isYouTube = alert?.platform === 'youtube' || isLikelyYouTubeUrl(mediaUrl);
+        if (isYouTube && mediaUrl && !seen.has(mediaUrl)) {
+            seen.add(mediaUrl);
+            merged.unshift({ type: 'video', url: mediaUrl, preview: mediaUrl });
+        }
         return merged;
-    }, [cardMediaItems, uniqueMediaItems]);
+    }, [cardMediaItems, uniqueMediaItems, alert?.platform, mediaUrl]);
 
     // Only show download when the card has real image/video media (not a bare post URL).
     const canDownload = downloadMediaItems.length > 0;

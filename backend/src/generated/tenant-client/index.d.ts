@@ -93,6 +93,11 @@ export type policy_mappings = $Result.DefaultSelection<Prisma.$policy_mappingsPa
  * Per-tenant application change log (old/new, actor, IP, device).
  */
 export type audit_logs = $Result.DefaultSelection<Prisma.$audit_logsPayload>
+/**
+ * Model social_media_periscope_reports
+ * 
+ */
+export type social_media_periscope_reports = $Result.DefaultSelection<Prisma.$social_media_periscope_reportsPayload>
 
 /**
  * Enums
@@ -403,6 +408,16 @@ export class PrismaClient<
     * ```
     */
   get audit_logs(): Prisma.audit_logsDelegate<ExtArgs, ClientOptions>;
+
+  /**
+   * `prisma.social_media_periscope_reports`: Exposes CRUD operations for the **social_media_periscope_reports** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more Social_media_periscope_reports
+    * const social_media_periscope_reports = await prisma.social_media_periscope_reports.findMany()
+    * ```
+    */
+  get social_media_periscope_reports(): Prisma.social_media_periscope_reportsDelegate<ExtArgs, ClientOptions>;
 }
 
 export namespace Prisma {
@@ -859,7 +874,8 @@ export namespace Prisma {
     alert_config: 'alert_config',
     report_templates: 'report_templates',
     policy_mappings: 'policy_mappings',
-    audit_logs: 'audit_logs'
+    audit_logs: 'audit_logs',
+    social_media_periscope_reports: 'social_media_periscope_reports'
   };
 
   export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -878,7 +894,7 @@ export namespace Prisma {
       omit: GlobalOmitOptions
     }
     meta: {
-      modelProps: "platforms" | "social_media_profiles" | "social_media_accounts" | "social_media_posts" | "social_media_alerts" | "social_media_grievances" | "social_media_grievance_reports" | "social_media_grievance_contacts" | "keywords" | "social_media_occasion_calendar" | "social_media_events" | "social_media_event_media" | "alert_config" | "report_templates" | "policy_mappings" | "audit_logs"
+      modelProps: "platforms" | "social_media_profiles" | "social_media_accounts" | "social_media_posts" | "social_media_alerts" | "social_media_grievances" | "social_media_grievance_reports" | "social_media_grievance_contacts" | "keywords" | "social_media_occasion_calendar" | "social_media_events" | "social_media_event_media" | "alert_config" | "report_templates" | "policy_mappings" | "audit_logs" | "social_media_periscope_reports"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -2066,6 +2082,80 @@ export namespace Prisma {
           }
         }
       }
+      social_media_periscope_reports: {
+        payload: Prisma.$social_media_periscope_reportsPayload<ExtArgs>
+        fields: Prisma.social_media_periscope_reportsFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.social_media_periscope_reportsFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_periscope_reportsPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.social_media_periscope_reportsFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_periscope_reportsPayload>
+          }
+          findFirst: {
+            args: Prisma.social_media_periscope_reportsFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_periscope_reportsPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.social_media_periscope_reportsFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_periscope_reportsPayload>
+          }
+          findMany: {
+            args: Prisma.social_media_periscope_reportsFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_periscope_reportsPayload>[]
+          }
+          create: {
+            args: Prisma.social_media_periscope_reportsCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_periscope_reportsPayload>
+          }
+          createMany: {
+            args: Prisma.social_media_periscope_reportsCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.social_media_periscope_reportsCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_periscope_reportsPayload>[]
+          }
+          delete: {
+            args: Prisma.social_media_periscope_reportsDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_periscope_reportsPayload>
+          }
+          update: {
+            args: Prisma.social_media_periscope_reportsUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_periscope_reportsPayload>
+          }
+          deleteMany: {
+            args: Prisma.social_media_periscope_reportsDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.social_media_periscope_reportsUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateManyAndReturn: {
+            args: Prisma.social_media_periscope_reportsUpdateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_periscope_reportsPayload>[]
+          }
+          upsert: {
+            args: Prisma.social_media_periscope_reportsUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_periscope_reportsPayload>
+          }
+          aggregate: {
+            args: Prisma.Social_media_periscope_reportsAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateSocial_media_periscope_reports>
+          }
+          groupBy: {
+            args: Prisma.social_media_periscope_reportsGroupByArgs<ExtArgs>
+            result: $Utils.Optional<Social_media_periscope_reportsGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.social_media_periscope_reportsCountArgs<ExtArgs>
+            result: $Utils.Optional<Social_media_periscope_reportsCountAggregateOutputType> | number
+          }
+        }
+      }
     }
   } & {
     other: {
@@ -2178,6 +2268,7 @@ export namespace Prisma {
     report_templates?: report_templatesOmit
     policy_mappings?: policy_mappingsOmit
     audit_logs?: audit_logsOmit
+    social_media_periscope_reports?: social_media_periscope_reportsOmit
   }
 
   /* Types for Logging */
@@ -6180,6 +6271,7 @@ export namespace Prisma {
     engagement: number
     posted_at: number
     raw_data: number
+    image_analysis: number
     fetched_at: number
     analysis_status: number
     analysis_attempts: number
@@ -6255,6 +6347,7 @@ export namespace Prisma {
     engagement?: true
     posted_at?: true
     raw_data?: true
+    image_analysis?: true
     fetched_at?: true
     analysis_status?: true
     analysis_attempts?: true
@@ -6365,6 +6458,7 @@ export namespace Prisma {
     engagement: JsonValue
     posted_at: Date | null
     raw_data: JsonValue
+    image_analysis: JsonValue | null
     fetched_at: Date
     analysis_status: $Enums.analysis_status_enum
     analysis_attempts: number
@@ -6407,6 +6501,7 @@ export namespace Prisma {
     engagement?: boolean
     posted_at?: boolean
     raw_data?: boolean
+    image_analysis?: boolean
     fetched_at?: boolean
     analysis_status?: boolean
     analysis_attempts?: boolean
@@ -6433,6 +6528,7 @@ export namespace Prisma {
     engagement?: boolean
     posted_at?: boolean
     raw_data?: boolean
+    image_analysis?: boolean
     fetched_at?: boolean
     analysis_status?: boolean
     analysis_attempts?: boolean
@@ -6457,6 +6553,7 @@ export namespace Prisma {
     engagement?: boolean
     posted_at?: boolean
     raw_data?: boolean
+    image_analysis?: boolean
     fetched_at?: boolean
     analysis_status?: boolean
     analysis_attempts?: boolean
@@ -6481,6 +6578,7 @@ export namespace Prisma {
     engagement?: boolean
     posted_at?: boolean
     raw_data?: boolean
+    image_analysis?: boolean
     fetched_at?: boolean
     analysis_status?: boolean
     analysis_attempts?: boolean
@@ -6490,7 +6588,7 @@ export namespace Prisma {
     updated_at?: boolean
   }
 
-  export type social_media_postsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "account_id" | "platform" | "external_id" | "url" | "text" | "author_name" | "author_handle" | "media_type" | "media_urls" | "engagement" | "posted_at" | "raw_data" | "fetched_at" | "analysis_status" | "analysis_attempts" | "analysis_error" | "analysis_result" | "analyzed_at" | "updated_at", ExtArgs["result"]["social_media_posts"]>
+  export type social_media_postsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "account_id" | "platform" | "external_id" | "url" | "text" | "author_name" | "author_handle" | "media_type" | "media_urls" | "engagement" | "posted_at" | "raw_data" | "image_analysis" | "fetched_at" | "analysis_status" | "analysis_attempts" | "analysis_error" | "analysis_result" | "analyzed_at" | "updated_at", ExtArgs["result"]["social_media_posts"]>
   export type social_media_postsInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     account?: boolean | social_media_accountsDefaultArgs<ExtArgs>
     alerts?: boolean | social_media_posts$alertsArgs<ExtArgs>
@@ -6523,6 +6621,7 @@ export namespace Prisma {
       engagement: Prisma.JsonValue
       posted_at: Date | null
       raw_data: Prisma.JsonValue
+      image_analysis: Prisma.JsonValue | null
       fetched_at: Date
       /**
        * pending → processing → done | failed | skipped
@@ -6971,6 +7070,7 @@ export namespace Prisma {
     readonly engagement: FieldRef<"social_media_posts", 'Json'>
     readonly posted_at: FieldRef<"social_media_posts", 'DateTime'>
     readonly raw_data: FieldRef<"social_media_posts", 'Json'>
+    readonly image_analysis: FieldRef<"social_media_posts", 'Json'>
     readonly fetched_at: FieldRef<"social_media_posts", 'DateTime'>
     readonly analysis_status: FieldRef<"social_media_posts", 'analysis_status_enum'>
     readonly analysis_attempts: FieldRef<"social_media_posts", 'Int'>
@@ -7505,6 +7605,7 @@ export namespace Prisma {
     is_read: number
     matched_keywords: number
     analysis_snapshot: number
+    image_analysis: number
     posted_at: number
     created_at: number
     updated_at: number
@@ -7589,6 +7690,7 @@ export namespace Prisma {
     is_read?: true
     matched_keywords?: true
     analysis_snapshot?: true
+    image_analysis?: true
     posted_at?: true
     created_at?: true
     updated_at?: true
@@ -7700,6 +7802,7 @@ export namespace Prisma {
     is_read: boolean
     matched_keywords: JsonValue
     analysis_snapshot: JsonValue
+    image_analysis: JsonValue | null
     posted_at: Date | null
     created_at: Date
     updated_at: Date
@@ -7743,6 +7846,7 @@ export namespace Prisma {
     is_read?: boolean
     matched_keywords?: boolean
     analysis_snapshot?: boolean
+    image_analysis?: boolean
     posted_at?: boolean
     created_at?: boolean
     updated_at?: boolean
@@ -7768,6 +7872,7 @@ export namespace Prisma {
     is_read?: boolean
     matched_keywords?: boolean
     analysis_snapshot?: boolean
+    image_analysis?: boolean
     posted_at?: boolean
     created_at?: boolean
     updated_at?: boolean
@@ -7793,6 +7898,7 @@ export namespace Prisma {
     is_read?: boolean
     matched_keywords?: boolean
     analysis_snapshot?: boolean
+    image_analysis?: boolean
     posted_at?: boolean
     created_at?: boolean
     updated_at?: boolean
@@ -7818,12 +7924,13 @@ export namespace Prisma {
     is_read?: boolean
     matched_keywords?: boolean
     analysis_snapshot?: boolean
+    image_analysis?: boolean
     posted_at?: boolean
     created_at?: boolean
     updated_at?: boolean
   }
 
-  export type social_media_alertsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "post_id" | "account_id" | "platform" | "external_id" | "title" | "description" | "content_url" | "author" | "author_handle" | "alert_type" | "risk_level" | "risk_score" | "sentiment" | "status" | "is_read" | "matched_keywords" | "analysis_snapshot" | "posted_at" | "created_at" | "updated_at", ExtArgs["result"]["social_media_alerts"]>
+  export type social_media_alertsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "post_id" | "account_id" | "platform" | "external_id" | "title" | "description" | "content_url" | "author" | "author_handle" | "alert_type" | "risk_level" | "risk_score" | "sentiment" | "status" | "is_read" | "matched_keywords" | "analysis_snapshot" | "image_analysis" | "posted_at" | "created_at" | "updated_at", ExtArgs["result"]["social_media_alerts"]>
   export type social_media_alertsInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     post?: boolean | social_media_postsDefaultArgs<ExtArgs>
   }
@@ -7858,6 +7965,7 @@ export namespace Prisma {
       is_read: boolean
       matched_keywords: Prisma.JsonValue
       analysis_snapshot: Prisma.JsonValue
+      image_analysis: Prisma.JsonValue | null
       posted_at: Date | null
       created_at: Date
       updated_at: Date
@@ -8303,6 +8411,7 @@ export namespace Prisma {
     readonly is_read: FieldRef<"social_media_alerts", 'Boolean'>
     readonly matched_keywords: FieldRef<"social_media_alerts", 'Json'>
     readonly analysis_snapshot: FieldRef<"social_media_alerts", 'Json'>
+    readonly image_analysis: FieldRef<"social_media_alerts", 'Json'>
     readonly posted_at: FieldRef<"social_media_alerts", 'DateTime'>
     readonly created_at: FieldRef<"social_media_alerts", 'DateTime'>
     readonly updated_at: FieldRef<"social_media_alerts", 'DateTime'>
@@ -15955,6 +16064,7 @@ export namespace Prisma {
     engagement: number
     media: number
     raw_data: number
+    image_analysis: number
     posted_at: number
     fetched_at: number
     updated_at: number
@@ -16027,6 +16137,7 @@ export namespace Prisma {
     engagement?: true
     media?: true
     raw_data?: true
+    image_analysis?: true
     posted_at?: true
     fetched_at?: true
     updated_at?: true
@@ -16136,6 +16247,7 @@ export namespace Prisma {
     engagement: JsonValue
     media: JsonValue
     raw_data: JsonValue
+    image_analysis: JsonValue | null
     posted_at: Date | null
     fetched_at: Date
     updated_at: Date
@@ -16177,6 +16289,7 @@ export namespace Prisma {
     engagement?: boolean
     media?: boolean
     raw_data?: boolean
+    image_analysis?: boolean
     posted_at?: boolean
     fetched_at?: boolean
     updated_at?: boolean
@@ -16200,6 +16313,7 @@ export namespace Prisma {
     engagement?: boolean
     media?: boolean
     raw_data?: boolean
+    image_analysis?: boolean
     posted_at?: boolean
     fetched_at?: boolean
     updated_at?: boolean
@@ -16223,6 +16337,7 @@ export namespace Prisma {
     engagement?: boolean
     media?: boolean
     raw_data?: boolean
+    image_analysis?: boolean
     posted_at?: boolean
     fetched_at?: boolean
     updated_at?: boolean
@@ -16246,6 +16361,7 @@ export namespace Prisma {
     engagement?: boolean
     media?: boolean
     raw_data?: boolean
+    image_analysis?: boolean
     posted_at?: boolean
     fetched_at?: boolean
     updated_at?: boolean
@@ -16256,7 +16372,7 @@ export namespace Prisma {
     analyzed_at?: boolean
   }
 
-  export type social_media_event_mediaOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "event_id" | "platform" | "external_id" | "url" | "text" | "author_name" | "author_handle" | "engagement" | "media" | "raw_data" | "posted_at" | "fetched_at" | "updated_at" | "analysis_status" | "analysis_result" | "analysis_error" | "analysis_attempts" | "analyzed_at", ExtArgs["result"]["social_media_event_media"]>
+  export type social_media_event_mediaOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "event_id" | "platform" | "external_id" | "url" | "text" | "author_name" | "author_handle" | "engagement" | "media" | "raw_data" | "image_analysis" | "posted_at" | "fetched_at" | "updated_at" | "analysis_status" | "analysis_result" | "analysis_error" | "analysis_attempts" | "analyzed_at", ExtArgs["result"]["social_media_event_media"]>
   export type social_media_event_mediaInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     event?: boolean | social_media_eventsDefaultArgs<ExtArgs>
   }
@@ -16284,6 +16400,7 @@ export namespace Prisma {
       engagement: Prisma.JsonValue
       media: Prisma.JsonValue
       raw_data: Prisma.JsonValue
+      image_analysis: Prisma.JsonValue | null
       posted_at: Date | null
       fetched_at: Date
       updated_at: Date
@@ -16727,6 +16844,7 @@ export namespace Prisma {
     readonly engagement: FieldRef<"social_media_event_media", 'Json'>
     readonly media: FieldRef<"social_media_event_media", 'Json'>
     readonly raw_data: FieldRef<"social_media_event_media", 'Json'>
+    readonly image_analysis: FieldRef<"social_media_event_media", 'Json'>
     readonly posted_at: FieldRef<"social_media_event_media", 'DateTime'>
     readonly fetched_at: FieldRef<"social_media_event_media", 'DateTime'>
     readonly updated_at: FieldRef<"social_media_event_media", 'DateTime'>
@@ -21451,6 +21569,1084 @@ export namespace Prisma {
 
 
   /**
+   * Model social_media_periscope_reports
+   */
+
+  export type AggregateSocial_media_periscope_reports = {
+    _count: Social_media_periscope_reportsCountAggregateOutputType | null
+    _min: Social_media_periscope_reportsMinAggregateOutputType | null
+    _max: Social_media_periscope_reportsMaxAggregateOutputType | null
+  }
+
+  export type Social_media_periscope_reportsMinAggregateOutputType = {
+    id: string | null
+    report_date: Date | null
+    day_of_week: string | null
+    title: string | null
+    organization: string | null
+    status: string | null
+    notes: string | null
+    created_by: string | null
+    created_at: Date | null
+    updated_at: Date | null
+  }
+
+  export type Social_media_periscope_reportsMaxAggregateOutputType = {
+    id: string | null
+    report_date: Date | null
+    day_of_week: string | null
+    title: string | null
+    organization: string | null
+    status: string | null
+    notes: string | null
+    created_by: string | null
+    created_at: Date | null
+    updated_at: Date | null
+  }
+
+  export type Social_media_periscope_reportsCountAggregateOutputType = {
+    id: number
+    report_date: number
+    day_of_week: number
+    title: number
+    organization: number
+    status: number
+    programmes: number
+    abstract: number
+    notes: number
+    created_by: number
+    created_at: number
+    updated_at: number
+    _all: number
+  }
+
+
+  export type Social_media_periscope_reportsMinAggregateInputType = {
+    id?: true
+    report_date?: true
+    day_of_week?: true
+    title?: true
+    organization?: true
+    status?: true
+    notes?: true
+    created_by?: true
+    created_at?: true
+    updated_at?: true
+  }
+
+  export type Social_media_periscope_reportsMaxAggregateInputType = {
+    id?: true
+    report_date?: true
+    day_of_week?: true
+    title?: true
+    organization?: true
+    status?: true
+    notes?: true
+    created_by?: true
+    created_at?: true
+    updated_at?: true
+  }
+
+  export type Social_media_periscope_reportsCountAggregateInputType = {
+    id?: true
+    report_date?: true
+    day_of_week?: true
+    title?: true
+    organization?: true
+    status?: true
+    programmes?: true
+    abstract?: true
+    notes?: true
+    created_by?: true
+    created_at?: true
+    updated_at?: true
+    _all?: true
+  }
+
+  export type Social_media_periscope_reportsAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which social_media_periscope_reports to aggregate.
+     */
+    where?: social_media_periscope_reportsWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of social_media_periscope_reports to fetch.
+     */
+    orderBy?: social_media_periscope_reportsOrderByWithRelationInput | social_media_periscope_reportsOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: social_media_periscope_reportsWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` social_media_periscope_reports from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` social_media_periscope_reports.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned social_media_periscope_reports
+    **/
+    _count?: true | Social_media_periscope_reportsCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: Social_media_periscope_reportsMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: Social_media_periscope_reportsMaxAggregateInputType
+  }
+
+  export type GetSocial_media_periscope_reportsAggregateType<T extends Social_media_periscope_reportsAggregateArgs> = {
+        [P in keyof T & keyof AggregateSocial_media_periscope_reports]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateSocial_media_periscope_reports[P]>
+      : GetScalarType<T[P], AggregateSocial_media_periscope_reports[P]>
+  }
+
+
+
+
+  export type social_media_periscope_reportsGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: social_media_periscope_reportsWhereInput
+    orderBy?: social_media_periscope_reportsOrderByWithAggregationInput | social_media_periscope_reportsOrderByWithAggregationInput[]
+    by: Social_media_periscope_reportsScalarFieldEnum[] | Social_media_periscope_reportsScalarFieldEnum
+    having?: social_media_periscope_reportsScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: Social_media_periscope_reportsCountAggregateInputType | true
+    _min?: Social_media_periscope_reportsMinAggregateInputType
+    _max?: Social_media_periscope_reportsMaxAggregateInputType
+  }
+
+  export type Social_media_periscope_reportsGroupByOutputType = {
+    id: string
+    report_date: Date
+    day_of_week: string
+    title: string
+    organization: string
+    status: string
+    programmes: JsonValue
+    abstract: JsonValue
+    notes: string | null
+    created_by: string | null
+    created_at: Date
+    updated_at: Date
+    _count: Social_media_periscope_reportsCountAggregateOutputType | null
+    _min: Social_media_periscope_reportsMinAggregateOutputType | null
+    _max: Social_media_periscope_reportsMaxAggregateOutputType | null
+  }
+
+  type GetSocial_media_periscope_reportsGroupByPayload<T extends social_media_periscope_reportsGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<Social_media_periscope_reportsGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof Social_media_periscope_reportsGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], Social_media_periscope_reportsGroupByOutputType[P]>
+            : GetScalarType<T[P], Social_media_periscope_reportsGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type social_media_periscope_reportsSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    report_date?: boolean
+    day_of_week?: boolean
+    title?: boolean
+    organization?: boolean
+    status?: boolean
+    programmes?: boolean
+    abstract?: boolean
+    notes?: boolean
+    created_by?: boolean
+    created_at?: boolean
+    updated_at?: boolean
+  }, ExtArgs["result"]["social_media_periscope_reports"]>
+
+  export type social_media_periscope_reportsSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    report_date?: boolean
+    day_of_week?: boolean
+    title?: boolean
+    organization?: boolean
+    status?: boolean
+    programmes?: boolean
+    abstract?: boolean
+    notes?: boolean
+    created_by?: boolean
+    created_at?: boolean
+    updated_at?: boolean
+  }, ExtArgs["result"]["social_media_periscope_reports"]>
+
+  export type social_media_periscope_reportsSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    report_date?: boolean
+    day_of_week?: boolean
+    title?: boolean
+    organization?: boolean
+    status?: boolean
+    programmes?: boolean
+    abstract?: boolean
+    notes?: boolean
+    created_by?: boolean
+    created_at?: boolean
+    updated_at?: boolean
+  }, ExtArgs["result"]["social_media_periscope_reports"]>
+
+  export type social_media_periscope_reportsSelectScalar = {
+    id?: boolean
+    report_date?: boolean
+    day_of_week?: boolean
+    title?: boolean
+    organization?: boolean
+    status?: boolean
+    programmes?: boolean
+    abstract?: boolean
+    notes?: boolean
+    created_by?: boolean
+    created_at?: boolean
+    updated_at?: boolean
+  }
+
+  export type social_media_periscope_reportsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "report_date" | "day_of_week" | "title" | "organization" | "status" | "programmes" | "abstract" | "notes" | "created_by" | "created_at" | "updated_at", ExtArgs["result"]["social_media_periscope_reports"]>
+
+  export type $social_media_periscope_reportsPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "social_media_periscope_reports"
+    objects: {}
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      report_date: Date
+      day_of_week: string
+      title: string
+      organization: string
+      status: string
+      programmes: Prisma.JsonValue
+      abstract: Prisma.JsonValue
+      notes: string | null
+      created_by: string | null
+      created_at: Date
+      updated_at: Date
+    }, ExtArgs["result"]["social_media_periscope_reports"]>
+    composites: {}
+  }
+
+  type social_media_periscope_reportsGetPayload<S extends boolean | null | undefined | social_media_periscope_reportsDefaultArgs> = $Result.GetResult<Prisma.$social_media_periscope_reportsPayload, S>
+
+  type social_media_periscope_reportsCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> =
+    Omit<social_media_periscope_reportsFindManyArgs, 'select' | 'include' | 'distinct' | 'omit'> & {
+      select?: Social_media_periscope_reportsCountAggregateInputType | true
+    }
+
+  export interface social_media_periscope_reportsDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['social_media_periscope_reports'], meta: { name: 'social_media_periscope_reports' } }
+    /**
+     * Find zero or one Social_media_periscope_reports that matches the filter.
+     * @param {social_media_periscope_reportsFindUniqueArgs} args - Arguments to find a Social_media_periscope_reports
+     * @example
+     * // Get one Social_media_periscope_reports
+     * const social_media_periscope_reports = await prisma.social_media_periscope_reports.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends social_media_periscope_reportsFindUniqueArgs>(args: SelectSubset<T, social_media_periscope_reportsFindUniqueArgs<ExtArgs>>): Prisma__social_media_periscope_reportsClient<$Result.GetResult<Prisma.$social_media_periscope_reportsPayload<ExtArgs>, T, "findUnique", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find one Social_media_periscope_reports that matches the filter or throw an error with `error.code='P2025'`
+     * if no matches were found.
+     * @param {social_media_periscope_reportsFindUniqueOrThrowArgs} args - Arguments to find a Social_media_periscope_reports
+     * @example
+     * // Get one Social_media_periscope_reports
+     * const social_media_periscope_reports = await prisma.social_media_periscope_reports.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends social_media_periscope_reportsFindUniqueOrThrowArgs>(args: SelectSubset<T, social_media_periscope_reportsFindUniqueOrThrowArgs<ExtArgs>>): Prisma__social_media_periscope_reportsClient<$Result.GetResult<Prisma.$social_media_periscope_reportsPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first Social_media_periscope_reports that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {social_media_periscope_reportsFindFirstArgs} args - Arguments to find a Social_media_periscope_reports
+     * @example
+     * // Get one Social_media_periscope_reports
+     * const social_media_periscope_reports = await prisma.social_media_periscope_reports.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends social_media_periscope_reportsFindFirstArgs>(args?: SelectSubset<T, social_media_periscope_reportsFindFirstArgs<ExtArgs>>): Prisma__social_media_periscope_reportsClient<$Result.GetResult<Prisma.$social_media_periscope_reportsPayload<ExtArgs>, T, "findFirst", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first Social_media_periscope_reports that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {social_media_periscope_reportsFindFirstOrThrowArgs} args - Arguments to find a Social_media_periscope_reports
+     * @example
+     * // Get one Social_media_periscope_reports
+     * const social_media_periscope_reports = await prisma.social_media_periscope_reports.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends social_media_periscope_reportsFindFirstOrThrowArgs>(args?: SelectSubset<T, social_media_periscope_reportsFindFirstOrThrowArgs<ExtArgs>>): Prisma__social_media_periscope_reportsClient<$Result.GetResult<Prisma.$social_media_periscope_reportsPayload<ExtArgs>, T, "findFirstOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find zero or more Social_media_periscope_reports that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {social_media_periscope_reportsFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all Social_media_periscope_reports
+     * const social_media_periscope_reports = await prisma.social_media_periscope_reports.findMany()
+     * 
+     * // Get first 10 Social_media_periscope_reports
+     * const social_media_periscope_reports = await prisma.social_media_periscope_reports.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const social_media_periscope_reportsWithIdOnly = await prisma.social_media_periscope_reports.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends social_media_periscope_reportsFindManyArgs>(args?: SelectSubset<T, social_media_periscope_reportsFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$social_media_periscope_reportsPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
+
+    /**
+     * Create a Social_media_periscope_reports.
+     * @param {social_media_periscope_reportsCreateArgs} args - Arguments to create a Social_media_periscope_reports.
+     * @example
+     * // Create one Social_media_periscope_reports
+     * const Social_media_periscope_reports = await prisma.social_media_periscope_reports.create({
+     *   data: {
+     *     // ... data to create a Social_media_periscope_reports
+     *   }
+     * })
+     * 
+     */
+    create<T extends social_media_periscope_reportsCreateArgs>(args: SelectSubset<T, social_media_periscope_reportsCreateArgs<ExtArgs>>): Prisma__social_media_periscope_reportsClient<$Result.GetResult<Prisma.$social_media_periscope_reportsPayload<ExtArgs>, T, "create", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Create many Social_media_periscope_reports.
+     * @param {social_media_periscope_reportsCreateManyArgs} args - Arguments to create many Social_media_periscope_reports.
+     * @example
+     * // Create many Social_media_periscope_reports
+     * const social_media_periscope_reports = await prisma.social_media_periscope_reports.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends social_media_periscope_reportsCreateManyArgs>(args?: SelectSubset<T, social_media_periscope_reportsCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many Social_media_periscope_reports and returns the data saved in the database.
+     * @param {social_media_periscope_reportsCreateManyAndReturnArgs} args - Arguments to create many Social_media_periscope_reports.
+     * @example
+     * // Create many Social_media_periscope_reports
+     * const social_media_periscope_reports = await prisma.social_media_periscope_reports.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many Social_media_periscope_reports and only return the `id`
+     * const social_media_periscope_reportsWithIdOnly = await prisma.social_media_periscope_reports.createManyAndReturn({
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends social_media_periscope_reportsCreateManyAndReturnArgs>(args?: SelectSubset<T, social_media_periscope_reportsCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$social_media_periscope_reportsPayload<ExtArgs>, T, "createManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Delete a Social_media_periscope_reports.
+     * @param {social_media_periscope_reportsDeleteArgs} args - Arguments to delete one Social_media_periscope_reports.
+     * @example
+     * // Delete one Social_media_periscope_reports
+     * const Social_media_periscope_reports = await prisma.social_media_periscope_reports.delete({
+     *   where: {
+     *     // ... filter to delete one Social_media_periscope_reports
+     *   }
+     * })
+     * 
+     */
+    delete<T extends social_media_periscope_reportsDeleteArgs>(args: SelectSubset<T, social_media_periscope_reportsDeleteArgs<ExtArgs>>): Prisma__social_media_periscope_reportsClient<$Result.GetResult<Prisma.$social_media_periscope_reportsPayload<ExtArgs>, T, "delete", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Update one Social_media_periscope_reports.
+     * @param {social_media_periscope_reportsUpdateArgs} args - Arguments to update one Social_media_periscope_reports.
+     * @example
+     * // Update one Social_media_periscope_reports
+     * const social_media_periscope_reports = await prisma.social_media_periscope_reports.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends social_media_periscope_reportsUpdateArgs>(args: SelectSubset<T, social_media_periscope_reportsUpdateArgs<ExtArgs>>): Prisma__social_media_periscope_reportsClient<$Result.GetResult<Prisma.$social_media_periscope_reportsPayload<ExtArgs>, T, "update", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Delete zero or more Social_media_periscope_reports.
+     * @param {social_media_periscope_reportsDeleteManyArgs} args - Arguments to filter Social_media_periscope_reports to delete.
+     * @example
+     * // Delete a few Social_media_periscope_reports
+     * const { count } = await prisma.social_media_periscope_reports.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends social_media_periscope_reportsDeleteManyArgs>(args?: SelectSubset<T, social_media_periscope_reportsDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more Social_media_periscope_reports.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {social_media_periscope_reportsUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many Social_media_periscope_reports
+     * const social_media_periscope_reports = await prisma.social_media_periscope_reports.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends social_media_periscope_reportsUpdateManyArgs>(args: SelectSubset<T, social_media_periscope_reportsUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more Social_media_periscope_reports and returns the data updated in the database.
+     * @param {social_media_periscope_reportsUpdateManyAndReturnArgs} args - Arguments to update many Social_media_periscope_reports.
+     * @example
+     * // Update many Social_media_periscope_reports
+     * const social_media_periscope_reports = await prisma.social_media_periscope_reports.updateManyAndReturn({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Update zero or more Social_media_periscope_reports and only return the `id`
+     * const social_media_periscope_reportsWithIdOnly = await prisma.social_media_periscope_reports.updateManyAndReturn({
+     *   select: { id: true },
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    updateManyAndReturn<T extends social_media_periscope_reportsUpdateManyAndReturnArgs>(args: SelectSubset<T, social_media_periscope_reportsUpdateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$social_media_periscope_reportsPayload<ExtArgs>, T, "updateManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Create or update one Social_media_periscope_reports.
+     * @param {social_media_periscope_reportsUpsertArgs} args - Arguments to update or create a Social_media_periscope_reports.
+     * @example
+     * // Update or create a Social_media_periscope_reports
+     * const social_media_periscope_reports = await prisma.social_media_periscope_reports.upsert({
+     *   create: {
+     *     // ... data to create a Social_media_periscope_reports
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the Social_media_periscope_reports we want to update
+     *   }
+     * })
+     */
+    upsert<T extends social_media_periscope_reportsUpsertArgs>(args: SelectSubset<T, social_media_periscope_reportsUpsertArgs<ExtArgs>>): Prisma__social_media_periscope_reportsClient<$Result.GetResult<Prisma.$social_media_periscope_reportsPayload<ExtArgs>, T, "upsert", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+
+    /**
+     * Count the number of Social_media_periscope_reports.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {social_media_periscope_reportsCountArgs} args - Arguments to filter Social_media_periscope_reports to count.
+     * @example
+     * // Count the number of Social_media_periscope_reports
+     * const count = await prisma.social_media_periscope_reports.count({
+     *   where: {
+     *     // ... the filter for the Social_media_periscope_reports we want to count
+     *   }
+     * })
+    **/
+    count<T extends social_media_periscope_reportsCountArgs>(
+      args?: Subset<T, social_media_periscope_reportsCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], Social_media_periscope_reportsCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a Social_media_periscope_reports.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {Social_media_periscope_reportsAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends Social_media_periscope_reportsAggregateArgs>(args: Subset<T, Social_media_periscope_reportsAggregateArgs>): Prisma.PrismaPromise<GetSocial_media_periscope_reportsAggregateType<T>>
+
+    /**
+     * Group by Social_media_periscope_reports.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {social_media_periscope_reportsGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends social_media_periscope_reportsGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: social_media_periscope_reportsGroupByArgs['orderBy'] }
+        : { orderBy?: social_media_periscope_reportsGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, social_media_periscope_reportsGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetSocial_media_periscope_reportsGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the social_media_periscope_reports model
+   */
+  readonly fields: social_media_periscope_reportsFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for social_media_periscope_reports.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__social_media_periscope_reportsClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the social_media_periscope_reports model
+   */
+  interface social_media_periscope_reportsFieldRefs {
+    readonly id: FieldRef<"social_media_periscope_reports", 'String'>
+    readonly report_date: FieldRef<"social_media_periscope_reports", 'DateTime'>
+    readonly day_of_week: FieldRef<"social_media_periscope_reports", 'String'>
+    readonly title: FieldRef<"social_media_periscope_reports", 'String'>
+    readonly organization: FieldRef<"social_media_periscope_reports", 'String'>
+    readonly status: FieldRef<"social_media_periscope_reports", 'String'>
+    readonly programmes: FieldRef<"social_media_periscope_reports", 'Json'>
+    readonly abstract: FieldRef<"social_media_periscope_reports", 'Json'>
+    readonly notes: FieldRef<"social_media_periscope_reports", 'String'>
+    readonly created_by: FieldRef<"social_media_periscope_reports", 'String'>
+    readonly created_at: FieldRef<"social_media_periscope_reports", 'DateTime'>
+    readonly updated_at: FieldRef<"social_media_periscope_reports", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * social_media_periscope_reports findUnique
+   */
+  export type social_media_periscope_reportsFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_periscope_reports
+     */
+    select?: social_media_periscope_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_periscope_reports
+     */
+    omit?: social_media_periscope_reportsOmit<ExtArgs> | null
+    /**
+     * Filter, which social_media_periscope_reports to fetch.
+     */
+    where: social_media_periscope_reportsWhereUniqueInput
+  }
+
+  /**
+   * social_media_periscope_reports findUniqueOrThrow
+   */
+  export type social_media_periscope_reportsFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_periscope_reports
+     */
+    select?: social_media_periscope_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_periscope_reports
+     */
+    omit?: social_media_periscope_reportsOmit<ExtArgs> | null
+    /**
+     * Filter, which social_media_periscope_reports to fetch.
+     */
+    where: social_media_periscope_reportsWhereUniqueInput
+  }
+
+  /**
+   * social_media_periscope_reports findFirst
+   */
+  export type social_media_periscope_reportsFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_periscope_reports
+     */
+    select?: social_media_periscope_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_periscope_reports
+     */
+    omit?: social_media_periscope_reportsOmit<ExtArgs> | null
+    /**
+     * Filter, which social_media_periscope_reports to fetch.
+     */
+    where?: social_media_periscope_reportsWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of social_media_periscope_reports to fetch.
+     */
+    orderBy?: social_media_periscope_reportsOrderByWithRelationInput | social_media_periscope_reportsOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for social_media_periscope_reports.
+     */
+    cursor?: social_media_periscope_reportsWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` social_media_periscope_reports from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` social_media_periscope_reports.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of social_media_periscope_reports.
+     */
+    distinct?: Social_media_periscope_reportsScalarFieldEnum | Social_media_periscope_reportsScalarFieldEnum[]
+  }
+
+  /**
+   * social_media_periscope_reports findFirstOrThrow
+   */
+  export type social_media_periscope_reportsFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_periscope_reports
+     */
+    select?: social_media_periscope_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_periscope_reports
+     */
+    omit?: social_media_periscope_reportsOmit<ExtArgs> | null
+    /**
+     * Filter, which social_media_periscope_reports to fetch.
+     */
+    where?: social_media_periscope_reportsWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of social_media_periscope_reports to fetch.
+     */
+    orderBy?: social_media_periscope_reportsOrderByWithRelationInput | social_media_periscope_reportsOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for social_media_periscope_reports.
+     */
+    cursor?: social_media_periscope_reportsWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` social_media_periscope_reports from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` social_media_periscope_reports.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of social_media_periscope_reports.
+     */
+    distinct?: Social_media_periscope_reportsScalarFieldEnum | Social_media_periscope_reportsScalarFieldEnum[]
+  }
+
+  /**
+   * social_media_periscope_reports findMany
+   */
+  export type social_media_periscope_reportsFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_periscope_reports
+     */
+    select?: social_media_periscope_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_periscope_reports
+     */
+    omit?: social_media_periscope_reportsOmit<ExtArgs> | null
+    /**
+     * Filter, which social_media_periscope_reports to fetch.
+     */
+    where?: social_media_periscope_reportsWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of social_media_periscope_reports to fetch.
+     */
+    orderBy?: social_media_periscope_reportsOrderByWithRelationInput | social_media_periscope_reportsOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing social_media_periscope_reports.
+     */
+    cursor?: social_media_periscope_reportsWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` social_media_periscope_reports from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` social_media_periscope_reports.
+     */
+    skip?: number
+    distinct?: Social_media_periscope_reportsScalarFieldEnum | Social_media_periscope_reportsScalarFieldEnum[]
+  }
+
+  /**
+   * social_media_periscope_reports create
+   */
+  export type social_media_periscope_reportsCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_periscope_reports
+     */
+    select?: social_media_periscope_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_periscope_reports
+     */
+    omit?: social_media_periscope_reportsOmit<ExtArgs> | null
+    /**
+     * The data needed to create a social_media_periscope_reports.
+     */
+    data: XOR<social_media_periscope_reportsCreateInput, social_media_periscope_reportsUncheckedCreateInput>
+  }
+
+  /**
+   * social_media_periscope_reports createMany
+   */
+  export type social_media_periscope_reportsCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many social_media_periscope_reports.
+     */
+    data: social_media_periscope_reportsCreateManyInput | social_media_periscope_reportsCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * social_media_periscope_reports createManyAndReturn
+   */
+  export type social_media_periscope_reportsCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_periscope_reports
+     */
+    select?: social_media_periscope_reportsSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_periscope_reports
+     */
+    omit?: social_media_periscope_reportsOmit<ExtArgs> | null
+    /**
+     * The data used to create many social_media_periscope_reports.
+     */
+    data: social_media_periscope_reportsCreateManyInput | social_media_periscope_reportsCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * social_media_periscope_reports update
+   */
+  export type social_media_periscope_reportsUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_periscope_reports
+     */
+    select?: social_media_periscope_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_periscope_reports
+     */
+    omit?: social_media_periscope_reportsOmit<ExtArgs> | null
+    /**
+     * The data needed to update a social_media_periscope_reports.
+     */
+    data: XOR<social_media_periscope_reportsUpdateInput, social_media_periscope_reportsUncheckedUpdateInput>
+    /**
+     * Choose, which social_media_periscope_reports to update.
+     */
+    where: social_media_periscope_reportsWhereUniqueInput
+  }
+
+  /**
+   * social_media_periscope_reports updateMany
+   */
+  export type social_media_periscope_reportsUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update social_media_periscope_reports.
+     */
+    data: XOR<social_media_periscope_reportsUpdateManyMutationInput, social_media_periscope_reportsUncheckedUpdateManyInput>
+    /**
+     * Filter which social_media_periscope_reports to update
+     */
+    where?: social_media_periscope_reportsWhereInput
+    /**
+     * Limit how many social_media_periscope_reports to update.
+     */
+    limit?: number
+  }
+
+  /**
+   * social_media_periscope_reports updateManyAndReturn
+   */
+  export type social_media_periscope_reportsUpdateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_periscope_reports
+     */
+    select?: social_media_periscope_reportsSelectUpdateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_periscope_reports
+     */
+    omit?: social_media_periscope_reportsOmit<ExtArgs> | null
+    /**
+     * The data used to update social_media_periscope_reports.
+     */
+    data: XOR<social_media_periscope_reportsUpdateManyMutationInput, social_media_periscope_reportsUncheckedUpdateManyInput>
+    /**
+     * Filter which social_media_periscope_reports to update
+     */
+    where?: social_media_periscope_reportsWhereInput
+    /**
+     * Limit how many social_media_periscope_reports to update.
+     */
+    limit?: number
+  }
+
+  /**
+   * social_media_periscope_reports upsert
+   */
+  export type social_media_periscope_reportsUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_periscope_reports
+     */
+    select?: social_media_periscope_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_periscope_reports
+     */
+    omit?: social_media_periscope_reportsOmit<ExtArgs> | null
+    /**
+     * The filter to search for the social_media_periscope_reports to update in case it exists.
+     */
+    where: social_media_periscope_reportsWhereUniqueInput
+    /**
+     * In case the social_media_periscope_reports found by the `where` argument doesn't exist, create a new social_media_periscope_reports with this data.
+     */
+    create: XOR<social_media_periscope_reportsCreateInput, social_media_periscope_reportsUncheckedCreateInput>
+    /**
+     * In case the social_media_periscope_reports was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<social_media_periscope_reportsUpdateInput, social_media_periscope_reportsUncheckedUpdateInput>
+  }
+
+  /**
+   * social_media_periscope_reports delete
+   */
+  export type social_media_periscope_reportsDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_periscope_reports
+     */
+    select?: social_media_periscope_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_periscope_reports
+     */
+    omit?: social_media_periscope_reportsOmit<ExtArgs> | null
+    /**
+     * Filter which social_media_periscope_reports to delete.
+     */
+    where: social_media_periscope_reportsWhereUniqueInput
+  }
+
+  /**
+   * social_media_periscope_reports deleteMany
+   */
+  export type social_media_periscope_reportsDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which social_media_periscope_reports to delete
+     */
+    where?: social_media_periscope_reportsWhereInput
+    /**
+     * Limit how many social_media_periscope_reports to delete.
+     */
+    limit?: number
+  }
+
+  /**
+   * social_media_periscope_reports without action
+   */
+  export type social_media_periscope_reportsDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_periscope_reports
+     */
+    select?: social_media_periscope_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_periscope_reports
+     */
+    omit?: social_media_periscope_reportsOmit<ExtArgs> | null
+  }
+
+
+  /**
    * Enums
    */
 
@@ -21531,6 +22727,7 @@ export namespace Prisma {
     engagement: 'engagement',
     posted_at: 'posted_at',
     raw_data: 'raw_data',
+    image_analysis: 'image_analysis',
     fetched_at: 'fetched_at',
     analysis_status: 'analysis_status',
     analysis_attempts: 'analysis_attempts',
@@ -21562,6 +22759,7 @@ export namespace Prisma {
     is_read: 'is_read',
     matched_keywords: 'matched_keywords',
     analysis_snapshot: 'analysis_snapshot',
+    image_analysis: 'image_analysis',
     posted_at: 'posted_at',
     created_at: 'created_at',
     updated_at: 'updated_at'
@@ -21713,6 +22911,7 @@ export namespace Prisma {
     engagement: 'engagement',
     media: 'media',
     raw_data: 'raw_data',
+    image_analysis: 'image_analysis',
     posted_at: 'posted_at',
     fetched_at: 'fetched_at',
     updated_at: 'updated_at',
@@ -21789,6 +22988,24 @@ export namespace Prisma {
   };
 
   export type Audit_logsScalarFieldEnum = (typeof Audit_logsScalarFieldEnum)[keyof typeof Audit_logsScalarFieldEnum]
+
+
+  export const Social_media_periscope_reportsScalarFieldEnum: {
+    id: 'id',
+    report_date: 'report_date',
+    day_of_week: 'day_of_week',
+    title: 'title',
+    organization: 'organization',
+    status: 'status',
+    programmes: 'programmes',
+    abstract: 'abstract',
+    notes: 'notes',
+    created_by: 'created_by',
+    created_at: 'created_at',
+    updated_at: 'updated_at'
+  };
+
+  export type Social_media_periscope_reportsScalarFieldEnum = (typeof Social_media_periscope_reportsScalarFieldEnum)[keyof typeof Social_media_periscope_reportsScalarFieldEnum]
 
 
   export const SortOrder: {
@@ -22264,6 +23481,7 @@ export namespace Prisma {
     engagement?: JsonFilter<"social_media_posts">
     posted_at?: DateTimeNullableFilter<"social_media_posts"> | Date | string | null
     raw_data?: JsonFilter<"social_media_posts">
+    image_analysis?: JsonNullableFilter<"social_media_posts">
     fetched_at?: DateTimeFilter<"social_media_posts"> | Date | string
     analysis_status?: Enumanalysis_status_enumFilter<"social_media_posts"> | $Enums.analysis_status_enum
     analysis_attempts?: IntFilter<"social_media_posts"> | number
@@ -22289,6 +23507,7 @@ export namespace Prisma {
     engagement?: SortOrder
     posted_at?: SortOrderInput | SortOrder
     raw_data?: SortOrder
+    image_analysis?: SortOrderInput | SortOrder
     fetched_at?: SortOrder
     analysis_status?: SortOrder
     analysis_attempts?: SortOrder
@@ -22318,6 +23537,7 @@ export namespace Prisma {
     engagement?: JsonFilter<"social_media_posts">
     posted_at?: DateTimeNullableFilter<"social_media_posts"> | Date | string | null
     raw_data?: JsonFilter<"social_media_posts">
+    image_analysis?: JsonNullableFilter<"social_media_posts">
     fetched_at?: DateTimeFilter<"social_media_posts"> | Date | string
     analysis_status?: Enumanalysis_status_enumFilter<"social_media_posts"> | $Enums.analysis_status_enum
     analysis_attempts?: IntFilter<"social_media_posts"> | number
@@ -22343,6 +23563,7 @@ export namespace Prisma {
     engagement?: SortOrder
     posted_at?: SortOrderInput | SortOrder
     raw_data?: SortOrder
+    image_analysis?: SortOrderInput | SortOrder
     fetched_at?: SortOrder
     analysis_status?: SortOrder
     analysis_attempts?: SortOrder
@@ -22374,6 +23595,7 @@ export namespace Prisma {
     engagement?: JsonWithAggregatesFilter<"social_media_posts">
     posted_at?: DateTimeNullableWithAggregatesFilter<"social_media_posts"> | Date | string | null
     raw_data?: JsonWithAggregatesFilter<"social_media_posts">
+    image_analysis?: JsonNullableWithAggregatesFilter<"social_media_posts">
     fetched_at?: DateTimeWithAggregatesFilter<"social_media_posts"> | Date | string
     analysis_status?: Enumanalysis_status_enumWithAggregatesFilter<"social_media_posts"> | $Enums.analysis_status_enum
     analysis_attempts?: IntWithAggregatesFilter<"social_media_posts"> | number
@@ -22405,6 +23627,7 @@ export namespace Prisma {
     is_read?: BoolFilter<"social_media_alerts"> | boolean
     matched_keywords?: JsonFilter<"social_media_alerts">
     analysis_snapshot?: JsonFilter<"social_media_alerts">
+    image_analysis?: JsonNullableFilter<"social_media_alerts">
     posted_at?: DateTimeNullableFilter<"social_media_alerts"> | Date | string | null
     created_at?: DateTimeFilter<"social_media_alerts"> | Date | string
     updated_at?: DateTimeFilter<"social_media_alerts"> | Date | string
@@ -22430,6 +23653,7 @@ export namespace Prisma {
     is_read?: SortOrder
     matched_keywords?: SortOrder
     analysis_snapshot?: SortOrder
+    image_analysis?: SortOrderInput | SortOrder
     posted_at?: SortOrderInput | SortOrder
     created_at?: SortOrder
     updated_at?: SortOrder
@@ -22459,6 +23683,7 @@ export namespace Prisma {
     is_read?: BoolFilter<"social_media_alerts"> | boolean
     matched_keywords?: JsonFilter<"social_media_alerts">
     analysis_snapshot?: JsonFilter<"social_media_alerts">
+    image_analysis?: JsonNullableFilter<"social_media_alerts">
     posted_at?: DateTimeNullableFilter<"social_media_alerts"> | Date | string | null
     created_at?: DateTimeFilter<"social_media_alerts"> | Date | string
     updated_at?: DateTimeFilter<"social_media_alerts"> | Date | string
@@ -22484,6 +23709,7 @@ export namespace Prisma {
     is_read?: SortOrder
     matched_keywords?: SortOrder
     analysis_snapshot?: SortOrder
+    image_analysis?: SortOrderInput | SortOrder
     posted_at?: SortOrderInput | SortOrder
     created_at?: SortOrder
     updated_at?: SortOrder
@@ -22516,6 +23742,7 @@ export namespace Prisma {
     is_read?: BoolWithAggregatesFilter<"social_media_alerts"> | boolean
     matched_keywords?: JsonWithAggregatesFilter<"social_media_alerts">
     analysis_snapshot?: JsonWithAggregatesFilter<"social_media_alerts">
+    image_analysis?: JsonNullableWithAggregatesFilter<"social_media_alerts">
     posted_at?: DateTimeNullableWithAggregatesFilter<"social_media_alerts"> | Date | string | null
     created_at?: DateTimeWithAggregatesFilter<"social_media_alerts"> | Date | string
     updated_at?: DateTimeWithAggregatesFilter<"social_media_alerts"> | Date | string
@@ -23195,6 +24422,7 @@ export namespace Prisma {
     engagement?: JsonFilter<"social_media_event_media">
     media?: JsonFilter<"social_media_event_media">
     raw_data?: JsonFilter<"social_media_event_media">
+    image_analysis?: JsonNullableFilter<"social_media_event_media">
     posted_at?: DateTimeNullableFilter<"social_media_event_media"> | Date | string | null
     fetched_at?: DateTimeFilter<"social_media_event_media"> | Date | string
     updated_at?: DateTimeFilter<"social_media_event_media"> | Date | string
@@ -23218,6 +24446,7 @@ export namespace Prisma {
     engagement?: SortOrder
     media?: SortOrder
     raw_data?: SortOrder
+    image_analysis?: SortOrderInput | SortOrder
     posted_at?: SortOrderInput | SortOrder
     fetched_at?: SortOrder
     updated_at?: SortOrder
@@ -23245,6 +24474,7 @@ export namespace Prisma {
     engagement?: JsonFilter<"social_media_event_media">
     media?: JsonFilter<"social_media_event_media">
     raw_data?: JsonFilter<"social_media_event_media">
+    image_analysis?: JsonNullableFilter<"social_media_event_media">
     posted_at?: DateTimeNullableFilter<"social_media_event_media"> | Date | string | null
     fetched_at?: DateTimeFilter<"social_media_event_media"> | Date | string
     updated_at?: DateTimeFilter<"social_media_event_media"> | Date | string
@@ -23268,6 +24498,7 @@ export namespace Prisma {
     engagement?: SortOrder
     media?: SortOrder
     raw_data?: SortOrder
+    image_analysis?: SortOrderInput | SortOrder
     posted_at?: SortOrderInput | SortOrder
     fetched_at?: SortOrder
     updated_at?: SortOrder
@@ -23298,6 +24529,7 @@ export namespace Prisma {
     engagement?: JsonWithAggregatesFilter<"social_media_event_media">
     media?: JsonWithAggregatesFilter<"social_media_event_media">
     raw_data?: JsonWithAggregatesFilter<"social_media_event_media">
+    image_analysis?: JsonNullableWithAggregatesFilter<"social_media_event_media">
     posted_at?: DateTimeNullableWithAggregatesFilter<"social_media_event_media"> | Date | string | null
     fetched_at?: DateTimeWithAggregatesFilter<"social_media_event_media"> | Date | string
     updated_at?: DateTimeWithAggregatesFilter<"social_media_event_media"> | Date | string
@@ -23623,6 +24855,93 @@ export namespace Prisma {
     ip?: StringNullableWithAggregatesFilter<"audit_logs"> | string | null
     user_agent?: StringNullableWithAggregatesFilter<"audit_logs"> | string | null
     device_label?: StringNullableWithAggregatesFilter<"audit_logs"> | string | null
+  }
+
+  export type social_media_periscope_reportsWhereInput = {
+    AND?: social_media_periscope_reportsWhereInput | social_media_periscope_reportsWhereInput[]
+    OR?: social_media_periscope_reportsWhereInput[]
+    NOT?: social_media_periscope_reportsWhereInput | social_media_periscope_reportsWhereInput[]
+    id?: UuidFilter<"social_media_periscope_reports"> | string
+    report_date?: DateTimeFilter<"social_media_periscope_reports"> | Date | string
+    day_of_week?: StringFilter<"social_media_periscope_reports"> | string
+    title?: StringFilter<"social_media_periscope_reports"> | string
+    organization?: StringFilter<"social_media_periscope_reports"> | string
+    status?: StringFilter<"social_media_periscope_reports"> | string
+    programmes?: JsonFilter<"social_media_periscope_reports">
+    abstract?: JsonFilter<"social_media_periscope_reports">
+    notes?: StringNullableFilter<"social_media_periscope_reports"> | string | null
+    created_by?: StringNullableFilter<"social_media_periscope_reports"> | string | null
+    created_at?: DateTimeFilter<"social_media_periscope_reports"> | Date | string
+    updated_at?: DateTimeFilter<"social_media_periscope_reports"> | Date | string
+  }
+
+  export type social_media_periscope_reportsOrderByWithRelationInput = {
+    id?: SortOrder
+    report_date?: SortOrder
+    day_of_week?: SortOrder
+    title?: SortOrder
+    organization?: SortOrder
+    status?: SortOrder
+    programmes?: SortOrder
+    abstract?: SortOrder
+    notes?: SortOrderInput | SortOrder
+    created_by?: SortOrderInput | SortOrder
+    created_at?: SortOrder
+    updated_at?: SortOrder
+  }
+
+  export type social_media_periscope_reportsWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    report_date?: Date | string
+    AND?: social_media_periscope_reportsWhereInput | social_media_periscope_reportsWhereInput[]
+    OR?: social_media_periscope_reportsWhereInput[]
+    NOT?: social_media_periscope_reportsWhereInput | social_media_periscope_reportsWhereInput[]
+    day_of_week?: StringFilter<"social_media_periscope_reports"> | string
+    title?: StringFilter<"social_media_periscope_reports"> | string
+    organization?: StringFilter<"social_media_periscope_reports"> | string
+    status?: StringFilter<"social_media_periscope_reports"> | string
+    programmes?: JsonFilter<"social_media_periscope_reports">
+    abstract?: JsonFilter<"social_media_periscope_reports">
+    notes?: StringNullableFilter<"social_media_periscope_reports"> | string | null
+    created_by?: StringNullableFilter<"social_media_periscope_reports"> | string | null
+    created_at?: DateTimeFilter<"social_media_periscope_reports"> | Date | string
+    updated_at?: DateTimeFilter<"social_media_periscope_reports"> | Date | string
+  }, "id" | "report_date">
+
+  export type social_media_periscope_reportsOrderByWithAggregationInput = {
+    id?: SortOrder
+    report_date?: SortOrder
+    day_of_week?: SortOrder
+    title?: SortOrder
+    organization?: SortOrder
+    status?: SortOrder
+    programmes?: SortOrder
+    abstract?: SortOrder
+    notes?: SortOrderInput | SortOrder
+    created_by?: SortOrderInput | SortOrder
+    created_at?: SortOrder
+    updated_at?: SortOrder
+    _count?: social_media_periscope_reportsCountOrderByAggregateInput
+    _max?: social_media_periscope_reportsMaxOrderByAggregateInput
+    _min?: social_media_periscope_reportsMinOrderByAggregateInput
+  }
+
+  export type social_media_periscope_reportsScalarWhereWithAggregatesInput = {
+    AND?: social_media_periscope_reportsScalarWhereWithAggregatesInput | social_media_periscope_reportsScalarWhereWithAggregatesInput[]
+    OR?: social_media_periscope_reportsScalarWhereWithAggregatesInput[]
+    NOT?: social_media_periscope_reportsScalarWhereWithAggregatesInput | social_media_periscope_reportsScalarWhereWithAggregatesInput[]
+    id?: UuidWithAggregatesFilter<"social_media_periscope_reports"> | string
+    report_date?: DateTimeWithAggregatesFilter<"social_media_periscope_reports"> | Date | string
+    day_of_week?: StringWithAggregatesFilter<"social_media_periscope_reports"> | string
+    title?: StringWithAggregatesFilter<"social_media_periscope_reports"> | string
+    organization?: StringWithAggregatesFilter<"social_media_periscope_reports"> | string
+    status?: StringWithAggregatesFilter<"social_media_periscope_reports"> | string
+    programmes?: JsonWithAggregatesFilter<"social_media_periscope_reports">
+    abstract?: JsonWithAggregatesFilter<"social_media_periscope_reports">
+    notes?: StringNullableWithAggregatesFilter<"social_media_periscope_reports"> | string | null
+    created_by?: StringNullableWithAggregatesFilter<"social_media_periscope_reports"> | string | null
+    created_at?: DateTimeWithAggregatesFilter<"social_media_periscope_reports"> | Date | string
+    updated_at?: DateTimeWithAggregatesFilter<"social_media_periscope_reports"> | Date | string
   }
 
   export type platformsCreateInput = {
@@ -23951,6 +25270,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     fetched_at?: Date | string
     analysis_status?: $Enums.analysis_status_enum
     analysis_attempts?: number
@@ -23976,6 +25296,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     fetched_at?: Date | string
     analysis_status?: $Enums.analysis_status_enum
     analysis_attempts?: number
@@ -23999,6 +25320,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     analysis_status?: Enumanalysis_status_enumFieldUpdateOperationsInput | $Enums.analysis_status_enum
     analysis_attempts?: IntFieldUpdateOperationsInput | number
@@ -24024,6 +25346,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     analysis_status?: Enumanalysis_status_enumFieldUpdateOperationsInput | $Enums.analysis_status_enum
     analysis_attempts?: IntFieldUpdateOperationsInput | number
@@ -24048,6 +25371,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     fetched_at?: Date | string
     analysis_status?: $Enums.analysis_status_enum
     analysis_attempts?: number
@@ -24070,6 +25394,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     analysis_status?: Enumanalysis_status_enumFieldUpdateOperationsInput | $Enums.analysis_status_enum
     analysis_attempts?: IntFieldUpdateOperationsInput | number
@@ -24093,6 +25418,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     analysis_status?: Enumanalysis_status_enumFieldUpdateOperationsInput | $Enums.analysis_status_enum
     analysis_attempts?: IntFieldUpdateOperationsInput | number
@@ -24120,6 +25446,7 @@ export namespace Prisma {
     is_read?: boolean
     matched_keywords?: JsonNullValueInput | InputJsonValue
     analysis_snapshot?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     created_at?: Date | string
     updated_at?: Date | string
@@ -24145,6 +25472,7 @@ export namespace Prisma {
     is_read?: boolean
     matched_keywords?: JsonNullValueInput | InputJsonValue
     analysis_snapshot?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     created_at?: Date | string
     updated_at?: Date | string
@@ -24168,6 +25496,7 @@ export namespace Prisma {
     is_read?: BoolFieldUpdateOperationsInput | boolean
     matched_keywords?: JsonNullValueInput | InputJsonValue
     analysis_snapshot?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -24193,6 +25522,7 @@ export namespace Prisma {
     is_read?: BoolFieldUpdateOperationsInput | boolean
     matched_keywords?: JsonNullValueInput | InputJsonValue
     analysis_snapshot?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -24217,6 +25547,7 @@ export namespace Prisma {
     is_read?: boolean
     matched_keywords?: JsonNullValueInput | InputJsonValue
     analysis_snapshot?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     created_at?: Date | string
     updated_at?: Date | string
@@ -24240,6 +25571,7 @@ export namespace Prisma {
     is_read?: BoolFieldUpdateOperationsInput | boolean
     matched_keywords?: JsonNullValueInput | InputJsonValue
     analysis_snapshot?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -24264,6 +25596,7 @@ export namespace Prisma {
     is_read?: BoolFieldUpdateOperationsInput | boolean
     matched_keywords?: JsonNullValueInput | InputJsonValue
     analysis_snapshot?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -25068,6 +26401,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     media?: JsonNullValueInput | InputJsonValue
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     fetched_at?: Date | string
     updated_at?: Date | string
@@ -25091,6 +26425,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     media?: JsonNullValueInput | InputJsonValue
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     fetched_at?: Date | string
     updated_at?: Date | string
@@ -25112,6 +26447,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     media?: JsonNullValueInput | InputJsonValue
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -25135,6 +26471,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     media?: JsonNullValueInput | InputJsonValue
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -25157,6 +26494,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     media?: JsonNullValueInput | InputJsonValue
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     fetched_at?: Date | string
     updated_at?: Date | string
@@ -25178,6 +26516,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     media?: JsonNullValueInput | InputJsonValue
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -25200,6 +26539,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     media?: JsonNullValueInput | InputJsonValue
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -25579,6 +26919,111 @@ export namespace Prisma {
     ip?: NullableStringFieldUpdateOperationsInput | string | null
     user_agent?: NullableStringFieldUpdateOperationsInput | string | null
     device_label?: NullableStringFieldUpdateOperationsInput | string | null
+  }
+
+  export type social_media_periscope_reportsCreateInput = {
+    id?: string
+    report_date: Date | string
+    day_of_week: string
+    title: string
+    organization?: string
+    status?: string
+    programmes?: JsonNullValueInput | InputJsonValue
+    abstract?: JsonNullValueInput | InputJsonValue
+    notes?: string | null
+    created_by?: string | null
+    created_at?: Date | string
+    updated_at?: Date | string
+  }
+
+  export type social_media_periscope_reportsUncheckedCreateInput = {
+    id?: string
+    report_date: Date | string
+    day_of_week: string
+    title: string
+    organization?: string
+    status?: string
+    programmes?: JsonNullValueInput | InputJsonValue
+    abstract?: JsonNullValueInput | InputJsonValue
+    notes?: string | null
+    created_by?: string | null
+    created_at?: Date | string
+    updated_at?: Date | string
+  }
+
+  export type social_media_periscope_reportsUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    report_date?: DateTimeFieldUpdateOperationsInput | Date | string
+    day_of_week?: StringFieldUpdateOperationsInput | string
+    title?: StringFieldUpdateOperationsInput | string
+    organization?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    programmes?: JsonNullValueInput | InputJsonValue
+    abstract?: JsonNullValueInput | InputJsonValue
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    created_by?: NullableStringFieldUpdateOperationsInput | string | null
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type social_media_periscope_reportsUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    report_date?: DateTimeFieldUpdateOperationsInput | Date | string
+    day_of_week?: StringFieldUpdateOperationsInput | string
+    title?: StringFieldUpdateOperationsInput | string
+    organization?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    programmes?: JsonNullValueInput | InputJsonValue
+    abstract?: JsonNullValueInput | InputJsonValue
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    created_by?: NullableStringFieldUpdateOperationsInput | string | null
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type social_media_periscope_reportsCreateManyInput = {
+    id?: string
+    report_date: Date | string
+    day_of_week: string
+    title: string
+    organization?: string
+    status?: string
+    programmes?: JsonNullValueInput | InputJsonValue
+    abstract?: JsonNullValueInput | InputJsonValue
+    notes?: string | null
+    created_by?: string | null
+    created_at?: Date | string
+    updated_at?: Date | string
+  }
+
+  export type social_media_periscope_reportsUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    report_date?: DateTimeFieldUpdateOperationsInput | Date | string
+    day_of_week?: StringFieldUpdateOperationsInput | string
+    title?: StringFieldUpdateOperationsInput | string
+    organization?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    programmes?: JsonNullValueInput | InputJsonValue
+    abstract?: JsonNullValueInput | InputJsonValue
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    created_by?: NullableStringFieldUpdateOperationsInput | string | null
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type social_media_periscope_reportsUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    report_date?: DateTimeFieldUpdateOperationsInput | Date | string
+    day_of_week?: StringFieldUpdateOperationsInput | string
+    title?: StringFieldUpdateOperationsInput | string
+    organization?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    programmes?: JsonNullValueInput | InputJsonValue
+    abstract?: JsonNullValueInput | InputJsonValue
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    created_by?: NullableStringFieldUpdateOperationsInput | string | null
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
   export type IntFilter<$PrismaModel = never> = {
@@ -26023,6 +27468,29 @@ export namespace Prisma {
     gte?: bigint | number | BigIntFieldRefInput<$PrismaModel>
     not?: NestedBigIntFilter<$PrismaModel> | bigint | number
   }
+  export type JsonNullableFilter<$PrismaModel = never> =
+    | PatchUndefined<
+        Either<Required<JsonNullableFilterBase<$PrismaModel>>, Exclude<keyof Required<JsonNullableFilterBase<$PrismaModel>>, 'path'>>,
+        Required<JsonNullableFilterBase<$PrismaModel>>
+      >
+    | OptionalFlat<Omit<Required<JsonNullableFilterBase<$PrismaModel>>, 'path'>>
+
+  export type JsonNullableFilterBase<$PrismaModel = never> = {
+    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+    path?: string[]
+    mode?: QueryMode | EnumQueryModeFieldRefInput<$PrismaModel>
+    string_contains?: string | StringFieldRefInput<$PrismaModel>
+    string_starts_with?: string | StringFieldRefInput<$PrismaModel>
+    string_ends_with?: string | StringFieldRefInput<$PrismaModel>
+    array_starts_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_ends_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_contains?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    lt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    lte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    gt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    gte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+  }
 
   export type Enumanalysis_status_enumFilter<$PrismaModel = never> = {
     equals?: $Enums.analysis_status_enum | Enumanalysis_status_enumFieldRefInput<$PrismaModel>
@@ -26065,6 +27533,7 @@ export namespace Prisma {
     engagement?: SortOrder
     posted_at?: SortOrder
     raw_data?: SortOrder
+    image_analysis?: SortOrder
     fetched_at?: SortOrder
     analysis_status?: SortOrder
     analysis_attempts?: SortOrder
@@ -26139,6 +27608,32 @@ export namespace Prisma {
     _min?: NestedBigIntFilter<$PrismaModel>
     _max?: NestedBigIntFilter<$PrismaModel>
   }
+  export type JsonNullableWithAggregatesFilter<$PrismaModel = never> =
+    | PatchUndefined<
+        Either<Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, Exclude<keyof Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, 'path'>>,
+        Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>
+      >
+    | OptionalFlat<Omit<Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, 'path'>>
+
+  export type JsonNullableWithAggregatesFilterBase<$PrismaModel = never> = {
+    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+    path?: string[]
+    mode?: QueryMode | EnumQueryModeFieldRefInput<$PrismaModel>
+    string_contains?: string | StringFieldRefInput<$PrismaModel>
+    string_starts_with?: string | StringFieldRefInput<$PrismaModel>
+    string_ends_with?: string | StringFieldRefInput<$PrismaModel>
+    array_starts_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_ends_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_contains?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    lt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    lte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    gt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    gte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedJsonNullableFilter<$PrismaModel>
+    _max?: NestedJsonNullableFilter<$PrismaModel>
+  }
 
   export type Enumanalysis_status_enumWithAggregatesFilter<$PrismaModel = never> = {
     equals?: $Enums.analysis_status_enum | Enumanalysis_status_enumFieldRefInput<$PrismaModel>
@@ -26190,6 +27685,7 @@ export namespace Prisma {
     is_read?: SortOrder
     matched_keywords?: SortOrder
     analysis_snapshot?: SortOrder
+    image_analysis?: SortOrder
     posted_at?: SortOrder
     created_at?: SortOrder
     updated_at?: SortOrder
@@ -26660,29 +28156,6 @@ export namespace Prisma {
     polling_interval_minutes?: SortOrder
     occasion_calendar_id?: SortOrder
   }
-  export type JsonNullableFilter<$PrismaModel = never> =
-    | PatchUndefined<
-        Either<Required<JsonNullableFilterBase<$PrismaModel>>, Exclude<keyof Required<JsonNullableFilterBase<$PrismaModel>>, 'path'>>,
-        Required<JsonNullableFilterBase<$PrismaModel>>
-      >
-    | OptionalFlat<Omit<Required<JsonNullableFilterBase<$PrismaModel>>, 'path'>>
-
-  export type JsonNullableFilterBase<$PrismaModel = never> = {
-    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
-    path?: string[]
-    mode?: QueryMode | EnumQueryModeFieldRefInput<$PrismaModel>
-    string_contains?: string | StringFieldRefInput<$PrismaModel>
-    string_starts_with?: string | StringFieldRefInput<$PrismaModel>
-    string_ends_with?: string | StringFieldRefInput<$PrismaModel>
-    array_starts_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
-    array_ends_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
-    array_contains?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
-    lt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    lte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    gt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    gte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
-  }
 
   export type Social_media_eventsScalarRelationFilter = {
     is?: social_media_eventsWhereInput
@@ -26707,6 +28180,7 @@ export namespace Prisma {
     engagement?: SortOrder
     media?: SortOrder
     raw_data?: SortOrder
+    image_analysis?: SortOrder
     posted_at?: SortOrder
     fetched_at?: SortOrder
     updated_at?: SortOrder
@@ -26763,32 +28237,6 @@ export namespace Prisma {
     id?: SortOrder
     event_id?: SortOrder
     analysis_attempts?: SortOrder
-  }
-  export type JsonNullableWithAggregatesFilter<$PrismaModel = never> =
-    | PatchUndefined<
-        Either<Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, Exclude<keyof Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, 'path'>>,
-        Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>
-      >
-    | OptionalFlat<Omit<Required<JsonNullableWithAggregatesFilterBase<$PrismaModel>>, 'path'>>
-
-  export type JsonNullableWithAggregatesFilterBase<$PrismaModel = never> = {
-    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
-    path?: string[]
-    mode?: QueryMode | EnumQueryModeFieldRefInput<$PrismaModel>
-    string_contains?: string | StringFieldRefInput<$PrismaModel>
-    string_starts_with?: string | StringFieldRefInput<$PrismaModel>
-    string_ends_with?: string | StringFieldRefInput<$PrismaModel>
-    array_starts_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
-    array_ends_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
-    array_contains?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
-    lt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    lte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    gt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    gte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
-    _count?: NestedIntNullableFilter<$PrismaModel>
-    _min?: NestedJsonNullableFilter<$PrismaModel>
-    _max?: NestedJsonNullableFilter<$PrismaModel>
   }
 
   export type alert_configCountOrderByAggregateInput = {
@@ -26954,6 +28402,74 @@ export namespace Prisma {
 
   export type audit_logsSumOrderByAggregateInput = {
     user_id?: SortOrder
+  }
+
+  export type UuidFilter<$PrismaModel = never> = {
+    equals?: string | StringFieldRefInput<$PrismaModel>
+    in?: string[] | ListStringFieldRefInput<$PrismaModel>
+    notIn?: string[] | ListStringFieldRefInput<$PrismaModel>
+    lt?: string | StringFieldRefInput<$PrismaModel>
+    lte?: string | StringFieldRefInput<$PrismaModel>
+    gt?: string | StringFieldRefInput<$PrismaModel>
+    gte?: string | StringFieldRefInput<$PrismaModel>
+    mode?: QueryMode
+    not?: NestedUuidFilter<$PrismaModel> | string
+  }
+
+  export type social_media_periscope_reportsCountOrderByAggregateInput = {
+    id?: SortOrder
+    report_date?: SortOrder
+    day_of_week?: SortOrder
+    title?: SortOrder
+    organization?: SortOrder
+    status?: SortOrder
+    programmes?: SortOrder
+    abstract?: SortOrder
+    notes?: SortOrder
+    created_by?: SortOrder
+    created_at?: SortOrder
+    updated_at?: SortOrder
+  }
+
+  export type social_media_periscope_reportsMaxOrderByAggregateInput = {
+    id?: SortOrder
+    report_date?: SortOrder
+    day_of_week?: SortOrder
+    title?: SortOrder
+    organization?: SortOrder
+    status?: SortOrder
+    notes?: SortOrder
+    created_by?: SortOrder
+    created_at?: SortOrder
+    updated_at?: SortOrder
+  }
+
+  export type social_media_periscope_reportsMinOrderByAggregateInput = {
+    id?: SortOrder
+    report_date?: SortOrder
+    day_of_week?: SortOrder
+    title?: SortOrder
+    organization?: SortOrder
+    status?: SortOrder
+    notes?: SortOrder
+    created_by?: SortOrder
+    created_at?: SortOrder
+    updated_at?: SortOrder
+  }
+
+  export type UuidWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: string | StringFieldRefInput<$PrismaModel>
+    in?: string[] | ListStringFieldRefInput<$PrismaModel>
+    notIn?: string[] | ListStringFieldRefInput<$PrismaModel>
+    lt?: string | StringFieldRefInput<$PrismaModel>
+    lte?: string | StringFieldRefInput<$PrismaModel>
+    gt?: string | StringFieldRefInput<$PrismaModel>
+    gte?: string | StringFieldRefInput<$PrismaModel>
+    mode?: QueryMode
+    not?: NestedUuidWithAggregatesFilter<$PrismaModel> | string
+    _count?: NestedIntFilter<$PrismaModel>
+    _min?: NestedStringFilter<$PrismaModel>
+    _max?: NestedStringFilter<$PrismaModel>
   }
 
   export type social_media_accountsCreateNestedManyWithoutPlatformsInput = {
@@ -27676,6 +29192,29 @@ export namespace Prisma {
     _min?: NestedBigIntFilter<$PrismaModel>
     _max?: NestedBigIntFilter<$PrismaModel>
   }
+  export type NestedJsonNullableFilter<$PrismaModel = never> =
+    | PatchUndefined<
+        Either<Required<NestedJsonNullableFilterBase<$PrismaModel>>, Exclude<keyof Required<NestedJsonNullableFilterBase<$PrismaModel>>, 'path'>>,
+        Required<NestedJsonNullableFilterBase<$PrismaModel>>
+      >
+    | OptionalFlat<Omit<Required<NestedJsonNullableFilterBase<$PrismaModel>>, 'path'>>
+
+  export type NestedJsonNullableFilterBase<$PrismaModel = never> = {
+    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+    path?: string[]
+    mode?: QueryMode | EnumQueryModeFieldRefInput<$PrismaModel>
+    string_contains?: string | StringFieldRefInput<$PrismaModel>
+    string_starts_with?: string | StringFieldRefInput<$PrismaModel>
+    string_ends_with?: string | StringFieldRefInput<$PrismaModel>
+    array_starts_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_ends_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    array_contains?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
+    lt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    lte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    gt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    gte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
+    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+  }
 
   export type NestedEnumanalysis_status_enumWithAggregatesFilter<$PrismaModel = never> = {
     equals?: $Enums.analysis_status_enum | Enumanalysis_status_enumFieldRefInput<$PrismaModel>
@@ -27713,28 +29252,30 @@ export namespace Prisma {
     gte?: number | FloatFieldRefInput<$PrismaModel>
     not?: NestedFloatNullableFilter<$PrismaModel> | number | null
   }
-  export type NestedJsonNullableFilter<$PrismaModel = never> =
-    | PatchUndefined<
-        Either<Required<NestedJsonNullableFilterBase<$PrismaModel>>, Exclude<keyof Required<NestedJsonNullableFilterBase<$PrismaModel>>, 'path'>>,
-        Required<NestedJsonNullableFilterBase<$PrismaModel>>
-      >
-    | OptionalFlat<Omit<Required<NestedJsonNullableFilterBase<$PrismaModel>>, 'path'>>
 
-  export type NestedJsonNullableFilterBase<$PrismaModel = never> = {
-    equals?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
-    path?: string[]
-    mode?: QueryMode | EnumQueryModeFieldRefInput<$PrismaModel>
-    string_contains?: string | StringFieldRefInput<$PrismaModel>
-    string_starts_with?: string | StringFieldRefInput<$PrismaModel>
-    string_ends_with?: string | StringFieldRefInput<$PrismaModel>
-    array_starts_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
-    array_ends_with?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
-    array_contains?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | null
-    lt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    lte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    gt?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    gte?: InputJsonValue | JsonFieldRefInput<$PrismaModel>
-    not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
+  export type NestedUuidFilter<$PrismaModel = never> = {
+    equals?: string | StringFieldRefInput<$PrismaModel>
+    in?: string[] | ListStringFieldRefInput<$PrismaModel>
+    notIn?: string[] | ListStringFieldRefInput<$PrismaModel>
+    lt?: string | StringFieldRefInput<$PrismaModel>
+    lte?: string | StringFieldRefInput<$PrismaModel>
+    gt?: string | StringFieldRefInput<$PrismaModel>
+    gte?: string | StringFieldRefInput<$PrismaModel>
+    not?: NestedUuidFilter<$PrismaModel> | string
+  }
+
+  export type NestedUuidWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: string | StringFieldRefInput<$PrismaModel>
+    in?: string[] | ListStringFieldRefInput<$PrismaModel>
+    notIn?: string[] | ListStringFieldRefInput<$PrismaModel>
+    lt?: string | StringFieldRefInput<$PrismaModel>
+    lte?: string | StringFieldRefInput<$PrismaModel>
+    gt?: string | StringFieldRefInput<$PrismaModel>
+    gte?: string | StringFieldRefInput<$PrismaModel>
+    not?: NestedUuidWithAggregatesFilter<$PrismaModel> | string
+    _count?: NestedIntFilter<$PrismaModel>
+    _min?: NestedStringFilter<$PrismaModel>
+    _max?: NestedStringFilter<$PrismaModel>
   }
 
   export type social_media_accountsCreateWithoutPlatformsInput = {
@@ -27957,6 +29498,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     fetched_at?: Date | string
     analysis_status?: $Enums.analysis_status_enum
     analysis_attempts?: number
@@ -27980,6 +29522,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     fetched_at?: Date | string
     analysis_status?: $Enums.analysis_status_enum
     analysis_attempts?: number
@@ -28161,6 +29704,7 @@ export namespace Prisma {
     engagement?: JsonFilter<"social_media_posts">
     posted_at?: DateTimeNullableFilter<"social_media_posts"> | Date | string | null
     raw_data?: JsonFilter<"social_media_posts">
+    image_analysis?: JsonNullableFilter<"social_media_posts">
     fetched_at?: DateTimeFilter<"social_media_posts"> | Date | string
     analysis_status?: Enumanalysis_status_enumFilter<"social_media_posts"> | $Enums.analysis_status_enum
     analysis_attempts?: IntFilter<"social_media_posts"> | number
@@ -28273,6 +29817,7 @@ export namespace Prisma {
     is_read?: boolean
     matched_keywords?: JsonNullValueInput | InputJsonValue
     analysis_snapshot?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     created_at?: Date | string
     updated_at?: Date | string
@@ -28296,6 +29841,7 @@ export namespace Prisma {
     is_read?: boolean
     matched_keywords?: JsonNullValueInput | InputJsonValue
     analysis_snapshot?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     created_at?: Date | string
     updated_at?: Date | string
@@ -28397,6 +29943,7 @@ export namespace Prisma {
     is_read?: BoolFilter<"social_media_alerts"> | boolean
     matched_keywords?: JsonFilter<"social_media_alerts">
     analysis_snapshot?: JsonFilter<"social_media_alerts">
+    image_analysis?: JsonNullableFilter<"social_media_alerts">
     posted_at?: DateTimeNullableFilter<"social_media_alerts"> | Date | string | null
     created_at?: DateTimeFilter<"social_media_alerts"> | Date | string
     updated_at?: DateTimeFilter<"social_media_alerts"> | Date | string
@@ -28415,6 +29962,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     fetched_at?: Date | string
     analysis_status?: $Enums.analysis_status_enum
     analysis_attempts?: number
@@ -28439,6 +29987,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     fetched_at?: Date | string
     analysis_status?: $Enums.analysis_status_enum
     analysis_attempts?: number
@@ -28477,6 +30026,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     analysis_status?: Enumanalysis_status_enumFieldUpdateOperationsInput | $Enums.analysis_status_enum
     analysis_attempts?: IntFieldUpdateOperationsInput | number
@@ -28501,6 +30051,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     analysis_status?: Enumanalysis_status_enumFieldUpdateOperationsInput | $Enums.analysis_status_enum
     analysis_attempts?: IntFieldUpdateOperationsInput | number
@@ -28740,6 +30291,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     media?: JsonNullValueInput | InputJsonValue
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     fetched_at?: Date | string
     updated_at?: Date | string
@@ -28761,6 +30313,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     media?: JsonNullValueInput | InputJsonValue
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     fetched_at?: Date | string
     updated_at?: Date | string
@@ -28850,6 +30403,7 @@ export namespace Prisma {
     engagement?: JsonFilter<"social_media_event_media">
     media?: JsonFilter<"social_media_event_media">
     raw_data?: JsonFilter<"social_media_event_media">
+    image_analysis?: JsonNullableFilter<"social_media_event_media">
     posted_at?: DateTimeNullableFilter<"social_media_event_media"> | Date | string | null
     fetched_at?: DateTimeFilter<"social_media_event_media"> | Date | string
     updated_at?: DateTimeFilter<"social_media_event_media"> | Date | string
@@ -29121,6 +30675,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     fetched_at?: Date | string
     analysis_status?: $Enums.analysis_status_enum
     analysis_attempts?: number
@@ -29166,6 +30721,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     analysis_status?: Enumanalysis_status_enumFieldUpdateOperationsInput | $Enums.analysis_status_enum
     analysis_attempts?: IntFieldUpdateOperationsInput | number
@@ -29189,6 +30745,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     analysis_status?: Enumanalysis_status_enumFieldUpdateOperationsInput | $Enums.analysis_status_enum
     analysis_attempts?: IntFieldUpdateOperationsInput | number
@@ -29212,6 +30769,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     analysis_status?: Enumanalysis_status_enumFieldUpdateOperationsInput | $Enums.analysis_status_enum
     analysis_attempts?: IntFieldUpdateOperationsInput | number
@@ -29308,6 +30866,7 @@ export namespace Prisma {
     is_read?: boolean
     matched_keywords?: JsonNullValueInput | InputJsonValue
     analysis_snapshot?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     created_at?: Date | string
     updated_at?: Date | string
@@ -29331,6 +30890,7 @@ export namespace Prisma {
     is_read?: BoolFieldUpdateOperationsInput | boolean
     matched_keywords?: JsonNullValueInput | InputJsonValue
     analysis_snapshot?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -29354,6 +30914,7 @@ export namespace Prisma {
     is_read?: BoolFieldUpdateOperationsInput | boolean
     matched_keywords?: JsonNullValueInput | InputJsonValue
     analysis_snapshot?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -29377,6 +30938,7 @@ export namespace Prisma {
     is_read?: BoolFieldUpdateOperationsInput | boolean
     matched_keywords?: JsonNullValueInput | InputJsonValue
     analysis_snapshot?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -29482,6 +31044,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     media?: JsonNullValueInput | InputJsonValue
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: Date | string | null
     fetched_at?: Date | string
     updated_at?: Date | string
@@ -29503,6 +31066,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     media?: JsonNullValueInput | InputJsonValue
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -29524,6 +31088,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     media?: JsonNullValueInput | InputJsonValue
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -29545,6 +31110,7 @@ export namespace Prisma {
     engagement?: JsonNullValueInput | InputJsonValue
     media?: JsonNullValueInput | InputJsonValue
     raw_data?: JsonNullValueInput | InputJsonValue
+    image_analysis?: NullableJsonNullValueInput | InputJsonValue
     posted_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     fetched_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string

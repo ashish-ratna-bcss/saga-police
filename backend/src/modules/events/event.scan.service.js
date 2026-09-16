@@ -110,7 +110,7 @@ const upsertMedia = async ({ eventId, platform, externalId, payload, db, dbName 
     },
   });
 
-  const { enqueueEventMedia } = require('../../services/sentimentanalysis');
+  const { enqueueEventMedia } = require('../../services/media_post_analysis');
 
   if (!existing) {
     const created = await prisma.social_media_event_media.create({

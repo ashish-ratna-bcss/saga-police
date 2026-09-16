@@ -104,6 +104,7 @@ const createAlertFromCatalogPost = async (post, analysisResult, options = {}) =>
     status: 'active',
     is_read: false,
     matched_keywords: highlights,
+    image_analysis: post.image_analysis || analysisResult.ocr || post.raw_data?.ocr || {},
     analysis_snapshot: {
       category: analysisResult.category,
       intent: analysisResult.intent,
@@ -119,6 +120,8 @@ const createAlertFromCatalogPost = async (post, analysisResult, options = {}) =>
       legal_sections: analysisResult.legal_sections || [],
       violated_policies: analysisResult.violated_policies || [],
       policy_triggered_keywords: analysisResult.policy_triggered_keywords || [],
+      ocr: analysisResult.ocr || post.raw_data?.ocr || null,
+      image_analysis: analysisResult.ocr || post.raw_data?.ocr || null,
     },
     posted_at: post.posted_at || post.fetched_at || null,
   };
@@ -147,6 +150,7 @@ const createAlertFromCatalogPost = async (post, analysisResult, options = {}) =>
       risk_score: data.risk_score,
       sentiment: data.sentiment,
       matched_keywords: data.matched_keywords,
+      image_analysis: data.image_analysis,
       analysis_snapshot: data.analysis_snapshot,
       posted_at: data.posted_at,
       status: 'active',

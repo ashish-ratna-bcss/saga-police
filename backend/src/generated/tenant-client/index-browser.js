@@ -179,6 +179,7 @@ exports.Prisma.Social_media_postsScalarFieldEnum = {
   engagement: 'engagement',
   posted_at: 'posted_at',
   raw_data: 'raw_data',
+  image_analysis: 'image_analysis',
   fetched_at: 'fetched_at',
   analysis_status: 'analysis_status',
   analysis_attempts: 'analysis_attempts',
@@ -207,6 +208,7 @@ exports.Prisma.Social_media_alertsScalarFieldEnum = {
   is_read: 'is_read',
   matched_keywords: 'matched_keywords',
   analysis_snapshot: 'analysis_snapshot',
+  image_analysis: 'image_analysis',
   posted_at: 'posted_at',
   created_at: 'created_at',
   updated_at: 'updated_at'
@@ -337,6 +339,7 @@ exports.Prisma.Social_media_event_mediaScalarFieldEnum = {
   engagement: 'engagement',
   media: 'media',
   raw_data: 'raw_data',
+  image_analysis: 'image_analysis',
   posted_at: 'posted_at',
   fetched_at: 'fetched_at',
   updated_at: 'updated_at',
@@ -400,6 +403,21 @@ exports.Prisma.Audit_logsScalarFieldEnum = {
   device_label: 'device_label'
 };
 
+exports.Prisma.Social_media_periscope_reportsScalarFieldEnum = {
+  id: 'id',
+  report_date: 'report_date',
+  day_of_week: 'day_of_week',
+  title: 'title',
+  organization: 'organization',
+  status: 'status',
+  programmes: 'programmes',
+  abstract: 'abstract',
+  notes: 'notes',
+  created_by: 'created_by',
+  created_at: 'created_at',
+  updated_at: 'updated_at'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -458,7 +476,8 @@ exports.Prisma.ModelName = {
   alert_config: 'alert_config',
   report_templates: 'report_templates',
   policy_mappings: 'policy_mappings',
-  audit_logs: 'audit_logs'
+  audit_logs: 'audit_logs',
+  social_media_periscope_reports: 'social_media_periscope_reports'
 };
 
 /**

@@ -153,6 +153,11 @@ async function ensureOpsSchema(prisma) {
   `);
 
   await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_posts
+      ADD COLUMN IF NOT EXISTS image_analysis JSONB NOT NULL DEFAULT '{}'::jsonb
+  `);
+
+  await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS social_media_alerts (
       id BIGSERIAL PRIMARY KEY,
       post_id BIGINT NOT NULL REFERENCES social_media_posts(id) ON DELETE CASCADE,
@@ -177,6 +182,11 @@ async function ensureOpsSchema(prisma) {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       CONSTRAINT social_media_alerts_platform_external_id_key UNIQUE (platform, external_id)
     )
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_alerts
+      ADD COLUMN IF NOT EXISTS image_analysis JSONB NOT NULL DEFAULT '{}'::jsonb
   `);
 
   await prisma.$executeRawUnsafe(`
@@ -354,6 +364,10 @@ async function ensureOpsSchema(prisma) {
   await prisma.$executeRawUnsafe(`
     ALTER TABLE social_media_event_media
       ADD COLUMN IF NOT EXISTS analyzed_at TIMESTAMPTZ NULL
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_event_media
+      ADD COLUMN IF NOT EXISTS image_analysis JSONB NOT NULL DEFAULT '{}'::jsonb
   `);
   await prisma.$executeRawUnsafe(`
     CREATE INDEX IF NOT EXISTS social_media_event_media_analysis_status_fetched_at_idx

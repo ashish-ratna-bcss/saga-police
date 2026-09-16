@@ -5,7 +5,7 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const { assertJwtConfigured, shouldSeedDefaultAdmin } = require('./config/env');
 const { startScheduler: startCatalogMonitoringScheduler } = require('./services/monitoringsocialmedia');
-const { startScheduler: startSentimentAnalysisScheduler } = require('./services/sentimentanalysis');
+const { startScheduler: startMediaPostAnalysisScheduler } = require('./services/media_post_analysis');
 const { startScheduler: startEventScheduler } = require('./modules/events');
 const prisma = require('../prisma/client');
 const crypto = require('crypto');
@@ -119,7 +119,7 @@ const startServer = async () => {
   }
 
   startCatalogMonitoringScheduler();
-  startSentimentAnalysisScheduler();
+  startMediaPostAnalysisScheduler();
   startEventScheduler();
 
   const PORT = process.env.PORT || 8000;

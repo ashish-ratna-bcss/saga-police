@@ -93,6 +93,7 @@ model social_media_posts {
   engagement        Json                 @default("{}")
   posted_at         DateTime?            @db.Timestamptz(6)
   raw_data          Json                 @default("{}")
+  image_analysis    Json?                @default("{}")
   fetched_at        DateTime             @default(now()) @db.Timestamptz(6)
   /// pending → processing → done | failed | skipped
   analysis_status   analysis_status_enum @default(pending)
@@ -130,6 +131,7 @@ model social_media_alerts {
   is_read           Boolean            @default(false)
   matched_keywords  Json               @default("[]")
   analysis_snapshot Json               @default("{}")
+  image_analysis    Json?              @default("{}")
   posted_at         DateTime?          @db.Timestamptz(6)
   created_at        DateTime           @default(now()) @db.Timestamptz(6)
   updated_at        DateTime           @updatedAt @db.Timestamptz(6)
@@ -302,6 +304,7 @@ model social_media_event_media {
   engagement         Json                  @default("{}")
   media              Json                  @default("[]")
   raw_data           Json                  @default("{}")
+  image_analysis     Json?                 @default("{}")
   posted_at          DateTime?             @db.Timestamptz(6)
   fetched_at         DateTime              @default(now()) @db.Timestamptz(6)
   updated_at         DateTime              @updatedAt @db.Timestamptz(6)
