@@ -129,7 +129,13 @@ async function saveReport(payload, { db, user } = {}) {
       ? payload.abstract
       : computeAbstract(programmes);
   const notes = payload.notes || '';
-  const createdBy = user?.username || user?.email || 'officer';
+  const createdBy =
+    payload.created_by ||
+    user?.full_name ||
+    user?.name ||
+    user?.username ||
+    user?.email ||
+    'officer';
 
   const rows = await prisma.$queryRawUnsafe(
     `
@@ -145,6 +151,7 @@ async function saveReport(payload, { db, user } = {}) {
       programmes = EXCLUDED.programmes,
       abstract = EXCLUDED.abstract,
       notes = EXCLUDED.notes,
+      created_by = COALESCE(EXCLUDED.created_by, social_media_periscope_reports.created_by),
       updated_at = NOW()
     RETURNING *;
     `,
@@ -187,6 +194,7 @@ async function listReports({ page = 1, limit = 20, search = '' } = {}, { db } = 
   const dataQuery = `
     SELECT id, report_date, day_of_week, title, organization, status,
            jsonb_array_length(programmes) as programme_count,
+           jsonb_array_length(programmes) as programmes_count,
            created_by, created_at, updated_at
     FROM social_media_periscope_reports
     ${whereClause}
@@ -289,11 +297,78 @@ async function importEventsForDate(dateStr, { db } = {}) {
 async function deleteReport(id, { db } = {}) {
   const prisma = resolvePrisma(db);
   await ensureTable(db);
-  await prisma.$executeRawUnsafe(
-    `DELETE FROM social_media_periscope_reports WHERE id = $1::uuid`,
-    id
-  );
+  const idStr = String(id || '').trim();
+  const isDate = /^\d{4}-\d{2}-\d{2}/.test(idStr);
+  if (isDate) {
+    const dateOnly = idStr.split('T')[0];
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM social_media_periscope_reports WHERE report_date = $1::date`,
+      dateOnly
+    );
+  } else {
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM social_media_periscope_reports WHERE id = $1::uuid`,
+      idStr
+    );
+  }
   return { ok: true };
+}
+
+/**
+ * Get active or latest Periscope programmes for dashboard live feed.
+ */
+async function getFeed({ limit = 40 } = {}, { db, tenantName = '' } = {}) {
+  const prisma = resolvePrisma(db);
+  await ensureTable(db);
+  const today = new Date().toISOString().split('T')[0];
+
+  // Check today's report first
+  const todayRows = await prisma.$queryRawUnsafe(
+    `SELECT * FROM social_media_periscope_reports WHERE report_date = $1::date LIMIT 1`,
+    today
+  );
+
+  let programmes = [];
+  let reportDate = today;
+  let organization = tenantName || '';
+
+  if (
+    todayRows &&
+    todayRows.length > 0 &&
+    Array.isArray(todayRows[0].programmes) &&
+    todayRows[0].programmes.length > 0
+  ) {
+    programmes = todayRows[0].programmes;
+    reportDate = today;
+    organization = todayRows[0].organization || tenantName;
+  } else {
+    // If today is empty, fetch the most recent report that has programmes
+    const recentRows = await prisma.$queryRawUnsafe(
+      `SELECT * FROM social_media_periscope_reports 
+       WHERE jsonb_array_length(programmes) > 0 
+       ORDER BY report_date DESC LIMIT 1`
+    );
+    if (recentRows && recentRows.length > 0) {
+      const cleanDate = normalizeDateStr(recentRows[0].report_date);
+      programmes = recentRows[0].programmes || [];
+      reportDate = cleanDate || today;
+      organization = recentRows[0].organization || tenantName;
+    }
+  }
+
+  // Ensure default priority on items
+  const normalized = programmes.map((p, idx) => ({
+    ...p,
+    sl_no: p.sl_no || idx + 1,
+    priority: p.priority || 'Low',
+  }));
+
+  return {
+    report_date: reportDate,
+    organization,
+    total: normalized.length,
+    programmes: normalized.slice(0, Number(limit) || 40),
+  };
 }
 
 module.exports = {
@@ -301,7 +376,9 @@ module.exports = {
   getReportByDate,
   saveReport,
   listReports,
+  getFeed,
   importEventsForDate,
   deleteReport,
   computeAbstract,
 };
+

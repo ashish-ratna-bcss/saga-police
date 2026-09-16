@@ -122,12 +122,35 @@ const deleteReport = async (req, res) => {
   }
 };
 
+
+const getFeed = async (req, res) => {
+  try {
+    const { limit = 40 } = req.query;
+    const tenantName =
+      req.user?.blurasagatitle ||
+      req.user?.application_details?.title ||
+      req.tenantDbName?.split('_')?.[1] ||
+      '';
+    const feed = await periscopeService.getFeed(
+      { limit },
+      { db: req.tenantPrisma || req.db, tenantName }
+    );
+    return res.json({ ok: true, data: feed });
+  } catch (err) {
+    logger.error('[PeriscopeController] getFeed error:', err.message);
+    return res.status(500).json({ ok: false, message: err.message });
+  }
+};
+
+
 module.exports = {
   getReportByDate,
   saveReport,
   listReports,
+  getFeed,
   parseDocxUpload,
   exportDocx,
   importEvents,
   deleteReport,
 };
+

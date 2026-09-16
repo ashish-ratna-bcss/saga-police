@@ -12,6 +12,8 @@ import RecommendationList from '../../components/dashboard/RecommendationList';
 import TopProfilesCard from '../../components/dashboard/TopProfilesCard';
 import TopPostsCard from '../../components/dashboard/TopPostsCard';
 import ModulePulseCharts from '../../components/dashboard/ModulePulseCharts';
+import PeriscopeTicker from '../../components/dashboard/PeriscopeTicker';
+
 
 const RANGES = [
   { id: '24h', label: '24h' },
@@ -272,7 +274,9 @@ const OpsDashboard = () => {
             platforms={overview.platforms}
             events={overview.events}
           />
+          <PeriscopeTicker />
           <RecommendationList items={overview.recommendations} />
+
           <div className="grid gap-4 lg:grid-cols-2">
             <TopProfilesCard items={overview.top_profiles} />
             <TopPostsCard items={overview.top_posts} />

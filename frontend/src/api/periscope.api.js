@@ -2,7 +2,9 @@ import apiHandler from './apiHandler';
 
 export const periscopeApi = {
   getByDate: (date) => apiHandler.get('/periscope/by-date', { params: { date } }),
+  getFeed: (params) => apiHandler.get('/periscope/feed', { params }),
   save: (data) => apiHandler.post('/periscope/save', data),
+
   saveReport: (data) => apiHandler.post('/periscope/save', data),
   list: (params) => apiHandler.get('/periscope/list', { params }),
   uploadDocx: (file) => {

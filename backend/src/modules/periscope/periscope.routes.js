@@ -5,11 +5,13 @@ const {
   getReportByDate,
   saveReport,
   listReports,
+  getFeed,
   parseDocxUpload,
   exportDocx,
   importEvents,
   deleteReport,
 } = require('./periscope.controller');
+
 
 const router = express.Router();
 router.use(authorize({ pages: ['/periscope', '/reports', '/events', '/dashboard'] }));
@@ -32,6 +34,7 @@ const upload = multer({
 });
 
 router.get('/by-date', getReportByDate);
+router.get('/feed', getFeed);
 router.post('/save', saveReport);
 router.get('/list', listReports);
 router.post('/upload-docx', upload.single('file'), parseDocxUpload);
@@ -40,3 +43,4 @@ router.get('/import-events', importEvents);
 router.delete('/:id', deleteReport);
 
 module.exports = router;
+
