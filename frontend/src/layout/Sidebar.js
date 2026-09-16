@@ -18,6 +18,7 @@ import {
   Circle,
   Globe,
   ScrollText,
+  Eye,
 } from 'lucide-react';
 import { AlertService } from '../api';
 import { cn } from '../lib/utils';
@@ -32,6 +33,7 @@ const ICONS = {
   Wrench,
   BarChart3,
   FileText,
+  Eye,
   Bot,
   Users,
   ShieldCheck,

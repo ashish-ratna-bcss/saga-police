@@ -386,6 +386,23 @@ model audit_logs {
   @@index([resource_type, created_at])
 }
 
+model social_media_periscope_reports {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  report_date  DateTime @unique @db.Date
+  day_of_week  String   @db.VarChar(20)
+  title        String   @db.VarChar(255)
+  organization String   @default("SPECIAL BRANCH POLICE") @db.VarChar(255)
+  status       String   @default("draft") @db.VarChar(50)
+  programmes   Json     @default("[]")
+  abstract     Json     @default("[]")
+  notes        String?  @db.Text
+  created_by   String?  @db.VarChar(100)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([report_date(sort: Desc)])
+}
+
 enum monitoring_status_enum {
   started
   stopped

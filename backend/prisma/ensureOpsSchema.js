@@ -447,7 +447,24 @@ async function ensureOpsSchema(prisma) {
     CREATE INDEX IF NOT EXISTS audit_logs_action_created_at_idx ON audit_logs (action, created_at DESC)
   `);
   await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS audit_logs_resource_type_created_at_idx ON audit_logs (resource_type, created_at DESC)
+    CREATE TABLE IF NOT EXISTS social_media_periscope_reports (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      report_date DATE NOT NULL,
+      day_of_week VARCHAR(20) NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      organization VARCHAR(255) NOT NULL DEFAULT 'SPECIAL BRANCH POLICE',
+      status VARCHAR(50) NOT NULL DEFAULT 'draft',
+      programmes JSONB NOT NULL DEFAULT '[]'::jsonb,
+      abstract JSONB NOT NULL DEFAULT '[]'::jsonb,
+      notes TEXT NULL,
+      created_by VARCHAR(100) NULL,
+      created_at TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT periscope_reports_date_key UNIQUE (report_date)
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS periscope_reports_date_idx ON social_media_periscope_reports (report_date DESC)
   `);
 }
 

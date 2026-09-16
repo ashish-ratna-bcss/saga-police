@@ -32,6 +32,7 @@ const GlobalSearch = lazy(() => import('./pages/intelligence/GlobalSearch'));
 const Events = lazy(() => import('./pages/events/Events'));
 const Announcements = lazy(() => import('./pages/events/Announcements'));
 const Reports = lazy(() => import('./pages/reports/Reports'));
+const Periscope = lazy(() => import('./pages/periscope/Periscope'));
 const GenerateReport = lazy(() => import('./pages/reports/GenerateReport'));
 const Dial100IncidentReporting = lazy(() => import('./pages/reports/Dial100IncidentReporting'));
 const UnifiedReports = lazy(() => import('./pages/reports/UnifiedReports'));
@@ -114,6 +115,7 @@ function App() {
               <Route path="intel-processed" element={<IntelProcessed />} />
               <Route path="case-reports" element={<CaseReports />} />
               <Route path="reports" element={<Reports />} />
+              <Route path="periscope" element={<Periscope />} />
               <Route path="reports/generate/:id" element={<GenerateReport />} />
               <Route path="dial-100-incident-reporting" element={<Dial100IncidentReporting />} />
               <Route path="audit-logs" element={<AuditLogs />} />

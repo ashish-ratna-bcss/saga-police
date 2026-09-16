@@ -30,6 +30,7 @@ const {
   ragRoutes,
 } = require('./osint');
 const { reportRoutes } = require('./reports');
+const periscopeRoutes = require('./periscope/periscope.routes');
 const { uploadRoutes } = require('./uploads');
 const { bluwebRoutes } = require('./web-intel');
 const { searchRoutes } = require('./search');
@@ -83,6 +84,7 @@ router.use('/wmn', wmnRoutes);
 router.use('/post-location', postLocationRoutes);
 router.use('/rag', ragRoutes);
 router.use('/reports', reportRoutes);
+router.use('/periscope', periscopeRoutes);
 router.use('/uploads', uploadRoutes);
 router.use('/media', mediaRoutes);
 router.use('/criticism', criticismRoutes);
