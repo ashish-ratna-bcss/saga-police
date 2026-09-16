@@ -144,7 +144,7 @@ const analyzePost = async (postId, { db, dbName } = {}) => {
   let intel = null;
   try {
     // Sentiment API only: POST /analyze/intelligence (via intelligenceClient)
-    intel = await intelligenceClient.analyzeText(text, { lane: 'bulk', tenantName });
+    intel = await intelligenceClient.analyzeText(text, { lane: 'bulk', tenantName, tenantKey: dbName });
   } catch (err) {
     const attempts = (post.analysis_attempts || 0) + 1;
     const isBusy =

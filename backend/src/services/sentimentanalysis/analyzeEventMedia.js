@@ -69,7 +69,7 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
 
   let intel = null;
   try {
-    intel = await intelligenceClient.analyzeText(text, { lane: 'bulk', tenantName });
+    intel = await intelligenceClient.analyzeText(text, { lane: 'bulk', tenantName, tenantKey: dbName });
   } catch (err) {
     const attempts = (row.analysis_attempts || 0) + 1;
     const isBusy =

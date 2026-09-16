@@ -340,7 +340,7 @@ function flattenResult(pipelineItem) {
   };
 }
 
-async function requestIntelligence(text, { laneName, timeoutMs, tenantName }) {
+async function requestIntelligence(text, { laneName, timeoutMs, tenantName, tenantKey }) {
   await mappingService.waitForLoad();
   const pack = buildPolicyPack();
   const body = {
@@ -360,6 +360,15 @@ async function requestIntelligence(text, { laneName, timeoutMs, tenantName }) {
   const sanitizedTenantName = sanitizeTenantName(tenantName);
   if (sanitizedTenantName) {
     body.tenant_name = sanitizedTenantName;
+  }
+  // tenant_key: a stable scheduling key for the Sentiment API's tenant-fair
+  // LLM gate — distinct from tenant_name (never shown to the LLM, only
+  // decides admission order). dbName is unique per tenant where tenant_name
+  // (an admin-editable display title) is not, so it's the right choice for
+  // this specific field even though it's never used as prompt context.
+  const sanitizedTenantKey = sanitizeTenantName(tenantKey);
+  if (sanitizedTenantKey) {
+    body.tenant_key = sanitizedTenantKey;
   }
 
   let lastError = null;
@@ -414,7 +423,7 @@ async function requestIntelligence(text, { laneName, timeoutMs, tenantName }) {
 /**
  * Analyze text via the sentiment-api intelligence endpoint.
  * @param {string} text
- * @param {{ lane?: 'bulk'|'interactive', tenantName?: string|null }} [options]
+ * @param {{ lane?: 'bulk'|'interactive', tenantName?: string|null, tenantKey?: string|null }} [options]
  * @returns {Promise<object|null>} flat result or null on failure
  */
 async function analyzeText(text, options = {}) {
@@ -433,7 +442,12 @@ async function analyzeText(text, options = {}) {
 
   try {
     return await lane.enqueue(() =>
-      requestIntelligence(trimmed, { laneName, timeoutMs: lane.timeoutMs, tenantName: options.tenantName })
+      requestIntelligence(trimmed, {
+        laneName,
+        timeoutMs: lane.timeoutMs,
+        tenantName: options.tenantName,
+        tenantKey: options.tenantKey,
+      })
     );
   } catch (err) {
     logger.warn(`[Intelligence/${laneName}] ${err.message}`);
