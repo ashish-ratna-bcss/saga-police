@@ -1,7 +1,7 @@
 const dbOf = require('../../lib/dbOf');
 const { getTenantPrisma } = require('../../lib/tenantDatabase.service');
 const logger = require('../../lib/logger');
-const { getDayOfWeek, normalizeDateStr } = require('./periscope.docx.service');
+const { getDayOfWeek, normalizeDateStr, generateDocx } = require('./periscope.docx.service');
 
 function resolvePrisma(db) {
   if (typeof db === 'string') return getTenantPrisma(db);
@@ -18,7 +18,7 @@ async function ensureTable(db) {
         report_date DATE NOT NULL,
         day_of_week VARCHAR(20) NOT NULL,
         title VARCHAR(255) NOT NULL,
-        organization VARCHAR(255) NOT NULL DEFAULT 'SPECIAL BRANCH POLICE',
+        organization VARCHAR(255) NOT NULL DEFAULT '',
         status VARCHAR(50) NOT NULL DEFAULT 'draft',
         programmes JSONB NOT NULL DEFAULT '[]'::jsonb,
         abstract JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -41,7 +41,8 @@ async function ensureTable(db) {
 function computeAbstract(programmes = []) {
   const counts = {};
   programmes.forEach((p) => {
-    const cat = (p.category || 'Other Programmes').trim();
+    const cat = (p.category || '').trim();
+    if (!cat) return;
     counts[cat] = (counts[cat] || 0) + 1;
   });
   let idx = 1;
@@ -119,9 +120,12 @@ async function saveReport(payload, { db, user } = {}) {
   const [yyyy, mm, dd] = reportDate.split('-');
   const formattedDate = `${dd}.${mm}.${yyyy}`;
 
+  const org = payload.organization || tenantName || '';
   const title =
-    payload.title || `PERISCOPE REPORT OF SPECIAL BRANCH FOR THE DAY ${formattedDate} (${dayOfWeek})`;
-  const org = payload.organization || 'SPECIAL BRANCH POLICE';
+    payload.title ||
+    (org
+      ? `PERISCOPE REPORT OF ${org} FOR THE DAY ${formattedDate} (${dayOfWeek})`
+      : `PERISCOPE REPORT FOR THE DAY ${formattedDate} (${dayOfWeek})`);
   const status = payload.status || 'draft';
   const programmes = Array.isArray(payload.programmes) ? payload.programmes : [];
   const abstract =
@@ -315,45 +319,41 @@ async function deleteReport(id, { db } = {}) {
 }
 
 /**
- * Get active or latest Periscope programmes for dashboard live feed.
+ * Get active Periscope programmes for dashboard live feed (strictly today's report, no limit unless requested).
  */
-async function getFeed({ limit = 40 } = {}, { db, tenantName = '' } = {}) {
+async function getFeed({ limit, date } = {}, { db, tenantName = '' } = {}) {
   const prisma = resolvePrisma(db);
   await ensureTable(db);
-  const today = new Date().toISOString().split('T')[0];
 
-  // Check today's report first
-  const todayRows = await prisma.$queryRawUnsafe(
+  // Use requested date if provided, otherwise compute today's date in local time
+  let targetDate = normalizeDateStr(date);
+  if (!targetDate) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    targetDate = `${year}-${month}-${day}`;
+  }
+
+  // Strictly check targetDate report (past report fallback removed per request)
+  const rows = await prisma.$queryRawUnsafe(
     `SELECT * FROM social_media_periscope_reports WHERE report_date = $1::date LIMIT 1`,
-    today
+    targetDate
   );
 
   let programmes = [];
-  let reportDate = today;
+  let reportDate = targetDate;
   let organization = tenantName || '';
 
   if (
-    todayRows &&
-    todayRows.length > 0 &&
-    Array.isArray(todayRows[0].programmes) &&
-    todayRows[0].programmes.length > 0
+    rows &&
+    rows.length > 0 &&
+    Array.isArray(rows[0].programmes) &&
+    rows[0].programmes.length > 0
   ) {
-    programmes = todayRows[0].programmes;
-    reportDate = today;
-    organization = todayRows[0].organization || tenantName;
-  } else {
-    // If today is empty, fetch the most recent report that has programmes
-    const recentRows = await prisma.$queryRawUnsafe(
-      `SELECT * FROM social_media_periscope_reports 
-       WHERE jsonb_array_length(programmes) > 0 
-       ORDER BY report_date DESC LIMIT 1`
-    );
-    if (recentRows && recentRows.length > 0) {
-      const cleanDate = normalizeDateStr(recentRows[0].report_date);
-      programmes = recentRows[0].programmes || [];
-      reportDate = cleanDate || today;
-      organization = recentRows[0].organization || tenantName;
-    }
+    programmes = rows[0].programmes;
+    reportDate = targetDate;
+    organization = rows[0].organization || tenantName;
   }
 
   // Ensure default priority on items
@@ -363,12 +363,128 @@ async function getFeed({ limit = 40 } = {}, { db, tenantName = '' } = {}) {
     priority: p.priority || 'Low',
   }));
 
+  // No limit by default - return all programmes unless a positive limit is explicitly requested
+  const parsedLimit = limit !== undefined && limit !== null && limit !== '' ? Number(limit) : null;
+  const resultProgrammes = parsedLimit && parsedLimit > 0 ? normalized.slice(0, parsedLimit) : normalized;
+
   return {
     report_date: reportDate,
     organization,
     total: normalized.length,
-    programmes: normalized.slice(0, Number(limit) || 40),
+    programmes: resultProgrammes,
   };
+}
+
+/**
+ * Generate a dynamic Periscope DSR DOCX template adapting to the target date,
+ * tenant organization, and real categories found in the database.
+ */
+/**
+ * Generate a dynamic Periscope DSR DOCX template adapting to the target date,
+ * tenant organization, and custom or database categories.
+ */
+async function generateTemplateDocx({ date, tenantName = '', categories, db } = {}) {
+  let prisma = null;
+  if (db) {
+    try {
+      prisma = resolvePrisma(db);
+      await ensureTable(db);
+    } catch {
+      // Prisma optional for standalone generation
+    }
+  }
+
+  const org = tenantName || '';
+  let targetDate = normalizeDateStr(date);
+  if (!targetDate) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    targetDate = `${year}-${month}-${day}`;
+  }
+
+  const [yyyy, mm, dd] = targetDate.split('-');
+  const formattedDate = `${dd}.${mm}.${yyyy}`;
+  const dayOfWeek = getDayOfWeek(targetDate);
+
+  // 1. If explicit categories are provided (from frontend or caller), use them dynamically
+  let targetCategories = [];
+  if (Array.isArray(categories) && categories.length > 0) {
+    targetCategories = categories.map((c) => String(c).trim()).filter(Boolean);
+  } else if (typeof categories === 'string' && categories.trim()) {
+    targetCategories = categories.split(',').map((c) => c.trim()).filter(Boolean);
+  }
+
+  // 2. Otherwise discover categories and zones dynamically from this tenant's historical reports
+  let sampleZone = '';
+  if (targetCategories.length === 0 && prisma) {
+    try {
+      const recentReports = await prisma.$queryRawUnsafe(
+        `SELECT programmes FROM social_media_periscope_reports 
+         WHERE jsonb_array_length(programmes) > 0 
+         ORDER BY report_date DESC LIMIT 5`
+      );
+      if (recentReports && recentReports.length > 0) {
+        const catSet = new Set();
+        const zoneSet = new Set();
+        recentReports.forEach((row) => {
+          const progs = Array.isArray(row.programmes) ? row.programmes : [];
+          progs.forEach((p) => {
+            if (p.category && String(p.category).trim()) catSet.add(String(p.category).trim());
+            if (p.zone && String(p.zone).trim()) zoneSet.add(String(p.zone).trim());
+          });
+        });
+        targetCategories = Array.from(catSet);
+        if (zoneSet.size > 0) {
+          sampleZone = Array.from(zoneSet)[0];
+        }
+      }
+    } catch (err) {
+      logger.warn(`[PeriscopeService] Could not discover categories: ${err.message}`);
+    }
+  }
+
+  // 3. If no categories exist yet, keep 1 open category slot for the user to define their own category
+  if (targetCategories.length === 0) {
+    targetCategories = ['General Programmes'];
+  }
+
+  // Build template programme rows for each category
+  let runningIndex = 1;
+  const programmes = [];
+
+  targetCategories.forEach((cat) => {
+    programmes.push({
+      sl_no: runningIndex++,
+      category: cat,
+      zone: sampleZone,
+      name: '',
+      police_station_place: '',
+      organizer: '',
+      expected_members: '',
+      time: '',
+      gist: '',
+      permission_status: '',
+      comments: '',
+    });
+  });
+
+  const abstract = computeAbstract(programmes);
+
+  const templateData = {
+    organization: org,
+    title: org
+      ? `${org} PERISCOPE REPORT FOR THE DAY ${formattedDate} (${dayOfWeek})`
+      : `PERISCOPE REPORT FOR THE DAY ${formattedDate} (${dayOfWeek})`,
+    report_date: targetDate,
+    day_of_week: dayOfWeek,
+    programmes,
+    abstract,
+    notes: '',
+  };
+
+  return await generateDocx(templateData);
 }
 
 module.exports = {
@@ -380,5 +496,6 @@ module.exports = {
   importEventsForDate,
   deleteReport,
   computeAbstract,
+  generateTemplateDocx,
 };
 

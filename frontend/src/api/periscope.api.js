@@ -27,6 +27,18 @@ export const periscopeApi = {
     });
     return response;
   },
+  downloadTemplate: async (date, categories) => {
+    const params = {};
+    if (date) params.date = date;
+    if (categories && categories.length > 0) {
+      params.categories = Array.isArray(categories) ? categories.join(',') : categories;
+    }
+    const response = await apiHandler.get('/periscope/template-docx', {
+      params,
+      responseType: 'blob',
+    });
+    return response;
+  },
   importEvents: (date) => apiHandler.get('/periscope/import-events', { params: { date } }),
   delete: (id) => apiHandler.delete(`/periscope/${id}`),
 };

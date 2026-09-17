@@ -125,14 +125,14 @@ const deleteReport = async (req, res) => {
 
 const getFeed = async (req, res) => {
   try {
-    const { limit = 40 } = req.query;
+    const { limit, date } = req.query;
     const tenantName =
       req.user?.blurasagatitle ||
       req.user?.application_details?.title ||
       req.tenantDbName?.split('_')?.[1] ||
       '';
     const feed = await periscopeService.getFeed(
-      { limit },
+      { limit, date },
       { db: req.tenantPrisma || req.db, tenantName }
     );
     return res.json({ ok: true, data: feed });
@@ -143,6 +143,35 @@ const getFeed = async (req, res) => {
 };
 
 
+const downloadTemplateDocx = async (req, res) => {
+  try {
+    const { date, categories } = req.query;
+    const tenantName =
+      req.user?.blurasagatitle ||
+      req.user?.application_details?.title ||
+      req.tenantDbName?.split('_')?.[1] ||
+      '';
+    const docBuffer = await periscopeService.generateTemplateDocx({
+      date,
+      tenantName,
+      categories,
+      db: req.tenantPrisma || req.db,
+    });
+    const dateTag = (date || new Date().toISOString().split('T')[0]).replace(/[^0-9-]/g, '_');
+    const filename = `Periscope_DSR_Template_${dateTag}.docx`;
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(docBuffer);
+  } catch (err) {
+    logger.error('[PeriscopeController] downloadTemplateDocx error:', err.message);
+    return res.status(500).json({ ok: false, message: err.message });
+  }
+};
+
 module.exports = {
   getReportByDate,
   saveReport,
@@ -152,5 +181,6 @@ module.exports = {
   exportDocx,
   importEvents,
   deleteReport,
+  downloadTemplateDocx,
 };
 

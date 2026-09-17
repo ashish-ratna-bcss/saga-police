@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
 import {
-  Calendar,
+  Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
   Upload,
@@ -19,6 +20,7 @@ import {
   Clock,
   ShieldAlert,
   FileText,
+  FileDown,
   History,
   Sparkles,
   ChevronDown,
@@ -43,6 +45,12 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Badge } from '../../components/ui/badge';
 import { Textarea } from '../../components/ui/textarea';
+import { Calendar as CalendarComponent } from '../../components/ui/calendar';
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from '../../components/ui/popover';
 import {
   Dialog,
   DialogContent,
@@ -60,55 +68,138 @@ import {
 } from '../../components/ui/select';
 import { cn } from '../../lib/utils';
 
-const PERMISSION_OPTIONS = [
-  {
-    value: 'Publicly reported',
-    label: 'Publicly reported',
-    badge: 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800',
-    dot: 'bg-amber-500',
-  },
-  {
-    value: 'Permission granted',
-    label: 'Permission granted',
-    badge: 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800',
-    dot: 'bg-emerald-500',
-  },
-  {
-    value: 'Government Programme',
-    label: 'Government Programme',
-    badge: 'bg-blue-50 text-blue-800 border-blue-300 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800',
-    dot: 'bg-blue-500',
-  },
-  {
-    value: 'Under verification',
-    label: 'Under verification',
-    badge: 'bg-sky-50 text-sky-800 border-sky-300 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800',
-    dot: 'bg-sky-500',
-  },
-  {
-    value: 'Court matter',
-    label: 'Court matter',
-    badge: 'bg-purple-50 text-purple-800 border-purple-300 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800',
-    dot: 'bg-purple-500',
-  },
-  {
-    value: 'Rejected',
-    label: 'Rejected',
-    badge: 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800',
-    dot: 'bg-rose-500',
-  },
-];
-
 function getPermissionMeta(status) {
   const s = String(status || '').toLowerCase().trim();
-  const match = PERMISSION_OPTIONS.find((p) => p.value.toLowerCase() === s);
-  return (
-    match || {
-      badge: 'bg-slate-50 text-slate-700 border-slate-300 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-700',
-      dot: 'bg-slate-400',
-      label: status || 'Publicly reported',
-    }
-  );
+  if (!s) {
+    return {
+      badge: 'bg-muted/70 text-muted-foreground border-border',
+      dot: 'bg-muted-foreground/60',
+      label: 'Not specified',
+    };
+  }
+
+  // 1. Positive / Permitted statuses
+  if (
+    s.includes('grant') ||
+    s.includes('permit') ||
+    s.includes('approved') ||
+    s.includes('allowed') ||
+    s === 'yes'
+  ) {
+    return {
+      badge:
+        'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800',
+      dot: 'bg-emerald-500',
+      label: status,
+    };
+  }
+
+  // 2. Negative / Rejected / Denied statuses
+  if (
+    s.includes('reject') ||
+    s.includes('denied') ||
+    s.includes('refus') ||
+    s.includes('cancel') ||
+    s.includes('prohibit') ||
+    s.includes('disallow') ||
+    s === 'no'
+  ) {
+    return {
+      badge:
+        'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800',
+      dot: 'bg-rose-500',
+      label: status,
+    };
+  }
+
+  // 3. Official / Government / Departmental statuses
+  if (
+    s.includes('gov') ||
+    s.includes('official') ||
+    s.includes('vip') ||
+    s.includes('department') ||
+    s.includes('state')
+  ) {
+    return {
+      badge:
+        'bg-blue-50 text-blue-800 border-blue-300 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800',
+      dot: 'bg-blue-500',
+      label: status,
+    };
+  }
+
+  // 4. Intimation / Information / Publicly reported / Notice statuses
+  if (
+    s.includes('info') ||
+    s.includes('public') ||
+    s.includes('intimation') ||
+    s.includes('reported') ||
+    s.includes('notice') ||
+    s.includes('aware')
+  ) {
+    return {
+      badge:
+        'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800',
+      dot: 'bg-amber-500',
+      label: status,
+    };
+  }
+
+  // 5. Legal / Court / Verification / Pending inquiry statuses
+  if (
+    s.includes('court') ||
+    s.includes('legal') ||
+    s.includes('stay') ||
+    s.includes('pending') ||
+    s.includes('verif') ||
+    s.includes('inquiry')
+  ) {
+    return {
+      badge:
+        'bg-purple-50 text-purple-800 border-purple-300 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800',
+      dot: 'bg-purple-500',
+      label: status,
+    };
+  }
+
+  // 6. Dynamic deterministic palette for any other arbitrary text
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) {
+    hash = s.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const dynamicPalettes = [
+    {
+      badge:
+        'bg-sky-50 text-sky-800 border-sky-300 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800',
+      dot: 'bg-sky-500',
+    },
+    {
+      badge:
+        'bg-indigo-50 text-indigo-800 border-indigo-300 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800',
+      dot: 'bg-indigo-500',
+    },
+    {
+      badge:
+        'bg-teal-50 text-teal-800 border-teal-300 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800',
+      dot: 'bg-teal-500',
+    },
+    {
+      badge:
+        'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/50 dark:text-orange-300 dark:border-orange-800',
+      dot: 'bg-orange-500',
+    },
+    {
+      badge:
+        'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700',
+      dot: 'bg-slate-500',
+    },
+  ];
+  const chosen = dynamicPalettes[Math.abs(hash) % dynamicPalettes.length];
+  return {
+    badge: chosen.badge,
+    dot: chosen.dot,
+    label: status,
+  };
 }
 
 function formatDateDisplay(isoDate) {
@@ -136,6 +227,109 @@ function getDayOfWeekName(isoDate) {
   return days[d.getDay()] || 'MONDAY';
 }
 
+// Custom Elegant DatePicker Component matching Theme Aesthetics
+function PeriscopeDatePicker({
+  value,
+  onChange,
+  placeholder = 'Select date',
+  className,
+  align = 'start',
+  compact = false,
+}) {
+  const [open, setOpen] = useState(false);
+
+  const selectedDate = useMemo(() => {
+    if (!value) return null;
+    const parts = String(value).split('-');
+    if (parts.length === 3) {
+      return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    }
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  }, [value]);
+
+  const handleSelect = (date) => {
+    if (!date) {
+      onChange('');
+    } else {
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const dd = String(date.getDate()).padStart(2, '0');
+      onChange(`${yyyy}-${mm}-${dd}`);
+    }
+    setOpen(false);
+  };
+
+  const handleSetToday = () => {
+    const today = new Date();
+    handleSelect(today);
+  };
+
+  const formattedDisplay = useMemo(() => {
+    if (!selectedDate) return placeholder;
+    try {
+      return format(selectedDate, 'dd MMM yyyy');
+    } catch (e) {
+      return value;
+    }
+  }, [selectedDate, placeholder, value]);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            compact
+              ? 'inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-bold text-foreground hover:bg-muted/60 transition-colors focus:outline-none'
+              : 'flex h-8 w-full items-center justify-between rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium ring-offset-background hover:bg-accent/40 focus:outline-none focus:ring-1 focus:ring-ring transition-colors',
+            !value && 'text-muted-foreground',
+            className
+          )}
+        >
+          <span className="flex items-center gap-1.5 truncate">
+            <CalendarIcon className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span className="truncate">{formattedDisplay}</span>
+          </span>
+          {!compact && <ChevronDown className="h-3 w-3 opacity-50 shrink-0 ml-1" />}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0 z-[250] shadow-2xl border-border/80" align={align}>
+        <CalendarComponent
+          mode="single"
+          selected={selectedDate}
+          onSelect={handleSelect}
+          defaultMonth={selectedDate || new Date()}
+          initialFocus
+        />
+        <div className="flex items-center justify-between border-t border-border/60 px-3 py-2 bg-muted/20">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs px-2 hover:bg-muted/50 text-muted-foreground"
+            onClick={() => {
+              onChange('');
+              setOpen(false);
+            }}
+          >
+            Clear
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs px-2 text-primary font-semibold hover:bg-primary/10"
+            onClick={handleSetToday}
+          >
+            Today
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function Periscope() {
   const { user } = useAuth();
 
@@ -160,6 +354,7 @@ export default function Periscope() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [pendingUploadData, setPendingUploadData] = useState(null);
 
@@ -210,6 +405,38 @@ export default function Periscope() {
     programmes.forEach((p) => {
       const cat = String(p.category || '').trim();
       if (cat) set.add(cat);
+    });
+    return Array.from(set);
+  }, [programmes]);
+
+  // Extract REAL dynamic permissions present in current programmes
+  const permissionsList = useMemo(() => {
+    const set = new Set();
+    programmes.forEach((p) => {
+      const perm = String(p.permission_status || '').trim();
+      if (perm) set.add(perm);
+    });
+    return Array.from(set);
+  }, [programmes]);
+
+  // Dynamic suggested baseline permissions for datalist autocomplete
+  const allSuggestedPermissions = useMemo(() => {
+    const set = new Set(permissionsList);
+    set.add('By Information');
+    set.add('Permission granted');
+    set.add('Government Programme');
+    set.add('Under verification');
+    set.add('Court matter');
+    set.add('Rejected');
+    return Array.from(set);
+  }, [permissionsList]);
+
+  // Extract REAL zones present in current programmes
+  const zonesList = useMemo(() => {
+    const set = new Set();
+    programmes.forEach((p) => {
+      const z = String(p.zone || '').trim();
+      if (z) set.add(z);
     });
     return Array.from(set);
   }, [programmes]);
@@ -471,6 +698,31 @@ export default function Periscope() {
     }
   };
 
+  // Download official dynamic DOCX template
+  const handleDownloadTemplate = async () => {
+    setDownloadingTemplate(true);
+    const toastId = toast.loading(`Generating dynamic Periscope DSR template for ${formatDateDisplay(currentDate)}...`);
+    try {
+      const res = await periscopeApi.downloadTemplate(currentDate, categoriesList);
+      const blob = new Blob([res.data], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Periscope_DSR_Template_${currentDate.replace(/[^0-9-]/g, '_')}.docx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Dynamic template downloaded successfully! Fill and upload anytime.', { id: toastId });
+    } catch (err) {
+      toast.error('Download template failed: ' + (err.response?.data?.message || err.message), { id: toastId });
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  };
+
   // Save / Publish to current tenant database
   const handleSaveReport = async (publish = false) => {
     setSaving(true);
@@ -563,15 +815,29 @@ export default function Periscope() {
 
   // Add to Events Monitoring modal open
   const handleOpenAddMonitoring = (prog) => {
-    const keywords = [prog.name, prog.organizer, prog.zone, prog.police_station_place]
+    // Extract intelligent suggestions from programme fields without auto-filling the input
+    const suggestionsSet = new Set();
+    [prog.name, prog.organizer, prog.zone, prog.police_station_place, prog.category]
       .filter(Boolean)
-      .join(', ');
+      .forEach((val) => {
+        const str = String(val).trim();
+        if (str.length > 2 && str.length < 60) {
+          suggestionsSet.add(str);
+        }
+        // Also break down compound expressions (by comma, slash, ampersand, or hyphen)
+        str
+          .split(/[,/&–-]/)
+          .map((s) => s.trim())
+          .filter((s) => s.length > 2 && s.length < 50)
+          .forEach((s) => suggestionsSet.add(s));
+      });
 
     setMonitoringForm({
       programmeId: prog.id,
       name: prog.name || '',
       location: prog.police_station_place || prog.zone || '',
-      keywords,
+      keywords: '', // Keep empty as requested; suggestions shown below for user selection
+      suggestions: Array.from(suggestionsSet),
       startDate: currentDate,
       endDate: currentDate,
       pollingMinutes: 60,
@@ -580,11 +846,50 @@ export default function Periscope() {
     setIsMonitoringModalOpen(true);
   };
 
+  const handleAddKeywordSuggestion = (sug) => {
+    setMonitoringForm((prev) => {
+      const existing = (prev.keywords || '')
+        .split(',')
+        .map((k) => k.trim())
+        .filter(Boolean);
+      if (!existing.some((k) => k.toLowerCase() === sug.toLowerCase())) {
+        const next = [...existing, sug].join(', ');
+        return { ...prev, keywords: next };
+      }
+      return prev;
+    });
+  };
+
+  const handleAddAllKeywordSuggestions = () => {
+    setMonitoringForm((prev) => {
+      const existing = (prev.keywords || '')
+        .split(',')
+        .map((k) => k.trim())
+        .filter(Boolean);
+      const existingLower = new Set(existing.map((k) => k.toLowerCase()));
+      const toAdd = (prev.suggestions || []).filter(
+        (s) => !existingLower.has(s.toLowerCase())
+      );
+      const next = [...existing, ...toAdd].join(', ');
+      return { ...prev, keywords: next };
+    });
+  };
+
   const handleSubmitMonitoring = async () => {
     if (!monitoringForm.name?.trim()) {
       toast.error('Event name is required');
       return;
     }
+    const parsedKeywords = (monitoringForm.keywords || '')
+      .split(',')
+      .map((k) => k.trim())
+      .filter(Boolean);
+
+    if (parsedKeywords.length === 0) {
+      toast.error('Keywords are mandatory. Please enter or select at least 1 keyword.');
+      return;
+    }
+
     if (!monitoringForm.platforms?.length) {
       toast.error('Select at least one platform to monitor');
       return;
@@ -594,11 +899,7 @@ export default function Periscope() {
       const payload = {
         name: monitoringForm.name.trim(),
         location: monitoringForm.location.trim(),
-        keywords: monitoringForm.keywords
-          .split(',')
-          .map((k) => k.trim())
-          .filter(Boolean)
-          .map((keyword) => ({ keyword, language: 'all' })),
+        keywords: parsedKeywords.map((keyword) => ({ keyword, language: 'all' })),
         platforms: monitoringForm.platforms,
         polling_interval_minutes: Number(monitoringForm.pollingMinutes) || 60,
         start_date: monitoringForm.startDate,
@@ -641,7 +942,7 @@ export default function Periscope() {
       expected_members: '',
       time: '',
       gist: '',
-      permission_status: 'Publicly reported',
+      permission_status: permissionsList[0] || 'By Information',
       priority: 'Low',
       comments: '',
     });
@@ -843,21 +1144,18 @@ export default function Periscope() {
               <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
 
-            <div className="flex items-center gap-1.5 px-1.5">
-              <Calendar className="h-3 w-3 text-primary" />
-              <input
-                type="date"
-                value={currentDate}
-                onChange={(e) => handleDateChange(e.target.value)}
-                className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
-              />
-              <Badge
-                variant="secondary"
-                className="text-[9px] font-bold uppercase tracking-wider px-1 py-0 rounded"
-              >
-                {dayOfWeek}
-              </Badge>
-            </div>
+            <PeriscopeDatePicker
+              value={currentDate}
+              onChange={handleDateChange}
+              compact
+              align="end"
+            />
+            <Badge
+              variant="secondary"
+              className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ml-0.5"
+            >
+              {dayOfWeek}
+            </Badge>
 
             <Button
               variant="ghost"
@@ -901,6 +1199,18 @@ export default function Periscope() {
           >
             <Upload className="h-3.5 w-3.5 text-primary" />
             Upload DOCX
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 text-xs"
+            disabled={downloadingTemplate}
+            onClick={handleDownloadTemplate}
+            title="Download sample / blank DOCX template to fill and upload"
+          >
+            <FileDown className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+            Download Template
           </Button>
 
           <Button
@@ -1157,9 +1467,9 @@ export default function Periscope() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">All Permissions</SelectItem>
-            {PERMISSION_OPTIONS.map((p) => (
-              <SelectItem key={p.value} value={p.value}>
-                {p.label}
+            {permissionsList.map((p) => (
+              <SelectItem key={p} value={p}>
+                {p}
               </SelectItem>
             ))}
           </SelectContent>
@@ -1228,6 +1538,15 @@ export default function Periscope() {
                     onClick={() => fileInputRef.current?.click()}
                   >
                     <Upload className="h-3.5 w-3.5" /> Upload DOCX
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs gap-1.5"
+                    disabled={downloadingTemplate}
+                    onClick={handleDownloadTemplate}
+                  >
+                    <FileDown className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" /> Download Template
                   </Button>
                   <Button
                     size="sm"
@@ -1383,7 +1702,7 @@ export default function Periscope() {
                                     )}
                                   >
                                     <span className={cn('h-1.5 w-1.5 rounded-full', perm.dot)} />
-                                    {p.permission_status || 'Publicly reported'}
+                                    {perm.label}
                                   </span>
                                 </td>
 
@@ -1619,7 +1938,7 @@ export default function Periscope() {
                                   )}
                                 >
                                   <span className={cn('h-1.5 w-1.5 rounded-full', perm.dot)} />
-                                  {p.permission_status || 'Publicly reported'}
+                                  {perm.label}
                                 </span>
                                 {p.expected_members && (
                                   <span className="text-[11px] text-muted-foreground tabular-nums">
@@ -1873,17 +2192,74 @@ export default function Periscope() {
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="font-semibold text-foreground">Keywords (comma-separated)</label>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-foreground flex items-center gap-1">
+                    Keywords (comma-separated) <span className="text-destructive font-bold">*</span>
+                  </label>
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    Minimum 1 keyword required
+                  </span>
+                </div>
                 <Textarea
                   value={monitoringForm.keywords}
                   onChange={(e) =>
                     setMonitoringForm((prev) => ({ ...prev, keywords: e.target.value }))
                   }
                   rows={2}
-                  className="text-xs"
-                  placeholder="Keywords to track across platforms..."
+                  className={cn(
+                    "text-xs",
+                    !monitoringForm.keywords?.trim() && "border-amber-500/50 focus-visible:ring-amber-500/30"
+                  )}
+                  placeholder="Type keywords or click suggestions below..."
                 />
+
+                {/* Suggestions Section Below Keywords Field */}
+                {monitoringForm.suggestions && monitoringForm.suggestions.length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                        <Sparkles className="h-3.5 w-3.5 text-primary" />
+                        Click to add suggestions:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleAddAllKeywordSuggestions}
+                        className="text-[10px] text-primary hover:underline font-semibold"
+                      >
+                        + Add all suggestions
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                      {monitoringForm.suggestions.map((sug, idx) => {
+                        const existingKeywords = (monitoringForm.keywords || '')
+                          .split(',')
+                          .map((k) => k.trim().toLowerCase());
+                        const isAdded = existingKeywords.includes(sug.toLowerCase());
+
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            disabled={isAdded}
+                            onClick={() => handleAddKeywordSuggestion(sug)}
+                            className={cn(
+                              "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border transition-colors",
+                              isAdded
+                                ? "bg-muted/40 text-muted-foreground/50 border-border/40 cursor-not-allowed"
+                                : "bg-primary/10 text-primary border-primary/25 hover:bg-primary/20 hover:border-primary/40 cursor-pointer active:scale-95"
+                            )}
+                            title={isAdded ? "Already added" : `Add "${sug}"`}
+                          >
+                            {isAdded ? "✓ Added" : `+ ${sug}`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <p className="text-[10px] text-muted-foreground">
                   Content matching these keywords will be scanned and analyzed.
                 </p>
@@ -1892,24 +2268,20 @@ export default function Periscope() {
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="space-y-1">
                   <label className="font-semibold text-foreground">Start Date</label>
-                  <Input
-                    type="date"
+                  <PeriscopeDatePicker
                     value={monitoringForm.startDate}
-                    onChange={(e) =>
-                      setMonitoringForm((prev) => ({ ...prev, startDate: e.target.value }))
+                    onChange={(dateStr) =>
+                      setMonitoringForm((prev) => ({ ...prev, startDate: dateStr }))
                     }
-                    className="h-8 text-xs"
                   />
                 </div>
                 <div className="space-y-1">
                   <label className="font-semibold text-foreground">End Date</label>
-                  <Input
-                    type="date"
+                  <PeriscopeDatePicker
                     value={monitoringForm.endDate}
-                    onChange={(e) =>
-                      setMonitoringForm((prev) => ({ ...prev, endDate: e.target.value }))
+                    onChange={(dateStr) =>
+                      setMonitoringForm((prev) => ({ ...prev, endDate: dateStr }))
                     }
-                    className="h-8 text-xs"
                   />
                 </div>
               </div>
@@ -1966,7 +2338,7 @@ export default function Periscope() {
             <Button
               size="sm"
               className="text-xs bg-primary text-primary-foreground gap-1.5"
-              disabled={submittingMonitoring}
+              disabled={submittingMonitoring || !monitoringForm?.keywords?.trim()}
               onClick={handleSubmitMonitoring}
             >
               {submittingMonitoring ? (
@@ -2018,14 +2390,20 @@ export default function Periscope() {
 
               <div className="space-y-1">
                 <label className="font-semibold text-foreground">Zone / District</label>
-                <Input
+                <input
+                  list="periscope-zones-list"
                   value={editingProgramme.zone || ''}
                   onChange={(e) =>
                     setEditingProgramme((prev) => ({ ...prev, zone: e.target.value }))
                   }
                   placeholder="e.g. Zone-I, City, District"
-                  className="h-8 text-xs"
+                  className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-2xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 />
+                <datalist id="periscope-zones-list">
+                  {zonesList.map((z) => (
+                    <option key={z} value={z} />
+                  ))}
+                </datalist>
               </div>
 
               <div className="space-y-1">
@@ -2045,26 +2423,26 @@ export default function Periscope() {
 
               <div className="sm:col-span-2 space-y-1">
                 <label className="font-semibold text-foreground">
-                  Name of the Programme <span className="text-destructive">*</span>
+                  Name of Programme / Event <span className="text-rose-500">*</span>
                 </label>
                 <Input
                   value={editingProgramme.name || ''}
                   onChange={(e) =>
                     setEditingProgramme((prev) => ({ ...prev, name: e.target.value }))
                   }
-                  placeholder="Name of the meeting, rally, or event"
-                  className="h-8 text-xs"
+                  placeholder="e.g. Rally regarding state budget"
+                  className="h-8 text-xs font-medium"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="font-semibold text-foreground">Organizer &amp; Affiliation</label>
+                <label className="font-semibold text-foreground">Organizer Details</label>
                 <Input
                   value={editingProgramme.organizer || ''}
                   onChange={(e) =>
                     setEditingProgramme((prev) => ({ ...prev, organizer: e.target.value }))
                   }
-                  placeholder="Organizer name / party / association"
+                  placeholder="Party / Leader details"
                   className="h-8 text-xs"
                 />
               </div>
@@ -2079,13 +2457,13 @@ export default function Periscope() {
                       expected_members: e.target.value,
                     }))
                   }
-                  placeholder="e.g. 500 members"
+                  placeholder="e.g. 500 or 100-150"
                   className="h-8 text-xs"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="font-semibold text-foreground">Time (From &amp; To)</label>
+                <label className="font-semibold text-foreground">Timing / Hours</label>
                 <Input
                   value={editingProgramme.time || ''}
                   onChange={(e) =>
@@ -2098,23 +2476,20 @@ export default function Periscope() {
 
               <div className="space-y-1">
                 <label className="font-semibold text-foreground">Permission Status</label>
-                <Select
-                  value={editingProgramme.permission_status}
-                  onValueChange={(val) =>
-                    setEditingProgramme((prev) => ({ ...prev, permission_status: val }))
+                <input
+                  list="periscope-permissions-list"
+                  value={editingProgramme.permission_status || ''}
+                  onChange={(e) =>
+                    setEditingProgramme((prev) => ({ ...prev, permission_status: e.target.value }))
                   }
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Permission Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PERMISSION_OPTIONS.map((p) => (
-                      <SelectItem key={p.value} value={p.value}>
-                        {p.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="e.g. By Information, Permitted, Government Programme"
+                  className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-2xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+                <datalist id="periscope-permissions-list">
+                  {allSuggestedPermissions.map((p) => (
+                    <option key={p} value={p} />
+                  ))}
+                </datalist>
               </div>
 
               <div className="space-y-1 sm:col-span-2">

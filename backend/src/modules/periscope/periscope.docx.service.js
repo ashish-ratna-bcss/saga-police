@@ -52,8 +52,8 @@ async function parseDocxBuffer(buffer) {
   const { value: html } = await mammoth.convertToHtml({ buffer });
   const $ = cheerio.load(html);
 
-  let organization = 'SPECIAL BRANCH POLICE';
-  let title = 'PERISCOPE REPORT OF SPECIAL BRANCH';
+  let organization = '';
+  let title = '';
   let reportDate = null;
   let dayOfWeek = null;
   let notes = '';
@@ -94,7 +94,7 @@ async function parseDocxBuffer(buffer) {
   // Parse Table 0: Main Programmes Table
   if (tables.length > 0) {
     const mainTable = tables.first();
-    let currentCategory = 'General Programmes';
+    let currentCategory = '';
 
     mainTable.find('tr').each((_, tr) => {
       const cells = $(tr).find('th, td');
@@ -108,10 +108,9 @@ async function parseDocxBuffer(buffer) {
       if (colspan >= 5 || cells.length === 1) {
         const catText = firstCell.text().trim();
         if (catText && !catText.toLowerCase().includes('sl.no') && !catText.toLowerCase().includes('zones')) {
-          // Clean trailing "- 02" or count if present, and remove hardcoded state-specific prefixes (like AP)
+          // Clean trailing "- 02" or count if present
           let cleaned = catText.replace(/\s*-\s*\d+\s*$/, '').trim();
-          cleaned = cleaned.replace(/\/AP\b/gi, '').replace(/\bof AP\b/gi, '').replace(/\bAP,\s*/gi, '').replace(/\s{2,}/g, ' ').trim();
-          currentCategory = cleaned || 'Other Programmes';
+          currentCategory = cleaned || '';
         }
         return;
       }
@@ -133,14 +132,14 @@ async function parseDocxBuffer(buffer) {
         const expectedMembers = getCell(5);
         const time = getCell(6);
         const gist = getCell(7);
-        const permissionStatus = cells.length >= 9 ? getCell(8) : 'Publicly reported';
+        const permissionStatus = cells.length >= 9 ? getCell(8) : '';
         const comments = cells.length >= 10 ? getCell(9) : '';
 
         if (name || zone || gist) {
           programmes.push({
-            id: `p-${Date.now()}-${programmes.length + 1}`,
+            id: `prog-${slNo}-${Date.now()}`,
             sl_no: slNo,
-            category: currentCategory,
+            category: currentCategory || '',
             zone,
             name: name || 'Untitled Programme',
             police_station_place: policeStationPlace,
@@ -231,7 +230,7 @@ async function generateDocx(data) {
   // Group programmes by category
   const categoriesMap = new Map();
   programmes.forEach((p) => {
-    const cat = p.category || 'Other Programmes';
+    const cat = (p.category || '').trim() || 'General';
     if (!categoriesMap.has(cat)) {
       categoriesMap.set(cat, []);
     }
@@ -535,9 +534,7 @@ async function generateDocx(data) {
             spacing: { before: 300 },
             children: [
               new TextRun({
-                text:
-                  data.notes ||
-                  `Source status: Draft compiled from publicly available reports for ${formattedDate}; venue, timing, crowd and permission details not found publicly are marked for verification. This is an official Periscope DSR compilation.`,
+                text: data.notes || '',
                 italics: true,
                 size: 16,
                 font: 'Calibri',

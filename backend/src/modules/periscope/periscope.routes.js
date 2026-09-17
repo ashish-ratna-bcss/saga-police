@@ -10,6 +10,7 @@ const {
   exportDocx,
   importEvents,
   deleteReport,
+  downloadTemplateDocx,
 } = require('./periscope.controller');
 
 
@@ -35,6 +36,8 @@ const upload = multer({
 
 router.get('/by-date', getReportByDate);
 router.get('/feed', getFeed);
+router.get('/template-docx', downloadTemplateDocx);
+router.get('/download-template', downloadTemplateDocx);
 router.post('/save', saveReport);
 router.get('/list', listReports);
 router.post('/upload-docx', upload.single('file'), parseDocxUpload);
