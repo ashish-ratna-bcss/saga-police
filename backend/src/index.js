@@ -15,14 +15,26 @@ const path = require('path');
 const logger = require('./lib/logger');
 
 const requestLogger = (req, res, next) => {
-  req.id = crypto.randomUUID();
-  const start = Date.now();
-  logger.debug(`[req ${req.id}] --> ${req.method} ${req.originalUrl}`);
-  res.on('finish', () => {
-    const durationMs = Date.now() - start;
-    const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
-    logger[level](`[req ${req.id}] <-- ${req.method} ${req.originalUrl} ${res.statusCode} ${durationMs}ms`);
-  });
+  if (process.env.ENABLE_REQUEST_LOGS === 'true') {
+    req.id = crypto.randomUUID();
+    const start = Date.now();
+    logger.debug(`[req ${req.id}] --> ${req.method} ${req.originalUrl}`);
+    res.on('finish', () => {
+      const durationMs = Date.now() - start;
+      const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
+      logger[level](`[req ${req.id}] <-- ${req.method} ${req.originalUrl} ${res.statusCode} ${durationMs}ms`);
+    });
+  } else {
+    const start = Date.now();
+    res.on('finish', () => {
+      if (res.statusCode >= 400) {
+        req.id = req.id || crypto.randomUUID();
+        const durationMs = Date.now() - start;
+        const level = res.statusCode >= 500 ? 'error' : 'warn';
+        logger[level](`[req ${req.id}] <-- ${req.method} ${req.originalUrl} ${res.statusCode} ${durationMs}ms`);
+      }
+    });
+  }
   next();
 };
 

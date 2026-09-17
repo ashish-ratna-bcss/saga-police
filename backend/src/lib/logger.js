@@ -4,9 +4,7 @@ const util = require('util');
 
 const LEVELS = { error: 0, warn: 1, info: 2, debug: 3 };
 
-// Production defaults to `info`. Defaulting to `debug` everywhere is what turned
-// one day's application.log into 467 MB. LOG_LEVEL still overrides both ways.
-const DEFAULT_LEVEL = process.env.NODE_ENV === 'production' ? LEVELS.info : LEVELS.debug;
+const DEFAULT_LEVEL = LEVELS.warn;
 const currentLevel = LEVELS[process.env.LOG_LEVEL] ?? DEFAULT_LEVEL;
 
 const IST_TZ = 'Asia/Kolkata';

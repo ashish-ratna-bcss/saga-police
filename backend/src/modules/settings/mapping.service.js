@@ -82,7 +82,7 @@ class MappingService {
             }));
 
             this.isLoaded = true;
-            logger.info(
+            logger.debug(
                 `[MappingService] Successfully loaded ${mappings.length} category mappings from Postgres.`
             );
         } catch (error) {
@@ -231,7 +231,7 @@ class MappingService {
                 platform: platformKey
             }));
         } else if (category) {
-            logger.info(`[MappingService] No mapping found for category: ${category} (Country: ${country})`);
+            logger.debug(`[MappingService] No mapping found for category: ${category} (Country: ${country})`);
         }
 
         result.triggered_keywords = this.extractKeywords(
