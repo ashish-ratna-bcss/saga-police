@@ -28,7 +28,7 @@ const globalsearch = {
         {
           type: 'p',
           text:
-            'Open it from **Analysis Tools** in the sidebar and click the **Global Search** card.',
+            'Open it from **Search** in the sidebar.',
         },
         {
           type: 'shot',

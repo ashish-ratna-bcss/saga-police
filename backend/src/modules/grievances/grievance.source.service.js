@@ -4,18 +4,22 @@ const {
   fetchAllCatalogGrievances,
 } = require('./grievance.service');
 const { normalizePlatform, pickAvatar } = require('./grievance.utils');
+const { resolvePagePlatformSlugs } = require('../../lib/pagePlatforms');
 const logger = require('../../lib/logger');
 
-const GRIEVANCE_PLATFORMS = ['x', 'facebook', 'instagram'];
-
 /** DB may store X as slug `x` or `twitter` — query both. */
-const platformSlugsForQuery = (canonicalOrAll) => {
+const platformSlugsForQuery = async (prisma, canonicalOrAll) => {
+  const active = await resolvePagePlatformSlugs(prisma, 'grievances', {
+    includeTwitterAlias: true,
+  });
   if (!canonicalOrAll || canonicalOrAll === 'all') {
-    return [...GRIEVANCE_PLATFORMS, 'twitter'];
+    return active;
   }
   const p = normalizePlatform(canonicalOrAll, canonicalOrAll);
-  if (p === 'x') return ['x', 'twitter'];
-  return [p];
+  if (p === 'x') {
+    return active.filter((s) => s === 'x' || s === 'twitter');
+  }
+  return active.includes(p) ? [p] : [];
 };
 
 const shapeCatalogAccount = (account, grievanceCount = 0) => {
@@ -48,7 +52,8 @@ const shapeCatalogAccount = (account, grievanceCount = 0) => {
 const listCatalogSources = async (platformFilter = 'all', { db } = {}) => {
   const prisma = dbOf(db);
   const platform = normalizePlatform(platformFilter, 'all');
-  const platformSlugs = platformSlugsForQuery(platform);
+  const platformSlugs = await platformSlugsForQuery(prisma, platform);
+  if (!platformSlugs.length) return [];
 
   const accounts = await prisma.social_media_accounts.findMany({
     where: {
@@ -72,12 +77,15 @@ const getCatalogAccount = async (id, { db } = {}) => {
   const accountId = Number(id);
   if (!Number.isInteger(accountId)) return null;
 
+  const platformSlugs = await platformSlugsForQuery(prisma, 'all');
+  if (!platformSlugs.length) return null;
+
   return prisma.social_media_accounts.findFirst({
     where: {
       id: accountId,
       is_active: true,
       type: 'grievance',
-      platforms: { slug: { in: platformSlugsForQuery('all') } },
+      platforms: { slug: { in: platformSlugs } },
     },
     include: {
       profile: { select: { display_name: true } },
@@ -107,7 +115,6 @@ const fetchAllSources = async (startDate, endDate, { db } = {}) => {
 };
 
 module.exports = {
-  GRIEVANCE_PLATFORMS,
   listCatalogSources,
   getCatalogAccount,
   fetchCatalogSourceGrievances,

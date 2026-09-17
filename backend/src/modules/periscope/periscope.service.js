@@ -37,6 +37,14 @@ async function ensureTable(db) {
   }
 }
 
+function getTodayDateStr() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 /** Compute Abstract of Programmes summary from array of programmes */
 function computeAbstract(programmes = []) {
   const counts = {};
@@ -60,7 +68,7 @@ async function getReportByDate(dateStr, { db, tenantName = '' } = {}) {
   const prisma = resolvePrisma(db);
   await ensureTable(db);
 
-  const cleanDate = normalizeDateStr(dateStr) || new Date().toISOString().split('T')[0];
+  const cleanDate = normalizeDateStr(dateStr) || getTodayDateStr();
   const [yyyy, mm, dd] = cleanDate.split('-');
   const formattedDate = `${dd}.${mm}.${yyyy}`;
   const dayOfWeek = getDayOfWeek(cleanDate);
@@ -115,7 +123,7 @@ async function saveReport(payload, { db, user } = {}) {
   const prisma = resolvePrisma(db);
   await ensureTable(db);
 
-  const reportDate = normalizeDateStr(payload.report_date) || new Date().toISOString().split('T')[0];
+  const reportDate = normalizeDateStr(payload.report_date) || getTodayDateStr();
   const dayOfWeek = payload.day_of_week || getDayOfWeek(reportDate);
   const [yyyy, mm, dd] = reportDate.split('-');
   const formattedDate = `${dd}.${mm}.${yyyy}`;
@@ -221,32 +229,31 @@ async function listReports({ page = 1, limit = 20, search = '' } = {}, { db } = 
  */
 async function importEventsForDate(dateStr, { db } = {}) {
   const prisma = resolvePrisma(db);
-  const cleanDate = normalizeDateStr(dateStr) || new Date().toISOString().split('T')[0];
+  await ensureTable(db);
+
+  const cleanDate = normalizeDateStr(dateStr) || getTodayDateStr();
   const startOfDay = new Date(`${cleanDate}T00:00:00.000Z`);
   const endOfDay = new Date(`${cleanDate}T23:59:59.999Z`);
 
   const results = [];
 
   try {
-    // 1. Fetch from social_media_event_media
+    // 1. Fetch from social_media_event_media tagged with that date or created on that date
     if (prisma.social_media_event_media) {
-      const mediaItems = await prisma.social_media_event_media.findMany({
+      const eventMedia = await prisma.social_media_event_media.findMany({
         where: {
-          posted_at: { gte: startOfDay, lte: endOfDay },
+          created_at: { gte: startOfDay, lte: endOfDay },
         },
-        include: {
-          event: true,
-        },
-        take: 50,
+        include: { event: true },
+        take: 30,
       });
 
-      mediaItems.forEach((m, idx) => {
-        const text = String(m.text || '').trim();
-        const snippet = text.slice(0, 300);
+      eventMedia.forEach((m) => {
+        const snippet = m.text_content || m.ocr_text || m.image_description || '';
         results.push({
-          id: `imp-media-${m.id}`,
-          sl_no: idx + 1,
-          category: 'Other Programmes',
+          id: `imp-med-${m.id}`,
+          sl_no: results.length + 1,
+          category: m.event?.category || 'Public Meetings, Agitations & Processions',
           zone: m.event?.location || 'State Wide',
           name: m.event?.name || snippet.slice(0, 60) || 'Monitored Social Event',
           police_station_place: m.event?.location || 'Jurisdiction PS',
@@ -328,11 +335,7 @@ async function getFeed({ limit, date } = {}, { db, tenantName = '' } = {}) {
   // Use requested date if provided, otherwise compute today's date in local time
   let targetDate = normalizeDateStr(date);
   if (!targetDate) {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    targetDate = `${year}-${month}-${day}`;
+    targetDate = getTodayDateStr();
   }
 
   // Strictly check targetDate report (past report fallback removed per request)

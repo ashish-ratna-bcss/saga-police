@@ -15,6 +15,7 @@ const callFacebookApi = require('../../services/blugate/facebook/blugate.faceboo
 const callInstagramApi = require('../../services/blugate/instagram/blugate.instagram.api_client');
 const callXApi = require('../../services/blugate/x/blugate.x.api_client');
 const { unwrapPayload } = require('../../services/blugate/instagram/blugate.instagram.helpers');
+const { resolvePagePlatformSlugs } = require('../../lib/pagePlatforms');
 const {
   normalizePlatform,
   asJson,
@@ -857,11 +858,18 @@ const fetchCatalogAccountGrievances = async (account, startDate, endDate, { db }
 
 const fetchAllCatalogGrievances = async (startDate, endDate, { db } = {}) => {
   const prisma = dbOf(db);
+  const platformSlugs = await resolvePagePlatformSlugs(prisma, 'grievances', {
+    includeTwitterAlias: true,
+  });
+  if (!platformSlugs.length) {
+    return { newGrievances: 0, total: 0 };
+  }
+
   const accounts = await prisma.social_media_accounts.findMany({
     where: {
       is_active: true,
       type: 'grievance',
-      platforms: { slug: { in: ['x', 'twitter', 'facebook', 'instagram'] } },
+      platforms: { slug: { in: platformSlugs } },
     },
     include: {
       profile: { select: { display_name: true } },

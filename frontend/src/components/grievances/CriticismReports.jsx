@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import api, { BACKEND_URL } from '../../lib/api';
 import { isPublicFileReachable, resolvePublicAssetUrl } from '../../lib/publicAssetUrl';
 import { toast } from 'sonner';
@@ -6,27 +6,24 @@ import {
     Download, Loader2, ExternalLink, RefreshCw, ChevronDown, ChevronUp,
     Calendar, Filter, Search, FileSpreadsheet, MessageSquare,
     Eye, Printer, GripHorizontal, X, Share2, Copy, Check,
-    AlertCircle, Clock, Users, Tag, Link2, Image, FileText,
+    AlertCircle, Clock, Users, Tag, Link2, Image as ImageIcon, FileText,
     MoreHorizontal, ArrowUpDown, Maximize2, Minimize2,
-    CircleCheck, ArrowRight, User, ChevronLeft, ChevronRight
+    ChevronLeft, ChevronRight, Phone, Plus, User, Sparkles, CheckCircle2,
+    ShieldAlert, Send, ThumbsUp, MessageCircle, Repeat, BarChart3
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
+import { Card, CardContent } from '../ui/card';
 import { ScrollArea } from '../ui/scroll-area';
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '../ui/select';
-import { TelegramBrandLogo } from '../PlatformBrandIcon';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
-import { QRCodeSVG } from 'qrcode.react';
-import { useReactToPrint } from 'react-to-print';
+    TelegramBrandLogo, XBrandLogo, FacebookBrandLogo,
+    InstagramBrandLogo, WhatsAppBrandLogo, YoutubeBrandLogo,
+    AllPlatformsLogo
+} from '../PlatformBrandIcon';
 import {
     Tooltip,
     TooltipContent,
@@ -34,7 +31,9 @@ import {
     TooltipProvider
 } from '../ui/tooltip';
 import { cn } from '../../lib/utils';
+import { PagePlatformSelectItems } from '../PagePlatformSelectItems';
 import { motion, AnimatePresence } from 'framer-motion';
+import { QRCodeSVG } from 'qrcode.react';
 
 /* ─── Helpers ─── */
 const fmtDate = (d) => {
@@ -73,38 +72,40 @@ const fmtNum = (n) => {
     return String(n);
 };
 
-const categoryColors = {
-    'hate_speech': 'rose',
-    'misinformation': 'amber',
-    'harassment': 'red',
-    'spam': 'purple',
-    'violence': 'orange',
-    'others': 'slate'
+const toApiFilesUrl = (rawUrl) => {
+    if (!rawUrl) return '';
+    const value = String(rawUrl).trim();
+    if (!value) return '';
+
+    const rewritePath = (pathname) => (pathname.startsWith('/files/') ? `/api${pathname}` : pathname);
+
+    if (value.startsWith('/')) {
+        return value.startsWith('/files/') ? `${BACKEND_URL}${rewritePath(value)}` : value;
+    }
+
+    try {
+        const parsed = new URL(value);
+        parsed.pathname = rewritePath(parsed.pathname);
+        return parsed.toString();
+    } catch {
+        return value;
+    }
 };
 
-// Custom Icons
-const Globe = ({ className }) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>;
-const XIcon = ({ className }) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4l11.733 16h4.267L8.267 4H4z" /><path d="M4 20l6.768-8.5M20 4l-6.768 8.5" /></svg>;
-const FacebookIcon = ({ className }) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" /></svg>;
-
-const platformConfig = {
-    all: { label: 'All Platforms', icon: Globe, color: 'slate' },
-    x: { label: 'X (Twitter)', icon: XIcon, color: 'sky' },
-    facebook: { label: 'Facebook', icon: FacebookIcon, color: 'blue' },
-    instagram: { label: 'Instagram', icon: FacebookIcon, color: 'pink' },
-    telegram: { label: 'Telegram', icon: TelegramBrandLogo, color: 'sky' },
-    whatsapp: { label: 'WhatsApp', icon: MessageSquare, color: 'emerald' }
+const platformIcons = {
+    x: XBrandLogo,
+    twitter: XBrandLogo,
+    facebook: FacebookBrandLogo,
+    instagram: InstagramBrandLogo,
+    telegram: TelegramBrandLogo,
+    whatsapp: WhatsAppBrandLogo,
+    youtube: YoutubeBrandLogo,
+    default: AllPlatformsLogo
 };
-
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-/*                  CRITICISM REPORTS TABLE                         */
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-
 
 const ExpandableText = ({ text, limit = 150, className }) => {
-    const [expanded, setExpanded] = React.useState(false);
-    if (!text) return <span className="text-slate-400 font-normal">—</span>;
+    const [expanded, setExpanded] = useState(false);
+    if (!text) return <span className="text-muted-foreground/60 font-normal italic">No details</span>;
     if (text.length <= limit) return <p className={className}>{text}</p>;
 
     return (
@@ -113,8 +114,9 @@ const ExpandableText = ({ text, limit = 150, className }) => {
                 {expanded ? text : text.slice(0, limit).trim() + '...'}
             </p>
             <button
+                type="button"
                 onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
-                className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-700 hover:underline mt-1 focus:outline-none"
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 hover:underline mt-1 focus:outline-none"
             >
                 {expanded ? <>Show Less <ChevronUp className="h-3 w-3" /></> : <>Read More <ChevronDown className="h-3 w-3" /></>}
             </button>
@@ -122,31 +124,33 @@ const ExpandableText = ({ text, limit = 150, className }) => {
     );
 };
 
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-/*               CRITICISM REPORT DETAIL VIEW                     */
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-const CriticismReportDetailView = ({ report: r, onClose, onPrint, onUpdate }) => {
-    const isVideo = (url) => typeof url === 'string' && (url.toLowerCase().endsWith('.mp4') || url.toLowerCase().includes('/video/'));
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*   DETAIL VIEW – Executive Criticism Case Dossier       */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+export const CriticismReportDetailView = ({ report, onUpdate, onClose, onPrint }) => {
     const [pdfGenerating, setPdfGenerating] = useState(false);
-    const [pdfUrl, setPdfUrl] = useState(r?.report_pdf_url || null);
-    const resolvedPdfUrl = resolvePublicAssetUrl(pdfUrl || r?.report_pdf_url) || '';
+    const [pdfUrl, setPdfUrl] = useState(report?.report_pdf_url || null);
+    const [copiedCode, setCopiedCode] = useState(false);
+    const [activePreview, setActivePreview] = useState(null);
+    const [waPhone, setWaPhone] = useState(report?.informed_to?.phone || '');
+    const resolvedPdfUrl = toApiFilesUrl(pdfUrl || report?.report_pdf_url) || '';
     const pdfGeneratingRef = useRef(false);
     pdfGeneratingRef.current = pdfGenerating;
     const pdfEnsureAttemptedRef = useRef(false);
-    const reportRef = useRef(r);
-    reportRef.current = r;
+    const reportRef = useRef(report);
+    reportRef.current = report;
     const onUpdateRef = useRef(onUpdate);
     onUpdateRef.current = onUpdate;
 
     const handleGeneratePdf = useCallback(async () => {
-        const report = reportRef.current;
+        const current = reportRef.current;
         setPdfGenerating(true);
         try {
-            const res = await api.post(`/criticism/reports/${report?.id || report?.unique_code}/generate-pdf`);
+            const res = await api.post(`/criticism/reports/${current?.id || current?.unique_code}/generate-pdf`);
             const url = res.data?.pdf_url;
             if (url) {
                 setPdfUrl(url);
-                onUpdateRef.current?.({ ...report, report_pdf_url: url });
+                onUpdateRef.current?.({ ...current, report_pdf_url: url });
                 toast.success('PDF generated successfully');
             }
         } catch (err) {
@@ -157,12 +161,12 @@ const CriticismReportDetailView = ({ report: r, onClose, onPrint, onUpdate }) =>
         }
     }, []);
 
-    React.useEffect(() => {
-        if (!r?.id || pdfGeneratingRef.current || pdfEnsureAttemptedRef.current) return;
+    useEffect(() => {
+        if (!report?.id || pdfGeneratingRef.current || pdfEnsureAttemptedRef.current) return;
         pdfEnsureAttemptedRef.current = true;
         let cancelled = false;
         (async () => {
-            const existing = pdfUrl || r?.report_pdf_url;
+            const existing = pdfUrl || report?.report_pdf_url;
             if (existing) {
                 const ok = await isPublicFileReachable(existing);
                 if (cancelled) return;
@@ -173,486 +177,439 @@ const CriticismReportDetailView = ({ report: r, onClose, onPrint, onUpdate }) =>
             if (!cancelled) handleGeneratePdf();
         })();
         return () => { cancelled = true; };
-    }, [pdfUrl, r?.id, r?.report_pdf_url, handleGeneratePdf]);
+    }, [pdfUrl, report?.id, report?.report_pdf_url, handleGeneratePdf]);
 
-    // Derived state for status timeline
-    const timelineSteps = React.useMemo(() => {
-        const steps = [];
-        // Pending
-        steps.push({
-            label: 'Posted',
-            date: r.post_date,
-            active: true,
-            current: !r.action_taken_at,
-            color: 'yellow',
-            officer: r.posted_by?.display_name || '—',
-            note: 'Content Detected'
-        });
-
-        // Action Taken
-        const isActionTaken = !!r.action_taken_at;
-        steps.push({
-            label: isActionTaken ? 'Action Taken' : 'Pending',
-            date: r.action_taken_at,
-            active: isActionTaken,
-            current: isActionTaken,
-            color: 'green',
-            officer: r.informed_to?.name || '—',
-            note: r.remarks || (isActionTaken ? 'Issue Resolved' : 'Awaiting Action'),
-            duration: isActionTaken ? (() => {
-                const diff = new Date(r.action_taken_at) - new Date(r.post_date);
-                if (diff < 0) return '—';
-                const hrs = Math.floor(diff / 3600000);
-                return `${hrs}h ${Math.floor((diff % 3600000) / 60000)}m`;
-            })() : '—'
-        });
-
-        return steps;
-    }, [r]);
-
+    const r = report || {};
     const mediaUrls = (Array.isArray(r.media_s3_urls) && r.media_s3_urls.length > 0 ? r.media_s3_urls : r.media_urls || []);
+    const isVideo = (url) => typeof url === 'string' && !!url.match(/\.(mp4|webm|ogg|mov)$/i);
 
-    // Icon mapping
-    const PlatformIcon = platformConfig[r.platform?.toLowerCase()]?.icon || Globe;
-    const platformLabel = platformConfig[r.platform?.toLowerCase()]?.label || r.platform || '—';
-    const profileLabel = r.posted_by?.display_name || r.profile_id || '—';
-    const fmtPrintDateTime = (value) => {
-        if (!value) return '—';
-        try {
-            return new Date(value)
-                .toLocaleString('en-IN', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true
-                })
-                .toLowerCase();
-        } catch {
-            return '—';
+    const isClosed = String(r.status || '').toUpperCase() === 'CLOSED' || Boolean(r.action_taken_at);
+
+    const handleCopyCode = () => {
+        if (!r.unique_code) return;
+        navigator.clipboard.writeText(r.unique_code);
+        setCopiedCode(true);
+        toast.success(`Copied ${r.unique_code}`);
+        setTimeout(() => setCopiedCode(false), 2000);
+    };
+
+    const handleWhatsAppDirect = () => {
+        const phone = String(waPhone || '').replace(/[^0-9]/g, '');
+        if (!phone) {
+            toast.error('Please enter an official contact phone number');
+            return;
         }
+        const phoneWithCountry = phone.startsWith('91') ? phone : `91${phone}`;
+        const msg = [
+            `🚨 *CRITICISM REPORT: ${r.unique_code || 'N/A'}*`,
+            ``,
+            `📅 *Post Date:* ${fmtDate(r.post_date)}`,
+            `👤 *Citizen:* ${r.posted_by?.display_name || r.profile_id || 'Public'} (${r.posted_by?.handle ? `@${r.posted_by.handle}` : '—'})`,
+            `🏷️ *Category:* ${r.category || 'General Criticism'}`,
+            `🔗 *Post Link:* ${r.post_link || 'N/A'}`,
+            ``,
+            `📝 *Criticism Details:*`,
+            `${r.post_description || 'No description recorded'}`,
+            ``,
+            `💬 *Officer Action / Remarks:*`,
+            `${r.remarks || 'No remarks added'}`,
+            ``,
+            `👥 *Informed Officer:* ${r.informed_to?.name || 'Department Officer'} ${r.informed_to?.phone ? `(${r.informed_to.phone})` : ''}`,
+            `⚡ *Status:* ${isClosed ? 'ACTION TAKEN / CLOSED' : 'PENDING REVIEW'}`,
+            ``,
+            `_Shared via Telangana Police Grievance & Criticism Monitoring Portal_`
+        ].join('\n');
+
+        window.open(`https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(msg)}`, '_blank');
     };
-    const toMetricValue = (value) => {
-        const parsed = Number(value);
-        if (!Number.isFinite(parsed)) return '—';
-        return fmtNum(parsed);
-    };
+
+    if (!report) return null;
+
+    const PlatformLogoComponent = platformIcons[r.platform?.toLowerCase()] || platformIcons.default;
+
     const engagementMetrics = [
-        { label: 'Views', value: toMetricValue(r.engagement?.views) },
-        { label: 'Likes', value: toMetricValue(r.engagement?.likes) },
-        { label: 'Reposts', value: toMetricValue(r.engagement?.reposts ?? r.engagement?.retweets) },
-        { label: 'Replies', value: toMetricValue(r.engagement?.replies) }
+        { label: 'Views', value: fmtNum(r.engagement?.views || 0), icon: BarChart3 },
+        { label: 'Likes', value: fmtNum(r.engagement?.likes || 0), icon: ThumbsUp },
+        { label: 'Reposts', value: fmtNum(r.engagement?.reposts ?? r.engagement?.retweets ?? 0), icon: Repeat },
+        { label: 'Replies', value: fmtNum(r.engagement?.replies || 0), icon: MessageCircle }
     ];
 
     return (
-        <div className="space-y-6 pb-4">
-            {/* PRINT-ONLY LETTERHEAD */}
-            <div className="gwr-print-letterhead hidden print:block">
-                <div className="gwr-print-letterhead-top">
-                    <div>
-                        <div style={{ fontSize: '13pt', fontWeight: 700, letterSpacing: '0.04em' }}>Criticism Report</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'flex-end' }}>
-                        <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: '18pt', fontWeight: 900, letterSpacing: '0.05em', fontFamily: 'monospace', color: '#f59e0b' }}>{r.unique_code || '—'}</div>
-                            <div style={{ fontSize: '7pt', opacity: 0.7, marginTop: 2 }}>UNIQUE REPORT ID</div>
+        <div className="space-y-5 pb-6">
+            {/* 1. EXECUTIVE HERO DOSSIER CARD */}
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-rose-950 to-slate-900 border border-rose-800/40 p-5 text-white shadow-xl">
+                <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-rose-500/10 blur-3xl pointer-events-none" />
+                <div className="absolute right-20 bottom-0 h-32 w-32 rounded-full bg-amber-500/10 blur-2xl pointer-events-none" />
+
+                <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-rose-500/25 to-red-600/35 border border-rose-400/40 flex items-center justify-center shadow-lg shadow-rose-950/50 backdrop-blur-sm">
+                            <ShieldAlert className="h-7 w-7 text-rose-300" />
                         </div>
-                        {(resolvedPdfUrl) ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                                <div style={{ background: '#ffffff', padding: '4px', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-rose-300/80">
+                                    Criticism Monitoring Dossier
+                                </span>
+                                <Badge className={cn(
+                                    'text-[9px] font-bold px-2 py-0.5 uppercase tracking-wider',
+                                    isClosed
+                                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40'
+                                        : 'bg-rose-500/20 text-rose-300 border-rose-400/40'
+                                )}>
+                                    {isClosed ? '✓ Action Taken' : '● Pending Action'}
+                                </Badge>
+                            </div>
+
+                            <div className="flex items-center gap-2.5 mt-1">
+                                <h2 className="text-2xl font-black font-mono tracking-tight text-white flex items-center gap-2">
+                                    {r.unique_code || '—'}
+                                </h2>
+                                <button
+                                    type="button"
+                                    onClick={handleCopyCode}
+                                    className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-rose-200 transition-colors"
+                                    title="Copy Unique ID"
+                                >
+                                    {copiedCode ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                                </button>
+                            </div>
+
+                            <p className="text-xs text-slate-300/80 mt-0.5 flex items-center gap-2">
+                                <span>Logged: {fmtDate(r.created_at || r.post_date)}</span>
+                                <span>•</span>
+                                <span className="text-rose-300 font-medium">{fmtRelativeTime(r.post_date)}</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* QR Code & PDF Quick Action */}
+                    <div className="flex items-center gap-3 ml-auto">
+                        {resolvedPdfUrl ? (
+                            <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-xl p-2 border border-white/15">
+                                <div className="bg-white p-1 rounded-lg">
                                     <QRCodeSVG
                                         value={resolvedPdfUrl}
-                                        size={72}
+                                        size={52}
                                         level="M"
                                         includeMargin={false}
                                         bgColor="#ffffff"
-                                        fgColor="#1e293b"
+                                        fgColor="#0f172a"
                                     />
                                 </div>
-                                <div style={{ fontSize: '6pt', opacity: 0.6, textAlign: 'center' }}>PDF QR</div>
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', width: '80px', height: '80px', border: '1px dashed #cbd5e1', borderRadius: '4px', opacity: 0.5 }}>
-                                <div style={{ fontSize: '6pt', textAlign: 'center', color: '#64748b', lineHeight: 1.4 }}>Generate PDF to enable QR</div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-                <div className="gwr-print-letterhead-body">
-                    <div className="gwr-print-letterhead-col">
-                        <div className="gwr-print-letterhead-label">Category</div>
-                        <div className="gwr-print-letterhead-value">{r.category || 'Others'}</div>
-                    </div>
-                    <div className="gwr-print-letterhead-col">
-                        <div className="gwr-print-letterhead-label">Platform</div>
-                        <div className="gwr-print-letterhead-value">{r.platform ? r.platform.toUpperCase() : '—'}</div>
-                    </div>
-                    <div className="gwr-print-letterhead-col">
-                        <div className="gwr-print-letterhead-label">Post Date</div>
-                        <div className="gwr-print-letterhead-value">{fmtPrintDateTime(r.post_date)}</div>
-                    </div>
-                    <div className="gwr-print-letterhead-col">
-                        <div className="gwr-print-letterhead-label">Profile</div>
-                        <div className="gwr-print-letterhead-value">{profileLabel}</div>
-                    </div>
-                    <div className="gwr-print-letterhead-col">
-                        <div className="gwr-print-letterhead-label">Created</div>
-                        <div className="gwr-print-letterhead-value">{fmtPrintDateTime(r.created_at)}</div>
-                    </div>
-                </div>
-            </div>
-
-            {/* 1. HEADER (screen only) */}
-            <div className="flex items-center justify-between p-5 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-xl text-white print:hidden">
-                <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center">
-                        <FileSpreadsheet className="h-6 w-6 text-amber-400" />
-                    </div>
-                    <div>
-                        <p className="text-xs text-slate-400 uppercase tracking-wider font-medium">Criticism Unique ID</p>
-                        <p className="text-lg font-bold font-mono tracking-wide text-amber-400">{r.unique_code || '—'}</p>
-                    </div>
-                    {(resolvedPdfUrl) ? (
-                        <div className="flex flex-col items-center gap-1 ml-2">
-                            <div className="bg-white p-1.5 rounded-lg shadow-sm">
-                                <QRCodeSVG
-                                    value={resolvedPdfUrl}
-                                    size={52}
-                                    level="M"
-                                    includeMargin={false}
-                                    bgColor="#ffffff"
-                                    fgColor="#1e293b"
-                                />
-                            </div>
-                            <span className="text-[9px] text-slate-400">PDF QR</span>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center gap-1 ml-2">
-                            <div className="w-[52px] h-[52px] rounded-lg border border-dashed border-slate-600 flex items-center justify-center">
-                                <span className="text-[7px] text-slate-500 text-center leading-tight px-1">Generate PDF for QR</span>
-                            </div>
-                        </div>
-                    )}
-                </div>
-                <div className="flex items-center gap-3">
-                    <Badge className="bg-white/10 text-white/70 border-white/20 text-[10px]">
-                        Created {new Date(r.created_at).toLocaleString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
-                    </Badge>
-                    {(resolvedPdfUrl) ? (
-                        <a
-                            href={resolvedPdfUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-semibold transition-colors"
-                        >
-                            <Download className="h-3.5 w-3.5" />
-                            Download PDF
-                        </a>
-                    ) : null}
-                    <button
-                        onClick={handleGeneratePdf}
-                        disabled={pdfGenerating}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-xs font-semibold transition-colors"
-                    >
-                        {pdfGenerating ? (
-                            <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
-                        ) : (
-                            <><FileText className="h-3.5 w-3.5" /> {resolvedPdfUrl ? 'Regenerate PDF' : 'Generate PDF'}</>
-                        )}
-                    </button>
-                </div>
-            </div>
-
-            {/* 2. POST DETAILS TABLE */}
-            <div className="gwr-section-card rounded-xl border border-slate-200 overflow-hidden">
-                <div className="gwr-section-header px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-slate-500 print:hidden" />
-                    <span className="text-sm font-semibold text-slate-800">Post Details</span>
-                </div>
-                <div className="p-4">
-                    <div className="flex gap-5">
-                        <div className="flex-1">
-                            <table className="gwr-detail-table w-full text-sm">
-                                <tbody>
-                                    <tr className="border-b border-slate-100 print:hidden">
-                                        <td className="py-2.5 pr-4 text-slate-500 font-medium w-36 align-top">Posted By</td>
-                                        <td className="py-2.5 text-slate-900">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-semibold">{r.posted_by?.display_name || r.profile_id || '—'}</span>
-                                                {r.posted_by?.handle && <span className="text-xs text-blue-600">@{r.posted_by.handle}</span>}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr className="border-b border-slate-100 print:hidden">
-                                        <td className="py-2.5 pr-4 text-slate-500 font-medium align-top">Posted Date & Time</td>
-                                        <td className="py-2.5 text-slate-900 font-medium">{r.post_date ? new Date(r.post_date).toLocaleString() : '—'}</td>
-                                    </tr>
-                                    <tr className="border-b border-slate-100">
-                                        <td className="py-2.5 pr-4 text-slate-500 font-medium align-top">Post Link</td>
-                                        <td className="py-2.5">
-                                            {r.post_link ? (
-                                                <a href={r.post_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs break-all flex items-center gap-1">
-                                                    {r.post_link}
-                                                    <ExternalLink className="h-3 w-3 shrink-0" />
-                                                </a>
-                                            ) : <span className="text-slate-400">—</span>}
-                                        </td>
-                                    </tr>
-                                    <tr className="border-b border-slate-100 print:hidden">
-                                        <td className="py-2.5 pr-4 text-slate-500 font-medium align-top">Platform</td>
-                                        <td className="py-2.5 text-slate-900 font-semibold">
-                                            <div className="flex items-center gap-2">
-                                                <PlatformIcon className="h-4 w-4 text-slate-500" />
-                                                {platformLabel}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr className="border-b border-slate-100 print:hidden">
-                                        <td className="py-2.5 pr-4 text-slate-500 font-medium align-top">Category</td>
-                                        <td className="py-2.5"><Badge variant="outline" className="text-xs border-amber-200 text-amber-700 bg-amber-50">{r.category || 'Others'}</Badge></td>
-                                    </tr>
-                                    <tr className="border-b border-slate-100">
-                                        <td className="py-2.5 pr-4 text-slate-500 font-medium align-top">Informed To</td>
-                                        <td className="py-2.5 text-slate-900">
-                                            {r.informed_to?.name ? (
-                                                <div>
-                                                    <span className="font-semibold">{r.informed_to.name}</span>
-                                                    {r.informed_to.phone && <span className="text-xs text-slate-500 ml-2">({r.informed_to.phone})</span>}
-                                                    {r.informed_to.department && <span className="text-[10px] text-slate-400 ml-1">• {r.informed_to.department}</span>}
-                                                </div>
-                                            ) : <span className="text-slate-400">Not shared</span>}
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div className="gwr-engagement-row mt-4 flex items-start justify-between gap-4">
-                        <div className="gwr-engagement-grid grid flex-1 grid-cols-4 gap-2">
-                            {engagementMetrics.map((item) => (
-                                <div key={item.label} className="gwr-engagement-metric rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{item.label}</p>
-                                    <p className="text-sm font-semibold text-slate-800 mt-0.5">{item.value}</p>
-                                </div>
-                            ))}
-                        </div>
-                        {r.post_link && (
-                            <div className="gwr-post-qr-block shrink-0 flex flex-col items-center gap-2 p-1 bg-white">
-                                <div className="gwr-post-qr-box w-[108px] h-[108px] p-2 border border-slate-200 rounded-md shadow-sm flex items-center justify-center bg-white">
-                                    <QRCodeSVG
-                                        value={r.post_link}
-                                        size={92}
-                                        level="M"
-                                        includeMargin={false}
-                                        bgColor="#ffffff"
-                                        fgColor="#1e293b"
-                                    />
-                                </div>
-                                <p className="text-[9px] text-slate-400 text-center leading-tight">Post QR</p>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">📝 Description</p>
-                        <div className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
-                            {r.post_description || 'No description provided'}
-                        </div>
-                    </div>
-
-                    <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">💬 Remarks</p>
-                        <div className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
-                            {r.remarks || 'No remarks provided'}
-                        </div>
-                    </div>
-
-                    {mediaUrls.length > 0 && (
-                        <div className="mt-4">
-                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                <Image className="h-3 w-3" /> Post Media ({mediaUrls.length})
-                            </p>
-                            <div className="grid grid-cols-2 gap-3">
-                                {mediaUrls.map((url, i) => (
+                                <div className="flex flex-col pr-1">
+                                    <span className="text-[10px] font-bold text-rose-200 uppercase tracking-wider">Official PDF</span>
                                     <a
-                                        key={i}
-                                        href={url}
+                                        href={resolvedPdfUrl}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="group relative aspect-video rounded-xl border border-slate-200 overflow-hidden hover:border-amber-300 transition-colors"
+                                        className="mt-1 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors shadow-sm"
                                     >
-                                        {isVideo(url) ? (
-                                            <div className="h-full w-full bg-slate-900 flex items-center justify-center">
-                                                <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                                                    <div className="w-0 h-0 border-t-[6px] border-t-transparent border-l-[10px] border-l-white border-b-[6px] border-b-transparent ml-1" />
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <img src={url} alt={`Media ${i + 1}`} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" onError={e => e.currentTarget.src = ''} />
-                                        )}
+                                        <Download className="h-3 w-3" />
+                                        Download
                                     </a>
-                                ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <Button
+                                onClick={handleGeneratePdf}
+                                disabled={pdfGenerating}
+                                size="sm"
+                                className="h-9 gap-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-md"
+                            >
+                                {pdfGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
+                                Generate PDF
+                            </Button>
+                        )}
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={onPrint || (() => window.print())}
+                            className="h-9 gap-1.5 bg-white/10 hover:bg-white/20 border-white/20 text-white font-semibold text-xs rounded-xl"
+                        >
+                            <Printer className="h-3.5 w-3.5" />
+                            Print
+                        </Button>
+                    </div>
+                </div>
+            </div>
+
+            {/* 2. CASE PARTICULARS MATRIX & ORIGINAL POST QR */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {/* Left 2 Cols: Details Matrix */}
+                <div className="lg:col-span-2 rounded-2xl border border-border bg-card p-5 shadow-xs space-y-4">
+                    <div className="flex items-center justify-between border-b border-border/80 pb-3">
+                        <div className="flex items-center gap-2 font-bold text-sm text-foreground">
+                            <Sparkles className="h-4 w-4 text-rose-500" />
+                            <span>Criticism Particulars</span>
+                        </div>
+                        <Badge variant="outline" className="text-xs font-bold border-rose-500/30 text-rose-600 dark:text-rose-400 bg-rose-500/10">
+                            {r.category || 'General Criticism'}
+                        </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                        {/* Citizen Profile */}
+                        <div className="p-3 rounded-xl bg-muted/40 border border-border/60 space-y-1.5">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Citizen / Handle</span>
+                            <div className="flex items-center gap-2.5">
+                                <div className="h-8 w-8 rounded-full bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
+                                    <PlatformLogoComponent className="h-4 w-4" />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="font-bold text-foreground truncate">{r.posted_by?.display_name || r.profile_id || 'Public Citizen'}</p>
+                                    {r.posted_by?.handle ? (
+                                        <a
+                                            href={r.posted_by?.url || r.post_link || '#'}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-rose-600 dark:text-rose-400 hover:underline font-mono text-[11px] truncate block"
+                                        >
+                                            @{r.posted_by.handle.replace('@', '')}
+                                        </a>
+                                    ) : (
+                                        <span className="text-muted-foreground text-[10px]">Platform User</span>
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    )}
-                </div>
-            </div>
 
-            {/* ═══════ 3. STATUS TIMELINE ═══════ */}
-            <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm">
-                <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2 bg-slate-50/80 backdrop-blur-sm">
-                    <div className="p-1.5 bg-blue-100/50 rounded-lg text-blue-600">
-                        <Clock className="h-4 w-4" />
-                    </div>
-                    <div>
-                        <span className="text-sm font-bold text-slate-800 block">Status Timeline</span>
-                        <span className="text-[10px] text-slate-500 font-medium">Tracking the lifecycle of this report</span>
-                    </div>
-                </div>
-                <div className="p-6 md:p-8">
-                    <div className="relative pl-6 sm:pl-10 space-y-8 before:absolute before:left-3 sm:before:left-5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-                        {timelineSteps.map((step, idx) => {
-                            const c = { yellow: 'yellow', green: 'green' }[step.color] || 'yellow';
-                            const isActive = step.active;
-                            const isLast = idx === timelineSteps.length - 1;
-
-                            return (
-                                <div key={idx} className={cn("relative group transition-all duration-300", !isActive && "opacity-50 grayscale")}>
-                                    {/* Timeline Dot */}
-                                    <div className={cn(
-                                        "absolute -left-[27px] sm:-left-[43px] top-6 h-4 w-4 rounded-full border-[3px] bg-white ring-4 ring-white z-10 transition-colors duration-300",
-                                        isActive ? `border-${c}-500 shadow-md` : "border-slate-300",
-                                        step.current && isActive && "animate-pulse"
-                                    )}>
-                                        {step.current && isActive && (
-                                            <span className={cn("absolute inset-0 rounded-full animate-ping opacity-75", `bg-${c}-400`)} />
-                                        )}
-                                    </div>
-
-                                    {/* Card Content - The "Rectangle" */}
-                                    <div className={cn(
-                                        "relative rounded-xl border transition-all duration-300 hover:shadow-md overflow-hidden bg-white",
-                                        isActive ? "border-slate-200 shadow-sm" : "border-slate-100 bg-slate-50/50"
-                                    )}>
-                                        {/* Status Header Strip */}
-                                        <div className={cn(
-                                            "px-4 py-2 text-xs font-bold uppercase tracking-wider flex items-center justify-between border-b",
-                                            isActive
-                                                ? `bg-${c}-50 text-${c}-700 border-${c}-100`
-                                                : "bg-slate-100 text-slate-500 border-slate-200"
-                                        )}>
-                                            <div className="flex items-center gap-2">
-                                                {idx === 0 ? <Clock className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
-                                                {step.label}
-                                            </div>
-                                            {step.date && (
-                                                <div className="font-mono opacity-80 normal-case flex items-center gap-1.5">
-                                                    <Calendar className="h-3 w-3" />
-                                                    {new Date(step.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                                    <span className="w-1 h-3 border-l border-current opacity-30 mx-0.5" />
-                                                    {new Date(step.date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Body Content */}
-                                        <div className="p-4">
-                                            {/* Officer & Role */}
-                                            <div className="flex items-start gap-3 mb-3">
-                                                <div className={cn("p-2 rounded-lg shrink-0", isActive ? "bg-slate-100" : "bg-slate-100/50")}>
-                                                    <User className="h-4 w-4 text-slate-500" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs text-slate-500 font-medium mb-0.5">Handled By</p>
-                                                    <p className="text-sm font-semibold text-slate-900">{step.officer}</p>
-                                                </div>
-                                            </div>
-
-                                            {/* Note / Remarks */}
-                                            <div className={cn(
-                                                "p-3 rounded-lg text-sm leading-relaxed border",
-                                                isActive ? "bg-slate-50 border-slate-100 text-slate-700" : "bg-transparent border-transparent text-slate-400 italic"
-                                            )}>
-                                                {step.note && step.note !== '—' ? step.note : <span className="text-slate-400 italic">No additional remarks recorded.</span>}
-                                            </div>
-
-                                            {/* Step Duration Footer */}
-                                            {isActive && step.duration && step.duration !== '—' && (
-                                                <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-end text-xs text-slate-500 font-medium">
-                                                    <span className="bg-slate-100 px-2 py-1 rounded text-[10px] uppercase tracking-wide flex items-center gap-1.5">
-                                                        <Clock className="h-3 w-3" />
-                                                        Duration: {step.duration}
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            </div>
-
-            {/* ═══════ 4. COMMUNICATION / REMARKS LOG ═══════ */}
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <MessageSquare className="h-4 w-4 text-slate-500 print:hidden" />
-                        <span className="text-sm font-semibold text-slate-800">Communication & Remarks</span>
-                    </div>
-                </div>
-                <div className="bg-white divide-y divide-slate-100 min-h-[100px] max-h-[400px] overflow-y-auto">
-                    {(() => {
-                        const logs = [];
-                        if (r.post_description) {
-                            logs.push({
-                                type: 'User',
-                                timestamp: r.post_date,
-                                content: r.post_description,
-                                label: 'User Content',
-                                bg: 'bg-orange-500'
-                            });
-                        }
-                        if (r.remarks) {
-                            logs.push({
-                                type: 'Internal',
-                                timestamp: r.action_taken_at || r.created_at,
-                                content: r.remarks,
-                                label: 'Internal / Action Remark',
-                                bg: 'bg-emerald-600'
-                            });
-                        }
-                        return logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)).map((log, idx) => (
-                            <div key={idx} className="bg-white pt-1.5 pb-1">
-                                <div className="flex items-center gap-2 px-3">
-                                    <div className={cn('inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm max-w-[85%]', log.bg)}>
-                                        <span className="text-[10px] font-semibold truncate text-white">
-                                            {log.label}
-                                        </span>
-                                    </div>
-                                    <span className="text-[8px] text-slate-400 whitespace-nowrap shrink-0">{fmtDate(log.timestamp)}</span>
-                                </div>
-                                <div className="px-3 pt-1 pb-0.5 mb-2">
-                                    <ExpandableText text={log.content} limit={150} className="text-xs text-slate-800 whitespace-pre-wrap leading-snug" />
+                        {/* Post Date & Time */}
+                        <div className="p-3 rounded-xl bg-muted/40 border border-border/60 space-y-1.5">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Post Date & Time</span>
+                            <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <div>
+                                    <p className="font-bold text-foreground">{fmtDate(r.post_date)}</p>
+                                    <p className="text-[10px] text-muted-foreground">{fmtRelativeTime(r.post_date)}</p>
                                 </div>
                             </div>
-                        ));
-                    })()}
+                        </div>
+
+                        {/* Informed Officer */}
+                        <div className="p-3 rounded-xl bg-muted/40 border border-border/60 space-y-1.5">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Informed Officer / Unit</span>
+                            <div className="flex items-center gap-2">
+                                <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <div className="min-w-0">
+                                    <p className="font-bold text-foreground truncate">{r.informed_to?.name || 'Department Officer'}</p>
+                                    <p className="text-[10px] text-muted-foreground font-mono">
+                                        {r.informed_to?.phone || 'No phone recorded'} {r.informed_to?.department ? `• ${r.informed_to.department}` : ''}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Direct Link */}
+                        <div className="p-3 rounded-xl bg-muted/40 border border-border/60 space-y-1.5">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Live Post URL</span>
+                            <div className="flex items-center gap-2">
+                                <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <div className="min-w-0 flex-1">
+                                    {r.post_link ? (
+                                        <a
+                                            href={r.post_link}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="font-medium text-rose-600 dark:text-rose-400 hover:underline truncate block text-[11px] flex items-center gap-1"
+                                        >
+                                            <span className="truncate">{r.post_link}</span>
+                                            <ExternalLink className="h-3 w-3 shrink-0" />
+                                        </a>
+                                    ) : (
+                                        <span className="text-muted-foreground italic">No external link</span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Engagement Metrics Ribbon */}
+                    <div className="pt-2 border-t border-border/60">
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-2">
+                            Engagement Metrics
+                        </span>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                            {engagementMetrics.map((item) => {
+                                const Icon = item.icon;
+                                return (
+                                    <div key={item.label} className="p-2 rounded-xl bg-muted/30 border border-border/50 flex items-center gap-2">
+                                        <div className="p-1.5 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                                            <Icon className="h-3.5 w-3.5" />
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] text-muted-foreground block">{item.label}</span>
+                                            <span className="text-xs font-mono font-black text-foreground">{item.value}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Right 1 Col: Live QR Code Card */}
+                <div className="rounded-2xl border border-border bg-card p-5 shadow-xs flex flex-col items-center justify-center text-center">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-3">
+                        Original Post QR
+                    </span>
+                    {r.post_link ? (
+                        <div className="p-3 bg-white rounded-2xl border border-border/80 shadow-inner">
+                            <QRCodeSVG
+                                value={r.post_link}
+                                size={128}
+                                level="M"
+                                includeMargin={false}
+                                bgColor="#ffffff"
+                                fgColor="#0f172a"
+                            />
+                        </div>
+                    ) : (
+                        <div className="h-32 w-32 rounded-2xl border border-dashed border-border/80 flex items-center justify-center bg-muted/20">
+                            <span className="text-[11px] text-muted-foreground p-2">No URL to generate QR</span>
+                        </div>
+                    )}
+                    <p className="text-[11px] font-medium text-muted-foreground mt-3 max-w-[180px]">
+                        Scan via smartphone camera to inspect live social media post
+                    </p>
                 </div>
             </div>
+
+            {/* 3. CRITICISM DESCRIPTION & REMARKS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-border bg-card p-5 shadow-xs space-y-2">
+                    <div className="flex items-center gap-2 font-bold text-xs text-foreground uppercase tracking-wider">
+                        <FileText className="h-4 w-4 text-rose-500" />
+                        <span>Criticism Content</span>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-muted/30 border border-border/50 text-xs leading-relaxed text-foreground whitespace-pre-wrap">
+                        {r.post_description || 'No criticism content recorded.'}
+                    </div>
+                </div>
+
+                <div className="rounded-2xl border border-border bg-card p-5 shadow-xs space-y-2">
+                    <div className="flex items-center gap-2 font-bold text-xs text-foreground uppercase tracking-wider">
+                        <MessageSquare className="h-4 w-4 text-emerald-500" />
+                        <span>Action Plan & Officer Remarks</span>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-muted/30 border border-border/50 text-xs leading-relaxed text-foreground whitespace-pre-wrap">
+                        {r.remarks || 'No internal remarks or corrective action details provided.'}
+                    </div>
+                </div>
+            </div>
+
+            {/* 4. ATTACHED MEDIA GALLERY */}
+            {mediaUrls.length > 0 && (
+                <div className="rounded-2xl border border-border bg-card p-5 shadow-xs space-y-3">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 font-bold text-xs text-foreground uppercase tracking-wider">
+                            <ImageIcon className="h-4 w-4 text-rose-500" />
+                            <span>Attached Media ({mediaUrls.length})</span>
+                        </div>
+                        <span className="text-[11px] text-muted-foreground">Click thumbnail to expand</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        {mediaUrls.map((url, i) => (
+                            <button
+                                key={i}
+                                type="button"
+                                onClick={() => setActivePreview(url)}
+                                className="group relative aspect-video rounded-xl border border-border overflow-hidden hover:border-rose-500 transition-all bg-muted/40 cursor-pointer text-left"
+                            >
+                                {isVideo(url) ? (
+                                    <div className="h-full w-full bg-slate-900 flex items-center justify-center">
+                                        <div className="h-9 w-9 rounded-full bg-white/25 flex items-center justify-center backdrop-blur-sm group-hover:scale-110 transition-transform">
+                                            <div className="w-0 h-0 border-t-[6px] border-t-transparent border-l-[10px] border-l-white border-b-[6px] border-b-transparent ml-1" />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <img
+                                        src={url}
+                                        alt={`Media ${i + 1}`}
+                                        className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                        loading="lazy"
+                                        referrerPolicy="no-referrer"
+                                    />
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* 5. WHATSAPP FAST-SHARE STRIP */}
+            <div className="rounded-2xl border border-border bg-card p-4 shadow-xs flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                        <WhatsAppBrandLogo className="h-5 w-5" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-foreground">Share Criticism via WhatsApp</p>
+                        <p className="text-[10px] text-muted-foreground">Send complete case particulars directly to officer or complainant</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Input
+                        placeholder="Officer phone (e.g. 9876543210)"
+                        value={waPhone}
+                        onChange={(e) => setWaPhone(e.target.value)}
+                        className="h-8 text-xs w-full sm:w-56 bg-background rounded-lg"
+                    />
+                    <Button
+                        size="sm"
+                        onClick={handleWhatsAppDirect}
+                        className="h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shrink-0 shadow-sm"
+                    >
+                        <Send className="h-3.5 w-3.5" />
+                        Send
+                    </Button>
+                </div>
+            </div>
+
+            {/* Media Lightbox */}
+            <AnimatePresence>
+                {activePreview && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[10000] bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+                        onClick={() => setActivePreview(null)}
+                    >
+                        <div className="relative max-w-4xl max-h-[85vh] overflow-hidden rounded-2xl bg-black border border-white/10" onClick={(e) => e.stopPropagation()}>
+                            <button
+                                type="button"
+                                onClick={() => setActivePreview(null)}
+                                className="absolute top-3 right-3 z-10 h-8 w-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/90 transition-colors"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                            {isVideo(activePreview) ? (
+                                <video src={activePreview} controls autoPlay className="max-h-[80vh] w-auto rounded-2xl" />
+                            ) : (
+                                <img src={activePreview} alt="Preview" className="max-h-[80vh] w-auto object-contain rounded-2xl" />
+                            )}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
 
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*                  CRITICISM REPORTS COMPONENT                  */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) => {
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(false);
     const [exporting, setExporting] = useState(false);
     const [platform, setPlatform] = useState('all');
     const [categoryFilter, setCategoryFilter] = useState('all');
+    const [statusFilter, setStatusFilter] = useState('all');
     const [fromDate, setFromDate] = useState('');
     const [toDate, setToDate] = useState('');
     const [quickRange, setQuickRange] = useState('all');
@@ -660,8 +617,6 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
     const [page, setPage] = useState(1);
     const [pagination, setPagination] = useState({ total: 0, pages: 1 });
     const [selectedReport, setSelectedReport] = useState(null);
-    const [waPhone, setWaPhone] = useState('');
-    const [copied, setCopied] = useState(false);
     const [fullscreen, setFullscreen] = useState(false);
     const detailPopupRef = useRef(null);
     const [detailPos, setDetailPos] = useState({
@@ -671,10 +626,8 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
     const [draggingDetail, setDraggingDetail] = useState(false);
     const [detailDragOffset, setDetailDragOffset] = useState({ x: 0, y: 0 });
     const [sortConfig, setSortConfig] = useState({ key: 'post_date', direction: 'desc' });
-    const [pdfGenerating, setPdfGenerating] = useState(false);
-    const pdfGeneratingRef = useRef(false);
-    pdfGeneratingRef.current = pdfGenerating;
 
+    // Quick date range preset handler
     useEffect(() => {
         if (quickRange === 'all') {
             setFromDate('');
@@ -695,7 +648,7 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
         } else if (quickRange === 'last_month') {
             start.setMonth(start.getMonth() - 1);
             start.setDate(1);
-            end.setDate(0); // Last day of previous month
+            end.setDate(0);
         }
 
         const fmt = (d) => {
@@ -710,30 +663,7 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
         setPage(1);
     }, [quickRange]);
 
-    const handleAutoGeneratePdf = useCallback(async (report) => {
-        setPdfGenerating(true);
-        try {
-            const res = await api.post(`/criticism/reports/${report.id}/generate-pdf`);
-            const url = res.data?.pdf_url;
-            if (url) {
-                const updated = { ...report, report_pdf_url: url };
-                setSelectedReport(updated);
-                setReports(prev => prev.map(r => r.id === report.id ? updated : r));
-                toast.success('PDF generated successfully');
-            }
-        } catch (err) {
-            console.error('Auto PDF generation failed:', err);
-        } finally {
-            setPdfGenerating(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (selectedReport && !selectedReport.report_pdf_url && !pdfGeneratingRef.current) {
-            handleAutoGeneratePdf(selectedReport);
-        }
-    }, [selectedReport, handleAutoGeneratePdf]);
-
+    // Fetch reports
     const fetchReports = useCallback(async () => {
         setLoading(true);
         try {
@@ -745,6 +675,7 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
             };
             if (platform !== 'all') params.platform = platform;
             if (categoryFilter !== 'all') params.category = categoryFilter;
+            if (statusFilter !== 'all') params.status = statusFilter;
             if (fromDate) params.from = fromDate;
             if (toDate) params.to = toDate;
             if (searchTerm.trim()) params.search = searchTerm.trim();
@@ -760,17 +691,19 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
         } finally {
             setLoading(false);
         }
-    }, [page, platform, categoryFilter, fromDate, toDate, searchTerm, sortConfig]);
+    }, [page, platform, categoryFilter, statusFilter, fromDate, toDate, searchTerm, sortConfig]);
 
     useEffect(() => {
         fetchReports();
     }, [fetchReports]);
 
+    // Deep link open
     useEffect(() => {
         const code = String(openReportCode || '').trim();
         if (!code) return;
         setPlatform('all');
         setCategoryFilter('all');
+        setStatusFilter('all');
         setPage(1);
         setSearchTerm(code);
     }, [openReportCode]);
@@ -781,17 +714,25 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
         const match = reports.find((item) => String(item.unique_code || '').trim().toUpperCase() === code);
         if (!match) return;
         setSelectedReport(match);
-        setWaPhone(match.informed_to?.phone || match.complaint_phone || '');
         onReportCodeHandled?.(match.unique_code || code);
     }, [openReportCode, reports, loading, onReportCodeHandled]);
 
-    /* ─── Export to Excel ─── */
+    // Stats calculations
+    const stats = useMemo(() => {
+        const total = pagination.total || reports.length;
+        const closed = reports.filter(r => String(r.status || '').toUpperCase() === 'CLOSED' || Boolean(r.action_taken_at)).length;
+        const pending = Math.max(0, total - closed);
+        return { total, closed, pending };
+    }, [pagination.total, reports]);
+
+    // Export to Excel
     const handleExport = async () => {
         setExporting(true);
         try {
             const params = {};
             if (platform !== 'all') params.platform = platform;
             if (categoryFilter !== 'all') params.category = categoryFilter;
+            if (statusFilter !== 'all') params.status = statusFilter;
             if (fromDate) params.from = fromDate;
             if (toDate) params.to = toDate;
             if (searchTerm.trim()) params.search = searchTerm.trim();
@@ -813,213 +754,13 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
             document.body.removeChild(link);
             window.URL.revokeObjectURL(url);
 
-            toast.success('Excel report downloaded successfully', {
-                description: `${pagination.total} reports exported`
-            });
+            toast.success('Excel report downloaded successfully');
         } catch {
             toast.error('Failed to export reports');
         } finally {
             setExporting(false);
         }
     };
-
-    const buildShareMessage = useCallback((r) => {
-        if (!r) return '';
-        return [
-            `📋 *CRITICISM REPORT: ${r.unique_code || ''}*`,
-            ``,
-            `📅 *Post Date:* ${fmtDate(r.post_date)}`,
-            `👤 *Profile:* ${r.profile_id || r.posted_by?.handle || 'N/A'}`,
-            `🏷️ *Category:* ${r.category || 'Others'}`,
-            `🔗 *Post Link:* ${r.post_link || 'N/A'}`,
-            ``,
-            `📝 *Description:*`,
-            `${r.post_description || ''}`,
-            ``,
-            `💬 *Remarks:*`,
-            `${r.remarks || ''}`,
-            ``,
-            `👥 *Informed To:* ${r.informed_to?.name || 'N/A'} ${r.informed_to?.phone ? `(${r.informed_to.phone})` : ''} - Action: ${fmtDate(r.action_taken_at) || 'Pending'}`,
-            ``,
-            `_Shared via Criticism Management System_`
-        ].join('\n');
-    }, []);
-
-    const handleShareViaWhatsApp = () => {
-        if (!selectedReport) return;
-        const phone = String(waPhone || '').replace(/[^0-9]/g, '');
-        if (!phone) {
-            toast.error('Please enter a WhatsApp number');
-            return;
-        }
-        const message = buildShareMessage(selectedReport);
-        const phoneWithCountry = phone.startsWith('91') ? phone : `91${phone}`;
-
-        navigator.clipboard.writeText(message);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-
-        toast.success('Details copied to clipboard', {
-            description: 'Opening WhatsApp...'
-        });
-
-        window.open(`https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(message)}`, '_blank');
-    };
-
-    const handleCopyToClipboard = () => {
-        if (!selectedReport) return;
-        const message = buildShareMessage(selectedReport);
-        navigator.clipboard.writeText(message);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-        toast.success('Copied to clipboard');
-    };
-
-    const printComponentRef = useRef(null);
-    const handlePrintPdf = useReactToPrint({
-        content: () => printComponentRef.current,
-        documentTitle: `Criticism_Report_${selectedReport?.unique_code || 'Detail'}`,
-        pageStyle: `
-        @page {
-            size: A4;
-            margin: 18mm 20mm 22mm 20mm;
-        }
-        @page :first {
-            margin-top: 14mm;
-        }
-        @media print {
-            * {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-                box-shadow: none !important;
-                text-shadow: none !important;
-            }
-            body {
-                font-family: 'Segoe UI', Arial, sans-serif;
-                font-size: 10.5pt;
-                color: #111;
-                background: #fff !important;
-                line-height: 1.45;
-            }
-            .print\\:hidden, .print-hidden { display: none !important; }
-            .gwr-print-letterhead {
-                display: block !important;
-                border: 2px solid #1e293b;
-                margin-bottom: 14px;
-                page-break-inside: avoid;
-            }
-            .gwr-print-letterhead-top {
-                display: flex;
-                justify-content: space-between;
-                align-items: flex-start;
-                background: #1e293b !important;
-                color: #fff !important;
-                padding: 10px 16px;
-            }
-            .gwr-print-letterhead-body {
-                display: flex;
-                align-items: stretch;
-                gap: 0;
-                padding: 8px 16px;
-                font-size: 10px;
-            }
-            .gwr-print-letterhead-col {
-                flex: 1;
-                min-width: 0;
-                padding: 4px 10px 4px 0;
-            }
-            .gwr-print-letterhead-col + .gwr-print-letterhead-col {
-                border-left: 1px solid #cbd5e1;
-                padding-left: 10px;
-            }
-            .gwr-print-letterhead-label {
-                font-size: 8px;
-                font-weight: 700;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-                color: #64748b;
-                margin-bottom: 2px;
-            }
-            .gwr-print-letterhead-value {
-                font-size: 11px;
-                font-weight: 600;
-                color: #1e293b;
-            }
-            .gwr-section-header {
-                background: #f1f5f9 !important;
-                color: #1e293b !important;
-                border-bottom: 1.5px solid #cbd5e1 !important;
-                padding: 6px 14px !important;
-                font-size: 9pt;
-                font-weight: 700;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-            }
-            .gwr-section-card {
-                border: 1.5px solid #cbd5e1 !important;
-                border-radius: 0 !important;
-                margin-bottom: 12px !important;
-                page-break-inside: avoid;
-                overflow: visible !important;
-            }
-            .gwr-detail-table td {
-                padding: 5px 10px 5px 0;
-                font-size: 10pt;
-                border-bottom: 0.5px solid #e2e8f0;
-                vertical-align: top;
-            }
-            .gwr-detail-table td:first-child {
-                color: #475569;
-                font-weight: 600;
-                white-space: nowrap;
-                min-width: 130px;
-            }
-            .gwr-engagement-row {
-                display: flex !important;
-                align-items: flex-start;
-                justify-content: space-between;
-                gap: 10px;
-                page-break-inside: avoid;
-            }
-            .gwr-engagement-grid {
-                display: grid !important;
-                grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-                gap: 6px !important;
-                flex: 1 !important;
-            }
-            .gwr-engagement-metric {
-                border: 1px solid #dbe1e8 !important;
-                background: #f8fafc !important;
-                border-radius: 0 !important;
-                padding: 6px 8px !important;
-            }
-            .gwr-post-qr-block {
-                width: 106px !important;
-                flex: 0 0 106px !important;
-                display: flex !important;
-                flex-direction: column;
-                align-items: center;
-                gap: 4px;
-            }
-            .gwr-post-qr-box {
-                width: 100px !important;
-                height: 100px !important;
-                padding: 4px !important;
-                border: 1px solid #cbd5e1 !important;
-                border-radius: 0 !important;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }
-            .gwr-post-qr-box svg {
-                width: 88px !important;
-                height: 88px !important;
-            }
-            .rounded-xl, .rounded-lg, .rounded-full, .rounded, .rounded-md { border-radius: 0 !important; }
-            a { color: #0f172a !important; text-decoration: underline !important; }
-        }
-        `
-    });
 
     const handleSort = (key) => {
         setSortConfig(prev => ({
@@ -1028,392 +769,501 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
         }));
     };
 
-    useEffect(() => {
-        if (!selectedReport) return;
-        setDetailPos({
-            x: Math.max(24, window.innerWidth / 2 - 440),
-            y: 40
-        });
-    }, [selectedReport]);
+    const hasActiveFilters = Boolean(
+        platform !== 'all' ||
+        categoryFilter !== 'all' ||
+        statusFilter !== 'all' ||
+        quickRange !== 'all' ||
+        fromDate ||
+        toDate ||
+        searchTerm.trim()
+    );
 
-    useEffect(() => {
-        if (!draggingDetail) return;
-        const onMove = (e) => {
-            setDetailPos({
-                x: Math.max(12, Math.min(e.clientX - detailDragOffset.x, window.innerWidth - 860)),
-                y: Math.max(12, Math.min(e.clientY - detailDragOffset.y, window.innerHeight - 120))
-            });
-        };
-        const onUp = () => setDraggingDetail(false);
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp);
-        return () => {
-            window.removeEventListener('mousemove', onMove);
-            window.removeEventListener('mouseup', onUp);
-        };
-    }, [draggingDetail, detailDragOffset]);
+    const handleClearAllFilters = () => {
+        setPlatform('all');
+        setCategoryFilter('all');
+        setStatusFilter('all');
+        setQuickRange('all');
+        setFromDate('');
+        setToDate('');
+        setSearchTerm('');
+        setPage(1);
+    };
 
     const SortIcon = ({ column }) => (
         <ArrowUpDown className={cn(
-            "h-3.5 w-3.5 ml-1 transition-opacity",
-            sortConfig.key === column ? "opacity-100" : "opacity-30"
+            "h-3 w-3 ml-1 transition-opacity",
+            sortConfig.key === column ? "opacity-100 text-rose-600" : "opacity-30"
         )} />
     );
 
-    /* ━━━━━ RENDER ━━━━━ */
     return (
         <TooltipProvider>
-            <div>
-                <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-1.5 border-b border-border bg-muted/10">
-                    <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
-                        {pagination.total} records
-                    </span>
-                    <Select value={quickRange} onValueChange={(v) => { setQuickRange(v); setPage(1); }}>
-                        <SelectTrigger className="h-7 w-[110px] text-[11px]"><SelectValue placeholder="Date" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All time</SelectItem>
-                            <SelectItem value="24h">Last 24h</SelectItem>
-                            <SelectItem value="7d">Last 7d</SelectItem>
-                            <SelectItem value="30d">Last 30d</SelectItem>
-                            <SelectItem value="last_month">Last month</SelectItem>
-                            <SelectItem value="custom">Custom</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    {quickRange === 'custom' && (
-                        <>
-                            <input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="h-7 px-1.5 text-[11px] bg-background border border-border rounded" />
-                            <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="h-7 px-1.5 text-[11px] bg-background border border-border rounded" />
-                        </>
-                    )}
-                    <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setPage(1); }}>
-                        <SelectTrigger className="h-7 w-[120px] text-[11px]"><SelectValue placeholder="Category" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All categories</SelectItem>
-                            <SelectItem value="Cyber crimes">Cyber crimes</SelectItem>
-                            <SelectItem value="E-Challan">E-Challan</SelectItem>
-                            <SelectItem value="L&O">L&O</SelectItem>
-                            <SelectItem value="Others">Others</SelectItem>
-                            <SelectItem value="She Team">She Team</SelectItem>
-                            <SelectItem value="Task force">Task force</SelectItem>
-                            <SelectItem value="Traffic">Traffic</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <Select value={platform} onValueChange={(v) => { setPlatform(v); setPage(1); }}>
-                        <SelectTrigger className="h-7 w-[110px] text-[11px]"><SelectValue placeholder="Platform" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All platforms</SelectItem>
-                            <SelectItem value="x">X</SelectItem>
-                            <SelectItem value="facebook">Facebook</SelectItem>
-                            <SelectItem value="instagram">Instagram</SelectItem>
-                            <SelectItem value="telegram">Telegram</SelectItem>
-                            <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <div className="relative ml-auto w-full sm:w-52">
-                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                        <Input
-                            placeholder="Search…"
-                            value={searchTerm}
-                            onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-                            className="pl-7 h-7 text-[11px]"
-                        />
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={fetchReports} className="h-7 w-7 p-0" title="Refresh">
-                        <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
-                    </Button>
-                    <Button
-                        size="sm"
-                        onClick={handleExport}
-                        disabled={exporting || reports.length === 0}
-                        className="h-7 gap-1 text-[11px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                    >
-                        {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                        Export
-                    </Button>
+            <div className="space-y-4">
+                {/* ─── Executive KPI Ribbon ─── */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {[
+                        {
+                            id: 'all',
+                            label: 'Total Criticisms',
+                            value: stats.total,
+                            icon: ShieldAlert,
+                            color: 'text-rose-600 dark:text-rose-400',
+                            accent: 'from-rose-500/20 to-rose-500/0',
+                            borderColor: 'border-rose-500/30',
+                            activeClass: 'ring-2 ring-rose-500 border-rose-500 shadow-md shadow-rose-500/10 bg-rose-500/[0.08]',
+                            badge: 'All Logs',
+                            dot: 'bg-rose-500'
+                        },
+                        {
+                            id: 'CLOSED',
+                            label: 'Action Taken / Closed',
+                            value: stats.closed,
+                            icon: CheckCircle2,
+                            color: 'text-emerald-600 dark:text-emerald-400',
+                            accent: 'from-emerald-500/20 to-emerald-500/0',
+                            borderColor: 'border-emerald-500/30',
+                            activeClass: 'ring-2 ring-emerald-500 border-emerald-500 shadow-md shadow-emerald-500/10 bg-emerald-500/[0.08]',
+                            badge: 'Processed',
+                            dot: 'bg-emerald-500'
+                        },
+                        {
+                            id: 'PENDING',
+                            label: 'Pending Action',
+                            value: stats.pending,
+                            icon: Clock,
+                            color: 'text-amber-600 dark:text-amber-400',
+                            accent: 'from-amber-500/20 to-amber-500/0',
+                            borderColor: 'border-amber-500/30',
+                            activeClass: 'ring-2 ring-amber-500 border-amber-500 shadow-md shadow-amber-500/10 bg-amber-500/[0.08]',
+                            badge: 'Requires Action',
+                            dot: 'bg-amber-500'
+                        }
+                    ].map((card) => {
+                        const isSelected = statusFilter === card.id || (card.id === 'all' && statusFilter === 'all');
+                        const Icon = card.icon;
+                        return (
+                            <button
+                                key={card.id}
+                                type="button"
+                                onClick={() => {
+                                    setStatusFilter(card.id);
+                                    setPage(1);
+                                }}
+                                className={cn(
+                                    'flex flex-col p-3.5 rounded-xl border text-left transition-all duration-200 cursor-pointer select-none relative group overflow-hidden bg-card shadow-xs hover:shadow-md hover:-translate-y-0.5',
+                                    card.borderColor,
+                                    isSelected ? card.activeClass : 'hover:border-border/90'
+                                )}
+                            >
+                                <div className={cn('absolute inset-x-0 top-0 h-1 bg-gradient-to-r', card.accent)} />
+                                <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                                    <span className="text-[11px] font-bold text-muted-foreground flex items-center gap-1.5 truncate">
+                                        {card.dot && <span className={cn('w-2 h-2 rounded-full shrink-0', card.dot)} />}
+                                        {card.label}
+                                    </span>
+                                    <div className={cn('p-1 rounded-md bg-muted/50 transition-colors group-hover:bg-muted', card.color)}>
+                                        <Icon className="h-3.5 w-3.5 shrink-0" />
+                                    </div>
+                                </div>
+                                <div className="flex items-baseline justify-between gap-2 mt-auto">
+                                    <span className={cn('text-2xl font-black font-mono tracking-tight tabular-nums', card.color)}>
+                                        {Number(card.value || 0).toLocaleString()}
+                                    </span>
+                                    <span className="text-[9px] font-semibold text-muted-foreground bg-muted/60 dark:bg-muted/30 rounded-full px-2 py-0.5 border border-border/60">
+                                        {card.badge}
+                                    </span>
+                                </div>
+                            </button>
+                        );
+                    })}
                 </div>
 
-                <CardContent className="p-0">
-                        {loading ? (
-                            <div className="flex flex-col items-center justify-center py-10">
-                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mb-2" />
-                                <p className="text-sm text-muted-foreground">Loading reports…</p>
-                            </div>
-                        ) : reports.length === 0 ? (
-                            <div className="text-center py-10 px-4">
-                                <p className="text-sm font-medium text-foreground">No reports yet</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                    Create criticism reports from grievance cards.
-                                </p>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="overflow-auto max-h-[60vh] relative">
-                                    <table className="w-full text-sm min-w-[2200px]">
-                                        <thead className="bg-slate-50 sticky top-0 z-20">
-                                            <tr className="border-b border-slate-200">
-                                                {[
-                                                    { key: 'si_no', label: 'Sl.No', width: 'w-12' },
-                                                    { key: 'category', label: 'Category', width: 'w-32', sortable: true },
-                                                    { key: 'unique_code', label: 'Unique ID', width: 'w-32', sortable: true },
-                                                    { key: 'post_date', label: 'Post Date', width: 'w-32', sortable: true },
-                                                    { key: 'profile', label: 'Profile', width: 'w-44' },
-                                                    { key: 'post_link', label: 'Link', width: 'w-16' },
-                                                    { key: 'description', label: 'Description', width: 'min-w-[200px]' },
-                                                    { key: 'remarks', label: 'Remarks', width: 'min-w-[180px]' },
-                                                    { key: 'informed_to', label: 'Informed To', width: 'min-w-[200px]', sortable: true },
-                                                    { key: 'view', label: 'View', width: 'w-14' },
-                                                ].map((col) => (
-                                                    <th
-                                                        key={col.key}
-                                                        className={cn(
-                                                            "text-left py-3 px-3 font-semibold text-slate-700 text-xs",
-                                                            col.width,
-                                                            col.sortable && "cursor-pointer hover:bg-slate-100 transition-colors"
-                                                        )}
-                                                        onClick={() => col.sortable && handleSort(col.key)}
-                                                    >
-                                                        <div className="flex items-center gap-1">
-                                                            {col.label}
-                                                            {col.sortable && <SortIcon column={col.key} />}
-                                                        </div>
-                                                    </th>
-                                                ))}
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100 bg-white">
-                                            {reports.map((r, idx) => {
-                                                const mediaUrls = Array.isArray(r.media_s3_urls) && r.media_s3_urls.length > 0
-                                                    ? r.media_s3_urls
-                                                    : (r.media_urls || []);
+                {/* ─── Unified Filter Toolbar ─── */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5 px-3.5 py-2.5 border-b border-border bg-card/80 backdrop-blur-sm rounded-t-xl">
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* Quick Date Range */}
+                        <div className="flex items-center gap-1.5">
+                            <Select value={quickRange} onValueChange={(v) => { setQuickRange(v); setPage(1); }}>
+                                <SelectTrigger className="h-8 w-[125px] text-xs bg-background font-medium rounded-lg shadow-xs border-border/80 hover:border-rose-500/50 transition-colors">
+                                    <Calendar className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                                    <SelectValue placeholder="Date Range" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Time</SelectItem>
+                                    <SelectItem value="24h">Last 24 Hours</SelectItem>
+                                    <SelectItem value="7d">Last 7 Days</SelectItem>
+                                    <SelectItem value="30d">Last 30 Days</SelectItem>
+                                    <SelectItem value="last_month">Last Month</SelectItem>
+                                    <SelectItem value="custom">Custom Range</SelectItem>
+                                </SelectContent>
+                            </Select>
 
-                                                return (
-                                                    <tr
-                                                        key={r.id}
-                                                        className="hover:bg-slate-50/50 transition-colors group"
-                                                    >
-                                                        <td className="py-3 px-3 align-top text-center">
-                                                            <span className="text-slate-500 font-mono text-[11px]">
-                                                                {(page - 1) * 50 + idx + 1}
-                                                            </span>
-                                                        </td>
-
-                                                        <td className="py-3 px-3 align-top">
-                                                            <Badge
-                                                                variant="outline"
-                                                                className={cn(
-                                                                    "text-[10px] font-medium px-2 py-0.5 whitespace-nowrap",
-                                                                    `border-${categoryColors[r.category] || 'slate'}-200`,
-                                                                    `bg-${categoryColors[r.category] || 'slate'}-50`,
-                                                                    `text-${categoryColors[r.category] || 'slate'}-700`
-                                                                )}
-                                                            >
-                                                                {r.category || 'Others'}
-                                                            </Badge>
-                                                        </td>
-
-                                                        <td className="py-3 px-3 align-top">
-                                                            <button
-                                                                onClick={() => {
-                                                                    setSelectedReport(r);
-                                                                    setWaPhone(r.informed_to?.phone || '');
-                                                                }}
-                                                                className="hover:opacity-80 transition-opacity outline-none"
-                                                            >
-                                                                <Badge className="bg-slate-100 text-slate-700 border-slate-200 font-mono text-[11px] px-2 py-0.5 hover:bg-slate-200 cursor-pointer shadow-sm">
-                                                                    {r.unique_code}
-                                                                </Badge>
-                                                            </button>
-                                                        </td>
-
-                                                        <td className="py-3 px-3 align-top">
-                                                            <div className="flex flex-col">
-                                                                <span className="text-slate-900 font-medium text-xs">
-                                                                    {fmtDate(r.post_date).split(',')[0]}
-                                                                </span>
-                                                                <span className="text-[10px] text-slate-400">
-                                                                    {fmtDate(r.post_date).split(',')[1]}
-                                                                </span>
-                                                                <span className="text-[9px] text-slate-400 mt-0.5">
-                                                                    {fmtRelativeTime(r.post_date)}
-                                                                </span>
-                                                            </div>
-                                                        </td>
-
-                                                        <td className="py-3 px-3 align-top">
-                                                            <div className="flex items-start gap-2">
-                                                                <div className="min-w-0">
-                                                                    <p className="font-semibold text-slate-900 text-xs truncate max-w-[140px]" title={r.posted_by?.display_name}>
-                                                                        {r.posted_by?.display_name || '—'}
-                                                                    </p>
-                                                                    {r.profile_id && (
-                                                                        <a
-                                                                            href={r.profile_link || '#'}
-                                                                            target="_blank"
-                                                                            rel="noopener noreferrer"
-                                                                            className="text-[10px] text-blue-600 hover:underline truncate block max-w-[140px]"
-                                                                        >
-                                                                            @{r.profile_id}
-                                                                        </a>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </td>
-
-                                                        <td className="py-3 px-3 align-top">
-                                                            {r.post_link ? (
-                                                                <a
-                                                                    href={r.post_link}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="h-6 w-6 flex items-center justify-center rounded bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 transition-colors"
-                                                                    title="View Post"
-                                                                >
-                                                                    <ExternalLink className="h-3.5 w-3.5" />
-                                                                </a>
-                                                            ) : (
-                                                                <span className="text-slate-300 text-xs">—</span>
-                                                            )}
-                                                        </td>
-
-                                                        <td className="py-3 px-3 align-top">
-                                                            <div className="min-w-[300px] max-w-[500px]">
-                                                                <ExpandableText
-                                                                    text={r.post_description}
-                                                                    limit={150}
-                                                                    className="text-slate-700 text-xs leading-snug whitespace-pre-wrap"
-                                                                />
-                                                            </div>
-                                                        </td>
-
-                                                        <td className="py-3 px-3 align-top">
-                                                            <div className="min-w-[200px] max-w-[400px]">
-                                                                <ExpandableText
-                                                                    text={r.remarks}
-                                                                    limit={150}
-                                                                    className="text-slate-600 text-xs leading-snug whitespace-pre-wrap"
-                                                                />
-                                                            </div>
-                                                        </td>
-
-                                                        <td className="py-3 px-3 align-top">
-                                                            {r.informed_to?.name || r.informed_to?.phone || r.informed_to?.department || r.action_taken_at ? (
-                                                                <div className="flex flex-col">
-                                                                    {r.informed_to?.name && (
-                                                                        <span className="font-semibold text-slate-900 text-xs truncate max-w-[140px]" title={r.informed_to.name}>
-                                                                            {r.informed_to.name}
-                                                                        </span>
-                                                                    )}
-                                                                    {r.informed_to?.phone && (
-                                                                        <span className="text-[10px] text-slate-500 font-mono mt-0.5">
-                                                                            {r.informed_to.phone}
-                                                                        </span>
-                                                                    )}
-                                                                    {r.informed_to?.department && (
-                                                                        <span className="text-[9px] text-slate-400 truncate max-w-[140px] mt-0.5">
-                                                                            {r.informed_to.department}
-                                                                        </span>
-                                                                    )}
-                                                                    {r.action_taken_at && (
-                                                                        <span className="text-slate-500 font-medium text-[10px] mt-0.5">
-                                                                            {fmtDate(r.action_taken_at)}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-slate-400 text-sm">—</span>
-                                                            )}
-                                                        </td>
-
-                                                        <td className="py-3 px-3 align-top text-center">
-                                                            <Tooltip>
-                                                                <TooltipTrigger asChild>
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="sm"
-                                                                        className="h-7 w-7 p-0 rounded-md hover:bg-violet-100"
-                                                                        onClick={() => {
-                                                                            setSelectedReport(r);
-                                                                            setWaPhone(r.informed_to?.phone || '');
-                                                                        }}
-                                                                    >
-                                                                        <Eye className="h-4 w-4 text-violet-600" />
-                                                                    </Button>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent><p className="text-xs">View details</p></TooltipContent>
-                                                            </Tooltip>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-
-                                    </table>
+                            {quickRange === 'custom' && (
+                                <div className="flex items-center gap-1.5 bg-background px-2 py-0.5 rounded-lg border border-border/80 shadow-xs animate-in fade-in">
+                                    <input
+                                        type="date"
+                                        value={fromDate}
+                                        onChange={(e) => { setFromDate(e.target.value); setPage(1); }}
+                                        className="h-7 px-1 text-xs bg-transparent border-0 focus:outline-none font-medium"
+                                    />
+                                    <span className="text-xs text-muted-foreground font-semibold">to</span>
+                                    <input
+                                        type="date"
+                                        value={toDate}
+                                        onChange={(e) => { setToDate(e.target.value); setPage(1); }}
+                                        className="h-7 px-1 text-xs bg-transparent border-0 focus:outline-none font-medium"
+                                    />
                                 </div>
+                            )}
+                        </div>
 
-                                {/* Pagination */}
-                                {pagination.pages > 1 && (
-                                    <div className="flex items-center justify-between px-4 py-3 border-t bg-white">
-                                        <p className="text-xs text-slate-500">
-                                            {(page - 1) * 50 + 1}-{Math.min(page * 50, pagination.total)} of {pagination.total}
-                                        </p>
-                                        <div className="flex items-center gap-1">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                disabled={page <= 1}
-                                                onClick={() => setPage(p => p - 1)}
-                                                className="text-xs h-8"
-                                            >
-                                                <ChevronLeft className="h-3.5 w-3.5 mr-1" />
-                                                Previous
-                                            </Button>
-                                            <div className="flex items-center gap-1">
-                                                {Array.from({ length: Math.min(5, pagination.pages) }, (_, i) => {
-                                                    let pageNum;
-                                                    if (pagination.pages <= 5) {
-                                                        pageNum = i + 1;
-                                                    } else if (page <= 3) {
-                                                        pageNum = i + 1;
-                                                    } else if (page >= pagination.pages - 2) {
-                                                        pageNum = pagination.pages - 4 + i;
-                                                    } else {
-                                                        pageNum = page - 2 + i;
-                                                    }
+                        {/* Category Filter */}
+                        <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setPage(1); }}>
+                            <SelectTrigger className="h-8 w-[138px] text-xs bg-background font-medium rounded-lg shadow-xs border-border/80 hover:border-rose-500/50 transition-colors">
+                                <Tag className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                                <SelectValue placeholder="All Categories" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Categories</SelectItem>
+                                <SelectItem value="hate_speech">Hate Speech</SelectItem>
+                                <SelectItem value="misinformation">Misinformation</SelectItem>
+                                <SelectItem value="harassment">Harassment</SelectItem>
+                                <SelectItem value="spam">Spam</SelectItem>
+                                <SelectItem value="violence">Violence</SelectItem>
+                                <SelectItem value="others">Others</SelectItem>
+                            </SelectContent>
+                        </Select>
 
-                                                    return (
-                                                        <Button
-                                                            key={i}
-                                                            variant={pageNum === page ? "default" : "outline"}
-                                                            size="sm"
-                                                            onClick={() => setPage(pageNum)}
+                        {/* Platform Filter */}
+                        <Select value={platform} onValueChange={(v) => { setPlatform(v); setPage(1); }}>
+                            <SelectTrigger className="h-8 w-[130px] text-xs bg-background font-medium rounded-lg shadow-xs border-border/80 hover:border-rose-500/50 transition-colors">
+                                <AllPlatformsLogo className="h-3.5 w-3.5 mr-1.5" />
+                                <SelectValue placeholder="All Platforms" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <PagePlatformSelectItems page="grievances" />
+                            </SelectContent>
+                        </Select>
+
+                        {hasActiveFilters && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleClearAllFilters}
+                                className="h-8 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 px-2.5 rounded-lg"
+                            >
+                                <X className="h-3.5 w-3.5 mr-1" />
+                                Clear Filters
+                            </Button>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2 ml-auto w-full sm:w-auto">
+                        {/* Search Input */}
+                        <div className="relative flex-1 sm:w-72">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input
+                                placeholder="Search by unique ID, citizen, description..."
+                                value={searchTerm}
+                                onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+                                className="pl-8 pr-7 h-8 text-xs bg-background rounded-lg border-border/80 shadow-xs focus-visible:ring-1"
+                            />
+                            {searchTerm && (
+                                <button
+                                    type="button"
+                                    onClick={() => { setSearchTerm(''); setPage(1); }}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                >
+                                    <X className="h-3.5 w-3.5" />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Refresh Button */}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={fetchReports}
+                            className="h-8 w-8 p-0 shrink-0 rounded-lg bg-background shadow-xs hover:border-rose-500/40"
+                            title="Refresh Reports"
+                        >
+                            <RefreshCw className={cn('h-3.5 w-3.5 text-muted-foreground', loading && 'animate-spin')} />
+                        </Button>
+
+                        {/* Export Button */}
+                        <Button
+                            size="sm"
+                            onClick={handleExport}
+                            disabled={exporting || reports.length === 0}
+                            className="h-8 gap-1.5 text-xs font-bold px-3.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-lg shadow-sm shadow-rose-600/25 transition-all"
+                        >
+                            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                            <span>Export XLSX</span>
+                        </Button>
+                    </div>
+                </div>
+
+                {/* ─── Table Flush View ─── */}
+                <CardContent className="p-0">
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-16">
+                            <Loader2 className="h-7 w-7 animate-spin text-rose-600 mb-3" />
+                            <p className="text-sm font-medium text-muted-foreground">Loading criticism reports…</p>
+                        </div>
+                    ) : reports.length === 0 ? (
+                        <div className="text-center py-16 px-4">
+                            <div className="w-12 h-12 rounded-2xl bg-muted/60 flex items-center justify-center mx-auto mb-3 border border-border/60">
+                                <FileSpreadsheet className="h-6 w-6 text-muted-foreground" />
+                            </div>
+                            <p className="text-sm font-bold text-foreground">No Criticism Reports Found</p>
+                            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                                {hasActiveFilters
+                                    ? 'Try adjusting your filters or date range to see matching criticisms.'
+                                    : 'Create new criticism reports from post cards in the grievance feed.'}
+                            </p>
+                            {hasActiveFilters && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleClearAllFilters}
+                                    className="mt-3.5 text-xs font-semibold rounded-lg"
+                                >
+                                    Reset All Filters
+                                </Button>
+                            )}
+                        </div>
+                    ) : (
+                        <>
+                            <div className="w-full overflow-x-auto overflow-y-auto max-h-[68vh]">
+                                <table className="min-w-full text-sm border-collapse text-left">
+                                    <thead className="bg-muted/50 dark:bg-muted/30 backdrop-blur sticky top-0 z-20 border-b border-border">
+                                        <tr>
+                                            {[
+                                                { key: 'si_no', label: 'Sl.No', className: 'w-12 text-center' },
+                                                { key: 'status', label: 'Status', sortable: true, className: 'w-28' },
+                                                { key: 'unique_code', label: 'Unique ID', sortable: true, className: 'w-44' },
+                                                { key: 'post_date', label: 'Post Date', sortable: true, className: 'w-36' },
+                                                { key: 'profile', label: 'Citizen Profile', className: 'w-44' },
+                                                { key: 'post_link', label: 'Link', className: 'w-12 text-center' },
+                                                { key: 'description', label: 'Criticism Description', className: 'min-w-[220px] max-w-sm' },
+                                                { key: 'category', label: 'Category', sortable: true, className: 'w-28' },
+                                                { key: 'remarks', label: 'Officer Remarks', className: 'min-w-[160px]' },
+                                                { key: 'informed_to', label: 'Informed Officer', className: 'w-36' },
+                                                { key: 'view', label: 'Actions', className: 'w-16 text-center' },
+                                            ].map((col) => (
+                                                <th
+                                                    key={col.key}
+                                                    className={cn(
+                                                        "py-2.5 px-3 font-bold text-muted-foreground text-[10px] uppercase tracking-wider whitespace-nowrap select-none",
+                                                        col.className,
+                                                        col.sortable && "cursor-pointer hover:text-foreground transition-colors"
+                                                    )}
+                                                    onClick={() => col.sortable && handleSort(col.key)}
+                                                >
+                                                    <div className={cn("flex items-center gap-1", col.className?.includes('text-center') && "justify-center")}>
+                                                        <span>{col.label}</span>
+                                                        {col.sortable && <SortIcon column={col.key} />}
+                                                    </div>
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border/60">
+                                        {reports.map((r, idx) => {
+                                            const PlatformLogo = platformIcons[r.platform?.toLowerCase()] || platformIcons.default;
+                                            const isDone = String(r.status || '').toUpperCase() === 'CLOSED' || Boolean(r.action_taken_at);
+
+                                            return (
+                                                <tr
+                                                    key={r.id}
+                                                    onClick={() => setSelectedReport(r)}
+                                                    className="hover:bg-muted/40 transition-colors group cursor-pointer"
+                                                >
+                                                    {/* Sl.No */}
+                                                    <td className="py-2.5 px-3 text-center align-top">
+                                                        <span className="text-[11px] font-mono text-muted-foreground font-semibold">
+                                                            {(page - 1) * 50 + idx + 1}
+                                                        </span>
+                                                    </td>
+
+                                                    {/* Status Badge */}
+                                                    <td className="py-2.5 px-3 align-top whitespace-nowrap">
+                                                        <Badge
+                                                            variant="outline"
                                                             className={cn(
-                                                                "text-xs h-8 w-8 rounded-lg",
-                                                                pageNum === page && "bg-violet-600 hover:bg-violet-700"
+                                                                'text-[10px] font-bold px-2 py-0.5 uppercase tracking-wider flex items-center gap-1 w-fit',
+                                                                isDone
+                                                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                                                                    : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
                                                             )}
                                                         >
-                                                            {pageNum}
-                                                        </Button>
-                                                    );
-                                                })}
-                                            </div>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                disabled={page >= pagination.pages}
-                                                onClick={() => setPage(p => p + 1)}
-                                                className="text-xs h-8"
-                                            >
-                                                Next
-                                                <ChevronRight className="h-3.5 w-3.5 ml-1" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
-                            </>
-                        )}
-                    </CardContent>
+                                                            <span className={cn('w-1.5 h-1.5 rounded-full', isDone ? 'bg-emerald-500' : 'bg-rose-500')} />
+                                                            {isDone ? 'Closed' : 'Pending'}
+                                                        </Badge>
+                                                    </td>
 
-                {/* Detail Modal */}
+                                                    {/* Unique Code */}
+                                                    <td className="py-2.5 px-3 align-top whitespace-nowrap">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="font-mono font-bold text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 px-2 py-0.5 rounded-md border border-rose-200 dark:border-rose-800">
+                                                                {r.unique_code}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Post Date */}
+                                                    <td className="py-2.5 px-3 align-top whitespace-nowrap">
+                                                        <div className="text-xs">
+                                                            <p className="font-semibold text-foreground">{fmtDate(r.post_date).split(',')[0]}</p>
+                                                            <p className="text-[10px] text-muted-foreground">{fmtDate(r.post_date).split(',')[1] || ''}</p>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Citizen Profile */}
+                                                    <td className="py-2.5 px-3 align-top">
+                                                        <div className="flex items-start gap-2 max-w-[160px]">
+                                                            <div className="h-6 w-6 rounded-md bg-muted/80 border border-border flex items-center justify-center shrink-0 mt-0.5">
+                                                                <PlatformLogo className="h-3.5 w-3.5" />
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <p className="font-bold text-xs text-foreground truncate" title={r.posted_by?.display_name || r.profile_id}>
+                                                                    {r.posted_by?.display_name || r.profile_id || 'Public Citizen'}
+                                                                </p>
+                                                                {r.posted_by?.handle && (
+                                                                    <span className="text-[10px] text-rose-600 dark:text-rose-400 font-mono truncate block">
+                                                                        @{r.posted_by.handle.replace('@', '')}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Link */}
+                                                    <td className="py-2.5 px-3 align-top text-center" onClick={(e) => e.stopPropagation()}>
+                                                        {r.post_link ? (
+                                                            <a
+                                                                href={r.post_link}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 hover:text-rose-700 transition-colors"
+                                                                title="View Original Post"
+                                                            >
+                                                                <ExternalLink className="h-3.5 w-3.5" />
+                                                            </a>
+                                                        ) : (
+                                                            <span className="text-muted-foreground/40 text-xs">—</span>
+                                                        )}
+                                                    </td>
+
+                                                    {/* Description */}
+                                                    <td className="py-2.5 px-3 align-top">
+                                                        <div className="min-w-[200px] max-w-sm">
+                                                            <ExpandableText
+                                                                text={r.post_description}
+                                                                limit={140}
+                                                                className="text-xs text-foreground/90 leading-snug whitespace-pre-wrap"
+                                                            />
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Category */}
+                                                    <td className="py-2.5 px-3 align-top whitespace-nowrap">
+                                                        <Badge variant="outline" className="text-[10px] font-bold border-rose-500/30 text-rose-600 dark:text-rose-400 bg-rose-500/10">
+                                                            {r.category || 'Others'}
+                                                        </Badge>
+                                                    </td>
+
+                                                    {/* Remarks */}
+                                                    <td className="py-2.5 px-3 align-top">
+                                                        <div className="min-w-[150px] max-w-xs">
+                                                            <ExpandableText
+                                                                text={r.remarks}
+                                                                limit={100}
+                                                                className="text-xs text-muted-foreground leading-snug whitespace-pre-wrap"
+                                                            />
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Informed Officer */}
+                                                    <td className="py-2.5 px-3 align-top whitespace-nowrap">
+                                                        {r.informed_to?.name ? (
+                                                            <div className="text-xs">
+                                                                <p className="font-semibold text-foreground truncate max-w-[130px]" title={r.informed_to.name}>
+                                                                    {r.informed_to.name}
+                                                                </p>
+                                                                {r.informed_to.phone && (
+                                                                    <p className="text-[10px] text-muted-foreground font-mono">
+                                                                        {r.informed_to.phone}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-muted-foreground/40 text-xs">—</span>
+                                                        )}
+                                                    </td>
+
+                                                    {/* Actions */}
+                                                    <td className="py-2.5 px-3 align-top text-center" onClick={(e) => e.stopPropagation()}>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => setSelectedReport(r)}
+                                                                    className="h-7 w-7 p-0 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-950/50 text-rose-600 dark:text-rose-400"
+                                                                >
+                                                                    <Eye className="h-4 w-4" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent side="left"><p className="text-xs">Open Criticism Dossier</p></TooltipContent>
+                                                        </Tooltip>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Pagination */}
+                            {pagination.pages > 1 && (
+                                <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-card">
+                                    <p className="text-xs text-muted-foreground font-medium">
+                                        Showing {(page - 1) * 50 + 1}–{Math.min(page * 50, pagination.total)} of {pagination.total} records
+                                    </p>
+                                    <div className="flex items-center gap-1.5">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={page <= 1}
+                                            onClick={() => setPage(p => p - 1)}
+                                            className="text-xs h-7 px-2.5 rounded-lg"
+                                        >
+                                            <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                                            Prev
+                                        </Button>
+                                        <div className="text-xs font-semibold px-2">
+                                            Page {page} of {pagination.pages}
+                                        </div>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={page >= pagination.pages}
+                                            onClick={() => setPage(p => p + 1)}
+                                            className="text-xs h-7 px-2.5 rounded-lg"
+                                        >
+                                            Next
+                                            <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </CardContent>
+
+                {/* ─── Detail Modal Dialog ─── */}
                 <AnimatePresence>
                     {selectedReport && (
                         <>
@@ -1421,160 +1271,81 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="fixed inset-0 z-[9998] bg-slate-900/60 backdrop-blur-sm"
+                                className="fixed inset-0 z-[9998] bg-black/60 backdrop-blur-xs"
                                 onClick={() => setSelectedReport(null)}
                             />
 
                             <motion.div
                                 ref={detailPopupRef}
-                                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                                initial={{ opacity: 0, scale: 0.95, y: 15 }}
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                                transition={{ type: "spring", duration: 0.3 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                                transition={{ type: "spring", duration: 0.25 }}
                                 className={cn(
-                                    "fixed z-[9999] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden",
+                                    "fixed z-[9999] bg-background rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden",
                                     fullscreen ? "inset-4" : ""
                                 )}
                                 style={!fullscreen ? {
                                     left: detailPos.x,
                                     top: detailPos.y,
-                                    width: Math.min(880, window.innerWidth - 48),
-                                    height: 'calc(100vh - 80px)'
+                                    width: Math.min(920, window.innerWidth - 32),
+                                    height: 'calc(100vh - 60px)'
                                 } : {}}
                             >
-                                {/* Header */}
+                                {/* Modal Draggable Title Header */}
                                 <div
-                                    className={cn(
-                                        "px-5 py-5 flex items-center justify-between",
-                                        fullscreen ? "bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white" : "cursor-move bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white rounded-t-2xl"
-                                    )}
+                                    className="px-4 py-3 bg-card border-b border-border flex items-center justify-between cursor-move select-none"
                                     onMouseDown={!fullscreen ? (e) => {
                                         setDraggingDetail(true);
                                         setDetailDragOffset({ x: e.clientX - detailPos.x, y: e.clientY - detailPos.y });
                                     } : undefined}
                                 >
-                                    <div className="flex items-center gap-4">
-                                        {!fullscreen && <GripHorizontal className="h-4 w-4 text-slate-500" />}
-                                        <div className="h-12 w-12 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center">
-                                            <FileSpreadsheet className="h-6 w-6 text-amber-400" />
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Criticism ID</p>
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                <h3 className="text-xl font-bold font-mono tracking-tight text-amber-400 leading-none">
-                                                    {selectedReport.unique_code}
-                                                </h3>
-                                                <Badge className="bg-white/10 text-white/70 border-white/20 text-[9px] h-4 px-1.5 uppercase font-bold tracking-tighter">
-                                                    Criticism
-                                                </Badge>
-                                            </div>
-                                        </div>
+                                    <div className="flex items-center gap-2">
+                                        {!fullscreen && <GripHorizontal className="h-4 w-4 text-muted-foreground/60" />}
+                                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                                            Criticism Case Inspector
+                                        </span>
+                                        <Badge variant="outline" className="text-[10px] font-mono font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/30">
+                                            {selectedReport.unique_code}
+                                        </Badge>
                                     </div>
+
                                     <div className="flex items-center gap-1">
-                                        {selectedReport.report_pdf_url ? (
-                                            <div className="flex flex-col items-center gap-1 mr-4">
-                                                <div className="bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
-                                                    <QRCodeSVG
-                                                        value={selectedReport.report_pdf_url}
-                                                        size={48}
-                                                        level="M"
-                                                        includeMargin={false}
-                                                        bgColor="#ffffff"
-                                                        fgColor="#1e293b"
-                                                    />
-                                                </div>
-                                                <span className="text-[8px] text-slate-500 font-medium tracking-tight">PDF SCAN</span>
-                                            </div>
-                                        ) : (
-                                            <div className="flex flex-col items-center gap-1 mr-4 opacity-40">
-                                                <div className="w-[48px] h-[48px] rounded-lg border border-dashed border-slate-400 flex items-center justify-center bg-slate-50">
-                                                    <Loader2 className={cn("h-4 w-4 text-slate-400", pdfGenerating && "animate-spin")} />
-                                                </div>
-                                                <span className="text-[8px] text-slate-400 font-medium">{pdfGenerating ? 'GENERATING' : 'NO PDF'}</span>
-                                            </div>
-                                        )}
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="h-9 w-9 p-0 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-all"
-                                            onClick={handlePrintPdf}
-                                        >
-                                            <Printer className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-9 w-9 p-0 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                                            className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-foreground"
                                             onClick={() => setFullscreen(!fullscreen)}
+                                            title={fullscreen ? "Minimize" : "Maximize"}
                                         >
-                                            {fullscreen ? (
-                                                <Minimize2 className="h-4 w-4" />
-                                            ) : (
-                                                <Maximize2 className="h-4 w-4" />
-                                            )}
+                                            {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
                                         </Button>
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="h-9 w-9 p-0 rounded-xl hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-all ml-1"
+                                            className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30"
                                             onClick={() => setSelectedReport(null)}
+                                            title="Close"
                                         >
                                             <X className="h-4 w-4" />
                                         </Button>
                                     </div>
                                 </div>
 
-                                {/* Content */}
-                                <ScrollArea className="flex-1 bg-slate-50/50">
-                                    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
-                                        <div ref={printComponentRef}>
-                                            <CriticismReportDetailView
-                                                report={selectedReport}
-                                                onClose={() => setSelectedReport(null)}
-                                                onPrint={handlePrintPdf}
-                                                onUpdate={(updated) => {
-                                                    setSelectedReport(updated);
-                                                    setReports(prev => prev.map(rep => rep.id === updated.id ? updated : rep));
-                                                }}
-                                            />
-                                        </div>
+                                {/* Modal Body */}
+                                <ScrollArea className="flex-1 bg-muted/20">
+                                    <div className="p-4 sm:p-6 max-w-5xl mx-auto w-full">
+                                        <CriticismReportDetailView
+                                            report={selectedReport}
+                                            onUpdate={(updatedReport) => {
+                                                setSelectedReport(updatedReport);
+                                                setReports(prev => prev.map(d => d.id === updatedReport.id ? updatedReport : d));
+                                            }}
+                                            onClose={() => setSelectedReport(null)}
+                                            onPrint={() => window.print()}
+                                        />
                                     </div>
                                 </ScrollArea>
-
-                                {/* Footer Actions */}
-                                <div className="px-5 py-4 border-t bg-slate-50/80 flex items-center justify-between rounded-b-2xl">
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={handlePrintPdf}
-                                            className="gap-2 text-sm border-slate-200 hover:bg-white"
-                                        >
-                                            <Printer className="h-4 w-4" />
-                                            Print Screen
-                                        </Button>
-                                    </div>
-
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => setSelectedReport(null)}
-                                            className="text-sm"
-                                        >
-                                            Close
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={handleCopyToClipboard}
-                                            className="gap-2 text-sm"
-                                        >
-                                            <Copy className="h-4 w-4" />
-                                            Copy Log
-                                        </Button>
-                                    </div>
-                                </div>
                             </motion.div>
                         </>
                     )}

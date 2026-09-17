@@ -20,31 +20,31 @@ const {
   listItems: listTelegramItems,
   cleanUsername: cleanTelegramUsername,
 } = require('../../services/blugate/telegram/blugate.telegram.helpers');
+const {
+  getPageCapabilitySlugs,
+  resolvePagePlatformSlugs,
+  canonicalSlug,
+} = require('../../lib/pagePlatforms');
 
-const PROFILE_PLATFORMS = new Set(['x', 'youtube', 'facebook', 'telegram']);
-const CONTENT_PLATFORMS = new Set(['x', 'youtube', 'facebook', 'telegram']);
-const KNOWN_SEARCH_SLUGS = new Set([...PROFILE_PLATFORMS, ...CONTENT_PLATFORMS]);
+/** Capability from pagePlatforms.json global_search (implementation must exist). */
+const SEARCH_CAPABILITY = new Set(getPageCapabilitySlugs('global_search'));
 
-const normalizePlatformSlug = (slug) => {
-  const s = String(slug || '').trim().toLowerCase();
-  if (s === 'twitter') return 'x';
-  return s;
-};
+const normalizePlatformSlug = (slug) => canonicalSlug(slug) || String(slug || '').trim().toLowerCase();
 
-/** Only platforms the admin activated in Settings → Platforms. */
+/** Only platforms the admin activated ∩ global_search capability. */
 const assertPlatformConfigured = async (prisma, platform) => {
   const slug = normalizePlatformSlug(platform);
-  if (!PROFILE_PLATFORMS.has(slug) && !CONTENT_PLATFORMS.has(slug)) {
-    const err = new Error('Invalid platform. Use x, youtube, facebook, or telegram.');
+  if (!SEARCH_CAPABILITY.has(slug)) {
+    const err = new Error(
+      `Invalid platform. Use ${[...SEARCH_CAPABILITY].join(', ') || 'a configured search platform'}.`
+    );
     err.status = 400;
     throw err;
   }
-  const slugs = slug === 'x' ? ['x', 'twitter'] : [slug];
-  const row = await prisma.platforms.findFirst({
-    where: { slug: { in: slugs }, is_active: true },
-    select: { id: true, slug: true },
+  const allowed = await resolvePagePlatformSlugs(prisma, 'global_search', {
+    includeTwitterAlias: false,
   });
-  if (!row) {
+  if (!allowed.includes(slug)) {
     const err = new Error(`Platform "${slug}" is not configured for this account`);
     err.status = 400;
     throw err;
@@ -295,13 +295,7 @@ const lookupInstagramUser = async (username, auth) => {
   } catch (err) {
     const status = err?.status || err?.response?.status;
     if (status === 429) throw err;
-    try {
-      return await callInstagramApi('PROFILE', { username }, auth);
-    } catch (err2) {
-      const status2 = err2?.status || err2?.response?.status;
-      if (status2 === 429) throw err2;
-      return null;
-    }
+    return null;
   }
 };
 
@@ -522,23 +516,10 @@ const searchTelegramContent = async (query, limit) => {
 
 /* ── Public API ── */
 
-/** Active platform slugs configured in this tenant (Settings → Platforms). */
+/** Active platform slugs configured in this tenant ∩ global_search capability. */
 const listConfiguredPlatforms = async ({ db }) => {
   const prisma = dbOf(db);
-  const rows = await prisma.platforms.findMany({
-    where: { is_active: true },
-    select: { slug: true },
-    orderBy: { id: 'asc' },
-  });
-  const seen = new Set();
-  const out = [];
-  for (const row of rows) {
-    const slug = normalizePlatformSlug(row.slug);
-    if (!KNOWN_SEARCH_SLUGS.has(slug) || seen.has(slug)) continue;
-    seen.add(slug);
-    out.push(slug);
-  }
-  return out;
+  return resolvePagePlatformSlugs(prisma, 'global_search', { includeTwitterAlias: false });
 };
 
 const searchProfiles = async ({ platform, query, limit = 20, db }) => {
@@ -595,6 +576,8 @@ module.exports = {
   searchProfiles,
   searchContent,
   listConfiguredPlatforms,
-  PROFILE_PLATFORMS,
-  CONTENT_PLATFORMS,
+  SEARCH_CAPABILITY,
+  /** @deprecated use SEARCH_CAPABILITY — same page matrix for profile + content search */
+  PROFILE_PLATFORMS: SEARCH_CAPABILITY,
+  CONTENT_PLATFORMS: SEARCH_CAPABILITY,
 };

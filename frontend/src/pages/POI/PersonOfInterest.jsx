@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 
 import api from '../../lib/api';
 import AddSourceModal from '../../components/AddSourceModal';
+import { PagePlatformOptions } from '../../components/PagePlatformSelectItems';
 
 const AvatarPlaceholder = ({ name, size = 'lg' }) => {
     const initials = (name || '?')
@@ -985,12 +986,7 @@ const PersonOfInterest = () => {
                         onChange={e => setPoiPlatformFilter(e.target.value)}
                         className="px-3 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all"
                     >
-                        <option value="all">All Platforms</option>
-                        <option value="x">X (Twitter)</option>
-                        <option value="facebook">Facebook</option>
-                        <option value="instagram">Instagram</option>
-                        <option value="youtube">YouTube</option>
-                        <option value="whatsapp">WhatsApp</option>
+                        <PagePlatformOptions page="social_profiles" />
                     </select>
                 </div>
             </div>

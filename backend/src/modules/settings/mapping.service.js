@@ -39,7 +39,24 @@ class MappingService {
                         for (const row of rows) {
                             if (row.is_global) continue;
                             const key = String(row.id || row.category_id);
-                            if (seen.has(key)) continue;
+                            if (seen.has(key)) {
+                                const existing = mappings.find(m => String(m.id || m.category_id) === key);
+                                if (existing) {
+                                    if (row.keywords && Array.isArray(row.keywords)) {
+                                        existing.keywords = Array.from(new Set([...(existing.keywords || []), ...row.keywords]));
+                                    }
+                                    if (row.legal_sections && Array.isArray(row.legal_sections)) {
+                                        existing.legal_sections = [...(existing.legal_sections || []), ...row.legal_sections];
+                                    }
+                                    if (row.platform_policies && typeof row.platform_policies === 'object') {
+                                        existing.platform_policies = {
+                                            ...(existing.platform_policies || {}),
+                                            ...row.platform_policies
+                                        };
+                                    }
+                                }
+                                continue;
+                            }
                             seen.add(key);
                             mappings.push(row);
                         }

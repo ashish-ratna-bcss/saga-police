@@ -1,5 +1,11 @@
 const { Prisma } = require('../../generated/tenant-client');
 const dbOf = require('../../lib/dbOf');
+const { getPageCapabilitySlugs } = require('../../lib/pagePlatforms');
+
+const searchHistoryAllowedPlatforms = () => [
+  'all',
+  ...getPageCapabilitySlugs('global_search'),
+];
 
 const ensureSearchHistoryTable = async (prisma) => {
   await prisma.$executeRawUnsafe(`
@@ -72,7 +78,7 @@ const saveSearchHistory = async ({
     err.status = 400;
     throw err;
   }
-  const allowedPlatforms = ['all', 'x', 'youtube', 'facebook', 'instagram', 'telegram'];
+  const allowedPlatforms = searchHistoryAllowedPlatforms();
   if (!allowedPlatforms.includes(normalizedPlatform)) {
     const err = new Error('Invalid platform');
     err.status = 400;
@@ -130,7 +136,7 @@ const listSearchHistory = async ({
   }
   if (
     platform &&
-    ['all', 'x', 'youtube', 'facebook', 'instagram', 'telegram'].includes(String(platform).toLowerCase())
+    searchHistoryAllowedPlatforms().includes(String(platform).toLowerCase())
   ) {
     conditions.push(Prisma.sql`platform = ${String(platform).toLowerCase()}`);
   }

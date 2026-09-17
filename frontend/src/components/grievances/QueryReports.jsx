@@ -30,6 +30,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Separator } from '../ui/separator';
 import { cn } from '../../lib/utils';
+import { PagePlatformSelectItems } from '../PagePlatformSelectItems';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -687,12 +688,7 @@ export const QueryReports = ({ externalStatusFilter = 'all', onStatsUpdate }) =>
                                         <SelectValue placeholder="Platform" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">All Platforms</SelectItem>
-                                        <SelectItem value="x">X (Twitter)</SelectItem>
-                                        <SelectItem value="facebook">Facebook</SelectItem>
-                            <SelectItem value="instagram">Instagram</SelectItem>
-                                        <SelectItem value="telegram">Telegram</SelectItem>
-                                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                                        <PagePlatformSelectItems page="grievances" />
                                     </SelectContent>
                                 </Select>
 

@@ -23,6 +23,7 @@ import { cn } from '../../lib/utils';
 import { socialProfilesApi } from '../../api/socialProfiles.api';
 import GrievancesTab from './GrievancesTab';
 import AlertKeywordsSection from '../../components/settings/AlertKeywordsSection';
+import { PagePlatformSelectItems } from '../../components/PagePlatformSelectItems';
 
 const KNOWN_PLATFORM_PRESETS = [
   { slug: 'x', name: 'X (Twitter)', icon: 'twitter' },
@@ -1581,12 +1582,7 @@ const Settings = () => {
                         <Select value={templatePlatform} onValueChange={setTemplatePlatform}>
                           <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="all">All Platforms</SelectItem>
-                            <SelectItem value="x">X (Twitter)</SelectItem>
-                            <SelectItem value="youtube">YouTube</SelectItem>
-                            <SelectItem value="facebook">Facebook</SelectItem>
-                            <SelectItem value="instagram">Instagram</SelectItem>
-                            <SelectItem value="telegram">Telegram</SelectItem>
+                            <PagePlatformSelectItems page={null} />
                           </SelectContent>
                         </Select>
                       </div>

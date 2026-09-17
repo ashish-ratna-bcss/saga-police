@@ -67,6 +67,7 @@ import {
   SelectValue,
 } from '../../components/ui/select';
 import { cn } from '../../lib/utils';
+import { usePagePlatforms } from '../../hooks/usePagePlatforms';
 
 function getPermissionMeta(status) {
   const s = String(status || '').toLowerCase().trim();
@@ -332,6 +333,22 @@ function PeriscopeDatePicker({
 
 export default function Periscope() {
   const { user } = useAuth();
+  const { platforms: periscopePlatformRows } = usePagePlatforms('periscope');
+  const periscopePlatformOptions = useMemo(
+    () =>
+      periscopePlatformRows.map((row) => {
+        const slug = String(row.slug || '').toLowerCase() === 'twitter'
+          ? 'x'
+          : String(row.slug || '').toLowerCase();
+        // Persist twitter alias for X when backend/events still expect twitter
+        const id = slug === 'x' ? 'twitter' : slug;
+        return {
+          id,
+          label: row.name || (slug === 'x' ? 'Twitter / X' : slug),
+        };
+      }),
+    [periscopePlatformRows]
+  );
 
   // Multi-tenant organization title: dynamically extracted from tenant session
   const tenantOrg = useMemo(() => {
@@ -343,8 +360,8 @@ export default function Periscope() {
     );
   }, [user]);
 
-  const [currentDate, setCurrentDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [dayOfWeek, setDayOfWeek] = useState(() => getDayOfWeekName(new Date().toISOString().split('T')[0]));
+  const [currentDate, setCurrentDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+  const [dayOfWeek, setDayOfWeek] = useState(() => getDayOfWeekName(format(new Date(), 'yyyy-MM-dd')));
   const [organization, setOrganization] = useState(tenantOrg);
   const [notes, setNotes] = useState('');
 
@@ -535,11 +552,19 @@ export default function Periscope() {
   };
 
   const handleShiftDate = (days) => {
-    const cur = new Date(currentDate);
+    const parts = String(currentDate).split('-');
+    let cur;
+    if (parts.length === 3) {
+      cur = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    } else {
+      cur = new Date(currentDate);
+    }
     if (Number.isNaN(cur.getTime())) return;
     cur.setDate(cur.getDate() + days);
-    const iso = cur.toISOString().split('T')[0];
-    handleDateChange(iso);
+    const yyyy = cur.getFullYear();
+    const mm = String(cur.getMonth() + 1).padStart(2, '0');
+    const dd = String(cur.getDate()).padStart(2, '0');
+    handleDateChange(`${yyyy}-${mm}-${dd}`);
   };
 
   // Background silent save to persist priority or monitoring changes
@@ -841,7 +866,7 @@ export default function Periscope() {
       startDate: currentDate,
       endDate: currentDate,
       pollingMinutes: 60,
-      platforms: ['twitter', 'youtube', 'facebook', 'instagram', 'telegram'],
+      platforms: periscopePlatformOptions.map((p) => p.id),
     });
     setIsMonitoringModalOpen(true);
   };
@@ -1172,7 +1197,7 @@ export default function Periscope() {
             variant="outline"
             size="sm"
             className="h-8 text-xs font-medium"
-            onClick={() => handleDateChange(new Date().toISOString().split('T')[0])}
+            onClick={() => handleDateChange(format(new Date(), 'yyyy-MM-dd'))}
           >
             Today
           </Button>
@@ -2289,13 +2314,10 @@ export default function Periscope() {
               <div className="space-y-1.5">
                 <label className="font-semibold text-foreground">Platforms to Monitor</label>
                 <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { id: 'twitter', label: 'Twitter / X' },
-                    { id: 'facebook', label: 'Facebook' },
-                    { id: 'instagram', label: 'Instagram' },
-                    { id: 'youtube', label: 'YouTube' },
-                    { id: 'telegram', label: 'Telegram' },
-                  ].map((plat) => {
+                  {periscopePlatformOptions.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No platforms configured for Periscope.</p>
+                  ) : (
+                    periscopePlatformOptions.map((plat) => {
                     const isChecked = monitoringForm.platforms.includes(plat.id);
                     return (
                       <button
@@ -2320,7 +2342,8 @@ export default function Periscope() {
                         {plat.label}
                       </button>
                     );
-                  })}
+                  })
+                  )}
                 </div>
               </div>
             </div>

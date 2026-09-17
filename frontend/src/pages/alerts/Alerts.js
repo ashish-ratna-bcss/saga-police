@@ -19,15 +19,7 @@ import { abortAlertsListFetchOnUnmount } from './alertsFetchGuard';
 import { mapInstagramStoryToAlert, mergeInstagramStoriesByIdentity } from './instagramStoryMedia';
 import { PlatformBrandIcon } from '../../components/PlatformBrandIcon';
 import { useAuth } from '../../context/auth.context';
-
-const PLATFORM_LABELS = {
-  x: 'Twitter (X)',
-  twitter: 'Twitter (X)',
-  youtube: 'YouTube',
-  facebook: 'Facebook',
-  instagram: 'Instagram',
-  telegram: 'Telegram',
-};
+import { usePagePlatforms } from '../../hooks/usePagePlatforms';
 
 const normalizeAddPlatform = (platform) => {
   const value = String(platform || '').trim().toLowerCase();
@@ -81,8 +73,6 @@ const SOURCE_CATEGORY_OPTIONS = [
   { value: 'others', label: 'Others' }
 ];
 
-const PLATFORM_DISPLAY_ORDER = ['x', 'youtube', 'facebook', 'instagram', 'telegram', 'whatsapp'];
-
 export default function Alerts() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -129,33 +119,23 @@ export default function Alerts() {
   const debouncedSearchQueryRef = useRef(debouncedSearchQuery);
   debouncedSearchQueryRef.current = debouncedSearchQuery;
   const [platformFilter, setPlatformFilter] = useState('all');
-  const [availablePlatforms, setAvailablePlatforms] = useState([]);
-  const [platformsLoading, setPlatformsLoading] = useState(true);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await socialProfilesApi.listPlatforms({ page: 'alerts' });
-        if (mounted && Array.isArray(res.data)) {
-          const platforms = res.data.map((p) => {
-            const rawSlug = String(p.slug || '').toLowerCase();
-            const slug = rawSlug === 'twitter' ? 'x' : rawSlug;
-            return {
-              slug,
-              label: p.name || PLATFORM_LABELS[slug] || slug,
-            };
-          });
-          setAvailablePlatforms(platforms);
-        }
-      } catch {
-        // fallback
-      } finally {
-        if (mounted) setPlatformsLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
+  const {
+    platforms: pagePlatformRows,
+    slugs: pagePlatformSlugs,
+    loading: platformsLoading,
+  } = usePagePlatforms('alerts');
+  const availablePlatforms = useMemo(
+    () =>
+      pagePlatformRows.map((p) => {
+        const rawSlug = String(p.slug || '').toLowerCase();
+        const slug = rawSlug === 'twitter' ? 'x' : rawSlug;
+        return {
+          slug,
+          label: p.name || slug,
+        };
+      }),
+    [pagePlatformRows]
+  );
 
   useEffect(() => {
     if (availablePlatforms.length === 1 && platformFilter === 'all') {
@@ -360,14 +340,14 @@ export default function Alerts() {
       platformCounts[platform].total += 1;
     });
 
+    const displayOrder = pagePlatformSlugs.length
+      ? pagePlatformSlugs
+      : availablePlatforms.map((p) => p.slug);
     const discoveredPlatforms = Object.keys(platformCounts)
-      .filter((platform) => !PLATFORM_DISPLAY_ORDER.includes(platform))
+      .filter((platform) => !displayOrder.includes(platform))
       .sort((a, b) => a.localeCompare(b));
 
-    const orderedPlatforms = [
-      ...PLATFORM_DISPLAY_ORDER,
-      ...discoveredPlatforms
-    ];
+    const orderedPlatforms = [...displayOrder, ...discoveredPlatforms];
 
     const rows = orderedPlatforms
       .filter((platform) => platformCounts[platform])
@@ -389,7 +369,7 @@ export default function Alerts() {
       totalsByCategory,
       grandTotal
     };
-  }, [monitoredSources, normalizePlatform, normalizeCategory]);
+  }, [monitoredSources, normalizePlatform, normalizeCategory, pagePlatformSlugs, availablePlatforms]);
 
   const normalizeDateInputValue = useCallback((value) => {
     if (!value) return '';

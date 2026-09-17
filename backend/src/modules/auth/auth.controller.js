@@ -4,7 +4,7 @@ const { createAuditLog } = require('../../lib/audit');
 const { validateLogin } = require('./auth.validation');
 const { generateToken, findUserWithRole } = require('./auth.service');
 const { createAuthCookie, deleteAuthCookie, readAuthCookie } = require('../../config/cookies');
-const { sidebarForUser } = require('./access_features');
+const { sidebarForUser, PAGE_CATALOG } = require('./access_features');
 const { toPublicUser } = require('../user/user.utils');
 const {
   findActiveSession,
@@ -27,6 +27,7 @@ const meResponse = (user, role) => {
   return {
     ...publicUser,
     sidebar: sidebarForUser(publicUser),
+    page_catalog_paths: PAGE_CATALOG.map((p) => p.path),
   };
 };
 
@@ -206,6 +207,8 @@ const getMe = async (req, res) => {
     allowed_platforms: user.allowed_platforms || [],
     setup_status: setupStatus,
     sidebar: sidebarForUser(user),
+    // Full ACL catalog paths — FE must not hardcode; used to gate URL access
+    page_catalog_paths: PAGE_CATALOG.map((p) => p.path),
   });
 };
 

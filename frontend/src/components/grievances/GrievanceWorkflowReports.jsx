@@ -10,7 +10,8 @@ import {
     Link2, Image, FileText, MoreHorizontal, ArrowUpDown,
     Phone, Mail, Globe, Facebook, Instagram, Twitter, MessageCircle,
     ChevronLeft, ChevronRight, Info, Shield, Lock, Reply,
-    User, CircleDot, CircleCheck, ArrowRight, Send, Plus
+    User, CircleDot, CircleCheck, ArrowRight, Send, Plus,
+    CheckCircle2, ShieldAlert, Layers
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useReactToPrint } from 'react-to-print';
@@ -19,7 +20,11 @@ import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { ScrollArea } from '../ui/scroll-area';
-import { TelegramBrandLogo } from '../PlatformBrandIcon';
+import {
+    TelegramBrandLogo, XBrandLogo, FacebookBrandLogo,
+    InstagramBrandLogo, WhatsAppBrandLogo, YoutubeBrandLogo,
+    AllPlatformsLogo, BRAND_BY_PLATFORM
+} from '../PlatformBrandIcon';
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '../ui/select';
@@ -34,6 +39,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Separator } from '../ui/separator';
 import { cn } from '../../lib/utils';
+import { PagePlatformSelectItems } from '../PagePlatformSelectItems';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /* ─── Helpers ─── */
@@ -172,13 +178,14 @@ const statusMatches = (filter, report) => {
 };
 
 const platformIcons = {
-    x: Twitter,
-    twitter: Twitter,
-    facebook: Facebook,
-    instagram: Instagram,
+    x: XBrandLogo,
+    twitter: XBrandLogo,
+    facebook: FacebookBrandLogo,
+    instagram: InstagramBrandLogo,
     telegram: TelegramBrandLogo,
-    whatsapp: MessageCircle,
-    default: Globe
+    whatsapp: WhatsAppBrandLogo,
+    youtube: YoutubeBrandLogo,
+    default: AllPlatformsLogo
 };
 
 const toApiFilesUrl = (rawUrl) => {
@@ -218,13 +225,17 @@ const calcDuration = (from, to) => {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*   DETAIL VIEW – Single scrollable report page          */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*   DETAIL VIEW – Executive Grievance Case Inspector      */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVideo, onUpdate }) => {
+    const [detailTab, setDetailTab] = useState('overview');
     const [simMsg, setSimMsg] = useState('');
-    const [simSender, setSimSender] = useState('user');
-    const [simMode, setSimMode] = useState('X POST');
     const [submitting, setSubmitting] = useState(false);
     const [pdfGenerating, setPdfGenerating] = useState(false);
     const [pdfUrl, setPdfUrl] = useState(report?.report_pdf_url || null);
+    const [copiedDetailCode, setCopiedDetailCode] = useState(false);
+    const [activePreview, setActivePreview] = useState(null);
     const resolvedPdfUrl = toApiFilesUrl(pdfUrl || report?.report_pdf_url);
     const pdfGeneratingRef = useRef(false);
     pdfGeneratingRef.current = pdfGenerating;
@@ -271,17 +282,6 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
         return () => { cancelled = true; };
     }, [pdfUrl, report?.id, report?.report_pdf_url, handleGeneratePdf]);
 
-    const simModeOptions = {
-        user: ['X POST', 'X DM', 'WHATSAPP CALL', 'WHATSAPP DM', 'FB POST'],
-        operator_user: ['X DM', 'X POST', 'WHATSAPP CALL', 'WHATSAPP DM', 'FB POST'],
-        officer: ['WHATSAPP MSG', 'WHATSAPP CALL', 'PHONE CALL', 'X DM', 'WHATSAPP DM', 'FB POST'],
-        operator_remarks: ['INTERNAL'],
-    };
-    const handleSetSimSender = (s) => {
-        setSimSender(s);
-        setSimMode((simModeOptions[s] || ['X POST'])[0]);
-    };
-
     const r = report || {};
     const status = statusConfig[r.status] || statusConfig.PENDING;
     const StatusIcon = status.icon;
@@ -289,10 +289,15 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
     const closingMediaUrls = (Array.isArray(r.closing_media_s3_urls) && r.closing_media_s3_urls.length > 0 ? r.closing_media_s3_urls : r.closing_media_urls || []);
     const firInfo = parseFirFields(r);
     const platformLabel = r.platform === 'x' || r.platform === 'twitter' ? 'X (Twitter)' : r.platform === 'facebook' ? 'Facebook' : r.platform === 'instagram' ? 'Instagram' : r.platform === 'telegram' ? 'Telegram' : r.platform === 'whatsapp' ? 'WhatsApp' : r.platform || '—';
-    const PlatformIcon = platformIcons[r.platform] || platformIcons.default;
+    const PlatformIcon = platformIcons[r.platform?.toLowerCase()] || platformIcons.default;
 
-    /* ─── Preview media modal state ─── */
-    const [activePreview, setActivePreview] = useState(null);
+    const handleCopyCode = () => {
+        if (!r.unique_code) return;
+        navigator.clipboard.writeText(r.unique_code);
+        setCopiedDetailCode(true);
+        toast.success(`Copied ID ${r.unique_code}`);
+        setTimeout(() => setCopiedDetailCode(false), 2000);
+    };
 
     /* ─── Thread context from linked grievance ─── */
     const gCtx = r.grievance_context || {};
@@ -311,7 +316,6 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
         const hist = report.status_history || [];
 
         /* PENDING */
-        const pendingEntry = hist.find(h => h.to_status === 'PENDING') || {};
         const createdAt = report.created_at;
         const escalatedAt = report.escalated_at || hist.find(h => h.to_status === 'ESCALATED' || h.to_status === 'ESCALED')?.timestamp;
         const closedAt = report.closed_at || hist.find(h => h.to_status === 'CLOSED')?.timestamp;
@@ -324,7 +328,7 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
             current: currentStatus === 'PENDING',
             duration: calcDuration(createdAt, escalatedAt || closedAt || (currentStatus === 'PENDING' ? null : createdAt)),
             officer: report.created_by?.name || report.informed_to?.name || '—',
-            note: 'Issue created',
+            note: 'Issue logged and marked for operator triage',
             color: 'yellow'
         });
 
@@ -388,16 +392,18 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
         return logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     }, [r.complainant_logs, r.officer_logs, r.status_history, r.escalated_at, r.remarks, r.created_by, r.informed_to, r.escalation_message]);
 
-    const colorMap = { yellow: { bg: 'bg-yellow-500', ring: 'ring-yellow-200', text: 'text-yellow-700', light: 'bg-yellow-50' }, orange: { bg: 'bg-orange-500', ring: 'ring-orange-200', text: 'text-orange-700', light: 'bg-orange-50' }, green: { bg: 'bg-green-500', ring: 'ring-green-200', text: 'text-green-700', light: 'bg-green-50' } };
-    const colorHex = { yellow: { border: '#eab308', text: '#ca8a04', bg: '#facc15' }, orange: { border: '#f97316', text: '#ea580c', bg: '#fb923c' }, green: { border: '#22c55e', text: '#16a34a', bg: '#4ade80' } };
+    const colorHex = {
+        yellow: { border: '#eab308', text: '#ca8a04', bg: '#facc15' },
+        orange: { border: '#f97316', text: '#ea580c', bg: '#fb923c' },
+        green: { border: '#22c55e', text: '#16a34a', bg: '#4ade80' }
+    };
 
     if (!report) return null;
 
     const printDate = new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
     return (
-        <div className="space-y-6 pb-4">
-
+        <div className="space-y-4 pb-2">
             {/* ══════════════════════════════════════════════════ */}
             {/* PRINT-ONLY LETTERHEAD (hidden on screen)          */}
             {/* ══════════════════════════════════════════════════ */}
@@ -411,7 +417,7 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
                             <div style={{ fontSize: '18pt', fontWeight: 900, letterSpacing: '0.05em', fontFamily: 'monospace', color: '#fbbf24' }}>{r.unique_code || '—'}</div>
                             <div style={{ fontSize: '7pt', opacity: 0.7, marginTop: 2 }}>UNIQUE REPORT ID</div>
                         </div>
-                        {resolvedPdfUrl ? (
+                        {resolvedPdfUrl && (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                                 <div style={{ background: '#ffffff', padding: '4px', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
                                     <QRCodeSVG
@@ -425,192 +431,227 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
                                 </div>
                                 <div style={{ fontSize: '6pt', opacity: 0.6, textAlign: 'center' }}>Scan to download PDF</div>
                             </div>
-                        ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', width: '80px', height: '80px', border: '1px dashed #cbd5e1', borderRadius: '4px', opacity: 0.5 }}>
-                                <div style={{ fontSize: '6pt', textAlign: 'center', color: '#64748b', lineHeight: 1.4 }}>Generate PDF to enable QR</div>
-                            </div>
                         )}
-                    </div>
-                </div>
-                <div className="gwr-print-letterhead-body">
-                    <div className="gwr-print-letterhead-col">
-                        <div className="gwr-print-letterhead-label">Status</div>
-                        <div className="gwr-print-letterhead-value" style={{ color: r.status === 'CLOSED' ? '#16a34a' : r.status === 'ESCALATED' ? '#ea580c' : '#ca8a04' }}>{r.status || 'PENDING'}</div>
-                    </div>
-                    <div className="gwr-print-letterhead-col">
-                        <div className="gwr-print-letterhead-label">Category</div>
-                        <div className="gwr-print-letterhead-value">{r.category || 'Others'}</div>
-                    </div>
-                    <div className="gwr-print-letterhead-col">
-                        <div className="gwr-print-letterhead-label">Platform</div>
-                        <div className="gwr-print-letterhead-value">{r.platform ? r.platform.toUpperCase() : '—'}</div>
-                    </div>
-                    <div className="gwr-print-letterhead-col">
-                        <div className="gwr-print-letterhead-label">Post Date</div>
-                        <div className="gwr-print-letterhead-value">{r.post_date ? new Date(r.post_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</div>
                     </div>
                 </div>
             </div>
 
-            {/* ═══════ 1. HEADER ═══════ */}
-            <div className="gwr-report-header flex items-center justify-between p-5 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-xl text-white">
-                <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center">
-                        <FileText className="h-6 w-6 text-amber-400" />
-                    </div>
-                    <div>
-                        <p className="text-xs text-slate-400 uppercase tracking-wider font-medium">Grievance Unique ID</p>
-                        <p className="text-lg font-bold font-mono tracking-wide text-amber-400">{r.unique_code || '—'}</p>
-                    </div>
-                    {resolvedPdfUrl ? (
-                        <div className="flex flex-col items-center gap-1 ml-2">
-                            <div className="bg-white p-1.5 rounded-lg shadow-sm">
-                                <QRCodeSVG
-                                    value={resolvedPdfUrl}
-                                    size={52}
-                                    level="M"
-                                    includeMargin={false}
-                                    bgColor="#ffffff"
-                                    fgColor="#1e293b"
-                                />
-                            </div>
-                            <span className="text-[9px] text-slate-400">PDF QR</span>
+            {/* ═══════ 1. MODERN EXECUTIVE HERO CARD ═══════ */}
+            <div className="gwr-report-header rounded-2xl border border-border/80 bg-gradient-to-r from-card via-card to-muted/30 p-4 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3.5">
+                        <div className="h-11 w-11 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                            <FileText className="h-5 w-5" />
                         </div>
-                    ) : (
-                        <div className="flex flex-col items-center gap-1 ml-2">
-                            <div className="w-[52px] h-[52px] rounded-lg border border-dashed border-slate-600 flex items-center justify-center">
-                                <span className="text-[7px] text-slate-500 text-center leading-tight px-1">Generate PDF for QR</span>
+                        <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Unique Case ID</span>
+                                <Badge variant="outline" className="text-[10px] font-semibold gap-1 bg-muted/40">
+                                    <PlatformIcon className="h-3 w-3" />
+                                    {platformLabel}
+                                </Badge>
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-xl font-black font-mono tracking-tight text-foreground">{r.unique_code || '—'}</span>
+                                <button
+                                    type="button"
+                                    onClick={handleCopyCode}
+                                    className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                    title="Copy Unique Code"
+                                >
+                                    {copiedDetailCode ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                                </button>
                             </div>
                         </div>
-                    )}
+                    </div>
+
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                        {/* Status Badge */}
+                        <div className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold", status.bg, status.border)}>
+                            <span className={cn("w-2 h-2 rounded-full shrink-0", status.dot)} />
+                            <span className={status.text}>{status.label}</span>
+                        </div>
+
+                        {/* Created Badge */}
+                        <span className="text-[11px] text-muted-foreground bg-muted/60 dark:bg-muted/30 px-2.5 py-1 rounded-lg border border-border/60 font-medium">
+                            Created {fmtRelativeTime(r.created_at)}
+                        </span>
+
+                        {/* PDF Actions */}
+                        <div className="gwr-no-print flex items-center gap-2">
+                            {resolvedPdfUrl && (
+                                <a
+                                    href={resolvedPdfUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors"
+                                >
+                                    <Download className="h-3.5 w-3.5" />
+                                    Download PDF
+                                </a>
+                            )}
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleGeneratePdf}
+                                disabled={pdfGenerating}
+                                className="h-8 text-xs font-semibold px-2.5 rounded-lg shadow-xs"
+                            >
+                                {pdfGenerating ? (
+                                    <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> Generating…</>
+                                ) : (
+                                    <><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> {resolvedPdfUrl ? 'Regenerate PDF' : 'Generate PDF'}</>
+                                )}
+                            </Button>
+                        </div>
+                    </div>
                 </div>
-                <div className="flex items-center gap-3">
-                    <div className={cn("flex items-center gap-2 px-4 py-2 rounded-lg border", status.bg, status.border)}>
-                        <StatusIcon className={cn("h-4 w-4", status.text)} />
-                        <span className={cn("text-sm font-bold", status.text)}>{status.label}</span>
+            </div>
+
+            {/* ═══════ 2. POST DETAILS CARD ═══════ */}
+            <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-sm">
+                <div className="px-5 py-3 bg-muted/40 border-b border-border/60 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-primary" />
+                        <span className="text-xs font-bold text-foreground uppercase tracking-wider">Post Details</span>
                     </div>
-                    <Badge className="bg-white/10 text-white/70 border-white/20 text-[10px]">
-                        Created {fmtRelativeTime(r.created_at)}
+                    <Badge variant="outline" className="text-[11px] font-semibold bg-background">
+                        {r.category || 'Others'}
                     </Badge>
-                    {/* Generate / Download PDF */}
-                    <span className="gwr-no-print flex items-center gap-3">
-                    {resolvedPdfUrl ? (
-                        <a
-                            href={resolvedPdfUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-semibold transition-colors"
-                        >
-                            <Download className="h-3.5 w-3.5" />
-                            Download PDF
-                        </a>
-                    ) : null}
-                    <button
-                        onClick={handleGeneratePdf}
-                        disabled={pdfGenerating}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-xs font-semibold transition-colors"
-                    >
-                        {pdfGenerating ? (
-                            <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
-                        ) : (
-                            <><FileText className="h-3.5 w-3.5" /> {resolvedPdfUrl ? 'Regenerate PDF' : 'Generate PDF'}</>
-                        )}
-                    </button>
-                    </span>
                 </div>
-            </div>
 
-            {/* ═══════ 2. POST DETAILS TABLE ═══════ */}
-            <div className="gwr-section-card rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <div className="gwr-section-header px-4 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-slate-500 gwr-screen-only" />
-                    <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Post Details</span>
-                </div>
-                <div className="p-4">
-                    <div className="flex gap-5">
-                        {/* Table */}
-                        <div className="flex-1">
-                            <table className="gwr-detail-table w-full text-sm">
-                                <tbody>
-                                    <tr className="border-b border-slate-100">
-                                        <td className="py-2.5 pr-4 text-slate-500 font-medium w-36 align-top">Platform</td>
-                                        <td className="py-2.5 text-slate-900 font-semibold">
-                                            <div className="flex items-center gap-2">
-                                                <PlatformIcon className="h-4 w-4 text-slate-500" />
-                                                {platformLabel}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr className="border-b border-slate-100">
-                                        <td className="py-2.5 pr-4 text-slate-500 font-medium align-top">Posted By</td>
-                                        <td className="py-2.5 text-slate-900">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-semibold">{r.posted_by?.display_name || '—'}</span>
-                                                {r.posted_by?.handle && <span className="text-xs text-blue-600">@{r.posted_by.handle}</span>}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr className="border-b border-slate-100">
-                                        <td className="py-2.5 pr-4 text-slate-500 font-medium align-top">Posted Date & Time</td>
-                                        <td className="py-2.5 text-slate-900 font-medium">{fmtDate(r.post_date)}</td>
-                                    </tr>
-                                    <tr className="border-b border-slate-100">
-                                        <td className="py-2.5 pr-4 text-slate-500 font-medium align-top">Post Link</td>
-                                        <td className="py-2.5">
-                                            {r.post_link ? (
-                                                <a href={r.post_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs break-all flex items-center gap-1">
-                                                    {r.post_link}
-                                                    <ExternalLink className="h-3 w-3 shrink-0" />
-                                                </a>
-                                            ) : <span className="text-slate-400">—</span>}
-                                        </td>
-                                    </tr>
-                                    <tr className="border-b border-slate-100">
-                                        <td className="py-2.5 pr-4 text-slate-500 font-medium align-top">Category</td>
-                                        <td className="py-2.5"><Badge variant="outline" className="text-xs">{r.category || 'Others'}</Badge></td>
-                                    </tr>
-                                    <tr className="border-b border-slate-100">
-                                        <td className="py-2.5 pr-4 text-slate-500 font-medium align-top">Complaint Phone</td>
-                                        <td className="py-2.5 text-slate-900 font-mono">{r.complaint_phone || '—'}</td>
-                                    </tr>
-                                    <tr className="border-b border-slate-100">
-                                        <td className="py-2.5 pr-4 text-slate-500 font-medium align-top">Informed To</td>
-                                        <td className="py-2.5 text-slate-900">
-                                            {r.informed_to?.name ? (
-                                                <div>
-                                                    <span className="font-semibold">{r.informed_to.name}</span>
-                                                    {r.informed_to.phone && <span className="text-xs text-slate-500 ml-2">({r.informed_to.phone})</span>}
-                                                    {r.informed_to.department && <span className="text-[10px] text-slate-400 ml-1">• {r.informed_to.department}</span>}
-                                                </div>
-                                            ) : <span className="text-slate-400">Not shared</span>}
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                <div className="p-5 space-y-4">
+                    {/* Top Metadata Grid + Post QR */}
+                    <div className="flex flex-col lg:flex-row gap-5 items-start">
+                        {/* 2-Column Key-Value Grid */}
+                        <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3.5 text-xs">
+                            {/* Platform */}
+                            <div className="flex items-start gap-2.5 pb-2 border-b border-border/40">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground w-28 shrink-0">Platform</span>
+                                <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                                    <PlatformIcon className="h-4 w-4" />
+                                    <span>{platformLabel}</span>
+                                </div>
+                            </div>
+
+                            {/* Posted By */}
+                            <div className="flex items-start gap-2.5 pb-2 border-b border-border/40">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground w-28 shrink-0">Posted By</span>
+                                <div className="min-w-0">
+                                    <span className="font-bold text-foreground block truncate">{r.posted_by?.display_name || r.profile_id || '—'}</span>
+                                    {r.profile_id && (
+                                        <a
+                                            href={r.profile_id.startsWith('http') ? r.profile_id : `https://${r.platform === 'facebook' ? 'facebook.com' : r.platform === 'instagram' ? 'instagram.com' : 'x.com'}/${r.profile_id.replace(/^@/, '')}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-[11px] text-primary hover:underline font-mono truncate block"
+                                        >
+                                            @{r.profile_id}
+                                        </a>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Posted Date & Time */}
+                            <div className="flex items-start gap-2.5 pb-2 border-b border-border/40">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground w-28 shrink-0">Posted Date & Time</span>
+                                <div className="font-medium text-foreground">
+                                    <span>{r.post_date ? fmtDate(r.post_date) : '—'}</span>
+                                    {r.post_date && (
+                                        <span className="text-[10px] text-muted-foreground ml-1 font-normal">({fmtRelativeTime(r.post_date)})</span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Post Link */}
+                            <div className="flex items-start gap-2.5 pb-2 border-b border-border/40">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground w-28 shrink-0">Post Link</span>
+                                <div className="min-w-0 flex-1">
+                                    {r.post_link ? (
+                                        <a
+                                            href={r.post_link}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 text-primary hover:underline font-mono text-[11px] truncate max-w-full"
+                                            title={r.post_link}
+                                        >
+                                            <span className="truncate">{r.post_link}</span>
+                                            <ExternalLink className="h-3 w-3 shrink-0" />
+                                        </a>
+                                    ) : (
+                                        <span className="text-muted-foreground">—</span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Category */}
+                            <div className="flex items-start gap-2.5 pb-2 border-b border-border/40">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground w-28 shrink-0">Category</span>
+                                <div>
+                                    <Badge variant="outline" className="text-[11px] font-semibold bg-muted/30">
+                                        {r.category || 'Others'}
+                                    </Badge>
+                                </div>
+                            </div>
+
+                            {/* Complaint Phone */}
+                            <div className="flex items-start gap-2.5 pb-2 border-b border-border/40">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground w-28 shrink-0">Complaint Phone</span>
+                                <div className="font-mono font-medium text-foreground">
+                                    {r.complaint_phone ? (
+                                        <a href={`tel:${r.complaint_phone}`} className="hover:underline text-primary">
+                                            {r.complaint_phone}
+                                        </a>
+                                    ) : '—'}
+                                </div>
+                            </div>
+
+                            {/* Informed To */}
+                            <div className="flex items-start gap-2.5 pb-2 border-b border-border/40 sm:col-span-2">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground w-28 shrink-0">Informed To</span>
+                                <div className="font-medium text-foreground flex items-center gap-2 flex-wrap">
+                                    {r.informed_to?.name ? (
+                                        <>
+                                            <span className="font-bold">{r.informed_to.name}</span>
+                                            {r.informed_to.phone && (
+                                                <span className="font-mono text-muted-foreground text-[11px]">({r.informed_to.phone})</span>
+                                            )}
+                                            {r.informed_to.department && (
+                                                <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">• {r.informed_to.department}</span>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <span className="text-muted-foreground italic">Not assigned</span>
+                                    )}
+                                </div>
+                            </div>
                         </div>
+
+                        {/* Right: Post QR Code */}
                         {r.post_link && (
-                            <div className="gwr-post-qr-block shrink-0 flex flex-col items-center gap-2 p-1 bg-white dark:bg-slate-800">
-                                <div className="gwr-post-qr-box w-[108px] h-[108px] p-2 border border-slate-200 dark:border-slate-700 rounded-md shadow-sm flex items-center justify-center bg-white dark:bg-slate-800">
+                            <div className="gwr-post-qr-block shrink-0 flex flex-col items-center gap-1.5 p-3 rounded-xl border border-border/70 bg-muted/20 text-center self-center lg:self-start">
+                                <div className="p-1.5 bg-white rounded-lg border border-border/80 shadow-xs">
                                     <QRCodeSVG
                                         value={r.post_link}
-                                        size={92}
+                                        size={96}
                                         level="M"
                                         includeMargin={false}
                                         bgColor="#ffffff"
-                                        fgColor="#1e293b"
+                                        fgColor="#0f172a"
                                     />
                                 </div>
-                                <p className="text-[9px] text-slate-400 text-center leading-tight">Post QR</p>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Post QR</span>
+                                <span className="text-[9px] text-muted-foreground/80">Scan to view original</span>
                             </div>
                         )}
                     </div>
 
-                    {/* ═══════ FULL TWEET THREAD (X only) ═══════ */}
+                    {/* Full Tweet Thread (if X) */}
                     {hasThread && (
-                        <div className="gwr-tweet-thread mt-4 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-white dark:bg-slate-800">
-                            <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
-                                <Reply className="h-3.5 w-3.5 text-slate-500" />
-                                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Full Tweet Thread</span>
+                        <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-xs">
+                            <div className="px-4 py-2.5 bg-muted/40 border-b border-border/60 flex items-center gap-2">
+                                <Reply className="h-3.5 w-3.5 text-primary" />
+                                <span className="text-[11px] font-bold text-foreground uppercase tracking-wider">Full Tweet Thread</span>
                             </div>
                             <div className="p-4 space-y-0">
                                 {(() => {
@@ -622,54 +663,15 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
                                         const media = node.content?.media || [];
                                         return (
                                             <div key={label} className="relative">
-                                                {/* Thread connector line */}
-                                                {!isLast && <div className="absolute left-[19px] top-[40px] bottom-0 w-0.5 bg-slate-200" />}
+                                                {!isLast && <div className="absolute left-[19px] top-[40px] bottom-0 w-0.5 bg-border" />}
                                                 <div className="flex gap-3">
-                                                    {/* Content */}
                                                     <div className="flex-1 min-w-0 pb-4">
                                                         <div className="flex items-center gap-2 flex-wrap">
-                                                            <span className="text-sm font-bold text-slate-900 truncate">{user.display_name || handle || 'Unknown'}</span>
-                                                            {handle && <span className="text-xs text-slate-400 truncate">@{handle}</span>}
-                                                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">{label}</span>
+                                                            <span className="text-sm font-bold text-foreground truncate">{user.display_name || handle || 'Unknown'}</span>
+                                                            {handle && <span className="text-xs text-muted-foreground truncate">@{handle}</span>}
+                                                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">{label}</span>
                                                         </div>
-                                                        {node.post_date && (
-                                                            <p className="text-[10px] text-slate-400 mt-0.5">
-                                                                {new Date(node.post_date).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}
-                                                            </p>
-                                                        )}
-                                                        {text && <p className="text-sm text-slate-700 mt-1.5 whitespace-pre-wrap break-words leading-relaxed">{text}</p>}
-                                                        {media.length > 0 && (
-                                                            <div className="grid grid-cols-2 gap-2 mt-2">
-                                                                {media.map((m, mi) => {
-                                                                    const mUrl = m.s3_url || m.video_url || m.url || m.preview_url;
-                                                                    const previewUrl = m.s3_preview || m.preview_url || m.url;
-                                                                    const mIsVideo = m.type === 'video' || m.type === 'animated_gif' || isVideo(mUrl);
-                                                                    return (
-                                                                        <div key={mi}
-                                                                            className="aspect-video rounded-lg overflow-hidden border border-slate-200 bg-slate-100 cursor-pointer hover:border-blue-300 transition-colors"
-                                                                            onClick={() => setActivePreview(mUrl)}
-                                                                        >
-                                                                            {mIsVideo ? (
-                                                                                <div className="h-full w-full bg-slate-900 flex items-center justify-center relative">
-                                                                                    {previewUrl && <img src={previewUrl} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60" referrerPolicy="no-referrer" />}
-                                                                                    <div className="relative h-10 w-10 rounded-full bg-white/30 backdrop-blur-sm flex items-center justify-center">
-                                                                                        <div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[14px] border-l-white border-b-[8px] border-b-transparent ml-1" />
-                                                                                    </div>
-                                                                                </div>
-                                                                            ) : (
-                                                                                <img src={previewUrl || mUrl} alt="" className="w-full h-full object-cover" loading="lazy" referrerPolicy="no-referrer" onError={e => e.currentTarget.src = ''} />
-                                                                            )}
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        )}
-                                                        {node.tweet_url && (
-                                                            <a href={node.tweet_url} target="_blank" rel="noopener noreferrer"
-                                                                className="inline-flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700 hover:underline mt-1.5 font-medium">
-                                                                View on X <ExternalLink className="h-2.5 w-2.5" />
-                                                            </a>
-                                                        )}
+                                                        {text && <p className="text-sm text-foreground/90 mt-1.5 whitespace-pre-wrap break-words leading-relaxed">{text}</p>}
                                                     </div>
                                                 </div>
                                             </div>
@@ -684,8 +686,7 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
 
                                     return (
                                         <>
-                                            {threadNodes.map((item, idx) => renderThreadTweet(item.node, item.label, false))}
-                                            {/* Main reply (current grievance) */}
+                                            {threadNodes.map((item) => renderThreadTweet(item.node, item.label, false))}
                                             {renderThreadTweet(
                                                 { posted_by: r.posted_by || r.grievance_posted_by, content: r.grievance_content || { text: r.post_description }, post_date: r.post_date, tweet_url: r.post_link },
                                                 threadNodes.length > 0 ? 'Reply' : 'Post',
@@ -699,151 +700,121 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
                         </div>
                     )}
 
-                    {/* Description */}
+                    {/* Post Description Box */}
                     {!hasThread && (
-                        <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Post Description</p>
-                            <div className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
+                        <div className="rounded-xl border border-border/80 bg-muted/20 p-4">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">Post Description</span>
+                            <div className="text-sm text-foreground/95 whitespace-pre-wrap leading-relaxed font-normal">
                                 {r.post_description || r.content?.full_text || r.content?.text || 'No description provided'}
                             </div>
                         </div>
                     )}
 
-                    {/* Direct Media Preview */}
+                    {/* Post Media Gallery */}
                     {mediaUrls.length > 0 && (
-                        <div className="mt-4">
-                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                <Image className="h-3 w-3" /> Post Media ({mediaUrls.length})
-                            </p>
-                            <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-2.5 flex items-center gap-1.5">
+                                <Image className="h-3.5 w-3.5" />
+                                Attached Media ({mediaUrls.length})
+                            </span>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                                 {mediaUrls.map((url, i) => (
                                     <div
                                         key={i}
-                                        className="group relative aspect-video rounded-xl border border-slate-200 overflow-hidden hover:border-amber-300 transition-colors cursor-pointer bg-slate-100"
+                                        className="group relative aspect-video rounded-xl border border-border overflow-hidden hover:border-primary/60 transition-colors cursor-pointer bg-muted/40 shadow-xs"
                                         onClick={() => setActivePreview(url)}
                                     >
                                         {isVideo(url) ? (
-                                            <video
-                                                src={url}
-                                                controls
-                                                playsInline
-                                                preload="metadata"
-                                                className="h-full w-full object-cover bg-black"
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                Your browser does not support the video tag.
-                                            </video>
+                                            <div className="h-full w-full bg-slate-900 flex items-center justify-center relative">
+                                                <video src={url} className="h-full w-full object-cover opacity-80" preload="metadata" />
+                                                <div className="absolute h-9 w-9 rounded-full bg-black/50 text-white flex items-center justify-center backdrop-blur-xs">
+                                                    <div className="w-0 h-0 border-t-[6px] border-t-transparent border-l-[10px] border-l-white border-b-[6px] border-b-transparent ml-0.5" />
+                                                </div>
+                                            </div>
                                         ) : (
-                                            <img src={url} alt={`Media ${i + 1}`} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" onError={e => e.currentTarget.src = ''} />
+                                            <img src={url} alt={`Media ${i + 1}`} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" referrerPolicy="no-referrer" onError={e => e.currentTarget.src = ''} />
                                         )}
                                     </div>
                                 ))}
                             </div>
                         </div>
                     )}
-
-
                 </div>
             </div>
 
-            {/* ═══════ 3. STATUS TIMELINE ═══════ */}
-            <div className="gwr-section-card rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-white dark:bg-slate-800 shadow-sm">
-                <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2 bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm">
-                    <div className="p-1.5 bg-blue-100/50 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400">
-                        <Clock className="h-4 w-4" />
-                    </div>
-                    <div>
-                        <span className="text-sm font-bold text-slate-800 dark:text-slate-200 block">Status Timeline</span>
-                        <span className="text-[10px] text-slate-500 font-medium">Tracking the lifecycle of this grievance</span>
-                    </div>
+            {/* ═══════ 3. STATUS TIMELINE CARD ═══════ */}
+            <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-sm">
+                <div className="px-5 py-3 bg-muted/40 border-b border-border/60 flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-bold text-foreground uppercase tracking-wider">Status Timeline</span>
+                    <span className="text-[10px] text-muted-foreground ml-2">Tracking lifecycle & escalation milestones</span>
                 </div>
-
-                <div className="p-6 md:p-8">
-                    <div className="flex flex-col">
+                <div className="p-6">
+                    <div className="flex flex-col space-y-0">
                         {timelineSteps.map((step, idx) => {
-                            const c = colorMap[step.color] || colorMap.yellow;
                             const isLast = idx === timelineSteps.length - 1;
                             const isActive = step.active;
 
                             return (
                                 <div key={idx} className={cn("flex group", !isActive && "opacity-40")}>
-                                    {/* Left: Time/Date Side */}
-                                    <div className="w-24 md:w-32 pt-1 pr-4 text-right shrink-0">
+                                    <div className="w-28 md:w-36 pt-1 pr-4 text-right shrink-0">
                                         {step.date ? (
                                             <>
-                                                <div className="text-[11px] font-bold text-slate-900 leading-tight">
-                                                    {new Date(step.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                                                <div className="text-[11px] font-bold text-foreground leading-tight">
+                                                    {new Date(step.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                                                 </div>
-                                                <div className="text-[10px] text-slate-400 font-medium">
+                                                <div className="text-[10px] text-muted-foreground font-medium">
                                                     {new Date(step.date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
                                                 </div>
                                             </>
                                         ) : (
-                                            <div className="text-[10px] text-slate-300 italic">Pending</div>
+                                            <div className="text-[10px] text-muted-foreground/60 italic">Not reached</div>
                                         )}
                                     </div>
 
-                                    {/* Center: Connector & Circle */}
                                     <div className="relative flex flex-col items-center shrink-0 w-10">
                                         <div
                                             className={cn(
                                                 "z-10 h-8 w-8 rounded-full flex items-center justify-center border-2 transition-all duration-300",
-                                                isActive ? "bg-white dark:bg-slate-700 shadow-md" : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-600"
+                                                isActive ? "bg-background shadow-md" : "bg-muted/40 border-border"
                                             )}
                                             style={isActive ? { borderColor: colorHex[step.color]?.border || '#eab308' } : undefined}
                                         >
-                                            {step.label === 'Pending' && <Plus className="h-4 w-4" style={{ color: isActive ? (colorHex[step.color]?.text || '#ca8a04') : '#cbd5e1' }} />}
-                                            {step.label === 'Escalated' && <AlertCircle className="h-4 w-4" style={{ color: isActive ? (colorHex[step.color]?.text || '#ea580c') : '#cbd5e1' }} />}
-                                            {step.label === 'Closed' && <Check className="h-4 w-4" style={{ color: isActive ? (colorHex[step.color]?.text || '#16a34a') : '#cbd5e1' }} />}
-                                            {step.current && isActive && (
-                                                <span className="absolute inset-0 rounded-full animate-ping opacity-25" style={{ backgroundColor: colorHex[step.color]?.bg || '#facc15' }} />
-                                            )}
+                                            {step.label === 'Pending' && <Plus className="h-4 w-4" style={{ color: isActive ? (colorHex[step.color]?.text || '#ca8a04') : '#94a3b8' }} />}
+                                            {step.label === 'Escalated' && <AlertCircle className="h-4 w-4" style={{ color: isActive ? (colorHex[step.color]?.text || '#ea580c') : '#94a3b8' }} />}
+                                            {step.label === 'Closed' && <Check className="h-4 w-4" style={{ color: isActive ? (colorHex[step.color]?.text || '#16a34a') : '#94a3b8' }} />}
                                         </div>
                                         {!isLast && (
                                             <div
                                                 className="w-0.5 grow my-1 rounded-full transition-colors duration-500"
-                                                style={{ backgroundColor: timelineSteps[idx + 1]?.active ? (colorHex[step.color]?.bg || '#facc15') : '#f1f5f9' }}
+                                                style={{ backgroundColor: timelineSteps[idx + 1]?.active ? (colorHex[step.color]?.bg || '#facc15') : '#e2e8f0' }}
                                             />
                                         )}
                                     </div>
 
-                                    {/* Right: Content Side */}
-                                    <div className={cn(
-                                        "flex-1 ml-4 pb-8",
-                                        isLast && "pb-0"
-                                    )}>
-                                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                                            <h4 className={cn(
-                                                "text-sm font-bold tracking-tight uppercase",
-                                                isActive ? "text-slate-900 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"
-                                            )}>
+                                    <div className={cn("flex-1 ml-4 pb-6", isLast && "pb-0")}>
+                                        <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                                            <h4 className={cn("text-sm font-bold tracking-tight uppercase", isActive ? "text-foreground" : "text-muted-foreground")}>
                                                 {step.label}
                                             </h4>
                                             {isActive && step.duration && step.duration !== '—' && (
-                                                <Badge variant="outline" className="h-5 px-1.5 py-0 text-[10px] font-bold border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800">
+                                                <Badge variant="outline" className="h-5 px-2 text-[10px] font-bold border-border bg-muted/40 text-muted-foreground">
                                                     <Clock className="h-3 w-3 mr-1" />
                                                     {step.duration}
                                                 </Badge>
                                             )}
                                         </div>
 
-                                        <div className={cn(
-                                            "relative p-3 rounded-xl border transition-all duration-300",
-                                            isActive ? "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 shadow-sm" : "bg-slate-50/50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700"
-                                        )}>
-                                            <div className="flex items-start justify-between gap-4">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-1.5 mb-1.5">
-                                                        <User className="h-3 w-3 text-slate-400" />
-                                                        <span className="text-[11px] font-semibold text-slate-700">{step.officer}</span>
-                                                    </div>
-                                                    {step.note && step.note !== '—' && (
-                                                        <p className="text-xs text-slate-500 italic leading-snug">
-                                                            "{step.note}"
-                                                        </p>
-                                                    )}
-                                                </div>
+                                        <div className={cn("p-3 rounded-xl border", isActive ? "bg-card border-border/80 shadow-xs" : "bg-muted/20 border-border/40")}>
+                                            <div className="flex items-center gap-1.5 mb-1">
+                                                <User className="h-3 w-3 text-muted-foreground" />
+                                                <span className="text-[11px] font-semibold text-foreground">{step.officer}</span>
                                             </div>
+                                            {step.note && step.note !== '—' && (
+                                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                                    {step.note}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -853,20 +824,21 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
                 </div>
             </div>
 
-            {/* ═══════ 4. CHAT HISTORY ═══════ */}
-            <div className="gwr-section-card rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <div className="gwr-section-header px-4 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+            {/* ═══════ 4. COMMUNICATION & INTERACTION LOG ═══════ */}
+            <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-sm">
+                <div className="px-5 py-3 bg-muted/40 border-b border-border/60 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <MessageSquare className="h-4 w-4 text-slate-500 gwr-screen-only" />
-                        <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Communication Log</span>
-                        <Badge variant="outline" className="text-[9px] ml-1 gwr-screen-only">{chatLogs.length} messages</Badge>
-                        <span className="hidden print:inline text-[9pt] font-normal text-slate-500">({chatLogs.length} entries)</span>
+                        <MessageSquare className="h-4 w-4 text-primary" />
+                        <span className="text-xs font-bold text-foreground uppercase tracking-wider">Communication Log</span>
+                        <Badge variant="outline" className="text-[10px] font-semibold bg-background">{chatLogs.length} messages</Badge>
                     </div>
                 </div>
-                <div className="gwr-chat-print bg-white dark:bg-slate-800 divide-y divide-slate-100 dark:divide-slate-700 min-h-[200px] max-h-[500px] overflow-y-auto print:max-h-none print:overflow-visible">
+
+                <div className="p-4 divide-y divide-border/40 max-h-[360px] overflow-y-auto space-y-3">
                     {chatLogs.length === 0 ? (
-                        <div className="flex items-center justify-center h-[200px]">
-                            <p className="text-slate-400 text-xs bg-slate-100 dark:bg-slate-700 px-3 py-1 rounded-full">No communication entries yet</p>
+                        <div className="flex flex-col items-center justify-center h-[140px] text-center">
+                            <MessageSquare className="h-8 w-8 text-muted-foreground/40 mb-1.5" />
+                            <p className="text-xs font-semibold text-muted-foreground">No communication recorded for this case yet</p>
                         </div>
                     ) : chatLogs.map((log, idx) => {
                         const isEscalation = log._source === 'system_escalation' || (log._source === 'officer' && log.is_escalation);
@@ -877,62 +849,35 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
                         const complainantName = r.posted_by?.display_name || r.profile_id || 'Post Author';
                         const operatorName = resolveOperatorName(r, log.operator?.name || log.operator);
                         const officerName = log.recipient?.name || r.informed_to?.name || 'Officer';
-                        const officerPhone = log.recipient?.phone || r.informed_to?.phone || '';
 
-                        let stripBg, roleLabel, dirLabel;
-
+                        let tagBg, roleTitle;
                         if (isUserMsg) {
-                            stripBg = 'bg-orange-500';
-                            roleLabel = complainantName;
-                            dirLabel = null;
+                            tagBg = 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/30';
+                            roleTitle = `Complainant (${complainantName})`;
                         } else if (isOperatorRemark) {
-                            stripBg = 'bg-amber-500';
-                            roleLabel = `Operator (${operatorName})`;
-                            dirLabel = 'Internal Note';
+                            tagBg = 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30';
+                            roleTitle = `Internal Operator Note (${operatorName})`;
                         } else if (isEscalation) {
-                            stripBg = 'bg-red-600';
-                            roleLabel = `Operator (${operatorName})`;
-                            dirLabel = `Escalated → Officer (${officerName}${officerPhone ? ' · ' + officerPhone : ''})`;
+                            tagBg = 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30';
+                            roleTitle = `Escalated → Officer (${officerName})`;
                         } else if (isOfficerMsg) {
-                            stripBg = 'bg-blue-600';
-                            roleLabel = `Operator (${operatorName})`;
-                            dirLabel = `→ Officer (${officerName}${officerPhone ? ' · ' + officerPhone : ''})`;
+                            tagBg = 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30';
+                            roleTitle = `Officer (${officerName})`;
                         } else {
-                            stripBg = 'bg-emerald-600';
-                            roleLabel = `Operator (${operatorName})`;
-                            dirLabel = `→ User (${complainantName})`;
+                            tagBg = 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30';
+                            roleTitle = `Operator → Complainant`;
                         }
 
-                        const fullDate = log.timestamp ? new Date(log.timestamp).toLocaleString('en-IN', {
-                            day: '2-digit', month: 'short', year: 'numeric',
-                            hour: '2-digit', minute: '2-digit', hour12: true
-                        }) : '';
-
                         return (
-                            <div key={idx} className="bg-white dark:bg-slate-800 pt-1.5 pb-1">
-                                {/* Colored tag — left-aligned, content-width */}
-                                <div className="flex items-center gap-2 px-3">
-                                    <div className={cn('inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm max-w-[85%]', stripBg)}>
-                                        <span className="text-[10px] font-semibold truncate text-white">
-                                            {roleLabel}
-                                            {dirLabel && <span className="font-normal opacity-90"> {dirLabel}</span>}
-                                        </span>
-                                        {log.mode && (
-                                            <span className="text-[8px] text-white/80 bg-white/20 border border-white/30 rounded px-1 py-px uppercase font-bold tracking-wider shrink-0">
-                                                {log.mode}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <span className="text-[8px] text-slate-400 whitespace-nowrap shrink-0">{fullDate}</span>
+                            <div key={idx} className="pt-2.5 first:pt-0">
+                                <div className="flex items-center justify-between gap-2 mb-1">
+                                    <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded border', tagBg)}>
+                                        {roleTitle}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground">{fmtRelativeTime(log.timestamp)}</span>
                                 </div>
-                                {/* Message body */}
-                                <div className="px-3 pt-1 pb-0.5">
-                                    {log.replyTo && (
-                                        <div className="text-[9px] text-slate-400 italic border-l-2 border-slate-300 pl-1.5 mb-1 truncate">
-                                            ↩ {log.replyTo.content}
-                                        </div>
-                                    )}
-                                    <p className="text-xs text-slate-800 whitespace-pre-wrap leading-snug">
+                                <div className="bg-muted/20 p-2.5 rounded-lg border border-border/40">
+                                    <p className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed">
                                         {log.fullMessage || log.content}
                                     </p>
                                 </div>
@@ -940,157 +885,147 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
                         );
                     })}
                 </div>
-            </div>
 
-            {/* ═══════ OPERATOR NOTE ═══════ */}
-            <div className="gwr-screen-only rounded-xl border border-amber-200 overflow-hidden bg-amber-50 shadow-sm">
-                <div className="px-4 py-2.5 border-b border-amber-200 dark:border-amber-800 flex items-center justify-between bg-white dark:bg-slate-800">
-                    <div className="flex items-center gap-2">
-                        <MessageSquare className="h-3.5 w-3.5 text-amber-600" />
-                        <span className="text-xs font-bold text-amber-700">Operator Note</span>
-                        <span className="text-[9px] text-amber-500 bg-amber-100 px-1.5 py-0.5 rounded font-medium uppercase tracking-wider">Internal</span>
+                {/* Internal Operator Note Composer */}
+                <div className="p-3.5 bg-muted/20 border-t border-border/60">
+                    <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-bold text-foreground">Add Internal Operator Note</span>
+                        <span className="text-[9px] text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded font-semibold border border-amber-500/20">Staff Only</span>
                     </div>
-                    {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-400" />}
-                </div>
-                <div className="p-3 flex items-end gap-2">
-                    <div className="flex-1 bg-white dark:bg-slate-800 rounded-lg border border-amber-200 dark:border-amber-800 focus-within:ring-1 focus-within:ring-amber-300 px-3 py-2 min-h-[40px]">
+                    <div className="flex items-end gap-2">
                         <textarea
                             value={simMsg}
                             onChange={e => setSimMsg(e.target.value)}
-                            placeholder="Add an internal operator note..."
-                            className="w-full max-h-24 bg-transparent border-none focus:ring-0 text-sm p-0 resize-none leading-6 placeholder:text-amber-300 outline-none"
-                            style={{ height: 'auto', minHeight: '24px' }}
-                            onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-                            onKeyDown={async e => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    if (!simMsg.trim() || submitting) return;
-                                    setSubmitting(true);
-                                    try {
-                                        const res = await api.put(`/grievance-workflow/reports/${r.id}`, {
-                                            complainant_logs: [...(r.complainant_logs || []), {
-                                                mode: 'INTERNAL', type: 'OperatorRemark', content: simMsg.trim(), timestamp: new Date()
-                                            }]
-                                        });
-                                        if (res.data) { onUpdate?.(res.data); setSimMsg(''); toast.success('Note added'); }
-                                    } catch { toast.error('Failed to add note'); }
-                                    finally { setSubmitting(false); }
-                                }
-                            }}
+                            placeholder="Type an internal note regarding this grievance..."
+                            className="flex-1 min-h-[46px] max-h-24 bg-background rounded-lg border border-border/80 text-xs p-2.5 resize-none outline-none focus:ring-1 focus:ring-primary"
                         />
+                        <Button
+                            size="sm"
+                            disabled={submitting || !simMsg.trim()}
+                            onClick={async () => {
+                                if (!simMsg.trim() || submitting) return;
+                                setSubmitting(true);
+                                try {
+                                    const res = await api.put(`/grievance-workflow/reports/${r.id}`, {
+                                        complainant_logs: [...(r.complainant_logs || []), {
+                                            mode: 'INTERNAL', type: 'OperatorRemark', content: simMsg.trim(), timestamp: new Date()
+                                        }]
+                                    });
+                                    if (res.data) { onUpdate?.(res.data); setSimMsg(''); toast.success('Note added'); }
+                                } catch { toast.error('Failed to add note'); }
+                                finally { setSubmitting(false); }
+                            }}
+                            className="h-9 px-3.5 text-xs font-semibold"
+                        >
+                            <Send className="h-3.5 w-3.5 mr-1" />
+                            Add Note
+                        </Button>
                     </div>
-                    <button
-                        className="h-10 w-10 flex items-center justify-center rounded-lg bg-amber-500 hover:bg-amber-600 text-white shadow-sm shrink-0 transition-all active:scale-95 disabled:opacity-50"
-                        disabled={submitting || !simMsg.trim()}
-                        onClick={async () => {
-                            if (!simMsg.trim() || submitting) return;
-                            setSubmitting(true);
-                            try {
-                                const res = await api.put(`/grievance-workflow/reports/${r.id}`, {
-                                    complainant_logs: [...(r.complainant_logs || []), {
-                                        mode: 'INTERNAL', type: 'OperatorRemark', content: simMsg.trim(), timestamp: new Date()
-                                    }]
-                                });
-                                if (res.data) { onUpdate?.(res.data); setSimMsg(''); toast.success('Note added'); }
-                            } catch { toast.error('Failed to add note'); }
-                            finally { setSubmitting(false); }
-                        }}
-                    >
-                        <Send className="h-4 w-4 ml-0.5" />
-                    </button>
                 </div>
             </div>
 
-            {/* ═══════ 5. CLOSING DETAILS (if closed) ═══════ */}
-            {(r.closing_remarks || r.final_reply_to_user || firInfo.converted || firInfo.firNumber || closingMediaUrls.length > 0) && (
-                <div className="gwr-section-card rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                    <div className="gwr-section-header px-4 py-3 bg-green-50 dark:bg-green-950/30 border-b border-green-200 dark:border-green-800 flex items-center gap-2">
-                        <CircleCheck className="h-4 w-4 text-green-600 gwr-screen-only" />
-                        <span className="text-sm font-semibold text-green-800">Closing Details</span>
+            {/* ═══════ 5. RESOLUTION & POLICE FIR / GD DETAILS ═══════ */}
+            <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-sm">
+                <div className="px-5 py-3 bg-muted/40 border-b border-border/60 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <ShieldAlert className="h-4 w-4 text-primary" />
+                        <span className="text-xs font-bold text-foreground uppercase tracking-wider">Resolution & Police FIR / GD Details</span>
                     </div>
-                    <div className="p-4 space-y-3">
-                        {r.closing_remarks && (
-                            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Closing Remarks</p>
-                                <p className="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap">{r.closing_remarks}</p>
+                    {r.status === 'CLOSED' && (
+                        <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-[10px] font-bold">
+                            Case Resolved
+                        </Badge>
+                    )}
+                </div>
+
+                <div className="p-5 space-y-4">
+                    {/* Closing Remarks */}
+                    {r.closing_remarks ? (
+                        <div className="p-3.5 bg-muted/30 rounded-lg border border-border/50">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Closing Remarks</span>
+                            <p className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed">{r.closing_remarks}</p>
+                        </div>
+                    ) : (
+                        <div className="p-3 bg-muted/20 rounded-lg border border-border/40 text-xs text-muted-foreground italic">
+                            No closure remarks added yet.
+                        </div>
+                    )}
+
+                    {r.final_reply_to_user && (
+                        <div className="p-3.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider block mb-1">Final Reply to Complainant</span>
+                            <p className="text-xs text-emerald-900 dark:text-emerald-200 whitespace-pre-wrap leading-relaxed">{r.final_reply_to_user}</p>
+                        </div>
+                    )}
+
+                    {/* FIR / Police Info */}
+                    {(firInfo.converted === 'Yes' || firInfo.firNumber) && (
+                        <div className="p-4 bg-rose-500/5 rounded-xl border border-rose-500/20 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">Police FIR / GD Record</span>
+                                <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-400 font-mono text-[10px]">
+                                    FIR #{firInfo.firNumber || 'Registered'}
+                                </Badge>
                             </div>
-                        )}
-                        {r.final_reply_to_user && (
-                            <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-100">
-                                <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-1">Final Reply to User</p>
-                                <p className="text-sm text-emerald-900 whitespace-pre-wrap">{r.final_reply_to_user}</p>
-                            </div>
-                        )}
-                        {(firInfo.converted || firInfo.firNumber) && (
-                            <div className="p-3 bg-red-50 rounded-lg border border-red-100">
-                                <p className="text-[10px] font-bold text-red-700 uppercase tracking-wider mb-1">Converted to FIR</p>
-                                <p className="text-sm text-red-900 font-semibold">{firInfo.converted || 'Yes'}</p>
-                                {firInfo.converted === 'Yes' && firInfo.firNumber && (
-                                    <p className="text-xs text-red-800 mt-1">FIR Number: {firInfo.firNumber}</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                {firInfo.policeStation && (
+                                    <div className="text-muted-foreground">
+                                        <span className="font-semibold text-foreground">Police Station: </span>{firInfo.policeStation}
+                                    </div>
+                                )}
+                                {firInfo.officerInCharge && (
+                                    <div className="text-muted-foreground">
+                                        <span className="font-semibold text-foreground">Officer Incharge: </span>{firInfo.officerInCharge}
+                                    </div>
+                                )}
+                                {firInfo.sections && (
+                                    <div className="text-muted-foreground sm:col-span-2">
+                                        <span className="font-semibold text-foreground">IPC/IT Sections: </span>{firInfo.sections}
+                                    </div>
                                 )}
                             </div>
-                        )}
-                        {closingMediaUrls.length > 0 && (
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Closing Attachment Media ({closingMediaUrls.length})</p>
-                                <div className="flex gap-2 overflow-x-auto pb-2 print:flex-wrap print:overflow-visible">
-                                    {closingMediaUrls.map((url, i) => (
-                                        <div key={i} className="shrink-0 w-28 h-20 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 cursor-pointer" onClick={() => setActivePreview(url)}>
-                                            {isVideo(url) ? (
-                                                <video src={url} className="h-full w-full object-cover bg-black" preload="metadata" controls playsInline onClick={(e) => e.stopPropagation()}>
-                                                    Your browser does not support the video tag.
-                                                </video>
-                                            ) : (
-                                                <img src={url} alt={`Closing ${i + 1}`} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" onError={e => e.currentTarget.src = ''} />
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
+                        </div>
+                    )}
 
-            {/* ═══════ MEDIA PREVIEW LIGHTBOX ═══════ */}
-            {/* ═══════ PRINT FOOTER ═══════ */}
-            <div className="gwr-print-footer hidden">
-                <span>Grievance Report · {r.unique_code || ''}</span>
-                <span>Printed {printDate}</span>
+                    {/* Closing Proof Attachments */}
+                    {closingMediaUrls.length > 0 && (
+                        <div>
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-2">Resolution Proof Attachments</span>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                {closingMediaUrls.map((url, i) => (
+                                    <div key={i} className="aspect-video rounded-lg overflow-hidden border border-border bg-muted/40 cursor-pointer hover:opacity-90" onClick={() => setActivePreview(url)}>
+                                        {isVideo(url) ? (
+                                            <video src={url} className="h-full w-full object-cover bg-black" controls />
+                                        ) : (
+                                            <img src={url} alt={`Proof ${i + 1}`} className="h-full w-full object-cover" />
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
 
+            {/* Lightbox */}
             {activePreview && (
-                <div className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 gwr-lightbox" onClick={() => setActivePreview(null)}>
+                <div className="fixed inset-0 z-[120] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 gwr-lightbox" onClick={() => setActivePreview(null)}>
                     <button
                         type="button"
                         onClick={() => setActivePreview(null)}
-                        className="absolute top-4 right-4 h-10 w-10 rounded-full bg-white/15 text-white hover:bg-white/25 flex items-center justify-center z-10"
+                        className="absolute top-4 right-4 h-9 w-9 rounded-full bg-white/20 text-white hover:bg-white/30 flex items-center justify-center z-10"
                     >
                         <X className="h-5 w-5" />
                     </button>
-                    <div className="w-full max-w-5xl max-h-[85vh] rounded-xl overflow-hidden border border-white/20 bg-black/40 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                    <div className="w-full max-w-4xl max-h-[85vh] rounded-2xl overflow-hidden border border-white/20 bg-black shadow-2xl" onClick={(e) => e.stopPropagation()}>
                         {isVideo(activePreview) ? (
-                            <video
-                                src={activePreview}
-                                controls
-                                autoPlay
-                                playsInline
-                                className="w-full max-h-[85vh] object-contain bg-black"
-                            >
-                                Your browser does not support the video tag.
-                            </video>
+                            <video src={activePreview} controls autoPlay playsInline className="w-full max-h-[85vh] object-contain bg-black" />
                         ) : (
-                            <img
-                                src={activePreview}
-                                alt="Media Preview"
-                                className="w-full max-h-[85vh] object-contain bg-black"
-                                referrerPolicy="no-referrer"
-                            />
+                            <img src={activePreview} alt="Preview" className="w-full max-h-[85vh] object-contain bg-black" referrerPolicy="no-referrer" />
                         )}
                     </div>
                 </div>
             )}
-
         </div>
     );
 };
@@ -1115,6 +1050,7 @@ export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStats
     const [selectedReport, setSelectedReport] = useState(null);
     const [waPhone, setWaPhone] = useState('');
     const [copied, setCopied] = useState(false);
+    const [copiedCodeId, setCopiedCodeId] = useState(null);
     const detailPopupRef = useRef(null);
     const printComponentRef = useRef(null);
     const onStatsUpdateRef = useRef(onStatsUpdate);
@@ -1578,464 +1514,662 @@ export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStats
         return Icon;
     };
 
+    const handleCopyReportCode = (code, e) => {
+        if (e) e.stopPropagation();
+        if (!code) return;
+        navigator.clipboard.writeText(code);
+        setCopiedCodeId(code);
+        toast.success(`Copied ID ${code} to clipboard`);
+        setTimeout(() => setCopiedCodeId(null), 2000);
+    };
+
+    const hasActiveFilters = platform !== 'all' || statusFilter !== 'all' || categoryFilter !== 'all' || fromDate || toDate || searchTerm || quickRange !== 'all';
+
+    const handleClearAllFilters = () => {
+        setPlatform('all');
+        setStatusFilter('all');
+        setCategoryFilter('all');
+        setQuickRange('all');
+        setFromDate('');
+        setToDate('');
+        setSearchTerm('');
+        setPage(1);
+    };
+
     return (
         <TooltipProvider>
-            <div>
-                {/* One dense toolbar: status + filters + search + actions */}
-                <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-1.5 border-b border-border bg-muted/10">
-                    <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
-                        {pagination.total} records
-                    </span>
-                    <span className="hidden sm:inline w-px h-4 bg-border shrink-0" />
+            <div className="flex flex-col w-full bg-card">
+                {/* ─── Executive KPI Stat Ribbon ─── */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 p-3.5 bg-gradient-to-b from-muted/40 via-muted/20 to-transparent border-b border-border/80">
                     {[
-                        { id: 'PENDING', label: 'Pending', value: stats.pending, on: 'bg-amber-100 text-amber-900' },
-                        { id: 'ESCALATED', label: 'Escalated', value: stats.escalated, on: 'bg-orange-100 text-orange-900' },
-                        { id: 'CLOSED', label: 'Closed', value: stats.closed, on: 'bg-emerald-100 text-emerald-900' },
-                        { id: 'FIR', label: 'FIR', value: stats.fir, on: 'bg-rose-100 text-rose-900' },
-                    ].map((s) => (
-                        <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => { setStatusFilter(statusFilter === s.id ? 'all' : s.id); setPage(1); }}
-                            className={cn(
-                                'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium',
-                                statusFilter === s.id ? s.on : 'text-muted-foreground hover:bg-muted'
-                            )}
-                        >
-                            {s.label}
-                            <span className="tabular-nums font-semibold">{s.value}</span>
-                        </button>
-                    ))}
-
-                    <Select value={quickRange} onValueChange={(v) => { setQuickRange(v); setPage(1); }}>
-                        <SelectTrigger className="h-7 w-[110px] text-[11px]"><SelectValue placeholder="Date" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All time</SelectItem>
-                            <SelectItem value="24h">Last 24h</SelectItem>
-                            <SelectItem value="7d">Last 7d</SelectItem>
-                            <SelectItem value="30d">Last 30d</SelectItem>
-                            <SelectItem value="last_month">Last month</SelectItem>
-                            <SelectItem value="custom">Custom</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    {quickRange === 'custom' && (
-                        <>
-                            <input
-                                type="date"
-                                value={fromDate}
-                                onChange={(e) => { setFromDate(e.target.value); setPage(1); }}
-                                className="h-7 px-1.5 text-[11px] bg-background border border-border rounded"
-                            />
-                            <input
-                                type="date"
-                                value={toDate}
-                                onChange={(e) => { setToDate(e.target.value); setPage(1); }}
-                                className="h-7 px-1.5 text-[11px] bg-background border border-border rounded"
-                            />
-                        </>
-                    )}
-                    <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setPage(1); }}>
-                        <SelectTrigger className="h-7 w-[120px] text-[11px]"><SelectValue placeholder="Category" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All categories</SelectItem>
-                            <SelectItem value="Cyber crimes">Cyber crimes</SelectItem>
-                            <SelectItem value="E-Challan">E-Challan</SelectItem>
-                            <SelectItem value="L&O">L&O</SelectItem>
-                            <SelectItem value="Others">Others</SelectItem>
-                            <SelectItem value="Query">Query</SelectItem>
-                            <SelectItem value="She Team">She Team</SelectItem>
-                            <SelectItem value="Task force">Task force</SelectItem>
-                            <SelectItem value="Traffic">Traffic</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <Select value={platform} onValueChange={(v) => { setPlatform(v); setPage(1); }}>
-                        <SelectTrigger className="h-7 w-[110px] text-[11px]"><SelectValue placeholder="Platform" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All platforms</SelectItem>
-                            <SelectItem value="x">X</SelectItem>
-                            <SelectItem value="facebook">Facebook</SelectItem>
-                            <SelectItem value="instagram">Instagram</SelectItem>
-                            <SelectItem value="telegram">Telegram</SelectItem>
-                            <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                        </SelectContent>
-                    </Select>
-
-                    <div className="relative ml-auto w-full sm:w-52">
-                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                        <Input
-                            placeholder="Search…"
-                            value={searchTerm}
-                            onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-                            className="pl-7 pr-7 h-7 text-[11px]"
-                        />
-                        {searchTerm && (
+                        {
+                            id: 'all',
+                            label: 'Total Cases',
+                            value: pagination.total || stats.total,
+                            icon: Layers,
+                            color: 'text-foreground',
+                            accent: 'from-slate-500/20 to-slate-500/0',
+                            borderColor: 'border-border',
+                            activeClass: 'ring-2 ring-primary border-primary shadow-md shadow-primary/10 bg-primary/[0.04]',
+                            badge: 'All Logs'
+                        },
+                        {
+                            id: 'PENDING',
+                            label: 'Pending Action',
+                            value: stats.pending,
+                            icon: Clock,
+                            color: 'text-amber-600 dark:text-amber-400',
+                            accent: 'from-amber-500/20 to-amber-500/0',
+                            borderColor: 'border-amber-500/30',
+                            activeClass: 'ring-2 ring-amber-500 border-amber-500 shadow-md shadow-amber-500/10 bg-amber-500/[0.08]',
+                            badge: 'Needs Review',
+                            dot: 'bg-amber-500 animate-pulse'
+                        },
+                        {
+                            id: 'ESCALATED',
+                            label: 'Escalated to Officer',
+                            value: stats.escalated,
+                            icon: AlertCircle,
+                            color: 'text-orange-600 dark:text-orange-400',
+                            accent: 'from-orange-500/20 to-orange-500/0',
+                            borderColor: 'border-orange-500/30',
+                            activeClass: 'ring-2 ring-orange-500 border-orange-500 shadow-md shadow-orange-500/10 bg-orange-500/[0.08]',
+                            badge: 'In Progress'
+                        },
+                        {
+                            id: 'CLOSED',
+                            label: 'Closed / Resolved',
+                            value: stats.closed,
+                            icon: CheckCircle2,
+                            color: 'text-emerald-600 dark:text-emerald-400',
+                            accent: 'from-emerald-500/20 to-emerald-500/0',
+                            borderColor: 'border-emerald-500/30',
+                            activeClass: 'ring-2 ring-emerald-500 border-emerald-500 shadow-md shadow-emerald-500/10 bg-emerald-500/[0.08]',
+                            badge: 'Completed'
+                        },
+                        {
+                            id: 'FIR',
+                            label: 'Converted to FIR',
+                            value: stats.fir,
+                            icon: ShieldAlert,
+                            color: 'text-rose-600 dark:text-rose-400',
+                            accent: 'from-rose-500/20 to-rose-500/0',
+                            borderColor: 'border-rose-500/30',
+                            activeClass: 'ring-2 ring-rose-500 border-rose-500 shadow-md shadow-rose-500/10 bg-rose-500/[0.08]',
+                            badge: 'Police Action'
+                        }
+                    ].map((card) => {
+                        const isSelected = statusFilter === card.id || (card.id === 'all' && statusFilter === 'all');
+                        const Icon = card.icon;
+                        return (
                             <button
+                                key={card.id}
                                 type="button"
-                                onClick={() => { setSearchTerm(''); setPage(1); }}
-                                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                onClick={() => {
+                                    setStatusFilter(card.id);
+                                    setPage(1);
+                                }}
+                                className={cn(
+                                    'flex flex-col p-3.5 rounded-xl border text-left transition-all duration-200 cursor-pointer select-none relative group overflow-hidden bg-card shadow-sm hover:shadow-md hover:-translate-y-0.5',
+                                    card.borderColor,
+                                    isSelected ? card.activeClass : 'hover:border-border/90'
+                                )}
                             >
-                                <X className="h-3 w-3" />
+                                <div className={cn('absolute inset-x-0 top-0 h-1 bg-gradient-to-r', card.accent)} />
+                                <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                                    <span className="text-[11px] font-bold text-muted-foreground flex items-center gap-1.5 truncate">
+                                        {card.dot && <span className={cn('w-2 h-2 rounded-full shrink-0', card.dot)} />}
+                                        {card.label}
+                                    </span>
+                                    <div className={cn('p-1 rounded-md bg-muted/50 transition-colors group-hover:bg-muted', card.color)}>
+                                        <Icon className="h-3.5 w-3.5 shrink-0" />
+                                    </div>
+                                </div>
+                                <div className="flex items-baseline justify-between gap-2 mt-auto">
+                                    <span className={cn('text-2xl font-black font-mono tracking-tight tabular-nums', card.color)}>
+                                        {Number(card.value || 0).toLocaleString()}
+                                    </span>
+                                    <span className="text-[9px] font-semibold text-muted-foreground bg-muted/60 dark:bg-muted/30 rounded-full px-2 py-0.5 border border-border/60">
+                                        {card.badge}
+                                    </span>
+                                </div>
                             </button>
-                        )}
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={fetchReports} className="h-7 w-7 p-0" title="Refresh">
-                        <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
-                    </Button>
-                    <Button
-                        size="sm"
-                        onClick={handleExport}
-                        disabled={exporting || reports.length === 0}
-                        className="h-7 gap-1 text-[11px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                    >
-                        {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                        Export
-                    </Button>
+                        );
+                    })}
                 </div>
 
-                {/* Table flush */}
-                    <CardContent className="p-0">
-                        {loading ? (
-                            <div className="flex flex-col items-center justify-center py-10">
-                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mb-2" />
-                                <p className="text-sm text-muted-foreground">Loading reports…</p>
+                {/* ─── Modern Unified Filter Bar ─── */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5 px-3.5 py-2.5 border-b border-border bg-card/80 backdrop-blur-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* Quick Date Range */}
+                        <div className="flex items-center gap-1.5">
+                            <Select value={quickRange} onValueChange={(v) => { setQuickRange(v); setPage(1); }}>
+                                <SelectTrigger className="h-8 w-[125px] text-xs bg-background font-medium rounded-lg shadow-xs border-border/80 hover:border-primary/50 transition-colors">
+                                    <Calendar className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                                    <SelectValue placeholder="Date Range" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Time</SelectItem>
+                                    <SelectItem value="24h">Last 24 Hours</SelectItem>
+                                    <SelectItem value="7d">Last 7 Days</SelectItem>
+                                    <SelectItem value="30d">Last 30 Days</SelectItem>
+                                    <SelectItem value="last_month">Last Month</SelectItem>
+                                    <SelectItem value="custom">Custom Range</SelectItem>
+                                </SelectContent>
+                            </Select>
+
+                            {quickRange === 'custom' && (
+                                <div className="flex items-center gap-1.5 bg-background px-2 py-0.5 rounded-lg border border-border/80 shadow-xs animate-in fade-in">
+                                    <input
+                                        type="date"
+                                        value={fromDate}
+                                        onChange={(e) => { setFromDate(e.target.value); setPage(1); }}
+                                        className="h-7 px-1 text-xs bg-transparent border-0 focus:outline-none font-medium"
+                                    />
+                                    <span className="text-xs text-muted-foreground font-semibold">to</span>
+                                    <input
+                                        type="date"
+                                        value={toDate}
+                                        onChange={(e) => { setToDate(e.target.value); setPage(1); }}
+                                        className="h-7 px-1 text-xs bg-transparent border-0 focus:outline-none font-medium"
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Category Filter */}
+                        <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setPage(1); }}>
+                            <SelectTrigger className="h-8 w-[138px] text-xs bg-background font-medium rounded-lg shadow-xs border-border/80 hover:border-primary/50 transition-colors">
+                                <Tag className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                                <SelectValue placeholder="All Categories" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Categories</SelectItem>
+                                <SelectItem value="Cyber crimes">Cyber crimes</SelectItem>
+                                <SelectItem value="E-Challan">E-Challan</SelectItem>
+                                <SelectItem value="L&O">L&O</SelectItem>
+                                <SelectItem value="Others">Others</SelectItem>
+                                <SelectItem value="Query">Query</SelectItem>
+                                <SelectItem value="She Team">She Team</SelectItem>
+                                <SelectItem value="Task force">Task force</SelectItem>
+                                <SelectItem value="Traffic">Traffic</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        {/* Platform Filter */}
+                        <Select value={platform} onValueChange={(v) => { setPlatform(v); setPage(1); }}>
+                            <SelectTrigger className="h-8 w-[130px] text-xs bg-background font-medium rounded-lg shadow-xs border-border/80 hover:border-primary/50 transition-colors">
+                                <Globe className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                                <SelectValue placeholder="All Platforms" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <PagePlatformSelectItems page="grievances" />
+                            </SelectContent>
+                        </Select>
+
+                        {hasActiveFilters && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleClearAllFilters}
+                                className="h-8 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 px-2.5 rounded-lg"
+                            >
+                                <X className="h-3.5 w-3.5 mr-1" />
+                                Clear Filters
+                            </Button>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2 ml-auto w-full sm:w-auto">
+                        {/* Search Input */}
+                        <div className="relative flex-1 sm:w-72">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input
+                                placeholder="Search by unique ID, citizen, phone..."
+                                value={searchTerm}
+                                onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+                                className="pl-8 pr-7 h-8 text-xs bg-background rounded-lg border-border/80 shadow-xs focus-visible:ring-1"
+                            />
+                            {searchTerm && (
+                                <button
+                                    type="button"
+                                    onClick={() => { setSearchTerm(''); setPage(1); }}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                >
+                                    <X className="h-3.5 w-3.5" />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Refresh Button */}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={fetchReports}
+                            className="h-8 w-8 p-0 shrink-0 rounded-lg bg-background shadow-xs hover:border-primary/40"
+                            title="Refresh Reports"
+                        >
+                            <RefreshCw className={cn('h-3.5 w-3.5 text-muted-foreground', loading && 'animate-spin')} />
+                        </Button>
+
+                        {/* Export Button */}
+                        <Button
+                            size="sm"
+                            onClick={handleExport}
+                            disabled={exporting || reports.length === 0}
+                            className="h-8 gap-1.5 text-xs font-bold px-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg shadow-sm shadow-emerald-600/25 transition-all"
+                        >
+                            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                            <span>Export XLSX</span>
+                        </Button>
+                    </div>
+                </div>
+
+                {/* ─── Table Flush View ─── */}
+                <CardContent className="p-0">
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-16">
+                            <Loader2 className="h-7 w-7 animate-spin text-primary mb-3" />
+                            <p className="text-sm font-medium text-muted-foreground">Loading grievance records…</p>
+                        </div>
+                    ) : reports.length === 0 ? (
+                        <div className="text-center py-16 px-4">
+                            <div className="w-12 h-12 rounded-2xl bg-muted/60 flex items-center justify-center mx-auto mb-3 border border-border/60">
+                                <FileSpreadsheet className="h-6 w-6 text-muted-foreground" />
                             </div>
-                        ) : reports.length === 0 ? (
-                            <div className="text-center py-10 px-4">
-                                <p className="text-sm font-medium text-foreground">No reports yet</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                    Create grievance reports from cards in the feed.
-                                </p>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="w-full overflow-x-auto overflow-y-auto max-h-[65vh] overscroll-x-contain">
-                                    <table className="text-sm border-collapse" style={{ minWidth: 2400, width: 'max-content' }}>
-                                        <thead className="bg-slate-50 sticky top-0 z-20">
-                                            <tr className="border-b border-slate-200">
-                                                {[
-                                                    { key: 'si_no', label: 'Sl.No', style: { width: 48, minWidth: 48 } },
-                                                    { key: 'status', label: 'Status', sortable: true, style: { width: 110, minWidth: 110 } },
-                                                    { key: 'unique_id', label: 'Unique ID', style: { width: 168, minWidth: 168 } },
-                                                    { key: 'post_date', label: 'Post Date', sortable: true, style: { width: 140, minWidth: 140 } },
-                                                    { key: 'phone', label: 'Phone', style: { width: 120, minWidth: 120 } },
-                                                    { key: 'profile', label: 'Profile', style: { width: 150, minWidth: 150 } },
-                                                    { key: 'post_link', label: 'Link', style: { width: 56, minWidth: 56 } },
-                                                    { key: 'description', label: 'Description', style: { width: 220, minWidth: 200 } },
-                                                    { key: 'category', label: 'Category', sortable: true, style: { width: 100, minWidth: 100 } },
-                                                    { key: 'chat_history', label: 'Communication', style: { width: 220, minWidth: 200 } },
-                                                    { key: 'operator_remarks', label: 'Remarks', style: { width: 160, minWidth: 150 } },
-                                                    { key: 'informed_to', label: 'Informed to Officer', style: { width: 150, minWidth: 150 } },
-                                                    { key: 'escalated_remarks', label: 'Escalated Remarks', style: { width: 180, minWidth: 160 } },
-                                                    { key: 'escalated_to_officer_time', label: 'Escalated to Officer', style: { width: 150, minWidth: 140 } },
-                                                    { key: 'closing_remarks', label: 'Closing Remarks', style: { width: 180, minWidth: 160 } },
-                                                    { key: 'fir_number', label: 'FIR Number', style: { width: 110, minWidth: 110 } },
-                                                    { key: 'view', label: 'View', style: { width: 56, minWidth: 56 } },
-                                                ].map((col) => (
-                                                    <th
-                                                        key={col.key}
-                                                        style={col.style}
-                                                        className={cn(
-                                                            "text-left py-2 px-2.5 font-semibold text-slate-700 text-[11px] whitespace-nowrap bg-slate-50",
-                                                            col.sortable && "cursor-pointer hover:bg-slate-100 transition-colors"
-                                                        )}
-                                                        onClick={() => col.sortable && handleSort(col.key)}
-                                                    >
-                                                        <div className="flex items-center">
-                                                            {col.label}
-                                                            {col.sortable && <SortIcon column={col.key} />}
+                            <p className="text-sm font-bold text-foreground">No Grievance Reports Found</p>
+                            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                                {hasActiveFilters
+                                    ? 'Try adjusting your filters or date range to see matching reports.'
+                                    : 'Create new grievance reports from post cards in the main feed.'}
+                            </p>
+                            {hasActiveFilters && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleClearAllFilters}
+                                    className="mt-3.5 text-xs font-semibold rounded-lg"
+                                >
+                                    Reset All Filters
+                                </Button>
+                            )}
+                        </div>
+                    ) : (
+                        <>
+                            <div className="w-full overflow-x-auto overflow-y-auto max-h-[68vh]">
+                                <table className="min-w-full text-sm border-collapse text-left">
+                                    <thead className="bg-muted/50 dark:bg-muted/30 backdrop-blur sticky top-0 z-20 border-b border-border">
+                                        <tr>
+                                            {[
+                                                { key: 'si_no', label: 'Sl.No', className: 'w-12 text-center' },
+                                                { key: 'status', label: 'Status', sortable: true, className: 'w-28' },
+                                                { key: 'unique_id', label: 'Unique ID', className: 'w-44' },
+                                                { key: 'post_date', label: 'Post Date', sortable: true, className: 'w-36' },
+                                                { key: 'phone', label: 'Phone', className: 'w-32' },
+                                                { key: 'profile', label: 'Citizen Profile', className: 'w-44' },
+                                                { key: 'post_link', label: 'Link', className: 'w-12 text-center' },
+                                                { key: 'description', label: 'Grievance Description', className: 'min-w-[220px] max-w-sm' },
+                                                { key: 'category', label: 'Category', sortable: true, className: 'w-28' },
+                                                { key: 'chat_history', label: 'Communication Log', className: 'min-w-[180px] max-w-xs' },
+                                                { key: 'operator_remarks', label: 'Operator Remarks', className: 'min-w-[150px]' },
+                                                { key: 'informed_to', label: 'Informed Officer', className: 'w-36' },
+                                                { key: 'escalated_remarks', label: 'Escalation Remarks', className: 'min-w-[150px]' },
+                                                { key: 'escalated_to_officer_time', label: 'Escalation Time', className: 'w-36' },
+                                                { key: 'closing_remarks', label: 'Resolution Remarks', className: 'min-w-[160px]' },
+                                                { key: 'fir_number', label: 'FIR Number', className: 'w-28' },
+                                                { key: 'view', label: 'Actions', className: 'w-16 text-center' },
+                                            ].map((col) => (
+                                                <th
+                                                    key={col.key}
+                                                    className={cn(
+                                                        "py-2.5 px-3 font-bold text-muted-foreground text-[10px] uppercase tracking-wider whitespace-nowrap select-none",
+                                                        col.className,
+                                                        col.sortable && "cursor-pointer hover:text-foreground transition-colors"
+                                                    )}
+                                                    onClick={() => col.sortable && handleSort(col.key)}
+                                                >
+                                                    <div className={cn("flex items-center gap-1", col.className?.includes('text-center') && "justify-center")}>
+                                                        <span>{col.label}</span>
+                                                        {col.sortable && <SortIcon column={col.key} />}
+                                                    </div>
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border/60">
+                                        {reports.map((r, idx) => {
+                                            const status = statusConfig[r.status] || statusConfig.PENDING;
+                                            const firInfo = parseFirFields(r);
+                                            const escalationLogs = (r.officer_logs || []).filter((l) => l.is_escalation === true);
+                                            const firstEscalation = escalationLogs[0];
+                                            const operatorRemarks = (r.complainant_logs || []).filter((l) => l.type === 'OperatorRemark');
+                                            const firstOfficerLog = (r.officer_logs || []).find((l) => !l.is_escalation);
+                                            const isCopied = copiedCodeId === r.unique_code;
+                                            const RowPlatformIcon = platformIcons[r.platform?.toLowerCase()] || platformIcons.default;
+
+                                            return (
+                                                <tr
+                                                    key={r.id}
+                                                    className="hover:bg-muted/40 transition-colors group"
+                                                >
+                                                    {/* Sl No */}
+                                                    <td className="py-2.5 px-3 align-top whitespace-nowrap text-center">
+                                                        <span className="text-muted-foreground/70 font-mono text-[11px] font-medium">
+                                                            {(page - 1) * 50 + idx + 1}
+                                                        </span>
+                                                    </td>
+
+                                                    {/* Status Badge */}
+                                                    <td className="py-2.5 px-3 align-top whitespace-nowrap">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className={cn('w-2 h-2 rounded-full shrink-0 shadow-xs', status.dot)} />
+                                                            <Badge variant="outline" className={cn('text-[10px] font-bold px-2 py-0.5 rounded-md', status.bg, status.text, status.border)}>
+                                                                {status.label}
+                                                            </Badge>
                                                         </div>
-                                                    </th>
-                                                ))}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {reports.map((r, idx) => {
-                                                const status = statusConfig[r.status] || statusConfig.PENDING;
-                                                const firInfo = parseFirFields(r);
-                                                const escalationLogs = (r.officer_logs || []).filter((l) => l.is_escalation === true);
-                                                const firstEscalation = escalationLogs[0];
-                                                const operatorRemarks = (r.complainant_logs || []).filter((l) => l.type === 'OperatorRemark');
-                                                const firstOfficerLog = (r.officer_logs || []).find((l) => !l.is_escalation);
+                                                    </td>
 
-                                                return (
-                                                    <tr
-                                                        key={r.id}
-                                                        className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group"
-                                                    >
-                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap text-center">
-                                                            <span className="text-slate-400 font-mono text-[11px]">
-                                                                {(page - 1) * 50 + idx + 1}
-                                                            </span>
-                                                        </td>
-
-                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap">
-                                                            <div className="flex items-center gap-1.5">
-                                                                <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', status.dot)} />
-                                                                <Badge variant="outline" className={cn('text-[9px] font-medium px-2 py-0.5', status.bg, status.text, status.border)}>
-                                                                    {status.label}
-                                                                </Badge>
-                                                            </div>
-                                                        </td>
-
-                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap">
+                                                    {/* Unique ID chip with 1-click copy */}
+                                                    <td className="py-2.5 px-3 align-top whitespace-nowrap">
+                                                        <div className="flex items-center gap-1">
                                                             <button
                                                                 type="button"
-                                                                className="text-[10px] font-mono bg-amber-50 text-amber-800 border border-amber-200 rounded px-1.5 py-0.5 hover:bg-amber-100"
+                                                                className="group/code inline-flex items-center gap-1.5 text-[11px] font-mono font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 rounded-md px-2 py-0.5 hover:bg-amber-500/20 transition-all cursor-pointer"
                                                                 onClick={() => {
                                                                     setSelectedReport(r);
                                                                     setWaPhone(r.informed_to?.phone || r.complaint_phone || '');
+                                                                    setActiveTab('details');
                                                                 }}
+                                                                title="Click to view full case file"
                                                             >
-                                                                {r.unique_code}
+                                                                <span>{r.unique_code}</span>
                                                             </button>
-                                                        </td>
-
-                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap">
-                                                            <div className="flex flex-col">
-                                                                <span className="text-slate-900 font-medium text-[11px]">{fmtDate(r.post_date)}</span>
-                                                                <span className="text-[9px] text-slate-400">{fmtRelativeTime(r.post_date)}</span>
-                                                            </div>
-                                                        </td>
-
-                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap">
-                                                            {r.complaint_phone ? (
-                                                                <span className="text-[11px] font-mono text-slate-700">{r.complaint_phone}</span>
-                                                            ) : <span className="text-slate-400 text-xs">—</span>}
-                                                        </td>
-
-                                                        <td className="py-2 px-2.5 align-top" style={{ maxWidth: 150 }}>
-                                                            <p className="font-medium text-slate-900 truncate text-[11px]">{r.posted_by?.display_name || '—'}</p>
-                                                            {r.profile_id && (
-                                                                <p className="text-[9px] text-muted-foreground truncate">@{r.profile_id}</p>
-                                                            )}
-                                                        </td>
-
-                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap">
-                                                            {r.post_link ? (
-                                                                <a href={r.post_link} target="_blank" rel="noopener noreferrer"
-                                                                    className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100">
-                                                                    <ExternalLink className="h-3 w-3" />
-                                                                </a>
-                                                            ) : <span className="text-slate-300 text-xs">—</span>}
-                                                        </td>
-
-                                                        <td className="py-2 px-2.5 align-top" style={{ maxWidth: 220 }}>
-                                                            <Tooltip>
-                                                                <TooltipTrigger asChild>
-                                                                    <p className="text-slate-700 line-clamp-2 text-[11px] cursor-help">{r.post_description || '—'}</p>
-                                                                </TooltipTrigger>
-                                                                {r.post_description && (
-                                                                    <TooltipContent side="bottom" className="max-w-sm"><p className="text-xs whitespace-pre-wrap">{r.post_description}</p></TooltipContent>
-                                                                )}
-                                                            </Tooltip>
-                                                        </td>
-
-                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap">
-                                                            <Badge variant="outline" className="text-[9px] font-medium px-2 py-0.5 bg-slate-50">
-                                                                {r.category || '—'}
-                                                            </Badge>
-                                                        </td>
-
-                                                        <td className="py-2 px-2.5 align-top" style={{ maxWidth: 220 }}>
-                                                            {(() => {
-                                                                const logs = [
-                                                                    ...(r.complainant_logs || []).filter((l) => l.type !== 'OperatorRemark').map((l) => ({ ...l, _source: 'User' })),
-                                                                    ...(r.officer_logs || []).map((l) => ({ ...l, _source: 'Officer' })),
-                                                                ].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-                                                                if (logs.length === 0) return <span className="text-slate-300 text-[10px]">—</span>;
-                                                                const latest = logs[logs.length - 1];
-                                                                return (
-                                                                    <Tooltip>
-                                                                        <TooltipTrigger asChild>
-                                                                            <button
-                                                                                type="button"
-                                                                                className="w-full max-w-[200px] rounded border border-border bg-muted/30 px-2 py-1 text-left hover:bg-muted/50"
-                                                                                onClick={() => {
-                                                                                    setSelectedReport(r);
-                                                                                    setActiveTab('details');
-                                                                                }}
-                                                                            >
-                                                                                <div className="flex items-center justify-between gap-2 mb-0.5">
-                                                                                    <span className={cn(
-                                                                                        'text-[8px] font-bold uppercase tracking-wider',
-                                                                                        latest._source === 'User' ? 'text-orange-600' : 'text-blue-600'
-                                                                                    )}>
-                                                                                        {latest._source}
-                                                                                    </span>
-                                                                                    <span className="text-[8px] text-muted-foreground">{logs.length} msgs</span>
-                                                                                </div>
-                                                                                <p className="line-clamp-2 text-[10px] text-slate-700 leading-tight">{latest.content}</p>
-                                                                            </button>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent side="left" className="max-w-sm">
-                                                                            <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                                                                                {logs.map((l, i) => (
-                                                                                    <div key={i} className="text-[10px]">
-                                                                                        <span className="font-semibold">{l._source}</span>
-                                                                                        <span className="text-muted-foreground"> · {fmtRelativeTime(l.timestamp)}</span>
-                                                                                        <p className="mt-0.5">{l.content}</p>
-                                                                                    </div>
-                                                                                ))}
-                                                                            </div>
-                                                                        </TooltipContent>
-                                                                    </Tooltip>
-                                                                );
-                                                            })()}
-                                                        </td>
-
-                                                        <td className="py-2 px-2.5 align-top" style={{ maxWidth: 160 }}>
-                                                            {operatorRemarks.length > 0 ? (
-                                                                <div className="space-y-1">
-                                                                    {operatorRemarks.slice(0, 2).map((l, i) => (
-                                                                        <p key={i} className="line-clamp-2 text-[10px] text-slate-700 bg-amber-50 border border-amber-100 rounded px-1.5 py-1">
-                                                                            {l.content}
-                                                                        </p>
-                                                                    ))}
-                                                                </div>
-                                                            ) : <span className="text-slate-300 text-xs">—</span>}
-                                                        </td>
-
-                                                        <td className="py-2 px-2.5 align-top" style={{ maxWidth: 150 }}>
-                                                            {r.informed_to?.name ? (
-                                                                <div>
-                                                                    <p className="font-medium text-slate-900 text-[11px] truncate">{r.informed_to.name}</p>
-                                                                    {r.informed_to.phone && (
-                                                                        <p className="text-[9px] text-slate-500 tabular-nums whitespace-nowrap">{r.informed_to.phone}</p>
-                                                                    )}
-                                                                    {firstOfficerLog?.timestamp && (
-                                                                        <p className="text-[9px] text-slate-400">{fmtDate(firstOfficerLog.timestamp)}</p>
-                                                                    )}
-                                                                </div>
-                                                            ) : <span className="text-slate-400 text-xs">—</span>}
-                                                        </td>
-
-                                                        <td className="py-2 px-2.5 align-top" style={{ maxWidth: 180 }}>
-                                                            {firstEscalation ? (
-                                                                <div>
-                                                                    <p className="text-red-700 line-clamp-2 text-[11px] bg-red-50 px-1.5 py-1 rounded border border-red-100">
-                                                                        {firstEscalation.content}
-                                                                    </p>
-                                                                    <p className="text-[9px] text-slate-400 mt-0.5">{fmtDate(firstEscalation.timestamp)}</p>
-                                                                </div>
-                                                            ) : <span className="text-slate-300 text-xs">—</span>}
-                                                        </td>
-
-                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap">
-                                                            {firstEscalation?.timestamp ? (
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-slate-900 text-[11px]">{fmtDate(firstEscalation.timestamp)}</span>
-                                                                    <span className="text-[9px] text-slate-400">{fmtRelativeTime(firstEscalation.timestamp)}</span>
-                                                                    {firstEscalation.recipient?.name && (
-                                                                        <span className="text-[9px] text-blue-600 mt-0.5">{firstEscalation.recipient.name}</span>
-                                                                    )}
-                                                                </div>
-                                                            ) : <span className="text-slate-400 text-xs">—</span>}
-                                                        </td>
-
-                                                        <td className="py-2 px-2.5 align-top" style={{ maxWidth: 180 }}>
-                                                            {r.closing_remarks ? (
-                                                                <div>
-                                                                    <p className="text-slate-700 line-clamp-2 text-[11px]">{r.closing_remarks}</p>
-                                                                    {r.action_taken_at && r.status === 'CLOSED' && (
-                                                                        <p className="text-[9px] text-slate-400 mt-0.5">{fmtDate(r.action_taken_at)}</p>
-                                                                    )}
-                                                                </div>
-                                                            ) : <span className="text-slate-300 text-xs">—</span>}
-                                                        </td>
-
-                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap">
-                                                            {firInfo.converted === 'Yes' && firInfo.firNumber ? (
-                                                                <Badge variant="outline" className="text-[9px] font-mono bg-red-50 text-red-700 border-red-200">
-                                                                    {firInfo.firNumber}
-                                                                </Badge>
-                                                            ) : <span className="text-slate-400 text-xs">—</span>}
-                                                        </td>
-
-                                                        <td className="py-2 px-2.5 align-top whitespace-nowrap text-center">
                                                             <button
                                                                 type="button"
-                                                                className="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-violet-100"
-                                                                title="View details"
+                                                                onClick={(e) => handleCopyReportCode(r.unique_code, e)}
+                                                                className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                                                title="Copy code"
+                                                            >
+                                                                {isCopied ? (
+                                                                    <Check className="h-3 w-3 text-emerald-600 animate-in zoom-in" />
+                                                                ) : (
+                                                                    <Copy className="h-3 w-3 opacity-60 group-hover:opacity-100" />
+                                                                )}
+                                                            </button>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Post Date */}
+                                                    <td className="py-2.5 px-3 align-top whitespace-nowrap">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-foreground font-semibold text-[11px]">{fmtDate(r.post_date)}</span>
+                                                            <span className="text-[10px] text-muted-foreground font-medium">{fmtRelativeTime(r.post_date)}</span>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Phone */}
+                                                    <td className="py-2.5 px-3 align-top whitespace-nowrap">
+                                                        {r.complaint_phone ? (
+                                                            <span className="text-[11px] font-mono font-semibold text-foreground">{r.complaint_phone}</span>
+                                                        ) : <span className="text-muted-foreground/50 text-xs">—</span>}
+                                                    </td>
+
+                                                    {/* Profile */}
+                                                    <td className="py-2.5 px-3 align-top max-w-[180px]">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <RowPlatformIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                                            <div className="truncate">
+                                                                <p className="font-semibold text-foreground truncate text-[11px] leading-tight">{r.posted_by?.display_name || '—'}</p>
+                                                                {r.profile_id && (
+                                                                    <p className="text-[10px] text-muted-foreground truncate font-mono">@{r.profile_id}</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Post Link */}
+                                                    <td className="py-2.5 px-3 align-top whitespace-nowrap text-center">
+                                                        {r.post_link ? (
+                                                            <a href={r.post_link} target="_blank" rel="noopener noreferrer"
+                                                                className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 transition-colors"
+                                                                title="Open post in new tab"
+                                                            >
+                                                                <ExternalLink className="h-3 w-3" />
+                                                            </a>
+                                                        ) : <span className="text-muted-foreground/40 text-xs">—</span>}
+                                                    </td>
+
+                                                    {/* Description */}
+                                                    <td className="py-2.5 px-3 align-top max-w-sm">
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <p className="text-foreground/90 line-clamp-2 text-[11px] cursor-help leading-relaxed">{r.post_description || '—'}</p>
+                                                            </TooltipTrigger>
+                                                            {r.post_description && (
+                                                                <TooltipContent side="bottom" className="max-w-md p-3"><p className="text-xs whitespace-pre-wrap">{r.post_description}</p></TooltipContent>
+                                                            )}
+                                                        </Tooltip>
+                                                    </td>
+
+                                                    {/* Category */}
+                                                    <td className="py-2.5 px-3 align-top whitespace-nowrap">
+                                                        <Badge variant="outline" className="text-[10px] font-semibold px-2 py-0.5 bg-muted/40 border-border/80 text-foreground">
+                                                            {r.category || '—'}
+                                                        </Badge>
+                                                    </td>
+
+                                                    {/* Communication */}
+                                                    <td className="py-2.5 px-3 align-top max-w-xs">
+                                                        {(() => {
+                                                            const logs = [
+                                                                ...(r.complainant_logs || []).filter((l) => l.type !== 'OperatorRemark').map((l) => ({ ...l, _source: 'User' })),
+                                                                ...(r.officer_logs || []).map((l) => ({ ...l, _source: 'Officer' })),
+                                                            ].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                                                            if (logs.length === 0) return <span className="text-muted-foreground/40 text-[10px]">—</span>;
+                                                            const latest = logs[logs.length - 1];
+                                                            return (
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <button
+                                                                            type="button"
+                                                                            className="w-full max-w-[200px] rounded-lg border border-border/80 bg-muted/40 p-1.5 text-left hover:bg-muted/70 transition-colors shadow-xs"
+                                                                            onClick={() => {
+                                                                                setSelectedReport(r);
+                                                                                setActiveTab('details');
+                                                                            }}
+                                                                        >
+                                                                            <div className="flex items-center justify-between gap-1.5 mb-0.5">
+                                                                                <span className={cn(
+                                                                                    'text-[9px] font-bold uppercase tracking-wider',
+                                                                                    latest._source === 'User' ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400'
+                                                                                )}>
+                                                                                    {latest._source}
+                                                                                </span>
+                                                                                <span className="text-[9px] font-mono text-muted-foreground font-semibold">{logs.length} msg{logs.length > 1 ? 's' : ''}</span>
+                                                                            </div>
+                                                                            <p className="line-clamp-2 text-[10px] text-foreground/80 leading-snug">{latest.content}</p>
+                                                                        </button>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent side="left" className="max-w-md p-3">
+                                                                        <div className="space-y-2 max-h-56 overflow-y-auto">
+                                                                            <p className="text-[11px] font-bold border-b pb-1 text-foreground">Communication Log ({logs.length})</p>
+                                                                            {logs.map((l, i) => (
+                                                                                <div key={i} className="text-[10px] border-l-2 pl-2 border-primary/40">
+                                                                                    <span className="font-bold">{l._source}</span>
+                                                                                    <span className="text-muted-foreground"> · {fmtRelativeTime(l.timestamp)}</span>
+                                                                                    <p className="mt-0.5 text-foreground/90">{l.content}</p>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            );
+                                                        })()}
+                                                    </td>
+
+                                                    {/* Operator Remarks */}
+                                                    <td className="py-2.5 px-3 align-top min-w-[140px]">
+                                                        {operatorRemarks.length > 0 ? (
+                                                            <div className="space-y-1">
+                                                                {operatorRemarks.slice(0, 2).map((l, i) => (
+                                                                    <p key={i} className="line-clamp-2 text-[10px] text-amber-900 dark:text-amber-200 bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-1 leading-snug">
+                                                                        {l.content}
+                                                                    </p>
+                                                                ))}
+                                                            </div>
+                                                        ) : <span className="text-muted-foreground/40 text-xs">—</span>}
+                                                    </td>
+
+                                                    {/* Informed to Officer */}
+                                                    <td className="py-2.5 px-3 align-top whitespace-nowrap">
+                                                        {r.informed_to?.name ? (
+                                                            <div>
+                                                                <p className="font-semibold text-foreground text-[11px] truncate">{r.informed_to.name}</p>
+                                                                {r.informed_to.phone && (
+                                                                    <p className="text-[10px] text-muted-foreground font-mono tabular-nums whitespace-nowrap">{r.informed_to.phone}</p>
+                                                                )}
+                                                                {firstOfficerLog?.timestamp && (
+                                                                    <p className="text-[9px] text-muted-foreground/70">{fmtDate(firstOfficerLog.timestamp)}</p>
+                                                                )}
+                                                            </div>
+                                                        ) : <span className="text-muted-foreground/40 text-xs">—</span>}
+                                                    </td>
+
+                                                    {/* Escalated Remarks */}
+                                                    <td className="py-2.5 px-3 align-top min-w-[140px]">
+                                                        {firstEscalation ? (
+                                                            <div>
+                                                                <p className="text-rose-700 dark:text-rose-300 line-clamp-2 text-[10px] bg-rose-500/10 px-2 py-1 rounded-md border border-rose-500/20 leading-snug">
+                                                                    {firstEscalation.content}
+                                                                </p>
+                                                                <p className="text-[9px] text-muted-foreground mt-0.5">{fmtDate(firstEscalation.timestamp)}</p>
+                                                            </div>
+                                                        ) : <span className="text-muted-foreground/40 text-xs">—</span>}
+                                                    </td>
+
+                                                    {/* Escalated timestamp */}
+                                                    <td className="py-2.5 px-3 align-top whitespace-nowrap">
+                                                        {firstEscalation?.timestamp ? (
+                                                            <div className="flex flex-col">
+                                                                <span className="text-foreground font-semibold text-[11px]">{fmtDate(firstEscalation.timestamp)}</span>
+                                                                <span className="text-[10px] text-muted-foreground font-medium">{fmtRelativeTime(firstEscalation.timestamp)}</span>
+                                                                {firstEscalation.recipient?.name && (
+                                                                    <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium mt-0.5">{firstEscalation.recipient.name}</span>
+                                                                )}
+                                                            </div>
+                                                        ) : <span className="text-muted-foreground/40 text-xs">—</span>}
+                                                    </td>
+
+                                                    {/* Closing Remarks */}
+                                                    <td className="py-2.5 px-3 align-top min-w-[150px]">
+                                                        {r.closing_remarks ? (
+                                                            <div>
+                                                                <p className="text-foreground line-clamp-2 text-[10px] leading-snug">{r.closing_remarks}</p>
+                                                                {r.action_taken_at && r.status === 'CLOSED' && (
+                                                                    <p className="text-[9px] text-muted-foreground mt-0.5">{fmtDate(r.action_taken_at)}</p>
+                                                                )}
+                                                            </div>
+                                                        ) : <span className="text-muted-foreground/40 text-xs">—</span>}
+                                                    </td>
+
+                                                    {/* FIR Number */}
+                                                    <td className="py-2.5 px-3 align-top whitespace-nowrap">
+                                                        {firInfo.converted === 'Yes' && firInfo.firNumber ? (
+                                                            <Badge variant="outline" className="text-[10px] font-mono font-bold bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20 px-2 py-0.5">
+                                                                {firInfo.firNumber}
+                                                            </Badge>
+                                                        ) : <span className="text-muted-foreground/40 text-xs">—</span>}
+                                                    </td>
+
+                                                    {/* Actions */}
+                                                    <td className="py-2.5 px-3 align-top whitespace-nowrap text-center">
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-7 w-7 p-0 rounded-lg text-primary hover:bg-primary/10 transition-colors"
+                                                                title="View full case detail"
                                                                 onClick={() => {
                                                                     setSelectedReport(r);
                                                                     setWaPhone(r.informed_to?.phone || r.complaint_phone || '');
                                                                     setActiveTab('details');
                                                                 }}
                                                             >
-                                                                <Eye className="h-4 w-4 text-violet-600" />
-                                                            </button>
-                                                        </td>
-                                                    </tr>
+                                                                <Eye className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Modern Pagination Footer */}
+                            {pagination.pages > 1 && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-border bg-card/90">
+                                    <p className="text-xs text-muted-foreground tabular-nums">
+                                        Showing <span className="font-bold text-foreground">{(page - 1) * 50 + 1}</span>–<span className="font-bold text-foreground">{Math.min(page * 50, pagination.total)}</span> of <span className="font-bold text-foreground">{pagination.total}</span> records
+                                    </p>
+                                    <div className="flex items-center gap-1.5">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={page <= 1}
+                                            onClick={() => setPage(p => p - 1)}
+                                            className="text-xs h-8 px-3 rounded-lg font-semibold shadow-xs"
+                                        >
+                                            <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                                            Previous
+                                        </Button>
+
+                                        <div className="flex items-center gap-1">
+                                            {Array.from({ length: Math.min(5, pagination.pages) }, (_, i) => {
+                                                let pageNum;
+                                                if (pagination.pages <= 5) {
+                                                    pageNum = i + 1;
+                                                } else if (page <= 3) {
+                                                    pageNum = i + 1;
+                                                } else if (page >= pagination.pages - 2) {
+                                                    pageNum = pagination.pages - 4 + i;
+                                                } else {
+                                                    pageNum = page - 2 + i;
+                                                }
+
+                                                return (
+                                                    <Button
+                                                        key={i}
+                                                        variant={pageNum === page ? "default" : "outline"}
+                                                        size="sm"
+                                                        onClick={() => setPage(pageNum)}
+                                                        className={cn(
+                                                            "text-xs h-8 w-8 rounded-lg font-mono tabular-nums font-bold",
+                                                            pageNum === page && "bg-primary text-primary-foreground shadow-sm"
+                                                        )}
+                                                    >
+                                                        {pageNum}
+                                                    </Button>
                                                 );
                                             })}
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                {/* Pagination */}
-                                {pagination.pages > 1 && (
-                                    <div className="flex items-center justify-between px-4 py-3 border-t bg-white">
-                                        <p className="text-xs text-slate-500">
-                                            {(page - 1) * 50 + 1}-{Math.min(page * 50, pagination.total)} of {pagination.total}
-                                        </p>
-                                        <div className="flex items-center gap-1">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                disabled={page <= 1}
-                                                onClick={() => setPage(p => p - 1)}
-                                                className="text-xs h-8"
-                                            >
-                                                <ChevronLeft className="h-3.5 w-3.5 mr-1" />
-                                                Previous
-                                            </Button>
-
-                                            <div className="flex items-center gap-1">
-                                                {Array.from({ length: Math.min(5, pagination.pages) }, (_, i) => {
-                                                    let pageNum;
-                                                    if (pagination.pages <= 5) {
-                                                        pageNum = i + 1;
-                                                    } else if (page <= 3) {
-                                                        pageNum = i + 1;
-                                                    } else if (page >= pagination.pages - 2) {
-                                                        pageNum = pagination.pages - 4 + i;
-                                                    } else {
-                                                        pageNum = page - 2 + i;
-                                                    }
-
-                                                    return (
-                                                        <Button
-                                                            key={i}
-                                                            variant={pageNum === page ? "default" : "outline"}
-                                                            size="sm"
-                                                            onClick={() => setPage(pageNum)}
-                                                            className={cn(
-                                                                "text-xs h-8 w-8 rounded-lg",
-                                                                pageNum === page && "bg-violet-600 hover:bg-violet-700"
-                                                            )}
-                                                        >
-                                                            {pageNum}
-                                                        </Button>
-                                                    );
-                                                })}
-                                            </div>
-
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                disabled={page >= pagination.pages}
-                                                onClick={() => setPage(p => p + 1)}
-                                                className="text-xs h-8"
-                                            >
-                                                Next
-                                                <ChevronRight className="h-3.5 w-3.5 ml-1" />
-                                            </Button>
                                         </div>
+
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={page >= pagination.pages}
+                                            onClick={() => setPage(p => p + 1)}
+                                            className="text-xs h-8 px-3 rounded-lg font-semibold shadow-xs"
+                                        >
+                                            Next
+                                            <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                                        </Button>
                                     </div>
-                                )}
-                            </>
-                        )}
-                    </CardContent>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </CardContent>
 
                 {/* Detail Modal */}
                 <AnimatePresence>

@@ -11,9 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../..
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Input } from '../../components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Select, SelectContent, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Skeleton } from '../../components/ui/skeleton';
 import { PlatformBrandIcon } from '../../components/PlatformBrandIcon';
+import { PagePlatformSelectItems } from '../../components/PagePlatformSelectItems';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 import { Progress } from '../../components/ui/progress';
 import { toast } from 'sonner';
@@ -319,12 +320,7 @@ const Surveillance = () => {
                     <SelectValue placeholder="All Platforms" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Platforms</SelectItem>
-                    <SelectItem value="youtube">YouTube</SelectItem>
-                    <SelectItem value="x">X (Twitter)</SelectItem>
-                    <SelectItem value="instagram">Instagram</SelectItem>
-                    <SelectItem value="facebook">Facebook</SelectItem>
-                    <SelectItem value="telegram">Telegram</SelectItem>
+                    <PagePlatformSelectItems page="social_profiles" />
                   </SelectContent>
                 </Select>
               </div>

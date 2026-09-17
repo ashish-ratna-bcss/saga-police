@@ -238,6 +238,25 @@ const analyzeMediaPost = async (postId, { db, dbName } = {}) => {
   const { high, medium } = await loadRiskThresholds({ db });
   const tenantName = await resolveTenantName(dbName).catch(() => null);
 
+  const platform =
+    post.account?.platforms?.slug ||
+    post.platform ||
+    'x';
+
+  let preMapping = { category_id: null, legal_sections: [], platform_policies: [], triggered_keywords: [] };
+  try {
+    await mappingService.waitForLoad(5000);
+    const inferredCategory = mappingService.inferCategoryFromText(text);
+    preMapping = mappingService.resolveForAnalysis({
+      category: inferredCategory,
+      text,
+      platform,
+      country: 'IN',
+    });
+  } catch (mapErr) {
+    console.error('[media_post_analysis] pre-mapping failed:', mapErr.message);
+  }
+
   let intel = null;
   try {
     // Send text with attached image analysis / OCR metadata
@@ -246,6 +265,8 @@ const analyzeMediaPost = async (postId, { db, dbName } = {}) => {
       tenantName,
       tenantKey: dbName,
       imageAnalysis: ocrData,
+      keywords: matchedKeywords,
+      policy: preMapping,
     });
   } catch (err) {
     const attempts = (post.analysis_attempts || 0) + 1;
@@ -283,12 +304,7 @@ const analyzeMediaPost = async (postId, { db, dbName } = {}) => {
   const riskScore = Math.max(0, Math.min(100, Number(intel.risk_score) || 0));
   const riskLevel = scoreToLevel(riskScore, high, medium);
 
-  const platform =
-    post.account?.platforms?.slug ||
-    post.platform ||
-    'x';
-
-  let mapping = { category_id: null, legal_sections: [], platform_policies: [], triggered_keywords: [] };
+  let mapping = preMapping;
   try {
     await mappingService.waitForLoad(5000);
     mapping = mappingService.resolveForAnalysis({

@@ -30,6 +30,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { TwitterAlertCard, YoutubeAlertCard } from '../components/AlertCards';
+import { PagePlatformSelectItems } from './PagePlatformSelectItems';
 
 const CardsMetric = ({ label, value, icon }) => (
     <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
@@ -793,12 +794,7 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
                                     <SelectValue placeholder="Platform" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Platforms</SelectItem>
-                                    <SelectItem value="x">X (Twitter)</SelectItem>
-                                    <SelectItem value="youtube">YouTube</SelectItem>
-                                    <SelectItem value="facebook">Facebook</SelectItem>
-                                    <SelectItem value="instagram">Instagram</SelectItem>
-                                    <SelectItem value="telegram">Telegram</SelectItem>
+                                    <PagePlatformSelectItems page={null} />
                                 </SelectContent>
                             </Select>
 

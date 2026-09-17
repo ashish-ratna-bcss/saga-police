@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -9,6 +9,16 @@ import { Separator } from './ui/separator';
 import { Youtube, Twitter, Instagram, Facebook, Sparkles, CheckCircle, ChevronDown, ChevronUp, MinusCircle, PlusCircle, XCircle, MessageCircle, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
+import { usePagePlatforms } from '../hooks/usePagePlatforms';
+
+const PLATFORM_LUCIDE = {
+  youtube: Youtube,
+  x: Twitter,
+  twitter: Twitter,
+  instagram: Instagram,
+  facebook: Facebook,
+  telegram: MessageCircle,
+};
 
 const emptyPoiData = {
     realName: '',
@@ -31,8 +41,25 @@ const emptyPoiData = {
 };
 
 const AddSourceModal = ({ open, onClose, onSuccess, initialData = null, onDirtyChange }) => {
+    const { platforms: pagePlatformRows, slugs: pagePlatformSlugs } =
+      usePagePlatforms('social_profiles');
+    const platforms = useMemo(
+      () =>
+        pagePlatformRows.map((row) => {
+          const raw = String(row.slug || '').toLowerCase();
+          const value = raw === 'twitter' ? 'x' : raw;
+          return {
+            value,
+            label: row.name || value,
+            icon: PLATFORM_LUCIDE[value] || PLATFORM_LUCIDE[raw] || MessageCircle,
+          };
+        }),
+      [pagePlatformRows]
+    );
+    const defaultPlatform = platforms[0]?.value || '';
+
     const [formData, setFormData] = useState({
-        platform: 'youtube',
+        platform: defaultPlatform,
         identifier: '',
         display_name: '',
         category: 'others',
@@ -46,6 +73,14 @@ const AddSourceModal = ({ open, onClose, onSuccess, initialData = null, onDirtyC
     const [identityLookupState, setIdentityLookupState] = useState({});
     const identityTimerRef = useRef({});
     const identitySeqRef = useRef({});
+
+    useEffect(() => {
+      if (!defaultPlatform) return;
+      setFormData((prev) => {
+        if (pagePlatformSlugs.includes(prev.platform)) return prev;
+        return { ...prev, platform: defaultPlatform };
+      });
+    }, [defaultPlatform, pagePlatformSlugs]);
 
     useEffect(() => {
         if (open) {
@@ -73,7 +108,7 @@ const AddSourceModal = ({ open, onClose, onSuccess, initialData = null, onDirtyC
             } else {
                 // Adding a new source — use clean defaults
                 const data = {
-                    platform: 'youtube',
+                    platform: defaultPlatform || '',
                     identifier: '',
                     display_name: '',
                     category: 'others',
@@ -85,7 +120,7 @@ const AddSourceModal = ({ open, onClose, onSuccess, initialData = null, onDirtyC
                 setInitialState(data);
             }
         }
-    }, [initialData, open]);
+    }, [initialData, open, defaultPlatform]);
 
     const hasUnsavedChanges = useCallback(() => {
         if (!initialState) return false;
@@ -504,13 +539,6 @@ const AddSourceModal = ({ open, onClose, onSuccess, initialData = null, onDirtyC
             setLoading(false);
         }
     };
-
-    const platforms = [
-        { value: 'youtube', label: 'YouTube', icon: Youtube },
-        { value: 'x', label: 'X (Twitter)', icon: Twitter },
-        { value: 'instagram', label: 'Instagram', icon: Instagram },
-        { value: 'facebook', label: 'Facebook', icon: Facebook },
-    ];
 
     const categories = [
         { value: 'political', label: 'Political' },

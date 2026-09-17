@@ -182,9 +182,25 @@ const getReportStats = async ({ db } = {}) => {
     _count: { _all: true },
   });
 
-  const normalizePlatform = (platform) => (platform === 'x' ? 'twitter' : platform);
+  const normalizePlatform = (platform) => {
+    const p = String(platform || 'unknown').toLowerCase();
+    return p === 'x' ? 'twitter' : p;
+  };
   const statuses = ['pending', 'escalated', 'closed', 'generated', 'printed', 'sent', 'sent_to_intermediary', 'awaiting_reply'];
-  const platforms = ['all', 'twitter', 'youtube', 'facebook', 'instagram', 'whatsapp', 'telegram'];
+  const { resolvePagePlatformSlugs } = require('../../lib/pagePlatforms');
+  const tenantSlugs = await resolvePagePlatformSlugs(prisma, 'grievances', {
+    includeTwitterAlias: false,
+  });
+  // Stats buckets from real report rows + tenant grievance platforms (legacy twitter alias for UI).
+  const platformKeys = new Set(['all']);
+  for (const s of tenantSlugs) {
+    platformKeys.add(s === 'x' ? 'twitter' : s);
+    if (s === 'x') platformKeys.add('twitter');
+  }
+  for (const row of grouped) {
+    platformKeys.add(normalizePlatform(row.platform || 'unknown'));
+  }
+  const platforms = [...platformKeys];
   const byPlatform = {};
   const byStatus = Object.fromEntries(statuses.map((s) => [s, 0]));
   const totals = { total: 0 };

@@ -8,7 +8,7 @@ import Layout from './layout';
 import Login from './pages/auth/Login';
 
 // Lazy load heavy pages
-const Dashboard = lazy(() => import('./pages/dashboard/DashboardNew'));
+const Dashboard = lazy(() => import('./pages/dashboard/Dashboard'));
 const SocialProfiles = lazy(() => import('./pages/profiles/SocialProfiles'));
 const AnalyticsHub = lazy(() => import('./pages/analytics/AnalyticsHub'));
 const SocialProfileDetail = lazy(() => import('./pages/profiles/SocialProfileDetail'));

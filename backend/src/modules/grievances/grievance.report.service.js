@@ -636,15 +636,15 @@ const getDashboardReportStats = async ({ db } = {}) => {
     awaiting_reply: 0,
     closed: 0,
   });
-  const byPlatform = {
-    all: empty(),
-    twitter: empty(),
-    x: empty(),
-    youtube: empty(),
-    facebook: empty(),
-    instagram: empty(),
-    whatsapp: empty(),
-  };
+  const { resolvePagePlatformSlugs } = require('../../lib/pagePlatforms');
+  const tenantSlugs = await resolvePagePlatformSlugs(prisma, 'grievances', {
+    includeTwitterAlias: false,
+  });
+  const byPlatform = { all: empty() };
+  for (const slug of tenantSlugs) {
+    byPlatform[slug] = empty();
+    if (slug === 'x') byPlatform.twitter = empty();
+  }
 
   const grouped = await prisma.social_media_grievance_reports.groupBy({
     by: ['platform', 'status'],
@@ -656,9 +656,12 @@ const getDashboardReportStats = async ({ db } = {}) => {
     const plat = raw === 'twitter' ? 'x' : raw || 'all';
     const status = String(row.status || '').toUpperCase();
     const count = row._count._all;
+    if (!byPlatform[plat] && plat !== 'all') {
+      byPlatform[plat] = empty();
+    }
     const keys = new Set(['all']);
     if (byPlatform[plat]) keys.add(plat);
-    if (plat === 'x') keys.add('twitter');
+    if (plat === 'x' && byPlatform.twitter) keys.add('twitter');
 
     for (const key of keys) {
       const bucket = byPlatform[key];

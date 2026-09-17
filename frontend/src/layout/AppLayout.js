@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Outlet, useNavigate, Navigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Outlet, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/auth.context';
 import Header from './Header';
 import Sidebar from './Sidebar';
@@ -7,10 +7,35 @@ import { cn } from '../lib/utils';
 import { Loader2 } from 'lucide-react';
 import { resolvePublicAssetUrl } from '../lib/publicAssetUrl';
 
+const catalogRootForPath = (pathname, catalogPaths) => {
+  const path = String(pathname || '').split('?')[0];
+  const roots = Array.isArray(catalogPaths) ? catalogPaths.map(String) : [];
+  const matches = roots.filter(
+    (root) => path === root || path.startsWith(`${root}/`)
+  );
+  if (!matches.length) return null;
+  return matches.sort((a, b) => b.length - a.length)[0];
+};
+
 const AppLayout = () => {
   const { user, logout, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const pageAccessDenied = useMemo(() => {
+    if (!user) return false;
+    const root = catalogRootForPath(location.pathname, user.page_catalog_paths);
+    // Unknown / non-catalog routes (monitors, POI, …) — login-gated only
+    if (!root) return false;
+    const sidebarPaths = new Set(
+      (Array.isArray(user.sidebar) ? user.sidebar : [])
+        .map((item) => item?.path || item?.href)
+        .filter(Boolean)
+        .map(String)
+    );
+    return !sidebarPaths.has(root);
+  }, [user, location.pathname]);
 
   useEffect(() => {
     if (user) {
@@ -80,6 +105,13 @@ const AppLayout = () => {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (pageAccessDenied) {
+    const fallback =
+      (Array.isArray(user.sidebar) && (user.sidebar[0]?.path || user.sidebar[0]?.href)) ||
+      '/dashboard';
+    return <Navigate to={fallback} replace />;
   }
 
   return (

@@ -71,6 +71,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog';
+import { PagePlatformOptions } from '../../components/PagePlatformSelectItems';
+import { usePagePlatforms } from '../../hooks/usePagePlatforms';
 
 /* ═══════════════════════════════════════════════════════════════════
    CONSTANTS & UTILITIES
@@ -83,7 +85,6 @@ const TABS = [
 ];
 
 const PLATFORM_COLORS = { x: '#000000', youtube: '#FF0000', facebook: '#1877F2', instagram: '#E4405F', telegram: '#229ED9', whatsapp: '#25D366', unknown: '#94a3b8' };
-const PLATFORM_LABELS = { x: 'X (Twitter)', youtube: 'YouTube', facebook: 'Facebook', instagram: 'Instagram', telegram: 'Telegram', whatsapp: 'WhatsApp', unknown: 'Other' };
 const PLATFORM_BAR_ICONS = {
   x: <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>,
   youtube: <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>,
@@ -121,16 +122,41 @@ const PROFILE_CATEGORIES = [
   { value: 'others', label: 'Others' }
 ];
 
-const PROFILE_PLATFORM_ORDER = ['x', 'youtube', 'facebook', 'instagram', 'telegram', 'whatsapp'];
-
-const PROFILE_PLATFORM_THEMES = {
-  x: { label: 'X', rowClass: 'bg-slate-200/70 hover:bg-slate-300/70', stickyClass: 'bg-slate-200/80', color: '#000000', dotClass: 'bg-black' },
-  youtube: { label: 'YouTube', rowClass: 'bg-red-200/60 hover:bg-red-300/60', stickyClass: 'bg-red-200/75', color: '#FF0000', dotClass: 'bg-red-500' },
-  facebook: { label: 'Facebook', rowClass: 'bg-blue-200/60 hover:bg-blue-300/60', stickyClass: 'bg-blue-200/75', color: '#1877F2', dotClass: 'bg-blue-500' },
-  instagram: { label: 'Instagram', rowClass: 'bg-pink-200/60 hover:bg-pink-300/60', stickyClass: 'bg-pink-200/75', color: '#E4405F', dotClass: 'bg-pink-500' },
-  telegram: { label: 'Telegram', rowClass: 'bg-sky-200/60 hover:bg-sky-300/60', stickyClass: 'bg-sky-200/75', color: '#229ED9', dotClass: 'bg-sky-500' },
-  whatsapp: { label: 'WhatsApp', rowClass: 'bg-emerald-200/60 hover:bg-emerald-300/60', stickyClass: 'bg-emerald-200/75', color: '#25D366', dotClass: 'bg-emerald-500' },
+const canonicalPlatformSlug = (value) => {
+  const s = String(value || '').trim().toLowerCase();
+  if (!s) return '';
+  return s === 'twitter' ? 'x' : s;
 };
+
+const buildPlatformNameMap = (rows) => {
+  const map = new Map();
+  for (const row of rows || []) {
+    const slug = canonicalPlatformSlug(row?.slug);
+    if (!slug) continue;
+    const name = String(row?.name || '').trim();
+    if (name) map.set(slug, name);
+  }
+  return map;
+};
+
+/** DB name when present; never invents a platform catalog for filters. */
+const platformDisplayName = (slug, nameMap) => {
+  const key = canonicalPlatformSlug(slug);
+  if (!key || key === 'unknown') return 'Other';
+  return nameMap?.get(key) || (key === 'x' ? 'X' : prettify(key));
+};
+
+/** Presentation styles only — not a tenant platform catalog. */
+const PROFILE_PLATFORM_STYLES = {
+  x: { rowClass: 'bg-slate-200/70 hover:bg-slate-300/70', stickyClass: 'bg-slate-200/80', color: '#000000', dotClass: 'bg-black' },
+  youtube: { rowClass: 'bg-red-200/60 hover:bg-red-300/60', stickyClass: 'bg-red-200/75', color: '#FF0000', dotClass: 'bg-red-500' },
+  facebook: { rowClass: 'bg-blue-200/60 hover:bg-blue-300/60', stickyClass: 'bg-blue-200/75', color: '#1877F2', dotClass: 'bg-blue-500' },
+  instagram: { rowClass: 'bg-pink-200/60 hover:bg-pink-300/60', stickyClass: 'bg-pink-200/75', color: '#E4405F', dotClass: 'bg-pink-500' },
+  telegram: { rowClass: 'bg-sky-200/60 hover:bg-sky-300/60', stickyClass: 'bg-sky-200/75', color: '#229ED9', dotClass: 'bg-sky-500' },
+  whatsapp: { rowClass: 'bg-emerald-200/60 hover:bg-emerald-300/60', stickyClass: 'bg-emerald-200/75', color: '#25D366', dotClass: 'bg-emerald-500' },
+};
+const DEFAULT_PLATFORM_STYLE = { rowClass: 'bg-amber-50 hover:bg-amber-100', stickyClass: 'bg-amber-50', color: '#94a3b8', dotClass: 'bg-slate-400' };
+const platformStyle = (slug) => PROFILE_PLATFORM_STYLES[canonicalPlatformSlug(slug)] || DEFAULT_PLATFORM_STYLE;
 
 const PRIORITY_COLORS = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
 const RISK_BADGE_COLORS = { critical: '#7c2d12', high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
@@ -260,7 +286,7 @@ const EmptyState = ({ message }) => (
 /* ═══════════════════════════════════════════════════════════════════
    ALERTS INTELLIGENCE TAB
    ═══════════════════════════════════════════════════════════════════ */
-const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
+const AlertsIntelligence = ({ data, dateFrom, dateTo, platformNames }) => {
   const refs = {
     riskTrend: useRef(null),
     riskDist: useRef(null),
@@ -338,8 +364,7 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
       platformCounts[p]._total[active ? 'active' : 'inactive'] += 1;
     });
 
-    const extra = Object.keys(platformCounts).filter(p => !PROFILE_PLATFORM_ORDER.includes(p)).sort();
-    const ordered = [...PROFILE_PLATFORM_ORDER, ...extra];
+    const ordered = Object.keys(platformCounts).sort((a, b) => a.localeCompare(b));
     const rows = ordered.filter(p => platformCounts[p]).map(p => ({ platform: p, counts: platformCounts[p] }));
     const totalsByCategory = catKeys.reduce((acc, k) => {
       const cell = mkCell();
@@ -393,9 +418,8 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
 
     const head = [['Platform', ...PROFILE_CATEGORIES.map(c => c.label), 'Total']];
     const body = profilesMatrix.rows.map(row => {
-      const theme = PROFILE_PLATFORM_THEMES[row.platform] || { label: row.platform };
       return [
-        theme.label,
+        platformDisplayName(row.platform, platformNames),
         ...PROFILE_CATEGORIES.map(cat => {
           const c = row.counts[cat.value] || { total: 0, active: 0, inactive: 0 };
           return `${c.total}\nActive: ${c.active}  |  Inactive: ${c.inactive}`;
@@ -428,12 +452,11 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
     const pageCount = doc.internal.getNumberOfPages();
     for (let p = 1; p <= pageCount; p++) { doc.setPage(p); doc.setFontSize(7); doc.setTextColor(148, 163, 184); doc.text(`Page ${p}/${pageCount}`, 148, 205, { align: 'center' }); }
     doc.save(`profiles_matrix_${new Date().toISOString().split('T')[0]}.pdf`);
-  }, [profilesMatrix]);
+  }, [profilesMatrix, platformNames]);
 
   const exportMatrixExcel = useCallback(() => {
     const rows = profilesMatrix.rows.map(row => {
-      const theme = PROFILE_PLATFORM_THEMES[row.platform] || { label: row.platform };
-      const obj = { 'Platform': theme.label };
+      const obj = { 'Platform': platformDisplayName(row.platform, platformNames) };
       PROFILE_CATEGORIES.forEach(cat => {
         const c = row.counts[cat.value] || { total: 0, active: 0, inactive: 0 };
         obj[`${cat.label} - Total`] = c.total;
@@ -463,7 +486,7 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(meta), 'Info');
     const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     saveAs(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `profiles_matrix_${new Date().toISOString().split('T')[0]}.xlsx`);
-  }, [profilesMatrix]);
+  }, [profilesMatrix, platformNames]);
 
   const exportProfilesPDF = useCallback(() => {
     const doc = new jsPDF({ orientation: 'landscape' });
@@ -478,8 +501,7 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
     doc.text(`Total: ${filteredSources.length} profiles | Generated: ${new Date().toLocaleString('en-IN')}`, 14, 20);
     const head = [['#', 'Name', 'Handle', 'Platform', 'Category', 'Status', 'Escalations', 'Added']];
     const body = filteredSources.map((s, i) => {
-      const theme = PROFILE_PLATFORM_THEMES[s._normPlatform] || { label: s._normPlatform };
-      return [i + 1, s.display_name || s.identifier || '', s.identifier || '', theme.label, prettify(s._normCategory), s.is_active !== false ? 'Active' : 'Inactive', escalationCounts[s.id] || 0, s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB') : ''];
+      return [i + 1, s.display_name || s.identifier || '', s.identifier || '', platformDisplayName(s._normPlatform, platformNames), prettify(s._normCategory), s.is_active !== false ? 'Active' : 'Inactive', escalationCounts[s.id] || 0, s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB') : ''];
     });
     autoTable(doc, {
       head, body, startY: 30,
@@ -497,12 +519,11 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
     const pageCount = doc.internal.getNumberOfPages();
     for (let p = 1; p <= pageCount; p++) { doc.setPage(p); doc.setFontSize(7); doc.setTextColor(148, 163, 184); doc.text(`Page ${p}/${pageCount}`, 148, 205, { align: 'center' }); }
     doc.save(`monitored_profiles_${new Date().toISOString().split('T')[0]}.pdf`);
-  }, [filteredSources, escalationCounts]);
+  }, [filteredSources, escalationCounts, platformNames]);
 
   const exportProfilesExcel = useCallback(() => {
     const rows = filteredSources.map((s, i) => {
-      const theme = PROFILE_PLATFORM_THEMES[s._normPlatform] || { label: s._normPlatform };
-      return { '#': i + 1, 'Name': s.display_name || s.identifier || '', 'Handle': s.identifier || '', 'Platform': theme.label, 'Category': prettify(s._normCategory), 'Status': s.is_active !== false ? 'Active' : 'Inactive', 'Escalations': escalationCounts[s.id] || 0, 'Date Added': s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB') : '' };
+      return { '#': i + 1, 'Name': s.display_name || s.identifier || '', 'Handle': s.identifier || '', 'Platform': platformDisplayName(s._normPlatform, platformNames), 'Category': prettify(s._normCategory), 'Status': s.is_active !== false ? 'Active' : 'Inactive', 'Escalations': escalationCounts[s.id] || 0, 'Date Added': s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB') : '' };
     });
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -511,7 +532,7 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(meta), 'Info');
     const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     saveAs(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `monitored_profiles_${new Date().toISOString().split('T')[0]}.xlsx`);
-  }, [filteredSources, escalationCounts]);
+  }, [filteredSources, escalationCounts, platformNames]);
 
   // Profiles added in the selected date range
   const newProfilesInRange = useMemo(() => {
@@ -539,8 +560,7 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
     doc.text(`${rangeLabel} | Total: ${newProfilesInRange.length} profiles | Generated: ${new Date().toLocaleString('en-IN')}`, 14, 20);
     const head = [['#', 'Name', 'Handle', 'Platform', 'Category', 'Status', 'Escalations', 'Added']];
     const body = newProfilesInRange.map((s, i) => {
-      const theme = PROFILE_PLATFORM_THEMES[s._normPlatform] || { label: s._normPlatform };
-      return [i + 1, s.display_name || s.identifier || '', s.identifier || '', theme.label, prettify(s._normCategory), s.is_active !== false ? 'Active' : 'Inactive', escalationCounts[s.id] || 0, s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB') : ''];
+      return [i + 1, s.display_name || s.identifier || '', s.identifier || '', platformDisplayName(s._normPlatform, platformNames), prettify(s._normCategory), s.is_active !== false ? 'Active' : 'Inactive', escalationCounts[s.id] || 0, s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB') : ''];
     });
     autoTable(doc, {
       head, body, startY: 30,
@@ -558,12 +578,11 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
     const pageCount = doc.internal.getNumberOfPages();
     for (let p = 1; p <= pageCount; p++) { doc.setPage(p); doc.setFontSize(7); doc.setTextColor(148, 163, 184); doc.text(`Page ${p}/${pageCount}`, 148, 205, { align: 'center' }); }
     doc.save(`new_profiles_${new Date().toISOString().split('T')[0]}.pdf`);
-  }, [newProfilesInRange, dateFrom, dateTo, escalationCounts]);
+  }, [newProfilesInRange, dateFrom, dateTo, escalationCounts, platformNames]);
 
   const exportNewProfilesExcel = useCallback(() => {
     const rows = newProfilesInRange.map((s, i) => {
-      const theme = PROFILE_PLATFORM_THEMES[s._normPlatform] || { label: s._normPlatform };
-      return { '#': i + 1, 'Name': s.display_name || s.identifier || '', 'Handle': s.identifier || '', 'Platform': theme.label, 'Category': prettify(s._normCategory), 'Status': s.is_active !== false ? 'Active' : 'Inactive', 'Escalations': escalationCounts[s.id] || 0, 'Date Added': s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB') : '' };
+      return { '#': i + 1, 'Name': s.display_name || s.identifier || '', 'Handle': s.identifier || '', 'Platform': platformDisplayName(s._normPlatform, platformNames), 'Category': prettify(s._normCategory), 'Status': s.is_active !== false ? 'Active' : 'Inactive', 'Escalations': escalationCounts[s.id] || 0, 'Date Added': s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB') : '' };
     });
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -573,7 +592,7 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(meta), 'Info');
     const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     saveAs(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `new_profiles_${new Date().toISOString().split('T')[0]}.xlsx`);
-  }, [newProfilesInRange, dateFrom, dateTo, escalationCounts]);
+  }, [newProfilesInRange, dateFrom, dateTo, escalationCounts, platformNames]);
 
   const topAccounts = data?.topActiveAccounts || EMPTY_TOP_ACCOUNTS;
 
@@ -590,7 +609,7 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
     const rangeLabel = dateFrom && dateTo ? `${new Date(dateFrom).toLocaleDateString('en-GB')} \u2013 ${new Date(dateTo).toLocaleDateString('en-GB')}` : 'All time';
     doc.text(`${rangeLabel} | Total: ${topAccounts.length} accounts | Generated: ${new Date().toLocaleString('en-IN')}`, 14, 20);
     const head = [['#', 'Author', 'Handle', 'Platform', 'Total Alerts', 'High', 'Medium', 'Low']];
-    const body = topAccounts.map((acc, i) => [i + 1, acc.author || '', acc.handle || '', PLATFORM_LABELS[acc.platform] || acc.platform, acc.alertCount, acc.highRisk, acc.mediumRisk, acc.lowRisk]);
+    const body = topAccounts.map((acc, i) => [i + 1, acc.author || '', acc.handle || '', platformDisplayName(acc.platform, platformNames), acc.alertCount, acc.highRisk, acc.mediumRisk, acc.lowRisk]);
     autoTable(doc, {
       head, body, startY: 30,
       styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
@@ -606,11 +625,11 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
     const pageCount = doc.internal.getNumberOfPages();
     for (let p = 1; p <= pageCount; p++) { doc.setPage(p); doc.setFontSize(7); doc.setTextColor(148, 163, 184); doc.text(`Page ${p}/${pageCount}`, 148, 205, { align: 'center' }); }
     doc.save(`top_active_accounts_${new Date().toISOString().split('T')[0]}.pdf`);
-  }, [topAccounts, dateFrom, dateTo]);
+  }, [topAccounts, dateFrom, dateTo, platformNames]);
 
   const exportTopAccountsExcel = useCallback(() => {
     const rows = topAccounts.map((acc, i) => ({
-      '#': i + 1, 'Author': acc.author || '', 'Handle': acc.handle || '', 'Platform': PLATFORM_LABELS[acc.platform] || acc.platform, 'Total Alerts': acc.alertCount, 'High Risk': acc.highRisk, 'Medium Risk': acc.mediumRisk, 'Low Risk': acc.lowRisk
+      '#': i + 1, 'Author': acc.author || '', 'Handle': acc.handle || '', 'Platform': platformDisplayName(acc.platform, platformNames), 'Total Alerts': acc.alertCount, 'High Risk': acc.highRisk, 'Medium Risk': acc.mediumRisk, 'Low Risk': acc.lowRisk
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -620,7 +639,7 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(meta), 'Info');
     const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     saveAs(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `top_active_accounts_${new Date().toISOString().split('T')[0]}.xlsx`);
-  }, [topAccounts, dateFrom, dateTo]);
+  }, [topAccounts, dateFrom, dateTo, platformNames]);
 
   useEffect(() => {
     if (profilesModalOpen && !sourcesLoaded && !sourcesLoading) {
@@ -682,7 +701,7 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
   }));
 
   const platformDist = (data.platformDistribution || []).map(r => ({
-    name: PLATFORM_LABELS[r.platform] || r.platform, value: r.count, color: PLATFORM_COLORS[r.platform] || PLATFORM_COLORS.unknown
+    name: platformDisplayName(r.platform, platformNames), value: r.count, color: PLATFORM_COLORS[r.platform] || PLATFORM_COLORS.unknown
   }));
 
   const alertTypesData = (data.alertTypes || []).map((r, i) => ({
@@ -696,22 +715,19 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
   // Build platform-escalation cross tab
   const escByPlatformMap = {};
   (data.escalations?.byPlatform || []).forEach(({ platform, status, count }) => {
-    if (!escByPlatformMap[platform]) escByPlatformMap[platform] = { platform: PLATFORM_LABELS[platform] || platform };
+    if (!escByPlatformMap[platform]) escByPlatformMap[platform] = { platform: platformDisplayName(platform, platformNames) };
     escByPlatformMap[platform][prettify(status)] = count;
   });
   const escByPlatformData = Object.values(escByPlatformMap);
   const escStatuses = [...new Set((data.escalations?.byPlatform || []).map(r => prettify(r.status)))];
 
   const actionsData = (() => {
-    const allPlatforms = ['x', 'youtube', 'facebook', 'instagram', 'telegram'];
     const raw = data.actions?.allTimeByPlatform || [];
-    const map = {};
-    raw.forEach(r => { map[r.platform] = r.count; });
-    return allPlatforms.map(p => ({
-      name: PLATFORM_LABELS[p] || p,
-      value: map[p] || 0,
-      color: PLATFORM_COLORS[p] || PLATFORM_COLORS.unknown,
-      _raw: p
+    return raw.map((r) => ({
+      name: platformDisplayName(r.platform, platformNames),
+      value: r.count || 0,
+      color: PLATFORM_COLORS[r.platform] || PLATFORM_COLORS.unknown,
+      _raw: r.platform,
     }));
   })();
 
@@ -734,7 +750,7 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
   // Risk by platform cross-tab
   const riskPlatformMap = {};
   (data.riskAnalysis?.byPlatform || []).forEach(({ platform, riskLevel, count }) => {
-    if (!riskPlatformMap[platform]) riskPlatformMap[platform] = { platform: PLATFORM_LABELS[platform] || platform };
+    if (!riskPlatformMap[platform]) riskPlatformMap[platform] = { platform: platformDisplayName(platform, platformNames) };
     riskPlatformMap[platform][prettify(riskLevel)] = count;
   });
   const riskPlatformData = Object.values(riskPlatformMap);
@@ -771,13 +787,7 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
             </select>
             {/* Platform */}
             <select value={reportPlatformFilter} onChange={(e) => setReportPlatformFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-blue-300 focus:outline-none">
-              <option value="all">All Platforms</option>
-              <option value="twitter">X (Twitter)</option>
-              <option value="youtube">YouTube</option>
-              <option value="facebook">Facebook</option>
-              <option value="instagram">Instagram</option>
-              <option value="telegram">Telegram</option>
-              <option value="whatsapp">WhatsApp</option>
+              <PagePlatformOptions page="alerts" valueAsTwitter />
             </select>
             {/* Category */}
             <select value={reportCategoryFilter} onChange={(e) => setReportCategoryFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-blue-300 focus:outline-none">
@@ -1122,12 +1132,12 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
                   </div>
                   {/* Platform breakdown mini cards */}
                   {profilesMatrix.rows.slice(0, 3).map(row => {
-                    const theme = PROFILE_PLATFORM_THEMES[row.platform] || { label: row.platform, dotClass: 'bg-slate-400' };
+                    const style = platformStyle(row.platform);
                     return (
                       <div key={row.platform} className="rounded-xl border border-slate-200 bg-white p-3.5 text-center">
                         <div className="flex items-center justify-center gap-1.5 mb-1">
-                          <span className={`h-2 w-2 rounded-full ${theme.dotClass}`} />
-                          <p className="text-[11px] font-semibold text-slate-500">{theme.label}</p>
+                          <span className={`h-2 w-2 rounded-full ${style.dotClass}`} />
+                          <p className="text-[11px] font-semibold text-slate-500">{platformDisplayName(row.platform, platformNames)}</p>
                         </div>
                         <p className="text-xl font-black text-slate-800">{row.counts._total.total.toLocaleString()}</p>
                         <p className="text-[10px] text-slate-400">{row.counts._total.active} active &middot; {row.counts._total.inactive} inactive</p>
@@ -1172,13 +1182,13 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
                         </thead>
                         <tbody>
                           {profilesMatrix.rows.map(row => {
-                            const theme = PROFILE_PLATFORM_THEMES[row.platform] || { label: row.platform, rowClass: 'bg-amber-50 hover:bg-amber-100', stickyClass: 'bg-amber-50', dotClass: 'bg-slate-400' };
+                            const style = platformStyle(row.platform);
                             return (
-                              <tr key={row.platform} className={`border-b border-slate-200 ${theme.rowClass}`}>
-                                <td className={`px-3 py-2.5 sticky left-0 z-10 border-r border-slate-200 font-semibold ${theme.stickyClass}`}>
+                              <tr key={row.platform} className={`border-b border-slate-200 ${style.rowClass}`}>
+                                <td className={`px-3 py-2.5 sticky left-0 z-10 border-r border-slate-200 font-semibold ${style.stickyClass}`}>
                                   <div className="flex items-center gap-2">
-                                    <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${theme.dotClass}`} />
-                                    {theme.label}
+                                    <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${style.dotClass}`} />
+                                    {platformDisplayName(row.platform, platformNames)}
                                   </div>
                                 </td>
                                 {PROFILE_CATEGORIES.map(cat => {
@@ -1226,9 +1236,13 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
                       </div>
                       <select value={modalPlatformFilter} onChange={(e) => setModalPlatformFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-blue-300 focus:outline-none">
                         <option value="all">All Platforms</option>
-                        {PROFILE_PLATFORM_ORDER.filter(p => normalizedSources.some(s => s._normPlatform === p)).map(p => (
-                          <option key={p} value={p}>{(PROFILE_PLATFORM_THEMES[p]?.label || p)}</option>
-                        ))}
+                        {[...new Set(normalizedSources.map((s) => s._normPlatform).filter(Boolean))]
+                          .sort((a, b) => a.localeCompare(b))
+                          .map((p) => (
+                            <option key={p} value={p}>
+                              {platformDisplayName(p, platformNames)}
+                            </option>
+                          ))}
                       </select>
                       <select value={modalCategoryFilter} onChange={(e) => setModalCategoryFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-blue-300 focus:outline-none">
                         <option value="all">All Categories</option>
@@ -1266,7 +1280,7 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
                             {filteredSources.length === 0 ? (
                               <tr><td colSpan={7} className="text-center py-10 text-sm text-slate-400">No profiles match the current filters.</td></tr>
                             ) : filteredSources.map((source, idx) => {
-                              const theme = PROFILE_PLATFORM_THEMES[source._normPlatform] || { label: source._normPlatform, dotClass: 'bg-slate-400', color: '#94a3b8' };
+                              const style = platformStyle(source._normPlatform);
                               const isActive = source.is_active !== false;
                               return (
                                 <tr key={source._id || source.id || idx} className="border-b border-slate-100 transition-colors hover:bg-slate-50 cursor-pointer" onClick={() => {
@@ -1296,9 +1310,9 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
                                     </div>
                                   </td>
                                   <td className="px-3 py-2.5">
-                                    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: `${theme.color}12`, color: theme.color }}>
-                                      <span className={`h-1.5 w-1.5 rounded-full ${theme.dotClass}`} />
-                                      {theme.label}
+                                    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: `${style.color}12`, color: style.color }}>
+                                      <span className={`h-1.5 w-1.5 rounded-full ${style.dotClass}`} />
+                                      {platformDisplayName(source._normPlatform, platformNames)}
                                     </span>
                                   </td>
                                   <td className="px-3 py-2.5">
@@ -1389,7 +1403,7 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
                       </thead>
                       <tbody>
                         {newProfilesInRange.map((source, idx) => {
-                          const theme = PROFILE_PLATFORM_THEMES[source._normPlatform] || { label: source._normPlatform, dotClass: 'bg-slate-400', color: '#94a3b8' };
+                          const style = platformStyle(source._normPlatform);
                           const isActive = source.is_active !== false;
                           return (
                             <tr key={source._id || source.id || idx} className="border-b border-slate-100 transition-colors hover:bg-slate-50">
@@ -1410,9 +1424,9 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
                                 </div>
                               </td>
                               <td className="px-3 py-2.5">
-                                <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: `${theme.color}12`, color: theme.color }}>
-                                  <span className={`h-1.5 w-1.5 rounded-full ${theme.dotClass}`} />
-                                  {theme.label}
+                                <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: `${style.color}12`, color: style.color }}>
+                                  <span className={`h-1.5 w-1.5 rounded-full ${style.dotClass}`} />
+                                  {platformDisplayName(source._normPlatform, platformNames)}
                                 </span>
                               </td>
                               <td className="px-3 py-2.5">
@@ -1510,7 +1524,7 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
                             </td>
                             <td className="px-3 py-2.5">
                               <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: `${PLATFORM_COLORS[acc.platform] || '#94a3b8'}15`, color: PLATFORM_COLORS[acc.platform] || '#94a3b8' }}>
-                                {PLATFORM_LABELS[acc.platform] || acc.platform}
+                                {platformDisplayName(acc.platform, platformNames)}
                               </span>
                             </td>
                             <td className="px-3 py-2.5 text-right text-sm font-black text-slate-900">{acc.alertCount}</td>
@@ -1589,7 +1603,7 @@ const AlertsIntelligence = ({ data, dateFrom, dateTo }) => {
 /* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
    GRIEVANCES INTELLIGENCE TAB
    \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */
-const GrievancesIntelligence = ({ data, dateFrom, dateTo }) => {
+const GrievancesIntelligence = ({ data, dateFrom, dateTo, platformNames }) => {
   const refs = {
     trend: useRef(null),
     classification: useRef(null),
@@ -1668,7 +1682,7 @@ const GrievancesIntelligence = ({ data, dateFrom, dateTo }) => {
   if (!data) return <EmptyState message="Loading grievances intelligence..." />;
 
   const platformData = (data.byPlatform || []).map(r => ({
-    name: PLATFORM_LABELS[r.platform] || r.platform,
+    name: platformDisplayName(r.platform, platformNames),
     value: r.count,
     color: PLATFORM_COLORS[r.platform] || PLATFORM_COLORS.unknown,
     _raw: r.platform
@@ -1891,7 +1905,7 @@ const GrievancesIntelligence = ({ data, dateFrom, dateTo }) => {
                         <td className="px-3 py-2.5">
                           <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize" style={{ backgroundColor: `${PLATFORM_COLORS[report.platform] || '#94a3b8'}15`, color: PLATFORM_COLORS[report.platform] || '#94a3b8' }}>
                             <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: PLATFORM_COLORS[report.platform] || '#94a3b8' }} />
-                            {PLATFORM_LABELS[report.platform] || prettify(report.platform || 'unknown')}
+                            {platformDisplayName(report.platform, platformNames)}
                           </span>
                         </td>
                         <td className="px-3 py-2.5">
@@ -2076,7 +2090,7 @@ const GrievancesIntelligence = ({ data, dateFrom, dateTo }) => {
                           </td>
                           <td className="px-3 py-2 text-xs font-mono font-bold text-slate-900">{report.unique_code || '—'}</td>
                           <td className="px-3 py-2 text-xs text-slate-700">{report.posted_by?.display_name || report.posted_by?.handle || '—'}</td>
-                          <td className="px-3 py-2 text-xs text-slate-700">{PLATFORM_LABELS[report.platform] || prettify(report.platform || 'unknown')}</td>
+                          <td className="px-3 py-2 text-xs text-slate-700">{platformDisplayName(report.platform, platformNames)}</td>
                           <td className="px-3 py-2 text-xs text-slate-700">{report.category || '—'}</td>
                           <td className="px-3 py-2">
                             <span className={cn('inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase', badge.bg, badge.text, badge.border)}>
@@ -2110,7 +2124,7 @@ const GrievancesIntelligence = ({ data, dateFrom, dateTo }) => {
 /* ═══════════════════════════════════════════════════════════════════
    PROFILES INTELLIGENCE TAB
    ═══════════════════════════════════════════════════════════════════ */
-const ProfilesIntelligence = ({ data, dateFrom, dateTo }) => {
+const ProfilesIntelligence = ({ data, dateFrom, dateTo, platformNames }) => {
   const refs = {
     platform: useRef(null),
   };
@@ -2267,7 +2281,7 @@ const ProfilesIntelligence = ({ data, dateFrom, dateTo }) => {
   if (!data) return <EmptyState message="Loading profiles intelligence..." />;
 
   const platformData = (data.platformDistribution || []).map(r => ({
-    name: PLATFORM_LABELS[r.platform] || r.platform, value: r.count, color: PLATFORM_COLORS[r.platform] || PLATFORM_COLORS.unknown, _rawPlatform: r.platform
+    name: platformDisplayName(r.platform, platformNames), value: r.count, color: PLATFORM_COLORS[r.platform] || PLATFORM_COLORS.unknown, _rawPlatform: r.platform
   }));
 
   const coverageData = (data.socialCoverage || []).map((r, i) => ({
@@ -2306,7 +2320,7 @@ const ProfilesIntelligence = ({ data, dateFrom, dateTo }) => {
     const rows = Object.entries(platformMap)
       .map(([platform, counts]) => ({
         platform,
-        label: PLATFORM_LABELS[platform] || platform,
+        label: platformDisplayName(platform, platformNames),
         color: PLATFORM_COLORS[platform] || PLATFORM_COLORS.unknown,
         total: counts._total,
         counts,
@@ -2579,6 +2593,8 @@ const ProfilesIntelligence = ({ data, dateFrom, dateTo }) => {
    MAIN PAGE COMPONENT
    ═══════════════════════════════════════════════════════════════════ */
 const IntelligenceDashboard = () => {
+  const { platforms: tenantPlatformRows } = usePagePlatforms(null, { toastOnError: false });
+  const platformNames = useMemo(() => buildPlatformNameMap(tenantPlatformRows), [tenantPlatformRows]);
   const [activeTab, setActiveTab] = useState('alerts');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -2762,9 +2778,9 @@ const IntelligenceDashboard = () => {
         )}
 
         {/* ══════════ TAB CONTENT ══════════ */}
-        {activeTab === 'alerts' && <AlertsIntelligence data={alertsData} dateFrom={dateFrom} dateTo={dateTo} />}
-        {activeTab === 'grievances' && <GrievancesIntelligence data={grievancesData} dateFrom={dateFrom} dateTo={dateTo} />}
-        {activeTab === 'profiles' && <ProfilesIntelligence data={profilesData} dateFrom={dateFrom} dateTo={dateTo} />}
+        {activeTab === 'alerts' && <AlertsIntelligence data={alertsData} dateFrom={dateFrom} dateTo={dateTo} platformNames={platformNames} />}
+        {activeTab === 'grievances' && <GrievancesIntelligence data={grievancesData} dateFrom={dateFrom} dateTo={dateTo} platformNames={platformNames} />}
+        {activeTab === 'profiles' && <ProfilesIntelligence data={profilesData} dateFrom={dateFrom} dateTo={dateTo} platformNames={platformNames} />}
         {activeTab === 'events' && (
           <Suspense fallback={
             <div className="flex items-center justify-center py-20">

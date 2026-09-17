@@ -141,7 +141,13 @@ const listPlatforms = async (req, res) => {
     // 1. If page parameter is specified (e.g., 'alerts', 'grievances', 'events', 'global_search'),
     // restrict to the fixed platforms defined in backend config/pagePlatforms.json
     if (page && pagePlatformsConfig[page]) {
-      const allowedForPage = new Set(pagePlatformsConfig[page]);
+      const pageCfg = pagePlatformsConfig[page];
+      const allowedList = Array.isArray(pageCfg)
+        ? pageCfg
+        : (Array.isArray(pageCfg?.platforms) ? pageCfg.platforms : []);
+      const allowedForPage = new Set(
+        allowedList.map((s) => String(s).toLowerCase().replace(/^twitter$/, 'x'))
+      );
       platforms = platforms.filter((p) => {
         const slug = String(p.slug || '').toLowerCase();
         const canonical = slug === 'twitter' ? 'x' : slug;

@@ -11,6 +11,7 @@ const PAGE_CATALOG = [
   { name: 'Grievances', label: 'Grievance', path: '/grievances', icon: 'MessageSquare' },
   { name: 'Events', label: 'Events', path: '/events', icon: 'CalendarDays' },
   { name: 'Profile Catalog', label: 'Profiles', path: '/social-profiles', icon: 'Contact2' },
+  { name: 'Global Search', label: 'Search', path: '/global-search', icon: 'Search' },
   { name: 'Analytics', label: 'Analytics', path: '/analytics-hub', icon: 'BarChart3' },
   { name: 'Analysis Tools', label: 'Tools', path: '/analysis-tools', icon: 'Wrench' },
   { name: 'Reports', label: 'Reports', path: '/reports', icon: 'FileText' },
@@ -23,7 +24,7 @@ const PAGE_CATALOG = [
   { name: 'Help', label: 'Help', path: '/help', icon: 'HelpCircle' },
 ];
 
-const PLATFORM_CATALOG = ['x', 'facebook', 'instagram', 'youtube', 'telegram'];
+const PLATFORM_CATALOG = require('../../lib/platformCatalog').PLATFORM_SLUGS;
 
 /** Pages only for Superadmin console (no tenant ops). */
 const SUPERADMIN_PAGE_PATHS = [
@@ -40,6 +41,7 @@ const OPS_PAGE_PATHS = [
   '/grievances',
   '/events',
   '/social-profiles',
+  '/global-search',
   '/analytics-hub',
   '/analysis-tools',
   '/reports',
@@ -123,22 +125,6 @@ const sidebarForUser = (user) => {
     return PAGE_CATALOG.filter((item) => SUPERADMIN_PAGE_PATHS.includes(item.path));
   }
   const items = PAGE_CATALOG.filter((item) => allowed.has(item.path));
-  // Ops users/admins with reports or events access automatically get Periscope
-  if (
-    user?.role !== 'superadmin' &&
-    !items.some((i) => i.path === '/periscope') &&
-    (user?.role === 'admin' || allowed.has('/reports') || allowed.has('/events') || allowed.has('/dashboard'))
-  ) {
-    const peri = PAGE_CATALOG.find((p) => p.path === '/periscope');
-    if (peri) {
-      const reportsIdx = items.findIndex((i) => i.path === '/reports');
-      if (reportsIdx >= 0) {
-        items.splice(reportsIdx + 1, 0, peri);
-      } else {
-        items.push(peri);
-      }
-    }
-  }
   // Admins who can manage users always see Audit Logs
   if (user?.can_manage_users && !items.some((i) => i.path === '/audit-logs')) {
     const audit = PAGE_CATALOG.find((p) => p.path === '/audit-logs');

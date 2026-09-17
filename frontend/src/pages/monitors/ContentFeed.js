@@ -5,6 +5,7 @@ import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { toast } from 'sonner';
 import ContentCard from '../../components/ContentCard';
+import { PagePlatformOptions } from '../../components/PagePlatformSelectItems';
 
 const ContentFeed = () => {
   const [content, setContent] = useState([]);
@@ -109,11 +110,7 @@ const ContentFeed = () => {
           value={platform}
           onChange={(e) => setPlatform(e.target.value)}
         >
-          <option value="all">All Platforms</option>
-          <option value="youtube">YouTube</option>
-          <option value="x">X (Twitter)</option>
-          <option value="facebook">Facebook</option>
-          <option value="instagram">Instagram</option>
+          <PagePlatformOptions page="social_profiles" />
         </select>
       </div>
 

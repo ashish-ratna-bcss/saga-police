@@ -118,63 +118,15 @@ const fetchInstagramPostViaBlugate = async (shortcode) => {
   const code = String(shortcode || '').trim();
   if (!code) return null;
 
-  let data = null;
+  let data;
   try {
     data = await callInstagramApi('MEDIA_BY_SHORTCODE', { shortcode: code });
   } catch (err) {
     logger.warn(`[Post Location] Instagram MEDIA_BY_SHORTCODE failed: ${err.message}`);
+    throw err;
   }
 
-  if (!data) {
-    try {
-      data = await callInstagramApi('LINKS', {
-        url: `https://www.instagram.com/p/${code}/`,
-      });
-    } catch (err) {
-      logger.warn(`[Post Location] Instagram LINKS fallback failed: ${err.message}`);
-      return null;
-    }
-  }
-
-  // LINKS shape: [{ urls: [...], meta: {...} }]
-  if (Array.isArray(data) && data[0]?.urls) {
-    const entry = data[0];
-    const meta = entry.meta || {};
-    const media = (entry.urls || [])
-      .map((u) => {
-        const url = typeof u === 'string' ? u : u?.url;
-        if (!url) return null;
-        const ext = String(u.extension || '').toLowerCase();
-        const isVideo = ext === 'mp4' || /video|\.mp4/i.test(url);
-        return {
-          url,
-          type: isVideo ? 'video' : 'photo',
-          video_url: isVideo ? url : undefined,
-          preview: !isVideo ? url : undefined,
-          quality: u.quality || u.subName || null,
-        };
-      })
-      .filter(Boolean);
-
-    const takenAt = meta.taken_at || meta.taken_at_ts || meta.timestamp || null;
-    return {
-      id: meta.shortcode || code,
-      location: extractInstagramLocation(meta),
-      author: meta.owner_fullname || meta.full_name || meta.username || null,
-      author_handle: meta.username || meta.owner?.username || null,
-      author_avatar: meta.profile_pic_url || null,
-      text: meta.title || meta.caption || '',
-      created_at: takenAt
-        ? new Date(Number(takenAt) > 1e12 ? Number(takenAt) : Number(takenAt) * 1000).toISOString()
-        : null,
-      media,
-      metrics: {
-        likes: meta.likeCount || meta.like_count || 0,
-        comments: meta.commentCount || meta.comment_count || 0,
-        views: meta.viewCount || meta.play_count || 0,
-      },
-    };
-  }
+  if (!data) return null;
 
   const payload = unwrapPayload(data) || data;
   const item = Array.isArray(payload) ? payload[0] : payload;

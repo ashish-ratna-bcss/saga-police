@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
     User, Users, Edit, Save, X, FileText, Globe,
@@ -32,6 +32,7 @@ import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Switch } from '../../components/ui/switch';
 import { Badge } from '../../components/ui/badge';
+import { usePagePlatforms } from '../../hooks/usePagePlatforms';
 
 const CATEGORY_OPTIONS = [
     { value: 'political', label: 'Political' },
@@ -282,12 +283,28 @@ const POIDetail = () => {
     const editIdentityAutofetchRef = React.useRef({});
 
     // Common derived variables
-    const platforms = [
-        { id: 'twitter', label: 'X', icon: XLogo, text: 'text-black', bg: 'bg-gray-100', border: 'border-gray-200', activeText: 'text-black', activeBorder: 'border-black' },
-        { id: 'facebook', label: 'Facebook', icon: FacebookLogo, text: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100', activeText: 'text-blue-600', activeBorder: 'border-blue-600' },
-        { id: 'instagram', label: 'Instagram', icon: Instagram, text: 'text-pink-600', bg: 'bg-pink-50', border: 'border-pink-100', activeText: 'text-pink-600', activeBorder: 'border-pink-600' },
-        { id: 'youtube', label: 'YouTube', icon: Youtube, text: 'text-red-600', bg: 'bg-red-50', border: 'border-red-100', activeText: 'text-red-600', activeBorder: 'border-red-600' }
-    ];
+    const { platforms: poiPlatformRows } = usePagePlatforms('social_profiles', { toastOnError: false });
+    const platforms = useMemo(() => {
+      const themeBySlug = {
+        x: { id: 'twitter', label: 'X', icon: XLogo, text: 'text-black', bg: 'bg-gray-100', border: 'border-gray-200', activeText: 'text-black', activeBorder: 'border-black' },
+        twitter: { id: 'twitter', label: 'X', icon: XLogo, text: 'text-black', bg: 'bg-gray-100', border: 'border-gray-200', activeText: 'text-black', activeBorder: 'border-black' },
+        facebook: { id: 'facebook', label: 'Facebook', icon: FacebookLogo, text: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100', activeText: 'text-blue-600', activeBorder: 'border-blue-600' },
+        instagram: { id: 'instagram', label: 'Instagram', icon: Instagram, text: 'text-pink-600', bg: 'bg-pink-50', border: 'border-pink-100', activeText: 'text-pink-600', activeBorder: 'border-pink-600' },
+        youtube: { id: 'youtube', label: 'YouTube', icon: Youtube, text: 'text-red-600', bg: 'bg-red-50', border: 'border-red-100', activeText: 'text-red-600', activeBorder: 'border-red-600' },
+        telegram: { id: 'telegram', label: 'Telegram', icon: MessageCircle, text: 'text-sky-600', bg: 'bg-sky-50', border: 'border-sky-100', activeText: 'text-sky-600', activeBorder: 'border-sky-600' },
+      };
+      const out = [];
+      const seen = new Set();
+      for (const row of poiPlatformRows) {
+        const raw = String(row.slug || '').toLowerCase();
+        const key = raw === 'twitter' ? 'x' : raw;
+        const theme = themeBySlug[key] || themeBySlug[raw];
+        if (!theme || seen.has(theme.id)) continue;
+        seen.add(theme.id);
+        out.push({ ...theme, label: row.name || theme.label });
+      }
+      return out;
+    }, [poiPlatformRows]);
 
     const effectiveProfileImage = poiData.profileImage && poiData.profileImage !== '' && !poiData.profileImage.includes('placeholder')
         ? poiData.profileImage
@@ -1369,7 +1386,13 @@ const POIDetail = () => {
             const sm = rows[idx] || {};
             const platformRaw = String(sm?.platform || '').toLowerCase().trim();
             const platform = platformRaw === 'twitter' ? 'x' : platformRaw;
-            if (!['x', 'facebook', 'instagram', 'youtube'].includes(platform)) continue;
+            const allowed = new Set(
+              poiPlatformRows.map((r) => {
+                const s = String(r.slug || '').toLowerCase();
+                return s === 'twitter' ? 'x' : s;
+              })
+            );
+            if (!allowed.has(platform)) continue;
 
             const handle = String(sm?.handle || '').trim();
             if (!handle) continue;
@@ -1392,7 +1415,7 @@ const POIDetail = () => {
                 }
             }
         }
-    }, [isEditing, poiData.socialMedia, sources, getSocialUserId, triggerPoiIdentityLookup, updateSocialMediaFieldByIndex]);
+    }, [isEditing, poiData.socialMedia, sources, getSocialUserId, triggerPoiIdentityLookup, updateSocialMediaFieldByIndex, poiPlatformRows]);
 
     const getSocialOldUsernames = (sm) => {
         const src = getSourceById(sm?.sourceId);

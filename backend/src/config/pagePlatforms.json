@@ -1,25 +1,503 @@
 {
-  "alerts": [
-    "x",
-    "youtube",
-    "facebook",
-    "instagram"
-  ],
-  "grievances": [
-    "x",
-    "facebook",
-    "instagram"
-  ],
-  "events": [
-    "x",
-    "youtube",
-    "facebook",
-    "telegram"
-  ],
-  "global_search": [
-    "x",
-    "youtube",
-    "facebook",
-    "telegram"
-  ]
+  "alerts": {
+    "page": "alerts",
+    "title": "Alerts & Threat Intelligence",
+    "route": "/alerts",
+    "description": "Monitors threat keywords, public sentiment, and real-time triggers across social media channels",
+    "platforms": [
+      "x",
+      "youtube",
+      "facebook",
+      "instagram"
+    ],
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/alerts",
+        "controller": "modules/alerts/alert.controller.js",
+        "function": "listAlerts",
+        "description": "Fetch paginated alerts filtered by platform, severity, status, search, and date range",
+        "platforms": ["x", "youtube", "facebook", "instagram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/alerts/stats",
+        "controller": "modules/alerts/alert.controller.js",
+        "function": "getStats",
+        "description": "Get alert statistics and counts grouped by platform, severity, and category",
+        "platforms": ["x", "youtube", "facebook", "instagram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/alerts/unread",
+        "controller": "modules/alerts/alert.controller.js",
+        "function": "getUnread",
+        "description": "Get count and list of unread alerts",
+        "platforms": ["x", "youtube", "facebook", "instagram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/alerts/:id",
+        "controller": "modules/alerts/alert.controller.js",
+        "function": "getAlert",
+        "description": "Retrieve full details and post metadata for a single alert",
+        "platforms": ["x", "youtube", "facebook", "instagram"]
+      },
+      {
+        "method": "PUT",
+        "path": "/api/alerts/:id",
+        "controller": "modules/alerts/alert.controller.js",
+        "function": "putAlert",
+        "description": "Update alert status, assignment, category, or notes",
+        "platforms": ["x", "youtube", "facebook", "instagram"]
+      },
+      {
+        "method": "PUT",
+        "path": "/api/alerts/read",
+        "controller": "modules/alerts/alert.controller.js",
+        "function": "putMarkAllRead",
+        "description": "Mark all alerts as read",
+        "platforms": ["x", "youtube", "facebook", "instagram"]
+      },
+      {
+        "method": "POST",
+        "path": "/api/alerts/translate",
+        "controller": "modules/alerts/alert.controller.js",
+        "function": "translateAlertContent",
+        "description": "Translate alert text/posts to target language",
+        "platforms": ["x", "youtube", "facebook", "instagram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/keywords",
+        "controller": "modules/alerts/keyword.controller.js",
+        "function": "getKeywords",
+        "description": "List alert monitoring keywords and their active status",
+        "platforms": ["x", "youtube", "facebook", "instagram"]
+      },
+      {
+        "method": "POST",
+        "path": "/api/keywords/catalog-rescan",
+        "controller": "modules/alerts/keyword.controller.js",
+        "function": "catalogRescan",
+        "description": "Trigger ingestion scan on social platforms for monitored keywords",
+        "platforms": ["x", "youtube", "facebook", "instagram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/social-profiles/platforms?page=alerts",
+        "controller": "modules/social-profiles/socialProfile.controller.js",
+        "function": "listPlatforms",
+        "description": "Retrieve active platform filters for the alerts page",
+        "platforms": ["x", "youtube", "facebook", "instagram"]
+      }
+    ]
+  },
+  "grievances": {
+    "page": "grievances",
+    "title": "Public Grievances & Redressal",
+    "route": "/grievances",
+    "description": "Ingestion and tracking of public complaints, grievances, and mentions across official social channels",
+    "platforms": [
+      "x",
+      "facebook",
+      "instagram",
+      "telegram"
+    ],
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/grievances",
+        "controller": "modules/grievances/grievance.controller.js",
+        "function": "listGrievances",
+        "description": "List filtered public grievances across monitored channels",
+        "platforms": ["x", "facebook", "instagram", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/grievances/stats",
+        "controller": "modules/grievances/grievance.controller.js",
+        "function": "getStats",
+        "description": "Retrieve grievance statistics breakdown by platform and status",
+        "platforms": ["x", "facebook", "instagram", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/grievances/report-stats",
+        "controller": "modules/grievances/grievance.controller.js",
+        "function": "getReportStats",
+        "description": "Retrieve dashboard report KPIs for grievances, suggestions, criticisms, and queries",
+        "platforms": ["x", "facebook", "instagram", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/grievances/sources",
+        "controller": "modules/grievances/grievance.controller.js",
+        "function": "listSources",
+        "description": "List monitored official social profiles/channels configured for grievance tracking",
+        "platforms": ["x", "facebook", "instagram", "telegram"]
+      },
+      {
+        "method": "POST",
+        "path": "/api/grievances/sources/:id/fetch",
+        "controller": "modules/grievances/grievance.controller.js",
+        "function": "fetchSource",
+        "description": "Fetch latest grievances and comments for a specific source account",
+        "platforms": ["x", "facebook", "instagram", "telegram"]
+      },
+      {
+        "method": "POST",
+        "path": "/api/grievances/fetch-all",
+        "controller": "modules/grievances/grievance.controller.js",
+        "function": "fetchAll",
+        "description": "Fetch latest grievances and mentions across all active source accounts",
+        "platforms": ["x", "facebook", "instagram", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/grievances/:id",
+        "controller": "modules/grievances/grievance.controller.js",
+        "function": "getGrievance",
+        "description": "Get detailed grievance record by ID",
+        "platforms": ["x", "facebook", "instagram", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/grievance-workflow/reports",
+        "controller": "modules/grievances/grievance.report.controller.js",
+        "function": "listGrievanceReports",
+        "description": "List formal grievance reports and action tickets",
+        "platforms": ["x", "facebook", "instagram", "telegram"]
+      },
+      {
+        "method": "POST",
+        "path": "/api/grievance-workflow/reports",
+        "controller": "modules/grievances/grievance.report.controller.js",
+        "function": "createGrievanceReport",
+        "description": "Create and classify a formal grievance dossier",
+        "platforms": ["x", "facebook", "instagram", "telegram"]
+      },
+      {
+        "method": "POST",
+        "path": "/api/grievance-workflow/reports/:id/generate-pdf",
+        "controller": "modules/grievances/grievance.report.controller.js",
+        "function": "generateGrievanceReportPdf",
+        "description": "Generate official PDF report for a grievance",
+        "platforms": ["x", "facebook", "instagram", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/social-profiles/platforms?page=grievances",
+        "controller": "modules/social-profiles/socialProfile.controller.js",
+        "function": "listPlatforms",
+        "description": "Retrieve configured platforms available for the grievances page",
+        "platforms": ["x", "facebook", "instagram", "telegram"]
+      }
+    ]
+  },
+  "events": {
+    "page": "events",
+    "title": "Events & Occasions Monitoring",
+    "route": "/events",
+    "description": "Real-time tracking of scheduled events, VIP movements, rallies, and holidays across social channels",
+    "platforms": [
+      "x",
+      "youtube",
+      "facebook",
+      "telegram"
+    ],
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/events",
+        "controller": "modules/events/event.controller.js",
+        "function": "listEvents",
+        "description": "List tracked events, schedules, and active monitoring states",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "POST",
+        "path": "/api/events",
+        "controller": "modules/events/event.controller.js",
+        "function": "createEvent",
+        "description": "Create a new event with target platforms, keywords, hashtags, and dates",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/events/:id",
+        "controller": "modules/events/event.controller.js",
+        "function": "getEvent",
+        "description": "Get detailed configuration and status for a specific event",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "PUT",
+        "path": "/api/events/:id",
+        "controller": "modules/events/event.controller.js",
+        "function": "updateEvent",
+        "description": "Update event parameters, keywords, locations, and platforms",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/events/:id/dashboard",
+        "controller": "modules/events/event.controller.js",
+        "function": "getEventDashboard",
+        "description": "Get event metrics, post breakdown by platform, and sentiment stats",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/events/:id/content",
+        "controller": "modules/events/event.controller.js",
+        "function": "getEventContent",
+        "description": "Get posts and media collected across platforms for this event",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "POST",
+        "path": "/api/events/:id/run",
+        "controller": "modules/events/event.controller.js",
+        "function": "runEventScan",
+        "description": "Trigger on-demand multi-platform scan for event keywords and hashtags",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "PUT",
+        "path": "/api/events/:id/monitoring",
+        "controller": "modules/events/event.controller.js",
+        "function": "toggleMonitoring",
+        "description": "Enable or disable automated recurring scans for an event",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/events/report",
+        "controller": "modules/events/event.controller.js",
+        "function": "getEventsReport",
+        "description": "Generate summary analytics report across multiple events",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/occasion-calendar",
+        "controller": "modules/events/event.calendar.controller.js",
+        "function": "listOccasionCalendar",
+        "description": "List calendar occasions, holidays, and VIP schedules",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/social-profiles/platforms?page=events",
+        "controller": "modules/social-profiles/socialProfile.controller.js",
+        "function": "listPlatforms",
+        "description": "Retrieve platforms enabled for event tracking (excludes Instagram)",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      }
+    ]
+  },
+  "global_search": {
+    "page": "global_search",
+    "title": "Global Search & Cross-Platform Lookup",
+    "route": "/global-search",
+    "description": "Live cross-platform search across public user profiles, posts, and conversations",
+    "platforms": [
+      "x",
+      "youtube",
+      "facebook",
+      "telegram"
+    ],
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/search/platforms",
+        "controller": "modules/search/search.controller.js",
+        "function": "listPlatformsHandler",
+        "description": "List platforms configured and available for live search lookup",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/search/profiles",
+        "controller": "modules/search/search.controller.js",
+        "function": "searchProfilesHandler",
+        "description": "Search public user profiles and channels across social networks",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/search/content",
+        "controller": "modules/search/search.controller.js",
+        "function": "searchContentHandler",
+        "description": "Search live posts and content by keyword across social networks",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/search/glance",
+        "controller": "modules/search/search.controller.js",
+        "function": "glanceSearchHandler",
+        "description": "Quick glance preview search across multiple platforms simultaneously",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "POST",
+        "path": "/api/search/history",
+        "controller": "modules/search/search.controller.js",
+        "function": "saveHistoryHandler",
+        "description": "Save search query to tenant history log",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/search/history",
+        "controller": "modules/search/search.controller.js",
+        "function": "listHistoryHandler",
+        "description": "List past cross-platform searches performed by tenant users",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/social-profiles/platforms?page=global_search",
+        "controller": "modules/social-profiles/socialProfile.controller.js",
+        "function": "listPlatforms",
+        "description": "Retrieve platforms available for global search filtering",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      }
+    ]
+  },
+  "periscope": {
+    "page": "periscope",
+    "title": "Periscope Daily Intelligence Briefing",
+    "route": "/periscope",
+    "description": "Daily intelligence report curation, auto-scrolling live ticker, and event feeds",
+    "platforms": [
+      "x",
+      "youtube",
+      "facebook",
+      "telegram"
+    ],
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/periscope/feed",
+        "controller": "modules/periscope/periscope.controller.js",
+        "function": "getFeed",
+        "description": "Live multi-platform feed of trending topics, events, and viral posts",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/periscope/by-date",
+        "controller": "modules/periscope/periscope.controller.js",
+        "function": "getReportByDate",
+        "description": "Retrieve Periscope intelligence briefing report for a specific date",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "POST",
+        "path": "/api/periscope/save",
+        "controller": "modules/periscope/periscope.controller.js",
+        "function": "saveReport",
+        "description": "Save or update the daily Periscope briefing document",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/periscope/list",
+        "controller": "modules/periscope/periscope.controller.js",
+        "function": "listReports",
+        "description": "List generated and saved Periscope reports",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "POST",
+        "path": "/api/periscope/export-docx",
+        "controller": "modules/periscope/periscope.controller.js",
+        "function": "exportDocx",
+        "description": "Export the Periscope intelligence report as a Word document (.docx)",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/periscope/import-events",
+        "controller": "modules/periscope/periscope.controller.js",
+        "function": "importEvents",
+        "description": "Import active calendar events and monitored platform occurrences into Periscope report",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/social-profiles/platforms?page=periscope",
+        "controller": "modules/social-profiles/socialProfile.controller.js",
+        "function": "listPlatforms",
+        "description": "Retrieve platforms available for Periscope intelligence feeds",
+        "platforms": ["x", "youtube", "facebook", "telegram"]
+      }
+    ]
+  },
+  "social_profiles": {
+    "page": "social_profiles",
+    "title": "Social Media Profile Catalog",
+    "route": "/social-profiles",
+    "description": "Target profile directory, account monitoring, and platform credentials management",
+    "platforms": [
+      "x",
+      "facebook",
+      "instagram",
+      "youtube",
+      "telegram"
+    ],
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/social-profiles",
+        "controller": "modules/social-profiles/socialProfile.controller.js",
+        "function": "listProfiles",
+        "description": "List monitored social target profiles and handles",
+        "platforms": ["x", "facebook", "instagram", "youtube", "telegram"]
+      },
+      {
+        "method": "POST",
+        "path": "/api/social-profiles",
+        "controller": "modules/social-profiles/socialProfile.controller.js",
+        "function": "createProfile",
+        "description": "Add a new target profile/channel to monitor",
+        "platforms": ["x", "facebook", "instagram", "youtube", "telegram"]
+      },
+      {
+        "method": "POST",
+        "path": "/api/social-profiles/preview",
+        "controller": "modules/social-profiles/socialProfile.controller.js",
+        "function": "previewAccount",
+        "description": "Live preview of an external profile (avatar, followers, bio) before adding",
+        "platforms": ["x", "facebook", "instagram", "youtube", "telegram"]
+      },
+      {
+        "method": "PUT",
+        "path": "/api/social-profiles/:id/monitoring",
+        "controller": "modules/social-profiles/socialProfile.controller.js",
+        "function": "toggleMonitoring",
+        "description": "Start or stop automated post ingestion for a target profile",
+        "platforms": ["x", "facebook", "instagram", "youtube", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/social-profiles/platforms",
+        "controller": "modules/social-profiles/socialProfile.controller.js",
+        "function": "listPlatforms",
+        "description": "List all configured tenant platforms",
+        "platforms": ["x", "facebook", "instagram", "youtube", "telegram"]
+      },
+      {
+        "method": "GET",
+        "path": "/api/social-profiles/platforms/page-mapping",
+        "controller": "modules/social-profiles/socialProfile.controller.js",
+        "function": "getPagePlatformsMapping",
+        "description": "Get complete page-to-platform and endpoint registry mapping",
+        "platforms": ["x", "facebook", "instagram", "youtube", "telegram"]
+      }
+    ]
+  }
 }

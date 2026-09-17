@@ -37,12 +37,11 @@ import { CriticismReports } from '../../components/grievances/CriticismReports';
 import { GrievancePopup } from '../../components/grievances/GrievancePopup';
 import { GrievanceWorkflowReports } from '../../components/grievances/GrievanceWorkflowReports';
 import { GrievanceStatusChangePopup } from '../../components/grievances/GrievanceStatusChangePopup';
-import { QueryPopup } from '../../components/grievances/QueryPopup';
-import { QueryReports } from '../../components/grievances/QueryReports';
 import { SuggestionPopup } from '../../components/grievances/SuggestionPopup';
 import { SuggestionReports } from '../../components/grievances/SuggestionReports';
 import { GrievanceService } from '../../api';
 import { socialProfilesApi } from '../../api/socialProfiles.api';
+import { usePagePlatforms } from '../../hooks/usePagePlatforms';
 
 const DEFAULT_SOCIAL_ACTION_OVERLAY = {
     visible: false,
@@ -426,8 +425,8 @@ const Grievances = () => {
     const [workflowStats, setWorkflowStats] = useState({ total: 0, pending: 0, escalated: 0, closed: 0, fir: 0 });
     const [selectedReportTypes, setSelectedReportTypes] = useState({
         grievance: true,
-        suggestion: true,
-        criticism: true,
+        suggestion: false,
+        criticism: false,
     });
     const [reportTypeCounts, setReportTypeCounts] = useState({
         grievance: null,
@@ -462,7 +461,6 @@ const Grievances = () => {
     const [criticismGrievance, setCriticismGrievance] = useState(null);
     const [grievancePopupGrievance, setGrievancePopupGrievance] = useState(null);
     const [statusChangePopup, setStatusChangePopup] = useState(null); // { grievance, targetStatus }
-    const [queryPopupGrievance, setQueryPopupGrievance] = useState(null);
     const [suggestionPopupGrievance, setSuggestionPopupGrievance] = useState(null);
 
     // Selected grievance
@@ -492,25 +490,7 @@ const Grievances = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [platformFilter, setPlatformFilter] = useState('all');
     const [dateRange, setDateRange] = useState({ from: null, to: null });
-    const [grievancePlatforms, setGrievancePlatforms] = useState(null);
-
-    useEffect(() => {
-        let mounted = true;
-        (async () => {
-            try {
-                const res = await socialProfilesApi.listPlatforms({ page: 'grievances' });
-                if (mounted && Array.isArray(res.data)) {
-                    setGrievancePlatforms(res.data.map((p) => {
-                        const raw = String(p.slug || '').toLowerCase();
-                        return raw === 'twitter' ? 'x' : raw;
-                    }));
-                }
-            } catch {
-                // ignore
-            }
-        })();
-        return () => { mounted = false; };
-    }, []);
+    const { platforms: grievancePlatformRows, slugs: grievancePlatforms, loading: grievancePlatformsLoading } = usePagePlatforms('grievances');
 
     // Top Navbar Filters
     const [navbarPlatform, setNavbarPlatform] = useState('all');
@@ -522,8 +502,6 @@ const Grievances = () => {
         escalated: 'pending',
         closed: 'closed',
         fir: 'fir',
-        criticism: 'all ',
-        suggestion: 'all ',
         reports: 'reports',
     }), []);
 
@@ -564,7 +542,8 @@ const Grievances = () => {
         }
 
         const normalizedPlatform = rawPlatform === 'twitter' ? 'x' : rawPlatform;
-        const validPlatforms = ['all', 'x'];
+        const validPlatforms = ['all', ...grievancePlatforms];
+        if (grievancePlatformsLoading) return;
         if (normalizedPlatform && validPlatforms.includes(normalizedPlatform)) {
             setNavbarPlatform(normalizedPlatform);
             setPlatformFilter(normalizedPlatform);
@@ -575,7 +554,7 @@ const Grievances = () => {
             setNavbarPlatform('all');
             setPlatformFilter('all');
         }
-    }, [searchParams]);
+    }, [searchParams, grievancePlatforms, grievancePlatformsLoading]);
 
     // Keep tab and top navbar status aligned so payload filters match what user selected.
     useEffect(() => {
@@ -1436,55 +1415,6 @@ const Grievances = () => {
         fetchDashboardStats();
     };
 
-    const handleQueryReportCreated = (originalGrievanceId, report) => {
-        if (!originalGrievanceId || !report) return;
-        triggerActionBlink(originalGrievanceId);
-
-        const nextQuery = {
-            report_id: report.id,
-            unique_code: report.unique_code,
-            status: report.status || 'PENDING'
-        };
-
-        setGrievances(prev => prev.map(item => (
-            item.id === originalGrievanceId
-                ? {
-                    ...item,
-                    query_workflow: {
-                        ...(item.query_workflow || {}),
-                        ...nextQuery
-                    }
-                }
-                : item
-        )));
-
-        setSelectedGrievance(prev => (
-            prev?.id === originalGrievanceId
-                ? {
-                    ...prev,
-                    query_workflow: {
-                        ...(prev.query_workflow || {}),
-                        ...nextQuery
-                    }
-                }
-                : prev
-        ));
-
-        setQueryPopupGrievance(prev => (
-            prev?.id === originalGrievanceId
-                ? {
-                    ...prev,
-                    query_workflow: {
-                        ...(prev.query_workflow || {}),
-                        ...nextQuery
-                    }
-                }
-                : prev
-        ));
-
-        fetchDashboardStats();
-    };
-
     const handleSuggestionReportCreated = (originalGrievanceId, report) => {
         if (!originalGrievanceId || !report) return;
         triggerActionBlink(originalGrievanceId);
@@ -1621,8 +1551,6 @@ const Grievances = () => {
             setCriticismGrievance(grievance);
         } else if (action === 'classify_grievance') {
             setGrievancePopupGrievance(grievance);
-        } else if (action === 'classify_query') {
-            setQueryPopupGrievance(grievance);
         } else if (action === 'classify_suggestion') {
             setSuggestionPopupGrievance(grievance);
         } else if (action === 'open_g_report') {
@@ -1830,7 +1758,7 @@ const Grievances = () => {
                 grievances={grievances}
                 sources={sources}
                 allowedStatuses={allowedNavbarStatuses}
-                allowedPlatforms={grievancePlatforms}
+                allowedPlatforms={grievancePlatformRows}
                 onConfigureSettings={() => navigate('/settings?tab=grievances')}
                 onFetchSourceHistory={(source) => handleFetchForSource(source)}
                 onFetchAll={handleFetchAll}
@@ -1841,70 +1769,147 @@ const Grievances = () => {
 
             {/* ─── Reports Tab Content ─── */}
             {isReportsTab && (
-                <div className="rounded-xl border border-border bg-card overflow-x-auto animate-in fade-in duration-200">
-                    <div className="flex flex-wrap items-center gap-1 px-2 py-1.5 border-b border-border">
-                        {[
-                            { id: 'grievance', label: 'G', title: 'Grievance', active: 'bg-amber-600 text-white', idle: 'text-muted-foreground hover:bg-amber-50 hover:text-amber-900' },
-                            { id: 'suggestion', label: 'S', title: 'Suggestion', active: 'bg-violet-600 text-white', idle: 'text-muted-foreground hover:bg-violet-50 hover:text-violet-900' },
-                            { id: 'criticism', label: 'C', title: 'Criticism', active: 'bg-rose-600 text-white', idle: 'text-muted-foreground hover:bg-rose-50 hover:text-rose-900' },
-                        ].map((btn) => {
-                            const isActive = Boolean(selectedReportTypes[btn.id]);
-                            const count = reportTypeCounts[btn.id];
-                            return (
-                                <button
-                                    key={btn.id}
-                                    type="button"
-                                    title={btn.title}
-                                    onClick={() => toggleReportType(btn.id)}
-                                    className={cn(
-                                        'inline-flex items-center justify-center rounded-md px-2.5 py-1 text-xs font-bold transition-colors min-w-[2rem]',
-                                        isActive ? btn.active : btn.idle
-                                    )}
-                                >
-                                    {btn.label}
-                                    <span className="ml-1 font-medium hidden sm:inline">{btn.title}</span>
-                                    <span
-                                        className={cn(
-                                            'ml-1.5 rounded px-1.5 py-0.5 text-[10px] tabular-nums font-semibold',
-                                            isActive ? 'bg-white/25 text-white' : 'bg-muted text-muted-foreground'
-                                        )}
-                                    >
-                                        {count == null ? '…' : Number(count).toLocaleString()}
-                                    </span>
-                                </button>
-                            );
-                        })}
+                <div className="space-y-4 animate-in fade-in duration-300">
+                    {/* Modern Executive Sub-Tab Type Selector Bar */}
+                    <div className="bg-card/90 backdrop-blur-md rounded-2xl border border-border/80 p-2.5 shadow-sm flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            <div className="flex items-center gap-2 pl-1 pr-2 border-r border-border/60">
+                                <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    Report Modules
+                                </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1.5 p-1 bg-muted/50 dark:bg-muted/20 rounded-xl border border-border/50">
+                                {[
+                                    {
+                                        id: 'grievance',
+                                        label: 'Grievance Reports',
+                                        short: 'Grievance',
+                                        icon: Shield,
+                                        activeClass: 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md shadow-amber-500/25 ring-1 ring-amber-400',
+                                        badgeActive: 'bg-white/20 text-white font-bold',
+                                        idleClass: 'text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10'
+                                    },
+                                    {
+                                        id: 'suggestion',
+                                        label: 'Suggestions',
+                                        short: 'Suggestion',
+                                        icon: Users,
+                                        activeClass: 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md shadow-violet-600/25 ring-1 ring-violet-400',
+                                        badgeActive: 'bg-white/20 text-white font-bold',
+                                        idleClass: 'text-muted-foreground hover:text-violet-600 hover:bg-violet-500/10'
+                                    },
+                                    {
+                                        id: 'criticism',
+                                        label: 'Criticisms',
+                                        short: 'Criticism',
+                                        icon: AlertCircle,
+                                        activeClass: 'bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-md shadow-rose-600/25 ring-1 ring-rose-400',
+                                        badgeActive: 'bg-white/20 text-white font-bold',
+                                        idleClass: 'text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10'
+                                    },
+                                ].map((tab) => {
+                                    const isActive = Boolean(selectedReportTypes[tab.id]);
+                                    const count = reportTypeCounts[tab.id];
+                                    const TabIcon = tab.icon;
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            type="button"
+                                            onClick={() => toggleReportType(tab.id)}
+                                            className={cn(
+                                                'inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 cursor-pointer select-none active:scale-[0.98]',
+                                                isActive ? tab.activeClass : tab.idleClass
+                                            )}
+                                        >
+                                            <TabIcon className="h-3.5 w-3.5 shrink-0" />
+                                            <span>{tab.label}</span>
+                                            <span
+                                                className={cn(
+                                                    'rounded-full px-2 py-0.5 text-[10px] tabular-nums font-bold transition-colors',
+                                                    isActive ? tab.badgeActive : 'bg-background/80 text-muted-foreground border border-border/50'
+                                                )}
+                                            >
+                                                {count == null ? '…' : Number(count).toLocaleString()}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 pr-1 text-xs text-muted-foreground">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const allOn = selectedReportTypes.grievance && selectedReportTypes.suggestion && selectedReportTypes.criticism;
+                                    if (allOn) {
+                                        setSelectedReportTypes({ grievance: true, suggestion: false, criticism: false });
+                                    } else {
+                                        setSelectedReportTypes({ grievance: true, suggestion: true, criticism: true });
+                                    }
+                                }}
+                                className="text-[11px] font-medium text-primary hover:underline px-2 py-1 rounded hover:bg-primary/5 transition-colors"
+                            >
+                                {selectedReportTypes.grievance && selectedReportTypes.suggestion && selectedReportTypes.criticism
+                                    ? 'Show Grievances Only'
+                                    : 'Show All 3 Modules'}
+                            </button>
+                            <span className="hidden lg:inline text-[11px] text-muted-foreground/60">· Click pills to toggle</span>
+                        </div>
                     </div>
 
-                    {selectedReportTypes.grievance && (
-                        <GrievanceWorkflowReports
-                            onStatsUpdate={(next) => {
-                                setWorkflowStats(next);
-                                if (next?.total != null) {
-                                    setReportTypeCounts((prev) => ({ ...prev, grievance: Number(next.total) || 0 }));
-                                }
-                            }}
-                            openReportCode={openGReportCode}
-                            onReportCodeHandled={() => setOpenGReportCode('')}
-                        />
-                    )}
-                    {selectedReportTypes.suggestion && (
-                        <SuggestionReports
-                            openReportCode={openSReportCode}
-                            onReportCodeHandled={() => setOpenSReportCode('')}
-                        />
-                    )}
-                    {selectedReportTypes.criticism && (
-                        <CriticismReports
-                            openReportCode={openCReportCode}
-                            onReportCodeHandled={() => setOpenCReportCode('')}
-                        />
-                    )}
-                    {!selectedReportTypes.grievance && !selectedReportTypes.suggestion && !selectedReportTypes.criticism && (
-                        <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-                            Select at least one report type above.
-                        </div>
-                    )}
+                    {/* Report Panels */}
+                    <div className="space-y-6">
+                        {selectedReportTypes.grievance && (
+                            <div className="rounded-2xl border border-border/80 bg-card overflow-hidden shadow-sm transition-all duration-200">
+                                <GrievanceWorkflowReports
+                                    onStatsUpdate={(next) => {
+                                        setWorkflowStats(next);
+                                        if (next?.total != null) {
+                                            setReportTypeCounts((prev) => ({ ...prev, grievance: Number(next.total) || 0 }));
+                                        }
+                                    }}
+                                    openReportCode={openGReportCode}
+                                    onReportCodeHandled={() => setOpenGReportCode('')}
+                                />
+                            </div>
+                        )}
+                        {selectedReportTypes.suggestion && (
+                            <div className="rounded-2xl border border-border/80 bg-card overflow-hidden shadow-sm transition-all duration-200">
+                                <SuggestionReports
+                                    openReportCode={openSReportCode}
+                                    onReportCodeHandled={() => setOpenSReportCode('')}
+                                />
+                            </div>
+                        )}
+                        {selectedReportTypes.criticism && (
+                            <div className="rounded-2xl border border-border/80 bg-card overflow-hidden shadow-sm transition-all duration-200">
+                                <CriticismReports
+                                    openReportCode={openCReportCode}
+                                    onReportCodeHandled={() => setOpenCReportCode('')}
+                                />
+                            </div>
+                        )}
+                        {!selectedReportTypes.grievance && !selectedReportTypes.suggestion && !selectedReportTypes.criticism && (
+                            <div className="rounded-2xl border border-dashed border-border bg-card/50 p-14 text-center">
+                                <div className="w-14 h-14 rounded-2xl bg-muted/60 flex items-center justify-center mx-auto mb-4 border border-border/60 shadow-inner">
+                                    <Shield className="h-7 w-7 text-muted-foreground" />
+                                </div>
+                                <h4 className="text-base font-semibold text-foreground">No Report Modules Selected</h4>
+                                <p className="text-xs text-muted-foreground mt-1.5 max-w-sm mx-auto">
+                                    Please select at least one report module from the top bar (Grievances, Suggestions, or Criticisms) to view records.
+                                </p>
+                                <Button
+                                    size="sm"
+                                    onClick={() => setSelectedReportTypes({ grievance: true, suggestion: false, criticism: false })}
+                                    className="mt-4 text-xs font-semibold"
+                                >
+                                    Enable Grievance Reports
+                                </Button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -2032,16 +2037,6 @@ const Grievances = () => {
                     targetStatus={statusChangePopup.targetStatus}
                     onClose={() => setStatusChangePopup(null)}
                     onStatusUpdated={handleStatusChangeComplete}
-                    userName={userName}
-                />
-            )}
-
-            {/* Query Workflow Popup */}
-            {queryPopupGrievance && (
-                <QueryPopup
-                    grievance={queryPopupGrievance}
-                    onClose={() => setQueryPopupGrievance(null)}
-                    onReportCreated={handleQueryReportCreated}
                     userName={userName}
                 />
             )}

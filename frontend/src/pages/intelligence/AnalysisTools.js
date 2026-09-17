@@ -4,16 +4,6 @@ import { Globe, Search, ArrowRight, ExternalLink, ShieldAlert } from 'lucide-rea
 
 const tools = [
   {
-    name: 'Global Search',
-    description:
-      'Run a single query across X, Instagram, Facebook and YouTube. Returns matching profiles and posts in one unified view — useful for quickly checking whether a handle, name, or keyword exists on any monitored platform.',
-    icon: Globe,
-    href: '/global-search',
-    color: 'from-blue-500 to-blue-600',
-    bg: 'bg-blue-50 dark:bg-blue-950/30',
-    border: 'border-blue-200 dark:border-blue-800',
-  },
-  {
     name: 'Create Web Intelligence',
     description:
       'Crawl and monitor open websites via Bluweb — preflight sites, run instant crawls, register sources, search documents, and explore entities and stories.',

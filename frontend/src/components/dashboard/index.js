@@ -1,9 +1,0 @@
-export { default as GlanceChat } from './GlanceChat';
-export { default as ManagedRibbonWidget } from './ManagedRibbonWidget';
-export { default as TodaysEventsWidget } from './TodaysEventsWidget';
-export { default as HeroKpis } from './HeroKpis';
-export { default as RecommendationList } from './RecommendationList';
-export { default as TopProfilesCard } from './TopProfilesCard';
-export { default as TopPostsCard } from './TopPostsCard';
-export { default as ModulePulseCharts } from './ModulePulseCharts';
-export { default as WorkflowKpiCard } from './WorkflowKpiCard';

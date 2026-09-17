@@ -9,19 +9,16 @@ import { cn } from '../../lib/utils';
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger
 } from '../ui/tooltip';
-import { XBrandLogo, FacebookBrandLogo, InstagramBrandLogo } from '../PlatformBrandIcon';
+import { XBrandLogo, FacebookBrandLogo, InstagramBrandLogo, TelegramBrandLogo } from '../PlatformBrandIcon';
+
+/** Icon lookup only — presentation, not a tenant catalog. */
 const PLATFORM_ICONS = {
   x: XBrandLogo,
   facebook: FacebookBrandLogo,
   instagram: InstagramBrandLogo,
+  telegram: TelegramBrandLogo,
+  youtube: Globe,
 };
-
-const DEFAULT_PLATFORMS = [
-  { id: 'all', label: 'All', icon: Globe },
-  { id: 'x', label: 'X', icon: XBrandLogo },
-  { id: 'facebook', label: 'Facebook', icon: FacebookBrandLogo },
-  { id: 'instagram', label: 'Instagram', icon: InstagramBrandLogo },
-];
 
 const normalizePlatformId = (value) => {
   const p = String(value || '').trim().toLowerCase();
@@ -29,12 +26,20 @@ const normalizePlatformId = (value) => {
   return p;
 };
 
-const platformLabel = (platform) => {
-  const p = normalizePlatformId(platform);
-  if (p === 'facebook') return 'Facebook';
-  if (p === 'instagram') return 'Instagram';
-  if (p === 'x') return 'X';
-  return p || 'Unknown';
+/** Normalize API rows or slug strings into { id, label }. Label comes from DB `name` when present. */
+const normalizeAllowedPlatform = (entry) => {
+  if (entry == null) return null;
+  if (typeof entry === 'string') {
+    const id = normalizePlatformId(entry);
+    return id ? { id, label: id } : null;
+  }
+  if (typeof entry === 'object') {
+    const id = normalizePlatformId(entry.slug || entry.id || entry.value);
+    if (!id) return null;
+    const label = String(entry.name || entry.label || '').trim() || id;
+    return { id, label };
+  }
+  return null;
 };
 
 const STATUS_FILTERS = [
@@ -69,23 +74,37 @@ export const GrievanceTopNavbar = ({
   onConfigureSettings,
 }) => {
   const visiblePlatforms = useMemo(() => {
-    const allowed = Array.isArray(allowedPlatforms)
-      ? [...new Set(allowedPlatforms.map(normalizePlatformId).filter(Boolean))]
-      : null;
+    // null = still loading; [] = loaded empty / failed — never invent platforms
+    if (!Array.isArray(allowedPlatforms)) return [];
 
-    // No restriction configured → show all known platforms
-    if (!allowed) return DEFAULT_PLATFORMS;
+    const seen = new Set();
+    const concrete = [];
+    for (const entry of allowedPlatforms) {
+      const row = normalizeAllowedPlatform(entry);
+      if (!row || seen.has(row.id)) continue;
+      seen.add(row.id);
+      concrete.push({
+        id: row.id,
+        label: row.label,
+        icon: PLATFORM_ICONS[row.id] || Globe,
+      });
+    }
+    if (!concrete.length) return [];
 
-    const allowedSet = new Set(allowed);
-    const platforms = DEFAULT_PLATFORMS.filter(
-      (p) => p.id === 'all' || allowedSet.has(p.id)
-    );
-
-    // Only keep "All" when more than one concrete platform is available
-    const concrete = platforms.filter((p) => p.id !== 'all');
     if (concrete.length <= 1) return concrete;
-    return platforms;
+    return [{ id: 'all', label: 'All', icon: Globe }, ...concrete];
   }, [allowedPlatforms]);
+
+  const labelForPlatform = useMemo(() => {
+    const map = new Map();
+    for (const p of visiblePlatforms) {
+      if (p.id !== 'all') map.set(p.id, p.label);
+    }
+    return (platform) => {
+      const id = normalizePlatformId(platform);
+      return map.get(id) || id || 'Unknown';
+    };
+  }, [visiblePlatforms]);
 
   const platformSubtitle = useMemo(() => {
     const names = visiblePlatforms
@@ -337,37 +356,6 @@ export const GrievanceTopNavbar = ({
                   </button>
                 );
               })}
-              {(canViewCriticism || canViewSuggestion) && (
-                <span className="hidden sm:inline w-px h-4 bg-border mx-0.5" />
-              )}
-              {canViewCriticism && (
-                <button
-                  type="button"
-                  onClick={() => onStatusChange?.('criticism')}
-                  className={cn(
-                    'inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium',
-                    activeStatus === 'criticism'
-                      ? 'border-rose-500 bg-rose-50 text-rose-900'
-                      : 'border-border text-muted-foreground hover:bg-muted/50'
-                  )}
-                >
-                  Criticism
-                </button>
-              )}
-              {canViewSuggestion && (
-                <button
-                  type="button"
-                  onClick={() => onStatusChange?.('suggestion')}
-                  className={cn(
-                    'inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium',
-                    activeStatus === 'suggestion'
-                      ? 'border-violet-500 bg-violet-50 text-violet-900'
-                      : 'border-border text-muted-foreground hover:bg-muted/50'
-                  )}
-                >
-                  Suggestion
-                </button>
-              )}
             </div>
 
             {typeof onSearchChange === 'function' && (
@@ -432,7 +420,7 @@ export const GrievanceTopNavbar = ({
                       <button
                         key={source.id || source.handle}
                         type="button"
-                        title={`${source.display_name || source.handle} · ${platformLabel(source.platform)}`}
+                        title={`${source.display_name || source.handle} · ${labelForPlatform(source.platform)}`}
                         onClick={() => onHandleChange?.(active ? null : source.handle)}
                         className={cn(
                           'inline-flex max-w-[160px] shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-left transition-colors',
@@ -552,7 +540,7 @@ export const GrievanceTopNavbar = ({
                               {source.display_name || source.handle}
                             </p>
                             <p className="truncate text-[10px] text-muted-foreground">
-                              {platformLabel(source.platform)} ·{' '}
+                              {labelForPlatform(source.platform)} ·{' '}
                               {source.total_grievances || 0} items
                             </p>
                           </div>

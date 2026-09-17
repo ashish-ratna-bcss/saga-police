@@ -2,7 +2,6 @@ const axios = require('axios');
 const logger = require('../../lib/logger');
 
 const OCR_BASE_URL = (process.env.OCR_SERVICE_URL || 'http://98.86.63.69:8000').replace(/\/$/, '');
-const OCR_TIMEOUT_MS = Math.max(5000, Number(process.env.OCR_TIMEOUT_MS) || 60000);
 const OCR_MAX_ATTEMPTS = Math.max(1, Number(process.env.OCR_MAX_ATTEMPTS) || 3);
 
 /**
@@ -73,7 +72,6 @@ async function extractOcr(imageUrl, { postId = 'unknown' } = {}) {
         `${OCR_BASE_URL}/extract`,
         { image_base64: base64Image },
         {
-          timeout: OCR_TIMEOUT_MS,
           headers: {
             'Content-Type': 'application/json',
           },

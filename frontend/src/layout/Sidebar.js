@@ -19,6 +19,7 @@ import {
   Globe,
   ScrollText,
   Eye,
+  Search,
 } from 'lucide-react';
 import { AlertService } from '../api';
 import { cn } from '../lib/utils';
@@ -42,6 +43,7 @@ const ICONS = {
   HelpCircle,
   Globe,
   ScrollText,
+  Search,
 };
 
 const formatBadgeCount = (n) => {
