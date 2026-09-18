@@ -15,11 +15,40 @@ const toPublicSession = (row) => {
   };
 };
 
-const findActiveSession = async (userId) =>
-  prisma.auth_sessions.findFirst({
-    where: { user_id: userId, revoked_at: null },
+const { jwtExpiresInToMs } = require('../../config/env');
+
+const findActiveSession = async (userId) => {
+  let maxAgeMs = 24 * 60 * 60 * 1000;
+  try {
+    maxAgeMs = jwtExpiresInToMs();
+  } catch {
+    // fallback 24 hours
+  }
+  const cutoff = new Date(Date.now() - maxAgeMs);
+
+  // Auto-revoke expired sessions older than the token lifetime so they don't block login
+  try {
+    await prisma.auth_sessions.updateMany({
+      where: {
+        user_id: userId,
+        revoked_at: null,
+        created_at: { lt: cutoff },
+      },
+      data: { revoked_at: new Date() },
+    });
+  } catch {
+    // best-effort cleanup
+  }
+
+  return prisma.auth_sessions.findFirst({
+    where: {
+      user_id: userId,
+      revoked_at: null,
+      created_at: { gte: cutoff },
+    },
     orderBy: { created_at: 'desc' },
   });
+};
 
 const createSession = async (userId, req) => {
   const meta = requestMeta(req);

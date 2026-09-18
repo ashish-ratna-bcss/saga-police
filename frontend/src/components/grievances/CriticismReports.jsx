@@ -72,25 +72,7 @@ const fmtNum = (n) => {
     return String(n);
 };
 
-const toApiFilesUrl = (rawUrl) => {
-    if (!rawUrl) return '';
-    const value = String(rawUrl).trim();
-    if (!value) return '';
 
-    const rewritePath = (pathname) => (pathname.startsWith('/files/') ? `/api${pathname}` : pathname);
-
-    if (value.startsWith('/')) {
-        return value.startsWith('/files/') ? `${BACKEND_URL}${rewritePath(value)}` : value;
-    }
-
-    try {
-        const parsed = new URL(value);
-        parsed.pathname = rewritePath(parsed.pathname);
-        return parsed.toString();
-    } catch {
-        return value;
-    }
-};
 
 const platformIcons = {
     x: XBrandLogo,

@@ -103,7 +103,16 @@ const login = async (req, res) => {
 
 const logout = async (req, res) => {
   try {
-    const token = readAuthCookie(req);
+    let token = readAuthCookie(req);
+    if (!token && req?.headers?.authorization) {
+      const parts = req.headers.authorization.split(' ');
+      token = parts.length === 2 && parts[0] === 'Bearer' ? parts[1] : req.headers.authorization;
+    }
+    if (!token && req?.cookies) {
+      const tokenKey = Object.keys(req.cookies).find((k) => k === 'token' || k.startsWith('token_'));
+      if (tokenKey) token = req.cookies[tokenKey];
+    }
+
     let sid = null;
     let userId = null;
     if (token) {
@@ -112,10 +121,20 @@ const logout = async (req, res) => {
         sid = decoded.sid || null;
         userId = decoded.user_id || null;
       } catch {
-        // ignore invalid token on logout
+        // If token is expired, decode payload anyway so the session in DB is revoked!
+        try {
+          const decoded = jwt.decode(token);
+          if (decoded && typeof decoded === 'object') {
+            sid = decoded.sid || null;
+            userId = decoded.user_id || null;
+          }
+        } catch {
+          // ignore
+        }
       }
     }
     if (sid) await revokeSession(sid);
+    if (userId) await revokeOtherSessions(userId, null);
 
     if (userId) {
       const user = await findUserWithRole({ id: userId });

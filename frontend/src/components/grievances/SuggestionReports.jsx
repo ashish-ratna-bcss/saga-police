@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import api, { BACKEND_URL } from '../../lib/api';
-import { isPublicFileReachable, resolvePublicAssetUrl } from '../../lib/publicAssetUrl';
+import { isPublicFileReachable } from '../../lib/publicAssetUrl';
+import { toApiFilesUrl } from '../../utils/fileUrl';
 import { toast } from 'sonner';
 import {
     Download, Loader2, ExternalLink, RefreshCw, ChevronDown, ChevronUp,
@@ -65,25 +66,7 @@ const fmtRelativeTime = (date) => {
     return fmtDate(date);
 };
 
-const toApiFilesUrl = (rawUrl) => {
-    if (!rawUrl) return '';
-    const value = String(rawUrl).trim();
-    if (!value) return '';
 
-    const rewritePath = (pathname) => (pathname.startsWith('/files/') ? `/api${pathname}` : pathname);
-
-    if (value.startsWith('/')) {
-        return value.startsWith('/files/') ? `${BACKEND_URL}${rewritePath(value)}` : value;
-    }
-
-    try {
-        const parsed = new URL(value);
-        parsed.pathname = rewritePath(parsed.pathname);
-        return parsed.toString();
-    } catch {
-        return value;
-    }
-};
 
 const platformIcons = {
     x: XBrandLogo,

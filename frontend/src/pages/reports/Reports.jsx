@@ -25,6 +25,7 @@ import {
   Zap,
 } from 'lucide-react';
 import api from '../../lib/api';
+import { toApiFilesUrl } from '../../utils/fileUrl';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
@@ -399,7 +400,7 @@ const FormalReportsCatalog = () => {
                     ) : null}
                     {selected.report_pdf_url ? (
                       <Button asChild variant="outline" size="sm" className="h-7 gap-1">
-                        <a href={selected.report_pdf_url} target="_blank" rel="noreferrer">
+                        <a href={toApiFilesUrl(selected.report_pdf_url)} target="_blank" rel="noreferrer">
                           <Download className="h-3 w-3" />
                           PDF
                         </a>

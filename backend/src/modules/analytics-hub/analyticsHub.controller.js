@@ -2,6 +2,7 @@ const logger = require('../../lib/logger');
 const {
   getOverview,
   getEventsAnalytics,
+  getEventDetails,
   getAlertsAnalytics,
   getGrievancesAnalytics,
   getProfilesAnalytics,
@@ -12,6 +13,7 @@ const wrap = (fn, label) => async (req, res) => {
     const data = await fn({
       range: req.query.range,
       platform: req.query.platform,
+      event_id: req.query.event_id || req.params.id,
       db: req.tenantPrisma,
     });
     return res.json(data);
@@ -26,6 +28,7 @@ const wrap = (fn, label) => async (req, res) => {
 module.exports = {
   getOverviewAnalytics: wrap(getOverview, 'overview'),
   getEventsAnalyticsHandler: wrap(getEventsAnalytics, 'events'),
+  getEventDetailsHandler: wrap(getEventDetails, 'event-details'),
   getAlertsAnalyticsHandler: wrap(getAlertsAnalytics, 'alerts'),
   getGrievancesAnalyticsHandler: wrap(getGrievancesAnalytics, 'grievances'),
   getProfilesAnalyticsHandler: wrap(getProfilesAnalytics, 'profiles'),

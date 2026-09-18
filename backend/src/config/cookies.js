@@ -67,6 +67,13 @@ const deleteAuthCookie = (res, req) => {
   res.clearCookie(cookieName(req), opts);
   // Clear legacy unscoped name if present (pre–port-scoped cookies)
   res.clearCookie(BASE_NAME, opts);
+  if (req?.cookies) {
+    Object.keys(req.cookies).forEach((c) => {
+      if (c.startsWith(BASE_NAME)) {
+        res.clearCookie(c, opts);
+      }
+    });
+  }
 };
 
 module.exports = {
