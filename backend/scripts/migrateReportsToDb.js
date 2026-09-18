@@ -9,6 +9,11 @@ async function migrate() {
 
   for (const dbName of dbs) {
     const p = getTenantPrisma(dbName);
+    try {
+      await p.$executeRawUnsafe('ALTER TABLE social_media_grievance_reports ADD COLUMN IF NOT EXISTS pdf_base64 TEXT;');
+    } catch (e) {
+      console.warn(`[${dbName}] alter table note:`, e.message);
+    }
     const reports = await p.social_media_grievance_reports.findMany();
     console.log(`[${dbName}] Found ${reports.length} reports`);
 
