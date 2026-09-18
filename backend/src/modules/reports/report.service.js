@@ -45,7 +45,7 @@ const toFormalReportShape = (row) => {
     content_summary: row.post_description || row.message || '',
     media_links: asArray(row.media_urls),
     post_link: row.post_link || null,
-    report_pdf_url: row.report_pdf_url || null,
+    report_pdf_url: row.report_pdf_url || (row.pdf_base64 ? `/api/reports/${row.id}/pdf` : null),
     informed_to: asObject(row.informed_to),
     generated_at: row.created_at || row.shared_at || null,
     created_at: row.created_at,

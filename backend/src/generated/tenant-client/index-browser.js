@@ -268,6 +268,7 @@ exports.Prisma.Social_media_grievance_reportsScalarFieldEnum = {
   closed_at: 'closed_at',
   escalated_at: 'escalated_at',
   report_pdf_url: 'report_pdf_url',
+  pdf_base64: 'pdf_base64',
   created_at: 'created_at',
   updated_at: 'updated_at'
 };

@@ -192,6 +192,78 @@ const generatePdf =
     }
   };
 
+const getReportPdf = async (req, res) => {
+  try {
+    let prisma = req.tenantPrisma;
+    const idOrCode = req.params.id;
+
+    if (!prisma) {
+      const { listTenantDbNames, getTenantPrisma } = require('../../lib/tenantDatabase.service');
+      const dbs = await listTenantDbNames();
+      for (const dbName of dbs) {
+        const tp = getTenantPrisma(dbName);
+        const exists = await tp.social_media_grievance_reports.findFirst({
+          where: { OR: [{ id: idOrCode }, { unique_code: idOrCode }] },
+          select: { id: true },
+        });
+        if (exists) {
+          prisma = tp;
+          break;
+        }
+      }
+    }
+
+    if (!prisma) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+
+    const report = await prisma.social_media_grievance_reports.findFirst({
+      where: { OR: [{ id: idOrCode }, { unique_code: idOrCode }] },
+    });
+
+    if (!report) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+
+    let pdfBuffer = null;
+    if (report.pdf_base64) {
+      pdfBuffer = Buffer.from(report.pdf_base64, 'base64');
+    } else if (report.meta?.pdf_base64) {
+      pdfBuffer = Buffer.from(report.meta.pdf_base64, 'base64');
+    }
+
+    // If not in DB yet (e.g. legacy report), generate and save directly to DB table
+    if (!pdfBuffer) {
+      const { generateReportPdf } = require('./grievance.report.pdf');
+      await generateReportPdf(report.report_type, report.id, { db: prisma, req });
+      const updated = await prisma.social_media_grievance_reports.findUnique({
+        where: { id: report.id },
+      });
+      if (updated?.pdf_base64) {
+        pdfBuffer = Buffer.from(updated.pdf_base64, 'base64');
+      } else if (updated?.meta?.pdf_base64) {
+        pdfBuffer = Buffer.from(updated.meta.pdf_base64, 'base64');
+      }
+    }
+
+    if (!pdfBuffer) {
+      return res.status(404).json({ error: 'Report PDF data unavailable' });
+    }
+
+    const safeName = (report.unique_code || report.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="Report_${safeName}.pdf"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    if (req.method === 'HEAD') {
+      return res.status(200).end();
+    }
+    return res.end(pdfBuffer);
+  } catch (error) {
+    logger.error('[Grievances] getReportPdf error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to stream report PDF' });
+  }
+};
+
 module.exports = {
   createGrievanceReport: createReport(reportService.REPORT_TYPES.grievance),
   shareGrievanceReport: shareReport(reportService.REPORT_TYPES.grievance),
@@ -201,6 +273,7 @@ module.exports = {
   getGrievanceReport: getReport(reportService.REPORT_TYPES.grievance),
   listGrievanceReports: listReports(reportService.REPORT_TYPES.grievance),
   generateGrievanceReportPdf: generatePdf(reportService.REPORT_TYPES.grievance),
+  getReportPdf,
 
   createSuggestionReport: createReport(reportService.REPORT_TYPES.suggestion),
   shareSuggestionReport: shareReport(reportService.REPORT_TYPES.suggestion),

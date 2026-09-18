@@ -10152,6 +10152,7 @@ export namespace Prisma {
     closed_at: Date | null
     escalated_at: Date | null
     report_pdf_url: string | null
+    pdf_base64: string | null
     created_at: Date | null
     updated_at: Date | null
   }
@@ -10178,6 +10179,7 @@ export namespace Prisma {
     closed_at: Date | null
     escalated_at: Date | null
     report_pdf_url: string | null
+    pdf_base64: string | null
     created_at: Date | null
     updated_at: Date | null
   }
@@ -10212,6 +10214,7 @@ export namespace Prisma {
     closed_at: number
     escalated_at: number
     report_pdf_url: number
+    pdf_base64: number
     created_at: number
     updated_at: number
     _all: number
@@ -10240,6 +10243,7 @@ export namespace Prisma {
     closed_at?: true
     escalated_at?: true
     report_pdf_url?: true
+    pdf_base64?: true
     created_at?: true
     updated_at?: true
   }
@@ -10266,6 +10270,7 @@ export namespace Prisma {
     closed_at?: true
     escalated_at?: true
     report_pdf_url?: true
+    pdf_base64?: true
     created_at?: true
     updated_at?: true
   }
@@ -10300,6 +10305,7 @@ export namespace Prisma {
     closed_at?: true
     escalated_at?: true
     report_pdf_url?: true
+    pdf_base64?: true
     created_at?: true
     updated_at?: true
     _all?: true
@@ -10407,6 +10413,7 @@ export namespace Prisma {
     closed_at: Date | null
     escalated_at: Date | null
     report_pdf_url: string | null
+    pdf_base64: string | null
     created_at: Date
     updated_at: Date
     _count: Social_media_grievance_reportsCountAggregateOutputType | null
@@ -10458,6 +10465,7 @@ export namespace Prisma {
     closed_at?: boolean
     escalated_at?: boolean
     report_pdf_url?: boolean
+    pdf_base64?: boolean
     created_at?: boolean
     updated_at?: boolean
   }, ExtArgs["result"]["social_media_grievance_reports"]>
@@ -10492,6 +10500,7 @@ export namespace Prisma {
     closed_at?: boolean
     escalated_at?: boolean
     report_pdf_url?: boolean
+    pdf_base64?: boolean
     created_at?: boolean
     updated_at?: boolean
   }, ExtArgs["result"]["social_media_grievance_reports"]>
@@ -10526,6 +10535,7 @@ export namespace Prisma {
     closed_at?: boolean
     escalated_at?: boolean
     report_pdf_url?: boolean
+    pdf_base64?: boolean
     created_at?: boolean
     updated_at?: boolean
   }, ExtArgs["result"]["social_media_grievance_reports"]>
@@ -10560,11 +10570,12 @@ export namespace Prisma {
     closed_at?: boolean
     escalated_at?: boolean
     report_pdf_url?: boolean
+    pdf_base64?: boolean
     created_at?: boolean
     updated_at?: boolean
   }
 
-  export type social_media_grievance_reportsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "report_type" | "unique_code" | "grievance_id" | "platform" | "status" | "category" | "complaint_phone" | "profile_id" | "profile_link" | "post_link" | "post_date" | "post_description" | "remarks" | "message" | "posted_by" | "engagement" | "informed_to" | "created_by" | "media_urls" | "media_s3_urls" | "status_history" | "meta" | "shared_at" | "shared_via" | "action_taken_at" | "closed_at" | "escalated_at" | "report_pdf_url" | "created_at" | "updated_at", ExtArgs["result"]["social_media_grievance_reports"]>
+  export type social_media_grievance_reportsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "report_type" | "unique_code" | "grievance_id" | "platform" | "status" | "category" | "complaint_phone" | "profile_id" | "profile_link" | "post_link" | "post_date" | "post_description" | "remarks" | "message" | "posted_by" | "engagement" | "informed_to" | "created_by" | "media_urls" | "media_s3_urls" | "status_history" | "meta" | "shared_at" | "shared_via" | "action_taken_at" | "closed_at" | "escalated_at" | "report_pdf_url" | "pdf_base64" | "created_at" | "updated_at", ExtArgs["result"]["social_media_grievance_reports"]>
 
   export type $social_media_grievance_reportsPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     name: "social_media_grievance_reports"
@@ -10599,6 +10610,7 @@ export namespace Prisma {
       closed_at: Date | null
       escalated_at: Date | null
       report_pdf_url: string | null
+      pdf_base64: string | null
       created_at: Date
       updated_at: Date
     }, ExtArgs["result"]["social_media_grievance_reports"]>
@@ -11053,6 +11065,7 @@ export namespace Prisma {
     readonly closed_at: FieldRef<"social_media_grievance_reports", 'DateTime'>
     readonly escalated_at: FieldRef<"social_media_grievance_reports", 'DateTime'>
     readonly report_pdf_url: FieldRef<"social_media_grievance_reports", 'String'>
+    readonly pdf_base64: FieldRef<"social_media_grievance_reports", 'String'>
     readonly created_at: FieldRef<"social_media_grievance_reports", 'DateTime'>
     readonly updated_at: FieldRef<"social_media_grievance_reports", 'DateTime'>
   }
@@ -22825,6 +22838,7 @@ export namespace Prisma {
     closed_at: 'closed_at',
     escalated_at: 'escalated_at',
     report_pdf_url: 'report_pdf_url',
+    pdf_base64: 'pdf_base64',
     created_at: 'created_at',
     updated_at: 'updated_at'
   };
@@ -23919,6 +23933,7 @@ export namespace Prisma {
     closed_at?: DateTimeNullableFilter<"social_media_grievance_reports"> | Date | string | null
     escalated_at?: DateTimeNullableFilter<"social_media_grievance_reports"> | Date | string | null
     report_pdf_url?: StringNullableFilter<"social_media_grievance_reports"> | string | null
+    pdf_base64?: StringNullableFilter<"social_media_grievance_reports"> | string | null
     created_at?: DateTimeFilter<"social_media_grievance_reports"> | Date | string
     updated_at?: DateTimeFilter<"social_media_grievance_reports"> | Date | string
   }
@@ -23953,6 +23968,7 @@ export namespace Prisma {
     closed_at?: SortOrderInput | SortOrder
     escalated_at?: SortOrderInput | SortOrder
     report_pdf_url?: SortOrderInput | SortOrder
+    pdf_base64?: SortOrderInput | SortOrder
     created_at?: SortOrder
     updated_at?: SortOrder
   }
@@ -23991,6 +24007,7 @@ export namespace Prisma {
     closed_at?: DateTimeNullableFilter<"social_media_grievance_reports"> | Date | string | null
     escalated_at?: DateTimeNullableFilter<"social_media_grievance_reports"> | Date | string | null
     report_pdf_url?: StringNullableFilter<"social_media_grievance_reports"> | string | null
+    pdf_base64?: StringNullableFilter<"social_media_grievance_reports"> | string | null
     created_at?: DateTimeFilter<"social_media_grievance_reports"> | Date | string
     updated_at?: DateTimeFilter<"social_media_grievance_reports"> | Date | string
   }, "id" | "unique_code" | "report_type_grievance_id">
@@ -24025,6 +24042,7 @@ export namespace Prisma {
     closed_at?: SortOrderInput | SortOrder
     escalated_at?: SortOrderInput | SortOrder
     report_pdf_url?: SortOrderInput | SortOrder
+    pdf_base64?: SortOrderInput | SortOrder
     created_at?: SortOrder
     updated_at?: SortOrder
     _count?: social_media_grievance_reportsCountOrderByAggregateInput
@@ -24065,6 +24083,7 @@ export namespace Prisma {
     closed_at?: DateTimeNullableWithAggregatesFilter<"social_media_grievance_reports"> | Date | string | null
     escalated_at?: DateTimeNullableWithAggregatesFilter<"social_media_grievance_reports"> | Date | string | null
     report_pdf_url?: StringNullableWithAggregatesFilter<"social_media_grievance_reports"> | string | null
+    pdf_base64?: StringNullableWithAggregatesFilter<"social_media_grievance_reports"> | string | null
     created_at?: DateTimeWithAggregatesFilter<"social_media_grievance_reports"> | Date | string
     updated_at?: DateTimeWithAggregatesFilter<"social_media_grievance_reports"> | Date | string
   }
@@ -25799,6 +25818,7 @@ export namespace Prisma {
     closed_at?: Date | string | null
     escalated_at?: Date | string | null
     report_pdf_url?: string | null
+    pdf_base64?: string | null
     created_at?: Date | string
     updated_at?: Date | string
   }
@@ -25833,6 +25853,7 @@ export namespace Prisma {
     closed_at?: Date | string | null
     escalated_at?: Date | string | null
     report_pdf_url?: string | null
+    pdf_base64?: string | null
     created_at?: Date | string
     updated_at?: Date | string
   }
@@ -25867,6 +25888,7 @@ export namespace Prisma {
     closed_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     escalated_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     report_pdf_url?: NullableStringFieldUpdateOperationsInput | string | null
+    pdf_base64?: NullableStringFieldUpdateOperationsInput | string | null
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -25901,6 +25923,7 @@ export namespace Prisma {
     closed_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     escalated_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     report_pdf_url?: NullableStringFieldUpdateOperationsInput | string | null
+    pdf_base64?: NullableStringFieldUpdateOperationsInput | string | null
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -25935,6 +25958,7 @@ export namespace Prisma {
     closed_at?: Date | string | null
     escalated_at?: Date | string | null
     report_pdf_url?: string | null
+    pdf_base64?: string | null
     created_at?: Date | string
     updated_at?: Date | string
   }
@@ -25969,6 +25993,7 @@ export namespace Prisma {
     closed_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     escalated_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     report_pdf_url?: NullableStringFieldUpdateOperationsInput | string | null
+    pdf_base64?: NullableStringFieldUpdateOperationsInput | string | null
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -26003,6 +26028,7 @@ export namespace Prisma {
     closed_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     escalated_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     report_pdf_url?: NullableStringFieldUpdateOperationsInput | string | null
+    pdf_base64?: NullableStringFieldUpdateOperationsInput | string | null
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -27879,6 +27905,7 @@ export namespace Prisma {
     closed_at?: SortOrder
     escalated_at?: SortOrder
     report_pdf_url?: SortOrder
+    pdf_base64?: SortOrder
     created_at?: SortOrder
     updated_at?: SortOrder
   }
@@ -27905,6 +27932,7 @@ export namespace Prisma {
     closed_at?: SortOrder
     escalated_at?: SortOrder
     report_pdf_url?: SortOrder
+    pdf_base64?: SortOrder
     created_at?: SortOrder
     updated_at?: SortOrder
   }
@@ -27931,6 +27959,7 @@ export namespace Prisma {
     closed_at?: SortOrder
     escalated_at?: SortOrder
     report_pdf_url?: SortOrder
+    pdf_base64?: SortOrder
     created_at?: SortOrder
     updated_at?: SortOrder
   }

@@ -7,12 +7,15 @@ const ctrl = require('./grievance.report.controller');
  * Mounted at legacy paths so the frontend does not change yet.
  */
 
-const withAuth = (router) => {
+const makeRouter = () => {
+  const router = express.Router();
+  router.get('/reports/:id/pdf', ctrl.getReportPdf);
+  router.head('/reports/:id/pdf', ctrl.getReportPdf);
   router.use(authorize({ pages: ['/grievances', '/unified-reports'] }));
   return router;
 };
 
-const grievanceWorkflowRoutes = withAuth(express.Router());
+const grievanceWorkflowRoutes = makeRouter();
 grievanceWorkflowRoutes.get('/reports', ctrl.listGrievanceReports);
 grievanceWorkflowRoutes.post('/reports', ctrl.createGrievanceReport);
 grievanceWorkflowRoutes.get('/reports/:id', ctrl.getGrievanceReport);
@@ -26,7 +29,7 @@ grievanceWorkflowRoutes.post('/contacts', ctrl.addContact);
 grievanceWorkflowRoutes.put('/contacts/:id', ctrl.updateContact);
 grievanceWorkflowRoutes.delete('/contacts/:id', ctrl.deleteContact);
 
-const suggestionRoutes = withAuth(express.Router());
+const suggestionRoutes = makeRouter();
 suggestionRoutes.get('/reports', ctrl.listSuggestionReports);
 suggestionRoutes.post('/reports', ctrl.createSuggestionReport);
 suggestionRoutes.get('/reports/:id', ctrl.getSuggestionReport);
@@ -34,7 +37,7 @@ suggestionRoutes.put('/reports/:id/share', ctrl.shareSuggestionReport);
 suggestionRoutes.post('/reports/:id/generate-pdf', ctrl.generateSuggestionReportPdf);
 suggestionRoutes.get('/contacts', ctrl.listContacts);
 
-const criticismRoutes = withAuth(express.Router());
+const criticismRoutes = makeRouter();
 criticismRoutes.get('/reports', ctrl.listCriticismReports);
 criticismRoutes.post('/reports', ctrl.createCriticismReport);
 criticismRoutes.get('/reports/:id', ctrl.getCriticismReport);
@@ -45,7 +48,7 @@ criticismRoutes.post('/contacts', ctrl.addContact);
 criticismRoutes.put('/contacts/:id', ctrl.updateContact);
 criticismRoutes.delete('/contacts/:id', ctrl.deleteContact);
 
-const queryRoutes = withAuth(express.Router());
+const queryRoutes = makeRouter();
 queryRoutes.get('/reports', ctrl.listQueryReports);
 queryRoutes.post('/reports', ctrl.createQueryReport);
 queryRoutes.get('/reports/:id', ctrl.getQueryReport);

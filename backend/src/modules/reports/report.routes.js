@@ -5,6 +5,12 @@ const reportService = require('./report.service');
 const { renderReportPdf } = require('./report.pdf.service');
 const { authorize } = require('../../middleware/auth.middleware');
 
+const ctrl = require('../grievances/grievance.report.controller');
+
+// Public endpoints to stream report PDF directly from DB table
+router.get('/:id/pdf', ctrl.getReportPdf);
+router.head('/:id/pdf', ctrl.getReportPdf);
+
 router.use(authorize({ pages: ['/reports', '/unified-reports', '/alerts', '/grievances'] }));
 
 /**
@@ -57,6 +63,7 @@ router.put('/:id', async (req, res) => {
 
 /**
  * POST /api/reports/:id/pdf — Render live HTML to PDF (template-driven notices).
+ * Stores rendered PDF directly in DB table social_media_grievance_reports.
  */
 router.post('/:id/pdf', async (req, res) => {
   try {
@@ -67,6 +74,33 @@ router.post('/:id/pdf', async (req, res) => {
 
     const serial = serialNumber || `report-${req.params.id}`;
     const pdf = await renderReportPdf({ headHtml, bodyHtml, templateHtml, serialNumber: serial });
+
+    // Store in DB table social_media_grievance_reports
+    const base64 = pdf.toString('base64');
+    if (req.tenantPrisma) {
+      try {
+        const existing = await req.tenantPrisma.social_media_grievance_reports.findFirst({
+          where: { OR: [{ id: String(req.params.id) }, { unique_code: String(req.params.id) }] },
+        });
+        if (existing) {
+          await req.tenantPrisma.social_media_grievance_reports.update({
+            where: { id: existing.id },
+            data: {
+              pdf_base64: base64,
+              report_pdf_url: `/api/reports/${existing.id}/pdf`,
+              meta: {
+                ...(existing.meta && typeof existing.meta === 'object' ? existing.meta : {}),
+                pdf_base64: base64,
+                pdf_size_bytes: pdf.length,
+                report_pdf_generated_at: new Date().toISOString(),
+              },
+            },
+          });
+        }
+      } catch (saveErr) {
+        logger.warn('[reports] Failed to cache notice PDF in DB:', saveErr.message);
+      }
+    }
 
     const safeName = String(serial).replace(/[^A-Za-z0-9_\-]/g, '_');
     res.setHeader('Content-Type', 'application/pdf');

@@ -210,6 +210,7 @@ model social_media_grievance_reports {
   closed_at        DateTime? @db.Timestamptz(6)
   escalated_at     DateTime? @db.Timestamptz(6)
   report_pdf_url   String?
+  pdf_base64       String?   @db.Text
   created_at       DateTime  @default(now()) @db.Timestamptz(6)
   updated_at       DateTime  @updatedAt @db.Timestamptz(6)
 

@@ -93,6 +93,69 @@ const reportStaticOptions = {
 app.use('/files', express.static(reportStorageDir, reportStaticOptions));
 app.use('/api/files', express.static(reportStorageDir, reportStaticOptions));
 
+// Fallback: If a PDF file is requested via /files or /api/files and is not on disk,
+// stream it directly from the database table social_media_grievance_reports
+const handleDbPdfFallback = async (req, res, next) => {
+  const match = req.path.match(/([^/]+)\.pdf$/i);
+  if (!match) return next();
+  try {
+    const rawFilename = match[1];
+    // Strip trailing timestamp if present (e.g. "G-X00001-18092026-1789468436900" -> "G-X00001-18092026")
+    const parts = rawFilename.split('-');
+    const potentialCode = parts.length > 2 ? parts.slice(0, -1).join('-') : rawFilename;
+
+    const { listTenantDbNames, getTenantPrisma } = require('./lib/tenantDatabase.service');
+    const dbs = await listTenantDbNames();
+    for (const dbName of dbs) {
+      const tp = getTenantPrisma(dbName);
+      const report = await tp.social_media_grievance_reports.findFirst({
+        where: {
+          OR: [
+            { id: rawFilename },
+            { unique_code: rawFilename },
+            { id: potentialCode },
+            { unique_code: potentialCode },
+            { report_pdf_url: { contains: rawFilename } },
+          ],
+        },
+      });
+
+      if (report) {
+        let pdfBuffer = null;
+        if (report.pdf_base64) {
+          pdfBuffer = Buffer.from(report.pdf_base64, 'base64');
+        } else if (report.meta?.pdf_base64) {
+          pdfBuffer = Buffer.from(report.meta.pdf_base64, 'base64');
+        } else {
+          const { generateReportPdf } = require('./modules/grievances/grievance.report.pdf');
+          await generateReportPdf(report.report_type, report.id, { db: tp, req });
+          const updated = await tp.social_media_grievance_reports.findUnique({
+            where: { id: report.id },
+          });
+          if (updated?.pdf_base64) {
+            pdfBuffer = Buffer.from(updated.pdf_base64, 'base64');
+          } else if (updated?.meta?.pdf_base64) {
+            pdfBuffer = Buffer.from(updated.meta.pdf_base64, 'base64');
+          }
+        }
+
+        if (pdfBuffer) {
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `inline; filename="${path.basename(req.path)}"`);
+          res.setHeader('Content-Length', pdfBuffer.length);
+          if (req.method === 'HEAD') return res.status(200).end();
+          return res.status(200).end(pdfBuffer);
+        }
+      }
+    }
+  } catch (fallbackErr) {
+    logger.warn(`[index] DB PDF fallback error for ${req.path}: ${fallbackErr.message}`);
+  }
+  next();
+};
+app.use('/files', handleDbPdfFallback);
+app.use('/api/files', handleDbPdfFallback);
+
 // Default login / branding assets: serve from frontend/public and a local
 // copy under storage/public so /blura_saga_logo.jpg never 404s on the API
 // when the UI accidentally prefixes BACKEND_URL.

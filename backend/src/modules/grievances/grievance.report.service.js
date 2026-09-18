@@ -57,8 +57,11 @@ const nextUniqueCode = async (reportType, platform = 'x', { db } = {}) => {
 
 const serializeReport = (row) => {
   const meta = asObject(row.meta);
+  const { pdf_base64, ...rest } = row;
   return serialize({
-    ...row,
+    ...rest,
+    report_pdf_url: row.report_pdf_url || (pdf_base64 ? `/api/reports/${row.id}/pdf` : null),
+    has_pdf: Boolean(pdf_base64 || meta.pdf_base64 || row.report_pdf_url),
     posted_by: asObject(row.posted_by),
     engagement: asObject(row.engagement),
     informed_to: asObject(row.informed_to),

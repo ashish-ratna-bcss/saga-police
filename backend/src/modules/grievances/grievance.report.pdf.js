@@ -173,13 +173,11 @@ const generateReportPdf = async (reportType, idOrCode, { db, req } = {}) => {
 
   report = await attachGrievanceContext(report, { db: prisma });
 
-  const folder = FOLDER_BY_TYPE[reportType] || 'grievance-reports';
-  const filename = `${report.unique_code || report.id}-${Date.now()}.pdf`;
-  const key = `${folder}/${filename}`;
-  const absPath = path.join(STORAGE_DIR, key);
-  fs.mkdirSync(path.dirname(absPath), { recursive: true });
+  // Stream directly from DB table — no local disk storage required
+  const base = publicBaseFromReq(req);
+  const pdfPath = `/api/reports/${encodeURIComponent(report.id)}/pdf`;
+  const pdfUrl = base ? `${base}${pdfPath}` : pdfPath;
 
-  const pdfUrl = buildPublicFileUrl(key, req);
   const [postQrImage, pdfQrImage] = await Promise.all([
     generateQrDataUrl(report.post_link, 120),
     generateQrDataUrl(pdfUrl, 120),
@@ -199,14 +197,17 @@ const generateReportPdf = async (reportType, idOrCode, { db, req } = {}) => {
   }
 
   const pdfBuffer = await renderHtmlToPdf(html);
-  fs.writeFileSync(absPath, pdfBuffer);
+  const pdfBase64 = pdfBuffer.toString('base64');
 
   await prisma.social_media_grievance_reports.update({
     where: { id: report.id },
     data: {
       report_pdf_url: pdfUrl,
+      pdf_base64: pdfBase64,
       meta: {
         ...asObject(report.meta),
+        pdf_base64: pdfBase64,
+        pdf_size_bytes: pdfBuffer.length,
         report_pdf_generated_at: new Date().toISOString(),
       },
     },

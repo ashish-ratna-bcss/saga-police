@@ -247,11 +247,16 @@ async function ensureOpsSchema(prisma) {
       closed_at TIMESTAMPTZ NULL,
       escalated_at TIMESTAMPTZ NULL,
       report_pdf_url TEXT NULL,
+      pdf_base64 TEXT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       CONSTRAINT social_media_grievance_reports_unique_code_key UNIQUE (unique_code),
       CONSTRAINT social_media_grievance_reports_type_grievance_key UNIQUE (report_type, grievance_id)
     )
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_grievance_reports ADD COLUMN IF NOT EXISTS pdf_base64 TEXT;
   `);
 
   await prisma.$executeRawUnsafe(`
