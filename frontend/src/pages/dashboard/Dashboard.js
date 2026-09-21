@@ -1585,7 +1585,122 @@ const OperationsDashboard = () => {
 };
 
 // ==========================================
-// 3. ROOT EXPORT COMPONENT
+// 3. SUPERADMIN CONSOLE
+// ==========================================
+const SuperadminView = ({ data, loading, refreshing, onRefresh }) => {
+  const admins = data?.admins || [];
+  return (
+    <div className="w-full space-y-5 pb-8 animate-in fade-in duration-300">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+        <div>
+          <h1 className="font-heading text-xl font-bold tracking-wide sm:text-2xl">
+            Superadmin console
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Manage admins, page access, and quotas — not operational alerts.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button asChild variant="outline" size="sm" className="gap-1.5">
+            <Link to="/users-management">
+              <UserPlus className="h-4 w-4" />
+              Admins
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={onRefresh}
+            disabled={refreshing}
+          >
+            {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-xs text-muted-foreground">Admins</p>
+          <p className="mt-1 text-2xl font-semibold">{data?.admins_total ?? 0}</p>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-xs text-muted-foreground">Total tenant users</p>
+          <p className="mt-1 text-2xl font-semibold">
+            {admins.reduce((s, a) => s + (a.users_count || 0), 0)}
+          </p>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-xs text-muted-foreground">Total profiles</p>
+          <p className="mt-1 text-2xl font-semibold">
+            {admins.reduce((s, a) => s + (a.profiles_count || 0), 0)}
+          </p>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border bg-card">
+        <div className="border-b px-4 py-3 text-sm font-medium">Admins &amp; quotas</div>
+        {loading ? (
+          <div className="flex justify-center py-16 text-muted-foreground">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        ) : admins.length === 0 ? (
+          <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+            No admins yet. Create one under Users.
+          </p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="border-b bg-muted/50 text-left text-[11px] uppercase text-muted-foreground">
+              <tr>
+                <th className="px-4 py-2.5">Admin</th>
+                <th className="px-4 py-2.5">Tenant DB</th>
+                <th className="px-4 py-2.5">Users</th>
+                <th className="px-4 py-2.5">Profiles</th>
+                <th className="px-4 py-2.5 text-right">Pages</th>
+              </tr>
+            </thead>
+            <tbody>
+              {admins.map((a) => (
+                <tr key={a.id} className="border-b last:border-0">
+                  <td className="px-4 py-3">
+                    <div className="font-medium">{a.full_name || a.name}</div>
+                    <div className="text-[11px] text-muted-foreground">{a.username}</div>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      <Database className="h-3.5 w-3.5" />
+                      {a.db_name || '—'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 tabular-nums">
+                    {a.users_count ?? 0}
+                    <span className="text-muted-foreground">
+                      /{a.max_users == null ? '∞' : a.max_users}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 tabular-nums">
+                    {a.profiles_count ?? 0}
+                    <span className="text-muted-foreground">
+                      /{a.max_profiles == null ? '∞' : a.max_profiles}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
+                    {(a.allowed_pages || []).length}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 4. ROOT EXPORT COMPONENT
 // ==========================================
 const Dashboard = () => {
   const { user } = useAuth();
