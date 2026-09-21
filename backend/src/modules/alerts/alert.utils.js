@@ -290,6 +290,8 @@ const buildWhere = (query = {}) => {
   const {
     status,
     risk_level,
+    virality_level,
+    virality,
     search,
     platform,
     startDate,
@@ -305,6 +307,14 @@ const buildWhere = (query = {}) => {
 
   if (risk_level && risk_level !== 'all') {
     where.risk_level = String(risk_level).toLowerCase();
+  }
+
+  const vLevel = normalizeViralityLevel(virality_level || virality);
+  if (vLevel && vLevel !== 'all') {
+    where.analysis_snapshot = {
+      path: ['virality_level'],
+      equals: vLevel,
+    };
   }
 
   if (platform && platform !== 'all') {

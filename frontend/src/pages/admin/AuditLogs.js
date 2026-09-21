@@ -37,11 +37,13 @@ import {
 import { format, isValid } from 'date-fns';
 import api from '../../lib/api';
 import { useToast } from "../../hooks/use-toast";
+import { AuditChangeCell, AuditDetailModal } from './AuditChangeViewer';
 
 const AuditLogs = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedLogForDetails, setSelectedLogForDetails] = useState(null);
   const [actionFilter, setActionFilter] = useState('all');
   const [resourceFilter, setResourceFilter] = useState('all');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
@@ -313,7 +315,9 @@ const AuditLogs = () => {
         (log.resource_type || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (log.tenant_label || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (log.tenant_db || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (JSON.stringify(log.details || {}).toLowerCase().includes(searchTerm.toLowerCase()));
+        (JSON.stringify(log.details || {}).toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (log.old_data && JSON.stringify(log.old_data).toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (log.new_data && JSON.stringify(log.new_data).toLowerCase().includes(searchTerm.toLowerCase()));
       
       const matchesAction = actionFilter === 'all' || log.action === actionFilter;
       const matchesResource = resourceFilter === 'all' || log.resource_type === resourceFilter;
@@ -563,19 +567,11 @@ const AuditLogs = () => {
                         <div>{log.device_label || '—'}</div>
                         <div>{log.ip || ''}</div>
                       </TableCell>
-                      <TableCell className="max-w-md text-xs">
-                        {(log.old_data || log.new_data) ? (
-                          <details>
-                            <summary className="cursor-pointer text-primary">View old / new</summary>
-                            <pre className="mt-2 max-h-40 overflow-auto rounded bg-muted p-2 whitespace-pre-wrap break-all">
-{JSON.stringify({ old: log.old_data, new: log.new_data }, null, 2)}
-                            </pre>
-                          </details>
-                        ) : (
-                          <div className="truncate" title={JSON.stringify(log.details || {})}>
-                            {JSON.stringify(log.details || {})}
-                          </div>
-                        )}
+                      <TableCell className="max-w-md py-3">
+                        <AuditChangeCell 
+                          log={log} 
+                          onOpenDetails={(item) => setSelectedLogForDetails(item)} 
+                        />
                       </TableCell>
                     </TableRow>
                   );
@@ -585,6 +581,12 @@ const AuditLogs = () => {
           </Table>
         </CardContent>
       </Card>
+
+      <AuditDetailModal
+        log={selectedLogForDetails}
+        isOpen={Boolean(selectedLogForDetails)}
+        onClose={() => setSelectedLogForDetails(null)}
+      />
     </div>
   );
 };

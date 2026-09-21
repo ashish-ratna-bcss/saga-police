@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { format, formatDistanceToNowStrict } from 'date-fns';
 import {
     Heart, MessageCircle, Repeat2, BarChart3, Bookmark,
-    BadgeCheck, Download, Loader2, FileText, ChevronDown, Share2, Eye, ExternalLink
+    BadgeCheck, Download, Loader2, FileText, ChevronDown, Share2, Eye, ExternalLink, Globe
 } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
@@ -18,6 +18,7 @@ import {
 import { normalizeMediaList } from '../AlertCards';
 import { cn } from '../../lib/utils';
 import { TelegramBrandLogo } from '../PlatformBrandIcon';
+import { AlertService } from '../../api';
 
 let activeInlineVideoElement = null;
 
@@ -60,6 +61,86 @@ const highlightMentions = (text) => {
         part.startsWith('@') || part.startsWith('#')
             ? <span key={i} className="text-[#1d9bf0] hover:underline cursor-pointer">{part}</span>
             : <span key={i}>{part}</span>
+    );
+};
+
+const GrievanceTextWithTranslate = ({
+    text,
+    className = '',
+    highlight = true,
+}) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [isTranslated, setIsTranslated] = useState(false);
+    const [translatedText, setTranslatedText] = useState('');
+    const [isTranslating, setIsTranslating] = useState(false);
+
+    if (!text) return null;
+
+    const shouldShowReadMore = text.length > 180 || (text.match(/\n/g) || []).length >= 3;
+    const displayText = isTranslated ? translatedText : text;
+
+    const handleTranslate = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (isTranslated) {
+            setIsTranslated(false);
+            return;
+        }
+        if (translatedText) {
+            setIsTranslated(true);
+            return;
+        }
+        setIsTranslating(true);
+        try {
+            const res = await AlertService.translate(text);
+            if (res?.data?.translatedText) {
+                setTranslatedText(res.data.translatedText);
+                setIsTranslated(true);
+            }
+        } catch (error) {
+            console.error('Translation failed:', error);
+        } finally {
+            setIsTranslating(false);
+        }
+    };
+
+    return (
+        <div className="space-y-1">
+            <div className={cn(
+                className,
+                !isExpanded ? 'line-clamp-4' : ''
+            )}>
+                {highlight ? highlightMentions(displayText) : displayText}
+            </div>
+            <div className="flex items-center gap-3 pt-0.5">
+                {shouldShowReadMore && (
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setIsExpanded(!isExpanded);
+                        }}
+                        className="text-[11px] font-medium text-primary hover:underline cursor-pointer"
+                    >
+                        {isExpanded ? 'Read less' : 'Read more'}
+                    </button>
+                )}
+                <button
+                    type="button"
+                    onClick={handleTranslate}
+                    disabled={isTranslating}
+                    className="text-[11px] font-medium text-primary hover:underline inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                >
+                    {isTranslating ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                        <Globe className="h-3 w-3" />
+                    )}
+                    <span>{isTranslated ? 'Show Original' : (isTranslating ? 'Translating...' : 'Translate')}</span>
+                </button>
+            </div>
+        </div>
     );
 };
 
@@ -578,7 +659,13 @@ const QuotedTweet = ({ context, getProxiedMediaUrl, onAction, grievance, onRetry
                 {qHandle && <span className="text-[13px] text-[#536471] dark:text-slate-400 truncate">@{qHandle}</span>}
             </div>
             {text ? (
-                <p className="text-[13px] text-[#0f1419] dark:text-slate-100 mt-1 whitespace-pre-wrap break-words">{highlightMentions(text)}</p>
+                <div className="mt-1">
+                    <GrievanceTextWithTranslate
+                        text={text}
+                        className="text-[13px] text-[#0f1419] dark:text-slate-100 whitespace-pre-wrap break-words"
+                        highlight={true}
+                    />
+                </div>
             ) : qUrl ? (
                 <a
                     href={qUrl}
@@ -637,8 +724,12 @@ const ParentTweet = ({ context, getProxiedMediaUrl, onAction, grievance, onRetry
                     </span>
                 </div>
                 {text ? (
-                    <div className="text-[15px] text-[#0f1419] dark:text-slate-100 leading-5 mt-1 whitespace-pre-wrap break-words">
-                        {highlightMentions(text)}
+                    <div className="mt-1">
+                        <GrievanceTextWithTranslate
+                            text={text}
+                            className="text-[15px] text-[#0f1419] dark:text-slate-100 leading-5 whitespace-pre-wrap break-words"
+                            highlight={true}
+                        />
                     </div>
                 ) : tweetUrl ? (
                     <a
@@ -693,7 +784,15 @@ const ParentFacebookPost = ({ context, getProxiedMediaUrl, onAction, grievance }
                     </div>
                 </div>
             </div>
-            {text && <div className="mt-3 text-[15px] text-[#050505] dark:text-slate-100 leading-5 whitespace-pre-wrap break-words">{highlightMentions(text)}</div>}
+            {text && (
+                <div className="mt-3">
+                    <GrievanceTextWithTranslate
+                        text={text}
+                        className="text-[15px] text-[#050505] dark:text-slate-100 leading-5 whitespace-pre-wrap break-words"
+                        highlight={true}
+                    />
+                </div>
+            )}
             {media.length > 0 && <div className="mt-3 -mx-4 opacity-80"><FacebookMediaGrid media={media} getProxiedMediaUrl={getProxiedMediaUrl} /></div>}
         </div>
     );
@@ -804,7 +903,15 @@ const XLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState = {}, 
                             <span className="text-[#1d9bf0] hover:underline cursor-pointer">@{(ctx.in_reply_to.posted_by.handle || '').replace('@', '')}</span>
                         </div>
                     )}
-                    {text && <div className="text-[15px] text-[#0f1419] dark:text-slate-100 leading-5 mt-1 whitespace-pre-wrap break-words">{highlightMentions(text)}</div>}
+                    {text && (
+                        <div className="mt-1">
+                            <GrievanceTextWithTranslate
+                                text={text}
+                                className="text-[15px] text-[#0f1419] dark:text-slate-100 leading-5 whitespace-pre-wrap break-words"
+                                highlight={true}
+                            />
+                        </div>
+                    )}
                     {media.length > 0 && <MediaGrid media={media} getProxiedMediaUrl={getProxiedMediaUrl} />}
                     {/* Quoted tweet — shown below the main tweet content */}
                     <QuotedTweet context={ctx.quoted} getProxiedMediaUrl={getProxiedMediaUrl} onAction={onAction} grievance={grievance} onRetryEnrich={handleRetryEnrich} enriching={enriching} />
@@ -940,7 +1047,15 @@ const FacebookLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
                         showDownload={normalizeMediaList(media).length > 0}
                     />
                 </div>
-                {text && <div className="mt-3 text-[15px] text-[#050505] dark:text-slate-100 leading-5 whitespace-pre-wrap break-words">{highlightMentions(text)}</div>}
+                {text && (
+                    <div className="mt-3">
+                        <GrievanceTextWithTranslate
+                            text={text}
+                            className="text-[15px] text-[#050505] dark:text-slate-100 leading-5 whitespace-pre-wrap break-words"
+                            highlight={true}
+                        />
+                    </div>
+                )}
                 {media.length > 0 && <div className="mt-3 -mx-4"><FacebookMediaGrid media={media} getProxiedMediaUrl={getProxiedMediaUrl} /></div>}
                 {totalReactions > 0 && (
                     <div className="flex items-center justify-between px-1 py-2.5 border-b border-[#ced0d4]">
@@ -1039,8 +1154,12 @@ const TelegramLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
             </div>
 
             {text ? (
-                <div className="mt-3 text-[15px] text-[#050505] dark:text-slate-100 leading-5 whitespace-pre-wrap break-words">
-                    {highlightMentions(text)}
+                <div className="mt-3">
+                    <GrievanceTextWithTranslate
+                        text={text}
+                        className="text-[15px] text-[#050505] dark:text-slate-100 leading-5 whitespace-pre-wrap break-words"
+                        highlight={true}
+                    />
                 </div>
             ) : (
                 <div className="mt-3 rounded-lg border border-dashed border-sky-200 bg-sky-50/60 px-3 py-2.5 text-[13px] text-sky-800">
@@ -1157,8 +1276,12 @@ const InstagramLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadStat
                     />
                 </div>
                 {text && (
-                    <div className="mt-3 text-[15px] text-[#050505] dark:text-slate-100 leading-5 whitespace-pre-wrap break-words">
-                        {highlightMentions(text)}
+                    <div className="mt-3">
+                        <GrievanceTextWithTranslate
+                            text={text}
+                            className="text-[15px] text-[#050505] dark:text-slate-100 leading-5 whitespace-pre-wrap break-words"
+                            highlight={true}
+                        />
                     </div>
                 )}
                 {media.length > 0 && (
@@ -1262,7 +1385,13 @@ const WhatsAppLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
                             })}
                         </div>
                     )}
-                    {text && <p className="text-[14.2px] text-[#111b21] leading-[19px] whitespace-pre-wrap break-words">{text}</p>}
+                    {text && (
+                        <GrievanceTextWithTranslate
+                            text={text}
+                            className="text-[14.2px] text-[#111b21] dark:text-slate-100 leading-[19px] whitespace-pre-wrap break-words"
+                            highlight={false}
+                        />
+                    )}
                     <div className="flex items-center justify-end gap-1 mt-1">
                         <span className="text-[11px] text-[#667781]">{grievance.post_date ? format(new Date(grievance.post_date), 'h:mm a') : ''}</span>
                     </div>

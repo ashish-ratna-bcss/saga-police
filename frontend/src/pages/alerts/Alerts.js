@@ -103,6 +103,8 @@ export default function Alerts() {
   const resetRiskViralityFilters = useCallback(() => {
     setDraftRiskFilter('all');
     setDraftViralityFilter('all');
+    setRiskFilter('all');
+    setViralityFilter('all');
   }, []);
   const [totalResults, setTotalResults] = useState(0);
   const [alertStats, setAlertStats] = useState(null);
@@ -1741,6 +1743,14 @@ export default function Alerts() {
       ) {
         return false;
       }
+      if (riskFilter !== 'all') {
+        const riskLevel = String(a?.risk_level || a?.severity || '').toLowerCase();
+        if (riskLevel !== riskFilter) return false;
+      }
+      if (viralityFilter !== 'all') {
+        const virality = String(a?.virality_level || '').toLowerCase();
+        if (virality !== viralityFilter) return false;
+      }
       return true;
     });
 
@@ -1904,7 +1914,7 @@ export default function Alerts() {
     const combined = [...filteredInvestigated, ...filteredRegular]
       .sort((a, b) => getAlertTime(b) - getAlertTime(a));
     return applyInstagramContentFilter(combined);
-  }, [alerts, investigatedAlerts, filterInvestigatedAlerts, platformFilter, normalizePlatform, instagramContentFilter, instagramStoriesStatusFilter, dateRange.start, dateRange.end, capturedStories, recentStories, isStories24hView, isCapturedStoriesView, toStartOfSelectedDay, toEndOfSelectedDay]);
+  }, [alerts, investigatedAlerts, filterInvestigatedAlerts, platformFilter, normalizePlatform, riskFilter, viralityFilter, instagramContentFilter, instagramStoriesStatusFilter, dateRange.start, dateRange.end, capturedStories, recentStories, isStories24hView, isCapturedStoriesView, toStartOfSelectedDay, toEndOfSelectedDay]);
 
   // Detect if search query is a URL
   const isUrlQuery = (query) => {

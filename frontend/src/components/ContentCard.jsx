@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from 'react';
-import { ExternalLink, Youtube, Facebook, Instagram, Download, Repeat, Heart, MessageSquare, UserPlus, Play, ThumbsUp, Share2, Eye, Copy, Check, MapPin } from 'lucide-react';
+import { ExternalLink, Youtube, Facebook, Instagram, Download, Repeat, Heart, MessageSquare, UserPlus, Play, ThumbsUp, Share2, Eye, Copy, Check, MapPin, Globe, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import ReactPlayer from 'react-player';
 import { VideoPlayer } from './AlertCards';
 import { TelegramBrandLogo } from './PlatformBrandIcon';
+import { AlertService } from '../api';
 
 /* ──────────────────────────────────────────────
    X (𝕏) Logo SVG — official glyph
@@ -408,7 +409,36 @@ const URLCard = ({ card, platformTheme }) => {
 const ContentCard = ({ item, index, onDownload, onAddSource }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isTranslated, setIsTranslated] = useState(false);
+  const [translatedText, setTranslatedText] = useState('');
+  const [isTranslating, setIsTranslating] = useState(false);
   const theme = PLATFORM_THEMES[item.platform] || DEFAULT_THEME;
+
+  const handleTranslate = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isTranslated) {
+      setIsTranslated(false);
+      return;
+    }
+    if (translatedText) {
+      setIsTranslated(true);
+      return;
+    }
+    if (!item?.text) return;
+    setIsTranslating(true);
+    try {
+      const res = await AlertService.translate(item.text);
+      if (res?.data?.translatedText) {
+        setTranslatedText(res.data.translatedText);
+        setIsTranslated(true);
+      }
+    } catch (err) {
+      console.error('Translation failed:', err);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
 
   const handleCopyText = useCallback(() => {
     const text = item.text || '';
@@ -559,7 +589,7 @@ const ContentCard = ({ item, index, onDownload, onAddSource }) => {
         {/* Text Content */}
         <div className="relative group/text">
           <p className={`text-[14px] leading-[1.6] whitespace-pre-wrap break-words select-text ${theme.text} ${isExpanded ? '' : 'line-clamp-4'} overflow-hidden`}>
-            {item.text}
+            {isTranslated ? translatedText : item.text}
           </p>
           {item.text && (
             <button
@@ -569,11 +599,32 @@ const ContentCard = ({ item, index, onDownload, onAddSource }) => {
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             </button>
           )}
-          {item.text && (item.text.length > 200 || (item.text.match(/\n/g) || []).length > 3) && (
-            <button onClick={() => setIsExpanded(!isExpanded)} className={`text-[12px] font-bold ${theme.accent} hover:underline mt-1.5`}>
-              {isExpanded ? 'Show Less' : 'Read more...'}
-            </button>
-          )}
+          <div className="flex items-center gap-3 mt-1.5">
+            {item.text && (item.text.length > 180 || (item.text.match(/\n/g) || []).length > 3) && (
+              <button
+                type="button"
+                onClick={() => setIsExpanded(!isExpanded)}
+                className={`text-[12px] font-semibold text-primary hover:underline cursor-pointer`}
+              >
+                {isExpanded ? 'Read less' : 'Read more'}
+              </button>
+            )}
+            {item.text && (
+              <button
+                type="button"
+                onClick={handleTranslate}
+                disabled={isTranslating}
+                className="text-[12px] font-semibold text-primary hover:underline inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+              >
+                {isTranslating ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Globe className="h-3 w-3" />
+                )}
+                <span>{isTranslated ? 'Show Original' : (isTranslating ? 'Translating...' : 'Translate')}</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Media */}
