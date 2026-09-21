@@ -38,7 +38,9 @@
       "admin": "jharkhandpolice",
       "frontend_port": 3004,
       "backend_port": 5009,
-      "domain": "jharkhandpolice.blurasaga.com"
+      "domain": "jharkhandpolice.blurasaga.com",
+      "ssl_certificate": "/etc/letsencrypt/live/jharkhandpolice.blurasaga.com/fullchain.pem",
+      "ssl_certificate_key": "/etc/letsencrypt/live/jharkhandpolice.blurasaga.com/privkey.pem"
     }
   ]
 }
