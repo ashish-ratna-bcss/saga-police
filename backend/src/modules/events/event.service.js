@@ -358,12 +358,21 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
     }
   }
 
-  // 2. Fetch event media
+  // 2. Fetch event media across all monitored platforms (no artificial exclusions)
   const rows = await prisma.social_media_event_media.findMany({
-    where: { event_id: Number(id), NOT: { platform: 'instagram' } },
+    where: { event_id: Number(id) },
     orderBy: [{ posted_at: 'desc' }, { fetched_at: 'desc' }, { id: 'desc' }],
-    take: 3000,
+    take: 5000,
   });
+
+  const {
+    parseSentiment,
+    classifyEventRelevance,
+    classifyTargetEntity,
+    getSentimentTargetSemantics,
+    evaluateThreatRisk,
+    calculateReconciledPercentages,
+  } = require('./eventTelemetry.service');
 
   const parsedItems = rows.map((row) => {
     const ar = asJson(row.analysis_result, {}) || {};
@@ -374,25 +383,20 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
     const views = Number(engagement.impression_count ?? engagement.views ?? 0) || 0;
     const totalEngagement = likes + shares + comments;
 
-    let sentiment = String(ar.sentiment || '').toLowerCase();
-    if (!['positive', 'neutral', 'negative'].includes(sentiment)) {
-      sentiment = 'neutral';
-    }
-
-    let riskLevel = String(ar.risk_level || '').toLowerCase();
-    if (riskLevel === 'safe') riskLevel = 'low';
-    if (!['low', 'medium', 'high', 'critical'].includes(riskLevel)) {
-      riskLevel = 'low';
-    }
+    const sentiment = parseSentiment(ar.sentiment || ar.label || 'neutral');
+    const { riskLevel, riskScore, hasThreatVector } = evaluateThreatRisk(ar, row.text || '');
 
     const postedDate = row.posted_at ? new Date(row.posted_at) : (row.fetched_at ? new Date(row.fetched_at) : new Date());
     const dateKey = !isNaN(postedDate.getTime()) ? postedDate.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
 
-    const matchedKws = Array.isArray(ar.matched_keywords) ? ar.matched_keywords.map((k) => String(k).toLowerCase().trim()) : [];
+    const matchedKws = Array.isArray(ar.matched_keywords) ? ar.matched_keywords.map((k) => String(k?.keyword || k).toLowerCase().trim()) : [];
+    const relevance = classifyEventRelevance(row.text || '', event.name, keywordsList);
+    const targetEntity = classifyTargetEntity(row.text || '', row.author_name || row.author_handle || '', ar);
+    const targetSemantics = getSentimentTargetSemantics(sentiment);
 
     return {
       id: String(row.id),
-      platform: String(row.platform || 'x').toLowerCase(),
+      platform: String(row.platform || 'x').toLowerCase().trim(),
       text: row.text || '',
       author: row.author_name || row.author_handle || 'Anonymous',
       author_handle: row.author_handle || '',
@@ -402,7 +406,12 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
       engagement: { likes, shares, comments, views, total: totalEngagement },
       sentiment,
       risk_level: riskLevel,
-      risk_score: Number(ar.risk_score) || 0,
+      risk_score: riskScore,
+      has_threat_vector: hasThreatVector,
+      is_event_relevant: relevance.isRelevant,
+      relevance_reason: relevance.reason,
+      target_entity: targetEntity,
+      target_sentiment_label: targetSemantics.label,
       matched_keywords: matchedKws,
       raw_analysis: ar,
     };
@@ -484,26 +493,66 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
       .sort((a, b) => b.count - a.count || b.engagement - a.engagement)
       .slice(0, 10);
 
-    const samplePosts = [...matched]
-      .sort((a, b) => b.engagement.total - a.engagement.total || new Date(b.posted_at || 0) - new Date(a.posted_at || 0))
-      .slice(0, 30)
-      .map((p) => ({
-        id: p.id,
-        platform: p.platform,
-        text: p.text,
-        author: p.author,
-        author_handle: p.author_handle,
-        posted_at: p.posted_at,
-        url: p.url,
-        sentiment: p.sentiment,
-        risk_level: p.risk_level,
-        risk_score: p.risk_score,
-        engagement: p.engagement,
-      }));
+    // Select sample posts ensuring all sentiment classes (positive, negative, neutral) are well-represented
+    let selectedPosts = [];
+    if (matched.length <= 150) {
+      selectedPosts = [...matched].sort(
+        (a, b) => b.engagement.total - a.engagement.total || new Date(b.posted_at || 0) - new Date(a.posted_at || 0)
+      );
+    } else {
+      const positivePosts = matched
+        .filter((p) => String(p.sentiment || '').toLowerCase() === 'positive')
+        .sort((a, b) => b.engagement.total - a.engagement.total);
+      const negativePosts = matched
+        .filter((p) => String(p.sentiment || '').toLowerCase() === 'negative')
+        .sort((a, b) => b.engagement.total - a.engagement.total);
+      const neutralPosts = matched
+        .filter((p) => String(p.sentiment || '').toLowerCase() === 'neutral')
+        .sort((a, b) => b.engagement.total - a.engagement.total);
 
-    const positivePct = totalPosts > 0 ? Math.round((sentimentCounts.positive / totalPosts) * 100) : 0;
-    const neutralPct = totalPosts > 0 ? Math.round((sentimentCounts.neutral / totalPosts) * 100) : 0;
-    const negativePct = totalPosts > 0 ? Math.round((sentimentCounts.negative / totalPosts) * 100) : 0;
+      const seenIds = new Set();
+      const addPosts = (arr, limit) => {
+        for (const p of arr.slice(0, limit)) {
+          if (!seenIds.has(p.id)) {
+            seenIds.add(p.id);
+            selectedPosts.push(p);
+          }
+        }
+      };
+
+      // Guarantee representation for all sentiments if present
+      addPosts(positivePosts, 50);
+      addPosts(negativePosts, 50);
+      addPosts(neutralPosts, 50);
+
+      // Fill remaining up to 150 with top overall engaged posts
+      const topOverall = [...matched].sort(
+        (a, b) => b.engagement.total - a.engagement.total || new Date(b.posted_at || 0) - new Date(a.posted_at || 0)
+      );
+      for (const p of topOverall) {
+        if (selectedPosts.length >= 150) break;
+        if (!seenIds.has(p.id)) {
+          seenIds.add(p.id);
+          selectedPosts.push(p);
+        }
+      }
+    }
+
+    const samplePosts = selectedPosts.map((p) => ({
+      id: p.id,
+      platform: p.platform,
+      text: p.text,
+      author: p.author,
+      author_handle: p.author_handle,
+      posted_at: p.posted_at,
+      url: p.url,
+      sentiment: p.sentiment,
+      risk_level: p.risk_level,
+      risk_score: p.risk_score,
+      engagement: p.engagement,
+    }));
+
+    const reconciledSentPcts = calculateReconciledPercentages(sentimentCounts);
 
     let dominantPlatform = 'x';
     let maxPlatformCount = -1;
@@ -520,9 +569,9 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
       total_posts: totalPosts,
       sentiment: {
         ...sentimentCounts,
-        positive_pct: positivePct,
-        neutral_pct: neutralPct,
-        negative_pct: negativePct,
+        positive_pct: reconciledSentPcts.positive || 0,
+        neutral_pct: reconciledSentPcts.neutral || 0,
+        negative_pct: reconciledSentPcts.negative || 0,
         net_score: sentimentCounts.positive - sentimentCounts.negative,
       },
       risk_levels: riskCounts,
@@ -545,6 +594,8 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
 
   keywordAnalytics.sort((a, b) => b.total_posts - a.total_posts);
 
+  const totalKeywordMentionsSum = keywordAnalytics.reduce((sum, k) => sum + (k.total_posts || 0), 0);
+
   for (const item of parsedItems) {
     if (!overallTimelineMap.has(item.dateKey)) {
       overallTimelineMap.set(item.dateKey, {
@@ -563,15 +614,43 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
   }
   const overallTimeline = Array.from(overallTimelineMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 
+  // Overall metrics across ALL unique posts
   let overallPos = 0, overallNeu = 0, overallNeg = 0;
+  let relevantPos = 0, relevantNeu = 0, relevantNeg = 0;
   let overallCrit = 0, overallHigh = 0, overallMed = 0, overallLow = 0;
   let overallLikes = 0, overallShares = 0, overallComments = 0, overallViews = 0;
+  let relevantCount = 0, unrelatedCount = 0;
   const overallPlatforms = {};
+
+  const targetBreakdown = {
+    Government: { total: 0, praise: 0, news: 0, criticism: 0 },
+    Police: { total: 0, praise: 0, news: 0, criticism: 0 },
+    'Political leader': { total: 0, praise: 0, news: 0, criticism: 0 },
+    Organization: { total: 0, praise: 0, news: 0, criticism: 0 },
+    Other: { total: 0, praise: 0, news: 0, criticism: 0 },
+  };
 
   for (const item of parsedItems) {
     if (item.sentiment === 'positive') overallPos++;
     else if (item.sentiment === 'negative') overallNeg++;
     else overallNeu++;
+
+    if (item.is_event_relevant) {
+      relevantCount++;
+      if (item.sentiment === 'positive') relevantPos++;
+      else if (item.sentiment === 'negative') relevantNeg++;
+      else relevantNeu++;
+
+      const entity = item.target_entity || 'Other';
+      if (targetBreakdown[entity]) {
+        targetBreakdown[entity].total++;
+        if (item.sentiment === 'positive') targetBreakdown[entity].praise++;
+        else if (item.sentiment === 'negative') targetBreakdown[entity].criticism++;
+        else targetBreakdown[entity].news++;
+      }
+    } else {
+      unrelatedCount++;
+    }
 
     if (item.risk_level === 'critical') overallCrit++;
     else if (item.risk_level === 'high') overallHigh++;
@@ -586,13 +665,42 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
   }
 
   const totalContent = parsedItems.length;
-  const overallSentiment = {
+
+  // Use event-relevant sentiment counts so unrelated noise does not distort event sentiment
+  const activeSentiment = relevantCount > 0 ? {
+    positive: relevantPos,
+    neutral: relevantNeu,
+    negative: relevantNeg,
+  } : {
     positive: overallPos,
     neutral: overallNeu,
     negative: overallNeg,
-    positive_pct: totalContent > 0 ? Math.round((overallPos / totalContent) * 100) : 0,
-    neutral_pct: totalContent > 0 ? Math.round((overallNeu / totalContent) * 100) : 0,
-    negative_pct: totalContent > 0 ? Math.round((overallNeg / totalContent) * 100) : 0,
+  };
+
+  const reconciledSentimentPcts = calculateReconciledPercentages(activeSentiment);
+  const platformPercentages = calculateReconciledPercentages(overallPlatforms);
+
+  let summaryDominantPlatform = 'x';
+  let summaryDominantCount = -1;
+  for (const [plt, count] of Object.entries(overallPlatforms)) {
+    if (count > summaryDominantCount) {
+      summaryDominantCount = count;
+      summaryDominantPlatform = plt;
+    }
+  }
+
+  const overallSentiment = {
+    positive: activeSentiment.positive,
+    neutral: activeSentiment.neutral,
+    negative: activeSentiment.negative,
+    positive_pct: reconciledSentimentPcts.positive || 0,
+    neutral_pct: reconciledSentimentPcts.neutral || 0,
+    negative_pct: reconciledSentimentPcts.negative || 0,
+    unfiltered_counts: {
+      positive: overallPos,
+      neutral: overallNeu,
+      negative: overallNeg,
+    },
   };
 
   const comparisons = keywordAnalytics.map((k) => ({
@@ -620,8 +728,15 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
     },
     summary: {
       total_keywords: dedupedKeywords.length,
-      total_posts: totalContent,
-      total_matched_posts: matchedItemIds.size,
+      total_posts: totalContent, // 269 unique posts
+      total_unique_posts: totalContent,
+      total_matched_posts: matchedItemIds.size, // Unique posts that matched keywords
+      total_keyword_mentions: totalKeywordMentionsSum, // Aggregate mentions (800+)
+      relevance: {
+        relevant_posts_count: relevantCount,
+        unrelated_posts_count: unrelatedCount,
+      },
+      target_classification: targetBreakdown,
       top_keyword: keywordAnalytics[0]?.keyword || null,
       top_keyword_posts: keywordAnalytics[0]?.total_posts || 0,
       sentiment: overallSentiment,
@@ -631,7 +746,15 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
         medium: overallMed,
         low: overallLow,
       },
+      risk_levels: {
+        critical: overallCrit,
+        high: overallHigh,
+        medium: overallMed,
+        low: overallLow,
+      },
+      dominant_platform: summaryDominantPlatform,
       platforms: overallPlatforms,
+      platform_percentages: platformPercentages,
       engagement: {
         total: overallLikes + overallShares + overallComments,
         likes: overallLikes,

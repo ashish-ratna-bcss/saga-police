@@ -5,7 +5,8 @@ import { useAuth } from '../../context/auth.context';
 import {
     Search, Shield, FileText, CheckCircle2, Calendar, Clock,
     AlertCircle, X, RefreshCw, Plus, Trash2, Loader2, Download,
-    Building2, Users, BadgeCheck, CalendarDays, Filter, ChevronDown, ExternalLink, MessageSquare, Pencil
+    Building2, Users, BadgeCheck, CalendarDays, Filter, ChevronDown, ExternalLink, MessageSquare, Pencil,
+    Layers, Activity, Flame, BarChart3
 } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -42,6 +43,7 @@ import { SuggestionReports } from '../../components/grievances/SuggestionReports
 import { GrievanceService } from '../../api';
 import { socialProfilesApi } from '../../api/socialProfiles.api';
 import { usePagePlatforms } from '../../hooks/usePagePlatforms';
+import { GrievanceExecutiveHeader } from '../../components/grievances/GrievanceExecutiveHeader';
 
 const DEFAULT_SOCIAL_ACTION_OVERLAY = {
     visible: false,
@@ -1709,6 +1711,124 @@ const Grievances = () => {
     const isReportsTab = navbarStatus === 'reports';
     const hasNoCatalogData = !hasActiveFilters && Number(stats?.total || 0) === 0 && grievances.length === 0;
 
+    const totalReportModules = useMemo(() => {
+        const g = Number(reportTypeCounts.grievance ?? 0);
+        const s = Number(reportTypeCounts.suggestion ?? 0);
+        const c = Number(reportTypeCounts.criticism ?? 0);
+        return g + s + c;
+    }, [reportTypeCounts]);
+
+    const feedExecutiveKpis = useMemo(
+        () => [
+            {
+                key: 'total',
+                label: 'Catalog Mentions',
+                value: Number(stats?.total || 0).toLocaleString(),
+                hint: 'Posts & comments in grievance catalog',
+                icon: Layers,
+                iconClass: 'text-indigo-500',
+                valueClass: 'text-foreground',
+            },
+            {
+                key: 'pending',
+                label: 'Pending Review',
+                value: Number(stats?.pending || 0).toLocaleString(),
+                hint: 'Awaiting operator action',
+                icon: Clock,
+                iconClass: 'text-amber-500',
+                valueClass: 'text-amber-600 dark:text-amber-400',
+            },
+            {
+                key: 'escalated',
+                label: 'Escalated',
+                value: Number(stats?.escalated || 0).toLocaleString(),
+                hint: 'Forwarded to officers',
+                icon: AlertCircle,
+                iconClass: 'text-orange-500',
+                valueClass: 'text-orange-600 dark:text-orange-400',
+            },
+            {
+                key: 'closed',
+                label: 'Closed',
+                value: Number(stats?.closed || 0).toLocaleString(),
+                hint: 'Resolved cases',
+                icon: CheckCircle2,
+                iconClass: 'text-emerald-500',
+                valueClass: 'text-emerald-600 dark:text-emerald-400',
+            },
+            {
+                key: 'fir',
+                label: 'Converted to FIR',
+                value: Number(stats?.converted_to_fir || 0).toLocaleString(),
+                hint: 'Police FIR workflow',
+                icon: Shield,
+                iconClass: 'text-rose-500',
+                valueClass: 'text-rose-600 dark:text-rose-400',
+            },
+        ],
+        [stats]
+    );
+
+    const reportsExecutiveKpis = useMemo(
+        () => [
+            {
+                key: 'all',
+                label: 'Total Audit Records',
+                value: totalReportModules.toLocaleString(),
+                hint: 'G + S + C formal reports',
+                icon: BarChart3,
+                iconClass: 'text-indigo-500',
+                valueClass: 'text-indigo-600 dark:text-indigo-400',
+            },
+            {
+                key: 'grievance',
+                label: 'Grievance Reports (G)',
+                value:
+                    reportTypeCounts.grievance == null
+                        ? '…'
+                        : Number(reportTypeCounts.grievance).toLocaleString(),
+                hint: 'Workflow case files',
+                icon: Shield,
+                iconClass: 'text-amber-500',
+                valueClass: 'text-foreground',
+            },
+            {
+                key: 'suggestion',
+                label: 'Suggestions (S)',
+                value:
+                    reportTypeCounts.suggestion == null
+                        ? '…'
+                        : Number(reportTypeCounts.suggestion).toLocaleString(),
+                hint: 'Citizen suggestions',
+                icon: Users,
+                iconClass: 'text-violet-500',
+                valueClass: 'text-foreground',
+            },
+            {
+                key: 'criticism',
+                label: 'Criticisms (C)',
+                value:
+                    reportTypeCounts.criticism == null
+                        ? '…'
+                        : Number(reportTypeCounts.criticism).toLocaleString(),
+                hint: 'Critical commentary dossiers',
+                icon: Flame,
+                iconClass: 'text-rose-500',
+                valueClass: 'text-foreground',
+            },
+            {
+                key: 'watched',
+                label: 'Watched Accounts',
+                value: String(sources.length),
+                hint: `${navbarPlatform === 'all' ? 'All platforms' : navbarPlatform.toUpperCase()} monitoring`,
+                icon: Activity,
+                iconClass: 'text-sky-500',
+                valueClass: 'text-foreground',
+            },
+        ],
+        [totalReportModules, reportTypeCounts, sources.length, navbarPlatform]
+    );
+
     useEffect(() => {
         if (!isReportsTab) return undefined;
         let cancelled = false;
@@ -1770,7 +1890,13 @@ const Grievances = () => {
             {/* ─── Reports Tab Content ─── */}
             {isReportsTab && (
                 <div className="space-y-4 animate-in fade-in duration-300">
-                    {/* Modern Executive Sub-Tab Type Selector Bar */}
+                    <GrievanceExecutiveHeader
+                        user={authUser}
+                        variant="reports"
+                        scopeLine={`Audit scope: ${totalReportModules.toLocaleString()} formal records across G / S / C modules · ${sources.length} watched official accounts`}
+                        kpis={reportsExecutiveKpis}
+                    />
+
                     <div className="bg-card/90 backdrop-blur-md rounded-2xl border border-border/80 p-2.5 shadow-sm flex flex-wrap items-center justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-2.5">
                             <div className="flex items-center gap-2 pl-1 pr-2 border-r border-border/60">
@@ -1915,7 +2041,14 @@ const Grievances = () => {
 
             {/* ─── Feed ─── */}
             {!isReportsTab && (
-                <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <div className="space-y-4">
+                    <GrievanceExecutiveHeader
+                        user={authUser}
+                        variant="feed"
+                        scopeLine={`Live catalog: ${Number(stats?.total || 0).toLocaleString()} mentions · ${sources.length} watched accounts · ${navbarPlatform === 'all' ? 'All platforms' : String(navbarPlatform).toUpperCase()}`}
+                        kpis={feedExecutiveKpis}
+                    />
+                <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-16">
                             <Loader2 className="h-7 w-7 animate-spin text-muted-foreground mb-2" />
@@ -2007,6 +2140,7 @@ const Grievances = () => {
                             </div>
                         </div>
                     )}
+                </div>
                 </div>
             )}
 

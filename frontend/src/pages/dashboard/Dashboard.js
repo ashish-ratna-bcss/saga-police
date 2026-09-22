@@ -472,7 +472,7 @@ function PeriscopeScrollingTicker() {
         </header>
 
         {/* Ticker Track with Soft Edge Masks */}
-        <div className="relative group/ticker">
+        <div className="relative group/ticker overflow-hidden rounded-xl">
           {/* Edge fade gradients */}
           <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-card to-transparent z-10" />
           <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-card to-transparent z-10" />
@@ -496,7 +496,7 @@ function PeriscopeScrollingTicker() {
                     key={`${p.id || p.sl_no || index}-${index}`}
                     onClick={() => setSelectedProgramme(p)}
                     className={cn(
-                      'group relative w-[360px] sm:w-[380px] shrink-0 rounded-xl border p-3 flex flex-col justify-between transition-all duration-200 cursor-pointer',
+                      'group relative w-[360px] sm:w-[380px] shrink-0 rounded-xl border p-3 flex flex-col justify-between transition-all duration-200 cursor-pointer overflow-hidden',
                       'bg-card shadow-2xs hover:shadow-md hover:-translate-y-0.5',
                       isHigh
                         ? 'border-rose-500/40 bg-gradient-to-b from-rose-500/[0.04] to-transparent hover:border-rose-500/70'
@@ -507,15 +507,15 @@ function PeriscopeScrollingTicker() {
                   >
                     <div>
                       {/* Top Row: # Index, Priority Pill, Timing, Zone */}
-                      <div className="flex items-center justify-between gap-1.5 mb-2">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-[10px] font-bold text-muted-foreground bg-muted/80 px-1.5 py-0.5 rounded border border-border/50">
+                      <div className="flex items-center justify-between gap-1.5 mb-2 min-w-0">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <span className="text-[10px] font-bold text-muted-foreground bg-muted/80 px-1.5 py-0.5 rounded border border-border/50 shrink-0">
                             #{index + 1}
                           </span>
 
                           <span
                             className={cn(
-                              'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border',
+                              'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border shrink-0',
                               isHigh
                                 ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30'
                                 : isMedium
@@ -534,8 +534,8 @@ function PeriscopeScrollingTicker() {
 
                           {p.zone && (
                             <span
-                              className="text-[10px] font-medium text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border/40 truncate max-w-[120px]"
-                              title={p.zone}
+                              className="text-[10px] font-medium text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border/40 truncate min-w-0 max-w-[120px]"
+                              title={`Zone: ${p.zone}`}
                             >
                               {p.zone}
                             </span>
@@ -544,11 +544,11 @@ function PeriscopeScrollingTicker() {
 
                         {p.time && (
                           <span
-                            className="text-[10px] font-medium text-muted-foreground shrink-0 inline-flex items-center gap-1 bg-muted/40 px-2 py-0.5 rounded border border-border/30 max-w-[140px]"
+                            className="text-[10px] font-medium text-muted-foreground shrink-0 inline-flex items-center gap-1 bg-muted/40 px-2 py-0.5 rounded border border-border/30 max-w-[140px] min-w-0"
                             title={`Timing: ${p.time}`}
                           >
                             <Clock className="h-3 w-3 text-primary/70 shrink-0" />
-                            <span className="truncate">{p.time}</span>
+                            <span className="truncate min-w-0">{p.time}</span>
                           </span>
                         )}
                       </div>
@@ -579,7 +579,7 @@ function PeriscopeScrollingTicker() {
                         {p.police_station_place && (
                           <div className="flex items-start gap-1.5">
                             <MapPin className="h-3 w-3 text-muted-foreground/70 shrink-0 mt-0.5" />
-                            <div className="leading-tight text-foreground/90 text-[11px]">
+                            <div className="leading-tight text-foreground/90 text-[11px] min-w-0 flex-1">
                               <span className="line-clamp-1">{p.police_station_place}</span>
                             </div>
                           </div>
@@ -588,7 +588,7 @@ function PeriscopeScrollingTicker() {
                         {p.organizer && (
                           <div className="flex items-start gap-1.5 pt-1 border-t border-border/30">
                             <Building2 className="h-3 w-3 text-muted-foreground/70 shrink-0 mt-0.5" />
-                            <div className="leading-tight text-foreground/90 text-[11px]">
+                            <div className="leading-tight text-foreground/90 text-[11px] min-w-0 flex-1">
                               <span className="line-clamp-1">{p.organizer}</span>
                             </div>
                           </div>
@@ -597,36 +597,39 @@ function PeriscopeScrollingTicker() {
                     </div>
 
                     {/* Card Footer: Turnout + Permission Status + View Details */}
-                    <div className="pt-2 border-t border-border/40 space-y-1">
-                      <div className="flex items-center justify-between gap-2 text-[10px]">
+                    <div className="pt-2 border-t border-border/40 space-y-1.5 min-w-0">
+                      <div className="flex items-center justify-between gap-2 text-[10px] min-w-0">
                         {p.expected_members ? (
-                          <span className="font-semibold text-foreground flex items-center gap-1">
+                          <div
+                            className="flex items-center gap-1 min-w-0 flex-1"
+                            title={`Turnout: ${p.expected_members}`}
+                          >
                             <Users className="h-3 w-3 text-primary shrink-0" />
-                            <span className="text-muted-foreground font-normal">Turnout:</span>
-                            <span className="truncate">{p.expected_members}</span>
-                          </span>
+                            <span className="text-muted-foreground font-normal shrink-0">Turnout:</span>
+                            <span className="font-semibold text-foreground truncate min-w-0">{p.expected_members}</span>
+                          </div>
                         ) : (
-                          <span className="text-muted-foreground/60 flex items-center gap-1">
-                            <Users className="h-3 w-3" />
-                            <span>Turnout: Not specified</span>
-                          </span>
+                          <div className="flex items-center gap-1 min-w-0 flex-1 text-muted-foreground/60">
+                            <Users className="h-3 w-3 shrink-0" />
+                            <span className="truncate min-w-0">Turnout: Not specified</span>
+                          </div>
                         )}
 
-                        <span className="text-[10px] font-semibold text-primary group-hover:underline inline-flex items-center gap-0.5 shrink-0">
+                        <span className="text-[10px] font-semibold text-primary group-hover:underline inline-flex items-center gap-0.5 shrink-0 ml-1">
                           Inspect <Eye className="h-2.5 w-2.5" />
                         </span>
                       </div>
 
-                      <div className="pt-0.5">
+                      <div className="pt-0.5 min-w-0">
                         <span
                           className={cn(
-                            'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border truncate max-w-full',
+                            'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border truncate max-w-full min-w-0',
                             permMeta.badge
                           )}
                           title={`Permission Status: ${p.permission_status || 'Not specified'}`}
                         >
                           <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', permMeta.dot)} />
-                          <span className="truncate">{p.permission_status || 'Permission Unspecified'}</span>
+                          <span className="truncate min-w-0">{p.permission_status || 'Permission Unspecified'}</span>
                         </span>
                       </div>
                     </div>
@@ -874,7 +877,7 @@ const OperationsDashboard = () => {
   const riskStats = overview.risk_stats || {};
 
   return (
-    <div className="flex min-h-full flex-col gap-3 w-full pb-8 animate-in fade-in-50 duration-200">
+    <div className="flex min-h-full flex-col gap-3 w-full max-w-full overflow-x-hidden pb-8 animate-in fade-in-50 duration-200">
       {/* 1. TOP HEADER & COMMAND ROW */}
       <div className="flex flex-wrap items-center justify-between gap-x-2.5 gap-y-2 shrink-0">
         <div className="min-w-0 shrink-0">
@@ -1097,30 +1100,30 @@ const OperationsDashboard = () => {
       <PeriscopeScrollingTicker />
 
       {/* 4. DUAL INTELLIGENCE COMMAND STAGE (8 COLS + 4 COLS) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 min-w-0">
         {/* LEFT (8 COLS): TELEMETRY DISCOVERY VELOCITY AREA CHART */}
-        <div className="lg:col-span-8 rounded-xl border border-border/70 bg-card p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2.5 border-b border-border/60">
+        <div className="lg:col-span-8 min-w-0 rounded-xl border border-border/70 bg-card p-3.5 sm:p-4 shadow-xs flex flex-col justify-between overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2.5 border-b border-border/60 min-w-0">
             <div className="flex items-center gap-2 min-w-0">
               <div className="h-7 w-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
                 <TrendingUp className="h-4 w-4" />
               </div>
-              <div>
-                <h2 className="text-xs font-heading font-bold uppercase tracking-wider text-foreground">
+              <div className="min-w-0">
+                <h2 className="text-xs font-heading font-bold uppercase tracking-wider text-foreground truncate">
                   Telemetry Discovery Velocity & Ingestion Trend
                 </h2>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-[11px] text-muted-foreground truncate">
                   Continuous day-by-day surveillance intake ({range} timeframe)
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 text-xs">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
+              <div className="flex items-center gap-1.5 text-xs">
                 <span className="text-[11px] text-muted-foreground">Peak:</span>
                 <span className="font-bold tabular-nums text-foreground">{trendStats.peak.toLocaleString('en-IN')}</span>
               </div>
-              <div className="flex items-center gap-2 text-xs">
+              <div className="flex items-center gap-1.5 text-xs">
                 <span className="text-[11px] text-muted-foreground">Avg/Day:</span>
                 <span className="font-bold tabular-nums text-foreground">{trendStats.avg.toLocaleString('en-IN')}</span>
               </div>
@@ -1134,7 +1137,7 @@ const OperationsDashboard = () => {
           </div>
 
           {/* Area Chart Container */}
-          <div className="w-full h-[220px]">
+          <div className="w-full h-[220px] min-w-0">
             {trendData.length === 0 ? (
               <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground text-center">
                 <Activity className="h-8 w-8 text-muted-foreground/30 mb-1.5" />
@@ -1209,20 +1212,20 @@ const OperationsDashboard = () => {
         </div>
 
         {/* RIGHT (4 COLS): MULTI-PLATFORM INGESTION SHARE */}
-        <div className="lg:col-span-4 rounded-xl border border-border/70 bg-card p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between gap-2 mb-3 pb-2.5 border-b border-border/60">
+        <div className="lg:col-span-4 min-w-0 rounded-xl border border-border/70 bg-card p-3.5 sm:p-4 shadow-xs flex flex-col justify-between overflow-hidden">
+          <div className="flex items-center justify-between gap-2 mb-3 pb-2.5 border-b border-border/60 min-w-0">
             <div className="flex items-center gap-2 min-w-0">
               <div className="h-7 w-7 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-500 shrink-0">
                 <Globe className="h-4 w-4" />
               </div>
-              <div>
-                <h2 className="text-xs font-heading font-bold uppercase tracking-wider text-foreground">
+              <div className="min-w-0">
+                <h2 className="text-xs font-heading font-bold uppercase tracking-wider text-foreground truncate">
                   Platform Ingestion Share
                 </h2>
-                <p className="text-[11px] text-muted-foreground">Distribution across social vectors</p>
+                <p className="text-[11px] text-muted-foreground truncate">Distribution across social vectors</p>
               </div>
             </div>
-            <span className="text-[11px] font-bold tabular-nums text-foreground">
+            <span className="text-[11px] font-bold tabular-nums text-foreground shrink-0">
               {platforms.length} Platforms
             </span>
           </div>
@@ -1531,9 +1534,9 @@ const OperationsDashboard = () => {
       </div>
 
       {/* 6. OPERATIONAL ACTION GRID (TARGET PROFILES WATCHLIST + VIRAL NARRATIVES) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 min-w-0">
         {/* LEFT (6 COLS): TARGET PROFILES WATCHLIST */}
-        <div className="lg:col-span-6 rounded-xl border border-border/70 bg-card p-3.5 sm:p-4 shadow-xs">
+        <div className="lg:col-span-6 min-w-0 rounded-xl border border-border/70 bg-card p-3.5 sm:p-4 shadow-xs overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2.5 border-b border-border/60">
             <div className="flex items-center gap-2 min-w-0">
               <div className="h-7 w-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../../lib/api';
+import { useAuth } from '../../context/auth.context';
 import {
   Dialog,
   DialogContent,
@@ -59,6 +60,7 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Info,
+  FileText,
 } from 'lucide-react';
 import {
   XBrandLogo,
@@ -69,6 +71,8 @@ import {
 } from '../../components/PlatformBrandIcon';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { toast } from 'sonner';
 
 const CHART_COLORS = [
@@ -146,12 +150,42 @@ const getChartAxisLabel = (raw) => {
   return trimmed;
 };
 
+const formatKeywordForPdf = (raw, lang) => {
+  if (!raw) return '';
+  const trimmed = String(raw).trim();
+  if (TRANSLATION_MAP[trimmed]) {
+    return TRANSLATION_MAP[trimmed];
+  }
+  for (const [key, val] of Object.entries(TRANSLATION_MAP)) {
+    if (key.trim().toLowerCase() === trimmed.toLowerCase()) {
+      return val;
+    }
+  }
+  if (/[^\x00-\x7F]/.test(trimmed)) {
+    const isOdia = /[\u0B00-\u0B7F]/.test(trimmed);
+    const isHindi = /[\u0900-\u097F]/.test(trimmed);
+    const isTelugu = /[\u0C00-\u0C7F]/.test(trimmed);
+    const script = isOdia ? 'Odia' : isHindi ? 'Hindi' : isTelugu ? 'Telugu' : (lang || 'Regional').toUpperCase();
+
+    if (trimmed.includes('ପୋଲିସ') || trimmed.includes('पुलिस')) return `Odisha Police (${script})`;
+    if (trimmed.includes('ମୁଖ୍ୟମନ୍ତ୍ରୀ') || trimmed.includes('मुख्यमंत्री')) return `Odisha CM (${script})`;
+    if (trimmed.includes('ଖବର') || trimmed.includes('समाचार')) return `Odisha News (${script})`;
+    if (trimmed.includes('ଓଡ଼ିଶା') || trimmed.includes('ओडिशा')) return `Odisha (${script})`;
+    if (trimmed.includes('ଭୁବନେଶ୍ୱର') || trimmed.includes('भुवनेश्वर')) return `Bhubaneswar (${script})`;
+    if (trimmed.includes('କଟକ') || trimmed.includes('कटक')) return `Cuttack (${script})`;
+    if (trimmed.includes('ପୁରୀ') || trimmed.includes('पुरी')) return `Puri (${script})`;
+
+    const cleanAscii = trimmed.replace(/[^\x00-\x7F]/g, '').trim();
+    return cleanAscii ? `${cleanAscii} (${script})` : `[${script} Keyword]`;
+  }
+  return trimmed;
+};
+
 export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eventName }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedKeyword, setSelectedKeyword] = useState(null);
-  const [tableSearch, setTableSearch] = useState('');
   const [postSearch, setPostSearch] = useState('');
   const [postSentimentFilter, setPostSentimentFilter] = useState('all');
   const [postPlatformFilter, setPostPlatformFilter] = useState('all');
@@ -171,7 +205,7 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
     } finally {
       setLoading(false);
     }
-  }, [eventId, selectedKeyword]);
+  }, [eventId]);
 
   useEffect(() => {
     if (open && eventId) {
@@ -193,23 +227,40 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
     return data.keywords.find((k) => k.keyword === selectedKeyword) || data.keywords[0];
   }, [data, selectedKeyword]);
 
-  // Filtered table rows
-  const filteredKeywords = useMemo(() => {
-    if (!data?.keywords) return [];
-    if (!tableSearch.trim()) return data.keywords;
-    const q = tableSearch.toLowerCase();
-    return data.keywords.filter((k) =>
-      k.keyword.toLowerCase().includes(q) ||
-      k.language.toLowerCase().includes(q)
-    );
-  }, [data, tableSearch]);
+  const { user } = useAuth() || {};
+  const tenantName = useMemo(() => {
+    const userCandidates = [
+      user?.blurasagatitle,
+      user?.theme_name,
+      user?.organization_name,
+      user?.organization,
+      user?.tenant_name,
+      user?.department,
+    ];
+    for (const candidate of userCandidates) {
+      if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+    }
+    return 'DIGITAL INTELLIGENCE PLATFORM';
+  }, [user]);
+
+  const BLUECLOUD_FOOTER = 'Developed by Bluecloud softech solutions Hyderabad';
 
   // Filtered posts for selected keyword
   const filteredPosts = useMemo(() => {
     if (!currentKeywordData?.sample_posts) return [];
     return currentKeywordData.sample_posts.filter((p) => {
-      if (postSentimentFilter !== 'all' && p.sentiment !== postSentimentFilter) return false;
-      if (postPlatformFilter !== 'all' && p.platform !== postPlatformFilter) return false;
+      if (
+        postSentimentFilter !== 'all' &&
+        String(p.sentiment || '').trim().toLowerCase() !== postSentimentFilter.toLowerCase()
+      ) {
+        return false;
+      }
+      if (
+        postPlatformFilter !== 'all' &&
+        String(p.platform || '').trim().toLowerCase() !== postPlatformFilter.toLowerCase()
+      ) {
+        return false;
+      }
       if (postSearch.trim()) {
         const q = postSearch.toLowerCase();
         const inText = (p.text || '').toLowerCase().includes(q);
@@ -219,6 +270,346 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
       return true;
     });
   }, [currentKeywordData, postSentimentFilter, postPlatformFilter, postSearch]);
+
+  // Export to PDF
+  // Export to PDF (Executive Intelligence Audit Report)
+  const handleExportPDF = () => {
+    if (!data?.keywords?.length) {
+      toast.error('No analytics data to export');
+      return;
+    }
+
+    try {
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const margin = 14;
+      const usableW = pageW - margin * 2;
+
+      const pdfSafeText = (txt) =>
+        String(txt || '')
+          .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')
+          .replace(/[^\x00-\x7F]/g, (char) => {
+            const map = { '‘': "'", '’': "'", '“': '"', '”': '"', '–': '-', '—': '-' };
+            return map[char] || '';
+          })
+          .trim();
+
+      const drawWatermark = (targetPage) => {
+        doc.setPage(targetPage);
+        if (typeof doc.saveGraphicsState === 'function') doc.saveGraphicsState();
+        if (typeof doc.GState === 'function' && typeof doc.setGState === 'function') {
+          try {
+            doc.setGState(new doc.GState({ opacity: 0.3 }));
+          } catch (_) {}
+        }
+        doc.setTextColor(218, 224, 235);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(36);
+        doc.text(pdfSafeText(tenantName).toUpperCase(), pageW / 2, pageH / 2, {
+          align: 'center',
+          angle: -35,
+        });
+        if (typeof doc.restoreGraphicsState === 'function') doc.restoreGraphicsState();
+      };
+
+      const pdfPageHooks = {
+        willDrawPage: (hook) => drawWatermark(hook.pageNumber),
+      };
+
+      drawWatermark(1);
+
+      const summaryRisk = data.summary?.risk_levels || data.summary?.risk || {};
+
+      // 1. Header Banner
+      doc.setFillColor(15, 23, 42); // Slate-900
+      doc.rect(0, 0, pageW, 28, 'F');
+
+      // Double Accent Stripes (Indigo + Cyan)
+      doc.setFillColor(79, 70, 229); // Indigo-600
+      doc.rect(0, 28, pageW, 1.8, 'F');
+      doc.setFillColor(14, 165, 233); // Sky-500
+      doc.rect(0, 29.8, pageW, 0.6, 'F');
+
+      // Title & Subtitle
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(255, 255, 255);
+      doc.text((tenantName || 'DIGITAL INTELLIGENCE PLATFORM').toUpperCase(), margin, 12);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(199, 210, 254);
+      doc.text('KEYWORD INTELLIGENCE & SOCIAL SURVEILLANCE AUDIT REPORT', margin, 18);
+
+      // Metadata right-aligned
+      doc.setFontSize(7.5);
+      doc.setTextColor(148, 163, 184);
+      const generatedDate = new Date().toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      doc.text(`Generated: ${generatedDate}`, pageW - margin, 12, { align: 'right' });
+      doc.text(`Security Level: RESTRICTED / LAW ENFORCEMENT ONLY`, pageW - margin, 18, { align: 'right' });
+
+      let currentY = 36;
+
+      // 2. Target Event Context Card
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(margin, currentY, usableW, 18, 2, 2, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`Target Event: ${eventName || data?.event?.name || 'Monitoring Event'}`, margin + 4, currentY + 6);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      const scopeSummary = [
+        `Keywords Monitored: ${data.keywords.length}`,
+        `Unique Posts: ${data.summary?.total_posts || 0}`,
+        `Matched Posts: ${data.summary?.total_matched_posts || 0}`,
+        `Total Term Mentions: ${data.summary?.total_keyword_mentions || 0}`,
+        `Dominant Channel: ${(data.summary?.dominant_platform || 'X').toUpperCase()}`,
+      ].join('   |   ');
+      doc.text(scopeSummary, margin + 4, currentY + 12);
+
+      currentY += 24;
+
+      // 3. Executive Telemetry & Perception KPIs Table
+      autoTable(doc, {
+        startY: currentY,
+        margin: { left: margin, right: margin },
+        head: [['Telemetry Metric', 'Observed Volume & Share', 'Operational Intelligence Assessment']],
+        body: [
+          [
+            'Total Unique Media Ingested',
+            `${(data.summary?.total_posts || 0).toLocaleString()} posts`,
+            'Distinct social media records ingested across monitored fleet vectors',
+          ],
+          [
+            'Matched Keyword Telemetry',
+            `${(data.summary?.total_matched_posts || 0).toLocaleString()} posts (100%)`,
+            'Discussions matching active event keyword surveillance rules',
+          ],
+          [
+            'Total Keyword Mentions',
+            `${(data.summary?.total_keyword_mentions || 0).toLocaleString()} mentions`,
+            'Aggregate term occurrences across posts (reflects multi-keyword co-occurrence)',
+          ],
+          [
+            'Praise / Positive Sentiment',
+            `${data.summary?.sentiment?.positive || 0} (${data.summary?.sentiment?.positive_pct || 0}%)`,
+            'Public commendation, positive reception, and official event endorsements',
+          ],
+          [
+            'News / Neutral Broadcasts',
+            `${data.summary?.sentiment?.neutral || 0} (${data.summary?.sentiment?.neutral_pct || 0}%)`,
+            'Factual dispatches, media articles, situation updates, routine information',
+          ],
+          [
+            'Criticism / Dissent',
+            `${data.summary?.sentiment?.negative || 0} (${data.summary?.sentiment?.negative_pct || 0}%)`,
+            'Policy critique, grievances, and critical feedback (decoupled from physical threat)',
+          ],
+          [
+            'Threat & Disruption Signals',
+            `${(summaryRisk.high || 0) + (summaryRisk.critical || 0)} flags`,
+            (summaryRisk.high || 0) + (summaryRisk.critical || 0) > 0
+              ? 'Potential public disorder, blockade, strike, or mobilization triggers detected'
+              : 'Zero physical unrest, agitation, or mobilization triggers detected in dataset',
+          ],
+        ],
+        theme: 'grid',
+        ...pdfPageHooks,
+        headStyles: {
+          fillColor: [30, 41, 59], // Slate-800
+          textColor: 255,
+          fontSize: 8,
+          fontStyle: 'bold',
+        },
+        styles: {
+          fontSize: 7.5,
+          cellPadding: 2.2,
+          lineColor: [226, 232, 240],
+        },
+        columnStyles: {
+          0: { cellWidth: 54, fontStyle: 'bold', textColor: [15, 23, 42] },
+          1: { cellWidth: 38, halign: 'center', fontStyle: 'bold', textColor: [79, 70, 229] },
+          2: { fontStyle: 'normal', textColor: [71, 85, 105] },
+        },
+      });
+
+      currentY = doc.lastAutoTable.finalY + 8;
+
+      // 4. Detailed Keyword Performance Table
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text('Keyword Performance, Sentiment Distribution & Risk Assessment', margin, currentY);
+
+      currentY += 3;
+
+      const keywordRows = data.keywords.map((k, idx) => {
+        const sov = data.summary?.total_matched_posts
+          ? `${((k.total_posts / data.summary.total_matched_posts) * 100).toFixed(1)}%`
+          : '0%';
+        const cleanName = formatKeywordForPdf(k.keyword, k.language);
+        const netScore = k.sentiment?.net_score > 0 ? `+${k.sentiment.net_score}` : `${k.sentiment?.net_score || 0}`;
+        const riskLabel = (k.high_risk_total || 0) > 0 ? `${k.high_risk_total} ALERT` : '0 (Clean)';
+
+        return [
+          idx + 1,
+          cleanName,
+          (k.language || 'ALL').toUpperCase(),
+          (k.total_posts || 0).toLocaleString(),
+          sov,
+          `+${k.sentiment?.positive || 0}`,
+          `${k.sentiment?.neutral || 0}`,
+          `-${k.sentiment?.negative || 0}`,
+          netScore,
+          (k.engagement?.total || 0).toLocaleString(),
+          (k.dominant_platform || 'X').toUpperCase(),
+          riskLabel,
+        ];
+      });
+
+      autoTable(doc, {
+        startY: currentY,
+        margin: { left: margin, right: margin },
+        head: [
+          [
+            '#',
+            'Keyword (Monitoring Term)',
+            'Lang',
+            'Posts',
+            'Share',
+            'Praise',
+            'News',
+            'Crit',
+            'Net',
+            'Engage',
+            'Platform',
+            'Risk',
+          ],
+        ],
+        body: keywordRows,
+        theme: 'striped',
+        ...pdfPageHooks,
+        headStyles: {
+          fillColor: [15, 23, 42],
+          textColor: 255,
+          fontSize: 7.2,
+          fontStyle: 'bold',
+          halign: 'center',
+        },
+        styles: {
+          fontSize: 7,
+          cellPadding: 2,
+          valign: 'middle',
+        },
+        columnStyles: {
+          0: { cellWidth: 6, halign: 'center' },
+          1: { cellWidth: 44, fontStyle: 'bold' },
+          2: { cellWidth: 12, halign: 'center' },
+          3: { cellWidth: 14, halign: 'right', fontStyle: 'bold' },
+          4: { cellWidth: 12, halign: 'right' },
+          5: { cellWidth: 12, halign: 'center', textColor: [16, 185, 129] },
+          6: { cellWidth: 12, halign: 'center', textColor: [14, 165, 233] },
+          7: { cellWidth: 12, halign: 'center', textColor: [244, 63, 94] },
+          8: { cellWidth: 12, halign: 'center', fontStyle: 'bold' },
+          9: { cellWidth: 16, halign: 'right' },
+          10: { cellWidth: 16, halign: 'center' },
+          11: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },
+        },
+        didParseCell: (hookData) => {
+          if (hookData.section === 'body' && hookData.column.index === 11) {
+            const rawVal = String(hookData.cell.raw || '');
+            if (rawVal.includes('ALERT')) {
+              hookData.cell.styles.textColor = [225, 29, 72]; // Rose-600
+            } else {
+              hookData.cell.styles.textColor = [100, 116, 139]; // Slate-500
+            }
+          }
+        },
+      });
+
+      // 5. Top Monitored Contributing Accounts Section (if authors exist)
+      const topAuthors = currentKeywordData?.top_authors || [];
+      if (topAuthors.length > 0) {
+        let authorsY = doc.lastAutoTable.finalY + 8;
+        if (authorsY + 35 > pageH - 15) {
+          doc.addPage();
+          drawWatermark(doc.internal.getNumberOfPages());
+          authorsY = 20;
+        }
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(15, 23, 42);
+        doc.text('Key Monitored Accounts & Social Dissemination Drivers', margin, authorsY);
+
+        const authorRows = topAuthors.slice(0, 6).map((a, i) => [
+          i + 1,
+          a.name || 'Unknown User',
+          (a.platform || 'X').toUpperCase(),
+          `${a.count} posts`,
+          Number(a.engagement || 0).toLocaleString(),
+        ]);
+
+        autoTable(doc, {
+          startY: authorsY + 3,
+          margin: { left: margin, right: margin },
+          head: [['#', 'Account / Entity Name', 'Platform', 'Discussions Captured', 'Total Engagement']],
+          body: authorRows,
+          ...pdfPageHooks,
+          theme: 'grid',
+          headStyles: {
+            fillColor: [71, 85, 105],
+            textColor: 255,
+            fontSize: 7.2,
+            fontStyle: 'bold',
+          },
+          styles: {
+            fontSize: 7,
+            cellPadding: 1.8,
+          },
+          columnStyles: {
+            0: { cellWidth: 8, halign: 'center' },
+            1: { fontStyle: 'bold' },
+            2: { cellWidth: 25, halign: 'center' },
+            3: { cellWidth: 35, halign: 'right' },
+            4: { cellWidth: 35, halign: 'right', fontStyle: 'bold' },
+          },
+        });
+      }
+
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.3);
+        doc.line(margin, pageH - 12, pageW - margin, pageH - 12);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(BLUECLOUD_FOOTER, margin, pageH - 7);
+        doc.text(`Page ${i} of ${totalPages}`, pageW - margin, pageH - 7, { align: 'right' });
+      }
+
+      const fileName = `${(eventName || 'Event').replace(/\s+/g, '_')}_Keyword_Analytics_Report.pdf`;
+      doc.save(fileName);
+      toast.success('Executive Keyword Analytics PDF report exported successfully');
+    } catch (err) {
+      console.error('Failed to export PDF:', err);
+      toast.error('Failed to generate PDF report');
+    }
+  };
 
   // Export to Excel/CSV
   const handleExportCSV = () => {
@@ -286,17 +677,25 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
                   {data?.summary?.total_keywords ?? data?.keywords?.length ?? data?.event?.total_keywords ?? 0} Keywords Monitored
                 </Badge>
               </div>
-              <DialogDescription className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
+              <DialogDescription className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5 flex-wrap">
                 <span>Event: <strong className="text-foreground">{eventName || data?.event?.name || 'Monitoring Event'}</strong></span>
                 <span>•</span>
-                <span>{data?.summary?.total_posts || 0} Total Media Ingested</span>
+                <span>{data?.summary?.total_posts || 0} Unique Posts Ingested</span>
                 <span>•</span>
-                <span>{data?.summary?.total_matched_posts || 0} Keyword Matches</span>
+                <span>{data?.summary?.total_matched_posts || 0} Matched Posts</span>
+                {data?.summary?.total_keyword_mentions > 0 && (
+                  <>
+                    <span>•</span>
+                    <span className="font-medium text-foreground" title="Aggregate keyword occurrences across all posts">
+                      {data.summary.total_keyword_mentions} Total Keyword Mentions
+                    </span>
+                  </>
+                )}
               </DialogDescription>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pr-10">
             <Button
               variant="outline"
               size="sm"
@@ -310,12 +709,24 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
             <Button
               variant="outline"
               size="sm"
+              onClick={handleExportPDF}
+              disabled={!data?.keywords?.length}
+              className="h-8 gap-1.5 text-xs text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800/60 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+              title="Export Executive PDF Report"
+            >
+              <FileText className="h-3.5 w-3.5 text-rose-500" />
+              Export PDF
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleExportCSV}
               disabled={!data?.keywords?.length}
               className="h-8 gap-1.5 text-xs text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+              title="Export Detailed Spreadsheet (.xlsx)"
             >
               <Download className="h-3.5 w-3.5" />
-              Export Report
+              Export Excel
             </Button>
           </div>
         </DialogHeader>
@@ -338,7 +749,7 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            {/* Top KPI Metrics Banner */}
+            {/* Top KPI Metrics Banner: Clear distinction between unique posts and keyword mentions */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               {/* Card 1 */}
               <div className="p-3.5 rounded-xl border bg-card/60 backdrop-blur-sm shadow-xs flex flex-col justify-between">
@@ -359,7 +770,7 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
               {/* Card 2 */}
               <div className="p-3.5 rounded-xl border bg-card/60 backdrop-blur-sm shadow-xs flex flex-col justify-between">
                 <div className="flex items-center justify-between text-xs text-muted-foreground font-medium">
-                  <span>Keyword Matches</span>
+                  <span>Unique Matched Posts</span>
                   <Activity className="h-3.5 w-3.5 text-sky-500" />
                 </div>
                 <div className="mt-2">
@@ -368,7 +779,7 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
                     {data.summary.total_posts > 0
-                      ? `${Math.round((data.summary.total_matched_posts / data.summary.total_posts) * 100)}% of total ingested media`
+                      ? `${Math.round((data.summary.total_matched_posts / data.summary.total_posts) * 100)}% of ${data.summary.total_posts} unique posts`
                       : '0% matches'}
                   </p>
                 </div>
@@ -377,15 +788,15 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
               {/* Card 3 */}
               <div className="p-3.5 rounded-xl border bg-card/60 backdrop-blur-sm shadow-xs flex flex-col justify-between">
                 <div className="flex items-center justify-between text-xs text-muted-foreground font-medium">
-                  <span>Top Mentioned Keyword</span>
+                  <span>Total Keyword Mentions</span>
                   <Flame className="h-3.5 w-3.5 text-amber-500" />
                 </div>
                 <div className="mt-2">
-                  <div className="text-lg font-bold tracking-tight text-foreground truncate" title={data.summary.top_keyword || 'None'}>
-                    {data.summary.top_keyword || '—'}
+                  <div className="text-2xl font-bold tracking-tight text-indigo-600 dark:text-indigo-400">
+                    {data.summary.total_keyword_mentions || data.summary.top_keyword_posts}
                   </div>
-                  <p className="text-[11px] text-amber-700 dark:text-amber-400 font-medium mt-0.5">
-                    {data.summary.top_keyword_posts} mentions
+                  <p className="text-[11px] text-muted-foreground mt-0.5" title="A single post can match multiple keywords">
+                    Top term: {data.summary.top_keyword || '—'} ({data.summary.top_keyword_posts})
                   </p>
                 </div>
               </div>
@@ -393,7 +804,7 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
               {/* Card 4 */}
               <div className="p-3.5 rounded-xl border bg-card/60 backdrop-blur-sm shadow-xs flex flex-col justify-between">
                 <div className="flex items-center justify-between text-xs text-muted-foreground font-medium">
-                  <span>Sentiment Health</span>
+                  <span>Sentiment Breakdown</span>
                   <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
                 </div>
                 <div className="mt-2">
@@ -402,11 +813,11 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
                       {data.summary.sentiment.positive_pct}%
                     </span>
                     <span className="text-xs text-rose-500 font-semibold">
-                      {data.summary.sentiment.negative_pct}% Neg
+                      {data.summary.sentiment.negative_pct}% Criticism
                     </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    {data.summary.sentiment.positive} Pos · {data.summary.sentiment.neutral} Neu · {data.summary.sentiment.negative} Neg
+                    {data.summary.sentiment.positive} Praise · {data.summary.sentiment.neutral} News · {data.summary.sentiment.negative} Criticism
                   </p>
                 </div>
               </div>
@@ -428,39 +839,39 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
               </div>
             </div>
 
-            {/* Color Meaning & Visual Guide Banner */}
+            {/* Color Meaning & Visual Guide Banner: Clearly decouple Risk from Criticism and clarify mentions vs posts */}
             <div className="p-3.5 rounded-xl border bg-muted/40 backdrop-blur-sm flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs shadow-2xs">
               <div className="flex items-center gap-2 font-semibold text-foreground shrink-0">
                 <Info className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                <span>Color Guide:</span>
+                <span>Standard Guide:</span>
               </div>
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
                 <div className="flex items-center gap-1.5" title="Positive audience sentiment">
                   <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-xs shrink-0" />
-                  <span className="font-semibold text-emerald-700 dark:text-emerald-400">Green = Positive</span>
-                  <span className="text-[11px] text-muted-foreground">(Praise & favorable remarks)</span>
+                  <span className="font-semibold text-emerald-700 dark:text-emerald-400">Green = Praise (Positive)</span>
+                  <span className="text-[11px] text-muted-foreground">(Commendations & approval)</span>
                 </div>
                 <div className="flex items-center gap-1.5" title="Neutral audience sentiment">
                   <span className="h-2.5 w-2.5 rounded-full bg-sky-500 shadow-xs shrink-0" />
-                  <span className="font-semibold text-sky-700 dark:text-sky-400">Sky Blue = Neutral</span>
-                  <span className="text-[11px] text-muted-foreground">(News reports & general updates)</span>
+                  <span className="font-semibold text-sky-700 dark:text-sky-400">Sky Blue = News/Updates (Neutral)</span>
+                  <span className="text-[11px] text-muted-foreground">(Factual reports & announcements)</span>
                 </div>
-                <div className="flex items-center gap-1.5" title="Negative audience sentiment">
+                <div className="flex items-center gap-1.5" title="Criticism is distinct from threats">
                   <span className="h-2.5 w-2.5 rounded-full bg-rose-500 shadow-xs shrink-0" />
-                  <span className="font-semibold text-rose-700 dark:text-rose-400">Red = Negative</span>
-                  <span className="text-[11px] text-muted-foreground">(Criticism, complaints & issues)</span>
+                  <span className="font-semibold text-rose-700 dark:text-rose-400">Red = Criticism (Negative)</span>
+                  <span className="text-[11px] text-muted-foreground">(Critique & feedback — Non-threat)</span>
                 </div>
-                <div className="flex items-center gap-1.5" title="Mentions volume">
+                <div className="flex items-center gap-1.5" title="Keyword mentions aggregate across all terms">
                   <span className="h-2.5 w-2.5 rounded-full bg-indigo-500 shadow-xs shrink-0" />
                   <span className="font-semibold text-indigo-700 dark:text-indigo-400">Indigo = Total Mentions</span>
-                  <span className="text-[11px] text-muted-foreground">(Number of posts collected)</span>
+                  <span className="text-[11px] text-muted-foreground">({data.summary.total_posts} unique posts = {data.summary.total_keyword_mentions || data.summary.total_matched_posts} mentions)</span>
                 </div>
               </div>
             </div>
 
             {/* Main Tabs: Overview vs Deep Dive */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b pb-3">
+              <div className="border-b pb-3">
                 <TabsList className="bg-muted/70 p-1">
                   <TabsTrigger value="overview" className="text-xs gap-1.5">
                     <BarChart3 className="h-3.5 w-3.5" />
@@ -476,27 +887,6 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
                     )}
                   </TabsTrigger>
                 </TabsList>
-
-                {activeTab === 'overview' && (
-                  <div className="relative w-full sm:w-64">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      placeholder="Search keywords…"
-                      value={tableSearch}
-                      onChange={(e) => setTableSearch(e.target.value)}
-                      className="pl-8 h-8 text-xs bg-muted/30"
-                    />
-                    {tableSearch && (
-                      <button
-                        type="button"
-                        onClick={() => setTableSearch('')}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
-                )}
               </div>
 
               {/* ── TAB 1: ALL KEYWORDS OVERVIEW ── */}
@@ -827,7 +1217,7 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
                       </p>
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      Showing {filteredKeywords.length} of {data.keywords.length} keywords
+                      {data.keywords.length} keywords
                     </span>
                   </div>
 
@@ -847,7 +1237,7 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredKeywords.map((k, idx) => {
+                        {data.keywords.map((k, idx) => {
                           const sharePct = data.summary.total_matched_posts > 0
                             ? Math.round((k.total_posts / data.summary.total_matched_posts) * 100)
                             : 0;
@@ -1066,7 +1456,7 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
                             )}
                           </p>
                           <p className="text-[11px] text-muted-foreground mt-0.5">
-                            {currentKeywordData.risk_levels.critical} critical · {currentKeywordData.risk_levels.high} high
+                            {(currentKeywordData.risk_levels?.critical ?? 0)} critical · {(currentKeywordData.risk_levels?.high ?? 0)} high
                           </p>
                         </div>
                       </div>
