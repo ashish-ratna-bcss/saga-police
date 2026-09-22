@@ -238,6 +238,19 @@ const getEventsReport = async (req, res) => {
   }
 };
 
+const { generateEventSummary } = require('../../services/SummaryLLM');
+
+const getEventSummaryLLM = async (req, res) => {
+  try {
+    const data = await generateEventSummary(req.params.id, {
+      db: req.tenantPrisma,
+    });
+    return res.status(200).json(data);
+  } catch (error) {
+    return res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   listEvents,
   getEvent,
@@ -250,6 +263,8 @@ module.exports = {
   getEventDashboard,
   getEventContent,
   getEventKeywordAnalytics,
+  getEventSummaryLLM,
   runEventScan,
   getEventsReport,
 };
+

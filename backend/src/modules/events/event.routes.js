@@ -12,6 +12,7 @@ const {
   getEventDashboard,
   getEventContent,
   getEventKeywordAnalytics,
+  getEventSummaryLLM,
   runEventScan,
   getEventsReport,
 } = require('./event.controller');
@@ -26,6 +27,9 @@ router.get('/:id', getEvent);
 router.get('/:id/dashboard', getEventDashboard);
 router.get('/:id/content', getEventContent);
 router.get('/:id/keyword-analytics', getEventKeywordAnalytics);
+router.get('/:id/summary-llm', getEventSummaryLLM);
+router.post('/:id/summary-llm', getEventSummaryLLM);
+
 
 router.post('/', createEvent);
 router.put('/:id', updateEvent);

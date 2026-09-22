@@ -23,7 +23,7 @@ import {
   Search, ScanLine, UserPlus, Pencil, FileSpreadsheet,
   FileText, BarChart3, Activity, Zap, Timer, ChevronRight,
   ChevronDown, X, AlertTriangle, Globe, ArrowUpRight, History, Square,
-  TrendingUp
+  TrendingUp, Sparkles
 } from 'lucide-react';
 import socialProfilesApi from '../../api/socialProfiles.api';
 import ContentCard from '../../components/ContentCard';
@@ -35,6 +35,7 @@ import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import KeywordAnalysisDialog from './KeywordAnalysisDialog';
+import EventSummaryDialog from './EventSummaryDialog';
 
 
 /* ── helpers ─────────────────────────────────────────── */
@@ -916,6 +917,7 @@ const Events = () => {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [keywordAnalysisOpen, setKeywordAnalysisOpen] = useState(false);
+  const [eventSummaryOpen, setEventSummaryOpen] = useState(false);
 
 
   // ── Occasion Calendar state ──
@@ -2684,6 +2686,19 @@ const Events = () => {
                   Analyses
                 </Button>
 
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEventSummaryOpen(true)}
+                  disabled={!selectedId}
+                  className="h-8 gap-1.5 px-2.5 text-xs font-medium border-purple-200 bg-purple-50/70 text-purple-700 hover:bg-purple-100 hover:text-purple-800 dark:border-purple-800/70 dark:bg-purple-950/40 dark:text-purple-300 dark:hover:bg-purple-900/50 shadow-2xs"
+                  title="Generate AI Executive Intelligence Summary with LLM"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                  Event Summary
+                </Button>
+
                 <div className="ml-auto flex items-center gap-0.5">
                   <Button variant="ghost" size="icon" onClick={handleStartEdit} className="h-8 w-8 text-muted-foreground" title="Edit">
                     <Pencil className="h-3.5 w-3.5" />
@@ -3000,6 +3015,14 @@ const Events = () => {
       <KeywordAnalysisDialog
         open={keywordAnalysisOpen}
         onOpenChange={setKeywordAnalysisOpen}
+        eventId={selectedId}
+        eventName={selectedEvent?.name}
+      />
+
+      {/* AI Event Summary Dialog */}
+      <EventSummaryDialog
+        open={eventSummaryOpen}
+        onOpenChange={setEventSummaryOpen}
         eventId={selectedId}
         eventName={selectedEvent?.name}
       />
