@@ -665,6 +665,27 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
           </div>
         )}
 
+        {summaryData?.summary_truncated && summaryData?.summary_source === 'llm' && !loading && (
+          <div className="px-6 py-2.5 border-b border-orange-500/30 bg-orange-500/10 text-xs text-orange-950 dark:text-orange-100 flex items-center justify-between gap-3 flex-wrap">
+            <span className="inline-flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>
+                <strong>Incomplete report.</strong> The model stopped before finishing all sections. Use <strong>Regenerate</strong> after the
+                server update, or ask your admin to raise <code className="text-[10px]">LLM_SUMMARY_MAX_TOKENS</code>.
+              </span>
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs shrink-0"
+              onClick={() => fetchSummary(true)}
+            >
+              Regenerate
+            </Button>
+          </div>
+        )}
+
         {/* Telemetry quick stats ribbon */}
         {summaryData && !loading && (
           <div className="px-6 py-2.5 border-b border-border/60 bg-muted/10 flex items-center justify-between gap-2 flex-wrap text-xs text-muted-foreground">

@@ -22,6 +22,10 @@ const getLLMConfig = () => {
     30000,
     Number(process.env.LLM_SUMMARY_TIMEOUT_MS || process.env.LLM_TIMEOUT_MS || 180000)
   );
+  const maxTokens = Math.min(
+    16384,
+    Math.max(2048, Number(process.env.LLM_SUMMARY_MAX_TOKENS || 8192))
+  );
 
   if (!baseUrl) {
     const err = new Error('LLM_BASE_URL is not configured in environment (.env).');
@@ -29,7 +33,19 @@ const getLLMConfig = () => {
     throw err;
   }
 
-  return { baseUrl, apiKey, model, timeoutMs };
+  return { baseUrl, apiKey, model, timeoutMs, maxTokens };
+};
+
+/** Heuristic: model hit token limit or stopped before required sections. */
+const isSummaryLikelyTruncated = (markdown, finishReason) => {
+  if (finishReason === 'length') return true;
+  const md = String(markdown || '').trim();
+  if (!md) return false;
+  const hasSection6 = /#{1,4}\s*[^\n]*(?:6\.|Recommended Operational|Operational Actions)/i.test(md);
+  if (!hasSection6 && md.length > 800) return true;
+  if (/\[[^\]]*$/.test(md)) return true;
+  if (/,\s*\[\s*$/.test(md)) return true;
+  return false;
 };
 
 /**
@@ -282,7 +298,7 @@ const generateEventSummary = async (eventId, { db } = {}) => {
   const sentimentPercentages = calculateReconciledPercentages(activeSentiment);
 
   // 5. Construct Prompt Context
-  const { baseUrl, apiKey, model, timeoutMs } = getLLMConfig();
+  const { baseUrl, apiKey, model, timeoutMs, maxTokens } = getLLMConfig();
 
   const userContext = `
 EVENT DETAILS:
@@ -372,11 +388,17 @@ Factual evaluation of whether any actual disruption, protest mobilization, or la
 Platform distribution breakdown (e.g. ${Object.entries(platformPercentages).map(([p, pct]) => `${p.toUpperCase()}: ${pct}%`).join(', ')}) and key voices.
 
 ### 🎯 6. Recommended Operational Actions for Authorities
-Actionable, evidence-based recommendations for digital monitoring and verification.`;
+Actionable, evidence-based recommendations for digital monitoring and verification.
+
+OUTPUT LENGTH:
+- You MUST output all 6 sections completely. Never stop mid-sentence or mid-citation.
+- If space is tight, shorten sections 1–3 slightly rather than omitting sections 5–6.`;
 
   let summaryMarkdown = '';
   let summarySource = 'llm';
   let llmError = null;
+  let summaryTruncated = false;
+  let llmFinishReason = null;
 
   try {
     const llmRes = await axios.post(
@@ -387,7 +409,7 @@ Actionable, evidence-based recommendations for digital monitoring and verificati
           { role: 'system', content: systemPrompt },
           { role: 'user', content: llmUserContext },
         ],
-        max_tokens: 2000,
+        max_tokens: maxTokens,
         temperature: 0.15,
       },
       {
@@ -399,8 +421,53 @@ Actionable, evidence-based recommendations for digital monitoring and verificati
       }
     );
 
-    const rawContent = llmRes.data?.choices?.[0]?.message?.content || '';
+    const choice = llmRes.data?.choices?.[0] || {};
+    llmFinishReason = choice.finish_reason || null;
+    const rawContent = choice.message?.content || '';
     summaryMarkdown = cleanLLMOutput(rawContent);
+    summaryTruncated = isSummaryLikelyTruncated(summaryMarkdown, llmFinishReason);
+
+    if (summaryTruncated && summaryMarkdown) {
+      logger.warn(
+        `[SummaryLLM] Summary appears truncated (finish_reason=${llmFinishReason}, len=${summaryMarkdown.length}) — requesting continuation`
+      );
+      try {
+        const contRes = await axios.post(
+          `${baseUrl}/chat/completions`,
+          {
+            model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: llmUserContext },
+              { role: 'assistant', content: rawContent },
+              {
+                role: 'user',
+                content:
+                  'Your previous reply was cut off. Continue EXACTLY where you stopped. Finish section 4 if incomplete, then write sections 5 and 6 in full. Do not repeat earlier sections.',
+              },
+            ],
+            max_tokens: maxTokens,
+            temperature: 0.15,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            timeout: timeoutMs,
+          }
+        );
+        const contRaw = contRes.data?.choices?.[0]?.message?.content || '';
+        const contClean = cleanLLMOutput(contRaw);
+        if (contClean) {
+          summaryMarkdown = `${summaryMarkdown.trim()}\n\n${contClean.trim()}`.trim();
+          llmFinishReason = contRes.data?.choices?.[0]?.finish_reason || llmFinishReason;
+          summaryTruncated = isSummaryLikelyTruncated(summaryMarkdown, llmFinishReason);
+        }
+      } catch (contErr) {
+        logger.warn(`[SummaryLLM] Continuation request failed: ${contErr.message}`);
+      }
+    }
 
     if (!summaryMarkdown) {
       summarySource = 'stats_only';
@@ -459,6 +526,8 @@ ${Object.entries(platformCounts).map(([p, count]) => `- **${p.toUpperCase()}**: 
     },
     summary: summaryMarkdown,
     summary_source: summarySource,
+    summary_truncated: summaryTruncated,
+    llm_finish_reason: llmFinishReason,
     llm_error: llmError,
     stats: {
       total_media_count: totalMediaCount,
