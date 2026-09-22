@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../lib/api';
 import ReactMarkdown from 'react-markdown';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { useAuth } from '../../context/auth.context';
 import {
   Dialog,
   DialogContent,
@@ -170,12 +173,64 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       }
     });
 
-    return [...basePlatforms, ...customList];
+    return [...basePlatforms, ...customList].filter((p) => p.count > 0);
   }, [platforms]);
 
   const activeSignals = useMemo(() => {
     return platformList.filter((p) => p.count > 0);
   }, [platformList]);
+
+  const { user } = useAuth() || {};
+  const tenantName = useMemo(() => {
+    // 1. Direct tenant properties from authenticated user
+    const userCandidates = [
+      user?.blurasagatitle,
+      user?.theme_name,
+      user?.organization_name,
+      user?.organization,
+      user?.tenant_name,
+      user?.tenantName,
+      user?.agency_name,
+      user?.department,
+    ];
+    for (const candidate of userCandidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate.trim();
+      }
+    }
+
+    // 2. Active document title dynamically set by theme/tenant loader
+    if (typeof document !== 'undefined' && document.title) {
+      const docHeader = document.title.split(/[—\-|]/)[0]?.trim();
+      const genericTitles = ['blura saga'];
+      if (docHeader && !genericTitles.includes(docHeader.toLowerCase())) {
+        return docHeader;
+      }
+    }
+
+    // 3. Dynamic tenant extraction from hostname/subdomain (zero hardcoded tenant names)
+    if (typeof window !== 'undefined' && window.location.hostname) {
+      const host = window.location.hostname.toLowerCase();
+      const parts = host.split('.');
+      if (parts.length > 1) {
+        const sub = parts[0];
+        const ignoredSubdomains = ['localhost', '127', 'www', 'app', 'dev', 'api', 'admin', 'stage', 'staging'];
+        if (sub && !ignoredSubdomains.includes(sub)) {
+          const formatted = sub
+            .replace(/([a-z])([A-Z])/g, '$1 $2')
+            .replace(/[-_.]+/g, ' ')
+            .replace(/([a-z])(police)\b/i, '$1 $2')
+            .replace(/([a-z])(dept|department)\b/i, '$1 $2')
+            .trim();
+          if (formatted) {
+            return formatted.toUpperCase();
+          }
+        }
+      }
+    }
+
+    return 'DIGITAL INTELLIGENCE PLATFORM';
+  }, [user]);
 
   const handleCopy = () => {
     if (!summaryData?.summary) return;
@@ -188,18 +243,265 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
 
   const handleDownload = () => {
     if (!summaryData?.summary) return;
-    const textToDownload = `# Event Summary\nEvent: ${displayName}\nGenerated At: ${generatedAt || new Date().toISOString()}\nTotal Media Rows Analyzed: ${totalPosts}\n\n----------------------------------------\n\n${summaryData.summary}`;
+    try {
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const margin = 14;
+      const usableW = pageW - margin * 2;
 
-    const blob = new Blob([textToDownload], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${displayName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_summary.md`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast.success('Event summary downloaded');
+      // Helper: Clean markdown, strip emojis and non-ASCII chars so standard jsPDF fonts never print garbage
+      const cleanMdText = (txt) => {
+        if (!txt) return '';
+        return txt
+          .replace(/```[\s\S]*?```/g, '')
+          .replace(/`([^`]+)`/g, '$1')
+          .replace(/\*\*([^*]+)\*\*/g, '$1')
+          .replace(/\*([^*]+)\*/g, '$1')
+          .replace(/__([^_]+)__/g, '$1')
+          .replace(/_([^_]+)_/g, '$1')
+          .replace(/^>\s*/gm, '')
+          .replace(/^#{1,6}\s*/gm, '')
+          .replace(/^\s*[-*_]{3,}\s*$/gm, '')
+          .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')
+          .replace(/[\u2600-\u27BF\uE000-\uF8FF\u200D\uFE0F]/g, '')
+          .replace(/[^\x00-\x7F]/g, (char) => {
+            const map = {
+              '‘': "'", '’': "'", '“': '"', '”': '"',
+              '•': '-', '–': '-', '—': '-', '…': '...',
+            };
+            return map[char] || '';
+          })
+          .trim();
+      };
+
+      // Helper: Draw watermark on page canvas BEFORE content is placed (background layer)
+      const drawWatermark = (targetPage) => {
+        doc.setPage(targetPage);
+        if (typeof doc.saveGraphicsState === 'function') {
+          doc.saveGraphicsState();
+        }
+        if (typeof doc.GState === 'function' && typeof doc.setGState === 'function') {
+          try {
+            doc.setGState(new doc.GState({ opacity: 0.3 }));
+          } catch (_) {}
+        }
+        doc.setTextColor(218, 224, 235);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(36);
+        doc.text(cleanMdText(tenantName).toUpperCase(), pageW / 2, pageH / 2, {
+          align: 'center',
+          angle: -35,
+        });
+        if (typeof doc.restoreGraphicsState === 'function') {
+          doc.restoreGraphicsState();
+        }
+      };
+
+      // Stamp watermark on Page 1 first as background
+      drawWatermark(1);
+
+      // Top decorative stripe
+      doc.setFillColor(79, 70, 229);
+      doc.rect(0, 0, pageW, 4, 'F');
+
+      let yPos = 16;
+
+      // Organization / Tenant Name
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(67, 56, 202);
+      doc.text(cleanMdText(tenantName).toUpperCase(), margin, yPos);
+
+      yPos += 5;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text('OFFICIAL EVENT INTELLIGENCE & SUMMARY REPORT', margin, yPos);
+
+      yPos += 7;
+      // Event Title
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(15);
+      doc.setTextColor(15, 23, 42);
+      const titleLines = doc.splitTextToSize(cleanMdText(displayName), usableW);
+      doc.text(titleLines, margin, yPos);
+      yPos += titleLines.length * 6.5;
+
+      // Metadata Info
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      const genDate = new Date(generatedAt || Date.now()).toLocaleString('en-IN', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      });
+      doc.text(`Generated: ${genDate}   •   Total Media Posts Analyzed: ${totalPosts}`, margin, yPos);
+
+      yPos += 5;
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.4);
+      doc.line(margin, yPos, pageW - margin, yPos);
+      yPos += 6;
+
+      // KPI Table
+      const negCount = sentiment?.negative || 0;
+      const neuCount = sentiment?.neutral || 0;
+      const posCount = sentiment?.positive || 0;
+      const riskCount = (risk?.critical || 0) + (risk?.high || 0);
+
+      autoTable(doc, {
+        startY: yPos,
+        margin: { left: margin, right: margin },
+        tableWidth: usableW,
+        head: [['TOTAL POSTS', 'NEGATIVE SENTIMENT', 'NEUTRAL SENTIMENT', 'POSITIVE SENTIMENT', 'HIGH/CRITICAL RISK']],
+        body: [[
+          String(totalPosts),
+          String(negCount),
+          String(neuCount),
+          String(posCount),
+          String(riskCount),
+        ]],
+        headStyles: {
+          fillColor: [241, 245, 249],
+          textColor: [71, 85, 105],
+          fontSize: 7.5,
+          fontStyle: 'bold',
+          halign: 'center',
+          cellPadding: 2.5,
+        },
+        bodyStyles: {
+          textColor: [15, 23, 42],
+          fontSize: 10,
+          fontStyle: 'bold',
+          halign: 'center',
+          cellPadding: 3,
+        },
+        styles: {
+          lineColor: [226, 232, 240],
+          lineWidth: 0.3,
+        },
+      });
+
+      yPos = (doc.lastAutoTable?.finalY ?? yPos + 18) + 4;
+
+      // Ingested Platforms Strip
+      if (platformList.length > 0) {
+        const platformItems = platformList.map((p) => `${cleanMdText(p.label)}: ${p.count}`);
+        autoTable(doc, {
+          startY: yPos,
+          margin: { left: margin, right: margin },
+          tableWidth: usableW,
+          head: [['ACTIVE PLATFORM INGESTION VOLUMES']],
+          body: [[platformItems.join('     |     ')]],
+          headStyles: {
+            fillColor: [248, 250, 252],
+            textColor: [100, 116, 139],
+            fontSize: 7,
+            fontStyle: 'bold',
+            cellPadding: 2,
+          },
+          bodyStyles: {
+            textColor: [30, 41, 59],
+            fontSize: 8.5,
+            fontStyle: 'normal',
+            cellPadding: 2.5,
+          },
+          styles: {
+            lineColor: [226, 232, 240],
+            lineWidth: 0.3,
+          },
+        });
+        yPos = (doc.lastAutoTable?.finalY ?? yPos + 12) + 6;
+      }
+
+      const checkPageBreak = (neededHeight) => {
+        if (yPos + neededHeight > pageH - 22) {
+          doc.addPage();
+          // Draw watermark immediately as background layer for new page
+          drawWatermark(doc.internal.getNumberOfPages());
+          yPos = 18;
+          return true;
+        }
+        return false;
+      };
+
+      const rawSummary = summaryData.summary || '';
+      // Split by markdown headers
+      const rawSections = rawSummary.split(/(?=(?:^|\n)#{1,4}\s+)/g).filter(Boolean);
+
+      for (const sec of rawSections) {
+        const lines = sec.trim().split('\n');
+        const headerRaw = lines[0] || '';
+        const headerLine = cleanMdText(headerRaw.replace(/^#{1,4}\s*/, '')).replace(/^[-–—:\s]+/, '').trim();
+        const bodyContent = cleanMdText(lines.slice(1).join('\n')).trim();
+
+        // Skip redundant document-level title or empty sections
+        if (/^event summary\b/i.test(headerLine) && (!bodyContent || bodyContent === '---')) {
+          continue;
+        }
+        if (!headerLine && !bodyContent) continue;
+
+        checkPageBreak(16);
+
+        // Section Title Banner
+        if (headerLine) {
+          doc.setFillColor(243, 244, 246);
+          doc.setDrawColor(229, 231, 235);
+          doc.roundedRect(margin, yPos, usableW, 6.5, 1, 1, 'FD');
+
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8.5);
+          doc.setTextColor(30, 41, 59);
+          doc.text(headerLine.toUpperCase(), margin + 3, yPos + 4.5);
+          yPos += 9.5;
+        }
+
+        // Section Body Content
+        if (bodyContent) {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(51, 65, 85);
+
+          const bodyParagraphs = bodyContent.split('\n\n');
+          for (const para of bodyParagraphs) {
+            const trimmed = para.trim();
+            if (!trimmed || trimmed === '---') continue;
+
+            const splitLines = doc.splitTextToSize(trimmed, usableW - 4);
+            checkPageBreak(splitLines.length * 4 + 3);
+
+            doc.text(splitLines, margin + 2, yPos);
+            yPos += splitLines.length * 4 + 2;
+          }
+        }
+        yPos += 3;
+      }
+
+      // Apply bottom footer across all pages (watermarks already stamped in background layer)
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+
+        // Bottom Footer
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.3);
+        doc.line(margin, pageH - 12, pageW - margin, pageH - 12);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text('Developed by Bluecloud softech solutions Hyderabad', margin, pageH - 7);
+        doc.text(`Page ${i} of ${totalPages}`, pageW - margin, pageH - 7, { align: 'right' });
+      }
+
+      const cleanFileName = `${cleanMdText(tenantName).replace(/[^a-z0-9]/gi, '_')}_${cleanMdText(displayName).replace(/[^a-z0-9]/gi, '_')}_Summary_Report.pdf`;
+      doc.save(cleanFileName);
+      toast.success('Executive PDF report downloaded');
+    } catch (err) {
+      console.error('Failed to generate PDF report:', err);
+      toast.error('Failed to generate PDF report: ' + err.message);
+    }
   };
 
   return (
@@ -265,11 +567,11 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
               size="sm"
               onClick={handleDownload}
               disabled={loading || !summaryData?.summary}
-              className="h-8 gap-1.5 text-xs text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/60 hover:bg-purple-50 dark:hover:bg-purple-950/40"
-              title="Download markdown briefing"
+              className="h-8 gap-1.5 text-xs text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/60 hover:bg-purple-50 dark:hover:bg-purple-950/40 font-medium"
+              title="Download executive PDF report"
             >
               <Download className="h-3.5 w-3.5" />
-              <span>Export</span>
+              <span>Download Report</span>
             </Button>
           </div>
         </DialogHeader>
@@ -356,13 +658,12 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                   return (
                     <div
                       key={idx}
-                      className={`flex items-center gap-2.5 text-xs transition-colors duration-200 ${
-                        isCurrent
-                          ? 'text-purple-600 dark:text-purple-300 font-semibold'
-                          : isDone
+                      className={`flex items-center gap-2.5 text-xs transition-colors duration-200 ${isCurrent
+                        ? 'text-purple-600 dark:text-purple-300 font-semibold'
+                        : isDone
                           ? 'text-muted-foreground line-through opacity-70'
                           : 'text-muted-foreground/50'
-                      }`}
+                        }`}
                     >
                       {isDone ? (
                         <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
@@ -520,33 +821,31 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                       </div>
                     </div>
 
-                    {/* Platform Breakdown Box - Comprehensive & Dynamic */}
-                    <div className="rounded-xl border border-border/70 p-5 bg-card">
-                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                        Platform Ingestion Volumes
-                      </h4>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-                        {platformList.map((item) => {
-                          const ItemIcon = item.Icon;
-                          return (
-                            <div
-                              key={item.key}
-                              className={`flex items-center gap-2.5 p-3 rounded-lg border transition-colors ${
-                                item.count > 0
-                                  ? 'bg-muted/40 border-border/60 shadow-2xs'
-                                  : 'bg-muted/15 border-border/30 opacity-60'
-                              }`}
-                            >
-                              <ItemIcon className={`h-4 w-4 shrink-0 ${item.color}`} />
-                              <div className="min-w-0">
-                                <div className="text-xs font-medium truncate">{item.label}</div>
-                                <div className="text-sm font-bold text-foreground">{item.count}</div>
+                    {/* Platform Breakdown Box - Only active platforms */}
+                    {platformList.length > 0 && (
+                      <div className="rounded-xl border border-border/70 p-5 bg-card">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                          Platform Ingestion Volumes
+                        </h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                          {platformList.map((item) => {
+                            const ItemIcon = item.Icon;
+                            return (
+                              <div
+                                key={item.key}
+                                className="flex items-center gap-2.5 p-3 rounded-lg border bg-muted/40 border-border/60 shadow-2xs"
+                              >
+                                <ItemIcon className={`h-4 w-4 shrink-0 ${item.color}`} />
+                                <div className="min-w-0">
+                                  <div className="text-xs font-medium truncate">{item.label}</div>
+                                  <div className="text-sm font-bold text-foreground">{item.count}</div>
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Key Narratives - Rendered Markdown */}
                     {(extracted.narratives || summaryData.structuredBriefing?.keyNarratives) && (
