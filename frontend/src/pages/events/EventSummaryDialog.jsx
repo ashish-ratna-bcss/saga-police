@@ -68,9 +68,9 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
     () => [
       'Extracting event parameters & scope',
       'Aggregating telemetry rows from database',
-      'Computing sentiment vectors & risk indicators',
-      'Querying on-premise Qwen-14B LLM engine',
-      'Synthesizing executive intelligence briefing',
+      'Computing sentiment & risk indicators',
+      'Analyzing cross-platform signals',
+      'Synthesizing event summary',
     ],
     []
   );
@@ -138,33 +138,33 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
 
   const handleCopy = () => {
     if (!summaryData?.summary) return;
-    const textToCopy = `# AI Intelligence Executive Briefing: ${displayName}\nGenerated: ${generatedAt || new Date().toISOString()}\nModel: ${modelName}\n\n${summaryData.summary}`;
+    const textToCopy = `# Event Summary: ${displayName}\nGenerated: ${generatedAt || new Date().toISOString()}\n\n${summaryData.summary}`;
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
-    toast.success('Executive briefing copied to clipboard');
+    toast.success('Event summary copied to clipboard');
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleDownload = () => {
     if (!summaryData?.summary) return;
-    const textToDownload = `# Executive Intelligence Briefing\nEvent: ${displayName}\nGenerated At: ${generatedAt || new Date().toISOString()}\nModel Engine: ${modelName}\nTotal Media Rows Analyzed: ${totalPosts}\n\n----------------------------------------\n\n${summaryData.summary}`;
+    const textToDownload = `# Event Summary\nEvent: ${displayName}\nGenerated At: ${generatedAt || new Date().toISOString()}\nTotal Media Rows Analyzed: ${totalPosts}\n\n----------------------------------------\n\n${summaryData.summary}`;
 
     const blob = new Blob([textToDownload], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${displayName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_executive_summary.md`;
+    link.download = `${displayName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_summary.md`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    toast.success('Executive summary downloaded');
+    toast.success('Event summary downloaded');
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-5xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden bg-background border-border shadow-2xl rounded-xl">
-        {/* Header - Clean, aligned, without awkward wraps or strange circles */}
+        {/* Header */}
         <DialogHeader className="px-6 py-4 border-b bg-muted/20 flex flex-row items-center justify-between space-y-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-purple-500/20 shrink-0">
@@ -173,14 +173,8 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <DialogTitle className="text-lg font-bold tracking-tight text-foreground truncate">
-                  Executive Intelligence Summary
+                  Event Summary
                 </DialogTitle>
-                <Badge
-                  variant="outline"
-                  className="font-mono text-[11px] px-2 py-0.5 bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-950/50 dark:border-purple-800 dark:text-purple-300 shrink-0"
-                >
-                  {modelName}
-                </Badge>
                 {totalPosts > 0 && (
                   <Badge
                     variant="secondary"
@@ -312,10 +306,10 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                 <Sparkles className="h-6 w-6 animate-pulse" />
               </div>
               <h3 className="text-base font-semibold text-foreground mb-1">
-                Synthesizing Event Intelligence
+                Generating Event Summary
               </h3>
               <p className="text-xs text-muted-foreground max-w-sm mb-6">
-                Analyzing database telemetry and generating comprehensive executive briefing with Qwen-14B.
+                Analyzing database telemetry and synthesizing a clear, natural-language overview.
               </p>
 
               {/* Step indicator */}
@@ -352,7 +346,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
               <div className="h-12 w-12 rounded-xl bg-destructive/10 text-destructive flex items-center justify-center mb-3">
                 <AlertTriangle className="h-6 w-6" />
               </div>
-              <h3 className="text-sm font-semibold text-foreground mb-1">Intelligence Generation Issue</h3>
+              <h3 className="text-sm font-semibold text-foreground mb-1">Summary Generation Issue</h3>
               <p className="text-xs text-muted-foreground max-w-md mb-4">{error}</p>
               <Button
                 variant="outline"
@@ -373,7 +367,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                     className="data-[state=active]:border-b-2 data-[state=active]:border-purple-600 rounded-none bg-transparent px-2 text-xs font-medium"
                   >
                     <FileText className="h-3.5 w-3.5 mr-1.5 text-purple-600" />
-                    Full Executive Briefing
+                    Event Summary
                   </TabsTrigger>
                   <TabsTrigger
                     value="advisory"

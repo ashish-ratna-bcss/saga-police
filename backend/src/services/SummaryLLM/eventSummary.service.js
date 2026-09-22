@@ -230,13 +230,13 @@ STRATIFIED GROUND INTELLIGENCE EVIDENCE (Selected from all ${totalMediaCount} po
 ${selectedSnippets.length > 0 ? selectedSnippets.map((s, idx) => `[${idx + 1}] (${s.platform.toUpperCase()}) ${s.author}: "${s.text}" [Sentiment: ${s.sentiment}, Risk: ${s.risk_level}, Impact: ${s.engagementScore}]`).join('\n') : 'No text posts available yet in the database.'}
 `.trim();
 
-  const systemPrompt = `You are a Senior Strategic OSINT Intelligence Analyst for Special Branch Police and Homeland Security.
-Your objective is to examine all telemetry data rows, keyword signals, and social media posts for the given event, and synthesize a comprehensive, natural, user-readable and easily understandable Intelligence Summary.
+  const systemPrompt = `You are a Senior Strategic OSINT Analyst.
+Your objective is to examine all data rows, keyword signals, and social media posts for the given event, and synthesize a comprehensive, natural, user-readable and easily understandable Event Summary.
 
-Write in authoritative, natural, fluent English using GitHub Markdown. Format your output with clear headers, key highlights, and concise bullet points.
+Write in clear, natural, fluent English using GitHub Markdown. Format your output with clean headers, key highlights, and concise bullet points.
 
 Required Sections:
-# 🚨 Intelligence Assessment & Executive Summary: ${event.name}
+# 📋 Event Summary: ${event.name}
 
 ### 📌 1. Ground Situation & Event Context
 Provide a clear, natural narrative explaining what this event is about, why it is occurring, and its current trajectory.
@@ -256,7 +256,7 @@ Which social media networks and key voices are driving the conversation?
 ### 🎯 6. Recommended Operational Actions for Law Enforcement
 Provide clear, practical, numbered or bulleted tactical recommendations for field deployment, intelligence monitoring, and grievance addressal.
 
-Ensure the briefing is crystal-clear, executive-level, and completely jargon-free for officers. Do not output raw JSON or codeblocks.`;
+Ensure the summary is crystal-clear, natural, and completely easy to understand. Do not output raw JSON or codeblocks.`;
 
   let summaryMarkdown = '';
 
@@ -285,15 +285,15 @@ Ensure the briefing is crystal-clear, executive-level, and completely jargon-fre
     summaryMarkdown = cleanLLMOutput(rawContent);
 
     if (!summaryMarkdown) {
-      summaryMarkdown = `### Intelligence Briefing for ${event.name}\n\nAnalysis completed. ${totalMediaCount} posts processed across ${(event.platforms || []).join(', ') || 'social platforms'}. Public sentiment is currently ${sentimentCounts.negative > sentimentCounts.positive ? 'predominantly critical' : 'stable'}.`;
+      summaryMarkdown = `### Event Summary: ${event.name}\n\nAnalysis completed. ${totalMediaCount} posts processed across ${(event.platforms || []).join(', ') || 'social platforms'}. Public sentiment is currently ${sentimentCounts.negative > sentimentCounts.positive ? 'predominantly critical' : 'stable'}.`;
     }
   } catch (err) {
     logger.error(`[SummaryLLM] LLM completion failed: ${err.message}`);
     // Graceful fallback summary if LLM service is temporarily unreachable
-    summaryMarkdown = `### 🚨 Automated Intelligence Snapshot: ${event.name}
+    summaryMarkdown = `### 📋 Event Summary: ${event.name}
 
 > [!NOTE]
-> Detailed LLM narrative synthesis encountered a connection delay. Below is the direct aggregated telemetry summary across all database records.
+> Detailed AI narrative synthesis encountered a connection delay. Below is the direct aggregated telemetry summary across all database records.
 
 - **Monitored Event**: ${event.name} (${event.location || 'All Regions'})
 - **Total Posts Ingested & Analyzed**: ${totalMediaCount.toLocaleString('en-IN')}
