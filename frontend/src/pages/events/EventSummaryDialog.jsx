@@ -19,8 +19,6 @@ import {
   Check,
   Download,
   AlertTriangle,
-  Calendar,
-  CheckCircle2,
   FileText,
   BarChart3,
   ShieldAlert,
@@ -30,7 +28,10 @@ import {
   XBrandLogo,
   YoutubeBrandLogo,
   FacebookBrandLogo,
+  InstagramBrandLogo,
   TelegramBrandLogo,
+  WhatsAppBrandLogo,
+  AllPlatformsLogo,
 } from '../../components/PlatformBrandIcon';
 import { toast } from 'sonner';
 
@@ -94,18 +95,18 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
         if (data && (data.summary || data.structuredBriefing)) {
           setSummaryData(data);
           if (refresh) {
-            toast.success('Event intelligence briefing regenerated');
+            toast.success('Event summary regenerated');
           }
         } else {
-          setError('No briefing data returned from the LLM service.');
+          setError('No summary data returned from the service.');
         }
       } catch (err) {
-        console.error('Failed to fetch event LLM summary:', err);
+        console.error('Failed to fetch event summary:', err);
         const msg =
           err?.response?.data?.message ||
           err?.response?.data?.error ||
           err?.message ||
-          'Failed to generate intelligence briefing from LLM.';
+          'Failed to generate event summary.';
         setError(msg);
         toast.error('AI Summary generation failed', { description: msg });
       } finally {
@@ -133,8 +134,47 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
   const sentiment = stats.sentiment_counts || stats.sentiment || {};
   const risk = stats.risk_counts || stats.risk || {};
   const generatedAt = summaryData?.generated_at || summaryData?.generatedAt;
-  const modelName = summaryData?.model || 'qwen3-14b';
   const extracted = useMemo(() => extractSectionsFromMarkdown(summaryData?.summary || ''), [summaryData?.summary]);
+
+  // Compute unified platform list with accurate counts & brand icons
+  const platformList = useMemo(() => {
+    const raw = platforms || {};
+    const twitterCount = (raw.twitter || 0) + (raw.x || 0);
+    const instagramCount = (raw.instagram || 0) + (raw.insta || 0);
+    const youtubeCount = (raw.youtube || 0) + (raw.yt || 0);
+    const facebookCount = (raw.facebook || 0) + (raw.fb || 0);
+    const telegramCount = (raw.telegram || 0) + (raw.tg || 0);
+    const whatsappCount = (raw.whatsapp || 0) + (raw.wa || 0);
+
+    const basePlatforms = [
+      { key: 'twitter', label: 'Twitter / X', count: twitterCount, Icon: XBrandLogo, color: 'text-foreground' },
+      { key: 'instagram', label: 'Instagram', count: instagramCount, Icon: InstagramBrandLogo, color: 'text-pink-500' },
+      { key: 'youtube', label: 'YouTube', count: youtubeCount, Icon: YoutubeBrandLogo, color: 'text-red-500' },
+      { key: 'facebook', label: 'Facebook', count: facebookCount, Icon: FacebookBrandLogo, color: 'text-blue-600' },
+      { key: 'telegram', label: 'Telegram', count: telegramCount, Icon: TelegramBrandLogo, color: 'text-sky-500' },
+      { key: 'whatsapp', label: 'WhatsApp', count: whatsappCount, Icon: WhatsAppBrandLogo, color: 'text-emerald-500' },
+    ];
+
+    const knownKeys = new Set(['twitter', 'x', 'instagram', 'insta', 'youtube', 'yt', 'facebook', 'fb', 'telegram', 'tg', 'whatsapp', 'wa', 'other']);
+    const customList = [];
+    Object.entries(raw).forEach(([k, v]) => {
+      if (!knownKeys.has(k.toLowerCase()) && v > 0) {
+        customList.push({
+          key: k,
+          label: k.toUpperCase(),
+          count: v,
+          Icon: AllPlatformsLogo,
+          color: 'text-muted-foreground',
+        });
+      }
+    });
+
+    return [...basePlatforms, ...customList];
+  }, [platforms]);
+
+  const activeSignals = useMemo(() => {
+    return platformList.filter((p) => p.count > 0);
+  }, [platformList]);
 
   const handleCopy = () => {
     if (!summaryData?.summary) return;
@@ -233,35 +273,27 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
           </div>
         </DialogHeader>
 
-        {/* Telemetry quick stats ribbon (only when loaded) */}
+        {/* Telemetry quick stats ribbon */}
         {summaryData && !loading && (
           <div className="px-6 py-2.5 border-b border-border/60 bg-muted/10 flex items-center justify-between gap-2 flex-wrap text-xs text-muted-foreground">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-semibold text-foreground text-[11px] uppercase tracking-wider">Signals:</span>
-              {platforms?.twitter > 0 && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/80 text-[11px]">
-                  <XBrandLogo className="h-2.5 w-2.5" /> {platforms.twitter}
-                </span>
-              )}
-              {platforms?.youtube > 0 && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/80 text-[11px]">
-                  <YoutubeBrandLogo className="h-2.5 w-2.5 text-red-500" /> {platforms.youtube}
-                </span>
-              )}
-              {platforms?.facebook > 0 && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/80 text-[11px]">
-                  <FacebookBrandLogo className="h-2.5 w-2.5 text-blue-600" /> {platforms.facebook}
-                </span>
-              )}
-              {platforms?.telegram > 0 && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/80 text-[11px]">
-                  <TelegramBrandLogo className="h-2.5 w-2.5 text-sky-500" /> {platforms.telegram}
-                </span>
-              )}
-              {platforms?.other > 0 && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/80 text-[11px]">
-                  Other: {platforms.other}
-                </span>
+              {activeSignals.length > 0 ? (
+                activeSignals.map((item) => {
+                  const ItemIcon = item.Icon;
+                  return (
+                    <span
+                      key={item.key}
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted/80 text-[11px] font-medium"
+                    >
+                      <ItemIcon className={`h-3 w-3 ${item.color}`} />
+                      <span>{item.label}:</span>
+                      <strong className="text-foreground">{item.count}</strong>
+                    </span>
+                  );
+                })
+              ) : (
+                <span className="text-muted-foreground text-[11px]">No active posts</span>
               )}
 
               <div className="h-3.5 w-px bg-border/60 mx-1 hidden sm:block" />
@@ -290,7 +322,10 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
             {risk && (
               <div className="text-[11px] flex items-center gap-2 ml-auto">
                 <span className="text-muted-foreground">High/Critical Risk:</span>
-                <Badge variant="outline" className="text-[11px] px-1.5 py-0 border-amber-300 text-amber-700 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                <Badge
+                  variant="outline"
+                  className="text-[11px] px-1.5 py-0 border-amber-300 text-amber-700 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                >
                   {(risk.critical || 0) + (risk.high || 0)}
                 </Badge>
               </div>
@@ -403,10 +438,12 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                         <AlertTriangle className="h-4 w-4" />
                         Threat, Misinformation & Public Order Risk
                       </div>
-                      <div className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line">
-                        {extracted.threat ||
-                          summaryData.structuredBriefing?.threatAndRisk ||
-                          'Continuous monitoring recommended. Review key influencers and escalating sentiment channels.'}
+                      <div className="prose dark:prose-invert max-w-none text-xs text-muted-foreground leading-relaxed">
+                        <ReactMarkdown>
+                          {extracted.threat ||
+                            summaryData.structuredBriefing?.threatAndRisk ||
+                            'Continuous monitoring recommended. Review key influencers and escalating sentiment channels.'}
+                        </ReactMarkdown>
                       </div>
                     </div>
 
@@ -416,10 +453,12 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                         <ShieldAlert className="h-4 w-4" />
                         Recommended Law Enforcement & Administrative Advisory
                       </div>
-                      <div className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line">
-                        {extracted.actions ||
-                          summaryData.structuredBriefing?.recommendedActions ||
-                          'Deploy counter-narrative verification, monitor platform surges, and coordinate with ground response teams.'}
+                      <div className="prose dark:prose-invert max-w-none text-xs text-muted-foreground leading-relaxed">
+                        <ReactMarkdown>
+                          {extracted.actions ||
+                            summaryData.structuredBriefing?.recommendedActions ||
+                            'Deploy counter-narrative verification, monitor platform surges, and coordinate with ground response teams.'}
+                        </ReactMarkdown>
                       </div>
                     </div>
 
@@ -429,10 +468,12 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                         <TrendingUp className="h-4 w-4 text-indigo-500" />
                         Public Sentiment & Ground Atmosphere
                       </div>
-                      <div className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line">
-                        {extracted.sentiment ||
-                          summaryData.structuredBriefing?.publicSentiment ||
-                          'Ground sentiment is dynamically fluctuating across channels.'}
+                      <div className="prose dark:prose-invert max-w-none text-xs text-muted-foreground leading-relaxed">
+                        <ReactMarkdown>
+                          {extracted.sentiment ||
+                            summaryData.structuredBriefing?.publicSentiment ||
+                            'Ground sentiment is dynamically fluctuating across channels.'}
+                        </ReactMarkdown>
                       </div>
                     </div>
                   </ScrollArea>
@@ -478,52 +519,45 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                       </div>
                     </div>
 
-                    {/* Platform Breakdown Box */}
+                    {/* Platform Breakdown Box - Comprehensive & Dynamic */}
                     <div className="rounded-xl border border-border/70 p-5 bg-card">
                       <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
                         Platform Ingestion Volumes
                       </h4>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div className="flex items-center gap-2.5 p-3 rounded-lg bg-muted/30 border border-border/40">
-                          <XBrandLogo className="h-4 w-4" />
-                          <div>
-                            <div className="text-xs font-medium">Twitter / X</div>
-                            <div className="text-sm font-bold">{platforms?.twitter || 0}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2.5 p-3 rounded-lg bg-muted/30 border border-border/40">
-                          <YoutubeBrandLogo className="h-4 w-4 text-red-500" />
-                          <div>
-                            <div className="text-xs font-medium">YouTube</div>
-                            <div className="text-sm font-bold">{platforms?.youtube || 0}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2.5 p-3 rounded-lg bg-muted/30 border border-border/40">
-                          <FacebookBrandLogo className="h-4 w-4 text-blue-600" />
-                          <div>
-                            <div className="text-xs font-medium">Facebook</div>
-                            <div className="text-sm font-bold">{platforms?.facebook || 0}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2.5 p-3 rounded-lg bg-muted/30 border border-border/40">
-                          <TelegramBrandLogo className="h-4 w-4 text-sky-500" />
-                          <div>
-                            <div className="text-xs font-medium">Telegram</div>
-                            <div className="text-sm font-bold">{platforms?.telegram || 0}</div>
-                          </div>
-                        </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                        {platformList.map((item) => {
+                          const ItemIcon = item.Icon;
+                          return (
+                            <div
+                              key={item.key}
+                              className={`flex items-center gap-2.5 p-3 rounded-lg border transition-colors ${
+                                item.count > 0
+                                  ? 'bg-muted/40 border-border/60 shadow-2xs'
+                                  : 'bg-muted/15 border-border/30 opacity-60'
+                              }`}
+                            >
+                              <ItemIcon className={`h-4 w-4 shrink-0 ${item.color}`} />
+                              <div className="min-w-0">
+                                <div className="text-xs font-medium truncate">{item.label}</div>
+                                <div className="text-sm font-bold text-foreground">{item.count}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
 
-                    {/* Key Narratives */}
+                    {/* Key Narratives - Rendered Markdown */}
                     {(extracted.narratives || summaryData.structuredBriefing?.keyNarratives) && (
                       <div className="rounded-xl border border-border/70 p-5 bg-card">
                         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
                           Key Narratives & Demands
                         </h4>
-                        <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line">
-                          {extracted.narratives || summaryData.structuredBriefing?.keyNarratives}
-                        </p>
+                        <div className="prose dark:prose-invert max-w-none text-xs text-muted-foreground leading-relaxed space-y-1.5 prose-ul:my-1 prose-li:my-0.5">
+                          <ReactMarkdown>
+                            {extracted.narratives || summaryData.structuredBriefing?.keyNarratives}
+                          </ReactMarkdown>
+                        </div>
                       </div>
                     )}
                   </ScrollArea>

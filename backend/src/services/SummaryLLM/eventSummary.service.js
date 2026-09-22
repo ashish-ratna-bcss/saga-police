@@ -110,7 +110,8 @@ const generateEventSummary = async (eventId, { db } = {}) => {
 
   for (const m of mediaRows) {
     // Platform
-    const p = String(m.platform || 'unknown').toLowerCase();
+    let p = String(m.platform || 'unknown').toLowerCase().trim();
+    if (p === 'x') p = 'twitter';
     platformCounts[p] = (platformCounts[p] || 0) + 1;
 
     // Dates
