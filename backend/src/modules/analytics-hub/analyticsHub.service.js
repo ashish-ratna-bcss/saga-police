@@ -212,7 +212,7 @@ const getOverview = async (query = {}) => {
   const platformClause = platform ? `AND platform = '${platform.replace(/'/g, '')}'` : '';
   const filterSql = `${dateClause} ${platformClause}`;
 
-  const [overview, globalThreeLevel] = await Promise.all([
+  const [overview, globalThreeLevel, dailyTrendRaw, platformShareRaw] = await Promise.all([
     getDashboardOverview(query),
     prisma.$queryRawUnsafe(`
       SELECT
@@ -230,7 +230,31 @@ const getOverview = async (query = {}) => {
         UNION ALL
         SELECT analysis_result FROM social_media_posts WHERE analysis_result IS NOT NULL ${filterSql}
       ) combined
-    `).catch(() => ([{}]))
+    `).catch(() => ([{}])),
+    prisma.$queryRawUnsafe(`
+      SELECT
+        TO_CHAR(fetched_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS date,
+        COUNT(*)::int AS total
+      FROM (
+        SELECT fetched_at FROM social_media_posts WHERE fetched_at IS NOT NULL ${filterSql}
+        UNION ALL
+        SELECT fetched_at FROM social_media_event_media WHERE fetched_at IS NOT NULL ${filterSql}
+      ) all_telemetry
+      GROUP BY date
+      ORDER BY date ASC
+    `).catch(() => ([])),
+    prisma.$queryRawUnsafe(`
+      SELECT
+        LOWER(platform) AS slug,
+        COUNT(*)::int AS posts_count
+      FROM (
+        SELECT platform FROM social_media_posts WHERE fetched_at IS NOT NULL ${filterSql}
+        UNION ALL
+        SELECT platform FROM social_media_event_media WHERE fetched_at IS NOT NULL ${filterSql}
+      ) all_telemetry
+      GROUP BY LOWER(platform)
+      ORDER BY posts_count DESC
+    `).catch(() => ([]))
   ]);
 
   const statsRow = (globalThreeLevel && globalThreeLevel[0]) || {};
@@ -253,8 +277,64 @@ const getOverview = async (query = {}) => {
     low: statsRow.risk_low || 0,
   });
 
+  // Build continuous daily trend
+  const dailyCountMap = new Map();
+  (dailyTrendRaw || []).forEach((r) => {
+    if (r && r.date) dailyCountMap.set(r.date, Number(r.total) || 0);
+  });
+
+  const startTrendDate = range === 'all'
+    ? (dailyTrendRaw && dailyTrendRaw.length > 0
+        ? new Date(dailyTrendRaw[0].date)
+        : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+    : new Date(from);
+  const endTrendDate = new Date(to);
+
+  const daily_ingestion = [];
+  for (let d = new Date(startTrendDate); d <= endTrendDate; d.setDate(d.getDate() + 1)) {
+    const key = istDateKey(d);
+    daily_ingestion.push({
+      date: key,
+      total: dailyCountMap.get(key) || 0,
+    });
+  }
+
+  // Merge platform ingestion counts
+  const postsCountMap = Object.fromEntries(
+    (platformShareRaw || []).map((p) => [
+      String(p.slug).toLowerCase().replace(/^twitter$/, 'x'),
+      Number(p.posts_count) || 0,
+    ])
+  );
+
+  const allPlatformSlugs = Array.from(
+    new Set([
+      ...(overview.platforms || []).map((p) => String(p.slug).toLowerCase().replace(/^twitter$/, 'x')),
+      ...Object.keys(postsCountMap),
+    ])
+  );
+
+  const mergedPlatforms = allPlatformSlugs
+    .map((slug) => {
+      const existing =
+        (overview.platforms || []).find(
+          (p) => String(p.slug).toLowerCase().replace(/^twitter$/, 'x') === slug
+        ) || {};
+      return {
+        slug,
+        name: existing.name || (slug === 'x' ? 'X / Twitter' : slug.charAt(0).toUpperCase() + slug.slice(1)),
+        accounts: existing.accounts || 0,
+        monitoring: existing.monitoring || 0,
+        posts_count: postsCountMap[slug] || 0,
+      };
+    })
+    .sort((a, b) => (b.posts_count - a.posts_count) || (b.accounts - a.accounts));
+
   return {
     ...overview,
+    daily_ingestion,
+    trend: daily_ingestion,
+    platforms: mergedPlatforms,
     stance_stats,
     sentiment_stats,
     risk_stats,

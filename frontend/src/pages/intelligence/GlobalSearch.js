@@ -1267,9 +1267,9 @@ const GlobalSearch = () => {
     const showLanding = viewMode === 'search' && !loading && !searched;
 
     return (
-        <div className="flex min-h-full flex-col gap-3 max-w-[1600px] mx-auto w-full pb-8 animate-in fade-in-50 duration-200">
+        <div className="flex min-h-full flex-col gap-2.5 w-full pb-8 animate-in fade-in-50 duration-200">
             {/* Title & Actions Header Row */}
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 shrink-0">
+            <div className="flex flex-wrap items-center justify-between gap-x-2.5 gap-y-2 shrink-0">
                 <div className="flex items-center gap-2.5 min-w-0">
                     {viewMode === 'history' && (
                         <button
@@ -1284,23 +1284,22 @@ const GlobalSearch = () => {
                     )}
                     <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                            <h1 className="text-xl font-heading font-bold tracking-tight leading-none text-foreground flex items-center gap-2">
-                                <Compass className="h-5 w-5 text-primary shrink-0" />
+                            <h1 className="text-xl font-heading font-bold tracking-tight leading-none text-foreground">
                                 {viewMode === 'history'
                                     ? historySelectedRecord
                                         ? `History: “${historySelectedRecord.query}”`
-                                        : 'Saved Live Searches'
-                                    : 'Global Intelligence Search'}
+                                        : 'Saved Searches'
+                                    : 'Global Search'}
                             </h1>
                             {viewMode === 'search' && (
-                                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                    Live OSINT Probe
+                                    Live Probe
                                 </span>
                             )}
                         </div>
                         <p className="text-[11px] text-muted-foreground mt-0.5 hidden sm:block">
-                            Direct multi-network interrogation & identity discovery across live social networks
+                            Direct multi-network interrogation & identity discovery across social platforms
                         </p>
                     </div>
                 </div>
@@ -1380,10 +1379,10 @@ const GlobalSearch = () => {
                     <div className="rounded-xl border border-border bg-card p-3 shadow-xs transition-colors hover:border-border/80">
                         <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">
                             <span className="flex items-center gap-1.5">
-                                <Radio className="h-3.5 w-3.5 text-primary" /> Probe Scope
+                                <Users className="h-3.5 w-3.5 text-primary" /> Target Resolver
                             </span>
-                            <Badge variant="outline" className="text-[10px] h-4 px-1 py-0 font-medium">
-                                {searchType === 'profiles' ? 'Accounts' : 'Posts'}
+                            <Badge variant="outline" className="text-[10px] h-4 px-1.5 py-0 font-medium text-primary border-primary/30">
+                                Accounts & Channels
                             </Badge>
                         </div>
                         <div className="flex items-baseline justify-between mt-1.5">
@@ -1392,7 +1391,7 @@ const GlobalSearch = () => {
                             </div>
                         </div>
                         <p className="mt-1 text-[11px] text-muted-foreground truncate">
-                            {searchType === 'profiles' ? 'Identity & channel resolver' : 'Real-time post chatter feed'}
+                            Identity, handle & channel resolver
                         </p>
                     </div>
 
@@ -1478,65 +1477,21 @@ const GlobalSearch = () => {
                             })}
                         </div>
 
-                        {/* Search Type Mode Switcher */}
-                        <div className="flex rounded-lg overflow-hidden border border-border bg-muted/50 p-0.5 shrink-0 ml-auto">
-                            <button
-                                type="button"
-                                className={cn(
-                                    'px-3 py-1 text-xs font-semibold rounded-md flex items-center gap-1.5 transition-all cursor-pointer',
-                                    searchType === 'profiles'
-                                        ? 'bg-background text-foreground shadow-xs'
-                                        : 'text-muted-foreground hover:text-foreground'
-                                )}
-                                onClick={() => setSearchType('profiles')}
-                            >
-                                <Users className="h-3.5 w-3.5 text-primary" /> Accounts & Channels
-                            </button>
-                            <button
-                                type="button"
-                                className={cn(
-                                    'px-3 py-1 text-xs font-semibold rounded-md flex items-center gap-1.5 transition-all cursor-pointer',
-                                    searchType === 'content'
-                                        ? 'bg-background text-foreground shadow-xs'
-                                        : 'text-muted-foreground hover:text-foreground'
-                                )}
-                                onClick={() => setSearchType('content')}
-                            >
-                                <Radio className="h-3.5 w-3.5 text-primary" /> Live Posts & Chatter
-                            </button>
+                        {/* Search Mode: Accounts & Channels */}
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-muted/60 text-foreground shrink-0 ml-auto border border-border/60">
+                            <Users className="h-3.5 w-3.5 text-primary" />
+                            <span>Accounts & Channels</span>
                         </div>
                     </div>
 
                     {/* Omnibar Input Row */}
                     <form onSubmit={handleSearch} className="p-3">
                         <div className="flex flex-col sm:flex-row items-stretch gap-2">
-                            {/* If Content Mode: Limit Selector */}
-                            {searchType === 'content' && (
-                                <div className="shrink-0 w-full sm:w-[120px]">
-                                    <Select value={resultLimit} onValueChange={setResultLimit}>
-                                        <SelectTrigger className="bg-background border-border text-xs font-medium rounded-lg h-10 w-full">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {CONTENT_RANGE_OPTIONS.map((value) => (
-                                                <SelectItem key={value} value={value} className="text-xs">
-                                                    Fetch Last {value}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            )}
-
                             {/* Search Input Box */}
                             <div className="relative flex-1 min-w-0">
                                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
-                                    placeholder={
-                                        searchType === 'profiles'
-                                            ? 'Enter suspect name, handle (e.g. @odishapolice), channel ID, or organization…'
-                                            : 'Enter keywords, hashtag (e.g. #CyberFraud), incident phrase, or topic…'
-                                    }
+                                    placeholder="Enter suspect name, handle (e.g. @odishapolice), channel ID, or organization…"
                                     className="pl-10 pr-9 bg-background border-border text-xs sm:text-sm rounded-lg h-10 transition-all font-normal placeholder:text-muted-foreground/70"
                                     value={query}
                                     onChange={(e) => setQuery(e.target.value)}
@@ -1728,19 +1683,19 @@ const GlobalSearch = () => {
                                     <div className="p-3 rounded-lg border border-border bg-muted/10 space-y-1.5">
                                         <div className="flex items-center justify-between">
                                             <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                                                <Radio className="h-3.5 w-3.5 text-primary" /> Mode 2: Keyword Chatter
+                                                <Users className="h-3.5 w-3.5 text-primary" /> Mode 2: Agency & Unit Resolver
                                             </span>
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                className="h-6 text-[11px] px-2 text-primary"
-                                                onClick={() => { setSearchType('content'); handleSearch(null, 'cyber crime odisha', 'content', 'all'); }}
+                                                className="h-6 text-[11px] px-2 text-primary cursor-pointer"
+                                                onClick={() => { handleSearch(null, 'cyber police', 'profiles', 'all'); }}
                                             >
                                                 Try Demo →
                                             </Button>
                                         </div>
                                         <p className="text-[11px] text-muted-foreground leading-relaxed">
-                                            Use during breaking incidents or protests to monitor live keyword mentions, hashtags, and viral rumors across all networks.
+                                            Find official department handles, cyber cells, and verified law enforcement channels across all networks.
                                         </p>
                                     </div>
                                 </div>
@@ -1980,26 +1935,9 @@ const GlobalSearch = () => {
                         </div>
 
                         {/* Results Matrix */}
-                        {searchType === 'profiles' ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3.5">
-                                {filteredResults.map((item, i) => renderProfileCard(item, i))}
-                            </div>
-                        ) : (
-                            <div className="flex gap-4 w-full items-start">
-                                {(() => {
-                                    const colCount = typeof window !== 'undefined' && window.innerWidth < 768 ? 1 : window.innerWidth < 1280 ? 2 : 3;
-                                    const cols = Array.from({ length: colCount }, () => []);
-                                    filteredResults.forEach((item, i) => {
-                                        cols[i % colCount].push({ item, index: i });
-                                    });
-                                    return cols.map((colItems, colIndex) => (
-                                        <div key={colIndex} className="flex-1 min-w-0 flex flex-col gap-4">
-                                            {colItems.map(({ item, index }) => renderContentCard(item, index))}
-                                        </div>
-                                    ));
-                                })()}
-                            </div>
-                        )}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3.5">
+                            {filteredResults.map((item, i) => renderProfileCard(item, i))}
+                        </div>
                     </div>
                 )}
 

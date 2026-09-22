@@ -4,7 +4,7 @@ import {
   BarChart3, AlertTriangle, MessageSquare, CalendarDays, Contact2, Loader2, RefreshCw,
   Search, ExternalLink, Download, Shield, Activity, TrendingUp, TrendingDown,
   ArrowRight, ThumbsUp, Users, Flame, Eye, X, Filter, CheckCircle2, ChevronRight,
-  Sparkles, Layers
+  Sparkles, Layers, Info
 } from 'lucide-react';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
@@ -15,6 +15,7 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { analyticsHubApi } from '../../api';
+import KeywordAnalysisDialog from '../events/KeywordAnalysisDialog';
 import { Card, CardContent } from '../../components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
@@ -70,7 +71,7 @@ const RANGE_OPTIONS = [
 ];
 
 const REFRESH_OPTIONS = [
-  { value: '0', label: 'Auto: Off' },
+  { value: '0', label: 'Auto Refresh: Off' },
   { value: '30', label: 'Auto: 30s' },
   { value: '60', label: 'Auto: 1m' },
   { value: '300', label: 'Auto: 5m' },
@@ -308,13 +309,13 @@ const SentimentMatrixCard = ({
         >
           <div className="flex justify-between items-center text-[10px] text-muted-foreground">
             <span className="text-emerald-600 font-semibold">{positive_pct}% Positive</span>
-            <span className="text-slate-500 font-semibold">{neutral_pct}% Neutral</span>
+            <span className="text-sky-600 dark:text-sky-400 font-semibold">{neutral_pct}% Neutral (News)</span>
             <span className="text-rose-600 font-semibold">{negative_pct}% Negative</span>
           </div>
           <div className="h-2.5 w-full bg-muted/50 rounded-full overflow-hidden flex">
-            <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${positive_pct}%` }} />
-            <div className="bg-slate-400 dark:bg-slate-600 h-full transition-all duration-500" style={{ width: `${neutral_pct}%` }} />
-            <div className="bg-rose-500 h-full transition-all duration-500" style={{ width: `${negative_pct}%` }} />
+            <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${positive_pct}%` }} title={`Positive: ${positive_pct}%`} />
+            <div className="bg-sky-400 dark:bg-sky-500 h-full transition-all duration-500" style={{ width: `${neutral_pct}%` }} title={`Neutral: ${neutral_pct}%`} />
+            <div className="bg-rose-500 h-full transition-all duration-500" style={{ width: `${negative_pct}%` }} title={`Negative: ${negative_pct}%`} />
           </div>
           <div className="flex justify-between text-[9px] text-muted-foreground pt-0.5">
             <span>Score Scale: -100 to +100</span>
@@ -338,12 +339,12 @@ const SentimentMatrixCard = ({
           <div
             onClick={() => onViewDetail && onViewDetail('sentiment', 'neutral')}
             className={cn(
-              'px-2 py-1.5 rounded-lg bg-slate-500/5 border border-slate-500/20 text-center transition-all',
-              onViewDetail && 'cursor-pointer hover:bg-slate-500/15 hover:border-slate-500/40 hover:scale-[1.02]'
+              'px-2 py-1.5 rounded-lg bg-sky-500/5 border border-sky-500/20 text-center transition-all',
+              onViewDetail && 'cursor-pointer hover:bg-sky-500/15 hover:border-sky-500/40 hover:scale-[1.02]'
             )}
           >
-            <p className="text-[9px] font-bold uppercase text-muted-foreground">Neutral</p>
-            <p className="text-sm font-extrabold text-foreground tabular-nums">{neutral}</p>
+            <p className="text-[9px] font-bold uppercase text-sky-700 dark:text-sky-300">Neutral (News)</p>
+            <p className="text-sm font-extrabold text-sky-600 dark:text-sky-400 tabular-nums">{neutral}</p>
             <p className="text-[9px] text-muted-foreground">{neutral_pct}%</p>
           </div>
           <div
@@ -494,27 +495,43 @@ const CompactTrendChart = ({ data = [], height = 180, color = '#3b82f6', label =
         </div>
       ) : (
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 8, right: 10, left: -25, bottom: 0 }}>
+          <AreaChart data={data} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id={`grad-${label.replace(/\s+/g, '')}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={color} stopOpacity={0.4} />
-                <stop offset="95%" stopColor={color} stopOpacity={0.01} />
+                <stop offset="5%" stopColor={color} stopOpacity={0.45} />
+                <stop offset="95%" stopColor={color} stopOpacity={0.02} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="2 2" className="stroke-border/50" vertical={false} />
-            <XAxis dataKey="date" tick={{ fontSize: 9 }} minTickGap={24} stroke="#94a3b8" />
-            <YAxis tick={{ fontSize: 9 }} allowDecimals={false} stroke="#94a3b8" />
+            <CartesianGrid strokeDasharray="2 2" className="stroke-border/40" vertical={false} />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 10, fill: '#64748b' }}
+              tickFormatter={(v) => (v && v.length >= 10 ? v.slice(5) : v)}
+              minTickGap={20}
+              stroke="#94a3b8"
+            />
+            <YAxis tick={{ fontSize: 10, fill: '#64748b' }} allowDecimals={false} stroke="#94a3b8" />
             <RechartsTooltip
               contentStyle={{
                 fontSize: 11,
                 borderRadius: 8,
                 backgroundColor: 'var(--popover, #fff)',
                 border: '1px solid var(--border, #e2e8f0)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                boxShadow: '0 4px 14px rgba(0,0,0,0.1)',
+                padding: '6px 10px',
               }}
               labelFormatter={(v) => `Date: ${v}`}
+              formatter={(val) => [`${Number(val).toLocaleString()} posts/items`, label]}
             />
-            <Area type="monotone" dataKey="total" name={label} stroke={color} strokeWidth={2} fill={`url(#grad-${label.replace(/\s+/g, '')})`} />
+            <Area
+              type="monotone"
+              dataKey="total"
+              name={label}
+              stroke={color}
+              strokeWidth={2.5}
+              activeDot={{ r: 5, fill: color, stroke: '#fff', strokeWidth: 2 }}
+              fill={`url(#grad-${label.replace(/\s+/g, '')})`}
+            />
           </AreaChart>
         </ResponsiveContainer>
       )}
@@ -1690,23 +1707,72 @@ const AllTab = ({ data, onGoTab, range, platform }) => {
         </div>
 
         <div>
-          <SectionCard title="Platform Ingestion Distribution" subtitle="Telemetry share by social network">
+          <SectionCard
+            title="Platform Ingestion Distribution"
+            subtitle="Telemetry share by social network"
+            badge={
+              platforms && platforms.length > 0
+                ? `${platforms.reduce((s, x) => s + (x.posts_count || 0), 0).toLocaleString()} Total`
+                : undefined
+            }
+          >
             <div className="space-y-2 pt-1">
               {platforms && platforms.length > 0 ? (
                 platforms.map((p) => {
                   const Icon = getPlatformIcon(p.slug);
                   const totalPosts = platforms.reduce((s, x) => s + (x.posts_count || 0), 0);
                   const pct = totalPosts > 0 ? (((p.posts_count || 0) / totalPosts) * 100).toFixed(1) : 0;
+
+                  const isX = p.slug === 'x' || p.slug === 'twitter';
+                  const isFb = p.slug === 'facebook';
+                  const isYt = p.slug === 'youtube';
+                  const isIg = p.slug === 'instagram';
+                  const isTg = p.slug === 'telegram';
+
+                  const barColor = isX
+                    ? 'bg-zinc-800 dark:bg-zinc-200'
+                    : isFb
+                    ? 'bg-blue-600'
+                    : isYt
+                    ? 'bg-red-600'
+                    : isIg
+                    ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-amber-500'
+                    : isTg
+                    ? 'bg-sky-500'
+                    : 'bg-primary';
+
+                  const badgeColor = isX
+                    ? 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200'
+                    : isFb
+                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
+                    : isYt
+                    ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+                    : isIg
+                    ? 'bg-pink-50 text-pink-700 dark:bg-pink-950/40 dark:text-pink-300'
+                    : isTg
+                    ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300'
+                    : 'bg-muted text-muted-foreground';
+
                   return (
-                    <div key={p.slug} className="p-2 rounded-lg bg-muted/20 border border-border/40">
-                      <div className="flex items-center justify-between text-xs mb-1">
-                        <span className="flex items-center gap-1.5 font-medium text-foreground">
-                          <Icon className="h-3.5 w-3.5" />
+                    <div key={p.slug} className="p-2.5 rounded-lg bg-card border border-border/50 shadow-2xs hover:border-border transition-colors">
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="flex items-center gap-1.5 font-semibold text-foreground">
+                          <span className={cn('p-1 rounded-md', badgeColor)}>
+                            <Icon className="h-3.5 w-3.5" />
+                          </span>
                           {getPlatformLabel(p.slug)}
                         </span>
-                        <span className="font-bold tabular-nums text-foreground">{p.posts_count || 0} ({pct}%)</span>
+                        <span className="font-bold tabular-nums text-foreground flex items-center gap-1.5">
+                          <span>{(p.posts_count || 0).toLocaleString()}</span>
+                          <span className="text-[11px] font-medium text-muted-foreground">({pct}%)</span>
+                        </span>
                       </div>
-                      <Progress value={Number(pct)} className="h-1.5" />
+                      <div className="w-full h-1.5 bg-muted/60 rounded-full overflow-hidden">
+                        <div
+                          className={cn('h-full rounded-full transition-all duration-500', barColor)}
+                          style={{ width: `${Math.min(100, Math.max(Number(pct) || 0, (p.posts_count > 0 ? 3 : 0)))}%` }}
+                        />
+                      </div>
                     </div>
                   );
                 })
@@ -1741,6 +1807,7 @@ const AllTab = ({ data, onGoTab, range, platform }) => {
 const EventsTab = ({ data, selectedEventId, onSelectEvent, range, platform }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [modalState, setModalState] = useState(null); // { id, name, dimension, filter }
+  const [keywordDialogEvent, setKeywordDialogEvent] = useState(null);
 
   if (!data) return null;
   const {
@@ -1988,27 +2055,27 @@ const EventsTab = ({ data, selectedEventId, onSelectEvent, range, platform }) =>
                       </td>
                       <td className="p-2.5">
                         <div className="space-y-1">
-                          <div className="flex justify-between text-[9px] font-bold">
+                          <div className="flex justify-between text-[9px] font-semibold">
                             <span className="text-emerald-600">{favPct}% Fav</span>
                             <span className="text-rose-600">{unfavPct}% Unfav</span>
                           </div>
-                          <div className="h-1.5 w-full bg-muted/60 rounded-full overflow-hidden flex">
+                          <div className="h-2 w-full bg-muted/60 rounded-full overflow-hidden flex" title={`🟢 Favourable: ${favPct}% | ⚪ Neutral: ${Math.max(0, 100 - favPct - unfavPct)}% | 🔴 Unfavourable: ${unfavPct}%`}>
                             <div className="bg-emerald-500 h-full" style={{ width: `${favPct}%` }} />
-                            <div className="bg-slate-300 dark:bg-slate-600 h-full" style={{ width: `${100 - favPct - unfavPct}%` }} />
+                            <div className="bg-slate-300 dark:bg-slate-600 h-full" style={{ width: `${Math.max(0, 100 - favPct - unfavPct)}%` }} />
                             <div className="bg-rose-500 h-full" style={{ width: `${unfavPct}%` }} />
                           </div>
                         </div>
                       </td>
                       <td className="p-2.5">
                         <div className="space-y-1">
-                          <div className="flex justify-between text-[9px] text-muted-foreground">
-                            <span className="text-emerald-600">{posPct}% +</span>
-                            <span>{neuPct}% ~</span>
-                            <span className="text-rose-600">{negPct}% -</span>
+                          <div className="flex justify-between text-[9px] font-semibold">
+                            <span className="text-emerald-600">{posPct}% Pos</span>
+                            <span className="text-sky-600 dark:text-sky-400">{neuPct}% Neu</span>
+                            <span className="text-rose-600">{negPct}% Neg</span>
                           </div>
-                          <div className="h-1.5 w-full bg-muted/60 rounded-full overflow-hidden flex">
+                          <div className="h-2 w-full bg-muted/60 rounded-full overflow-hidden flex" title={`🟢 Positive: ${posPct}% | 🔵 Neutral (News): ${neuPct}% | 🔴 Negative: ${negPct}%`}>
                             <div className="bg-emerald-500 h-full" style={{ width: `${posPct}%` }} />
-                            <div className="bg-slate-400 h-full" style={{ width: `${neuPct}%` }} />
+                            <div className="bg-sky-400 h-full" style={{ width: `${neuPct}%` }} />
                             <div className="bg-rose-500 h-full" style={{ width: `${negPct}%` }} />
                           </div>
                         </div>
@@ -2036,14 +2103,26 @@ const EventsTab = ({ data, selectedEventId, onSelectEvent, range, platform }) =>
                         </div>
                       </td>
                       <td className="p-2.5 text-center">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-6.5 text-[11px] px-2.5 gap-1 font-semibold hover:bg-primary hover:text-primary-foreground transition-all"
-                          onClick={() => setModalState({ id: ev.id, name: ev.name, dimension: 'all', filter: 'all' })}
-                        >
-                          <Eye className="h-3 w-3" /> View Profile
-                        </Button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6.5 text-[10px] px-2 gap-1 font-semibold text-indigo-700 bg-indigo-50 border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800 shadow-2xs"
+                            onClick={() => setKeywordDialogEvent({ id: ev.id, name: ev.name })}
+                            title="Open Keyword Analytics & Graphs for this event"
+                          >
+                            <TrendingUp className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
+                            Keywords
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6.5 text-[10px] px-2 gap-1 font-semibold hover:bg-primary hover:text-primary-foreground transition-all"
+                            onClick={() => setModalState({ id: ev.id, name: ev.name, dimension: 'all', filter: 'all' })}
+                          >
+                            <Eye className="h-3 w-3" /> Profile
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -2053,6 +2132,16 @@ const EventsTab = ({ data, selectedEventId, onSelectEvent, range, platform }) =>
           </table>
         </div>
       </SectionCard>
+
+      {/* Keyword Analysis Dialog */}
+      {keywordDialogEvent && (
+        <KeywordAnalysisDialog
+          open={Boolean(keywordDialogEvent)}
+          onOpenChange={(open) => { if (!open) setKeywordDialogEvent(null); }}
+          eventId={keywordDialogEvent.id}
+          eventName={keywordDialogEvent.name}
+        />
+      )}
 
       {/* Event Intelligence Modal */}
       {modalState && (
@@ -2841,27 +2930,22 @@ const AnalyticsHub = () => {
   }, [activeTab, currentData, selectedEventId, range, platform, setTab]);
 
   return (
-    <div className="flex min-h-full flex-col gap-3 w-full px-3 sm:px-5 py-3 pb-8 animate-in fade-in-50 duration-200">
-      {/* Edge-to-Edge Executive Command Header */}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 shrink-0 border-b border-border/50 pb-2.5">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-xs">
-            <BarChart3 className="h-4.5 w-4.5" />
+    <div className="flex min-h-full flex-col gap-2.5 w-full">
+      {/* Title row — matching Profile Catalog & Events standard layout */}
+      <div className="flex flex-wrap items-center justify-between gap-x-2.5 gap-y-2 shrink-0">
+        <div className="min-w-0 shrink-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl font-heading font-bold tracking-tight leading-none text-foreground">
+              Analytics Hub
+            </h1>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Live Telemetry
+            </span>
           </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg sm:text-xl font-heading font-extrabold tracking-tight leading-none text-foreground">
-                Intelligence Analytics Command Center
-              </h1>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Live Telemetry
-              </span>
-            </div>
-            <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-0.5 truncate">
-              3-Level Stance, Risk and Sentiment operational metrics across monitored events, profiles, alerts & grievances
-            </p>
-          </div>
+          <p className="text-[11px] text-muted-foreground mt-0.5 hidden sm:block">
+            Public opinion, stance, sentiment & risk analytics across monitored channels
+          </p>
         </div>
 
         {/* Global Toolbar Filters */}
@@ -2908,7 +2992,10 @@ const AnalyticsHub = () => {
 
           {/* Auto Refresh */}
           <Select value={refreshInterval} onValueChange={setRefreshInterval}>
-            <SelectTrigger className="h-8 text-xs font-medium w-[110px] bg-card border-border hidden sm:flex">
+            <SelectTrigger className="h-8 text-xs font-medium w-[138px] bg-card border-border hidden sm:flex items-center gap-1.5">
+              {refreshInterval !== '0' && (
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              )}
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -2941,6 +3028,36 @@ const AnalyticsHub = () => {
           >
             <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
           </Button>
+        </div>
+      </div>
+
+      {/* Analytics Visual Color Guide Banner */}
+      <div className="p-3 rounded-xl border border-border/70 bg-card/90 shadow-2xs backdrop-blur-xs flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-xs">
+        <div className="flex items-center gap-2 font-semibold text-foreground shrink-0">
+          <Info className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+          <span>Color Guide & Metric Indicators:</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs">
+          <div className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0" />
+            <span className="font-semibold text-emerald-700 dark:text-emerald-400">Green = Positive / Favourable</span>
+            <span className="text-[11px] text-muted-foreground">(Support, praise & safe low risk)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-sky-500 shrink-0" />
+            <span className="font-semibold text-sky-700 dark:text-sky-400">Sky Blue = Neutral News</span>
+            <span className="text-[11px] text-muted-foreground">(Factual reports, updates & media articles)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-rose-500 shrink-0" />
+            <span className="font-semibold text-rose-700 dark:text-rose-400">Red = Negative / Threat Risk</span>
+            <span className="text-[11px] text-muted-foreground">(Criticism, grievances & high risk alerts)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0" />
+            <span className="font-semibold text-amber-700 dark:text-amber-400">Amber = Medium Severity</span>
+            <span className="text-[11px] text-muted-foreground">(Elevated watch-list items)</span>
+          </div>
         </div>
       </div>
 

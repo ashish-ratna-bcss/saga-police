@@ -22,7 +22,8 @@ import {
   Youtube, Facebook, Instagram, Radio, Pause, Trash2, Plus, MapPin, Clock,
   Search, ScanLine, UserPlus, Pencil, FileSpreadsheet,
   FileText, BarChart3, Activity, Zap, Timer, ChevronRight,
-  ChevronDown, X, AlertTriangle, Globe, ArrowUpRight, History, Square
+  ChevronDown, X, AlertTriangle, Globe, ArrowUpRight, History, Square,
+  TrendingUp
 } from 'lucide-react';
 import socialProfilesApi from '../../api/socialProfiles.api';
 import ContentCard from '../../components/ContentCard';
@@ -33,6 +34,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import KeywordAnalysisDialog from './KeywordAnalysisDialog';
 
 
 /* ── helpers ─────────────────────────────────────────── */
@@ -913,6 +915,7 @@ const Events = () => {
   const [editingEvent, setEditingEvent] = useState(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [keywordAnalysisOpen, setKeywordAnalysisOpen] = useState(false);
 
 
   // ── Occasion Calendar state ──
@@ -1022,6 +1025,7 @@ const Events = () => {
     setAddProfilePrefill(null);
     setExportMenuOpen(false);
     setHcpOpen(false);
+    setKeywordAnalysisOpen(false);
   };
 
 
@@ -2667,6 +2671,19 @@ const Events = () => {
                   </PopoverContent>
                 </Popover>
 
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setKeywordAnalysisOpen(true)}
+                  disabled={!selectedId}
+                  className="h-8 gap-1.5 px-2.5 text-xs font-medium border-indigo-200 bg-indigo-50/60 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-900/50 shadow-2xs"
+                  title="Open Keyword Analysis & Graphs"
+                >
+                  <TrendingUp className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                  Analyses
+                </Button>
+
                 <div className="ml-auto flex items-center gap-0.5">
                   <Button variant="ghost" size="icon" onClick={handleStartEdit} className="h-8 w-8 text-muted-foreground" title="Edit">
                     <Pencil className="h-3.5 w-3.5" />
@@ -2978,6 +2995,14 @@ const Events = () => {
         </DialogContent>
       </Dialog>
 
+
+      {/* Keyword Analysis Dialog */}
+      <KeywordAnalysisDialog
+        open={keywordAnalysisOpen}
+        onOpenChange={setKeywordAnalysisOpen}
+        eventId={selectedId}
+        eventName={selectedEvent?.name}
+      />
 
       {/* Occasion Calendar Dialog */}
       <Dialog open={hcpOpen} onOpenChange={setHcpOpen}>

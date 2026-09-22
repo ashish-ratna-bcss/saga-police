@@ -521,22 +521,172 @@ const buildPlatformsPulse = async (prisma) => {
     .sort((a, b) => b.accounts - a.accounts || a.name.localeCompare(b.name));
 };
 
+const istDateKey = (d) =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d);
+
 const getOverview = async (query = {}) => {
   const prisma = dbOf(query.db);
   const { range, from, to } = resolveRange(query.range);
   const platform = normalizePlatform(query.platform);
 
-  const [kpis, recommendations, top_profiles, top_posts, alerts, grievances, events, platforms] =
-    await Promise.all([
-      buildKpis(prisma, { from, to, platform }),
-      buildRecommendations(prisma, { from, platform }),
-      buildTopProfiles(prisma, { from, to, platform }),
-      buildTopPosts(prisma, { from, to, platform }),
-      buildAlertsPulse(prisma, { from, to, platform }),
-      buildGrievancesPulse(prisma, { platform }),
-      buildEventsPulse(prisma),
-      buildPlatformsPulse(prisma),
-    ]);
+  const dateClause = range === 'all' ? '' : `AND fetched_at >= '${from.toISOString()}' AND fetched_at <= '${to.toISOString()}'`;
+  const platformClause = platform ? `AND platform = '${platform.replace(/'/g, '')}'` : '';
+  const filterSql = `${dateClause} ${platformClause}`;
+
+  const [
+    kpis,
+    recommendations,
+    top_profiles,
+    top_posts,
+    alerts,
+    grievances,
+    events,
+    platformsPulse,
+    dailyTrendRaw,
+    platformShareRaw,
+    globalThreeLevel,
+  ] = await Promise.all([
+    buildKpis(prisma, { from, to, platform }),
+    buildRecommendations(prisma, { from, platform }),
+    buildTopProfiles(prisma, { from, to, platform }),
+    buildTopPosts(prisma, { from, to, platform }),
+    buildAlertsPulse(prisma, { from, to, platform }),
+    buildGrievancesPulse(prisma, { platform }),
+    buildEventsPulse(prisma),
+    buildPlatformsPulse(prisma),
+    prisma.$queryRawUnsafe(`
+      SELECT
+        TO_CHAR(fetched_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS date,
+        COUNT(*)::int AS total
+      FROM (
+        SELECT fetched_at FROM social_media_posts WHERE fetched_at IS NOT NULL ${filterSql}
+        UNION ALL
+        SELECT fetched_at FROM social_media_event_media WHERE fetched_at IS NOT NULL ${filterSql}
+      ) all_telemetry
+      GROUP BY date
+      ORDER BY date ASC
+    `).catch(() => []),
+    prisma.$queryRawUnsafe(`
+      SELECT
+        LOWER(platform) AS slug,
+        COUNT(*)::int AS posts_count
+      FROM (
+        SELECT platform FROM social_media_posts WHERE fetched_at IS NOT NULL ${filterSql}
+        UNION ALL
+        SELECT platform FROM social_media_event_media WHERE fetched_at IS NOT NULL ${filterSql}
+      ) all_telemetry
+      GROUP BY LOWER(platform)
+      ORDER BY posts_count DESC
+    `).catch(() => []),
+    prisma.$queryRawUnsafe(`
+      SELECT
+        COUNT(*) FILTER (WHERE analysis_result->>'stance' = 'support')::int AS stance_favourable,
+        COUNT(*) FILTER (WHERE analysis_result->>'stance' = 'oppose')::int AS stance_unfavourable,
+        COUNT(*) FILTER (WHERE analysis_result->>'stance' IN ('neutral', 'unclear'))::int AS stance_neutral,
+        COUNT(*) FILTER (WHERE analysis_result->>'sentiment' = 'positive')::int AS sentiment_positive,
+        COUNT(*) FILTER (WHERE analysis_result->>'sentiment' = 'neutral')::int AS sentiment_neutral,
+        COUNT(*) FILTER (WHERE analysis_result->>'sentiment' = 'negative')::int AS sentiment_negative,
+        COUNT(*) FILTER (WHERE analysis_result->>'risk_level' IN ('high', 'critical'))::int AS risk_high,
+        COUNT(*) FILTER (WHERE analysis_result->>'risk_level' = 'medium')::int AS risk_medium,
+        COUNT(*) FILTER (WHERE analysis_result->>'risk_level' = 'low')::int AS risk_low
+      FROM (
+        SELECT analysis_result FROM social_media_event_media WHERE analysis_result IS NOT NULL ${filterSql}
+        UNION ALL
+        SELECT analysis_result FROM social_media_posts WHERE analysis_result IS NOT NULL ${filterSql}
+      ) combined
+    `).catch(() => [{}]),
+  ]);
+
+  // Continuous daily trend map
+  const dailyCountMap = new Map();
+  (dailyTrendRaw || []).forEach((r) => {
+    if (r && r.date) dailyCountMap.set(r.date, Number(r.total) || 0);
+  });
+
+  const startTrendDate = range === 'all'
+    ? (dailyTrendRaw && dailyTrendRaw.length > 0
+        ? new Date(dailyTrendRaw[0].date)
+        : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+    : new Date(from);
+  const endTrendDate = new Date(to);
+
+  const daily_ingestion = [];
+  for (let d = new Date(startTrendDate); d <= endTrendDate; d.setDate(d.getDate() + 1)) {
+    const key = istDateKey(d);
+    daily_ingestion.push({
+      date: key,
+      total: dailyCountMap.get(key) || 0,
+    });
+  }
+
+  // Merge platform counts
+  const postsCountMap = Object.fromEntries(
+    (platformShareRaw || []).map((p) => [
+      String(p.slug).toLowerCase().replace(/^twitter$/, 'x'),
+      Number(p.posts_count) || 0,
+    ])
+  );
+
+  const allPlatformSlugs = Array.from(
+    new Set([
+      ...(platformsPulse || []).map((p) => String(p.slug).toLowerCase().replace(/^twitter$/, 'x')),
+      ...Object.keys(postsCountMap),
+    ])
+  );
+
+  const mergedPlatforms = allPlatformSlugs
+    .map((slug) => {
+      const existing =
+        (platformsPulse || []).find(
+          (p) => String(p.slug).toLowerCase().replace(/^twitter$/, 'x') === slug
+        ) || {};
+      return {
+        slug,
+        name: existing.name || (slug === 'x' ? 'X / Twitter' : slug.charAt(0).toUpperCase() + slug.slice(1)),
+        accounts: existing.accounts || 0,
+        monitoring: existing.monitoring || 0,
+        posts_count: postsCountMap[slug] || 0,
+      };
+    })
+    .sort((a, b) => (b.posts_count - a.posts_count) || (b.accounts - a.accounts));
+
+  const statsRow = (globalThreeLevel && globalThreeLevel[0]) || {};
+
+  const stance_stats = {
+    favourable: Number(statsRow.stance_favourable || 0),
+    unfavourable: Number(statsRow.stance_unfavourable || 0),
+    neutral: Number(statsRow.stance_neutral || 0),
+    total: Number(statsRow.stance_favourable || 0) + Number(statsRow.stance_unfavourable || 0) + Number(statsRow.stance_neutral || 0),
+  };
+  stance_stats.favourable_pct = stance_stats.total > 0 ? Number(((stance_stats.favourable / stance_stats.total) * 100).toFixed(1)) : 0;
+  stance_stats.unfavourable_pct = stance_stats.total > 0 ? Number(((stance_stats.unfavourable / stance_stats.total) * 100).toFixed(1)) : 0;
+  stance_stats.neutral_pct = stance_stats.total > 0 ? Number(((stance_stats.neutral / stance_stats.total) * 100).toFixed(1)) : 0;
+
+  const sentiment_stats = {
+    positive: Number(statsRow.sentiment_positive || 0),
+    neutral: Number(statsRow.sentiment_neutral || 0),
+    negative: Number(statsRow.sentiment_negative || 0),
+    total: Number(statsRow.sentiment_positive || 0) + Number(statsRow.sentiment_neutral || 0) + Number(statsRow.sentiment_negative || 0),
+  };
+  sentiment_stats.positive_pct = sentiment_stats.total > 0 ? Number(((sentiment_stats.positive / sentiment_stats.total) * 100).toFixed(1)) : 0;
+  sentiment_stats.neutral_pct = sentiment_stats.total > 0 ? Number(((sentiment_stats.neutral / sentiment_stats.total) * 100).toFixed(1)) : 0;
+  sentiment_stats.negative_pct = sentiment_stats.total > 0 ? Number(((sentiment_stats.negative / sentiment_stats.total) * 100).toFixed(1)) : 0;
+  sentiment_stats.net_score = sentiment_stats.total > 0 ? Math.round(((sentiment_stats.positive - sentiment_stats.negative) / sentiment_stats.total) * 100) : 0;
+
+  const risk_stats = {
+    high: Number(statsRow.risk_high || 0),
+    medium: Number(statsRow.risk_medium || 0),
+    low: Number(statsRow.risk_low || 0),
+    total: Number(statsRow.risk_high || 0) + Number(statsRow.risk_medium || 0) + Number(statsRow.risk_low || 0),
+  };
+  risk_stats.high_pct = risk_stats.total > 0 ? Number(((risk_stats.high / risk_stats.total) * 100).toFixed(1)) : 0;
+  risk_stats.medium_pct = risk_stats.total > 0 ? Number(((risk_stats.medium / risk_stats.total) * 100).toFixed(1)) : 0;
+  risk_stats.low_pct = risk_stats.total > 0 ? Number(((risk_stats.low / risk_stats.total) * 100).toFixed(1)) : 0;
 
   return {
     range,
@@ -550,7 +700,12 @@ const getOverview = async (query = {}) => {
     alerts,
     grievances,
     events,
-    platforms,
+    platforms: mergedPlatforms,
+    daily_ingestion,
+    trend: daily_ingestion,
+    stance_stats,
+    sentiment_stats,
+    risk_stats,
   };
 };
 

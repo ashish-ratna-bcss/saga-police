@@ -218,6 +218,17 @@ const runEventScan = async (req, res) => {
   }
 };
 
+const getEventKeywordAnalytics = async (req, res) => {
+  try {
+    const data = await eventService.getKeywordAnalytics(req.params.id, {
+      db: req.tenantPrisma,
+    });
+    return res.status(200).json(data);
+  } catch (error) {
+    return res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
 const getEventsReport = async (req, res) => {
   try {
     const data = await eventService.getEventsReport({ db: req.tenantPrisma });
@@ -238,6 +249,7 @@ module.exports = {
   deleteEvent,
   getEventDashboard,
   getEventContent,
+  getEventKeywordAnalytics,
   runEventScan,
   getEventsReport,
 };
