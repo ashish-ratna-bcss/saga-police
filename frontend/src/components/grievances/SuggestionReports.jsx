@@ -550,7 +550,7 @@ export const SuggestionReportDetailView = ({ report, onUpdate, onClose, onPrint 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*                  SUGGESTION REPORTS COMPONENT                  */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-export const SuggestionReports = ({ openReportCode = '', onReportCodeHandled }) => {
+export const SuggestionReports = ({ openReportCode = '', onReportCodeHandled, suppressTable = false, onDetailClose }) => {
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(false);
     const [exporting, setExporting] = useState(false);
@@ -664,6 +664,18 @@ export const SuggestionReports = ({ openReportCode = '', onReportCodeHandled }) 
         onReportCodeHandled?.(match.unique_code || code);
     }, [openReportCode, reports, loading, onReportCodeHandled]);
 
+    const prevSelectedRef = useRef(null);
+    useEffect(() => {
+        if (!suppressTable) {
+            prevSelectedRef.current = selectedReport;
+            return;
+        }
+        if (prevSelectedRef.current && !selectedReport) {
+            onDetailClose?.();
+        }
+        prevSelectedRef.current = selectedReport;
+    }, [selectedReport, suppressTable, onDetailClose]);
+
     // Stats calculations
     const stats = useMemo(() => {
         const total = pagination.total || reports.length;
@@ -746,6 +758,7 @@ export const SuggestionReports = ({ openReportCode = '', onReportCodeHandled }) 
 
     return (
         <TooltipProvider>
+            {!suppressTable && (
             <div className="space-y-4">
                 {/* ─── Executive KPI Ribbon ─── */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1210,6 +1223,8 @@ export const SuggestionReports = ({ openReportCode = '', onReportCodeHandled }) 
                         </>
                     )}
                 </CardContent>
+            </div>
+            )}
 
                 {/* ─── Detail Modal Dialog ─── */}
                 <AnimatePresence>
@@ -1298,7 +1313,6 @@ export const SuggestionReports = ({ openReportCode = '', onReportCodeHandled }) 
                         </>
                     )}
                 </AnimatePresence>
-            </div>
         </TooltipProvider>
     );
 };

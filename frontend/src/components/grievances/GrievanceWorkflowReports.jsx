@@ -1016,7 +1016,14 @@ const GrievanceReportDetailView = ({ report, onClose, onPrint, isVideoUrl: isVid
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*            GRIEVANCE WORKFLOW REPORTS TABLE                      */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStatsUpdate, openReportCode = '', onReportCodeHandled }) => {
+export const GrievanceWorkflowReports = ({
+    externalStatusFilter = 'all',
+    onStatsUpdate,
+    openReportCode = '',
+    onReportCodeHandled,
+    suppressTable = false,
+    onDetailClose,
+}) => {
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(false);
     const [exporting, setExporting] = useState(false);
@@ -1152,6 +1159,18 @@ export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStats
         setWaPhone(match.informed_to?.phone || match.complaint_phone || '');
         onReportCodeHandled?.(match.unique_code || code);
     }, [openReportCode, reports, loading, onReportCodeHandled]);
+
+    const prevSelectedRef = useRef(null);
+    useEffect(() => {
+        if (!suppressTable) {
+            prevSelectedRef.current = selectedReport;
+            return;
+        }
+        if (prevSelectedRef.current && !selectedReport) {
+            onDetailClose?.();
+        }
+        prevSelectedRef.current = selectedReport;
+    }, [selectedReport, suppressTable, onDetailClose]);
 
     const handleExport = async () => {
         setExporting(true);
@@ -1521,6 +1540,7 @@ export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStats
 
     return (
         <TooltipProvider>
+            {!suppressTable && (
             <div className="flex flex-col w-full bg-card">
                 {/* ─── Executive KPI Stat Ribbon ─── */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 p-3.5 bg-gradient-to-b from-muted/40 via-muted/20 to-transparent border-b border-border/80">
@@ -2153,6 +2173,8 @@ export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStats
                         </>
                     )}
                 </CardContent>
+            </div>
+            )}
 
                 {/* Detail Modal */}
                 <AnimatePresence>
@@ -2266,7 +2288,6 @@ export const GrievanceWorkflowReports = ({ externalStatusFilter = 'all', onStats
                         </>
                     )}
                 </AnimatePresence>
-            </div>
         </TooltipProvider>
     );
 };

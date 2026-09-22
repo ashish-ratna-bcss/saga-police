@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import api, { BACKEND_URL } from '../../lib/api';
+import { toApiFilesUrl } from '../../utils/fileUrl';
 import { isPublicFileReachable, resolvePublicAssetUrl } from '../../lib/publicAssetUrl';
 import { toast } from 'sonner';
 import {
@@ -585,7 +586,7 @@ export const CriticismReportDetailView = ({ report, onUpdate, onClose, onPrint }
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*                  CRITICISM REPORTS COMPONENT                  */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) => {
+export const CriticismReports = ({ openReportCode = '', onReportCodeHandled, suppressTable = false, onDetailClose }) => {
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(false);
     const [exporting, setExporting] = useState(false);
@@ -699,6 +700,18 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
         onReportCodeHandled?.(match.unique_code || code);
     }, [openReportCode, reports, loading, onReportCodeHandled]);
 
+    const prevSelectedRef = useRef(null);
+    useEffect(() => {
+        if (!suppressTable) {
+            prevSelectedRef.current = selectedReport;
+            return;
+        }
+        if (prevSelectedRef.current && !selectedReport) {
+            onDetailClose?.();
+        }
+        prevSelectedRef.current = selectedReport;
+    }, [selectedReport, suppressTable, onDetailClose]);
+
     // Stats calculations
     const stats = useMemo(() => {
         const total = pagination.total || reports.length;
@@ -781,6 +794,7 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
 
     return (
         <TooltipProvider>
+            {!suppressTable && (
             <div className="space-y-4">
                 {/* ─── Executive KPI Ribbon ─── */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1244,6 +1258,8 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
                         </>
                     )}
                 </CardContent>
+            </div>
+            )}
 
                 {/* ─── Detail Modal Dialog ─── */}
                 <AnimatePresence>
@@ -1332,7 +1348,6 @@ export const CriticismReports = ({ openReportCode = '', onReportCodeHandled }) =
                         </>
                     )}
                 </AnimatePresence>
-            </div>
         </TooltipProvider>
     );
 };

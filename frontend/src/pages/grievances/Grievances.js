@@ -34,16 +34,14 @@ import { VideoPlayer, normalizeMediaList } from '../../components/AlertCards';
 import { GrievanceCard } from '../../components/grievances/GrievanceCard';
 import { GrievanceTopNavbar } from '../../components/grievances/GrievanceTopNavbar';
 import { CriticismPopup } from '../../components/grievances/CriticismPopup';
-import { CriticismReports } from '../../components/grievances/CriticismReports';
 import { GrievancePopup } from '../../components/grievances/GrievancePopup';
-import { GrievanceWorkflowReports } from '../../components/grievances/GrievanceWorkflowReports';
 import { GrievanceStatusChangePopup } from '../../components/grievances/GrievanceStatusChangePopup';
 import { SuggestionPopup } from '../../components/grievances/SuggestionPopup';
-import { SuggestionReports } from '../../components/grievances/SuggestionReports';
 import { GrievanceService } from '../../api';
 import { socialProfilesApi } from '../../api/socialProfiles.api';
 import { usePagePlatforms } from '../../hooks/usePagePlatforms';
 import { GrievanceExecutiveHeader } from '../../components/grievances/GrievanceExecutiveHeader';
+import { GrievanceUnifiedReports } from '../../components/grievances/GrievanceUnifiedReports';
 
 const DEFAULT_SOCIAL_ACTION_OVERLAY = {
     visible: false,
@@ -425,11 +423,6 @@ const Grievances = () => {
     const [activeTab, setActiveTab] = useState('all');
     const [stats, setStats] = useState({ total: 0, pending: 0, escalated: 0, closed: 0, converted_to_fir: 0 });
     const [workflowStats, setWorkflowStats] = useState({ total: 0, pending: 0, escalated: 0, closed: 0, fir: 0 });
-    const [selectedReportTypes, setSelectedReportTypes] = useState({
-        grievance: true,
-        suggestion: false,
-        criticism: false,
-    });
     const [reportTypeCounts, setReportTypeCounts] = useState({
         grievance: null,
         suggestion: null,
@@ -1697,16 +1690,6 @@ const Grievances = () => {
         setSelectedHandle(null);
     };
 
-    const toggleReportType = (id) => {
-        setSelectedReportTypes((prev) => {
-            const next = { ...prev, [id]: !prev[id] };
-            if (!next.grievance && !next.suggestion && !next.criticism) {
-                return prev;
-            }
-            return next;
-        });
-    };
-
     const hasActiveFilters = Boolean(dateRange.from || debouncedSearch || selectedHandle);
     const isReportsTab = navbarStatus === 'reports';
     const hasNoCatalogData = !hasActiveFilters && Number(stats?.total || 0) === 0 && grievances.length === 0;
@@ -1718,62 +1701,11 @@ const Grievances = () => {
         return g + s + c;
     }, [reportTypeCounts]);
 
-    const feedExecutiveKpis = useMemo(
-        () => [
-            {
-                key: 'total',
-                label: 'Catalog Mentions',
-                value: Number(stats?.total || 0).toLocaleString(),
-                hint: 'Posts & comments in grievance catalog',
-                icon: Layers,
-                iconClass: 'text-indigo-500',
-                valueClass: 'text-foreground',
-            },
-            {
-                key: 'pending',
-                label: 'Pending Review',
-                value: Number(stats?.pending || 0).toLocaleString(),
-                hint: 'Awaiting operator action',
-                icon: Clock,
-                iconClass: 'text-amber-500',
-                valueClass: 'text-amber-600 dark:text-amber-400',
-            },
-            {
-                key: 'escalated',
-                label: 'Escalated',
-                value: Number(stats?.escalated || 0).toLocaleString(),
-                hint: 'Forwarded to officers',
-                icon: AlertCircle,
-                iconClass: 'text-orange-500',
-                valueClass: 'text-orange-600 dark:text-orange-400',
-            },
-            {
-                key: 'closed',
-                label: 'Closed',
-                value: Number(stats?.closed || 0).toLocaleString(),
-                hint: 'Resolved cases',
-                icon: CheckCircle2,
-                iconClass: 'text-emerald-500',
-                valueClass: 'text-emerald-600 dark:text-emerald-400',
-            },
-            {
-                key: 'fir',
-                label: 'Converted to FIR',
-                value: Number(stats?.converted_to_fir || 0).toLocaleString(),
-                hint: 'Police FIR workflow',
-                icon: Shield,
-                iconClass: 'text-rose-500',
-                valueClass: 'text-rose-600 dark:text-rose-400',
-            },
-        ],
-        [stats]
-    );
-
     const reportsExecutiveKpis = useMemo(
         () => [
             {
                 key: 'all',
-                label: 'Total Audit Records',
+                label: 'Total records',
                 value: totalReportModules.toLocaleString(),
                 hint: 'G + S + C formal reports',
                 icon: BarChart3,
@@ -1782,7 +1714,7 @@ const Grievances = () => {
             },
             {
                 key: 'grievance',
-                label: 'Grievance Reports (G)',
+                label: 'Grievance (G)',
                 value:
                     reportTypeCounts.grievance == null
                         ? '…'
@@ -1794,7 +1726,7 @@ const Grievances = () => {
             },
             {
                 key: 'suggestion',
-                label: 'Suggestions (S)',
+                label: 'Suggestion (S)',
                 value:
                     reportTypeCounts.suggestion == null
                         ? '…'
@@ -1806,7 +1738,7 @@ const Grievances = () => {
             },
             {
                 key: 'criticism',
-                label: 'Criticisms (C)',
+                label: 'Criticism (C)',
                 value:
                     reportTypeCounts.criticism == null
                         ? '…'
@@ -1861,6 +1793,19 @@ const Grievances = () => {
         };
     }, [isReportsTab]);
 
+    const handleReportCountsUpdate = useCallback((counts) => {
+        if (!counts) return;
+        setReportTypeCounts({
+            grievance: Number(counts.grievance ?? 0),
+            suggestion: Number(counts.suggestion ?? 0),
+            criticism: Number(counts.criticism ?? 0),
+        });
+    }, []);
+
+    const handleGrievanceWorkflowStatsUpdate = useCallback((next) => {
+        if (next) setWorkflowStats(next);
+    }, []);
+
     /* ═══════════════════════════════════════════════════════════════ */
     /*                           RENDER                              */
     /* ═══════════════════════════════════════════════════════════════ */
@@ -1887,167 +1832,34 @@ const Grievances = () => {
                 onSearchChange={setSearchQuery}
             />
 
-            {/* ─── Reports Tab Content ─── */}
+            {/* ─── Reports Tab Content (same shell as Feed) ─── */}
             {isReportsTab && (
-                <div className="space-y-4 animate-in fade-in duration-300">
+                <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
                     <GrievanceExecutiveHeader
                         user={authUser}
-                        variant="reports"
-                        scopeLine={`Audit scope: ${totalReportModules.toLocaleString()} formal records across G / S / C modules · ${sources.length} watched official accounts`}
+                        variant="feed"
+                        embedded
+                        scopeLine={`Unified registry · ${totalReportModules.toLocaleString()} formal records (G / S / C) · ${sources.length} watched account${sources.length === 1 ? '' : 's'} · ${navbarPlatform === 'all' ? 'All platforms' : String(navbarPlatform).toUpperCase()}`}
                         kpis={reportsExecutiveKpis}
                     />
-
-                    <div className="bg-card/90 backdrop-blur-md rounded-2xl border border-border/80 p-2.5 shadow-sm flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex flex-wrap items-center gap-2.5">
-                            <div className="flex items-center gap-2 pl-1 pr-2 border-r border-border/60">
-                                <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                                    Report Modules
-                                </span>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-1.5 p-1 bg-muted/50 dark:bg-muted/20 rounded-xl border border-border/50">
-                                {[
-                                    {
-                                        id: 'grievance',
-                                        label: 'Grievance Reports',
-                                        short: 'Grievance',
-                                        icon: Shield,
-                                        activeClass: 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md shadow-amber-500/25 ring-1 ring-amber-400',
-                                        badgeActive: 'bg-white/20 text-white font-bold',
-                                        idleClass: 'text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10'
-                                    },
-                                    {
-                                        id: 'suggestion',
-                                        label: 'Suggestions',
-                                        short: 'Suggestion',
-                                        icon: Users,
-                                        activeClass: 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md shadow-violet-600/25 ring-1 ring-violet-400',
-                                        badgeActive: 'bg-white/20 text-white font-bold',
-                                        idleClass: 'text-muted-foreground hover:text-violet-600 hover:bg-violet-500/10'
-                                    },
-                                    {
-                                        id: 'criticism',
-                                        label: 'Criticisms',
-                                        short: 'Criticism',
-                                        icon: AlertCircle,
-                                        activeClass: 'bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-md shadow-rose-600/25 ring-1 ring-rose-400',
-                                        badgeActive: 'bg-white/20 text-white font-bold',
-                                        idleClass: 'text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10'
-                                    },
-                                ].map((tab) => {
-                                    const isActive = Boolean(selectedReportTypes[tab.id]);
-                                    const count = reportTypeCounts[tab.id];
-                                    const TabIcon = tab.icon;
-                                    return (
-                                        <button
-                                            key={tab.id}
-                                            type="button"
-                                            onClick={() => toggleReportType(tab.id)}
-                                            className={cn(
-                                                'inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 cursor-pointer select-none active:scale-[0.98]',
-                                                isActive ? tab.activeClass : tab.idleClass
-                                            )}
-                                        >
-                                            <TabIcon className="h-3.5 w-3.5 shrink-0" />
-                                            <span>{tab.label}</span>
-                                            <span
-                                                className={cn(
-                                                    'rounded-full px-2 py-0.5 text-[10px] tabular-nums font-bold transition-colors',
-                                                    isActive ? tab.badgeActive : 'bg-background/80 text-muted-foreground border border-border/50'
-                                                )}
-                                            >
-                                                {count == null ? '…' : Number(count).toLocaleString()}
-                                            </span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 pr-1 text-xs text-muted-foreground">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    const allOn = selectedReportTypes.grievance && selectedReportTypes.suggestion && selectedReportTypes.criticism;
-                                    if (allOn) {
-                                        setSelectedReportTypes({ grievance: true, suggestion: false, criticism: false });
-                                    } else {
-                                        setSelectedReportTypes({ grievance: true, suggestion: true, criticism: true });
-                                    }
-                                }}
-                                className="text-[11px] font-medium text-primary hover:underline px-2 py-1 rounded hover:bg-primary/5 transition-colors"
-                            >
-                                {selectedReportTypes.grievance && selectedReportTypes.suggestion && selectedReportTypes.criticism
-                                    ? 'Show Grievances Only'
-                                    : 'Show All 3 Modules'}
-                            </button>
-                            <span className="hidden lg:inline text-[11px] text-muted-foreground/60">· Click pills to toggle</span>
-                        </div>
-                    </div>
-
-                    {/* Report Panels */}
-                    <div className="space-y-6">
-                        {selectedReportTypes.grievance && (
-                            <div className="rounded-2xl border border-border/80 bg-card overflow-hidden shadow-sm transition-all duration-200">
-                                <GrievanceWorkflowReports
-                                    onStatsUpdate={(next) => {
-                                        setWorkflowStats(next);
-                                        if (next?.total != null) {
-                                            setReportTypeCounts((prev) => ({ ...prev, grievance: Number(next.total) || 0 }));
-                                        }
-                                    }}
-                                    openReportCode={openGReportCode}
-                                    onReportCodeHandled={() => setOpenGReportCode('')}
-                                />
-                            </div>
-                        )}
-                        {selectedReportTypes.suggestion && (
-                            <div className="rounded-2xl border border-border/80 bg-card overflow-hidden shadow-sm transition-all duration-200">
-                                <SuggestionReports
-                                    openReportCode={openSReportCode}
-                                    onReportCodeHandled={() => setOpenSReportCode('')}
-                                />
-                            </div>
-                        )}
-                        {selectedReportTypes.criticism && (
-                            <div className="rounded-2xl border border-border/80 bg-card overflow-hidden shadow-sm transition-all duration-200">
-                                <CriticismReports
-                                    openReportCode={openCReportCode}
-                                    onReportCodeHandled={() => setOpenCReportCode('')}
-                                />
-                            </div>
-                        )}
-                        {!selectedReportTypes.grievance && !selectedReportTypes.suggestion && !selectedReportTypes.criticism && (
-                            <div className="rounded-2xl border border-dashed border-border bg-card/50 p-14 text-center">
-                                <div className="w-14 h-14 rounded-2xl bg-muted/60 flex items-center justify-center mx-auto mb-4 border border-border/60 shadow-inner">
-                                    <Shield className="h-7 w-7 text-muted-foreground" />
-                                </div>
-                                <h4 className="text-base font-semibold text-foreground">No Report Modules Selected</h4>
-                                <p className="text-xs text-muted-foreground mt-1.5 max-w-sm mx-auto">
-                                    Please select at least one report module from the top bar (Grievances, Suggestions, or Criticisms) to view records.
-                                </p>
-                                <Button
-                                    size="sm"
-                                    onClick={() => setSelectedReportTypes({ grievance: true, suggestion: false, criticism: false })}
-                                    className="mt-4 text-xs font-semibold"
-                                >
-                                    Enable Grievance Reports
-                                </Button>
-                            </div>
-                        )}
-                    </div>
+                    <GrievanceUnifiedReports
+                        embedded
+                        typeCounts={reportTypeCounts}
+                        onGrievanceStatsUpdate={handleGrievanceWorkflowStatsUpdate}
+                        onReportCountsUpdate={handleReportCountsUpdate}
+                        openGReportCode={openGReportCode}
+                        openSReportCode={openSReportCode}
+                        openCReportCode={openCReportCode}
+                        onGReportCodeHandled={() => setOpenGReportCode('')}
+                        onSReportCodeHandled={() => setOpenSReportCode('')}
+                        onCReportCodeHandled={() => setOpenCReportCode('')}
+                    />
                 </div>
             )}
 
             {/* ─── Feed ─── */}
             {!isReportsTab && (
                 <div className="space-y-4">
-                    <GrievanceExecutiveHeader
-                        user={authUser}
-                        variant="feed"
-                        scopeLine={`Live catalog: ${Number(stats?.total || 0).toLocaleString()} mentions · ${sources.length} watched accounts · ${navbarPlatform === 'all' ? 'All platforms' : String(navbarPlatform).toUpperCase()}`}
-                        kpis={feedExecutiveKpis}
-                    />
                 <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-16">
