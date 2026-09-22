@@ -23,6 +23,7 @@ import {
   BarChart3,
   ShieldAlert,
   TrendingUp,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   XBrandLogo,
