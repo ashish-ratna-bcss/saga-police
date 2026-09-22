@@ -19,12 +19,10 @@ import {
   Check,
   Download,
   AlertTriangle,
-  BrainCircuit,
   Calendar,
   CheckCircle2,
   FileText,
   BarChart3,
-  Cpu,
   ShieldAlert,
   TrendingUp,
 } from 'lucide-react';
@@ -68,11 +66,11 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
 
   const loadingSteps = useMemo(
     () => [
-      'Extracting event scope and metadata...',
-      'Aggregating telemetry rows from database...',
-      'Analyzing cross-platform sentiment & threat indicators...',
-      'Querying on-premise Qwen-14B LLM inference engine...',
-      'Synthesizing executive intelligence briefing...',
+      'Extracting event parameters & scope',
+      'Aggregating telemetry rows from database',
+      'Computing sentiment vectors & risk indicators',
+      'Querying on-premise Qwen-14B LLM engine',
+      'Synthesizing executive intelligence briefing',
     ],
     []
   );
@@ -86,7 +84,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
 
       const stepInterval = setInterval(() => {
         setLoadingStep((prev) => (prev < loadingSteps.length - 1 ? prev + 1 : prev));
-      }, 1600);
+      }, 1800);
 
       try {
         const url = `/events/${eventId}/summary-llm${refresh ? '?refresh=true' : ''}`;
@@ -96,7 +94,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
         if (data && (data.summary || data.structuredBriefing)) {
           setSummaryData(data);
           if (refresh) {
-            toast.success('Event intelligence briefing regenerated successfully');
+            toast.success('Event intelligence briefing regenerated');
           }
         } else {
           setError('No briefing data returned from the LLM service.');
@@ -165,166 +163,163 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden border-border/80 shadow-2xl bg-card text-card-foreground">
-        {/* Header with subtle gradient */}
-        <div className="relative px-6 py-5 border-b border-border/60 bg-gradient-to-r from-purple-950/20 via-indigo-950/10 to-background">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="relative flex items-center justify-center h-10 w-10 rounded-xl bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-600 text-white shadow-md shadow-purple-500/20 shrink-0">
-                <BrainCircuit className="h-5 w-5" />
-                <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500" />
-                </span>
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <DialogTitle className="text-lg font-bold tracking-tight text-foreground truncate">
-                    Executive Intelligence Summary
-                  </DialogTitle>
-                  <Badge
-                    variant="outline"
-                    className="border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-800/60 dark:bg-purple-950/50 dark:text-purple-300 text-[11px] font-medium gap-1 py-0.5"
-                  >
-                    <Cpu className="h-3 w-3" />
-                    {modelName}
-                  </Badge>
-                  {totalPosts > 0 && (
-                    <Badge
-                      variant="outline"
-                      className="border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800/60 dark:bg-blue-950/50 dark:text-blue-300 text-[11px] font-medium py-0.5"
-                    >
-                      {totalPosts} posts analyzed
-                    </Badge>
-                  )}
-                </div>
-                <DialogDescription className="text-xs text-muted-foreground mt-0.5 truncate">
-                  AI-driven synthesis for <span className="font-semibold text-foreground">{displayName}</span>
-                </DialogDescription>
-              </div>
+      <DialogContent className="sm:max-w-5xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden bg-background border-border shadow-2xl rounded-xl">
+        {/* Header - Clean, aligned, without awkward wraps or strange circles */}
+        <DialogHeader className="px-6 py-4 border-b bg-muted/20 flex flex-row items-center justify-between space-y-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-purple-500/20 shrink-0">
+              <Sparkles className="h-5 w-5" />
             </div>
-
-            {/* Quick Actions */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => fetchSummary(true)}
-                disabled={loading}
-                className="h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
-                title="Force re-analyze with latest DB posts"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">Regenerate</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCopy}
-                disabled={loading || !summaryData?.summary}
-                className="h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
-                title="Copy markdown text"
-              >
-                {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
-                <span className="hidden sm:inline">{copied ? 'Copied' : 'Copy'}</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDownload}
-                disabled={loading || !summaryData?.summary}
-                className="h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
-                title="Download markdown briefing"
-              >
-                <Download className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Export</span>
-              </Button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <DialogTitle className="text-lg font-bold tracking-tight text-foreground truncate">
+                  Executive Intelligence Summary
+                </DialogTitle>
+                <Badge
+                  variant="outline"
+                  className="font-mono text-[11px] px-2 py-0.5 bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-950/50 dark:border-purple-800 dark:text-purple-300 shrink-0"
+                >
+                  {modelName}
+                </Badge>
+                {totalPosts > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className="text-[11px] px-2 py-0.5 font-normal shrink-0"
+                  >
+                    {totalPosts} posts analyzed
+                  </Badge>
+                )}
+              </div>
+              <DialogDescription className="text-xs text-muted-foreground flex items-center gap-2 mt-1 truncate">
+                <span>Event: <strong className="text-foreground">{displayName}</strong></span>
+                {generatedAt && (
+                  <>
+                    <span>•</span>
+                    <span>Generated {new Date(generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </>
+                )}
+              </DialogDescription>
             </div>
           </div>
 
-          {/* Telemetry quick stats ribbon */}
-          {summaryData && !loading && (
-            <div className="mt-3.5 pt-3 border-t border-border/40 flex items-center justify-between gap-2 flex-wrap text-xs text-muted-foreground">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-medium text-foreground text-[11px] uppercase tracking-wider">Signals:</span>
-                {platforms?.twitter > 0 && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/60 text-[11px]">
-                    <XBrandLogo className="h-2.5 w-2.5" /> {platforms.twitter}
-                  </span>
-                )}
-                {platforms?.youtube > 0 && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/60 text-[11px]">
-                    <YoutubeBrandLogo className="h-2.5 w-2.5 text-red-500" /> {platforms.youtube}
-                  </span>
-                )}
-                {platforms?.facebook > 0 && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/60 text-[11px]">
-                    <FacebookBrandLogo className="h-2.5 w-2.5 text-blue-600" /> {platforms.facebook}
-                  </span>
-                )}
-                {platforms?.telegram > 0 && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/60 text-[11px]">
-                    <TelegramBrandLogo className="h-2.5 w-2.5 text-sky-500" /> {platforms.telegram}
-                  </span>
-                )}
-                {platforms?.other > 0 && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/60 text-[11px]">
-                    Other: {platforms.other}
-                  </span>
-                )}
+          <div className="flex items-center gap-2 pr-6 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchSummary(true)}
+              disabled={loading}
+              className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              title="Force re-analyze with latest DB posts"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>Regenerate</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopy}
+              disabled={loading || !summaryData?.summary}
+              className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              title="Copy markdown text"
+            >
+              {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+              <span>{copied ? 'Copied' : 'Copy'}</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownload}
+              disabled={loading || !summaryData?.summary}
+              className="h-8 gap-1.5 text-xs text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/60 hover:bg-purple-50 dark:hover:bg-purple-950/40"
+              title="Download markdown briefing"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>Export</span>
+            </Button>
+          </div>
+        </DialogHeader>
 
-                <div className="h-3.5 w-px bg-border/60 mx-1 hidden sm:block" />
+        {/* Telemetry quick stats ribbon (only when loaded) */}
+        {summaryData && !loading && (
+          <div className="px-6 py-2.5 border-b border-border/60 bg-muted/10 flex items-center justify-between gap-2 flex-wrap text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-foreground text-[11px] uppercase tracking-wider">Signals:</span>
+              {platforms?.twitter > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/80 text-[11px]">
+                  <XBrandLogo className="h-2.5 w-2.5" /> {platforms.twitter}
+                </span>
+              )}
+              {platforms?.youtube > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/80 text-[11px]">
+                  <YoutubeBrandLogo className="h-2.5 w-2.5 text-red-500" /> {platforms.youtube}
+                </span>
+              )}
+              {platforms?.facebook > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/80 text-[11px]">
+                  <FacebookBrandLogo className="h-2.5 w-2.5 text-blue-600" /> {platforms.facebook}
+                </span>
+              )}
+              {platforms?.telegram > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/80 text-[11px]">
+                  <TelegramBrandLogo className="h-2.5 w-2.5 text-sky-500" /> {platforms.telegram}
+                </span>
+              )}
+              {platforms?.other > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/80 text-[11px]">
+                  Other: {platforms.other}
+                </span>
+              )}
 
-                {sentiment && (
-                  <div className="flex items-center gap-1.5 text-[11px]">
-                    {sentiment.negative > 0 && (
-                      <span className="text-red-600 dark:text-red-400 font-medium">
-                        Neg: {sentiment.negative}
-                      </span>
-                    )}
-                    {sentiment.neutral > 0 && (
-                      <span className="text-amber-600 dark:text-amber-400">
-                        Neu: {sentiment.neutral}
-                      </span>
-                    )}
-                    {sentiment.positive > 0 && (
-                      <span className="text-emerald-600 dark:text-emerald-400">
-                        Pos: {sentiment.positive}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
+              <div className="h-3.5 w-px bg-border/60 mx-1 hidden sm:block" />
 
-              {generatedAt && (
-                <div className="text-[11px] text-muted-foreground flex items-center gap-1 ml-auto">
-                  <Calendar className="h-3 w-3" />
-                  {new Date(generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {sentiment && (
+                <div className="flex items-center gap-2 text-[11px]">
+                  {sentiment.negative > 0 && (
+                    <span className="text-red-600 dark:text-red-400 font-medium">
+                      Neg: {sentiment.negative}
+                    </span>
+                  )}
+                  {sentiment.neutral > 0 && (
+                    <span className="text-amber-600 dark:text-amber-400">
+                      Neu: {sentiment.neutral}
+                    </span>
+                  )}
+                  {sentiment.positive > 0 && (
+                    <span className="text-emerald-600 dark:text-emerald-400">
+                      Pos: {sentiment.positive}
+                    </span>
+                  )}
                 </div>
               )}
             </div>
-          )}
-        </div>
+
+            {risk && (
+              <div className="text-[11px] flex items-center gap-2 ml-auto">
+                <span className="text-muted-foreground">High/Critical Risk:</span>
+                <Badge variant="outline" className="text-[11px] px-1.5 py-0 border-amber-300 text-amber-700 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                  {(risk.critical || 0) + (risk.high || 0)}
+                </Badge>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Body content */}
         <div className="flex-1 overflow-hidden p-0 relative">
           {loading ? (
             <div className="flex flex-col items-center justify-center p-12 min-h-[380px] text-center">
-              <div className="relative mb-6">
-                <div className="h-16 w-16 rounded-2xl bg-gradient-to-tr from-purple-500/20 to-indigo-500/20 border border-purple-500/30 flex items-center justify-center animate-pulse">
-                  <BrainCircuit className="h-8 w-8 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div className="absolute -inset-1 rounded-2xl bg-purple-500/20 blur-md -z-10 animate-pulse" />
+              <div className="h-12 w-12 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 flex items-center justify-center mb-4 text-purple-600 dark:text-purple-400">
+                <Sparkles className="h-6 w-6 animate-pulse" />
               </div>
               <h3 className="text-base font-semibold text-foreground mb-1">
                 Synthesizing Event Intelligence
               </h3>
               <p className="text-xs text-muted-foreground max-w-sm mb-6">
-                Processing stored telemetry, sentiment vectors, and claims with on-premise LLM engine.
+                Analyzing database telemetry and generating comprehensive executive briefing with Qwen-14B.
               </p>
 
               {/* Step indicator */}
-              <div className="w-full max-w-md bg-muted/40 rounded-xl p-3.5 border border-border/50 text-left space-y-2">
+              <div className="w-full max-w-md bg-muted/40 rounded-xl p-3.5 border border-border/50 text-left space-y-2.5">
                 {loadingSteps.map((step, idx) => {
                   const isCurrent = idx === loadingStep;
                   const isDone = idx < loadingStep;
