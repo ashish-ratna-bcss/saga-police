@@ -2,11 +2,19 @@ const axios = require('axios');
 const dbOf = require('../../lib/dbOf');
 const logger = require('../../lib/logger');
 
-const getLLMConfig = () => ({
-  baseUrl: (process.env.LLM_BASE_URL || 'http://100.49.109.96/v1').replace(/\/$/, ''),
-  apiKey: process.env.LLM_API_KEY || '',
-  model: process.env.LLM_MODEL || 'qwen3-14b',
-});
+const getLLMConfig = () => {
+  const baseUrl = (process.env.LLM_BASE_URL || '').trim().replace(/\/$/, '');
+  const apiKey = (process.env.LLM_API_KEY || '').trim();
+  const model = (process.env.LLM_MODEL || 'qwen3-14b').trim();
+
+  if (!baseUrl) {
+    const err = new Error('LLM_BASE_URL is not configured in environment (.env).');
+    err.status = 500;
+    throw err;
+  }
+
+  return { baseUrl, apiKey, model };
+};
 
 /**
  * Strips reasoning / think tags from modern LLM outputs (e.g. Qwen, DeepSeek).

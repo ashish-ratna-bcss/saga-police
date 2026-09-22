@@ -89,7 +89,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       }, 1600);
 
       try {
-        const url = `/api/events/${eventId}/summary-llm${refresh ? '?refresh=true' : ''}`;
+        const url = `/events/${eventId}/summary-llm${refresh ? '?refresh=true' : ''}`;
         const res = await api.get(url);
         const data = res?.data?.data || res?.data;
 
