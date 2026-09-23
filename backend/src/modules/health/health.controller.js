@@ -2,7 +2,7 @@ const { checkSystemHealth } = require('./health.monitor.service');
 
 exports.getSystemHealth = async (req, res) => {
     try {
-        const healthData = await checkSystemHealth();
+        const healthData = await checkSystemHealth(req.tenantPrisma);
         res.status(200).json({ success: true, data: healthData });
     } catch (error) {
         console.error('[HealthController] Error fetching system health:', error);

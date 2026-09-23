@@ -1,0 +1,43 @@
+{
+  "format": "blugate-client-documentation-v1",
+  "gatewayBaseUrl": "https://blugate.blurasaga.com/api/gateway/global",
+  "auth": {
+    "note": "Authenticate with your BluGate client API key and client code. BluGate handles upstream credentials for you.",
+    "headers": [
+      {
+        "name": "Authorization",
+        "value": "Bearer <BLUGATE_API_KEY>",
+        "required": true,
+        "description": "BluGate client API key"
+      },
+      {
+        "name": "x-client-id",
+        "value": "<CLIENT_CODE>",
+        "required": true,
+        "description": "Your BluGate client code (e.g. SOC-EYE-001)"
+      }
+    ]
+  },
+  "endpoints": [
+    {
+      "method": "GET",
+      "route": "/health",
+      "gatewayPath": "/api/gateway/global/health",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/global/health",
+      "name": "Client & Platform Health",
+      "description": "Diagnostics endpoint returning client account status, system operational health, all platform health states, and which platforms the client has access to.",
+      "groupName": "System",
+      "params": []
+    },
+    {
+      "method": "GET",
+      "route": "/billing",
+      "gatewayPath": "/api/gateway/global/billing",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/global/billing",
+      "name": "Billing & Rate Limits",
+      "description": "Real-time billing consumption metrics, per-platform consumed requests, quota limits, remaining capacity, and active rate limits.",
+      "groupName": "Billing",
+      "params": []
+    }
+  ]
+}

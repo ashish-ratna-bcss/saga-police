@@ -1,6 +1,7 @@
 const axios = require('axios');
 const callTelegramApi = require('../../services/blugate/telegram/blugate.telegram.api_client');
 const { getTelegramBaseUrl } = require('../../services/blugate/telegram/blugate.telegram.env');
+const { callGlobalApi, resolveGlobalAuth } = require('../../services/blugate/global/blugate.global.api_client');
 
 /** Keep health probes short so the Health page does not sit on skeletons. */
 const PING_TIMEOUT_MS = 1500;
@@ -122,9 +123,39 @@ const blugateConfigured = (getBaseUrl, getApiKey) => {
   }
 };
 
-const checkSystemHealth = async () => {
+/**
+ * BluGate's global client-account endpoints (/health + /billing), per
+ * blugateapis/global-blugate-documentation.json — delegated to the proper
+ * services/blugate/global module (base URL, auth, request plumbing all live there,
+ * same as every other platform's Blugate client) rather than calling axios directly here.
+ */
+const checkBlugateGlobal = async (db) => {
+  if (!db) return { status: 'offline', error: 'No tenant database' };
+
+  const auth = await resolveGlobalAuth(db);
+  if (!auth) return { status: 'offline', error: 'Not configured' };
+
+  const start = Date.now();
+  try {
+    const [health, billingResult] = await Promise.all([
+      callGlobalApi('HEALTH', {}, auth),
+      callGlobalApi('BILLING', {}, auth).catch((err) => ({ __error: err.message })),
+    ]);
+    const billing = billingResult && billingResult.__error ? null : billingResult;
+    return {
+      status: 'online',
+      latency: Date.now() - start,
+      health,
+      billing,
+    };
+  } catch (error) {
+    return { status: 'offline', error: error.message || error.code };
+  }
+};
+
+const checkSystemHealth = async (db) => {
   // Run probes in parallel — sequential pings were ~12s when hosts were unreachable.
-  const [postgres, ollama, sentiment, mediaAnalyzer, ragApi, bluweb, telegram] =
+  const [postgres, ollama, sentiment, mediaAnalyzer, ragApi, bluweb, telegram, blugate] =
     await Promise.all([
       checkPostgres(),
       pingService(process.env.OLLAMA_BASE_URL, '/api/tags'),
@@ -136,6 +167,7 @@ const checkSystemHealth = async () => {
       pingService(process.env.RAG_API_URL, '/api/rag/health'),
       pingService(process.env.BLUWEB_API_URL, '/health/ready'),
       checkTelegram(),
+      checkBlugateGlobal(db),
     ]);
 
   // RapidAPI quota trackers removed — Blugate providers do not expose key quotas here.
@@ -171,6 +203,7 @@ const checkSystemHealth = async () => {
       ragApi,
       bluweb,
       telegram,
+      blugate,
     },
     quotas: {
       totalOverallCalls: 0,

@@ -10,17 +10,15 @@ import {
   RefreshCw,
   ShieldAlert,
   Zap,
-  Youtube,
-  Facebook,
-  Instagram,
   Circle,
   Globe,
   AlertTriangle,
+  Network,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { Button } from '../../components/ui/button';
 import { cn } from '../../lib/utils';
-import { TelegramBrandLogo, XBrandLogo } from '../../components/PlatformBrandIcon';
+import { TelegramBrandLogo } from '../../components/PlatformBrandIcon';
 
 const statusMeta = (status) => {
   if (status === 'online' || status === 'active' || status === 'ok') {
@@ -50,31 +48,70 @@ const statusMeta = (status) => {
   };
 };
 
-const getApiStatus = (quotaData) => {
-  if (!quotaData) return { status: 'offline', message: 'No data from backend.' };
-  if (quotaData.available === false) {
-    return { status: 'offline', message: 'API keys exhausted or invalid.' };
+/**
+ * BluGate's /health and /billing responses aren't documented with a fixed shape
+ * (blugateapis/global-blugate-documentation.json gives no example body), so this
+ * normalizes whatever comes back — an array of platform entries, or an object keyed
+ * by platform name — into a flat list the panel can render generically.
+ */
+const normalizeBlugateEntries = (data) => {
+  if (!data) return [];
+  const source = Array.isArray(data) ? data : data.platforms || data.items || data.data || data;
+  if (Array.isArray(source)) {
+    return source.map((entry, idx) => {
+      if (entry && typeof entry === 'object') {
+        const name = entry.platform || entry.name || entry.id || `Item ${idx + 1}`;
+        const { platform, name: _n, id, ...rest } = entry;
+        return { name, ...rest };
+      }
+      return { name: `Item ${idx + 1}`, value: entry };
+    });
   }
-  if (
-    quotaData.remaining !== undefined &&
-    quotaData.remaining !== 'Unknown' &&
-    Number(quotaData.remaining) <= 0
-  ) {
-    return { status: 'quota_completed', message: 'Rate limit / quota exceeded.' };
+  if (source && typeof source === 'object') {
+    return Object.entries(source)
+      .filter(([, value]) => typeof value !== 'function')
+      .map(([key, value]) =>
+        value && typeof value === 'object' && !Array.isArray(value)
+          ? { name: key, ...value }
+          : { name: key, value }
+      );
   }
-  return { status: 'active', message: 'Operational and within limits.' };
+  return [];
 };
 
-const formatQuota = (q) => {
-  if (!q) return null;
-  const rem = q.remaining;
-  const lim = q.limit;
-  if (rem === 'Unknown' && lim === 'Unknown') {
-    return q.totalCalls != null ? `${q.totalCalls} calls` : null;
-  }
-  if (rem !== 'Unknown' && lim !== 'Unknown') return `${rem} / ${lim} left`;
-  if (rem !== 'Unknown') return `${rem} remaining`;
-  return null;
+const BLUGATE_STATUS_KEYS = ['status', 'state', 'health'];
+
+const BlugateEntryRow = ({ name, ...fields }) => {
+  const statusKey = BLUGATE_STATUS_KEYS.find((k) => fields[k] != null);
+  const status = statusKey ? String(fields[statusKey]).toLowerCase() : null;
+  const s = status ? statusMeta(status) : null;
+  const rest = Object.entries(fields).filter(([k]) => k !== statusKey);
+  const summary = rest.length
+    ? rest
+        .map(([k, v]) => `${k}: ${v && typeof v === 'object' ? JSON.stringify(v) : v}`)
+        .join(' · ')
+    : null;
+  return (
+    <div className="flex items-center gap-3 border-l-[3px] border-l-border/40 bg-card px-3 py-2">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-semibold capitalize">{name}</p>
+        {summary ? (
+          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{summary}</p>
+        ) : null}
+      </div>
+      {s ? (
+        <span
+          className={cn(
+            'inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+            s.chip
+          )}
+        >
+          <span className={cn('h-1.5 w-1.5 rounded-full', s.dot)} />
+          {s.label}
+        </span>
+      ) : null}
+    </div>
+  );
 };
 
 const worstTone = (tones) => {
@@ -194,17 +231,16 @@ const SystemHealth = () => {
       return {
         infra: [],
         ai: [],
-        platforms: [],
+        blugate: { summary: null, health: [], billing: [] },
         issues: [],
         summary: { ok: 0, warn: 0, bad: 0, total: 0 },
-        groups: { infra: 'ok', ai: 'ok', platforms: 'ok' },
+        groups: { infra: 'ok', ai: 'ok', blugate: 'ok' },
         llmDown: false,
       };
     }
 
     const pg = healthData.postgres;
     const svc = healthData.services || {};
-    const quotas = healthData.quotas || {};
 
     const infra = [
       {
@@ -286,26 +322,22 @@ const SystemHealth = () => {
       },
     ];
 
-    const platformDefs = [
-      { id: 'instagram', title: 'Instagram', icon: Instagram },
-      { id: 'facebook', title: 'Facebook', icon: Facebook },
-      { id: 'x', title: 'X', icon: XBrandLogo },
-      { id: 'youtube', title: 'YouTube', icon: Youtube },
-    ];
+    // BluGate global client-account status — real health + billing data from
+    // services/blugate/global, not per-platform quota guesses.
+    const bg = svc.blugate || {};
+    const blugateSummary = {
+      id: 'blugate',
+      title: 'BluGate Gateway',
+      description: 'Client account & platform gateway health',
+      status: bg.status || 'offline',
+      icon: Network,
+      latency: bg.latency,
+      error: bg.error,
+    };
+    const blugateHealth = normalizeBlugateEntries(bg.health);
+    const blugateBilling = normalizeBlugateEntries(bg.billing);
 
-    const platforms = platformDefs.map((p) => {
-      const api = getApiStatus(quotas[p.id]);
-      return {
-        id: p.id,
-        title: p.title,
-        description: api.message,
-        status: api.status,
-        icon: p.icon,
-        meta: formatQuota(quotas[p.id]),
-      };
-    });
-
-    const all = [...infra, ...ai, ...platforms];
+    const all = [...infra, ...ai, blugateSummary];
     let ok = 0;
     let warn = 0;
     let bad = 0;
@@ -327,13 +359,13 @@ const SystemHealth = () => {
     return {
       infra,
       ai,
-      platforms,
+      blugate: { summary: blugateSummary, health: blugateHealth, billing: blugateBilling },
       issues,
       summary: { ok, warn, bad, total: all.length },
       groups: {
         infra: groupTone(infra),
         ai: groupTone(ai),
-        platforms: groupTone(platforms),
+        blugate: groupTone([blugateSummary]),
       },
       llmDown,
       sentimentError: svc.sentiment?.error,
@@ -382,10 +414,10 @@ const SystemHealth = () => {
       tone: catalog.groups.ai,
     },
     {
-      key: 'platforms',
-      label: 'Platform APIs',
-      count: catalog.platforms.length,
-      tone: catalog.groups.platforms,
+      key: 'blugate',
+      label: 'BluGate',
+      count: catalog.blugate.health.length + catalog.blugate.billing.length,
+      tone: catalog.groups.blugate,
     },
   ];
 
@@ -505,17 +537,35 @@ const SystemHealth = () => {
               ))}
             </Panel>
             <Panel
-              title="Platform APIs"
-              icon={Activity}
-              count={
-                healthData.quotas?.totalOverallCalls != null
-                  ? `${healthData.quotas.totalOverallCalls} calls`
-                  : `${catalog.platforms.length} platforms`
-              }
+              title="BluGate"
+              icon={Network}
+              count={`${catalog.blugate.health.length + catalog.blugate.billing.length} data points`}
             >
-              {catalog.platforms.map((item) => (
-                <ServiceRow key={item.id} {...item} />
+              {catalog.blugate.summary ? <ServiceRow {...catalog.blugate.summary} /> : null}
+              {catalog.blugate.health.length > 0 ? (
+                <div className="bg-muted/20 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Client & platform health
+                </div>
+              ) : null}
+              {catalog.blugate.health.map((entry, idx) => (
+                <BlugateEntryRow key={`health-${entry.name}-${idx}`} {...entry} />
               ))}
+              {catalog.blugate.billing.length > 0 ? (
+                <div className="bg-muted/20 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Billing & rate limits
+                </div>
+              ) : null}
+              {catalog.blugate.billing.map((entry, idx) => (
+                <BlugateEntryRow key={`billing-${entry.name}-${idx}`} {...entry} />
+              ))}
+              {catalog.blugate.summary?.status !== 'online' &&
+              catalog.blugate.health.length === 0 &&
+              catalog.blugate.billing.length === 0 ? (
+                <p className="px-3 py-4 text-center text-[11px] text-muted-foreground">
+                  No BluGate data yet — configure a platform's API key & client key under
+                  Settings → Platforms.
+                </p>
+              ) : null}
             </Panel>
           </div>
 
