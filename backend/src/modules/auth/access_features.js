@@ -21,6 +21,7 @@ const PAGE_CATALOG = [
   { name: 'Audit Logs', label: 'Audit', path: '/audit-logs', icon: 'ScrollText' },
   { name: 'Settings', label: 'Settings', path: '/settings', icon: 'Settings' },
   { name: 'System Health', label: 'Health', path: '/system-health', icon: 'Activity' },
+  { name: 'BluGate Billing', label: 'BluGate', path: '/blugate-billing', icon: 'CreditCard' },
   { name: 'Help', label: 'Help', path: '/help', icon: 'HelpCircle' },
 ];
 
@@ -31,6 +32,7 @@ const SUPERADMIN_PAGE_PATHS = [
   '/dashboard',
   '/users-management',
   '/system-health',
+  '/blugate-billing',
   '/help',
 ];
 
@@ -49,6 +51,7 @@ const OPS_PAGE_PATHS = [
   '/ai-assistant',
   '/settings',
   '/system-health',
+  '/blugate-billing',
   '/help',
 ];
 

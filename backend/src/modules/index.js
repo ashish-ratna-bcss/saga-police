@@ -14,6 +14,7 @@ const { eventRoutes, occasionCalendarRoutes } = require('./events');
 const { dashboardRoutes } = require('./dashboard');
 const { analyticsHubRoutes } = require('./analytics-hub');
 const { healthRoutes } = require('./health');
+const { blugateRoutes } = require('./blugate');
 const { socialProfileRoutes } = require('./social-profiles');
 const { intelligenceRoutes } = require('./intelligence');
 const {
@@ -73,6 +74,7 @@ router.use('/analytics-hub', analyticsHubRoutes);
 
 // Additional module routes
 router.use('/health', healthRoutes);
+router.use('/blugate', blugateRoutes);
 router.use('/social-profiles', socialProfileRoutes);
 router.use('/intelligence', intelligenceRoutes);
 router.use('/keywords', keywordRoutes);

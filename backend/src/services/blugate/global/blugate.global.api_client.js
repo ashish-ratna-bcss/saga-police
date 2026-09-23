@@ -51,7 +51,11 @@ const callGlobalApi = async (endpointKey, params = {}, auth = null) => {
     auth,
     label: 'Global',
     endpointKey,
-    timeout: Number(process.env.BLUGATE_GLOBAL_TIMEOUT_MS) || 6000,
+    // /health and /billing aggregate data across every platform gateway upstream, which is
+    // slower than a simple platform call. Unauthenticated requests return in ~2s (fails at
+    // the auth layer), so the slowness is in the real aggregation work once authenticated —
+    // matches the 45s ceiling already used for the heaviest per-platform Blugate calls.
+    timeout: 45000,
   });
 };
 

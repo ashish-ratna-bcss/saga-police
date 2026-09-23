@@ -20,6 +20,7 @@ import {
   ScrollText,
   Eye,
   Search,
+  CreditCard,
 } from 'lucide-react';
 import { AlertService } from '../api';
 import { cn } from '../lib/utils';
@@ -44,6 +45,7 @@ const ICONS = {
   Globe,
   ScrollText,
   Search,
+  CreditCard,
 };
 
 const formatBadgeCount = (n) => {

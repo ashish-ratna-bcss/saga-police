@@ -60,6 +60,7 @@ const WhatsMyNameSearch = lazy(() => import('./pages/intelligence/WhatsMyNameSea
 const AiAssistant = lazy(() => import('./pages/intelligence/AiAssistant'));
 const PostLocationLookup = lazy(() => import('./pages/intelligence/PostLocationLookup'));
 const SystemHealth = lazy(() => import('./pages/admin/SystemHealth'));
+const BlugateBilling = lazy(() => import('./pages/admin/BlugateBilling'));
 const InitialSetupWizard = lazy(() => import('./pages/setup/InitialSetupWizard'));
 
 // Loading fallback
@@ -125,6 +126,7 @@ function App() {
               <Route path="analysis-tools" element={<AnalysisTools />} />
               <Route path="web-intelligence" element={<WebIntelligence />} />
               <Route path="system-health" element={<SystemHealth />} />
+              <Route path="blugate-billing" element={<BlugateBilling />} />
               <Route path="analysis-tools/osint-tools" element={<OSINTLayout />}>
                 <Route index element={<OSINTDashboard />} />
                 <Route path="email" element={<EmailTools />} />
