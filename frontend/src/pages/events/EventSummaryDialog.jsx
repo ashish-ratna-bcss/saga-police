@@ -31,6 +31,8 @@ import {
   ExternalLink,
   Target,
   Info,
+  List,
+  Loader2,
 } from 'lucide-react';
 import {
   XBrandLogo,
@@ -73,6 +75,17 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('briefing');
 
+  // "All Posts" tab — full paginated list of every post analyzed for this event
+  // (the narrative/evidence tab only cites a small representative sample).
+  const [allPosts, setAllPosts] = useState([]);
+  const [allPostsPage, setAllPostsPage] = useState(1);
+  const [allPostsHasMore, setAllPostsHasMore] = useState(true);
+  const [allPostsTotal, setAllPostsTotal] = useState(0);
+  const [allPostsLoading, setAllPostsLoading] = useState(false);
+  const [allPostsLoaded, setAllPostsLoaded] = useState(false);
+  const [allPostsPlatform, setAllPostsPlatform] = useState('all');
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+
   const loadingSteps = useMemo(
     () => [
       'Extracting event parameters & scope',
@@ -96,9 +109,9 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       }, 1800);
 
       try {
-        const res = await api.get(`/events/${eventId}/summary-llm`, {
-          params: { ...(refresh ? { refresh: true } : {}), _t: Date.now() },
-        });
+        const res = refresh
+          ? await api.post(`/events/${eventId}/summary-llm`)
+          : await api.get(`/events/${eventId}/summary-llm`, { params: { _t: Date.now() } });
         const data = res?.data?.data || res?.data;
 
         if (data && (data.summary || data.structuredBriefing)) {
@@ -139,8 +152,50 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       setSummaryData(null);
       setError(null);
       setLoading(false);
+      setAllPosts([]);
+      setAllPostsPage(1);
+      setAllPostsHasMore(true);
+      setAllPostsTotal(0);
+      setAllPostsLoaded(false);
+      setAllPostsPlatform('all');
     }
   }, [open, eventId, fetchSummary]);
+
+  const fetchAllPosts = useCallback(
+    async (page = 1, platform = allPostsPlatform, append = false) => {
+      if (!eventId) return;
+      setAllPostsLoading(true);
+      try {
+        const res = await api.get(`/events/${eventId}/content`, {
+          params: { page, limit: 50, platform },
+        });
+        const data = res?.data || {};
+        const items = Array.isArray(data.content) ? data.content : [];
+        setAllPosts((prev) => (append ? [...prev, ...items] : items));
+        setAllPostsPage(page);
+        setAllPostsHasMore(Boolean(data.pagination?.hasMore ?? data.has_more));
+        setAllPostsTotal(data.pagination?.total ?? items.length);
+        setAllPostsLoaded(true);
+      } catch (err) {
+        console.error('Failed to fetch event posts:', err);
+        toast.error('Failed to load all posts');
+      } finally {
+        setAllPostsLoading(false);
+      }
+    },
+    [eventId, allPostsPlatform]
+  );
+
+  useEffect(() => {
+    if (open && activeTab === 'posts' && !allPostsLoaded) {
+      fetchAllPosts(1, allPostsPlatform, false);
+    }
+  }, [open, activeTab, allPostsLoaded, allPostsPlatform, fetchAllPosts]);
+
+  const handlePostsPlatformChange = (platform) => {
+    setAllPostsPlatform(platform);
+    setAllPostsLoaded(false);
+  };
 
   const displayName = summaryData?.eventName || summaryData?.event?.name || eventName || 'Event';
   const stats = summaryData?.stats || summaryData?.telemetrySummary || {};
@@ -265,8 +320,56 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDownload = () => {
+  const arrayBufferToBase64 = (buffer) => {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary);
+  };
+
+  /**
+   * Embeds Devanagari/Oriya Unicode fonts into the PDF so Hindi/Odia post text
+   * renders instead of being stripped — jsPDF's built-in Helvetica is ASCII-only.
+   * Failures are non-fatal: those posts just fall back to the ASCII-stripped text.
+   */
+  const loadPdfUnicodeFonts = async (doc) => {
+    const fonts = [
+      { url: '/fonts/NotoSansDevanagari-Regular.ttf', vfsName: 'NotoSansDevanagari-Regular.ttf', family: 'NotoDevanagari' },
+      { url: '/fonts/NotoSansOriya-Regular.ttf', vfsName: 'NotoSansOriya-Regular.ttf', family: 'NotoOriya' },
+    ];
+    const loaded = new Set();
+    await Promise.all(
+      fonts.map(async (f) => {
+        try {
+          const res = await fetch(f.url);
+          if (!res.ok) return;
+          const buf = await res.arrayBuffer();
+          const base64 = arrayBufferToBase64(buf);
+          doc.addFileToVFS(f.vfsName, base64);
+          doc.addFont(f.vfsName, f.family, 'normal');
+          loaded.add(f.family);
+        } catch (err) {
+          console.warn(`PDF font load failed (${f.family}):`, err.message);
+        }
+      })
+    );
+    return loaded;
+  };
+
+  /** Picks an embedded font family for text containing Devanagari/Oriya script; else Helvetica. */
+  const scriptFontFor = (text, loadedFonts) => {
+    const t = String(text || '');
+    if (loadedFonts?.has('NotoOriya') && /[଀-୿]/.test(t)) return 'NotoOriya';
+    if (loadedFonts?.has('NotoDevanagari') && /[ऀ-ॿ]/.test(t)) return 'NotoDevanagari';
+    return 'helvetica';
+  };
+
+  const handleDownload = async () => {
     if (!summaryData?.summary) return;
+    setPdfGenerating(true);
     try {
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pageW = doc.internal.pageSize.getWidth();
@@ -274,7 +377,11 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       const margin = 14;
       const usableW = pageW - margin * 2;
 
-      // Helper: Clean markdown, strip emojis and non-ASCII chars so standard jsPDF fonts never print garbage
+      const loadedFonts = await loadPdfUnicodeFonts(doc);
+
+      // Helper: Clean markdown and emojis. Devanagari/Oriya are kept (rendered via the
+      // embedded Noto fonts above); any other non-ASCII script has no embedded font, so
+      // it's still stripped to avoid printing garbled glyph boxes.
       const cleanMdText = (txt) => {
         if (!txt) return '';
         return txt
@@ -289,7 +396,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
           .replace(/^\s*[-*_]{3,}\s*$/gm, '')
           .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')
           .replace(/[\u2600-\u27BF\uE000-\uF8FF\u200D\uFE0F]/g, '')
-          .replace(/[^\x00-\x7F]/g, (char) => {
+          .replace(/[^\x00-\x7F\u0900-\u097F\u0B00-\u0B7F]/g, (char) => {
             const map = {
               '‘': "'", '’': "'", '“': '"', '”': '"',
               '•': '-', '–': '-', '—': '-', '…': '...',
@@ -299,9 +406,14 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
           .trim();
       };
 
-      // Helper: Draw watermark on page canvas BEFORE content is placed (background layer)
+      // Helper: Draw watermark on page canvas BEFORE content is placed (background layer).
+      // `targetPage` is an ABSOLUTE document page number — only pass it when you actually
+      // mean "jump to this page" (e.g. right after our own doc.addPage()). Omit it to draw
+      // on whatever page is already current — required inside autoTable's willDrawPage hook,
+      // whose hook.pageNumber is relative to the TABLE (always starts at 1), not the document;
+      // calling doc.setPage(hook.pageNumber) there would yank the cursor back to page 1.
       const drawWatermark = (targetPage) => {
-        doc.setPage(targetPage);
+        if (targetPage != null) doc.setPage(targetPage);
         if (typeof doc.saveGraphicsState === 'function') {
           doc.saveGraphicsState();
         }
@@ -323,7 +435,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       };
 
       const pdfPageHooks = {
-        willDrawPage: (hook) => drawWatermark(hook.pageNumber),
+        willDrawPage: () => drawWatermark(),
       };
 
       drawWatermark(1);
@@ -378,9 +490,11 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       let yPos = 36;
 
       // 2. Target event context card
+      const generatedByName = summaryData?.generated_by?.name;
+      const contextCardHeight = generatedByName ? 22 : 18;
       doc.setFillColor(248, 250, 252);
       doc.setDrawColor(226, 232, 240);
-      doc.roundedRect(margin, yPos, usableW, 18, 2, 2, 'FD');
+      doc.roundedRect(margin, yPos, usableW, contextCardHeight, 2, 2, 'FD');
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
@@ -399,13 +513,240 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       ].filter(Boolean);
       doc.text(scopeParts.join('   |   '), margin + 4, yPos + 12);
 
-      yPos += 24;
+      if (generatedByName) {
+        doc.setFontSize(7);
+        doc.setTextColor(100, 116, 139);
+        doc.text(
+          `AI Summary generated by: ${cleanMdText(generatedByName)}`,
+          margin + 4,
+          yPos + 17.5
+        );
+      }
 
-      // 3. Executive telemetry table
-      const platformShareText =
+      yPos += contextCardHeight + 6;
+
+      // Signals ribbon — mirrors the colored platform/sentiment/threat chip strip
+      // shown right under the header in the in-app dialog.
+      const PLATFORM_CHIP_COLORS = {
+        twitter: [15, 23, 42], x: [15, 23, 42],
+        youtube: [220, 38, 38],
+        facebook: [37, 99, 235],
+        instagram: [219, 39, 119],
+        telegram: [14, 165, 233],
+        whatsapp: [16, 185, 129],
+      };
+      const drawSignalsStrip = () => {
+        const chips = platformList.map((p) => ({
+          label: `${cleanMdText(p.label)}: ${p.count} (${p.percentage}%)`,
+          color: PLATFORM_CHIP_COLORS[p.key] || [100, 116, 139],
+        }));
+        if (posCount > 0) chips.push({ label: `Praise: ${posCount} (${sentimentPercentages?.positive ?? 0}%)`, color: [16, 185, 129] });
+        if (neuCount > 0) chips.push({ label: `News: ${neuCount} (${sentimentPercentages?.neutral ?? 0}%)`, color: [14, 165, 233] });
+        if (negCount > 0) chips.push({ label: `Criticism: ${negCount} (${sentimentPercentages?.negative ?? 0}%)`, color: [225, 29, 72] });
+        chips.push({ label: `Public Order Threat: ${riskCount}`, color: [180, 83, 9] });
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.5);
+        const chipGap = 3;
+        const maxRowWidth = usableW - 8;
+        const rows = [[]];
+        let rowWidth = 0;
+        chips.forEach((chip) => {
+          const w = doc.getTextWidth(chip.label) + 8;
+          if (rowWidth + w > maxRowWidth && rows[rows.length - 1].length > 0) {
+            rows.push([]);
+            rowWidth = 0;
+          }
+          rows[rows.length - 1].push({ ...chip, w });
+          rowWidth += w + chipGap;
+        });
+
+        const stripHeight = rows.length * 6 + 5;
+        doc.setFillColor(250, 250, 252);
+        doc.setDrawColor(230, 230, 235);
+        doc.roundedRect(margin, yPos, usableW, stripHeight, 2, 2, 'FD');
+
+        let cy = yPos + 5.5;
+        rows.forEach((row) => {
+          let cx = margin + 4;
+          row.forEach((chip) => {
+            doc.setFillColor(...chip.color);
+            doc.circle(cx + 1.3, cy - 1, 1.1, 'F');
+            doc.setTextColor(...chip.color);
+            doc.text(chip.label, cx + 4.5, cy);
+            cx += chip.w + chipGap;
+          });
+          cy += 6;
+        });
+
+        yPos += stripHeight + 6;
+      };
+      drawSignalsStrip();
+
+      // Light card background behind a page's content — mirrors the app's content-area
+      // cards. `stampNewPage` draws it on every fresh page; the first section's page
+      // already has the header/context card/signals strip above it, so its card is
+      // drawn separately, right-sized to the remaining space.
+      const PAGE_CARD_FILL = [252, 252, 253];
+      const PAGE_CARD_BORDER = [230, 230, 235];
+      const stampNewPage = () => {
+        doc.addPage();
+        drawWatermark(doc.internal.getNumberOfPages());
+        doc.setFillColor(...PAGE_CARD_FILL);
+        doc.setDrawColor(...PAGE_CARD_BORDER);
+        doc.roundedRect(margin, 34, usableW, pageH - 34 - 16, 3, 3, 'FD');
+        yPos = 40;
+      };
+
+      const checkPageBreak = (neededHeight) => {
+        if (yPos + neededHeight > pageH - 22) {
+          stampNewPage();
+          return true;
+        }
+        return false;
+      };
+
+      // Section banner — one per tab (Event Summary / Risk & Advisory / Data Telemetry / All Posts)
+      // so the PDF mirrors the in-app dialog's structure page by page.
+      const drawSectionBanner = (title, { newPage = false } = {}) => {
+        if (newPage) {
+          stampNewPage();
+        } else {
+          checkPageBreak(12);
+        }
+        doc.setFillColor(79, 70, 229);
+        doc.rect(margin, yPos, usableW, 8, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(255, 255, 255);
+        doc.text(title.toUpperCase(), margin + 3, yPos + 5.5);
+        yPos += 13;
+      };
+
+      const platformShareLines =
         platformList.length > 0
-          ? platformList.map((p) => `${cleanMdText(p.label)}: ${p.count} (${p.percentage}%)`).join(' · ')
-          : 'No platform breakdown available';
+          ? platformList.map((p) => `${cleanMdText(p.label)}: ${p.count} (${p.percentage}%)`)
+          : ['No platform breakdown available'];
+
+      // ───────────────────────── SECTION 1: EVENT SUMMARY ─────────────────────────
+      // Page 1's card sits below the header/context card/signals strip already drawn.
+      doc.setFillColor(...PAGE_CARD_FILL);
+      doc.setDrawColor(...PAGE_CARD_BORDER);
+      doc.roundedRect(margin, yPos, usableW, pageH - yPos - 16, 3, 3, 'FD');
+      yPos += 6;
+      drawSectionBanner('Section 1: Event Summary');
+
+      const rawSummary = summaryData.summary || '';
+      const rawSections = rawSummary.split(/(?=(?:^|\n)#{1,4}\s+)/g).filter(Boolean);
+
+      for (const sec of rawSections) {
+        const lines = sec.trim().split('\n');
+        const headerRaw = lines[0] || '';
+        const headerLine = cleanMdText(headerRaw.replace(/^#{1,4}\s*/, '')).replace(/^[-–—:\s]+/, '').trim();
+        const bodyContent = cleanMdText(lines.slice(1).join('\n')).trim();
+
+        if (/^event summary\b/i.test(headerLine) && (!bodyContent || bodyContent === '---')) {
+          continue;
+        }
+        if (!headerLine && !bodyContent) continue;
+
+        checkPageBreak(16);
+
+        if (headerLine) {
+          checkPageBreak(10);
+          doc.setFillColor(15, 23, 42);
+          doc.rect(margin, yPos, usableW, 7, 'F');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8);
+          doc.setTextColor(255, 255, 255);
+          doc.text(headerLine.toUpperCase(), margin + 3, yPos + 4.8);
+          yPos += 9;
+        }
+
+        if (bodyContent) {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(51, 65, 85);
+
+          const bodyParagraphs = bodyContent.split('\n\n');
+          for (const para of bodyParagraphs) {
+            const trimmed = para.trim();
+            if (!trimmed || trimmed === '---') continue;
+
+            doc.setFont(scriptFontFor(trimmed, loadedFonts), 'normal');
+            const splitLines = doc.splitTextToSize(trimmed, usableW - 4);
+            checkPageBreak(splitLines.length * 4 + 3);
+
+            doc.text(splitLines, margin + 2, yPos);
+            yPos += splitLines.length * 4 + 2;
+          }
+        }
+        yPos += 3;
+      }
+
+      // ───────────────────────── SECTION 2: RISK & ADVISORY ─────────────────────────
+      drawSectionBanner('Section 2: Risk & Advisory', { newPage: true });
+
+      // Colors mirror the in-app Risk & Advisory tab's three cards (amber / purple / neutral).
+      const advisoryBlocks = [
+        {
+          title: 'Threat, Misinformation & Public Order Risk',
+          body:
+            extracted.threat ||
+            summaryData?.structuredBriefing?.threatAndRisk ||
+            'Continuous monitoring recommended. Review key influencers and escalating sentiment channels.',
+          accent: [180, 83, 9],
+          fill: [255, 251, 235],
+        },
+        {
+          title: 'Recommended Law Enforcement & Administrative Advisory',
+          body:
+            extracted.actions ||
+            summaryData?.structuredBriefing?.recommendedActions ||
+            'Deploy counter-narrative verification, monitor platform surges, and coordinate with ground response teams.',
+          accent: [126, 34, 206],
+          fill: [250, 245, 255],
+        },
+        {
+          title: 'Public Sentiment & Ground Atmosphere',
+          body:
+            extracted.sentiment ||
+            summaryData?.structuredBriefing?.publicSentiment ||
+            'Ground sentiment is dynamically fluctuating across channels.',
+          accent: [71, 85, 105],
+          fill: [248, 250, 252],
+        },
+      ];
+
+      for (const block of advisoryBlocks) {
+        const cleanBody = cleanMdText(block.body);
+        const bodyFont = scriptFontFor(cleanBody, loadedFonts);
+        doc.setFont(bodyFont, 'normal');
+        doc.setFontSize(8);
+        const splitLines = doc.splitTextToSize(cleanBody, usableW - 14);
+        const blockHeight = 9 + splitLines.length * 4 + 5;
+        checkPageBreak(blockHeight + 4);
+
+        doc.setFillColor(...block.fill);
+        doc.setDrawColor(...block.accent);
+        doc.roundedRect(margin + 2, yPos, usableW - 4, blockHeight, 1.5, 1.5, 'FD');
+        doc.setFillColor(...block.accent);
+        doc.rect(margin + 2, yPos, 1.3, blockHeight, 'F');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(...block.accent);
+        doc.text(block.title.toUpperCase(), margin + 7, yPos + 6);
+
+        doc.setFont(bodyFont, 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(51, 65, 85);
+        doc.text(splitLines, margin + 7, yPos + 11);
+        yPos += blockHeight + 5;
+      }
+
+      // ───────────────────────── SECTION 3: DATA TELEMETRY ─────────────────────────
+      drawSectionBanner('Section 3: Data Telemetry', { newPage: true });
 
       autoTable(doc, {
         startY: yPos,
@@ -451,8 +792,8 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
           ],
           [
             'Platform Ingestion Mix',
-            platformShareText.length > 90 ? `${platformList[0]?.count || 0} posts on top channel` : platformShareText,
-            platformShareText.length > 90 ? platformShareText : 'Share of ingested volume by monitored social channel',
+            platformShareLines.join('\n'),
+            'Share of ingested volume by monitored social channel',
           ],
           [
             'Executive Narrative Source',
@@ -475,6 +816,13 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
           cellPadding: 2.2,
           lineColor: [226, 232, 240],
         },
+        // Platform Ingestion Mix (row 7) lists one channel per line — left-align it
+        // instead of the default centered numbers so the list doesn't look jumbled.
+        didParseCell: (hookData) => {
+          if (hookData.section === 'body' && hookData.row.index === 7 && hookData.column.index === 1) {
+            hookData.cell.styles.halign = 'left';
+          }
+        },
         columnStyles: {
           0: { cellWidth: 54, fontStyle: 'bold', textColor: [15, 23, 42] },
           1: { cellWidth: 38, halign: 'center', fontStyle: 'bold', textColor: [79, 70, 229] },
@@ -484,70 +832,121 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
 
       yPos = (doc.lastAutoTable?.finalY ?? yPos + 18) + 8;
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.setTextColor(15, 23, 42);
-      doc.text('Executive Narrative & Situation Assessment', margin, yPos);
-      yPos += 5;
-
-      const checkPageBreak = (neededHeight) => {
-        if (yPos + neededHeight > pageH - 22) {
-          doc.addPage();
-          drawWatermark(doc.internal.getNumberOfPages());
-          yPos = 36;
-          return true;
-        }
-        return false;
-      };
-
-      const rawSummary = summaryData.summary || '';
-      // Split by markdown headers
-      const rawSections = rawSummary.split(/(?=(?:^|\n)#{1,4}\s+)/g).filter(Boolean);
-
-      for (const sec of rawSections) {
-        const lines = sec.trim().split('\n');
-        const headerRaw = lines[0] || '';
-        const headerLine = cleanMdText(headerRaw.replace(/^#{1,4}\s*/, '')).replace(/^[-–—:\s]+/, '').trim();
-        const bodyContent = cleanMdText(lines.slice(1).join('\n')).trim();
-
-        // Skip redundant document-level title or empty sections
-        if (/^event summary\b/i.test(headerLine) && (!bodyContent || bodyContent === '---')) {
-          continue;
-        }
-        if (!headerLine && !bodyContent) continue;
-
-        checkPageBreak(16);
-
-        if (headerLine) {
-          checkPageBreak(10);
-          doc.setFillColor(15, 23, 42);
-          doc.rect(margin, yPos, usableW, 7, 'F');
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(8);
-          doc.setTextColor(255, 255, 255);
-          doc.text(headerLine.toUpperCase(), margin + 3, yPos + 4.8);
-          yPos += 9;
-        }
-
-        // Section Body Content
-        if (bodyContent) {
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8);
-          doc.setTextColor(51, 65, 85);
-
-          const bodyParagraphs = bodyContent.split('\n\n');
-          for (const para of bodyParagraphs) {
-            const trimmed = para.trim();
-            if (!trimmed || trimmed === '---') continue;
-
-            const splitLines = doc.splitTextToSize(trimmed, usableW - 4);
-            checkPageBreak(splitLines.length * 4 + 3);
-
-            doc.text(splitLines, margin + 2, yPos);
-            yPos += splitLines.length * 4 + 2;
-          }
-        }
+      // Target & Entity Classification (matches the Data Telemetry tab breakdown)
+      const targetEntries = Object.entries(targetClassification).filter(([, s]) => (s?.total || 0) > 0);
+      if (targetEntries.length > 0) {
+        checkPageBreak(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(15, 23, 42);
+        doc.text('Target & Entity Sentiment Classification', margin, yPos);
         yPos += 3;
+
+        autoTable(doc, {
+          startY: yPos,
+          margin: { left: margin, right: margin },
+          head: [['Target Entity', 'Total Mentions', 'Praise', 'News/Updates', 'Criticism']],
+          body: targetEntries.map(([entity, s]) => [
+            cleanMdText(entity),
+            String(s.total || 0),
+            String(s.praise || 0),
+            String(s.news || 0),
+            String(s.criticism || 0),
+          ]),
+          theme: 'grid',
+          ...pdfPageHooks,
+          headStyles: { fillColor: [79, 70, 229], textColor: 255, fontSize: 8, fontStyle: 'bold' },
+          styles: { fontSize: 7.5, cellPadding: 2, lineColor: [226, 232, 240] },
+          columnStyles: {
+            0: { cellWidth: 60, fontStyle: 'bold', textColor: [15, 23, 42] },
+            1: { halign: 'center' },
+            2: { halign: 'center', textColor: [16, 185, 129] },
+            3: { halign: 'center', textColor: [14, 165, 233] },
+            4: { halign: 'center', textColor: [225, 29, 72] },
+          },
+        });
+
+        yPos = (doc.lastAutoTable?.finalY ?? yPos + 14) + 8;
+      }
+
+      // ───────────────────────── SECTION 4: ALL POSTS ─────────────────────────
+      drawSectionBanner('Section 4: All Posts', { newPage: true });
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      doc.text(
+        `${Number(totalPosts).toLocaleString()} total posts ingested across ${platformList.length} platform${platformList.length === 1 ? '' : 's'} for this event.`,
+        margin,
+        yPos
+      );
+      yPos += 6;
+
+      autoTable(doc, {
+        startY: yPos,
+        margin: { left: margin, right: margin },
+        head: [['Platform', 'Posts', 'Share']],
+        body:
+          platformList.length > 0
+            ? platformList.map((p) => [cleanMdText(p.label), String(p.count), `${p.percentage}%`])
+            : [['No platform breakdown available', '-', '-']],
+        theme: 'grid',
+        ...pdfPageHooks,
+        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontSize: 8, fontStyle: 'bold' },
+        styles: { fontSize: 7.5, cellPadding: 2, lineColor: [226, 232, 240] },
+        columnStyles: {
+          0: { cellWidth: 60, fontStyle: 'bold', textColor: [15, 23, 42] },
+          1: { halign: 'center' },
+          2: { halign: 'center', fontStyle: 'bold', textColor: [79, 70, 229] },
+        },
+      });
+
+      yPos = (doc.lastAutoTable?.finalY ?? yPos + 14) + 8;
+
+      const evidenceList = summaryData?.evidence_traceability || [];
+      if (evidenceList.length > 0) {
+        checkPageBreak(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(15, 23, 42);
+        doc.text(`Representative Posts (${evidenceList.length} of ${totalPosts} — cited in the narrative above)`, margin, yPos);
+        yPos += 3;
+
+        autoTable(doc, {
+          startY: yPos,
+          margin: { left: margin, right: margin },
+          head: [['Cite', 'Platform', 'Author', 'Sentiment / Target', 'Post Text']],
+          body: evidenceList.map((e) => [
+            cleanMdText(e.citationTag || ''),
+            cleanMdText(e.platform || '').toUpperCase(),
+            cleanMdText(`@${e.author || 'Unknown'}`),
+            cleanMdText(`${e.sentiment || ''} / ${e.target_entity || ''}`),
+            cleanMdText(e.text || ''),
+          ]),
+          theme: 'grid',
+          ...pdfPageHooks,
+          headStyles: { fillColor: [79, 70, 229], textColor: 255, fontSize: 7.5, fontStyle: 'bold' },
+          styles: { fontSize: 7, cellPadding: 2, lineColor: [226, 232, 240], overflow: 'linebreak' },
+          // Post Text column may be Devanagari/Oriya — swap to the embedded Unicode font per cell.
+          didParseCell: (hookData) => {
+            if (hookData.section === 'body' && hookData.column.index === 4) {
+              hookData.cell.styles.font = scriptFontFor(hookData.cell.text?.join(' '), loadedFonts);
+            }
+          },
+          columnStyles: {
+            0: { cellWidth: 14, fontStyle: 'bold' },
+            1: { cellWidth: 18 },
+            2: { cellWidth: 26 },
+            3: { cellWidth: 32 },
+            4: { cellWidth: 'auto' },
+          },
+        });
+
+        yPos = (doc.lastAutoTable?.finalY ?? yPos + 14) + 6;
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(7);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`For the complete list of all ${totalPosts} posts, open the "All Posts" tab in the app.`, margin, yPos);
       }
 
       // Apply bottom footer across all pages (watermarks already stamped in background layer)
@@ -570,9 +969,22 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       const cleanFileName = `${cleanMdText(tenantName).replace(/[^a-z0-9]/gi, '_')}_${cleanMdText(displayName).replace(/[^a-z0-9]/gi, '_')}_Summary_Report.pdf`;
       doc.save(cleanFileName);
       toast.success('Executive PDF report downloaded');
+
+      // Persist alongside the cached summary so it's retrievable without regenerating.
+      try {
+        const dataUri = doc.output('datauristring');
+        const base64 = dataUri.split(',')[1];
+        if (base64 && eventId) {
+          api.put(`/events/${eventId}/summary-llm/pdf`, { pdf_base64: base64 }).catch(() => {});
+        }
+      } catch (_) {
+        /* non-fatal: download already succeeded */
+      }
     } catch (err) {
       console.error('Failed to generate PDF report:', err);
       toast.error('Failed to generate PDF report: ' + err.message);
+    } finally {
+      setPdfGenerating(false);
     }
   };
 
@@ -613,6 +1025,20 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                     <span>Generated {new Date(generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </>
                 )}
+                {summaryData?.generated_by?.name && (
+                  <>
+                    <span>•</span>
+                    <span>by <strong className="text-foreground">{summaryData.generated_by.name}</strong></span>
+                  </>
+                )}
+                {summaryData?.has_pdf && (
+                  <>
+                    <span>•</span>
+                    <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="h-3 w-3" /> PDF saved
+                    </span>
+                  </>
+                )}
               </DialogDescription>
             </div>
           </div>
@@ -644,12 +1070,16 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
               variant="outline"
               size="sm"
               onClick={handleDownload}
-              disabled={loading || !summaryData?.summary}
+              disabled={loading || pdfGenerating || !summaryData?.summary}
               className="h-8 gap-1.5 text-xs text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/60 hover:bg-purple-50 dark:hover:bg-purple-950/40 font-medium"
-              title="Download executive PDF report"
+              title="Download executive PDF report (includes every analyzed post as an appendix)"
             >
-              <Download className="h-3.5 w-3.5" />
-              <span>Download Report</span>
+              {pdfGenerating ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )}
+              <span>{pdfGenerating ? 'Preparing…' : 'Download Report'}</span>
             </Button>
           </div>
         </DialogHeader>
@@ -662,6 +1092,49 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
               post counts and five sample citations — not a full narrative analysis.
               {summaryData.llm_error ? ` (${summaryData.llm_error})` : ''}
             </span>
+          </div>
+        )}
+
+        {summaryData?.cached && !summaryData?.is_stale && !loading && (
+          <div className="px-6 py-2 border-b border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-900 dark:text-emerald-200 flex items-center gap-2">
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+            <span>
+              This AI summary was already generated
+              {summaryData.generated_by?.name ? (
+                <>
+                  {' '}by <strong>{summaryData.generated_by.name}</strong>
+                </>
+              ) : null}
+              {generatedAt ? (
+                <> on {new Date(generatedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</>
+              ) : null}
+              . Use <strong>Regenerate</strong> to refresh it.
+            </span>
+          </div>
+        )}
+
+        {summaryData?.is_stale && !loading && (
+          <div className="px-6 py-2.5 border-b border-sky-500/30 bg-sky-500/10 text-xs text-sky-950 dark:text-sky-100 flex items-center justify-between gap-3 flex-wrap">
+            <span className="inline-flex items-start gap-2">
+              <Sparkles className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>
+                <strong>
+                  {summaryData.new_posts_count > 0
+                    ? `${summaryData.new_posts_count} new post${summaryData.new_posts_count === 1 ? '' : 's'} since this report was generated.`
+                    : 'New activity detected since this report was generated.'}
+                </strong>{' '}
+                Regenerate to include the latest data.
+              </span>
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs shrink-0"
+              onClick={() => fetchSummary(true)}
+            >
+              Regenerate
+            </Button>
           </div>
         )}
 
@@ -834,6 +1307,13 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                   >
                     <BarChart3 className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
                     Data Telemetry
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="posts"
+                    className="data-[state=active]:border-b-2 data-[state=active]:border-purple-600 rounded-none bg-transparent px-2 text-xs font-medium"
+                  >
+                    <List className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
+                    All Posts{totalPosts > 0 ? ` (${totalPosts})` : ''}
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -1114,6 +1594,131 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                             {extracted.narratives || summaryData.structuredBriefing?.keyNarratives}
                           </ReactMarkdown>
                         </div>
+                      </div>
+                    )}
+                  </ScrollArea>
+                </TabsContent>
+
+                <TabsContent value="posts" className="h-full m-0 p-0">
+                  <ScrollArea className="h-[calc(92vh-185px)] px-7 py-6">
+                    <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+                      <div className="text-xs text-muted-foreground">
+                        Every post ingested for this event — not just the sampled citations used in the narrative.
+                        {allPostsTotal > 0 && (
+                          <span className="ml-1">
+                            Showing <strong className="text-foreground">{allPosts.length}</strong> of{' '}
+                            <strong className="text-foreground">{allPostsTotal}</strong>.
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {['all', 'x', 'youtube', 'facebook', 'instagram', 'telegram', 'whatsapp'].map((p) => (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => handlePostsPlatformChange(p)}
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors ${
+                              allPostsPlatform === p
+                                ? 'bg-purple-600 text-white border-purple-600'
+                                : 'bg-muted/40 text-muted-foreground border-border/60 hover:bg-muted/70'
+                            }`}
+                          >
+                            {p === 'all' ? 'All Platforms' : p.toUpperCase()}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {allPostsLoading && allPosts.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin mb-2" />
+                        <span className="text-xs">Loading posts…</span>
+                      </div>
+                    ) : allPosts.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground text-center">
+                        <List className="h-8 w-8 mb-2 opacity-40" />
+                        <span className="text-xs">No posts found for this filter.</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {allPosts.map((post) => (
+                          <div
+                            key={post.id}
+                            className="p-3 rounded-lg border bg-muted/20 border-border/50 text-xs flex flex-col gap-1.5"
+                          >
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-foreground">
+                                  @{post.author_handle || post.author || 'Unknown'}
+                                </span>
+                                <span className="text-[11px] text-muted-foreground uppercase">
+                                  ({post.platform})
+                                </span>
+                                {post.published_at && (
+                                  <span className="text-[11px] text-muted-foreground">
+                                    {new Date(post.published_at).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                {post.sentiment ? (
+                                  <Badge
+                                    variant="secondary"
+                                    className={`text-[10px] ${
+                                      post.sentiment === 'positive'
+                                        ? 'text-emerald-600'
+                                        : post.sentiment === 'negative'
+                                          ? 'text-red-600'
+                                          : 'text-sky-600'
+                                    }`}
+                                  >
+                                    {post.sentiment}
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                    Pending analysis
+                                  </Badge>
+                                )}
+                                {post.risk_level && post.risk_level !== 'low' && (
+                                  <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                                    {post.risk_level} risk
+                                  </Badge>
+                                )}
+                                {post.content_url && (
+                                  <a
+                                    href={post.content_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 ml-1"
+                                    title="Open original post"
+                                  >
+                                    <ExternalLink className="h-3 w-3" />
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                            {post.text && (
+                              <p className="text-muted-foreground text-[11px] leading-relaxed whitespace-pre-wrap">
+                                {post.text}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {allPostsHasMore && allPosts.length > 0 && (
+                      <div className="flex justify-center mt-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={allPostsLoading}
+                          onClick={() => fetchAllPosts(allPostsPage + 1, allPostsPlatform, true)}
+                          className="gap-1.5 text-xs"
+                        >
+                          {allPostsLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                          Load more posts
+                        </Button>
                       </div>
                     )}
                   </ScrollArea>

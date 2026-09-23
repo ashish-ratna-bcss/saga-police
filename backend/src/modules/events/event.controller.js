@@ -238,11 +238,41 @@ const getEventsReport = async (req, res) => {
   }
 };
 
-const { generateEventSummary } = require('../../services/SummaryLLM');
+const { generateEventSummary, getCachedEventSummary, saveEventSummaryPdf } = require('../../services/SummaryLLM');
 
+/** GET: return the cached report instantly if one exists; only calls the LLM the first time. */
 const getEventSummaryLLM = async (req, res) => {
   try {
+    const cached = await getCachedEventSummary(req.params.id, { db: req.tenantPrisma });
+    if (cached) {
+      return res.status(200).json(cached);
+    }
     const data = await generateEventSummary(req.params.id, {
+      db: req.tenantPrisma,
+      generatedBy: req.user ? { id: req.user.id, name: req.user.name || req.user.username } : null,
+    });
+    return res.status(200).json({ ...data, is_stale: false, new_posts_count: 0 });
+  } catch (error) {
+    return res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
+/** POST: force a fresh regenerate (Regenerate button / stale-report banner). */
+const regenerateEventSummaryLLM = async (req, res) => {
+  try {
+    const data = await generateEventSummary(req.params.id, {
+      db: req.tenantPrisma,
+      generatedBy: req.user ? { id: req.user.id, name: req.user.name || req.user.username } : null,
+    });
+    return res.status(200).json({ ...data, is_stale: false, new_posts_count: 0 });
+  } catch (error) {
+    return res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
+const saveEventSummaryPdfHandler = async (req, res) => {
+  try {
+    const data = await saveEventSummaryPdf(req.params.id, req.body?.pdf_base64, {
       db: req.tenantPrisma,
     });
     return res.status(200).json(data);
@@ -264,6 +294,8 @@ module.exports = {
   getEventContent,
   getEventKeywordAnalytics,
   getEventSummaryLLM,
+  regenerateEventSummaryLLM,
+  saveEventSummaryPdfHandler,
   runEventScan,
   getEventsReport,
 };

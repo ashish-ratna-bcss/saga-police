@@ -2163,7 +2163,8 @@ const EventsTab = ({ data, selectedEventId, onSelectEvent, range, platform }) =>
 /* ══════════════════════════════════════════════════════════════
    3. THREAT ALERTS & RISK TAB
    ══════════════════════════════════════════════════════════════ */
-const AlertsTab = ({ data }) => {
+const AlertsTab = ({ data, range, platform }) => {
+  const [modalState, setModalState] = useState(null);
   if (!data) return null;
   const {
     total = 0,
@@ -2175,12 +2176,15 @@ const AlertsTab = ({ data }) => {
     recent_threats = [],
   } = data;
 
+  const openDetail = (dim, filt) =>
+    setModalState({ id: 'all', name: 'All Monitored Events', dimension: dim || 'risk', filter: filt || 'all' });
+
   return (
     <div className="space-y-3.5 animate-in fade-in-50 duration-200">
       {/* 3-Level Threat Risk Strip */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <RiskMatrixCard stats={risk_stats} title="Threat Risk Breakdown" subtitle="Critical, medium and low severity alerts" />
-        <SentimentMatrixCard stats={sentiment_stats} title="Alert Sentiment Valence" subtitle="Tone of triggering threat intelligence" />
+        <RiskMatrixCard stats={risk_stats} title="Threat Risk Breakdown" subtitle="Critical, medium and low severity alerts" onViewDetail={openDetail} />
+        <SentimentMatrixCard stats={sentiment_stats} title="Alert Sentiment Valence" subtitle="Tone of triggering threat intelligence" onViewDetail={openDetail} />
         <Card className="border-border/70 bg-card/90 shadow-xs rounded-xl overflow-hidden backdrop-blur-xs">
           <CardContent className="p-3.5 sm:p-4">
             <div className="flex items-center justify-between gap-2 mb-2.5">
@@ -2196,30 +2200,46 @@ const AlertsTab = ({ data }) => {
               </span>
             </div>
             <div className="grid grid-cols-2 gap-2 pt-1">
-              <div className="p-2 rounded-lg bg-red-500/5 border border-red-500/20">
+              <Link
+                to="/alerts?status=active"
+                className="p-2 rounded-lg bg-red-500/5 border border-red-500/20 transition-all cursor-pointer hover:bg-red-500/15 hover:border-red-500/40 hover:scale-[1.02] block"
+                title="View Active/New alerts"
+              >
                 <p className="text-[9px] font-bold uppercase text-red-700 dark:text-red-300">Active / New</p>
                 <p className="text-lg font-extrabold text-red-600 dark:text-red-400 tabular-nums">
                   {(by_status.active || 0) + (by_status.new || 0)}
                 </p>
-              </div>
-              <div className="p-2 rounded-lg bg-amber-500/5 border border-amber-500/20">
+              </Link>
+              <Link
+                to="/alerts?status=escalated"
+                className="p-2 rounded-lg bg-amber-500/5 border border-amber-500/20 transition-all cursor-pointer hover:bg-amber-500/15 hover:border-amber-500/40 hover:scale-[1.02] block"
+                title="View Escalated alerts"
+              >
                 <p className="text-[9px] font-bold uppercase text-amber-700 dark:text-amber-300">Escalated</p>
                 <p className="text-lg font-extrabold text-amber-600 dark:text-amber-400 tabular-nums">
                   {by_status.escalated || 0}
                 </p>
-              </div>
-              <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/20">
+              </Link>
+              <Link
+                to="/alerts?status=acknowledged"
+                className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/20 transition-all cursor-pointer hover:bg-blue-500/15 hover:border-blue-500/40 hover:scale-[1.02] block"
+                title="View Acknowledged alerts"
+              >
                 <p className="text-[9px] font-bold uppercase text-blue-700 dark:text-blue-300">Acknowledged</p>
                 <p className="text-lg font-extrabold text-blue-600 dark:text-blue-400 tabular-nums">
                   {by_status.acknowledged || 0}
                 </p>
-              </div>
-              <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+              </Link>
+              <Link
+                to="/alerts?status=reports"
+                className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 transition-all cursor-pointer hover:bg-emerald-500/15 hover:border-emerald-500/40 hover:scale-[1.02] block"
+                title="View Resolved/Reported alerts"
+              >
                 <p className="text-[9px] font-bold uppercase text-emerald-700 dark:text-emerald-300">Resolved</p>
                 <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums">
                   {(by_status.resolved || 0) + (by_status.closed || 0)}
                 </p>
-              </div>
+              </Link>
             </div>
           </CardContent>
         </Card>
@@ -2333,6 +2353,20 @@ const AlertsTab = ({ data }) => {
           </table>
         </div>
       </SectionCard>
+
+      {/* Risk / Sentiment Detail Modal */}
+      {modalState && (
+        <EventIntelligenceModal
+          eventId={modalState.id}
+          eventName={modalState.name}
+          isOpen={Boolean(modalState)}
+          onClose={() => setModalState(null)}
+          initialDimension={modalState.dimension}
+          initialFilter={modalState.filter}
+          range={range}
+          platform={platform}
+        />
+      )}
     </div>
   );
 };
@@ -2442,8 +2476,9 @@ const GrievancesTab = ({ data }) => {
 /* ══════════════════════════════════════════════════════════════
    5. TARGET PROFILES INTELLIGENCE TAB
    ══════════════════════════════════════════════════════════════ */
-const ProfilesTab = ({ data }) => {
+const ProfilesTab = ({ data, range, platform }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [modalState, setModalState] = useState(null);
 
   if (!data) return null;
   const {
@@ -2467,6 +2502,9 @@ const ProfilesTab = ({ data }) => {
     );
   }, [profiles, searchTerm]);
 
+  const openDetail = (dim, filt) =>
+    setModalState({ id: 'all', name: 'All Monitored Events', dimension: dim || 'stance', filter: filt || 'all' });
+
   return (
     <div className="space-y-3.5 animate-in fade-in-50 duration-200">
       {/* 3-Level Stance & Sentiment across all Target Profiles */}
@@ -2475,11 +2513,13 @@ const ProfilesTab = ({ data }) => {
           stats={stance_stats}
           title="Profiles Stance Index"
           subtitle="Aggregated stance across all monitored personas"
+          onViewDetail={openDetail}
         />
         <SentimentMatrixCard
           stats={sentiment_stats}
           title="Target Persona Sentiment"
           subtitle="Emotional tone of published content"
+          onViewDetail={openDetail}
         />
         <Card className="border-border/70 bg-card/90 shadow-xs rounded-xl overflow-hidden backdrop-blur-xs">
           <CardContent className="p-3.5 sm:p-4">
@@ -2496,23 +2536,35 @@ const ProfilesTab = ({ data }) => {
               </span>
             </div>
             <div className="grid grid-cols-2 gap-2 pt-1">
-              <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+              <Link
+                to="/social-profiles"
+                className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 transition-all cursor-pointer hover:bg-emerald-500/15 hover:border-emerald-500/40 hover:scale-[1.02] block"
+                title="View monitored profiles"
+              >
                 <p className="text-[9px] font-bold uppercase text-emerald-700 dark:text-emerald-300">Active Live</p>
                 <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums">{active}</p>
                 <p className="text-[9px] text-muted-foreground">Accounts</p>
-              </div>
-              <div className="p-2 rounded-lg bg-muted/40 border border-border/40">
+              </Link>
+              <Link
+                to="/social-profiles"
+                className="p-2 rounded-lg bg-muted/40 border border-border/40 transition-all cursor-pointer hover:bg-muted/70 hover:border-border/70 hover:scale-[1.02] block"
+                title="View monitored profiles"
+              >
                 <p className="text-[9px] font-bold uppercase text-muted-foreground">Paused</p>
                 <p className="text-lg font-extrabold text-muted-foreground tabular-nums">{paused}</p>
                 <p className="text-[9px] text-muted-foreground">Accounts</p>
-              </div>
-              <div className="p-2 rounded-lg bg-primary/5 border border-primary/20 col-span-2">
+              </Link>
+              <Link
+                to="/social-profiles"
+                className="p-2 rounded-lg bg-primary/5 border border-primary/20 col-span-2 transition-all cursor-pointer hover:bg-primary/15 hover:border-primary/40 block"
+                title="View monitored profiles"
+              >
                 <div className="flex justify-between items-center">
                   <span className="text-[9px] font-bold uppercase text-primary">Total Ingested Posts</span>
                   <span className="text-sm font-extrabold text-primary tabular-nums">{total_posts_fetched}</span>
                 </div>
                 <p className="text-[9px] text-muted-foreground mt-0.5">Across all platform networks in timeframe</p>
-              </div>
+              </Link>
             </div>
           </CardContent>
         </Card>
@@ -2604,7 +2656,13 @@ const ProfilesTab = ({ data }) => {
                   return (
                     <tr key={p.profile_id} className="hover:bg-muted/30 transition-colors">
                       <td className="p-2.5 max-w-[200px]">
-                        <p className="font-semibold text-foreground truncate">{p.display_name}</p>
+                        <Link
+                          to={`/social-profiles/${p.account_id}`}
+                          className="font-semibold text-foreground truncate hover:text-primary hover:underline transition-colors block"
+                          title={`Open ${p.display_name}'s profile`}
+                        >
+                          {p.display_name}
+                        </Link>
                         {p.handles && p.handles.length > 0 && (
                           <p className="text-[10px] text-muted-foreground truncate">
                             @{p.handles[0]} {p.handles.length > 1 ? `+${p.handles.length - 1}` : ''}
@@ -2715,6 +2773,20 @@ const ProfilesTab = ({ data }) => {
           </table>
         </div>
       </SectionCard>
+
+      {/* Stance / Sentiment Detail Modal */}
+      {modalState && (
+        <EventIntelligenceModal
+          eventId={modalState.id}
+          eventName={modalState.name}
+          isOpen={Boolean(modalState)}
+          onClose={() => setModalState(null)}
+          initialDimension={modalState.dimension}
+          initialFilter={modalState.filter}
+          range={range}
+          platform={platform}
+        />
+      )}
     </div>
   );
 };
@@ -2919,11 +2991,11 @@ const AnalyticsHub = () => {
           />
         );
       case 'alerts':
-        return <AlertsTab data={currentData} />;
+        return <AlertsTab data={currentData} range={range} platform={platform} />;
       case 'grievances':
         return <GrievancesTab data={currentData} />;
       case 'profiles':
-        return <ProfilesTab data={currentData} />;
+        return <ProfilesTab data={currentData} range={range} platform={platform} />;
       default:
         return <AllTab data={currentData} onGoTab={setTab} range={range} platform={platform} />;
     }

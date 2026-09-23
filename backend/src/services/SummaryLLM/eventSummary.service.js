@@ -76,14 +76,138 @@ const getEngagementTotal = (eng) => {
   return likes + reposts + comments + Math.floor(views / 10);
 };
 
+/** Serialize a stored summary row into the same shape the LLM generator returns. */
+const serializeStoredSummary = (row) => ({
+  ok: true,
+  cached: true,
+  event: row.event_snapshot || {},
+  summary: row.summary_markdown,
+  summary_source: row.summary_source,
+  summary_truncated: row.summary_truncated,
+  llm_finish_reason: row.llm_finish_reason,
+  llm_error: row.llm_error,
+  stats: row.stats || {},
+  evidence_traceability: row.evidence_traceability || [],
+  model: row.model,
+  generated_at: row.generated_at instanceof Date ? row.generated_at.toISOString() : row.generated_at,
+  has_pdf: Boolean(row.pdf_base64),
+  generated_by: { id: row.generated_by_id ?? null, name: row.generated_by_name || null },
+});
+
+/** Current media count + max id for an event, used to detect drift against a cached summary. */
+const getEventMediaCursor = async (prisma, numericId) => {
+  const [{ _count, _max }] = await Promise.all([
+    prisma.social_media_event_media.aggregate({
+      where: { event_id: numericId },
+      _count: { id: true },
+      _max: { id: true },
+    }),
+  ]);
+  return {
+    count: _count.id || 0,
+    maxId: _max.id != null ? _max.id : null,
+  };
+};
+
+/**
+ * Return the cached summary for an event, if one exists, along with a staleness flag
+ * (true when posts have been ingested since the summary was generated). Does NOT call the LLM.
+ */
+const getCachedEventSummary = async (eventId, { db } = {}) => {
+  const prisma = dbOf(db);
+  const numericId = Number(eventId);
+  if (!Number.isFinite(numericId) || numericId <= 0) {
+    const err = new Error('Invalid event ID');
+    err.status = 400;
+    throw err;
+  }
+
+  const row = await prisma.social_media_event_summaries.findUnique({
+    where: { event_id: numericId },
+  });
+  if (!row) return null;
+
+  const cursor = await getEventMediaCursor(prisma, numericId);
+  const storedMaxId = row.last_media_id != null ? BigInt(row.last_media_id) : null;
+  const currentMaxId = cursor.maxId != null ? BigInt(cursor.maxId) : null;
+  const isStale =
+    cursor.count !== row.posts_snapshot_count ||
+    (currentMaxId != null && (storedMaxId == null || currentMaxId > storedMaxId));
+
+  return {
+    ...serializeStoredSummary(row),
+    is_stale: isStale,
+    new_posts_count: Math.max(0, cursor.count - row.posts_snapshot_count),
+  };
+};
+
+/** Persist a freshly-generated summary result, upserted one-per-event. */
+const persistEventSummary = async (prisma, numericId, result, cursor) => {
+  const data = {
+    summary_markdown: result.summary,
+    summary_source: result.summary_source,
+    llm_finish_reason: result.llm_finish_reason,
+    summary_truncated: Boolean(result.summary_truncated),
+    llm_error: result.llm_error,
+    model: result.model,
+    stats: result.stats,
+    evidence_traceability: result.evidence_traceability,
+    event_snapshot: result.event,
+    posts_snapshot_count: cursor.count,
+    last_media_id: cursor.maxId,
+    generated_by_id: result.generated_by?.id ?? null,
+    generated_by_name: result.generated_by?.name ?? null,
+    generated_at: new Date(result.generated_at),
+  };
+
+  await prisma.social_media_event_summaries.upsert({
+    where: { event_id: numericId },
+    create: { event_id: numericId, ...data },
+    update: data,
+  });
+};
+
+/** Save a client-generated PDF (base64) against the cached summary row for an event. */
+const saveEventSummaryPdf = async (eventId, pdfBase64, { db } = {}) => {
+  const prisma = dbOf(db);
+  const numericId = Number(eventId);
+  if (!Number.isFinite(numericId) || numericId <= 0) {
+    const err = new Error('Invalid event ID');
+    err.status = 400;
+    throw err;
+  }
+  if (!pdfBase64 || typeof pdfBase64 !== 'string') {
+    const err = new Error('pdfBase64 is required');
+    err.status = 400;
+    throw err;
+  }
+
+  try {
+    await prisma.social_media_event_summaries.update({
+      where: { event_id: numericId },
+      data: { pdf_base64: pdfBase64 },
+    });
+  } catch (err) {
+    if (err.code === 'P2025') {
+      const notFound = new Error('No cached summary exists for this event yet');
+      notFound.status = 404;
+      throw notFound;
+    }
+    throw err;
+  }
+  return { ok: true };
+};
+
 /**
  * Generate comprehensive AI Executive Summary for an event using telemetry and LLM.
  * Fetches and analyzes ALL rows (N rows) for the event from the database.
+ * Result is cached (upserted) into social_media_event_summaries for instant re-open.
  *
  * @param {number|string} eventId
  * @param {object} [options]
+ * @param {object} [options.generatedBy] - { id, name } of the user who triggered generation
  */
-const generateEventSummary = async (eventId, { db } = {}) => {
+const generateEventSummary = async (eventId, { db, generatedBy } = {}) => {
   const prisma = dbOf(db);
   const numericId = Number(eventId);
   if (!Number.isFinite(numericId) || numericId <= 0) {
@@ -512,7 +636,7 @@ ${Object.entries(platformCounts).map(([p, count]) => `- **${p.toUpperCase()}**: 
 `;
   }
 
-  return {
+  const result = {
     ok: true,
     event: {
       id: event.id,
@@ -563,10 +687,26 @@ ${Object.entries(platformCounts).map(([p, count]) => `- **${p.toUpperCase()}**: 
     })),
     model,
     generated_at: new Date().toISOString(),
+    generated_by: {
+      id: generatedBy?.id ?? null,
+      name: generatedBy?.name || generatedBy?.username || null,
+    },
   };
+
+  // 6. Cache the result so re-opening the dialog is instant until new posts arrive.
+  try {
+    const cursor = await getEventMediaCursor(prisma, numericId);
+    await persistEventSummary(prisma, numericId, result, cursor);
+  } catch (persistErr) {
+    logger.error(`[SummaryLLM] Failed to cache event summary: ${persistErr.message}`);
+  }
+
+  return result;
 };
 
 module.exports = {
   generateEventSummary,
+  getCachedEventSummary,
+  saveEventSummaryPdf,
   getLLMConfig,
 };

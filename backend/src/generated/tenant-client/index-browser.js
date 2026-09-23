@@ -328,6 +328,28 @@ exports.Prisma.Social_media_eventsScalarFieldEnum = {
   updated_at: 'updated_at'
 };
 
+exports.Prisma.Social_media_event_summariesScalarFieldEnum = {
+  id: 'id',
+  event_id: 'event_id',
+  summary_markdown: 'summary_markdown',
+  summary_source: 'summary_source',
+  llm_finish_reason: 'llm_finish_reason',
+  summary_truncated: 'summary_truncated',
+  llm_error: 'llm_error',
+  model: 'model',
+  stats: 'stats',
+  evidence_traceability: 'evidence_traceability',
+  event_snapshot: 'event_snapshot',
+  posts_snapshot_count: 'posts_snapshot_count',
+  last_media_id: 'last_media_id',
+  pdf_base64: 'pdf_base64',
+  generated_by_id: 'generated_by_id',
+  generated_by_name: 'generated_by_name',
+  generated_at: 'generated_at',
+  created_at: 'created_at',
+  updated_at: 'updated_at'
+};
+
 exports.Prisma.Social_media_event_mediaScalarFieldEnum = {
   id: 'id',
   event_id: 'event_id',
@@ -473,6 +495,7 @@ exports.Prisma.ModelName = {
   keywords: 'keywords',
   social_media_occasion_calendar: 'social_media_occasion_calendar',
   social_media_events: 'social_media_events',
+  social_media_event_summaries: 'social_media_event_summaries',
   social_media_event_media: 'social_media_event_media',
   alert_config: 'alert_config',
   report_templates: 'report_templates',

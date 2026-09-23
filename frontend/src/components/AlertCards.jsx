@@ -28,7 +28,6 @@ import { AlertService } from '../api';
 /** CDN expiry checks retired — treat playable media as always fresh. */
 const anyPlayableMediaUrlFresh = () => true;
 
-const WHATSAPP_GROUP_LINK = 'https://chat.whatsapp.com/HGGWZCyNXBmHfp4KvYxlXu';
 let activeVideoElement = null;
 const MEDIA_RESOLVE_TTL_MS = 15 * 60 * 1000;
 const MEDIA_RESOLVE_STALE_MS = 8 * 60 * 1000;
@@ -210,6 +209,8 @@ const resolvePostMediaFallback = async (postUrl, { force = false } = {}) => {
     return inflight;
 };
 
+/** Opens WhatsApp's own share sheet with the message pre-filled, letting the user
+ *  pick any chat or group themselves — it no longer forces a specific hardcoded group. */
 const openWhatsAppGroupShare = async (text) => {
     const hour = new Date().getHours();
     const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
@@ -217,20 +218,8 @@ const openWhatsAppGroupShare = async (text) => {
     if (finalText && !/^(Good\sMorning|Good\sAfternoon|Good\sEvening)/i.test(finalText.trim())) {
         finalText = `${greeting} sir,\n\n${finalText}`;
     }
-    try {
-        if (finalText && navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(finalText);
-        }
-    } catch (error) {
-        console.error('Clipboard copy failed:', error);
-        toast.error('Unable to copy message. Please copy manually.');
-    }
 
-    window.open(WHATSAPP_GROUP_LINK, '_blank');
-
-    if (finalText) {
-        toast.success('Message copied. Paste it into the WhatsApp group.');
-    }
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(finalText)}`, '_blank');
 };
 
 const correctFilenameForContentType = (filename, contentType) => {

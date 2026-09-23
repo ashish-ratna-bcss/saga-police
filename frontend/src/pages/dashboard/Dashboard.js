@@ -63,7 +63,7 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog';
 import { cn } from '../../lib/utils';
-import { PlatformBrandIcon } from '../../components/PlatformBrandIcon';
+import { PlatformBrandIcon, PLATFORM_BRAND_BG } from '../../components/PlatformBrandIcon';
 import { usePagePlatforms } from '../../hooks/usePagePlatforms';
 
 // ==========================================
@@ -1601,11 +1601,16 @@ const OperationsDashboard = () => {
 
                         {/* Avatar with Platform Indicator */}
                         <div className="relative shrink-0">
-                          <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center font-bold text-[11px] uppercase text-primary">
+                          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center font-bold text-xs uppercase text-primary">
                             {(row.display_name || row.handle || '?').charAt(0)}
                           </div>
-                          <div className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full bg-card border border-border flex items-center justify-center shadow-2xs">
-                            <PlatformBrandIcon platform={row.platform} className="h-2 w-2" />
+                          <div
+                            className={cn(
+                              'absolute -bottom-1 -right-1 h-[18px] w-[18px] rounded-full border-2 border-background flex items-center justify-center shadow-xs',
+                              PLATFORM_BRAND_BG[String(row.platform || '').toLowerCase()] || PLATFORM_BRAND_BG.all
+                            )}
+                          >
+                            <PlatformBrandIcon platform={row.platform} colored={false} className="h-2.5 w-2.5 text-white" />
                           </div>
                         </div>
 

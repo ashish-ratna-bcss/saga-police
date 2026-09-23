@@ -13,6 +13,8 @@ const {
   getEventContent,
   getEventKeywordAnalytics,
   getEventSummaryLLM,
+  regenerateEventSummaryLLM,
+  saveEventSummaryPdfHandler,
   runEventScan,
   getEventsReport,
 } = require('./event.controller');
@@ -28,7 +30,8 @@ router.get('/:id/dashboard', getEventDashboard);
 router.get('/:id/content', getEventContent);
 router.get('/:id/keyword-analytics', getEventKeywordAnalytics);
 router.get('/:id/summary-llm', getEventSummaryLLM);
-router.post('/:id/summary-llm', getEventSummaryLLM);
+router.post('/:id/summary-llm', regenerateEventSummaryLLM);
+router.put('/:id/summary-llm/pdf', saveEventSummaryPdfHandler);
 
 
 router.post('/', createEvent);

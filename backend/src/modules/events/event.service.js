@@ -193,6 +193,25 @@ const getDashboard = async (id, { db } = {}) => {
   }
 
   const hydrated = hydrateEvent(event);
+
+  // Lets the "Event Summary" button show a badge without opening the dialog.
+  let summary = { exists: false };
+  try {
+    const summaryRow = await prisma.social_media_event_summaries.findUnique({
+      where: { event_id: Number(id) },
+      select: { generated_at: true, generated_by_name: true },
+    });
+    if (summaryRow) {
+      summary = {
+        exists: true,
+        generated_at: summaryRow.generated_at,
+        generated_by_name: summaryRow.generated_by_name || null,
+      };
+    }
+  } catch (_) {
+    /* table not provisioned yet for this tenant — treat as no summary */
+  }
+
   return {
     event: hydrated,
     stats: {
@@ -206,6 +225,7 @@ const getDashboard = async (id, { db } = {}) => {
       // Platforms that actually have ingested media for this event
       platforms_active: Object.keys(content_by_platform).length,
     },
+    summary,
     recent_content: [],
     recent_alerts: [],
   };

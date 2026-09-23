@@ -23,7 +23,7 @@ import {
   Search, ScanLine, UserPlus, Pencil, FileSpreadsheet,
   FileText, BarChart3, Activity, Zap, Timer, ChevronRight,
   ChevronDown, X, AlertTriangle, Globe, ArrowUpRight, History, Square,
-  TrendingUp, Sparkles
+  TrendingUp, Sparkles, CheckCircle2
 } from 'lucide-react';
 import socialProfilesApi from '../../api/socialProfiles.api';
 import ContentCard from '../../components/ContentCard';
@@ -2692,11 +2692,18 @@ const Events = () => {
                   size="sm"
                   onClick={() => setEventSummaryOpen(true)}
                   disabled={!selectedId}
-                  className="h-8 gap-1.5 px-2.5 text-xs font-medium border-purple-200 bg-purple-50/70 text-purple-700 hover:bg-purple-100 hover:text-purple-800 dark:border-purple-800/70 dark:bg-purple-950/40 dark:text-purple-300 dark:hover:bg-purple-900/50 shadow-2xs"
-                  title="Generate AI Executive Intelligence Summary with LLM"
+                  className="relative h-8 gap-1.5 px-2.5 text-xs font-medium border-purple-200 bg-purple-50/70 text-purple-700 hover:bg-purple-100 hover:text-purple-800 dark:border-purple-800/70 dark:bg-purple-950/40 dark:text-purple-300 dark:hover:bg-purple-900/50 shadow-2xs"
+                  title={
+                    dashboard?.summary?.exists
+                      ? `Report already generated${dashboard.summary.generated_by_name ? ` by ${dashboard.summary.generated_by_name}` : ''} — click to view`
+                      : 'Generate AI Executive Intelligence Summary with LLM'
+                  }
                 >
                   <Sparkles className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
-                  Event Summary
+                  {dashboard?.summary?.exists ? 'View Report' : 'Event Summary'}
+                  {dashboard?.summary?.exists && (
+                    <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400 absolute -top-1 -right-1 bg-background rounded-full" />
+                  )}
                 </Button>
 
                 <div className="ml-auto flex items-center gap-0.5">

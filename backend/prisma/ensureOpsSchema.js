@@ -380,6 +380,41 @@ async function ensureOpsSchema(prisma) {
   `);
 
   await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS social_media_event_summaries (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      event_id INTEGER NOT NULL REFERENCES social_media_events(id) ON DELETE CASCADE,
+      summary_markdown TEXT NOT NULL,
+      summary_source TEXT NOT NULL DEFAULT 'llm',
+      llm_finish_reason TEXT NULL,
+      summary_truncated BOOLEAN NOT NULL DEFAULT false,
+      llm_error TEXT NULL,
+      model TEXT NULL,
+      stats JSONB NOT NULL DEFAULT '{}'::jsonb,
+      evidence_traceability JSONB NOT NULL DEFAULT '[]'::jsonb,
+      event_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
+      posts_snapshot_count INTEGER NOT NULL DEFAULT 0,
+      last_media_id BIGINT NULL,
+      pdf_base64 TEXT NULL,
+      generated_by_id INTEGER NULL,
+      generated_by_name TEXT NULL,
+      generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CONSTRAINT social_media_event_summaries_event_id_key UNIQUE (event_id)
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_event_summaries ADD COLUMN IF NOT EXISTS generated_by_id INTEGER;
+  `);
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE social_media_event_summaries ADD COLUMN IF NOT EXISTS generated_by_name TEXT;
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS social_media_event_summaries_event_id_idx
+    ON social_media_event_summaries (event_id)
+  `);
+
+  await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS alert_config (
       id TEXT PRIMARY KEY DEFAULT 'default',
       risk_threshold_high INTEGER NOT NULL DEFAULT 70,

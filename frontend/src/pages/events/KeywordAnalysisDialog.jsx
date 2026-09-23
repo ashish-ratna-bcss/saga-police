@@ -42,7 +42,6 @@ import {
   PieChart as PieIcon,
   Activity,
   Search,
-  Download,
   RefreshCw,
   X,
   ExternalLink,
@@ -69,8 +68,6 @@ import {
   TelegramBrandLogo,
   AllPlatformsLogo,
 } from '../../components/PlatformBrandIcon';
-import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'sonner';
@@ -295,8 +292,13 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
           })
           .trim();
 
+      // `targetPage` is an ABSOLUTE document page number — only pass it when jumping to a
+      // known page (e.g. right after our own doc.addPage()). Omit it to draw on whatever
+      // page is already current — required inside autoTable's willDrawPage hook, whose
+      // hook.pageNumber is relative to the TABLE (always starts at 1), not the document;
+      // calling doc.setPage(hook.pageNumber) there would yank the cursor back to page 1.
       const drawWatermark = (targetPage) => {
-        doc.setPage(targetPage);
+        if (targetPage != null) doc.setPage(targetPage);
         if (typeof doc.saveGraphicsState === 'function') doc.saveGraphicsState();
         if (typeof doc.GState === 'function' && typeof doc.setGState === 'function') {
           try {
@@ -314,7 +316,7 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
       };
 
       const pdfPageHooks = {
-        willDrawPage: (hook) => drawWatermark(hook.pageNumber),
+        willDrawPage: () => drawWatermark(),
       };
 
       drawWatermark(1);
@@ -381,71 +383,168 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
 
       currentY += 24;
 
-      // 3. Executive Telemetry & Perception KPIs Table
-      autoTable(doc, {
-        startY: currentY,
-        margin: { left: margin, right: margin },
-        head: [['Telemetry Metric', 'Observed Volume & Share', 'Operational Intelligence Assessment']],
-        body: [
-          [
-            'Total Unique Media Ingested',
-            `${(data.summary?.total_posts || 0).toLocaleString()} posts`,
-            'Distinct social media records ingested across monitored fleet vectors',
-          ],
-          [
-            'Matched Keyword Telemetry',
-            `${(data.summary?.total_matched_posts || 0).toLocaleString()} posts (100%)`,
-            'Discussions matching active event keyword surveillance rules',
-          ],
-          [
-            'Total Keyword Mentions',
-            `${(data.summary?.total_keyword_mentions || 0).toLocaleString()} mentions`,
-            'Aggregate term occurrences across posts (reflects multi-keyword co-occurrence)',
-          ],
-          [
-            'Praise / Positive Sentiment',
-            `${data.summary?.sentiment?.positive || 0} (${data.summary?.sentiment?.positive_pct || 0}%)`,
-            'Public commendation, positive reception, and official event endorsements',
-          ],
-          [
-            'News / Neutral Broadcasts',
-            `${data.summary?.sentiment?.neutral || 0} (${data.summary?.sentiment?.neutral_pct || 0}%)`,
-            'Factual dispatches, media articles, situation updates, routine information',
-          ],
-          [
-            'Criticism / Dissent',
-            `${data.summary?.sentiment?.negative || 0} (${data.summary?.sentiment?.negative_pct || 0}%)`,
-            'Policy critique, grievances, and critical feedback (decoupled from physical threat)',
-          ],
-          [
-            'Threat & Disruption Signals',
-            `${(summaryRisk.high || 0) + (summaryRisk.critical || 0)} flags`,
-            (summaryRisk.high || 0) + (summaryRisk.critical || 0) > 0
-              ? 'Potential public disorder, blockade, strike, or mobilization triggers detected'
-              : 'Zero physical unrest, agitation, or mobilization triggers detected in dataset',
-          ],
-        ],
-        theme: 'grid',
-        ...pdfPageHooks,
-        headStyles: {
-          fillColor: [30, 41, 59], // Slate-800
-          textColor: 255,
-          fontSize: 8,
-          fontStyle: 'bold',
+      // 3. KPI Card Row — mirrors the in-app dashboard's 5 metric cards exactly.
+      const kpiCards = [
+        {
+          label: 'Monitored Keywords',
+          value: String(data.summary?.total_keywords ?? data.keywords.length ?? 0),
+          sub: 'Across configured platforms',
+          accent: [79, 70, 229],
         },
-        styles: {
-          fontSize: 7.5,
-          cellPadding: 2.2,
-          lineColor: [226, 232, 240],
+        {
+          label: 'Unique Matched Posts',
+          value: String(data.summary?.total_matched_posts || 0),
+          sub:
+            data.summary?.total_posts > 0
+              ? `${Math.round(((data.summary?.total_matched_posts || 0) / data.summary.total_posts) * 100)}% of ${data.summary.total_posts} unique posts`
+              : '0% matches',
+          accent: [14, 165, 233],
         },
-        columnStyles: {
-          0: { cellWidth: 54, fontStyle: 'bold', textColor: [15, 23, 42] },
-          1: { cellWidth: 38, halign: 'center', fontStyle: 'bold', textColor: [79, 70, 229] },
-          2: { fontStyle: 'normal', textColor: [71, 85, 105] },
+        {
+          label: 'Total Keyword Mentions',
+          value: String(data.summary?.total_keyword_mentions || data.summary?.top_keyword_posts || 0),
+          sub: `Top term: ${pdfSafeText(data.summary?.top_keyword || '-')} (${data.summary?.top_keyword_posts || 0})`,
+          accent: [245, 158, 11],
+          valueColor: [79, 70, 229],
         },
+        {
+          label: 'Sentiment Breakdown',
+          value: `${data.summary?.sentiment?.positive_pct || 0}%`,
+          sub: `${data.summary?.sentiment?.positive || 0} Praise · ${data.summary?.sentiment?.neutral || 0} News · ${data.summary?.sentiment?.negative || 0} Criticism`,
+          accent: [16, 185, 129],
+          valueColor: [16, 185, 129],
+          badge: `${data.summary?.sentiment?.negative_pct || 0}% Criticism`,
+        },
+        {
+          label: 'Total Engagement',
+          value: Number(data.summary?.engagement?.total || 0).toLocaleString(),
+          sub: `${Number(data.summary?.engagement?.likes || 0).toLocaleString()} likes · ${Number(data.summary?.engagement?.shares || 0).toLocaleString()} shares`,
+          accent: [244, 63, 94],
+        },
+      ];
+
+      const cardGap = 3;
+      const cardW = (usableW - cardGap * 4) / 5;
+      const cardH = 24;
+      kpiCards.forEach((card, i) => {
+        const cx = margin + i * (cardW + cardGap);
+        doc.setFillColor(252, 252, 253);
+        doc.setDrawColor(226, 232, 240);
+        doc.roundedRect(cx, currentY, cardW, cardH, 1.5, 1.5, 'FD');
+        doc.setFillColor(...card.accent);
+        doc.circle(cx + cardW - 4, currentY + 4, 1, 'F');
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.3);
+        doc.setTextColor(100, 116, 139);
+        doc.text(doc.splitTextToSize(card.label, cardW - 3), cx + 2.5, currentY + 5);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12.5);
+        doc.setTextColor(...(card.valueColor || [15, 23, 42]));
+        doc.text(String(card.value), cx + 2.5, currentY + 13);
+
+        if (card.badge) {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(6);
+          doc.setTextColor(225, 29, 72);
+          doc.text(card.badge, cx + 2.5, currentY + 17);
+        }
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(5.8);
+        doc.setTextColor(100, 116, 139);
+        const subLines = doc.splitTextToSize(card.sub, cardW - 3);
+        doc.text(subLines.slice(0, 2), cx + 2.5, currentY + (card.badge ? 20.5 : 18.5));
       });
 
-      currentY = doc.lastAutoTable.finalY + 8;
+      currentY += cardH + 5;
+
+      // Standard Guide color legend — same 4-color legend shown under the dashboard KPI row.
+      const guideHeight = 16;
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(margin, currentY, usableW, guideHeight, 1.5, 1.5, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(15, 23, 42);
+      doc.text('Standard Guide:', margin + 3, currentY + 6);
+
+      const legendItems = [
+        { color: [16, 185, 129], label: 'Green = Praise (Positive)', note: 'Commendations & approval' },
+        { color: [14, 165, 233], label: 'Sky Blue = News/Updates (Neutral)', note: 'Factual reports & announcements' },
+        { color: [244, 63, 94], label: 'Red = Criticism (Negative)', note: 'Critique & feedback - Non-threat' },
+        {
+          color: [99, 102, 241],
+          label: 'Indigo = Total Mentions',
+          note: `(${data.summary?.total_posts || 0} unique posts = ${data.summary?.total_keyword_mentions || data.summary?.total_matched_posts || 0} mentions)`,
+        },
+      ];
+      let legendX = margin + 3;
+      let legendY = currentY + 12;
+      const legendRowLimit = margin + usableW - 3;
+      legendItems.forEach((item) => {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.2);
+        const labelW = doc.getTextWidth(item.label);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(5.8);
+        const noteW = doc.getTextWidth(item.note);
+        const totalW = 4 + labelW + 2 + noteW;
+        if (legendX + totalW > legendRowLimit) {
+          legendX = margin + 3;
+          legendY += 5;
+        }
+        doc.setFillColor(...item.color);
+        doc.circle(legendX + 1, legendY - 1, 1, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.2);
+        doc.setTextColor(...item.color);
+        doc.text(item.label, legendX + 3.5, legendY);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(5.8);
+        doc.setTextColor(100, 116, 139);
+        doc.text(item.note, legendX + 4 + labelW, legendY);
+        legendX += totalW + 6;
+      });
+
+      currentY += guideHeight + 8;
+
+      // Mentions Volume by Keyword — horizontal bar chart, same as the dashboard's chart.
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text('Mentions Volume by Keyword', margin, currentY);
+      currentY += 5;
+
+      const chartKeywords = [...data.keywords]
+        .sort((a, b) => (b.total_posts || 0) - (a.total_posts || 0))
+        .slice(0, 9);
+      const maxPosts = Math.max(1, ...chartKeywords.map((k) => k.total_posts || 0));
+      const barLabelW = 42;
+      const barAreaW = usableW - barLabelW - 16;
+      const barH = 4.2;
+      const barGap = 2;
+
+      chartKeywords.forEach((k, i) => {
+        const rowY = currentY + i * (barH + barGap);
+        const label = doc.splitTextToSize(pdfSafeText(formatKeywordForPdf(k.keyword, k.language)), barLabelW - 2)[0] || '';
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.5);
+        doc.setTextColor(51, 65, 85);
+        doc.text(label, margin, rowY + barH - 0.8, { align: 'left', maxWidth: barLabelW });
+
+        const barW = Math.max(1, (barAreaW * (k.total_posts || 0)) / maxPosts);
+        doc.setFillColor(99, 102, 241);
+        doc.roundedRect(margin + barLabelW, rowY, barW, barH, 0.6, 0.6, 'F');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.5);
+        doc.setTextColor(51, 65, 85);
+        doc.text(`${k.total_posts || 0} posts`, margin + barLabelW + barW + 2, rowY + barH - 0.8);
+      });
+
+      currentY += chartKeywords.length * (barH + barGap) + 8;
 
       // 4. Detailed Keyword Performance Table
       doc.setFont('helvetica', 'bold');
@@ -611,45 +710,6 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
     }
   };
 
-  // Export to Excel/CSV
-  const handleExportCSV = () => {
-    if (!data?.keywords?.length) {
-      toast.error('No analytics data to export');
-      return;
-    }
-
-    const rows = data.keywords.map((k, index) => ({
-      Rank: index + 1,
-      Keyword: k.keyword,
-      Language: k.language,
-      'Total Posts': k.total_posts,
-      'Share of Voice (%)': data.summary?.total_matched_posts
-        ? ((k.total_posts / data.summary.total_matched_posts) * 100).toFixed(1) + '%'
-        : '0%',
-      'Positive Posts': k.sentiment.positive,
-      'Neutral Posts': k.sentiment.neutral,
-      'Negative Posts': k.sentiment.negative,
-      'Net Sentiment Score': k.sentiment.net_score,
-      'Total Engagement': k.engagement.total,
-      'Total Likes': k.engagement.likes,
-      'Total Shares': k.engagement.shares,
-      'Total Comments': k.engagement.comments,
-      'Avg Engagement/Post': k.engagement.avg_per_post,
-      'Dominant Platform': k.dominant_platform,
-      'High/Critical Risk Mentions': k.high_risk_total,
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Keyword Analytics');
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([excelBuffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
-    saveAs(blob, `${(eventName || 'Event').replace(/\s+/g, '_')}_Keyword_Analytics.xlsx`);
-    toast.success('Keyword analytics exported successfully');
-  };
-
   // Pie chart data for share of voice
   const shareOfVoiceData = useMemo(() => {
     if (!data?.keywords) return [];
@@ -716,17 +776,6 @@ export default function KeywordAnalysisDialog({ open, onOpenChange, eventId, eve
             >
               <FileText className="h-3.5 w-3.5 text-rose-500" />
               Export PDF
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportCSV}
-              disabled={!data?.keywords?.length}
-              className="h-8 gap-1.5 text-xs text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-              title="Export Detailed Spreadsheet (.xlsx)"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Export Excel
             </Button>
           </div>
         </DialogHeader>

@@ -293,6 +293,32 @@ model social_media_events {
   @@index([last_fetched_at])
 }
 
+/// Cached AI executive summary (+ optional exported PDF) for an event. One row per event,
+/// overwritten on regenerate; posts_snapshot_count/last_media_id let the UI detect drift.
+model social_media_event_summaries {
+  id                    String    @id @default(uuid())
+  event_id              Int       @unique
+  summary_markdown      String    @db.Text
+  summary_source        String    @default("llm")
+  llm_finish_reason     String?
+  summary_truncated     Boolean   @default(false)
+  llm_error             String?
+  model                 String?
+  stats                 Json      @default("{}")
+  evidence_traceability Json      @default("[]")
+  event_snapshot        Json      @default("{}")
+  posts_snapshot_count  Int       @default(0)
+  last_media_id         BigInt?
+  pdf_base64            String?   @db.Text
+  generated_by_id       Int?
+  generated_by_name     String?
+  generated_at          DateTime  @default(now()) @db.Timestamptz(6)
+  created_at            DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([event_id])
+}
+
 /// Keyword-search discoveries for an event.
 model social_media_event_media {
   id                 BigInt                @id @default(autoincrement())

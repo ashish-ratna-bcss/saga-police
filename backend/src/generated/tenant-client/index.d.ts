@@ -69,6 +69,12 @@ export type social_media_occasion_calendar = $Result.DefaultSelection<Prisma.$so
  */
 export type social_media_events = $Result.DefaultSelection<Prisma.$social_media_eventsPayload>
 /**
+ * Model social_media_event_summaries
+ * Cached AI executive summary (+ optional exported PDF) for an event. One row per event,
+ * overwritten on regenerate; posts_snapshot_count/last_media_id let the UI detect drift.
+ */
+export type social_media_event_summaries = $Result.DefaultSelection<Prisma.$social_media_event_summariesPayload>
+/**
  * Model social_media_event_media
  * Keyword-search discoveries for an event.
  */
@@ -358,6 +364,16 @@ export class PrismaClient<
     * ```
     */
   get social_media_events(): Prisma.social_media_eventsDelegate<ExtArgs, ClientOptions>;
+
+  /**
+   * `prisma.social_media_event_summaries`: Exposes CRUD operations for the **social_media_event_summaries** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more Social_media_event_summaries
+    * const social_media_event_summaries = await prisma.social_media_event_summaries.findMany()
+    * ```
+    */
+  get social_media_event_summaries(): Prisma.social_media_event_summariesDelegate<ExtArgs, ClientOptions>;
 
   /**
    * `prisma.social_media_event_media`: Exposes CRUD operations for the **social_media_event_media** model.
@@ -870,6 +886,7 @@ export namespace Prisma {
     keywords: 'keywords',
     social_media_occasion_calendar: 'social_media_occasion_calendar',
     social_media_events: 'social_media_events',
+    social_media_event_summaries: 'social_media_event_summaries',
     social_media_event_media: 'social_media_event_media',
     alert_config: 'alert_config',
     report_templates: 'report_templates',
@@ -894,7 +911,7 @@ export namespace Prisma {
       omit: GlobalOmitOptions
     }
     meta: {
-      modelProps: "platforms" | "social_media_profiles" | "social_media_accounts" | "social_media_posts" | "social_media_alerts" | "social_media_grievances" | "social_media_grievance_reports" | "social_media_grievance_contacts" | "keywords" | "social_media_occasion_calendar" | "social_media_events" | "social_media_event_media" | "alert_config" | "report_templates" | "policy_mappings" | "audit_logs" | "social_media_periscope_reports"
+      modelProps: "platforms" | "social_media_profiles" | "social_media_accounts" | "social_media_posts" | "social_media_alerts" | "social_media_grievances" | "social_media_grievance_reports" | "social_media_grievance_contacts" | "keywords" | "social_media_occasion_calendar" | "social_media_events" | "social_media_event_summaries" | "social_media_event_media" | "alert_config" | "report_templates" | "policy_mappings" | "audit_logs" | "social_media_periscope_reports"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -1712,6 +1729,80 @@ export namespace Prisma {
           }
         }
       }
+      social_media_event_summaries: {
+        payload: Prisma.$social_media_event_summariesPayload<ExtArgs>
+        fields: Prisma.social_media_event_summariesFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.social_media_event_summariesFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_event_summariesPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.social_media_event_summariesFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_event_summariesPayload>
+          }
+          findFirst: {
+            args: Prisma.social_media_event_summariesFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_event_summariesPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.social_media_event_summariesFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_event_summariesPayload>
+          }
+          findMany: {
+            args: Prisma.social_media_event_summariesFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_event_summariesPayload>[]
+          }
+          create: {
+            args: Prisma.social_media_event_summariesCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_event_summariesPayload>
+          }
+          createMany: {
+            args: Prisma.social_media_event_summariesCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.social_media_event_summariesCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_event_summariesPayload>[]
+          }
+          delete: {
+            args: Prisma.social_media_event_summariesDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_event_summariesPayload>
+          }
+          update: {
+            args: Prisma.social_media_event_summariesUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_event_summariesPayload>
+          }
+          deleteMany: {
+            args: Prisma.social_media_event_summariesDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.social_media_event_summariesUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateManyAndReturn: {
+            args: Prisma.social_media_event_summariesUpdateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_event_summariesPayload>[]
+          }
+          upsert: {
+            args: Prisma.social_media_event_summariesUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_event_summariesPayload>
+          }
+          aggregate: {
+            args: Prisma.Social_media_event_summariesAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateSocial_media_event_summaries>
+          }
+          groupBy: {
+            args: Prisma.social_media_event_summariesGroupByArgs<ExtArgs>
+            result: $Utils.Optional<Social_media_event_summariesGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.social_media_event_summariesCountArgs<ExtArgs>
+            result: $Utils.Optional<Social_media_event_summariesCountAggregateOutputType> | number
+          }
+        }
+      }
       social_media_event_media: {
         payload: Prisma.$social_media_event_mediaPayload<ExtArgs>
         fields: Prisma.social_media_event_mediaFieldRefs
@@ -2263,6 +2354,7 @@ export namespace Prisma {
     keywords?: keywordsOmit
     social_media_occasion_calendar?: social_media_occasion_calendarOmit
     social_media_events?: social_media_eventsOmit
+    social_media_event_summaries?: social_media_event_summariesOmit
     social_media_event_media?: social_media_event_mediaOmit
     alert_config?: alert_configOmit
     report_templates?: report_templatesOmit
@@ -16006,6 +16098,1217 @@ export namespace Prisma {
 
 
   /**
+   * Model social_media_event_summaries
+   */
+
+  export type AggregateSocial_media_event_summaries = {
+    _count: Social_media_event_summariesCountAggregateOutputType | null
+    _avg: Social_media_event_summariesAvgAggregateOutputType | null
+    _sum: Social_media_event_summariesSumAggregateOutputType | null
+    _min: Social_media_event_summariesMinAggregateOutputType | null
+    _max: Social_media_event_summariesMaxAggregateOutputType | null
+  }
+
+  export type Social_media_event_summariesAvgAggregateOutputType = {
+    event_id: number | null
+    posts_snapshot_count: number | null
+    last_media_id: number | null
+    generated_by_id: number | null
+  }
+
+  export type Social_media_event_summariesSumAggregateOutputType = {
+    event_id: number | null
+    posts_snapshot_count: number | null
+    last_media_id: bigint | null
+    generated_by_id: number | null
+  }
+
+  export type Social_media_event_summariesMinAggregateOutputType = {
+    id: string | null
+    event_id: number | null
+    summary_markdown: string | null
+    summary_source: string | null
+    llm_finish_reason: string | null
+    summary_truncated: boolean | null
+    llm_error: string | null
+    model: string | null
+    posts_snapshot_count: number | null
+    last_media_id: bigint | null
+    pdf_base64: string | null
+    generated_by_id: number | null
+    generated_by_name: string | null
+    generated_at: Date | null
+    created_at: Date | null
+    updated_at: Date | null
+  }
+
+  export type Social_media_event_summariesMaxAggregateOutputType = {
+    id: string | null
+    event_id: number | null
+    summary_markdown: string | null
+    summary_source: string | null
+    llm_finish_reason: string | null
+    summary_truncated: boolean | null
+    llm_error: string | null
+    model: string | null
+    posts_snapshot_count: number | null
+    last_media_id: bigint | null
+    pdf_base64: string | null
+    generated_by_id: number | null
+    generated_by_name: string | null
+    generated_at: Date | null
+    created_at: Date | null
+    updated_at: Date | null
+  }
+
+  export type Social_media_event_summariesCountAggregateOutputType = {
+    id: number
+    event_id: number
+    summary_markdown: number
+    summary_source: number
+    llm_finish_reason: number
+    summary_truncated: number
+    llm_error: number
+    model: number
+    stats: number
+    evidence_traceability: number
+    event_snapshot: number
+    posts_snapshot_count: number
+    last_media_id: number
+    pdf_base64: number
+    generated_by_id: number
+    generated_by_name: number
+    generated_at: number
+    created_at: number
+    updated_at: number
+    _all: number
+  }
+
+
+  export type Social_media_event_summariesAvgAggregateInputType = {
+    event_id?: true
+    posts_snapshot_count?: true
+    last_media_id?: true
+    generated_by_id?: true
+  }
+
+  export type Social_media_event_summariesSumAggregateInputType = {
+    event_id?: true
+    posts_snapshot_count?: true
+    last_media_id?: true
+    generated_by_id?: true
+  }
+
+  export type Social_media_event_summariesMinAggregateInputType = {
+    id?: true
+    event_id?: true
+    summary_markdown?: true
+    summary_source?: true
+    llm_finish_reason?: true
+    summary_truncated?: true
+    llm_error?: true
+    model?: true
+    posts_snapshot_count?: true
+    last_media_id?: true
+    pdf_base64?: true
+    generated_by_id?: true
+    generated_by_name?: true
+    generated_at?: true
+    created_at?: true
+    updated_at?: true
+  }
+
+  export type Social_media_event_summariesMaxAggregateInputType = {
+    id?: true
+    event_id?: true
+    summary_markdown?: true
+    summary_source?: true
+    llm_finish_reason?: true
+    summary_truncated?: true
+    llm_error?: true
+    model?: true
+    posts_snapshot_count?: true
+    last_media_id?: true
+    pdf_base64?: true
+    generated_by_id?: true
+    generated_by_name?: true
+    generated_at?: true
+    created_at?: true
+    updated_at?: true
+  }
+
+  export type Social_media_event_summariesCountAggregateInputType = {
+    id?: true
+    event_id?: true
+    summary_markdown?: true
+    summary_source?: true
+    llm_finish_reason?: true
+    summary_truncated?: true
+    llm_error?: true
+    model?: true
+    stats?: true
+    evidence_traceability?: true
+    event_snapshot?: true
+    posts_snapshot_count?: true
+    last_media_id?: true
+    pdf_base64?: true
+    generated_by_id?: true
+    generated_by_name?: true
+    generated_at?: true
+    created_at?: true
+    updated_at?: true
+    _all?: true
+  }
+
+  export type Social_media_event_summariesAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which social_media_event_summaries to aggregate.
+     */
+    where?: social_media_event_summariesWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of social_media_event_summaries to fetch.
+     */
+    orderBy?: social_media_event_summariesOrderByWithRelationInput | social_media_event_summariesOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: social_media_event_summariesWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` social_media_event_summaries from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` social_media_event_summaries.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned social_media_event_summaries
+    **/
+    _count?: true | Social_media_event_summariesCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to average
+    **/
+    _avg?: Social_media_event_summariesAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: Social_media_event_summariesSumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: Social_media_event_summariesMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: Social_media_event_summariesMaxAggregateInputType
+  }
+
+  export type GetSocial_media_event_summariesAggregateType<T extends Social_media_event_summariesAggregateArgs> = {
+        [P in keyof T & keyof AggregateSocial_media_event_summaries]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateSocial_media_event_summaries[P]>
+      : GetScalarType<T[P], AggregateSocial_media_event_summaries[P]>
+  }
+
+
+
+
+  export type social_media_event_summariesGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: social_media_event_summariesWhereInput
+    orderBy?: social_media_event_summariesOrderByWithAggregationInput | social_media_event_summariesOrderByWithAggregationInput[]
+    by: Social_media_event_summariesScalarFieldEnum[] | Social_media_event_summariesScalarFieldEnum
+    having?: social_media_event_summariesScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: Social_media_event_summariesCountAggregateInputType | true
+    _avg?: Social_media_event_summariesAvgAggregateInputType
+    _sum?: Social_media_event_summariesSumAggregateInputType
+    _min?: Social_media_event_summariesMinAggregateInputType
+    _max?: Social_media_event_summariesMaxAggregateInputType
+  }
+
+  export type Social_media_event_summariesGroupByOutputType = {
+    id: string
+    event_id: number
+    summary_markdown: string
+    summary_source: string
+    llm_finish_reason: string | null
+    summary_truncated: boolean
+    llm_error: string | null
+    model: string | null
+    stats: JsonValue
+    evidence_traceability: JsonValue
+    event_snapshot: JsonValue
+    posts_snapshot_count: number
+    last_media_id: bigint | null
+    pdf_base64: string | null
+    generated_by_id: number | null
+    generated_by_name: string | null
+    generated_at: Date
+    created_at: Date
+    updated_at: Date
+    _count: Social_media_event_summariesCountAggregateOutputType | null
+    _avg: Social_media_event_summariesAvgAggregateOutputType | null
+    _sum: Social_media_event_summariesSumAggregateOutputType | null
+    _min: Social_media_event_summariesMinAggregateOutputType | null
+    _max: Social_media_event_summariesMaxAggregateOutputType | null
+  }
+
+  type GetSocial_media_event_summariesGroupByPayload<T extends social_media_event_summariesGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<Social_media_event_summariesGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof Social_media_event_summariesGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], Social_media_event_summariesGroupByOutputType[P]>
+            : GetScalarType<T[P], Social_media_event_summariesGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type social_media_event_summariesSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    event_id?: boolean
+    summary_markdown?: boolean
+    summary_source?: boolean
+    llm_finish_reason?: boolean
+    summary_truncated?: boolean
+    llm_error?: boolean
+    model?: boolean
+    stats?: boolean
+    evidence_traceability?: boolean
+    event_snapshot?: boolean
+    posts_snapshot_count?: boolean
+    last_media_id?: boolean
+    pdf_base64?: boolean
+    generated_by_id?: boolean
+    generated_by_name?: boolean
+    generated_at?: boolean
+    created_at?: boolean
+    updated_at?: boolean
+  }, ExtArgs["result"]["social_media_event_summaries"]>
+
+  export type social_media_event_summariesSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    event_id?: boolean
+    summary_markdown?: boolean
+    summary_source?: boolean
+    llm_finish_reason?: boolean
+    summary_truncated?: boolean
+    llm_error?: boolean
+    model?: boolean
+    stats?: boolean
+    evidence_traceability?: boolean
+    event_snapshot?: boolean
+    posts_snapshot_count?: boolean
+    last_media_id?: boolean
+    pdf_base64?: boolean
+    generated_by_id?: boolean
+    generated_by_name?: boolean
+    generated_at?: boolean
+    created_at?: boolean
+    updated_at?: boolean
+  }, ExtArgs["result"]["social_media_event_summaries"]>
+
+  export type social_media_event_summariesSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    event_id?: boolean
+    summary_markdown?: boolean
+    summary_source?: boolean
+    llm_finish_reason?: boolean
+    summary_truncated?: boolean
+    llm_error?: boolean
+    model?: boolean
+    stats?: boolean
+    evidence_traceability?: boolean
+    event_snapshot?: boolean
+    posts_snapshot_count?: boolean
+    last_media_id?: boolean
+    pdf_base64?: boolean
+    generated_by_id?: boolean
+    generated_by_name?: boolean
+    generated_at?: boolean
+    created_at?: boolean
+    updated_at?: boolean
+  }, ExtArgs["result"]["social_media_event_summaries"]>
+
+  export type social_media_event_summariesSelectScalar = {
+    id?: boolean
+    event_id?: boolean
+    summary_markdown?: boolean
+    summary_source?: boolean
+    llm_finish_reason?: boolean
+    summary_truncated?: boolean
+    llm_error?: boolean
+    model?: boolean
+    stats?: boolean
+    evidence_traceability?: boolean
+    event_snapshot?: boolean
+    posts_snapshot_count?: boolean
+    last_media_id?: boolean
+    pdf_base64?: boolean
+    generated_by_id?: boolean
+    generated_by_name?: boolean
+    generated_at?: boolean
+    created_at?: boolean
+    updated_at?: boolean
+  }
+
+  export type social_media_event_summariesOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "event_id" | "summary_markdown" | "summary_source" | "llm_finish_reason" | "summary_truncated" | "llm_error" | "model" | "stats" | "evidence_traceability" | "event_snapshot" | "posts_snapshot_count" | "last_media_id" | "pdf_base64" | "generated_by_id" | "generated_by_name" | "generated_at" | "created_at" | "updated_at", ExtArgs["result"]["social_media_event_summaries"]>
+
+  export type $social_media_event_summariesPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "social_media_event_summaries"
+    objects: {}
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      event_id: number
+      summary_markdown: string
+      summary_source: string
+      llm_finish_reason: string | null
+      summary_truncated: boolean
+      llm_error: string | null
+      model: string | null
+      stats: Prisma.JsonValue
+      evidence_traceability: Prisma.JsonValue
+      event_snapshot: Prisma.JsonValue
+      posts_snapshot_count: number
+      last_media_id: bigint | null
+      pdf_base64: string | null
+      generated_by_id: number | null
+      generated_by_name: string | null
+      generated_at: Date
+      created_at: Date
+      updated_at: Date
+    }, ExtArgs["result"]["social_media_event_summaries"]>
+    composites: {}
+  }
+
+  type social_media_event_summariesGetPayload<S extends boolean | null | undefined | social_media_event_summariesDefaultArgs> = $Result.GetResult<Prisma.$social_media_event_summariesPayload, S>
+
+  type social_media_event_summariesCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> =
+    Omit<social_media_event_summariesFindManyArgs, 'select' | 'include' | 'distinct' | 'omit'> & {
+      select?: Social_media_event_summariesCountAggregateInputType | true
+    }
+
+  export interface social_media_event_summariesDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['social_media_event_summaries'], meta: { name: 'social_media_event_summaries' } }
+    /**
+     * Find zero or one Social_media_event_summaries that matches the filter.
+     * @param {social_media_event_summariesFindUniqueArgs} args - Arguments to find a Social_media_event_summaries
+     * @example
+     * // Get one Social_media_event_summaries
+     * const social_media_event_summaries = await prisma.social_media_event_summaries.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends social_media_event_summariesFindUniqueArgs>(args: SelectSubset<T, social_media_event_summariesFindUniqueArgs<ExtArgs>>): Prisma__social_media_event_summariesClient<$Result.GetResult<Prisma.$social_media_event_summariesPayload<ExtArgs>, T, "findUnique", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find one Social_media_event_summaries that matches the filter or throw an error with `error.code='P2025'`
+     * if no matches were found.
+     * @param {social_media_event_summariesFindUniqueOrThrowArgs} args - Arguments to find a Social_media_event_summaries
+     * @example
+     * // Get one Social_media_event_summaries
+     * const social_media_event_summaries = await prisma.social_media_event_summaries.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends social_media_event_summariesFindUniqueOrThrowArgs>(args: SelectSubset<T, social_media_event_summariesFindUniqueOrThrowArgs<ExtArgs>>): Prisma__social_media_event_summariesClient<$Result.GetResult<Prisma.$social_media_event_summariesPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first Social_media_event_summaries that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {social_media_event_summariesFindFirstArgs} args - Arguments to find a Social_media_event_summaries
+     * @example
+     * // Get one Social_media_event_summaries
+     * const social_media_event_summaries = await prisma.social_media_event_summaries.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends social_media_event_summariesFindFirstArgs>(args?: SelectSubset<T, social_media_event_summariesFindFirstArgs<ExtArgs>>): Prisma__social_media_event_summariesClient<$Result.GetResult<Prisma.$social_media_event_summariesPayload<ExtArgs>, T, "findFirst", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first Social_media_event_summaries that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {social_media_event_summariesFindFirstOrThrowArgs} args - Arguments to find a Social_media_event_summaries
+     * @example
+     * // Get one Social_media_event_summaries
+     * const social_media_event_summaries = await prisma.social_media_event_summaries.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends social_media_event_summariesFindFirstOrThrowArgs>(args?: SelectSubset<T, social_media_event_summariesFindFirstOrThrowArgs<ExtArgs>>): Prisma__social_media_event_summariesClient<$Result.GetResult<Prisma.$social_media_event_summariesPayload<ExtArgs>, T, "findFirstOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find zero or more Social_media_event_summaries that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {social_media_event_summariesFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all Social_media_event_summaries
+     * const social_media_event_summaries = await prisma.social_media_event_summaries.findMany()
+     * 
+     * // Get first 10 Social_media_event_summaries
+     * const social_media_event_summaries = await prisma.social_media_event_summaries.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const social_media_event_summariesWithIdOnly = await prisma.social_media_event_summaries.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends social_media_event_summariesFindManyArgs>(args?: SelectSubset<T, social_media_event_summariesFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$social_media_event_summariesPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
+
+    /**
+     * Create a Social_media_event_summaries.
+     * @param {social_media_event_summariesCreateArgs} args - Arguments to create a Social_media_event_summaries.
+     * @example
+     * // Create one Social_media_event_summaries
+     * const Social_media_event_summaries = await prisma.social_media_event_summaries.create({
+     *   data: {
+     *     // ... data to create a Social_media_event_summaries
+     *   }
+     * })
+     * 
+     */
+    create<T extends social_media_event_summariesCreateArgs>(args: SelectSubset<T, social_media_event_summariesCreateArgs<ExtArgs>>): Prisma__social_media_event_summariesClient<$Result.GetResult<Prisma.$social_media_event_summariesPayload<ExtArgs>, T, "create", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Create many Social_media_event_summaries.
+     * @param {social_media_event_summariesCreateManyArgs} args - Arguments to create many Social_media_event_summaries.
+     * @example
+     * // Create many Social_media_event_summaries
+     * const social_media_event_summaries = await prisma.social_media_event_summaries.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends social_media_event_summariesCreateManyArgs>(args?: SelectSubset<T, social_media_event_summariesCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many Social_media_event_summaries and returns the data saved in the database.
+     * @param {social_media_event_summariesCreateManyAndReturnArgs} args - Arguments to create many Social_media_event_summaries.
+     * @example
+     * // Create many Social_media_event_summaries
+     * const social_media_event_summaries = await prisma.social_media_event_summaries.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many Social_media_event_summaries and only return the `id`
+     * const social_media_event_summariesWithIdOnly = await prisma.social_media_event_summaries.createManyAndReturn({
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends social_media_event_summariesCreateManyAndReturnArgs>(args?: SelectSubset<T, social_media_event_summariesCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$social_media_event_summariesPayload<ExtArgs>, T, "createManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Delete a Social_media_event_summaries.
+     * @param {social_media_event_summariesDeleteArgs} args - Arguments to delete one Social_media_event_summaries.
+     * @example
+     * // Delete one Social_media_event_summaries
+     * const Social_media_event_summaries = await prisma.social_media_event_summaries.delete({
+     *   where: {
+     *     // ... filter to delete one Social_media_event_summaries
+     *   }
+     * })
+     * 
+     */
+    delete<T extends social_media_event_summariesDeleteArgs>(args: SelectSubset<T, social_media_event_summariesDeleteArgs<ExtArgs>>): Prisma__social_media_event_summariesClient<$Result.GetResult<Prisma.$social_media_event_summariesPayload<ExtArgs>, T, "delete", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Update one Social_media_event_summaries.
+     * @param {social_media_event_summariesUpdateArgs} args - Arguments to update one Social_media_event_summaries.
+     * @example
+     * // Update one Social_media_event_summaries
+     * const social_media_event_summaries = await prisma.social_media_event_summaries.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends social_media_event_summariesUpdateArgs>(args: SelectSubset<T, social_media_event_summariesUpdateArgs<ExtArgs>>): Prisma__social_media_event_summariesClient<$Result.GetResult<Prisma.$social_media_event_summariesPayload<ExtArgs>, T, "update", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Delete zero or more Social_media_event_summaries.
+     * @param {social_media_event_summariesDeleteManyArgs} args - Arguments to filter Social_media_event_summaries to delete.
+     * @example
+     * // Delete a few Social_media_event_summaries
+     * const { count } = await prisma.social_media_event_summaries.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends social_media_event_summariesDeleteManyArgs>(args?: SelectSubset<T, social_media_event_summariesDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more Social_media_event_summaries.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {social_media_event_summariesUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many Social_media_event_summaries
+     * const social_media_event_summaries = await prisma.social_media_event_summaries.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends social_media_event_summariesUpdateManyArgs>(args: SelectSubset<T, social_media_event_summariesUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more Social_media_event_summaries and returns the data updated in the database.
+     * @param {social_media_event_summariesUpdateManyAndReturnArgs} args - Arguments to update many Social_media_event_summaries.
+     * @example
+     * // Update many Social_media_event_summaries
+     * const social_media_event_summaries = await prisma.social_media_event_summaries.updateManyAndReturn({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Update zero or more Social_media_event_summaries and only return the `id`
+     * const social_media_event_summariesWithIdOnly = await prisma.social_media_event_summaries.updateManyAndReturn({
+     *   select: { id: true },
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    updateManyAndReturn<T extends social_media_event_summariesUpdateManyAndReturnArgs>(args: SelectSubset<T, social_media_event_summariesUpdateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$social_media_event_summariesPayload<ExtArgs>, T, "updateManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Create or update one Social_media_event_summaries.
+     * @param {social_media_event_summariesUpsertArgs} args - Arguments to update or create a Social_media_event_summaries.
+     * @example
+     * // Update or create a Social_media_event_summaries
+     * const social_media_event_summaries = await prisma.social_media_event_summaries.upsert({
+     *   create: {
+     *     // ... data to create a Social_media_event_summaries
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the Social_media_event_summaries we want to update
+     *   }
+     * })
+     */
+    upsert<T extends social_media_event_summariesUpsertArgs>(args: SelectSubset<T, social_media_event_summariesUpsertArgs<ExtArgs>>): Prisma__social_media_event_summariesClient<$Result.GetResult<Prisma.$social_media_event_summariesPayload<ExtArgs>, T, "upsert", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+
+    /**
+     * Count the number of Social_media_event_summaries.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {social_media_event_summariesCountArgs} args - Arguments to filter Social_media_event_summaries to count.
+     * @example
+     * // Count the number of Social_media_event_summaries
+     * const count = await prisma.social_media_event_summaries.count({
+     *   where: {
+     *     // ... the filter for the Social_media_event_summaries we want to count
+     *   }
+     * })
+    **/
+    count<T extends social_media_event_summariesCountArgs>(
+      args?: Subset<T, social_media_event_summariesCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], Social_media_event_summariesCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a Social_media_event_summaries.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {Social_media_event_summariesAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends Social_media_event_summariesAggregateArgs>(args: Subset<T, Social_media_event_summariesAggregateArgs>): Prisma.PrismaPromise<GetSocial_media_event_summariesAggregateType<T>>
+
+    /**
+     * Group by Social_media_event_summaries.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {social_media_event_summariesGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends social_media_event_summariesGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: social_media_event_summariesGroupByArgs['orderBy'] }
+        : { orderBy?: social_media_event_summariesGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, social_media_event_summariesGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetSocial_media_event_summariesGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the social_media_event_summaries model
+   */
+  readonly fields: social_media_event_summariesFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for social_media_event_summaries.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__social_media_event_summariesClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the social_media_event_summaries model
+   */
+  interface social_media_event_summariesFieldRefs {
+    readonly id: FieldRef<"social_media_event_summaries", 'String'>
+    readonly event_id: FieldRef<"social_media_event_summaries", 'Int'>
+    readonly summary_markdown: FieldRef<"social_media_event_summaries", 'String'>
+    readonly summary_source: FieldRef<"social_media_event_summaries", 'String'>
+    readonly llm_finish_reason: FieldRef<"social_media_event_summaries", 'String'>
+    readonly summary_truncated: FieldRef<"social_media_event_summaries", 'Boolean'>
+    readonly llm_error: FieldRef<"social_media_event_summaries", 'String'>
+    readonly model: FieldRef<"social_media_event_summaries", 'String'>
+    readonly stats: FieldRef<"social_media_event_summaries", 'Json'>
+    readonly evidence_traceability: FieldRef<"social_media_event_summaries", 'Json'>
+    readonly event_snapshot: FieldRef<"social_media_event_summaries", 'Json'>
+    readonly posts_snapshot_count: FieldRef<"social_media_event_summaries", 'Int'>
+    readonly last_media_id: FieldRef<"social_media_event_summaries", 'BigInt'>
+    readonly pdf_base64: FieldRef<"social_media_event_summaries", 'String'>
+    readonly generated_by_id: FieldRef<"social_media_event_summaries", 'Int'>
+    readonly generated_by_name: FieldRef<"social_media_event_summaries", 'String'>
+    readonly generated_at: FieldRef<"social_media_event_summaries", 'DateTime'>
+    readonly created_at: FieldRef<"social_media_event_summaries", 'DateTime'>
+    readonly updated_at: FieldRef<"social_media_event_summaries", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * social_media_event_summaries findUnique
+   */
+  export type social_media_event_summariesFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_event_summaries
+     */
+    select?: social_media_event_summariesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_event_summaries
+     */
+    omit?: social_media_event_summariesOmit<ExtArgs> | null
+    /**
+     * Filter, which social_media_event_summaries to fetch.
+     */
+    where: social_media_event_summariesWhereUniqueInput
+  }
+
+  /**
+   * social_media_event_summaries findUniqueOrThrow
+   */
+  export type social_media_event_summariesFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_event_summaries
+     */
+    select?: social_media_event_summariesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_event_summaries
+     */
+    omit?: social_media_event_summariesOmit<ExtArgs> | null
+    /**
+     * Filter, which social_media_event_summaries to fetch.
+     */
+    where: social_media_event_summariesWhereUniqueInput
+  }
+
+  /**
+   * social_media_event_summaries findFirst
+   */
+  export type social_media_event_summariesFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_event_summaries
+     */
+    select?: social_media_event_summariesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_event_summaries
+     */
+    omit?: social_media_event_summariesOmit<ExtArgs> | null
+    /**
+     * Filter, which social_media_event_summaries to fetch.
+     */
+    where?: social_media_event_summariesWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of social_media_event_summaries to fetch.
+     */
+    orderBy?: social_media_event_summariesOrderByWithRelationInput | social_media_event_summariesOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for social_media_event_summaries.
+     */
+    cursor?: social_media_event_summariesWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` social_media_event_summaries from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` social_media_event_summaries.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of social_media_event_summaries.
+     */
+    distinct?: Social_media_event_summariesScalarFieldEnum | Social_media_event_summariesScalarFieldEnum[]
+  }
+
+  /**
+   * social_media_event_summaries findFirstOrThrow
+   */
+  export type social_media_event_summariesFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_event_summaries
+     */
+    select?: social_media_event_summariesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_event_summaries
+     */
+    omit?: social_media_event_summariesOmit<ExtArgs> | null
+    /**
+     * Filter, which social_media_event_summaries to fetch.
+     */
+    where?: social_media_event_summariesWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of social_media_event_summaries to fetch.
+     */
+    orderBy?: social_media_event_summariesOrderByWithRelationInput | social_media_event_summariesOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for social_media_event_summaries.
+     */
+    cursor?: social_media_event_summariesWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` social_media_event_summaries from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` social_media_event_summaries.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of social_media_event_summaries.
+     */
+    distinct?: Social_media_event_summariesScalarFieldEnum | Social_media_event_summariesScalarFieldEnum[]
+  }
+
+  /**
+   * social_media_event_summaries findMany
+   */
+  export type social_media_event_summariesFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_event_summaries
+     */
+    select?: social_media_event_summariesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_event_summaries
+     */
+    omit?: social_media_event_summariesOmit<ExtArgs> | null
+    /**
+     * Filter, which social_media_event_summaries to fetch.
+     */
+    where?: social_media_event_summariesWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of social_media_event_summaries to fetch.
+     */
+    orderBy?: social_media_event_summariesOrderByWithRelationInput | social_media_event_summariesOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing social_media_event_summaries.
+     */
+    cursor?: social_media_event_summariesWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` social_media_event_summaries from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` social_media_event_summaries.
+     */
+    skip?: number
+    distinct?: Social_media_event_summariesScalarFieldEnum | Social_media_event_summariesScalarFieldEnum[]
+  }
+
+  /**
+   * social_media_event_summaries create
+   */
+  export type social_media_event_summariesCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_event_summaries
+     */
+    select?: social_media_event_summariesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_event_summaries
+     */
+    omit?: social_media_event_summariesOmit<ExtArgs> | null
+    /**
+     * The data needed to create a social_media_event_summaries.
+     */
+    data: XOR<social_media_event_summariesCreateInput, social_media_event_summariesUncheckedCreateInput>
+  }
+
+  /**
+   * social_media_event_summaries createMany
+   */
+  export type social_media_event_summariesCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many social_media_event_summaries.
+     */
+    data: social_media_event_summariesCreateManyInput | social_media_event_summariesCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * social_media_event_summaries createManyAndReturn
+   */
+  export type social_media_event_summariesCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_event_summaries
+     */
+    select?: social_media_event_summariesSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_event_summaries
+     */
+    omit?: social_media_event_summariesOmit<ExtArgs> | null
+    /**
+     * The data used to create many social_media_event_summaries.
+     */
+    data: social_media_event_summariesCreateManyInput | social_media_event_summariesCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * social_media_event_summaries update
+   */
+  export type social_media_event_summariesUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_event_summaries
+     */
+    select?: social_media_event_summariesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_event_summaries
+     */
+    omit?: social_media_event_summariesOmit<ExtArgs> | null
+    /**
+     * The data needed to update a social_media_event_summaries.
+     */
+    data: XOR<social_media_event_summariesUpdateInput, social_media_event_summariesUncheckedUpdateInput>
+    /**
+     * Choose, which social_media_event_summaries to update.
+     */
+    where: social_media_event_summariesWhereUniqueInput
+  }
+
+  /**
+   * social_media_event_summaries updateMany
+   */
+  export type social_media_event_summariesUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update social_media_event_summaries.
+     */
+    data: XOR<social_media_event_summariesUpdateManyMutationInput, social_media_event_summariesUncheckedUpdateManyInput>
+    /**
+     * Filter which social_media_event_summaries to update
+     */
+    where?: social_media_event_summariesWhereInput
+    /**
+     * Limit how many social_media_event_summaries to update.
+     */
+    limit?: number
+  }
+
+  /**
+   * social_media_event_summaries updateManyAndReturn
+   */
+  export type social_media_event_summariesUpdateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_event_summaries
+     */
+    select?: social_media_event_summariesSelectUpdateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_event_summaries
+     */
+    omit?: social_media_event_summariesOmit<ExtArgs> | null
+    /**
+     * The data used to update social_media_event_summaries.
+     */
+    data: XOR<social_media_event_summariesUpdateManyMutationInput, social_media_event_summariesUncheckedUpdateManyInput>
+    /**
+     * Filter which social_media_event_summaries to update
+     */
+    where?: social_media_event_summariesWhereInput
+    /**
+     * Limit how many social_media_event_summaries to update.
+     */
+    limit?: number
+  }
+
+  /**
+   * social_media_event_summaries upsert
+   */
+  export type social_media_event_summariesUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_event_summaries
+     */
+    select?: social_media_event_summariesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_event_summaries
+     */
+    omit?: social_media_event_summariesOmit<ExtArgs> | null
+    /**
+     * The filter to search for the social_media_event_summaries to update in case it exists.
+     */
+    where: social_media_event_summariesWhereUniqueInput
+    /**
+     * In case the social_media_event_summaries found by the `where` argument doesn't exist, create a new social_media_event_summaries with this data.
+     */
+    create: XOR<social_media_event_summariesCreateInput, social_media_event_summariesUncheckedCreateInput>
+    /**
+     * In case the social_media_event_summaries was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<social_media_event_summariesUpdateInput, social_media_event_summariesUncheckedUpdateInput>
+  }
+
+  /**
+   * social_media_event_summaries delete
+   */
+  export type social_media_event_summariesDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_event_summaries
+     */
+    select?: social_media_event_summariesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_event_summaries
+     */
+    omit?: social_media_event_summariesOmit<ExtArgs> | null
+    /**
+     * Filter which social_media_event_summaries to delete.
+     */
+    where: social_media_event_summariesWhereUniqueInput
+  }
+
+  /**
+   * social_media_event_summaries deleteMany
+   */
+  export type social_media_event_summariesDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which social_media_event_summaries to delete
+     */
+    where?: social_media_event_summariesWhereInput
+    /**
+     * Limit how many social_media_event_summaries to delete.
+     */
+    limit?: number
+  }
+
+  /**
+   * social_media_event_summaries without action
+   */
+  export type social_media_event_summariesDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the social_media_event_summaries
+     */
+    select?: social_media_event_summariesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the social_media_event_summaries
+     */
+    omit?: social_media_event_summariesOmit<ExtArgs> | null
+  }
+
+
+  /**
    * Model social_media_event_media
    */
 
@@ -22913,6 +24216,31 @@ export namespace Prisma {
   export type Social_media_eventsScalarFieldEnum = (typeof Social_media_eventsScalarFieldEnum)[keyof typeof Social_media_eventsScalarFieldEnum]
 
 
+  export const Social_media_event_summariesScalarFieldEnum: {
+    id: 'id',
+    event_id: 'event_id',
+    summary_markdown: 'summary_markdown',
+    summary_source: 'summary_source',
+    llm_finish_reason: 'llm_finish_reason',
+    summary_truncated: 'summary_truncated',
+    llm_error: 'llm_error',
+    model: 'model',
+    stats: 'stats',
+    evidence_traceability: 'evidence_traceability',
+    event_snapshot: 'event_snapshot',
+    posts_snapshot_count: 'posts_snapshot_count',
+    last_media_id: 'last_media_id',
+    pdf_base64: 'pdf_base64',
+    generated_by_id: 'generated_by_id',
+    generated_by_name: 'generated_by_name',
+    generated_at: 'generated_at',
+    created_at: 'created_at',
+    updated_at: 'updated_at'
+  };
+
+  export type Social_media_event_summariesScalarFieldEnum = (typeof Social_media_event_summariesScalarFieldEnum)[keyof typeof Social_media_event_summariesScalarFieldEnum]
+
+
   export const Social_media_event_mediaScalarFieldEnum: {
     id: 'id',
     event_id: 'event_id',
@@ -24424,6 +25752,130 @@ export namespace Prisma {
     created_by?: StringWithAggregatesFilter<"social_media_events"> | string
     created_at?: DateTimeWithAggregatesFilter<"social_media_events"> | Date | string
     updated_at?: DateTimeWithAggregatesFilter<"social_media_events"> | Date | string
+  }
+
+  export type social_media_event_summariesWhereInput = {
+    AND?: social_media_event_summariesWhereInput | social_media_event_summariesWhereInput[]
+    OR?: social_media_event_summariesWhereInput[]
+    NOT?: social_media_event_summariesWhereInput | social_media_event_summariesWhereInput[]
+    id?: StringFilter<"social_media_event_summaries"> | string
+    event_id?: IntFilter<"social_media_event_summaries"> | number
+    summary_markdown?: StringFilter<"social_media_event_summaries"> | string
+    summary_source?: StringFilter<"social_media_event_summaries"> | string
+    llm_finish_reason?: StringNullableFilter<"social_media_event_summaries"> | string | null
+    summary_truncated?: BoolFilter<"social_media_event_summaries"> | boolean
+    llm_error?: StringNullableFilter<"social_media_event_summaries"> | string | null
+    model?: StringNullableFilter<"social_media_event_summaries"> | string | null
+    stats?: JsonFilter<"social_media_event_summaries">
+    evidence_traceability?: JsonFilter<"social_media_event_summaries">
+    event_snapshot?: JsonFilter<"social_media_event_summaries">
+    posts_snapshot_count?: IntFilter<"social_media_event_summaries"> | number
+    last_media_id?: BigIntNullableFilter<"social_media_event_summaries"> | bigint | number | null
+    pdf_base64?: StringNullableFilter<"social_media_event_summaries"> | string | null
+    generated_by_id?: IntNullableFilter<"social_media_event_summaries"> | number | null
+    generated_by_name?: StringNullableFilter<"social_media_event_summaries"> | string | null
+    generated_at?: DateTimeFilter<"social_media_event_summaries"> | Date | string
+    created_at?: DateTimeFilter<"social_media_event_summaries"> | Date | string
+    updated_at?: DateTimeFilter<"social_media_event_summaries"> | Date | string
+  }
+
+  export type social_media_event_summariesOrderByWithRelationInput = {
+    id?: SortOrder
+    event_id?: SortOrder
+    summary_markdown?: SortOrder
+    summary_source?: SortOrder
+    llm_finish_reason?: SortOrderInput | SortOrder
+    summary_truncated?: SortOrder
+    llm_error?: SortOrderInput | SortOrder
+    model?: SortOrderInput | SortOrder
+    stats?: SortOrder
+    evidence_traceability?: SortOrder
+    event_snapshot?: SortOrder
+    posts_snapshot_count?: SortOrder
+    last_media_id?: SortOrderInput | SortOrder
+    pdf_base64?: SortOrderInput | SortOrder
+    generated_by_id?: SortOrderInput | SortOrder
+    generated_by_name?: SortOrderInput | SortOrder
+    generated_at?: SortOrder
+    created_at?: SortOrder
+    updated_at?: SortOrder
+  }
+
+  export type social_media_event_summariesWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    event_id?: number
+    AND?: social_media_event_summariesWhereInput | social_media_event_summariesWhereInput[]
+    OR?: social_media_event_summariesWhereInput[]
+    NOT?: social_media_event_summariesWhereInput | social_media_event_summariesWhereInput[]
+    summary_markdown?: StringFilter<"social_media_event_summaries"> | string
+    summary_source?: StringFilter<"social_media_event_summaries"> | string
+    llm_finish_reason?: StringNullableFilter<"social_media_event_summaries"> | string | null
+    summary_truncated?: BoolFilter<"social_media_event_summaries"> | boolean
+    llm_error?: StringNullableFilter<"social_media_event_summaries"> | string | null
+    model?: StringNullableFilter<"social_media_event_summaries"> | string | null
+    stats?: JsonFilter<"social_media_event_summaries">
+    evidence_traceability?: JsonFilter<"social_media_event_summaries">
+    event_snapshot?: JsonFilter<"social_media_event_summaries">
+    posts_snapshot_count?: IntFilter<"social_media_event_summaries"> | number
+    last_media_id?: BigIntNullableFilter<"social_media_event_summaries"> | bigint | number | null
+    pdf_base64?: StringNullableFilter<"social_media_event_summaries"> | string | null
+    generated_by_id?: IntNullableFilter<"social_media_event_summaries"> | number | null
+    generated_by_name?: StringNullableFilter<"social_media_event_summaries"> | string | null
+    generated_at?: DateTimeFilter<"social_media_event_summaries"> | Date | string
+    created_at?: DateTimeFilter<"social_media_event_summaries"> | Date | string
+    updated_at?: DateTimeFilter<"social_media_event_summaries"> | Date | string
+  }, "id" | "event_id">
+
+  export type social_media_event_summariesOrderByWithAggregationInput = {
+    id?: SortOrder
+    event_id?: SortOrder
+    summary_markdown?: SortOrder
+    summary_source?: SortOrder
+    llm_finish_reason?: SortOrderInput | SortOrder
+    summary_truncated?: SortOrder
+    llm_error?: SortOrderInput | SortOrder
+    model?: SortOrderInput | SortOrder
+    stats?: SortOrder
+    evidence_traceability?: SortOrder
+    event_snapshot?: SortOrder
+    posts_snapshot_count?: SortOrder
+    last_media_id?: SortOrderInput | SortOrder
+    pdf_base64?: SortOrderInput | SortOrder
+    generated_by_id?: SortOrderInput | SortOrder
+    generated_by_name?: SortOrderInput | SortOrder
+    generated_at?: SortOrder
+    created_at?: SortOrder
+    updated_at?: SortOrder
+    _count?: social_media_event_summariesCountOrderByAggregateInput
+    _avg?: social_media_event_summariesAvgOrderByAggregateInput
+    _max?: social_media_event_summariesMaxOrderByAggregateInput
+    _min?: social_media_event_summariesMinOrderByAggregateInput
+    _sum?: social_media_event_summariesSumOrderByAggregateInput
+  }
+
+  export type social_media_event_summariesScalarWhereWithAggregatesInput = {
+    AND?: social_media_event_summariesScalarWhereWithAggregatesInput | social_media_event_summariesScalarWhereWithAggregatesInput[]
+    OR?: social_media_event_summariesScalarWhereWithAggregatesInput[]
+    NOT?: social_media_event_summariesScalarWhereWithAggregatesInput | social_media_event_summariesScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"social_media_event_summaries"> | string
+    event_id?: IntWithAggregatesFilter<"social_media_event_summaries"> | number
+    summary_markdown?: StringWithAggregatesFilter<"social_media_event_summaries"> | string
+    summary_source?: StringWithAggregatesFilter<"social_media_event_summaries"> | string
+    llm_finish_reason?: StringNullableWithAggregatesFilter<"social_media_event_summaries"> | string | null
+    summary_truncated?: BoolWithAggregatesFilter<"social_media_event_summaries"> | boolean
+    llm_error?: StringNullableWithAggregatesFilter<"social_media_event_summaries"> | string | null
+    model?: StringNullableWithAggregatesFilter<"social_media_event_summaries"> | string | null
+    stats?: JsonWithAggregatesFilter<"social_media_event_summaries">
+    evidence_traceability?: JsonWithAggregatesFilter<"social_media_event_summaries">
+    event_snapshot?: JsonWithAggregatesFilter<"social_media_event_summaries">
+    posts_snapshot_count?: IntWithAggregatesFilter<"social_media_event_summaries"> | number
+    last_media_id?: BigIntNullableWithAggregatesFilter<"social_media_event_summaries"> | bigint | number | null
+    pdf_base64?: StringNullableWithAggregatesFilter<"social_media_event_summaries"> | string | null
+    generated_by_id?: IntNullableWithAggregatesFilter<"social_media_event_summaries"> | number | null
+    generated_by_name?: StringNullableWithAggregatesFilter<"social_media_event_summaries"> | string | null
+    generated_at?: DateTimeWithAggregatesFilter<"social_media_event_summaries"> | Date | string
+    created_at?: DateTimeWithAggregatesFilter<"social_media_event_summaries"> | Date | string
+    updated_at?: DateTimeWithAggregatesFilter<"social_media_event_summaries"> | Date | string
   }
 
   export type social_media_event_mediaWhereInput = {
@@ -26416,6 +27868,160 @@ export namespace Prisma {
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
+  export type social_media_event_summariesCreateInput = {
+    id?: string
+    event_id: number
+    summary_markdown: string
+    summary_source?: string
+    llm_finish_reason?: string | null
+    summary_truncated?: boolean
+    llm_error?: string | null
+    model?: string | null
+    stats?: JsonNullValueInput | InputJsonValue
+    evidence_traceability?: JsonNullValueInput | InputJsonValue
+    event_snapshot?: JsonNullValueInput | InputJsonValue
+    posts_snapshot_count?: number
+    last_media_id?: bigint | number | null
+    pdf_base64?: string | null
+    generated_by_id?: number | null
+    generated_by_name?: string | null
+    generated_at?: Date | string
+    created_at?: Date | string
+    updated_at?: Date | string
+  }
+
+  export type social_media_event_summariesUncheckedCreateInput = {
+    id?: string
+    event_id: number
+    summary_markdown: string
+    summary_source?: string
+    llm_finish_reason?: string | null
+    summary_truncated?: boolean
+    llm_error?: string | null
+    model?: string | null
+    stats?: JsonNullValueInput | InputJsonValue
+    evidence_traceability?: JsonNullValueInput | InputJsonValue
+    event_snapshot?: JsonNullValueInput | InputJsonValue
+    posts_snapshot_count?: number
+    last_media_id?: bigint | number | null
+    pdf_base64?: string | null
+    generated_by_id?: number | null
+    generated_by_name?: string | null
+    generated_at?: Date | string
+    created_at?: Date | string
+    updated_at?: Date | string
+  }
+
+  export type social_media_event_summariesUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    event_id?: IntFieldUpdateOperationsInput | number
+    summary_markdown?: StringFieldUpdateOperationsInput | string
+    summary_source?: StringFieldUpdateOperationsInput | string
+    llm_finish_reason?: NullableStringFieldUpdateOperationsInput | string | null
+    summary_truncated?: BoolFieldUpdateOperationsInput | boolean
+    llm_error?: NullableStringFieldUpdateOperationsInput | string | null
+    model?: NullableStringFieldUpdateOperationsInput | string | null
+    stats?: JsonNullValueInput | InputJsonValue
+    evidence_traceability?: JsonNullValueInput | InputJsonValue
+    event_snapshot?: JsonNullValueInput | InputJsonValue
+    posts_snapshot_count?: IntFieldUpdateOperationsInput | number
+    last_media_id?: NullableBigIntFieldUpdateOperationsInput | bigint | number | null
+    pdf_base64?: NullableStringFieldUpdateOperationsInput | string | null
+    generated_by_id?: NullableIntFieldUpdateOperationsInput | number | null
+    generated_by_name?: NullableStringFieldUpdateOperationsInput | string | null
+    generated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type social_media_event_summariesUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    event_id?: IntFieldUpdateOperationsInput | number
+    summary_markdown?: StringFieldUpdateOperationsInput | string
+    summary_source?: StringFieldUpdateOperationsInput | string
+    llm_finish_reason?: NullableStringFieldUpdateOperationsInput | string | null
+    summary_truncated?: BoolFieldUpdateOperationsInput | boolean
+    llm_error?: NullableStringFieldUpdateOperationsInput | string | null
+    model?: NullableStringFieldUpdateOperationsInput | string | null
+    stats?: JsonNullValueInput | InputJsonValue
+    evidence_traceability?: JsonNullValueInput | InputJsonValue
+    event_snapshot?: JsonNullValueInput | InputJsonValue
+    posts_snapshot_count?: IntFieldUpdateOperationsInput | number
+    last_media_id?: NullableBigIntFieldUpdateOperationsInput | bigint | number | null
+    pdf_base64?: NullableStringFieldUpdateOperationsInput | string | null
+    generated_by_id?: NullableIntFieldUpdateOperationsInput | number | null
+    generated_by_name?: NullableStringFieldUpdateOperationsInput | string | null
+    generated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type social_media_event_summariesCreateManyInput = {
+    id?: string
+    event_id: number
+    summary_markdown: string
+    summary_source?: string
+    llm_finish_reason?: string | null
+    summary_truncated?: boolean
+    llm_error?: string | null
+    model?: string | null
+    stats?: JsonNullValueInput | InputJsonValue
+    evidence_traceability?: JsonNullValueInput | InputJsonValue
+    event_snapshot?: JsonNullValueInput | InputJsonValue
+    posts_snapshot_count?: number
+    last_media_id?: bigint | number | null
+    pdf_base64?: string | null
+    generated_by_id?: number | null
+    generated_by_name?: string | null
+    generated_at?: Date | string
+    created_at?: Date | string
+    updated_at?: Date | string
+  }
+
+  export type social_media_event_summariesUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    event_id?: IntFieldUpdateOperationsInput | number
+    summary_markdown?: StringFieldUpdateOperationsInput | string
+    summary_source?: StringFieldUpdateOperationsInput | string
+    llm_finish_reason?: NullableStringFieldUpdateOperationsInput | string | null
+    summary_truncated?: BoolFieldUpdateOperationsInput | boolean
+    llm_error?: NullableStringFieldUpdateOperationsInput | string | null
+    model?: NullableStringFieldUpdateOperationsInput | string | null
+    stats?: JsonNullValueInput | InputJsonValue
+    evidence_traceability?: JsonNullValueInput | InputJsonValue
+    event_snapshot?: JsonNullValueInput | InputJsonValue
+    posts_snapshot_count?: IntFieldUpdateOperationsInput | number
+    last_media_id?: NullableBigIntFieldUpdateOperationsInput | bigint | number | null
+    pdf_base64?: NullableStringFieldUpdateOperationsInput | string | null
+    generated_by_id?: NullableIntFieldUpdateOperationsInput | number | null
+    generated_by_name?: NullableStringFieldUpdateOperationsInput | string | null
+    generated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type social_media_event_summariesUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    event_id?: IntFieldUpdateOperationsInput | number
+    summary_markdown?: StringFieldUpdateOperationsInput | string
+    summary_source?: StringFieldUpdateOperationsInput | string
+    llm_finish_reason?: NullableStringFieldUpdateOperationsInput | string | null
+    summary_truncated?: BoolFieldUpdateOperationsInput | boolean
+    llm_error?: NullableStringFieldUpdateOperationsInput | string | null
+    model?: NullableStringFieldUpdateOperationsInput | string | null
+    stats?: JsonNullValueInput | InputJsonValue
+    evidence_traceability?: JsonNullValueInput | InputJsonValue
+    event_snapshot?: JsonNullValueInput | InputJsonValue
+    posts_snapshot_count?: IntFieldUpdateOperationsInput | number
+    last_media_id?: NullableBigIntFieldUpdateOperationsInput | bigint | number | null
+    pdf_base64?: NullableStringFieldUpdateOperationsInput | string | null
+    generated_by_id?: NullableIntFieldUpdateOperationsInput | number | null
+    generated_by_name?: NullableStringFieldUpdateOperationsInput | string | null
+    generated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
   export type social_media_event_mediaCreateInput = {
     id?: bigint | number
     platform: string
@@ -28186,6 +29792,107 @@ export namespace Prisma {
     occasion_calendar_id?: SortOrder
   }
 
+  export type BigIntNullableFilter<$PrismaModel = never> = {
+    equals?: bigint | number | BigIntFieldRefInput<$PrismaModel> | null
+    in?: bigint[] | number[] | ListBigIntFieldRefInput<$PrismaModel> | null
+    notIn?: bigint[] | number[] | ListBigIntFieldRefInput<$PrismaModel> | null
+    lt?: bigint | number | BigIntFieldRefInput<$PrismaModel>
+    lte?: bigint | number | BigIntFieldRefInput<$PrismaModel>
+    gt?: bigint | number | BigIntFieldRefInput<$PrismaModel>
+    gte?: bigint | number | BigIntFieldRefInput<$PrismaModel>
+    not?: NestedBigIntNullableFilter<$PrismaModel> | bigint | number | null
+  }
+
+  export type social_media_event_summariesCountOrderByAggregateInput = {
+    id?: SortOrder
+    event_id?: SortOrder
+    summary_markdown?: SortOrder
+    summary_source?: SortOrder
+    llm_finish_reason?: SortOrder
+    summary_truncated?: SortOrder
+    llm_error?: SortOrder
+    model?: SortOrder
+    stats?: SortOrder
+    evidence_traceability?: SortOrder
+    event_snapshot?: SortOrder
+    posts_snapshot_count?: SortOrder
+    last_media_id?: SortOrder
+    pdf_base64?: SortOrder
+    generated_by_id?: SortOrder
+    generated_by_name?: SortOrder
+    generated_at?: SortOrder
+    created_at?: SortOrder
+    updated_at?: SortOrder
+  }
+
+  export type social_media_event_summariesAvgOrderByAggregateInput = {
+    event_id?: SortOrder
+    posts_snapshot_count?: SortOrder
+    last_media_id?: SortOrder
+    generated_by_id?: SortOrder
+  }
+
+  export type social_media_event_summariesMaxOrderByAggregateInput = {
+    id?: SortOrder
+    event_id?: SortOrder
+    summary_markdown?: SortOrder
+    summary_source?: SortOrder
+    llm_finish_reason?: SortOrder
+    summary_truncated?: SortOrder
+    llm_error?: SortOrder
+    model?: SortOrder
+    posts_snapshot_count?: SortOrder
+    last_media_id?: SortOrder
+    pdf_base64?: SortOrder
+    generated_by_id?: SortOrder
+    generated_by_name?: SortOrder
+    generated_at?: SortOrder
+    created_at?: SortOrder
+    updated_at?: SortOrder
+  }
+
+  export type social_media_event_summariesMinOrderByAggregateInput = {
+    id?: SortOrder
+    event_id?: SortOrder
+    summary_markdown?: SortOrder
+    summary_source?: SortOrder
+    llm_finish_reason?: SortOrder
+    summary_truncated?: SortOrder
+    llm_error?: SortOrder
+    model?: SortOrder
+    posts_snapshot_count?: SortOrder
+    last_media_id?: SortOrder
+    pdf_base64?: SortOrder
+    generated_by_id?: SortOrder
+    generated_by_name?: SortOrder
+    generated_at?: SortOrder
+    created_at?: SortOrder
+    updated_at?: SortOrder
+  }
+
+  export type social_media_event_summariesSumOrderByAggregateInput = {
+    event_id?: SortOrder
+    posts_snapshot_count?: SortOrder
+    last_media_id?: SortOrder
+    generated_by_id?: SortOrder
+  }
+
+  export type BigIntNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: bigint | number | BigIntFieldRefInput<$PrismaModel> | null
+    in?: bigint[] | number[] | ListBigIntFieldRefInput<$PrismaModel> | null
+    notIn?: bigint[] | number[] | ListBigIntFieldRefInput<$PrismaModel> | null
+    lt?: bigint | number | BigIntFieldRefInput<$PrismaModel>
+    lte?: bigint | number | BigIntFieldRefInput<$PrismaModel>
+    gt?: bigint | number | BigIntFieldRefInput<$PrismaModel>
+    gte?: bigint | number | BigIntFieldRefInput<$PrismaModel>
+    not?: NestedBigIntNullableWithAggregatesFilter<$PrismaModel> | bigint | number | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _avg?: NestedFloatNullableFilter<$PrismaModel>
+    _sum?: NestedBigIntNullableFilter<$PrismaModel>
+    _min?: NestedBigIntNullableFilter<$PrismaModel>
+    _max?: NestedBigIntNullableFilter<$PrismaModel>
+  }
+
   export type Social_media_eventsScalarRelationFilter = {
     is?: social_media_eventsWhereInput
     isNot?: social_media_eventsWhereInput
@@ -28951,6 +30658,14 @@ export namespace Prisma {
     deleteMany?: social_media_event_mediaScalarWhereInput | social_media_event_mediaScalarWhereInput[]
   }
 
+  export type NullableBigIntFieldUpdateOperationsInput = {
+    set?: bigint | number | null
+    increment?: bigint | number
+    decrement?: bigint | number
+    multiply?: bigint | number
+    divide?: bigint | number
+  }
+
   export type social_media_eventsCreateNestedOneWithoutMediaInput = {
     create?: XOR<social_media_eventsCreateWithoutMediaInput, social_media_eventsUncheckedCreateWithoutMediaInput>
     connectOrCreate?: social_media_eventsCreateOrConnectWithoutMediaInput
@@ -29280,6 +30995,33 @@ export namespace Prisma {
     gt?: number | FloatFieldRefInput<$PrismaModel>
     gte?: number | FloatFieldRefInput<$PrismaModel>
     not?: NestedFloatNullableFilter<$PrismaModel> | number | null
+  }
+
+  export type NestedBigIntNullableFilter<$PrismaModel = never> = {
+    equals?: bigint | number | BigIntFieldRefInput<$PrismaModel> | null
+    in?: bigint[] | number[] | ListBigIntFieldRefInput<$PrismaModel> | null
+    notIn?: bigint[] | number[] | ListBigIntFieldRefInput<$PrismaModel> | null
+    lt?: bigint | number | BigIntFieldRefInput<$PrismaModel>
+    lte?: bigint | number | BigIntFieldRefInput<$PrismaModel>
+    gt?: bigint | number | BigIntFieldRefInput<$PrismaModel>
+    gte?: bigint | number | BigIntFieldRefInput<$PrismaModel>
+    not?: NestedBigIntNullableFilter<$PrismaModel> | bigint | number | null
+  }
+
+  export type NestedBigIntNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: bigint | number | BigIntFieldRefInput<$PrismaModel> | null
+    in?: bigint[] | number[] | ListBigIntFieldRefInput<$PrismaModel> | null
+    notIn?: bigint[] | number[] | ListBigIntFieldRefInput<$PrismaModel> | null
+    lt?: bigint | number | BigIntFieldRefInput<$PrismaModel>
+    lte?: bigint | number | BigIntFieldRefInput<$PrismaModel>
+    gt?: bigint | number | BigIntFieldRefInput<$PrismaModel>
+    gte?: bigint | number | BigIntFieldRefInput<$PrismaModel>
+    not?: NestedBigIntNullableWithAggregatesFilter<$PrismaModel> | bigint | number | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _avg?: NestedFloatNullableFilter<$PrismaModel>
+    _sum?: NestedBigIntNullableFilter<$PrismaModel>
+    _min?: NestedBigIntNullableFilter<$PrismaModel>
+    _max?: NestedBigIntNullableFilter<$PrismaModel>
   }
 
   export type NestedUuidFilter<$PrismaModel = never> = {

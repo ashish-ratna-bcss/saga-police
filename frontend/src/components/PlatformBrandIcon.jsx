@@ -68,6 +68,18 @@ export const PLATFORM_BRAND_COLOR = {
   whatsapp: 'text-[#25D366]',
 };
 
+/** Brand background colors — for a solid badge with a white icon on top (better contrast than an outlined icon). */
+export const PLATFORM_BRAND_BG = {
+  all: 'bg-slate-500',
+  x: 'bg-black',
+  twitter: 'bg-black',
+  youtube: 'bg-[#FF0000]',
+  facebook: 'bg-[#1877F2]',
+  instagram: 'bg-[#E4405F]',
+  telegram: 'bg-[#229ED9]',
+  whatsapp: 'bg-[#25D366]',
+};
+
 /**
  * @param {{ platform?: string, className?: string, colored?: boolean }} props
  */
