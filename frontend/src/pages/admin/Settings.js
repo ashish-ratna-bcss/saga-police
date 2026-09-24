@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../lib/api';
 import { Save, Plus, Trash2, ShieldAlert, BrainCircuit, FileText, Upload, Star, Eye, EyeOff, Pencil, Copy, Check, X, AlertTriangle, Zap, Youtube, Facebook, Instagram, Loader2, Moon, Sun, Palette, ChevronDown, ChevronUp, Globe2 } from 'lucide-react';
-import { TelegramBrandLogo, XBrandLogo } from '../../components/PlatformBrandIcon';
+import { TelegramBrandLogo, XBrandLogo, RedditBrandLogo } from '../../components/PlatformBrandIcon';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Switch } from '../../components/ui/switch';
@@ -31,6 +31,7 @@ const KNOWN_PLATFORM_PRESETS = [
   { slug: 'instagram', name: 'Instagram', icon: 'instagram' },
   { slug: 'youtube', name: 'YouTube', icon: 'youtube' },
   { slug: 'telegram', name: 'Telegram', icon: 'telegram' },
+  { slug: 'reddit', name: 'Reddit', icon: 'reddit' },
 ];
 
 const PLATFORM_ROW_ICONS = {
@@ -40,6 +41,7 @@ const PLATFORM_ROW_ICONS = {
   facebook: Facebook,
   youtube: Youtube,
   telegram: TelegramBrandLogo,
+  reddit: RedditBrandLogo,
 };
 
 const platformDisplayName = (row) =>

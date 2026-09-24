@@ -501,7 +501,12 @@ const searchRedditViaUnifiedApi = async (query) => {
     body: JSON.stringify({ query: q }),
   });
   if (!response.ok) {
-    throw new Error(`Reddit API returned ${response.status} ${response.statusText}`);
+    let detail = '';
+    try {
+      const body = await response.json();
+      detail = body?.error?.message || body?.detail || '';
+    } catch { /* non-JSON error body */ }
+    throw new Error(`Reddit API returned ${response.status}${detail ? `: ${detail}` : ` ${response.statusText}`}`);
   }
   const data = await response.json();
   return Array.isArray(data?.posts) ? data.posts : [];

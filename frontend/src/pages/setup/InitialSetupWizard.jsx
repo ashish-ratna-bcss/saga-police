@@ -38,6 +38,7 @@ import {
   FacebookBrandLogo,
   InstagramBrandLogo,
   YoutubeBrandLogo,
+  RedditBrandLogo,
 } from '../../components/PlatformBrandIcon';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -85,6 +86,14 @@ const PLATFORM_PRESETS = [
     brandIcon: TelegramBrandLogo,
     color: '#229ED9',
     description: 'Monitors public broadcast channels, community groups, and intelligence feeds.',
+  },
+  {
+    slug: 'reddit',
+    name: 'Reddit',
+    icon: 'reddit',
+    brandIcon: RedditBrandLogo,
+    color: '#FF4500',
+    description: 'Tracks subreddit discussions and posts that match your event keywords.',
   },
 ];
 
