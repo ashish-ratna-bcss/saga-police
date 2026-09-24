@@ -29,7 +29,7 @@ import socialProfilesApi from '../../api/socialProfiles.api';
 import ContentCard from '../../components/ContentCard';
 import AddSocialProfileDialog from '../../components/AddSocialProfileDialog';
 import EventMonthSidebar, { MONTH_THEMES } from '../../components/EventMonthSidebar';
-import { TelegramBrandLogo } from '../../components/PlatformBrandIcon';
+import { TelegramBrandLogo, RedditBrandLogo } from '../../components/PlatformBrandIcon';
 import { QRCodeCanvas } from 'qrcode.react';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
@@ -486,6 +486,7 @@ const PLATFORM_CONFIG = {
   facebook:  { label: 'Facebook',      icon: Facebook,  color: 'text-blue-600 dark:text-blue-400' },
   instagram: { label: 'Instagram',     icon: Instagram, color: 'text-pink-600 dark:text-pink-400' },
   telegram:  { label: 'Telegram',      icon: TelegramBrandLogo, color: 'text-sky-600 dark:text-sky-400' },
+  reddit:    { label: 'Reddit',        icon: RedditBrandLogo,   color: 'text-orange-600 dark:text-orange-400' },
 };
 
 const PLATFORM_PICKER_META = {
@@ -495,6 +496,7 @@ const PLATFORM_PICKER_META = {
   facebook: { label: 'Facebook', icon: Facebook, accent: 'text-blue-600' },
   instagram: { label: 'Instagram', icon: Instagram, accent: 'text-pink-600' },
   telegram: { label: 'Telegram', icon: TelegramBrandLogo, accent: 'text-sky-600' },
+  reddit: { label: 'Reddit', icon: RedditBrandLogo, accent: 'text-orange-600' },
 };
 
 const normalizeEventPlatformSlug = (slug) => {

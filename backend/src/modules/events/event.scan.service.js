@@ -485,6 +485,28 @@ const searchYouTubeViaBlugate = async (query, auth = null) => {
   }));
 };
 
+/* ── Reddit search ── */
+
+const searchRedditViaUnifiedApi = async (query) => {
+  const q = String(query || '').trim();
+  if (!q) return [];
+  const baseUrl = process.env.REDDIT_UNIFIED_API_URL;
+  if (!baseUrl) {
+    throw new Error('REDDIT_UNIFIED_API_URL is not defined in environment');
+  }
+  const url = `${baseUrl}/api/reddit/rss/monitor`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: q }),
+  });
+  if (!response.ok) {
+    throw new Error(`Reddit API returned ${response.status} ${response.statusText}`);
+  }
+  const data = await response.json();
+  return Array.isArray(data?.posts) ? data.posts : [];
+};
+
 /** One in-flight scan per event — prevents duplicate kickoff/scheduler/manual overlap. */
 const inflightScans = new Map();
 
@@ -746,6 +768,43 @@ const runScanEventOnce = async (event, options = {}) => {
     } catch (error) {
       logger.error(`[EventScan] Telegram failed for ${event.name}: ${error.message}`);
       errors.push({ platform: 'telegram', message: error.message });
+    }
+  }
+
+  if (platforms.includes('reddit')) {
+    try {
+      const posts = await fetchUniqueByQueriesCounted(queries, searchRedditViaUnifiedApi);
+      const relevant = filterByKeywords(posts, event, (p) => `${p?.title || ''} ${p?.content || ''}`);
+      scanned += relevant.length;
+      track('reddit', { scanned: relevant.length });
+      let redditIn = 0;
+      for (const p of relevant) {
+        const pid = p.id || p.guid;
+        if (!pid) continue;
+        const { isNew } = await upsertMedia({
+          db,
+          dbName,
+          eventId: event.id,
+          platform: 'reddit',
+          externalId: String(pid),
+          payload: {
+            url: p.url || null,
+            text: `${p.title || ''}\n${p.content || ''}`.trim(),
+            author_name: p.author || 'Unknown',
+            author_handle: p.author || 'unknown',
+            posted_at: p.published_at ? new Date(p.published_at) : new Date(),
+            engagement: {},
+            media: [],
+            raw_data: p,
+          },
+        });
+        if (isNew) redditIn += 1;
+      }
+      ingested += redditIn;
+      track('reddit', { ingested: redditIn });
+    } catch (error) {
+      logger.error(`[EventScan] Reddit failed for ${event.name}: ${error.message}`);
+      errors.push({ platform: 'reddit', message: error.message });
     }
   }
 
