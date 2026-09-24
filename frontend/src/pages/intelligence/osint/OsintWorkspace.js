@@ -1,423 +1,424 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../../components/ui/card';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui/tabs';
 import { Badge } from '../../../components/ui/badge';
-import { Search, Loader2, Phone, Mail, User, ShieldAlert, Activity, FileText, Database, Network, MapPin, CheckCircle, XCircle, Info, Clock, Smartphone } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
+import {
+  Search, Loader2, Phone, Mail, User, Radar, Trash2, CheckCircle, XCircle, Database,
+  Network, ShieldAlert, Fingerprint, MapPin, Smartphone, Clock, Zap
+} from 'lucide-react';
 import { osintApi } from '../../../api';
 import { toast } from 'sonner';
 
-const LookupTab = () => {
-  const [lookupType, setLookupType] = useState('phone');
-  const [target, setTarget] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState(null);
+const HISTORY_KEY = 'osint_runs_v2';
+const MAX_RUNS = 30;
 
-  const handleLookup = async () => {
-    if (!target) {
-      toast.error('Please enter a target identifier');
-      return;
-    }
-    setLoading(true);
-    setResults(null);
-    try {
-      let res;
-      if (lookupType === 'phone') res = await osintApi.lookupPhone(target);
-      else if (lookupType === 'email') res = await osintApi.lookupEmail(target);
-      else if (lookupType === 'username') res = await osintApi.lookupUsername(target);
-      setResults(res);
-      toast.success('Lookup complete');
-    } catch (err) {
-      toast.error(err.response?.data?.detail || err.response?.data?.error?.message || 'Lookup failed');
-    } finally {
-      setLoading(false);
-    }
-  };
+const errMsg = (err, fallback) =>
+  err.response?.data?.detail || err.response?.data?.error?.message || fallback;
+const loadHistory = () => {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch { return []; }
+};
 
-  const renderPhoneDetails = (metadata) => {
-    if (!metadata) return null;
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-        {metadata.carrier && (
-          <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800">
-            <div className="bg-blue-100 dark:bg-blue-900/50 p-2 rounded-md"><Phone className="h-4 w-4 text-blue-600 dark:text-blue-400" /></div>
-            <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Carrier</p>
-              <p className="text-sm font-semibold text-gray-900 dark:text-white">{metadata.carrier}</p>
-            </div>
-          </div>
-        )}
-        {metadata.location && (
-          <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800">
-            <div className="bg-green-100 dark:bg-green-900/50 p-2 rounded-md"><MapPin className="h-4 w-4 text-green-600 dark:text-green-400" /></div>
-            <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Location</p>
-              <p className="text-sm font-semibold text-gray-900 dark:text-white">{metadata.location} {metadata.region_code ? `(${metadata.region_code})` : ''}</p>
-            </div>
-          </div>
-        )}
-        {metadata.line_type && (
-          <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800">
-            <div className="bg-purple-100 dark:bg-purple-900/50 p-2 rounded-md"><Smartphone className="h-4 w-4 text-purple-600 dark:text-purple-400" /></div>
-            <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Line Type</p>
-              <p className="text-sm font-semibold text-gray-900 dark:text-white">{metadata.line_type}</p>
-            </div>
-          </div>
-        )}
-        {metadata.timezones && metadata.timezones.length > 0 && (
-          <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800">
-            <div className="bg-orange-100 dark:bg-orange-900/50 p-2 rounded-md"><Clock className="h-4 w-4 text-orange-600 dark:text-orange-400" /></div>
-            <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Timezone</p>
-              <p className="text-sm font-semibold text-gray-900 dark:text-white">{metadata.timezones.join(', ')}</p>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
+/* ---------- target detection ---------- */
 
-  const renderGenericMetadata = (metadata) => {
-    if (!metadata || typeof metadata !== 'object') return null;
-    const entries = Object.entries(metadata).filter(([k, v]) => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean');
-    if (entries.length === 0) return null;
-    
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-        {entries.map(([key, value]) => (
-          <div key={key} className="flex flex-col p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800">
-            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider mb-1">{key.replace(/_/g, ' ')}</p>
-            <p className="text-sm font-semibold text-gray-900 dark:text-white">
-              {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value}
-            </p>
-          </div>
-        ))}
-      </div>
-    );
-  };
+const MODES = [
+  { value: 'phone', label: 'Phone lookup', icon: Phone, group: 'lookup', placeholder: 'Enter phone number with country code' },
+  { value: 'email', label: 'Email lookup', icon: Mail, group: 'lookup', placeholder: 'Enter email address' },
+  { value: 'username', label: 'Username lookup', icon: User, group: 'lookup', placeholder: 'Enter username' },
+  { value: 'general', label: 'Investigation · General', icon: Radar, group: 'investigation' },
+  { value: 'deep', label: 'Investigation · Deep', icon: Radar, group: 'investigation' },
+];
+const modeOf = (v) => MODES.find((m) => m.value === v) || MODES[MODES.length - 2];
+
+const timeAgo = (ts) => {
+  const s = Math.max(1, Math.floor((Date.now() - ts) / 1000));
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+};
+
+const STATUS = {
+  completed: { dot: 'bg-emerald-500', cls: 'text-emerald-600 border-emerald-500/30 bg-emerald-500/10' },
+  failed: { dot: 'bg-red-500', cls: 'text-red-600 border-red-500/30 bg-red-500/10' },
+  running: { dot: 'bg-amber-500 animate-pulse', cls: 'text-amber-600 border-amber-500/30 bg-amber-500/10' },
+};
+const statusKey = (s) => (STATUS[s] ? s : 'running');
+const isRunning = (r) => r.group === 'investigation' && !['completed', 'failed'].includes(r.status);
+
+const StatusBadge = ({ status }) => {
+  const k = statusKey(status);
+  return (
+    <Badge variant="outline" className={`text-[10px] px-2 py-0.5 gap-1.5 font-semibold capitalize ${STATUS[k].cls}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${STATUS[k].dot}`} />
+      {status || 'running'}
+    </Badge>
+  );
+};
+
+const Chip = ({ dot, label, value }) => (
+  <span className="inline-flex items-baseline gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] text-muted-foreground">
+    {dot && <span className={`h-1.5 w-1.5 rounded-full self-center ${dot}`} />}
+    <span className="tabular-nums font-semibold text-foreground">{value}</span> {label}
+  </span>
+);
+
+const Label = ({ children, count }) => (
+  <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+    {children}{count != null && <span className="rounded bg-muted px-1 tabular-nums">{count}</span>}
+  </div>
+);
+
+/* ---------- relationship graph ---------- */
+
+const nodeName = (x) => (typeof x === 'string' ? x : x?.name || x?.id || '');
+
+const Graph = ({ center, entities = [], relationships = [] }) => {
+  const { nodes, edges } = useMemo(() => {
+    const names = new Set();
+    entities.forEach((e) => nodeName(e) && names.add(nodeName(e)));
+    relationships.forEach((r) => { if (r.source) names.add(String(r.source)); if (r.target) names.add(String(r.target)); });
+    names.delete(center);
+    const list = [...names].slice(0, 16);
+    const es = relationships
+      .filter((r) => r.source && r.target)
+      .map((r) => [String(r.source), String(r.target), r.type])
+      .filter(([a, b]) => (a === center || list.includes(a)) && (b === center || list.includes(b)));
+    const linked = new Set(es.flatMap(([a, b]) => [a, b]));
+    list.forEach((n) => { if (!linked.has(n)) es.push([center, n, null]); });
+    return { nodes: list, edges: es };
+  }, [center, entities, relationships]);
+
+  const W = 560, H = 300, cx = W / 2, cy = H / 2, R = 108;
+  const pos = { [center]: [cx, cy] };
+  nodes.forEach((n, i) => {
+    const a = (i / Math.max(nodes.length, 1)) * Math.PI * 2 - Math.PI / 2;
+    pos[n] = [cx + R * 1.55 * Math.cos(a), cy + R * Math.sin(a)];
+  });
+  const clip = (s) => (s.length > 18 ? `${s.slice(0, 17)}…` : s);
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
-      <div className="w-full lg:w-1/3 space-y-4">
-        <div>
-          <label className="text-sm font-medium mb-1 block">Lookup Type</label>
-          <div className="flex flex-wrap gap-2 mb-4">
-            <Button variant={lookupType === 'phone' ? 'default' : 'outline'} onClick={() => setLookupType('phone')} className="flex-1">
-              <Phone className="h-4 w-4 mr-2" /> Phone
-            </Button>
-            <Button variant={lookupType === 'email' ? 'default' : 'outline'} onClick={() => setLookupType('email')} className="flex-1">
-              <Mail className="h-4 w-4 mr-2" /> Email
-            </Button>
-            <Button variant={lookupType === 'username' ? 'default' : 'outline'} onClick={() => setLookupType('username')} className="flex-1">
-              <User className="h-4 w-4 mr-2" /> Username
-            </Button>
-          </div>
-        </div>
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Relationship graph">
+      {edges.map(([a, b, t], i) => pos[a] && pos[b] && (
+        <g key={i}>
+          <line x1={pos[a][0]} y1={pos[a][1]} x2={pos[b][0]} y2={pos[b][1]} className="stroke-border" strokeWidth="1.5" />
+          {t && <text x={(pos[a][0] + pos[b][0]) / 2} y={(pos[a][1] + pos[b][1]) / 2 - 3} textAnchor="middle" className="fill-muted-foreground" fontSize="9">{t}</text>}
+        </g>
+      ))}
+      {nodes.map((n) => (
+        <g key={n}>
+          <circle cx={pos[n][0]} cy={pos[n][1]} r="8" className="fill-primary/20 stroke-primary" strokeWidth="1.5" />
+          <text x={pos[n][0]} y={pos[n][1] + 21} textAnchor="middle" className="fill-foreground" fontSize="10">{clip(n)}</text>
+        </g>
+      ))}
+      <circle cx={cx} cy={cy} r="15" className="fill-primary stroke-primary" />
+      <text x={cx} y={cy + 30} textAnchor="middle" className="fill-foreground" fontSize="11" fontWeight="600">{clip(center)}</text>
+    </svg>
+  );
+};
 
-        <div>
-          <label className="text-sm font-medium mb-1 block">Target Identifier</label>
-          <Input 
-            placeholder={`Enter ${lookupType}...`} 
-            value={target} 
-            onChange={e => setTarget(e.target.value)}
-            className="w-full"
-          />
+/* ---------- report ---------- */
+
+const PHONE_FIELDS = [['carrier', 'Carrier', Phone], ['location', 'Location', MapPin], ['line_type', 'Line type', Smartphone], ['timezones', 'Timezone', Clock]];
+
+const fieldTiles = (meta, phone) => {
+  if (!meta || typeof meta !== 'object') return [];
+  if (phone) {
+    return PHONE_FIELDS.filter(([k]) => meta[k] && (!Array.isArray(meta[k]) || meta[k].length)).map(([k, label, icon]) => {
+      let v = Array.isArray(meta[k]) ? meta[k].join(', ') : meta[k];
+      if (k === 'location' && meta.region_code) v = `${v} (${meta.region_code})`;
+      return { key: k, label, icon, value: String(v) };
+    });
+  }
+  return Object.entries(meta)
+    .filter(([, v]) => ['string', 'number', 'boolean'].includes(typeof v))
+    .map(([k, v]) => ({ key: k, label: k.replace(/_/g, ' '), icon: Fingerprint, value: typeof v === 'boolean' ? (v ? 'Yes' : 'No') : String(v) }));
+};
+
+const Tile = ({ icon: Icon, label, value }) => (
+  <div className="flex items-center gap-2.5 rounded-lg border border-border bg-background p-2.5">
+    <span className="h-8 w-8 shrink-0 rounded-md bg-primary/10 text-primary flex items-center justify-center"><Icon className="h-4 w-4" /></span>
+    <div className="min-w-0">
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="text-xs font-semibold break-words">{value}</p>
+    </div>
+  </div>
+);
+
+const Empty = ({ children }) => <p className="text-xs text-muted-foreground py-8 text-center">{children}</p>;
+
+const Report = ({ run }) => {
+  const [tab, setTab] = useState('overview');
+  useEffect(() => setTab('overview'), [run.id]);
+  const d = run.result;
+  const isInv = run.group === 'investigation';
+  const tabs = isInv
+    ? [['overview', 'Overview'], ['entities', 'Entities'], ['relationships', 'Relationships'], ['evidence', 'Evidence'], ['raw', 'Raw']]
+    : [['overview', 'Overview'], ['sources', 'Sources'], ['raw', 'Raw']];
+  const valid = d?.evidence?.[0]?.raw_metadata?.is_valid;
+  const title = d?.normalized_identifier || run.target;
+
+  return (
+    <div className="flex flex-col min-h-0 h-full">
+      <div className="px-4 pt-3 pb-0 border-b border-border">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-lg font-heading font-bold tracking-tight truncate max-w-full">{title}</h2>
+          {valid === true && <CheckCircle className="h-4 w-4 text-emerald-500" />}
+          {valid === false && <XCircle className="h-4 w-4 text-red-500" />}
+          <StatusBadge status={run.status} />
         </div>
-        
-        <Button onClick={handleLookup} disabled={loading} className="w-full">
-          {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
-          Run Lookup
-        </Button>
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          {modeOf(run.kind).label} · ID {run.id}
+          {isInv && d && ` · ${d.entities?.length || 0} entities · ${d.relationships?.length || 0} relations`}
+        </p>
+        <div className="flex gap-0.5 mt-2 -mb-px overflow-x-auto no-scrollbar">
+          {tabs.map(([v, l]) => (
+            <button key={v} onClick={() => setTab(v)}
+              className={`px-3 py-2 text-xs whitespace-nowrap border-b-2 transition-colors ${tab === v ? 'border-primary text-foreground font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+              {l}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="w-full lg:w-2/3">
-        {results ? (
-          <div className="space-y-4">
-            <Card className="border-t-4 border-t-emerald-500 shadow-md">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-xl flex items-center">
-                      {results.normalized_identifier || target}
-                      {results.evidence?.[0]?.raw_metadata?.is_valid ? (
-                        <CheckCircle className="h-5 w-5 text-green-500 ml-2" />
-                      ) : results.evidence?.[0]?.raw_metadata?.is_valid === false ? (
-                        <XCircle className="h-5 w-5 text-red-500 ml-2" />
-                      ) : null}
-                    </CardTitle>
-                    <CardDescription className="mt-1 flex items-center">
-                      <Badge variant="outline" className="mr-2">{results.identifier_type || lookupType.toUpperCase()}</Badge>
-                      <span className="text-xs text-gray-500">
-                        ID: {results.investigation_id || 'N/A'}
-                      </span>
-                    </CardDescription>
-                  </div>
-                  <Badge variant={results.status === 'completed' ? 'success' : 'secondary'} className="capitalize">
-                    {results.status || 'unknown'}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {results.summary && (
-                  <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 p-3 rounded-md text-sm mb-4 flex items-start">
-                    <Info className="h-5 w-5 mr-2 shrink-0 mt-0.5" />
-                    <p>{results.summary}</p>
-                  </div>
-                )}
-                
-                {results.evidence && results.evidence.length > 0 ? (
-                  results.evidence.map((ev, idx) => (
-                    <div key={idx} className="mb-4 last:mb-0">
-                      <div className="flex items-center justify-between border-b dark:border-gray-800 pb-2 mb-2">
-                        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center">
-                          <Database className="h-4 w-4 mr-1.5 text-gray-400" /> 
-                          Source: <span className="capitalize ml-1 text-gray-900 dark:text-white">{ev.source_name || 'Analysis Engine'}</span>
-                        </h4>
-                      </div>
-                      {lookupType === 'phone' && ev.source_name === 'phonenumbers' 
-                        ? renderPhoneDetails(ev.raw_metadata) 
-                        : renderGenericMetadata(ev.raw_metadata)}
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-gray-500 text-center py-4">No detailed evidence structured data available.</p>
-                )}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {isInv && isRunning(run) && (
+          <div className="rounded-lg border border-border bg-background p-3">
+            <div className="flex justify-between text-[11px] mb-1.5">
+              <span className="flex items-center gap-1.5 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Gathering intelligence. This refreshes every 5 seconds.</span>
+              <span className="tabular-nums font-semibold">{run.progress || 0}%</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+              <div className="h-full bg-primary transition-all duration-700" style={{ width: `${Math.max(run.progress || 0, 4)}%` }} />
+            </div>
+          </div>
+        )}
+        {run.status === 'failed' && <p className="text-xs text-red-600">This investigation failed.</p>}
 
-                <details className="mt-6 cursor-pointer text-xs text-gray-500 border-t dark:border-gray-800 pt-4">
-                  <summary className="hover:text-gray-700 dark:hover:text-gray-300 font-medium">View Raw Developer Data</summary>
-                  <pre className="mt-3 bg-gray-950 p-4 rounded-lg overflow-x-auto text-gray-300 font-mono text-[11px] leading-relaxed shadow-inner">
-                    {JSON.stringify(results, null, 2)}
-                  </pre>
-                </details>
-              </CardContent>
-            </Card>
-          </div>
-        ) : (
-          <div className="h-full min-h-[200px] flex items-center justify-center border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-lg p-12 text-gray-500 text-sm">
-            Enter target details and run a lookup to view intelligence.
-          </div>
+        {tab === 'overview' && isInv && d && (
+          <>
+            {d.summary && <p className="text-xs rounded-lg bg-primary/5 border border-primary/20 p-3">{d.summary}</p>}
+            <div className="grid grid-cols-3 gap-2">
+              {[['Entities', d.entities?.length || 0, Database], ['Relations', d.relationships?.length || 0, Network], ['Evidence', d.evidence?.length || 0, ShieldAlert]].map(([l, n, I]) => (
+                <Tile key={l} icon={I} label={l} value={n} />
+              ))}
+            </div>
+            <div className="rounded-lg border border-border bg-background p-2">
+              <Label>Relationship graph</Label>
+              <Graph center={run.target} entities={d.entities} relationships={d.relationships} />
+            </div>
+          </>
+        )}
+        {tab === 'overview' && isInv && !d && !isRunning(run) && run.status !== 'failed' && <Empty>Loading findings…</Empty>}
+
+        {tab === 'overview' && !isInv && d && (
+          <>
+            {d.summary && <p className="text-xs rounded-lg bg-primary/5 border border-primary/20 p-3">{d.summary}</p>}
+            {(() => {
+              const tiles = (d.evidence || []).flatMap((ev) => fieldTiles(ev.raw_metadata, run.kind === 'phone' && ev.source_name === 'phonenumbers'));
+              return tiles.length
+                ? <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">{tiles.map((t, i) => <Tile key={`${t.key}${i}`} {...t} />)}</div>
+                : <Empty>No structured fields returned.</Empty>;
+            })()}
+          </>
+        )}
+
+        {tab === 'entities' && (d?.entities?.length
+          ? <div className="flex flex-wrap gap-1.5">{d.entities.map((e, i) => <span key={i} className="rounded-md border border-border bg-muted/40 px-2 py-1 text-xs">{nodeName(e) || JSON.stringify(e)}</span>)}</div>
+          : <Empty>No entities found.</Empty>)}
+
+        {tab === 'relationships' && (d?.relationships?.length
+          ? <div className="rounded-lg border border-border overflow-hidden"><table className="w-full text-xs"><tbody>
+            {d.relationships.map((r, i) => (
+              <tr key={i} className="border-b border-border last:border-0">
+                <td className="px-3 py-2 font-medium">{r.source}</td><td className="text-muted-foreground">→</td>
+                <td className="px-3 py-2 font-medium">{r.target}</td><td className="px-3 py-2 text-right text-muted-foreground">{r.type}</td>
+              </tr>))}
+          </tbody></table></div>
+          : <Empty>No relationships found.</Empty>)}
+
+        {tab === 'evidence' && (d?.evidence?.length
+          ? <ul className="space-y-1.5">{d.evidence.map((ev, i) => <li key={i} className="rounded-lg border border-border px-3 py-2 text-xs">{ev.description || JSON.stringify(ev)}</li>)}</ul>
+          : <Empty>No evidence recorded.</Empty>)}
+
+        {tab === 'sources' && (d?.evidence?.length
+          ? <div className="rounded-lg border border-border overflow-hidden"><table className="w-full text-xs"><tbody>
+            {d.evidence.map((ev, i) => (
+              <tr key={i} className="border-b border-border last:border-0">
+                <td className="px-3 py-2 font-medium capitalize">{ev.source_name || 'Analysis engine'}</td>
+                <td className="px-3 py-2 text-right text-muted-foreground">{fieldTiles(ev.raw_metadata).length} fields</td>
+              </tr>))}
+          </tbody></table></div>
+          : <Empty>No sources returned.</Empty>)}
+
+        {tab === 'raw' && (
+          <pre className="rounded-lg bg-gray-950 p-3 overflow-x-auto text-gray-300 font-mono text-[11px] leading-relaxed">{JSON.stringify(d || run, null, 2)}</pre>
         )}
       </div>
     </div>
   );
 };
 
-const InvestigationTab = () => {
-  const [form, setForm] = useState({ target: '', type: 'general' });
-  const [loading, setLoading] = useState(false);
-  const [investigationId, setInvestigationId] = useState(null);
-  const [status, setStatus] = useState(null);
-  const [details, setDetails] = useState(null);
-  const [polling, setPolling] = useState(false);
-
-  useEffect(() => {
-    let interval;
-    if (polling && investigationId) {
-      interval = setInterval(async () => {
-        try {
-          const res = await osintApi.getInvestigationStatus(investigationId);
-          setStatus(res);
-          if (res.status === 'completed' || res.status === 'failed') {
-            setPolling(false);
-            if (res.status === 'completed') {
-              toast.success('Investigation completed!');
-              fetchDetails(investigationId);
-            }
-            if (res.status === 'failed') toast.error('Investigation failed.');
-          }
-        } catch (err) {
-          console.error(err);
-          setPolling(false);
-        }
-      }, 5000); // Poll every 5s for heavy investigations
-    }
-    return () => clearInterval(interval);
-  }, [polling, investigationId]);
-
-  const fetchDetails = async (id) => {
-    try {
-      const res = await osintApi.getInvestigation(id);
-      setDetails(res);
-    } catch (err) {
-      toast.error('Failed to load investigation details');
-    }
-  };
-
-  const handleCreate = async () => {
-    if (!form.target) {
-      toast.error('Please enter a target');
-      return;
-    }
-    setLoading(true);
-    setStatus(null);
-    setDetails(null);
-    setInvestigationId(null);
-    try {
-      const res = await osintApi.createInvestigation({ target: form.target, investigation_type: form.type });
-      setInvestigationId(res.investigation_id || res.id);
-      setPolling(true);
-      toast.success('Investigation started');
-    } catch (err) {
-      toast.error(err.response?.data?.detail || err.response?.data?.error?.message || 'Failed to start investigation');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-col lg:flex-row gap-6">
-      <div className="w-full lg:w-1/3 space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
-            <label className="text-sm font-medium mb-1 block">Investigation Target</label>
-            <Input 
-              placeholder="Target subject, domain, or identifier" 
-              value={form.target} 
-              onChange={e => setForm({...form, target: e.target.value})}
-            />
-          </div>
-          <div className="col-span-2">
-            <label className="text-sm font-medium mb-1 block">Investigation Type</label>
-            <select 
-              value={form.type} 
-              onChange={e => setForm({...form, type: e.target.value})}
-              className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-800 dark:bg-gray-950 dark:ring-offset-gray-950 dark:placeholder:text-gray-400 dark:focus-visible:ring-gray-300"
-            >
-              <option value="general">General</option>
-              <option value="deep">Deep Analysis</option>
-            </select>
-          </div>
-        </div>
-        
-        <Button onClick={handleCreate} disabled={loading || polling} className="w-full">
-          {(loading || polling) ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShieldAlert className="h-4 w-4 mr-2" />}
-          {polling ? 'Investigation in progress...' : 'Start Investigation'}
-        </Button>
-      </div>
-
-      <div className="w-full lg:w-2/3">
-        {investigationId ? (
-        <Card className="mt-6 border-emerald-200 dark:border-emerald-900 bg-emerald-50/30 dark:bg-emerald-900/10">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center justify-between">
-              Investigation Status
-              {status?.status && (
-                <Badge variant={status.status === 'completed' ? 'success' : status.status === 'failed' ? 'destructive' : 'default'}>
-                  {status.status.toUpperCase()}
-                </Badge>
-              )}
-            </CardTitle>
-            <CardDescription>ID: {investigationId}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {status ? (
-              <div className="space-y-4">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Progress:</span>
-                  <span className="font-medium">{status.progress || 0}%</span>
-                </div>
-                {polling && (
-                  <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                    <div className="bg-emerald-600 h-2.5 rounded-full" style={{ width: `${status.progress || 10}%` }}></div>
-                  </div>
-                )}
-                {details && (
-                  <div className="space-y-6 pt-4 border-t border-emerald-100 dark:border-emerald-800">
-                    <h3 className="font-semibold text-lg flex items-center">
-                      <FileText className="w-5 h-5 mr-2" /> Final Results
-                    </h3>
-                    
-                    {details.entities && details.entities.length > 0 && (
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-sm text-gray-500 flex items-center"><Database className="w-4 h-4 mr-1"/> Entities</h4>
-                        <ul className="list-disc pl-5 text-sm text-gray-700 dark:text-gray-300">
-                          {details.entities.map((e, i) => (
-                            <li key={i}>{e.name || e.id || JSON.stringify(e)}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    
-                    {details.relationships && details.relationships.length > 0 && (
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-sm text-gray-500 flex items-center"><Network className="w-4 h-4 mr-1"/> Relationships</h4>
-                        <ul className="list-disc pl-5 text-sm text-gray-700 dark:text-gray-300">
-                          {details.relationships.map((r, i) => (
-                            <li key={i}>{r.source} {'->'} {r.target} ({r.type})</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    
-                    {details.evidence && details.evidence.length > 0 && (
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-sm text-gray-500 flex items-center"><ShieldAlert className="w-4 h-4 mr-1"/> Evidence</h4>
-                        <ul className="list-disc pl-5 text-sm text-gray-700 dark:text-gray-300">
-                          {details.evidence.map((ev, i) => (
-                            <li key={i}>{ev.description || JSON.stringify(ev)}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                )}
-                <details className="mt-4 cursor-pointer text-xs text-gray-400">
-                  <summary>View Raw Technical Data</summary>
-                  <pre className="mt-2 bg-gray-100 dark:bg-gray-800 p-2 rounded text-gray-800 dark:text-gray-200 overflow-x-auto">
-                    {JSON.stringify(details || status, null, 2)}
-                  </pre>
-                </details>
-              </div>
-            ) : (
-              <div className="flex items-center text-sm text-gray-500">
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Initializing...
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        ) : (
-          <div className="h-full min-h-[200px] flex items-center justify-center border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-lg p-12 text-gray-500 text-sm">
-            Provide a target to create a new investigation.
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
+/* ---------- page ---------- */
 
 const OsintWorkspace = () => {
+  const [runs, setRuns] = useState(loadHistory);
+  const [selectedId, setSelectedId] = useState(() => loadHistory()[0]?.id || null);
+  const [mode, setMode] = useState('general');
+  const [target, setTarget] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const runsRef = useRef(runs);
+  runsRef.current = runs;
+
+  useEffect(() => {
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(runs.slice(0, MAX_RUNS))); } catch { /* ignore */ }
+  }, [runs]);
+
+  const patch = useCallback((id, p) => setRuns((rs) => rs.map((r) => (r.id === id ? { ...r, ...p } : r))), []);
+
+  const hasRunning = runs.some(isRunning);
+  useEffect(() => {
+    if (!hasRunning) return undefined;
+    const t = setInterval(async () => {
+      for (const r of runsRef.current) {
+        if (!isRunning(r)) continue;
+        try {
+          const s = await osintApi.getInvestigationStatus(r.id);
+          patch(r.id, { status: s.status, progress: s.progress || 0 });
+          if (s.status === 'completed') {
+            toast.success(`Investigation completed: ${r.target}`);
+            patch(r.id, { result: await osintApi.getInvestigation(r.id) });
+          } else if (s.status === 'failed') toast.error(`Investigation failed: ${r.target}`);
+        } catch (e) { console.error(e); }
+      }
+    }, 5000);
+    return () => clearInterval(t);
+  }, [hasRunning, patch]);
+
+  const resolved = mode;
+  const resolvedMode = modeOf(resolved);
+  const selected = runs.find((r) => r.id === selectedId) || null;
+  const counts = {
+    total: runs.length, running: runs.filter(isRunning).length,
+    done: runs.filter((r) => r.status === 'completed').length, failed: runs.filter((r) => r.status === 'failed').length,
+  };
+
+  const submit = async (e) => {
+    e?.preventDefault();
+    const value = target.trim().replace(/^@(?=.)/, (m) => (resolved === 'username' ? '' : m));
+    if (!value) return toast.error('Enter a target first');
+    setSubmitting(true);
+    try {
+      let run;
+      if (resolvedMode.group === 'investigation') {
+        const res = await osintApi.createInvestigation({ target: value, investigation_type: resolved });
+        run = { id: String(res.investigation_id || res.id), status: 'running', progress: 0, result: null };
+      } else {
+        const fn = { phone: osintApi.lookupPhone, email: osintApi.lookupEmail, username: osintApi.lookupUsername }[resolved];
+        const res = await fn(value);
+        run = { id: `lk-${Date.now()}`, status: res.status || 'completed', result: res };
+      }
+      const full = { ...run, kind: resolved, group: resolvedMode.group, target: value, ts: Date.now() };
+      setRuns((rs) => [full, ...rs].slice(0, MAX_RUNS));
+      setSelectedId(full.id);
+      setTarget('');
+      toast.success(full.group === 'investigation' ? 'Investigation started' : 'Lookup complete');
+    } catch (err) {
+      toast.error(errMsg(err, resolvedMode.group === 'investigation' ? 'Failed to start investigation' : 'Lookup failed'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const remove = (id) => {
+    setRuns((rs) => rs.filter((r) => r.id !== id));
+    if (selectedId === id) setSelectedId(null);
+  };
+
   return (
-    <div className="p-4 w-full space-y-4">
-      <div>
-        <h1 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
-          <Search className="h-5 w-5 mr-2 text-emerald-500" />
-          OSINT Workspace
-        </h1>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Open Source Intelligence gathering and analysis</p>
+    <div className="p-4 space-y-3 max-w-[1600px] mx-auto">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="min-w-0">
+          <h2 className="text-xl font-heading font-bold tracking-tight leading-none">OSINT</h2>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Look up an identifier or investigate a subject across open sources</p>
+        </div>
+        <div className="ml-auto flex items-center gap-1 flex-wrap">
+          <Chip label="total" value={counts.total} />
+          <Chip dot="bg-amber-500 animate-pulse" label="running" value={counts.running} />
+          <Chip dot="bg-emerald-500" label="done" value={counts.done} />
+          <Chip dot="bg-red-500" label="failed" value={counts.failed} />
+        </div>
       </div>
 
-      <Tabs defaultValue="investigation" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-4 h-auto p-1">
-          <TabsTrigger value="investigation" className="py-2"><Activity className="h-4 w-4 mr-2 hidden sm:block" /> Investigation</TabsTrigger>
-          <TabsTrigger value="lookup" className="py-2"><Search className="h-4 w-4 mr-2 hidden sm:block" /> Identifier Lookup</TabsTrigger>
-        </TabsList>
+      <form onSubmit={submit} className="rounded-xl border border-border bg-card p-2.5">
+        <div className="flex flex-col md:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input value={target} onChange={(e) => setTarget(e.target.value)}
+              placeholder={resolvedMode.placeholder || 'Subject, domain or identifier to investigate'}
+              className="h-10 pl-9 text-sm" />
+          </div>
+          <Select value={mode} onValueChange={setMode}>
+            <SelectTrigger className="h-10 md:w-56 text-xs" aria-label="Mode">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MODES.map((m) => (
+                <SelectItem key={m.value} value={m.value} className="text-xs">
+                  <span className="flex items-center gap-2">
+                    <m.icon className="h-3.5 w-3.5 text-muted-foreground" />
+                    {m.label}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button type="submit" disabled={submitting} className="h-10 px-5 gap-1.5 text-sm">
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+            {resolvedMode.group === 'lookup' ? 'Run lookup' : 'Investigate'}
+          </Button>
+        </div>
+      </form>
 
-        <Card>
-          <CardContent className="pt-6">
-            <TabsContent value="investigation" className="mt-0">
-              <InvestigationTab />
-            </TabsContent>
-            
-            <TabsContent value="lookup" className="mt-0">
-              <LookupTab />
-            </TabsContent>
-          </CardContent>
-        </Card>
-      </Tabs>
+      <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-3 items-start">
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-3 py-2 border-b border-border bg-muted/10"><Label count={runs.length}>Recent runs</Label></div>
+          <div className="max-h-[calc(100dvh-22rem)] min-h-[120px] overflow-y-auto">
+            {runs.length === 0 && <p className="p-6 text-xs text-muted-foreground text-center">Nothing yet. Enter a target above.</p>}
+            {runs.map((r) => {
+              const M = modeOf(r.kind);
+              const Icon = M.icon || Radar;
+              const pct = r.status === 'completed' ? 100 : r.progress || 0;
+              return (
+                <div key={r.id} onClick={() => setSelectedId(r.id)}
+                  className={`group px-3 py-2 cursor-pointer border-b border-border last:border-0 ${selectedId === r.id ? 'bg-primary/10' : 'hover:bg-accent/50'}`}>
+                  <div className="flex items-center gap-2">
+                    <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <p className="text-xs font-medium truncate flex-1">{r.target}</p>
+                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${STATUS[statusKey(r.status)].dot}`} />
+                    <button onClick={(e) => { e.stopPropagation(); remove(r.id); }} aria-label="Delete run"
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500"><Trash2 className="h-3 w-3" /></button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 pl-5">{M.label} · {timeAgo(r.ts)}</p>
+                  {isRunning(r) && <div className="h-1 rounded-full bg-muted overflow-hidden mt-1.5 ml-5"><div className="h-full bg-primary" style={{ width: `${Math.max(pct, 4)}%` }} /></div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card overflow-hidden min-h-[420px] lg:h-[calc(100dvh-16rem)]">
+          {selected ? <Report run={selected} /> : (
+            <div className="h-full flex flex-col items-center justify-center text-center gap-2 p-8">
+              <Radar className="h-7 w-7 text-primary/60" />
+              <p className="text-sm font-semibold">Your report appears here</p>
+              <p className="text-xs text-muted-foreground max-w-sm">
+                Choose a lookup type for an instant result, or start an investigation to build entities, relationships and evidence.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
