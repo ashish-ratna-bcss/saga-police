@@ -1,93 +1,60 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Globe, Search, ArrowRight, ExternalLink, ShieldAlert } from 'lucide-react';
-
-const tools = [
-  {
-    name: 'Create Web Intelligence',
-    description:
-      'Crawl and monitor open websites via Bluweb — preflight sites, run instant crawls, register sources, search documents, and explore entities and stories.',
-    icon: Globe,
-    href: '/web-intelligence',
-    color: 'from-sky-500 to-cyan-600',
-    bg: 'bg-sky-50 dark:bg-sky-950/30',
-    border: 'border-sky-200 dark:border-sky-800',
-  },
-  {
-    name: 'OSINT Tools',
-    description:
-      'Integrated open-source intelligence workspace. Look up an email, username, phone number, image (EXIF / GPS / device), or infrastructure (domains, IPs) and pivot between findings — all in one place, with results saved to your investigation.',
-    icon: Search,
-    href: '/copint-osint/auth/soceye-sso',
-    fullReload: true,
-    color: 'from-emerald-500 to-teal-600',
-    bg: 'bg-emerald-50 dark:bg-emerald-950/30',
-    border: 'border-emerald-200 dark:border-emerald-800',
-  },
-  {
-    name: 'HCP Cyber Crime LLM',
-    description:
-      'Investigative AI workspace tuned for cyber-crime cases. Ask case-specific questions, surface IOCs (indicators of compromise), draft response actions, and get cited answers grounded in the HCP intelligence corpus. Opens in a new tab.',
-    icon: ShieldAlert,
-    href: 'https://copwriter.in',
-    openInNewTab: true,
-    color: 'from-violet-600 to-fuchsia-600',
-    bg: 'bg-violet-50 dark:bg-violet-950/30',
-    border: 'border-violet-200 dark:border-violet-800',
-  },
-];
+import { NavLink, Outlet } from 'react-router-dom';
+import { Globe, Search, FileText, Hash, Calendar } from 'lucide-react';
 
 const AnalysisTools = () => {
-  const navigate = useNavigate();
-
-  const handleToolClick = (tool) => {
-    if (tool.comingSoon) return;
-
-    if (tool.openInNewTab) {
-      window.open(tool.href, '_blank', 'noopener,noreferrer');
-      return;
-    }
-
-    // Full-page redirect to a separately-deployed app served on the same
-    // domain (e.g. the COPINT OSINT portal under /copint-osint/).
-    if (tool.fullReload) {
-      window.location.href = tool.href;
-      return;
-    }
-
-    navigate(tool.href, { state: { fromTools: true } });
-  };
-
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Analysis Tools</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Select a tool to get started</p>
+    <div className="flex flex-col h-full bg-white dark:bg-gray-900 text-sm">
+      {/* Header Area */}
+      <div className="bg-white dark:bg-gray-900 px-4 pt-3 pb-2 border-b border-gray-200 dark:border-gray-800">
+        <div className="w-full mx-auto">
+          {/* Title */}
+          <div className="mb-3">
+            <h1 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">Analysis Tools</h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Module tools - Scrape / OSINT / Web / Alerts - Events</p>
+          </div>
+
+          {/* Tabs Row */}
+          <div className="flex space-x-2 overflow-x-auto">
+            <NavLink
+              to="/analysis-tools/scrape"
+              className={({ isActive }) =>
+                `flex items-center px-2.5 py-1 text-xs font-medium rounded border transition-colors ${
+                  isActive
+                    ? 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white shadow-sm'
+                    : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`
+              }
+            >
+              <Globe className="h-3.5 w-3.5 mr-1.5 text-gray-500" />
+              Scrape
+              <span className="ml-2 px-1 bg-gray-200/60 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-[10px] rounded-[2px] tracking-widest leading-none pb-0.5">...</span>
+            </NavLink>
+            <NavLink
+              to="/analysis-tools/osint"
+              className={({ isActive }) =>
+                `flex items-center px-2.5 py-1 text-xs font-medium rounded border transition-colors ${
+                  isActive
+                    ? 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white shadow-sm'
+                    : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`
+              }
+            >
+              <Search className="h-3.5 w-3.5 mr-1.5 text-gray-500" />
+              OSINT
+              <span className="ml-2 px-1 bg-gray-200/60 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-[10px] rounded-[2px] tracking-widest leading-none pb-0.5">...</span>
+            </NavLink>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {tools.map((tool) => (
-          <button
-            key={tool.name}
-            onClick={() => handleToolClick(tool)}
-            disabled={tool.comingSoon}
-            className={`group relative text-left rounded-xl border ${tool.border} ${tool.bg} p-5 transition-all ${tool.comingSoon ? 'opacity-60 cursor-not-allowed' : 'hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]'}`}
-          >
-            <div className={`inline-flex items-center justify-center h-11 w-11 rounded-lg bg-gradient-to-br ${tool.color} text-white mb-4 shadow-sm`}>
-              <tool.icon className="h-5 w-5" />
-            </div>
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">{tool.name}</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{tool.description}</p>
-            {!tool.comingSoon && (
-              tool.openInNewTab
-                ? <ExternalLink className="absolute top-5 right-5 h-4 w-4 text-gray-300 dark:text-gray-600 group-hover:text-gray-500 dark:group-hover:text-gray-300 transition-colors" />
-                : <ArrowRight className="absolute top-5 right-5 h-4 w-4 text-gray-300 dark:text-gray-600 group-hover:text-gray-500 dark:group-hover:text-gray-300 transition-colors" />
-            )}
-          </button>
-        ))}
+      {/* Main Content Area (Workspaces) */}
+      <div className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-950">
+        <Outlet />
       </div>
     </div>
   );
 };
 
 export default AnalysisTools;
+

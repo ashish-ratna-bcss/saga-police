@@ -486,7 +486,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "/Users/bcss/Desktop/sockeye/backend/src/generated/tenant-client",
+      "value": "C:\\Users\\Nandeep\\OneDrive - BLUE CLOUD SOFTECH SOLUTIONS LIMITED\\Desktop\\saga-police\\backend\\src\\generated\\tenant-client",
       "fromEnvVar": null
     },
     "config": {
@@ -495,7 +495,7 @@ const config = {
     "binaryTargets": [
       {
         "fromEnvVar": null,
-        "value": "darwin-arm64",
+        "value": "windows",
         "native": true
       },
       {
@@ -504,7 +504,7 @@ const config = {
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "/Users/bcss/Desktop/sockeye/backend/prisma/tenant.schema.prisma",
+    "sourceFilePath": "C:\\Users\\Nandeep\\OneDrive - BLUE CLOUD SOFTECH SOLUTIONS LIMITED\\Desktop\\saga-police\\backend\\prisma\\tenant.schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {

@@ -23,17 +23,13 @@ const {
   templatesRoutes,
   alertThresholdRoutes,
 } = require('./settings');
-const {
-  osintToolsRoutes,
-  maigretRoutes,
-  wmnRoutes,
-  postLocationRoutes,
-  ragRoutes,
-} = require('./osint');
+
 const { reportRoutes } = require('./reports');
+const { osintRoutes } = require('./osint');
 const periscopeRoutes = require('./periscope/periscope.routes');
 const { uploadRoutes } = require('./uploads');
-const { bluwebRoutes } = require('./web-intel');
+
+const { scrapeRoutes } = require('./scrape');
 const { searchRoutes } = require('./search');
 const { mediaRoutes } = require('./media');
 const { brandingRoutes } = require('./branding/branding.routes');
@@ -80,11 +76,7 @@ router.use('/intelligence', intelligenceRoutes);
 router.use('/keywords', keywordRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/alert-thresholds', alertThresholdRoutes);
-router.use('/osint-tools', osintToolsRoutes);
-router.use('/maigret', maigretRoutes);
-router.use('/wmn', wmnRoutes);
-router.use('/post-location', postLocationRoutes);
-router.use('/rag', ragRoutes);
+
 router.use('/reports', reportRoutes);
 router.use('/periscope', periscopeRoutes);
 router.use('/uploads', uploadRoutes);
@@ -96,7 +88,9 @@ router.use('/suggestion', suggestionRoutes);
 router.use('/suggestions', suggestionRoutes);
 router.use('/policies', policyRoutes);
 router.use('/templates', templatesRoutes);
-router.use('/web-intelligence', bluwebRoutes);
+
+router.use('/osint', osintRoutes);
+router.use('/scrape', scrapeRoutes);
 router.use('/search', searchRoutes);
 
 module.exports = {
@@ -115,12 +109,10 @@ module.exports = {
   policyRoutes,
   templatesRoutes,
   alertThresholdRoutes,
-  osintToolsRoutes,
-  maigretRoutes,
-  wmnRoutes,
-  postLocationRoutes,
-  ragRoutes,
+
+  osintRoutes,
   reportRoutes,
+  scrapeRoutes,
   uploadRoutes,
-  bluwebRoutes,
+
 };
