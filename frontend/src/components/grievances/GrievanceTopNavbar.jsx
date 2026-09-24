@@ -134,9 +134,21 @@ export const GrievanceTopNavbar = ({
     !Array.isArray(allowedStatuses) || allowedStatuses.includes('suggestion');
 
   const platformSources = useMemo(() => {
-    if (activePlatform === 'all') return sources;
-    const want = normalizePlatformId(activePlatform);
-    return sources.filter((s) => normalizePlatformId(s.platform) === want);
+    let list = sources;
+    if (activePlatform !== 'all') {
+      const want = normalizePlatformId(activePlatform);
+      list = sources.filter((s) => normalizePlatformId(s.platform) === want);
+    }
+    return [...list].sort((a, b) => {
+      const countA = Number(a.total_grievances || a.post_count || a.count || 0);
+      const countB = Number(b.total_grievances || b.post_count || b.count || 0);
+      if (countB !== countA) {
+        return countB - countA;
+      }
+      const nameA = String(a.display_name || a.handle || '').toLowerCase();
+      const nameB = String(b.display_name || b.handle || '').toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
   }, [activePlatform, sources]);
 
   const statusCounts = useMemo(
@@ -410,40 +422,51 @@ export const GrievanceTopNavbar = ({
               </div>
             ) : (
               <div className="flex items-center gap-1.5">
-                <div
-                  ref={chipsRowRef}
-                  className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-hidden"
-                >
-                  {inlineSources.map((source) => {
-                    const active = selectedHandle === source.handle;
-                    return (
-                      <button
-                        key={source.id || source.handle}
-                        type="button"
-                        title={`${source.display_name || source.handle} · ${labelForPlatform(source.platform)}`}
-                        onClick={() => onHandleChange?.(active ? null : source.handle)}
-                        className={cn(
-                          'inline-flex max-w-[160px] shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-left transition-colors',
-                          active
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border bg-background hover:bg-muted/40'
-                        )}
-                      >
-                        <Avatar className="h-5 w-5 shrink-0">
-                          <AvatarImage
-                            src={source.profile_image_url || source.profile_image}
-                          />
-                          <AvatarFallback className="text-[9px]">
-                            {(source.display_name || source.handle || '?')[0]}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="truncate text-[11px] font-medium">
-                          {source.display_name || source.handle}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+                {!accountsOpen ? (
+                  <div
+                    ref={chipsRowRef}
+                    className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-hidden"
+                  >
+                    {inlineSources.map((source) => {
+                      const active = selectedHandle === source.handle;
+                      return (
+                        <button
+                          key={source.id || source.handle}
+                          type="button"
+                          title={`${source.display_name || source.handle} · ${labelForPlatform(source.platform)}`}
+                          onClick={() => onHandleChange?.(active ? null : source.handle)}
+                          className={cn(
+                            'inline-flex max-w-[160px] shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-left transition-colors',
+                            active
+                              ? 'border-primary bg-primary/5'
+                              : 'border-border bg-background hover:bg-muted/40'
+                          )}
+                        >
+                          <Avatar className="h-5 w-5 shrink-0">
+                            <AvatarImage
+                              src={source.profile_image_url || source.profile_image}
+                            />
+                            <AvatarFallback className="text-[9px]">
+                              {(source.display_name || source.handle || '?')[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="truncate text-[11px] font-medium">
+                            {source.display_name || source.handle}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <span className="text-xs font-semibold text-foreground">
+                      Monitored Profiles
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      ({platformSources.length} profiles, sorted by item count)
+                    </span>
+                  </div>
+                )}
 
                 {showMoreButton ? (
                   <button
@@ -458,7 +481,9 @@ export const GrievanceTopNavbar = ({
                         : 'border-border bg-background hover:bg-muted/40'
                     )}
                   >
-                    {overflowCount > 0 ? (
+                    {accountsOpen ? (
+                      <span>Show less</span>
+                    ) : overflowCount > 0 ? (
                       <>
                         <span>+{overflowCount}</span>
                         <span className="font-normal text-muted-foreground">more</span>

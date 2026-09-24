@@ -108,27 +108,23 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
     const ocrResult = await extractOcr(imageUrl, { postId: `event_${id}` });
     if (ocrResult.success && ocrResult.data) {
       ocrData = ocrResult.data;
-      const imageText = ocrData.full_text || '';
-      let updatedText = row.text || '';
-      if (imageText && !updatedText.includes(imageText)) {
-        updatedText = [updatedText, imageText].filter(Boolean).join('\n\n[Image text]\n');
-      }
 
       await prisma.social_media_event_media.update({
         where: { id },
         data: {
-          text: updatedText,
           image_analysis: ocrData,
         },
       });
-      row.text = updatedText;
       row.image_analysis = ocrData;
     }
   }
 
   // ── STEP 2: SENTIMENT ANALYSIS ──
-  const text = String(row.text || '').trim();
-  if (text.length < 3) {
+  const rowText = String(row.text || '').trim();
+  const imageText = String(ocrData?.full_text || '').trim();
+  const textForAnalysis = rowText || imageText;
+
+  if (rowText.length < 3 && imageText.length < 3) {
     await prisma.social_media_event_media.update({
       where: { id },
       data: {
@@ -142,7 +138,7 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
     return { ok: true, skipped: true, reason: 'empty_text' };
   }
 
-  const matchedKeywords = await matchKeywords(text, { db });
+  const matchedKeywords = await matchKeywords(textForAnalysis, { db });
   const { high, medium } = await loadRiskThresholds({ db });
   const tenantName = await resolveTenantName(dbName).catch(() => null);
 
@@ -151,10 +147,10 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
   let preMapping = { category_id: null, legal_sections: [], platform_policies: [], triggered_keywords: [] };
   try {
     await mappingService.waitForLoad(5000);
-    const inferredCategory = mappingService.inferCategoryFromText(text);
+    const inferredCategory = mappingService.inferCategoryFromText(textForAnalysis);
     preMapping = mappingService.resolveForAnalysis({
       category: inferredCategory,
-      text,
+      text: textForAnalysis,
       platform,
       country: 'IN',
     });
@@ -164,7 +160,7 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
 
   let intel = null;
   try {
-    intel = await intelligenceClient.analyzeText(text, {
+    intel = await intelligenceClient.analyzeText(textForAnalysis, {
       lane: 'bulk',
       tenantName,
       tenantKey: dbName,

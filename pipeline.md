@@ -28,7 +28,7 @@ flowchart TD
         E["Download Image & Convert to Base64"]:::step
         F["POST http://98.86.63.69:8000/extract<br/>(NVIDIA A10G GPU)"]:::gpu
         G["Full OCR Response:<br/>• full_text<br/>• bounding_boxes<br/>• confidence, language"]:::step
-        H["Append [Image text] to Post Content<br/>& Save image_analysis in DB"]:::step
+        H["Save image_analysis in DB<br/>(Post text remains clean description)"]:::step
 
         C --> D
         D -- "Image Found" --> E
@@ -97,7 +97,7 @@ flowchart TD
   * Images are downloaded into memory and converted to Base64.
   * Sent to the OCR service which extracts detected text, bounding boxes, language, and confidence scores.
   * The full OCR response is retained in `image_analysis`.
-  * If extracted text is present, it is appended to the post's text content under `\n\n[Image text]\n`.
+  * The post's original description/text is kept intact (OCR is not appended into `post.text`).
 
 ### Step 3: Keywords & Combined Policy Resolution
 * **Components**: `src/services/media_post_analysis/analyzeMediaPost.js`, `analyzeEventMedia.js`, and `src/modules/settings/mapping.service.js`

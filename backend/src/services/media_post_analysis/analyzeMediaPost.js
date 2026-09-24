@@ -184,24 +184,15 @@ const analyzeMediaPost = async (postId, { db, dbName } = {}) => {
         ocrData = ocrResult.data;
         const imageText = ocrData.full_text || '';
 
-        let updatedText = post.text || '';
-        if (imageText && !updatedText.includes(imageText)) {
-          updatedText = [updatedText, imageText]
-            .filter(Boolean)
-            .join('\n\n[Image text]\n');
-        }
-
-        // Persist directly into dedicated image_analysis column
+        // Persist directly into dedicated image_analysis column without corrupting real post.text
         await prisma.social_media_posts.update({
           where: { id },
           data: {
-            text: updatedText,
             image_analysis: ocrData,
           },
         });
 
         // Update local object
-        post.text = updatedText;
         post.image_analysis = ocrData;
         logger.info(`[media_post_analysis] OCR extracted successfully for post ${id} (${imageText.length} chars)`);
       } else {
@@ -219,8 +210,11 @@ const analyzeMediaPost = async (postId, { db, dbName } = {}) => {
   }
 
   // ── STEP 2: SENTIMENT & INTELLIGENCE ANALYSIS ──
-  const text = String(post.text || '').trim();
-  if (text.length < 3) {
+  const postText = String(post.text || '').trim();
+  const imageText = String(ocrData?.full_text || '').trim();
+  const textForAnalysis = postText || imageText;
+
+  if (postText.length < 3 && imageText.length < 3) {
     await prisma.social_media_posts.update({
       where: { id },
       data: {
@@ -234,7 +228,7 @@ const analyzeMediaPost = async (postId, { db, dbName } = {}) => {
     return { ok: true, skipped: true, reason: 'empty_text' };
   }
 
-  const matchedKeywords = await matchKeywords(text, { db });
+  const matchedKeywords = await matchKeywords(textForAnalysis, { db });
   const { high, medium } = await loadRiskThresholds({ db });
   const tenantName = await resolveTenantName(dbName).catch(() => null);
 
@@ -246,10 +240,10 @@ const analyzeMediaPost = async (postId, { db, dbName } = {}) => {
   let preMapping = { category_id: null, legal_sections: [], platform_policies: [], triggered_keywords: [] };
   try {
     await mappingService.waitForLoad(5000);
-    const inferredCategory = mappingService.inferCategoryFromText(text);
+    const inferredCategory = mappingService.inferCategoryFromText(textForAnalysis);
     preMapping = mappingService.resolveForAnalysis({
       category: inferredCategory,
-      text,
+      text: textForAnalysis,
       platform,
       country: 'IN',
     });
@@ -260,7 +254,7 @@ const analyzeMediaPost = async (postId, { db, dbName } = {}) => {
   let intel = null;
   try {
     // Send text with attached image analysis / OCR metadata
-    intel = await intelligenceClient.analyzeText(text, {
+    intel = await intelligenceClient.analyzeText(textForAnalysis, {
       lane: 'bulk',
       tenantName,
       tenantKey: dbName,
