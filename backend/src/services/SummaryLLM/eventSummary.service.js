@@ -2,6 +2,11 @@ const axios = require('axios');
 const dbOf = require('../../lib/dbOf');
 const logger = require('../../lib/logger');
 const {
+  buildSystemPrompt, buildUserContext, RETRY_MESSAGE, parseLLMReport, reportToMarkdown,
+  BATCH_SYSTEM, buildBatchUserContext, parseBatchNotes, buildReducerSystemPrompt, buildReducerUserContext,
+  estimateTokens, truncateToTokens, makeBatches, reducerToReport,
+} = require('./eventSummary.prompt');
+const {
   TARGET_ENTITIES,
   parseSentiment,
   classifyEventRelevance,
@@ -23,8 +28,8 @@ const getLLMConfig = () => {
     Number(process.env.LLM_SUMMARY_TIMEOUT_MS || process.env.LLM_TIMEOUT_MS || 180000)
   );
   const maxTokens = Math.min(
-    16384,
-    Math.max(2048, Number(process.env.LLM_SUMMARY_MAX_TOKENS || 8192))
+    4000,
+    Math.max(1500, Number(process.env.LLM_SUMMARY_MAX_TOKENS || 3000))
   );
 
   if (!baseUrl) {
@@ -33,35 +38,13 @@ const getLLMConfig = () => {
     throw err;
   }
 
-  return { baseUrl, apiKey, model, timeoutMs, maxTokens };
-};
+  // Total context window of the model (input + output tokens). Override with LLM_CONTEXT_WINDOW if your model differs.
+  const contextWindow = Math.max(4096, Number(process.env.LLM_CONTEXT_WINDOW || 16384));
 
-/** Heuristic: model hit token limit or stopped before required sections. */
-const isSummaryLikelyTruncated = (markdown, finishReason) => {
-  if (finishReason === 'length') return true;
-  const md = String(markdown || '').trim();
-  if (!md) return false;
-  const hasSection6 = /#{1,4}\s*[^\n]*(?:6\.|Recommended Operational|Operational Actions)/i.test(md);
-  if (!hasSection6 && md.length > 800) return true;
-  if (/\[[^\]]*$/.test(md)) return true;
-  if (/,\s*\[\s*$/.test(md)) return true;
-  return false;
-};
+  // Upper limit for the prompt itself. Override with LLM_MAX_INPUT_TOKENS if desired.
+  const maxInputTokens = Math.max(2000, Number(process.env.LLM_MAX_INPUT_TOKENS || 12000));
 
-/**
- * Strips reasoning / think tags from modern LLM outputs (e.g. Qwen, DeepSeek).
- */
-const cleanLLMOutput = (rawText) => {
-  if (!rawText || typeof rawText !== 'string') return '';
-  let text = rawText
-    .replace(/<(?:think|redacted_thinking)>[\s\S]*?<\/(?:think|redacted_thinking)>/gi, '')
-    .replace(/<(?:think|redacted_thinking)>[\s\S]*?<\/think>/gi, '')
-    .trim();
-  // Strip outer markdown blocks if LLM accidentally wrapped the whole document
-  if (text.startsWith('```markdown')) {
-    text = text.replace(/^```markdown\s*/i, '').replace(/```$/i, '').trim();
-  }
-  return text;
+  return { baseUrl, apiKey, model, timeoutMs, maxTokens, contextWindow, maxInputTokens };
 };
 
 /**
@@ -93,6 +76,57 @@ const serializeStoredSummary = (row) => ({
   has_pdf: Boolean(row.pdf_base64),
   generated_by: { id: row.generated_by_id ?? null, name: row.generated_by_name || null },
 });
+
+/**
+ * Ensures a string is safe UTF-8 without unpaired surrogate pairs, null bytes,
+ * or broken escape sequences that crash tokenizers or PostgreSQL JSON serializers.
+ */
+const cleanSafeUtf8 = (val, maxLen = 0) => {
+  if (val === null || val === undefined) return '';
+  let s = String(val);
+  if (typeof s.toWellFormed === 'function') {
+    s = s.toWellFormed();
+  } else {
+    s = s.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
+  }
+  // Strip null bytes and non-printable control characters
+  s = s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  s = s.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (maxLen > 0 && s.length > maxLen) {
+    s = s.slice(0, maxLen);
+    if (/[\uD800-\uDBFF]$/.test(s)) {
+      s = s.slice(0, -1);
+    }
+  }
+  // Strip dangling backslash and broken hex/unicode escapes
+  s = s.replace(/\\x[0-9a-fA-F]{0,1}$/g, '').replace(/\\u[0-9a-fA-F]{0,3}$/g, '').replace(/\\+$/, '').trim();
+  return s;
+};
+
+/** Same as cleanSafeUtf8 but keeps line breaks (used for whole prompts, where each post / stat sits on its own line). */
+const cleanSafeUtf8Lines = (val) => String(val ?? '').split('\n').map((line) => cleanSafeUtf8(line)).join('\n');
+
+/** Deeply sanitize object properties before saving into Prisma/PostgreSQL JSON fields */
+const sanitizeForPostgresJson = (val) => {
+  if (val === null || val === undefined) return val;
+  if (typeof val === 'string') {
+    return cleanSafeUtf8(val);
+  }
+  if (Array.isArray(val)) {
+    return val.map(sanitizeForPostgresJson);
+  }
+  if (val instanceof Date) {
+    return val;
+  }
+  if (typeof val === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(val)) {
+      out[cleanSafeUtf8(k)] = sanitizeForPostgresJson(v);
+    }
+    return out;
+  }
+  return val;
+};
 
 /** Current media count + max id for an event, used to detect drift against a cached summary. */
 const getEventMediaCursor = async (prisma, numericId) => {
@@ -143,7 +177,7 @@ const getCachedEventSummary = async (eventId, { db } = {}) => {
 
 /** Persist a freshly-generated summary result, upserted one-per-event. */
 const persistEventSummary = async (prisma, numericId, result, cursor) => {
-  const data = {
+  const data = sanitizeForPostgresJson({
     summary_markdown: result.summary,
     summary_source: result.summary_source,
     llm_finish_reason: result.llm_finish_reason,
@@ -158,7 +192,7 @@ const persistEventSummary = async (prisma, numericId, result, cursor) => {
     generated_by_id: result.generated_by?.id ?? null,
     generated_by_name: result.generated_by?.name ?? null,
     generated_at: new Date(result.generated_at),
-  };
+  });
 
   await prisma.social_media_event_summaries.upsert({
     where: { event_id: numericId },
@@ -196,6 +230,61 @@ const saveEventSummaryPdf = async (eventId, pdfBase64, { db } = {}) => {
     throw err;
   }
   return { ok: true };
+};
+
+/**
+ * Groups the per-post batch notes by topic label and pulls out claims, shifts and hashtags for the final call.
+ * Small clusters beyond the 25 largest are merged into "Other topics" so the final prompt stays small.
+ */
+const buildBatchDigest = (notesMap, analysed) => {
+  const numOf = (x) => Number((String(x.citationTag).match(/\d+/) || [])[0]);
+  const byNo = new Map(analysed.map((x) => [numOf(x), x]));
+  const clustersByLabel = new Map();
+  const claims = [];
+  const shifts = [];
+  const hashtagCounts = new Map();
+
+  for (const [numStr, note] of Object.entries(notesMap)) {
+    const n = Number(numStr);
+    const snippet = byNo.get(n);
+    if (!snippet) continue;
+    const label = note.narrative || 'General updates';
+    const key = label.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();   // "Police Exam" and "police exam" are one topic
+    if (!clustersByLabel.has(key)) {
+      clustersByLabel.set(key, { label, posts: [], sentiment: { positive: 0, neutral: 0, negative: 0 }, platforms: {}, examples: [] });
+    }
+    const c = clustersByLabel.get(key);
+    c.posts.push(n);
+    c.sentiment[snippet.sentiment || 'neutral'] = (c.sentiment[snippet.sentiment || 'neutral'] || 0) + 1;
+    c.platforms[snippet.platform || 'x'] = (c.platforms[snippet.platform || 'x'] || 0) + 1;
+    if (c.examples.length < 3) c.examples.push({ n, gist: note.gist || truncateToTokens(snippet.text, 45) });
+    if (note.claim) claims.push({ n, claim: note.claim });
+    if (note.shift) shifts.push({ n, shift: note.shift });
+    (String(snippet.text || '').match(/#[\p{L}\p{N}_]+/gu) || []).forEach((t) => {
+      const tag = t.toLowerCase();
+      hashtagCounts.set(tag, (hashtagCounts.get(tag) || 0) + 1);
+    });
+  }
+
+  let clusters = Array.from(clustersByLabel.values()).sort((a, b) => b.posts.length - a.posts.length);
+  if (clusters.length > 25) {
+    const rest = clusters.slice(25);
+    const merged = { label: 'Other topics', posts: [], sentiment: { positive: 0, neutral: 0, negative: 0 }, platforms: {}, examples: [] };
+    rest.forEach((c) => {
+      merged.posts.push(...c.posts);
+      Object.entries(c.sentiment).forEach(([k, v]) => { merged.sentiment[k] += v; });
+      Object.entries(c.platforms).forEach(([k, v]) => { merged.platforms[k] = (merged.platforms[k] || 0) + v; });
+      if (merged.examples.length < 3) merged.examples.push(...c.examples.slice(0, 1));
+    });
+    clusters = [...clusters.slice(0, 25), merged];
+  }
+  return {
+    total: Object.keys(notesMap).length,
+    clusters,
+    claims: claims.slice(0, 12),
+    shifts: shifts.slice(0, 8),
+    hashtags: Array.from(hashtagCounts.entries()).map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count).slice(0, 12),
+  };
 };
 
 /**
@@ -283,11 +372,12 @@ const generateEventSummary = async (eventId, { db, generatedBy } = {}) => {
   let unrelatedPostsCount = 0;
   let totalKeywordMentionsCount = 0;
 
-  // Categorized candidates for stratified LLM context sampling
+  // Categorized candidates for prioritized LLM context inclusion
   const highRiskPosts = [];
   const highViralPosts = [];
   const criticismNegativePosts = [];
-  const recentPosts = [];
+  const relevantPosts = [];
+  const peripheralPosts = [];
 
   for (const m of mediaRows) {
     // Platform
@@ -357,13 +447,15 @@ const generateEventSummary = async (eventId, { db, generatedBy } = {}) => {
       unrelatedPostsCount++;
     }
 
-    // Format post snippet for sampling
-    if (m.text && m.text.trim().length > 10) {
+    // Format post snippet cleanly (single-line, stripped excess whitespace, safe UTF-8)
+    if (m.text && m.text.trim().length > 3) {
+      const cleanText = cleanSafeUtf8(m.text, 180);
+
       const snippet = {
         id: String(m.id),
-        platform: p,
-        author: m.author_name || m.author_handle || 'Unknown',
-        text: m.text.slice(0, 240).replace(/\s+/g, ' ').trim(),
+        platform: cleanSafeUtf8(p, 20),
+        author: cleanSafeUtf8(m.author_name || m.author_handle || 'Unknown', 40),
+        text: cleanText,
         sentiment: sent,
         target_entity: targetEntity,
         target_semantic: targetSemantics.label,
@@ -379,37 +471,38 @@ const generateEventSummary = async (eventId, { db, generatedBy } = {}) => {
       if (relevance.isRelevant) {
         if (hasThreatVector || riskLevel === 'critical' || riskLevel === 'high') {
           highRiskPosts.push(snippet);
-        } else if (snippet.engagementScore > 50) {
+        } else if (snippet.engagementScore > 30) {
           highViralPosts.push(snippet);
         } else if (sent === 'negative') {
           criticismNegativePosts.push(snippet);
+        } else {
+          relevantPosts.push(snippet);
         }
-
-        if (recentPosts.length < 15) {
-          recentPosts.push(snippet);
-        }
+      } else {
+        peripheralPosts.push(snippet);
       }
     }
   }
 
-  // 4. Stratified selection of sample posts for LLM prompt
+  // 4. Collect ALL posts in prioritized order (Critical/Threat -> Viral -> Criticism -> Other Relevant -> Peripheral)
   highViralPosts.sort((a, b) => b.engagementScore - a.engagementScore);
-  const selectedSnippets = [];
+  const allSnippets = [];
   const seenIds = new Set();
 
   const addSnippet = (s) => {
     if (!s || seenIds.has(s.id)) return;
     seenIds.add(s.id);
-    selectedSnippets.push(s);
+    allSnippets.push(s);
   };
 
-  highRiskPosts.slice(0, 8).forEach(addSnippet);
-  highViralPosts.slice(0, 8).forEach(addSnippet);
-  criticismNegativePosts.slice(0, 8).forEach(addSnippet);
-  recentPosts.slice(0, 8).forEach(addSnippet);
+  highRiskPosts.forEach(addSnippet);
+  highViralPosts.forEach(addSnippet);
+  criticismNegativePosts.forEach(addSnippet);
+  relevantPosts.forEach(addSnippet);
+  peripheralPosts.forEach(addSnippet);
 
-  // Index snippets with clear reference tags for traceability: [Post #1], [Post #2], ...
-  const indexedSnippets = selectedSnippets.map((s, idx) => ({
+  // Index all posts with clear reference tags: [Post #1], [Post #2], ...
+  const indexedSnippets = allSnippets.map((s, idx) => ({
     ...s,
     citationTag: `[Post #${idx + 1}]`,
   }));
@@ -421,185 +514,169 @@ const generateEventSummary = async (eventId, { db, generatedBy } = {}) => {
   const activeSentiment = relevantPostsCount > 0 ? relevantSentimentCounts : overallSentimentCounts;
   const sentimentPercentages = calculateReconciledPercentages(activeSentiment);
 
-  // 5. Construct Prompt Context
-  const { baseUrl, apiKey, model, timeoutMs, maxTokens } = getLLMConfig();
+  // 5. Prompt + answer contract live in ONE file: eventSummary.prompt.js
+  const { baseUrl, apiKey, model, timeoutMs, maxTokens, contextWindow, maxInputTokens } = getLLMConfig();
+  const promptCtx = {
+    event, keywordsList, totalMediaCount, relevantPostsCount, unrelatedPostsCount, totalKeywordMentionsCount,
+    earliestPost, latestPost, platformCounts, platformPercentages, activeSentiment, sentimentPercentages,
+    targetBreakdown, riskCounts, totalEngagement, indexedSnippets,
+  };
 
-  const userContext = `
-EVENT DETAILS:
-- Event Name: ${event.name}
-- Monitored Location: ${event.location || 'General'}
-- Tracked Keywords: ${keywordsList.join(', ') || 'General queries'}
-- Platforms Monitored: ${(event.platforms || []).join(', ') || 'All major social networks'}
-- Status: ${event.monitoring_status || 'started'}
+  // ---- Which posts the AI reads. Relevant posts only (unrelated noise stays in the statistics, not in the analysis),
+  // in priority order: risk, reach, criticism, then the rest. Numbers #1..#n are the [Post #n] citation tags.
+  const MAX_ANALYSED = Math.max(20, Number(process.env.LLM_MAX_ANALYSED_POSTS || 400));
+  const relevantIndexed = indexedSnippets.filter((x) => x.is_relevant);
+  const analysed = (relevantIndexed.length ? relevantIndexed : indexedSnippets).slice(0, MAX_ANALYSED);
+  const postNo = (x) => Number((String(x.citationTag).match(/\d+/) || [])[0]);
+  promptCtx.indexedSnippets = analysed;
 
-AGGREGATED TELEMETRY ACROSS ALL ${totalMediaCount} INGESTED POSTS:
-- Total Unique Posts Analyzed: ${totalMediaCount}
-- Relevant Posts to Event: ${relevantPostsCount} (Out-of-scope/unrelated noise posts excluded: ${unrelatedPostsCount})
-- Total Keyword Mentions across all terms: ${totalKeywordMentionsCount} (Note: individual posts contain multiple keywords)
-- Active Date Range: ${earliestPost ? earliestPost.toLocaleDateString() : 'N/A'} to ${latestPost ? latestPost.toLocaleDateString() : 'N/A'}
-- Platform Distribution: ${Object.entries(platformCounts).map(([plt, c]) => `${plt.toUpperCase()}: ${c} (${platformPercentages[plt] || 0}%)`).join(', ')}
-- Sentiment toward Target Distribution (Event-Relevant):
-  • Praise (Positive): ${activeSentiment.positive} (${sentimentPercentages.positive}%)
-  • News / Updates (Neutral): ${activeSentiment.neutral} (${sentimentPercentages.neutral}%)
-  • Criticism (Negative feedback, non-threat): ${activeSentiment.negative} (${sentimentPercentages.negative}%)
-- Target Entity Breakdown:
-  • Government: ${targetBreakdown.Government.total} (Praise: ${targetBreakdown.Government.praise}, News: ${targetBreakdown.Government.news}, Criticism: ${targetBreakdown.Government.criticism})
-  • Police: ${targetBreakdown.Police.total} (Praise: ${targetBreakdown.Police.praise}, News: ${targetBreakdown.Police.news}, Criticism: ${targetBreakdown.Police.criticism})
-  • Political Leaders: ${targetBreakdown['Political leader'].total} (Praise: ${targetBreakdown['Political leader'].praise}, News: ${targetBreakdown['Political leader'].news}, Criticism: ${targetBreakdown['Political leader'].criticism})
-  • Organizations: ${targetBreakdown.Organization.total} (Praise: ${targetBreakdown.Organization.praise}, News: ${targetBreakdown.Organization.news}, Criticism: ${targetBreakdown.Organization.criticism})
-  • Other: ${targetBreakdown.Other.total}
-- Public Order Threat & Risk Assessment (Decoupled from criticism):
-  • Critical/High Threat: ${riskCounts.critical + riskCounts.high} (Explicit disruption, bandh, violence, blockade calls)
-  • Medium Risk: ${riskCounts.medium}
-  • Low/Negligible Risk: ${riskCounts.low}
-- Ground Engagement: Likes: ${totalEngagement.likes}, Shares: ${totalEngagement.shares}, Comments: ${totalEngagement.comments}, Views: ${totalEngagement.views}
-
-VERIFIED GROUND INTELLIGENCE EVIDENCE (Sampled from ingested posts):
-${indexedSnippets.length > 0 ? indexedSnippets.map((s) => `${s.citationTag} (${s.platform.toUpperCase()}) @${s.author}: "${s.text}" [Target: ${s.target_entity} (${s.target_semantic}), Risk: ${s.risk_level}]`).join('\n') : 'No text posts available yet in the database.'}
-`.trim();
-
-  const maxPromptChars = Math.max(8000, Number(process.env.LLM_SUMMARY_MAX_PROMPT_CHARS || 32000));
-  let llmUserContext = userContext;
-  if (llmUserContext.length > maxPromptChars) {
-    llmUserContext = `${llmUserContext.slice(0, maxPromptChars)}\n\n[Evidence list truncated for model context limit.]`;
-  }
-
-  const systemPrompt = `You are a Senior Strategic OSINT Analyst specializing in social media intelligence.
-Synthesize a comprehensive, factual, and strictly evidence-grounded Event Summary for "${event.name}".
-
-CRITICAL GUIDELINES & CONSTRAINTS (MUST STRICTLY FOLLOW):
-1. STRICT PROHIBITION AGAINST UNSUPPORTED GENERALIZATIONS:
-   - Do NOT use the phrase "public sentiment" (Use "monitored social commentary", "expressed user opinions", or "sampled reactions").
-   - Do NOT use the phrase "dominated conversations" (Unless data shows >80% share; otherwise use "represented X% of analyzed posts").
-   - Do NOT use the phrase "no organized dissent" (Specify: "No disruptive protest or mobilization calls were detected within the monitored posts").
-   - Do NOT use the phrase "proceeded smoothly" (Do not make unverified operational assertions about physical on-ground summit conduct).
-   - Do NOT use the phrase "fostering public confidence" (Do not speculate on wider population psychology).
-
-2. STRICT RISK VS SENTIMENT SEPARATION:
-   - Negative sentiment (criticism, grievance, policy disagreement) is NOT a threat or agitation signal.
-   - Criticism directed at leaders, summit policy, or government decisions must be characterized strictly as public criticism/feedback, NOT as an agitation or security threat, unless there are explicit calls to violence, strikes, blockades, or unrest.
-
-3. EVIDENCE TRACEABILITY:
-   - Every major narrative, claim, criticism, or threat assessment MUST cite the corresponding evidence tag from the provided sample (e.g. [Post #1], [Post #4]).
-
-4. EVENT RELEVANCE & TARGET CLASSIFICATION:
-   - Base your analysis strictly on posts relevant to "${event.name}". Do not let unrelated noise (e.g., local city traffic posts or unrelated regional conflicts) distort the assessment.
-   - Address sentiment toward targets using the defined semantics:
-     • Positive = Praise
-     • Neutral = News / Updates
-     • Negative = Criticism
-
-Required Markdown Structure:
-# 📋 Event Summary: ${event.name}
-
-### 📌 1. Situation & Event Scope
-Factual narrative explaining what this event is about based on monitored activity. State clearly that the analysis is based on ${totalMediaCount} unique posts analyzed across ${(event.platforms || []).join(', ') || 'social platforms'}.
-
-### 🌐 2. Social Commentary & Target Sentiment
-Analyze the commentary directed at the event, government, leaders, and organizations. Clearly interpret the sentiment metrics:
-- Praise (Positive): ${activeSentiment.positive} posts (${sentimentPercentages.positive}%)
-- News / Updates (Neutral): ${activeSentiment.neutral} posts (${sentimentPercentages.neutral}%)
-- Criticism (Negative): ${activeSentiment.negative} posts (${sentimentPercentages.negative}%)
-Cite specific posts (e.g. [Post #X]) demonstrating praise or criticism.
-
-### 📢 3. Key Narratives & Public Claims
-What are the primary narratives, demands, or discussions circulating? Every narrative claim must cite its supporting evidence (e.g. [Post #X]).
-
-### ⚠️ 4. Public Order & Threat Assessment (Separated from Criticism)
-Factual evaluation of whether any actual disruption, protest mobilization, or law & order threats were detected. Explicitly distinguish peaceful criticism from threat indicators.
-
-### 👥 5. Active Platforms & Distribution Channels
-Platform distribution breakdown (e.g. ${Object.entries(platformPercentages).map(([p, pct]) => `${p.toUpperCase()}: ${pct}%`).join(', ')}) and key voices.
-
-### 🎯 6. Recommended Operational Actions for Authorities
-Actionable, evidence-based recommendations for digital monitoring and verification.
-
-OUTPUT LENGTH:
-- You MUST output all 6 sections completely. Never stop mid-sentence or mid-citation.
-- If space is tight, shorten sections 1–3 slightly rather than omitting sections 5–6.`;
+  // ---- Token budget: input + output must fit the model's context window (e.g. 16384). Tokens are ESTIMATED per script
+  // (Odia costs ~2 tokens per character, Hindi ~1); a flat chars-per-token guess overflowed the window by 5x.
+  const SAFETY_MARGIN_TOKENS = 700;
+  const REPORT_OUTPUT_TOKENS = Math.min(4500, maxTokens);   // the full report JSON
+  const NOTES_OUTPUT_TOKENS = Math.min(2600, maxTokens);    // one batch of per-post notes
+  const systemPrompt = cleanSafeUtf8Lines(buildSystemPrompt(promptCtx));
+  const msgTokens = (messages) => messages.reduce((n, m) => n + estimateTokens(m.content) + 6, 0);
+  const outputTokensFor = (messages, wanted) => Math.max(300, Math.min(wanted, contextWindow - msgTokens(messages) - SAFETY_MARGIN_TOKENS));
+  const singleInputBudget = Math.min(contextWindow - REPORT_OUTPUT_TOKENS - SAFETY_MARGIN_TOKENS, maxInputTokens) - estimateTokens(systemPrompt);
+  const llmUserContext = cleanSafeUtf8Lines(buildUserContext(promptCtx));
+  const fitsOneCall = estimateTokens(llmUserContext) <= singleInputBudget;
 
   let summaryMarkdown = '';
   let summarySource = 'llm';
   let llmError = null;
   let summaryTruncated = false;
   let llmFinishReason = null;
+  let structuredReport = null;
+  let coverage = { analysed: analysed.length, noted: analysed.length, mode: 'single' };
 
   try {
-    const llmRes = await axios.post(
-      `${baseUrl}/chat/completions`,
-      {
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: llmUserContext },
-        ],
-        max_tokens: maxTokens,
-        temperature: 0.15,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: timeoutMs,
-      }
-    );
-
-    const choice = llmRes.data?.choices?.[0] || {};
-    llmFinishReason = choice.finish_reason || null;
-    const rawContent = choice.message?.content || '';
-    summaryMarkdown = cleanLLMOutput(rawContent);
-    summaryTruncated = isSummaryLikelyTruncated(summaryMarkdown, llmFinishReason);
-
-    if (summaryTruncated && summaryMarkdown) {
-      logger.warn(
-        `[SummaryLLM] Summary appears truncated (finish_reason=${llmFinishReason}, len=${summaryMarkdown.length}) — requesting continuation`
-      );
-      try {
-        const contRes = await axios.post(
-          `${baseUrl}/chat/completions`,
-          {
-            model,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: llmUserContext },
-              { role: 'assistant', content: rawContent },
-              {
-                role: 'user',
-                content:
-                  'Your previous reply was cut off. Continue EXACTLY where you stopped. Finish section 4 if incomplete, then write sections 5 and 6 in full. Do not repeat earlier sections.',
-              },
-            ],
-            max_tokens: maxTokens,
-            temperature: 0.15,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    // One HTTP call. Server errors (5xx / dropped connection) are retried twice; a 400 is retried once without the
+    // Qwen3 "thinking off" option in case the server rejects it. Thinking is OFF: it would spend the output tokens.
+    const callLLM = async (messages, wantedOutput) => {
+      const clean = messages.map((m) => ({ role: cleanSafeUtf8(m.role || 'user'), content: cleanSafeUtf8Lines(m.content || '') }));
+      const pauses = [3000, 8000];
+      let thinkingOff = true;
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          return await axios.post(
+            `${baseUrl}/chat/completions`,
+            {
+              model,
+              messages: clean,
+              max_tokens: outputTokensFor(clean, wantedOutput),
+              temperature: 0.15,
+              ...(thinkingOff ? { chat_template_kwargs: { enable_thinking: false } } : {}),
             },
-            timeout: timeoutMs,
+            { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, timeout: timeoutMs }
+          );
+        } catch (err) {
+          const status = err?.response?.status;
+          if (status === 400 && thinkingOff) { thinkingOff = false; continue; }
+          if ((!status || status >= 500) && attempt < pauses.length) {
+            logger.warn(`[SummaryLLM] Model server error (${status || err.code}); retrying in ${pauses[attempt] / 1000}s`);
+            await sleep(pauses[attempt]);
+            continue;
           }
-        );
-        const contRaw = contRes.data?.choices?.[0]?.message?.content || '';
-        const contClean = cleanLLMOutput(contRaw);
-        if (contClean) {
-          summaryMarkdown = `${summaryMarkdown.trim()}\n\n${contClean.trim()}`.trim();
-          llmFinishReason = contRes.data?.choices?.[0]?.finish_reason || llmFinishReason;
-          summaryTruncated = isSummaryLikelyTruncated(summaryMarkdown, llmFinishReason);
+          throw err;
         }
-      } catch (contErr) {
-        logger.warn(`[SummaryLLM] Continuation request failed: ${contErr.message}`);
+      }
+    };
+
+    if (!fitsOneCall) {
+      // ---- BIG EVENT: every analysed post is read, in token-sized batches, ONE AT A TIME (the GPU is small), then ONE final call.
+      const numbered = analysed.map((x) => ({ n: postNo(x), platform: x.platform, author: x.author, sentiment: x.sentiment, text: x.text }));
+      const batches = makeBatches(numbered);
+      logger.info(`[SummaryLLM] ${analysed.length} posts -> ${batches.length} batches, then one final report call`);
+      const notesMap = {};
+      // One batch. If the reply is unusable (cut off / not JSON) the batch is retried once as two smaller halves.
+      const readBatch = async (batch, canSplit) => {
+        const validNumbers = new Set(batch.map((q) => q.n));
+        try {
+          const res = await callLLM([{ role: 'system', content: BATCH_SYSTEM }, { role: 'user', content: buildBatchUserContext(batch) }], NOTES_OUTPUT_TOKENS);
+          const notes = parseBatchNotes(res.data?.choices?.[0]?.message?.content || '', validNumbers);
+          if (notes) { Object.assign(notesMap, notes); return; }
+          logger.warn(`[SummaryLLM] Batch reply unusable (${batch.length} posts, finish=${res.data?.choices?.[0]?.finish_reason})`);
+        } catch (batchErr) {
+          logger.warn(`[SummaryLLM] Batch failed (${batch.length} posts): ${batchErr.message}`);
+        }
+        if (canSplit && batch.length > 6) {
+          const mid = Math.ceil(batch.length / 2);
+          await readBatch(batch.slice(0, mid), false);
+          await readBatch(batch.slice(mid), false);
+        }
+      };
+      // Batches run ONE AT A TIME by default: the model server is shared with other apps (e.g. the sentiment API) and its GPU is small.
+      // Raise LLM_BATCH_CONCURRENCY (e.g. 2) only if the server has spare capacity.
+      const batchConcurrency = Math.max(1, Math.min(4, Number(process.env.LLM_BATCH_CONCURRENCY || 1)));
+      let nextBatch = 0;
+      await Promise.all(Array.from({ length: Math.min(batchConcurrency, batches.length) }, async () => {
+        while (nextBatch < batches.length) { const mine = batches[nextBatch]; nextBatch += 1; await readBatch(mine, true); }
+      }));
+      if (!Object.keys(notesMap).length) throw new Error('No batch of posts could be analysed by the language model.');
+      coverage = { analysed: analysed.length, noted: Object.keys(notesMap).length, mode: 'batched', batches: batches.length };
+
+      const digest = buildBatchDigest(notesMap, analysed);
+      const reducerMessages = [
+        { role: 'system', content: buildReducerSystemPrompt(promptCtx) },
+        { role: 'user', content: buildReducerUserContext(promptCtx, digest) },
+      ];
+      for (let attempt = 0; attempt < 2 && !structuredReport; attempt += 1) {
+        const finalRes = await callLLM(reducerMessages, REPORT_OUTPUT_TOKENS);
+        const choice = finalRes.data?.choices?.[0] || {};
+        llmFinishReason = choice.finish_reason || null;
+        const rawReport = choice.message?.content || '';
+        structuredReport = reducerToReport(rawReport, digest, notesMap, analysed);
+        if (!structuredReport) {
+          logger.warn(`[SummaryLLM] Final reply was not the required JSON (attempt ${attempt + 1}, finish_reason=${llmFinishReason})`);
+          reducerMessages.push({ role: 'assistant', content: rawReport }, { role: 'user', content: RETRY_MESSAGE });
+        }
+      }
+      if (structuredReport) {
+        // Measured narrative volumes over ALL analysed posts (not just the cited ones).
+        const byNo = new Map(analysed.map((x) => [postNo(x), x]));
+        structuredReport.narratives.forEach((n) => {
+          const st = { total: n.posts.length, sentiment: { positive: 0, neutral: 0, negative: 0 }, platforms: {} };
+          n.posts.forEach((no) => {
+            const x = byNo.get(no);
+            if (!x) return;
+            st.sentiment[x.sentiment] = (st.sentiment[x.sentiment] || 0) + 1;
+            st.platforms[x.platform] = (st.platforms[x.platform] || 0) + 1;
+          });
+          n.stats = st;
+        });
+      }
+    } else {
+      // ---- SMALL EVENT: every analysed post fits in one prompt.
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: llmUserContext },
+      ];
+      for (let attempt = 0; attempt < 2 && !structuredReport; attempt += 1) {
+        const llmRes = await callLLM(messages, REPORT_OUTPUT_TOKENS);
+        const choice = llmRes.data?.choices?.[0] || {};
+        llmFinishReason = choice.finish_reason || null;
+        const rawContent = choice.message?.content || '';
+        structuredReport = parseLLMReport(rawContent, analysed);
+        if (!structuredReport) {
+          logger.warn(`[SummaryLLM] Reply was not the required JSON (attempt ${attempt + 1}, finish_reason=${llmFinishReason}, len=${rawContent.length})`);
+          messages.push({ role: 'assistant', content: rawContent }, { role: 'user', content: RETRY_MESSAGE });
+        }
       }
     }
+    if (structuredReport) structuredReport.coverage = coverage;
 
-    if (!summaryMarkdown) {
-      summarySource = 'stats_only';
-      summaryMarkdown = `### Event Summary: ${event.name}\n\nAnalysis completed across ${totalMediaCount} unique posts. Expressed commentary indicates ${activeSentiment.negative} posts (${sentimentPercentages.negative}%) containing criticism, ${activeSentiment.neutral} posts (${sentimentPercentages.neutral}%) of news/updates, and ${activeSentiment.positive} posts (${sentimentPercentages.positive}%) of praise. No disruptive threat vectors detected.`;
-    }
+    if (!structuredReport) throw new Error('The language model did not return the required JSON structure.');
+    summaryMarkdown = reportToMarkdown(structuredReport, event.name);
+    summaryTruncated = false;
   } catch (err) {
     summarySource = 'fallback';
-    llmError = err?.response?.data?.error?.message || err?.response?.data?.message || err.message;
+    const body = err?.response?.data;
+    const bodyText = typeof body === 'string' ? body.slice(0, 200) : '';
+    llmError = err?.response?.data?.error?.message || err?.response?.data?.message || (err?.response?.status
+      ? `LLM server returned HTTP ${err.response.status}${bodyText ? ` (${bodyText})` : ''}. The model server may be down or overloaded.`
+      : err.message);
     logger.error(`[SummaryLLM] LLM completion failed: ${llmError}`);
 
     const topCitations = indexedSnippets.slice(0, 5).map((s) => `- ${s.citationTag} (${s.platform.toUpperCase()} @${s.author}): "${s.text.slice(0, 140)}..." [Target: ${s.target_entity} - ${s.target_semantic}]`).join('\n');
@@ -636,6 +713,17 @@ ${Object.entries(platformCounts).map(([p, count]) => `- **${p.toUpperCase()}**: 
 `;
   }
 
+  // Evidence register = the top 32 posts by priority (risk, reach, criticism) plus any other post the report cites.
+  const EVIDENCE_SAMPLE = 32;
+  const evidenceNumbers = new Set(analysed.slice(0, EVIDENCE_SAMPLE).map(postNo));
+  if (structuredReport) {
+    const { postNarrative, sourceTypes, ...citable } = structuredReport;
+    (JSON.stringify(citable).match(/\[Post #(\d+)\]/g) || []).forEach((t) => evidenceNumbers.add(Number(t.replace(/\D/g, ''))));
+    [...(structuredReport.claims || []), ...(structuredReport.actions || []), ...(structuredReport.emerging || [])].forEach((c) => (c.posts || []).slice(0, 3).forEach((n) => evidenceNumbers.add(n)));
+    (structuredReport.changes || []).forEach((c) => evidenceNumbers.add(c.post));
+  }
+  const evidenceList = analysed.filter((x) => evidenceNumbers.has(postNo(x))).slice(0, 90);
+
   const result = {
     ok: true,
     event: {
@@ -659,7 +747,7 @@ ${Object.entries(platformCounts).map(([p, count]) => `- **${p.toUpperCase()}**: 
       relevant_posts_count: relevantPostsCount,
       unrelated_posts_count: unrelatedPostsCount,
       total_keyword_mentions: totalKeywordMentionsCount,
-      analyzed_sample_count: indexedSnippets.length,
+      analyzed_sample_count: analysed.length,
       platform_counts: platformCounts,
       platform_percentages: platformPercentages,
       sentiment_counts: activeSentiment,
@@ -673,7 +761,7 @@ ${Object.entries(platformCounts).map(([p, count]) => `- **${p.toUpperCase()}**: 
         end: latestPost ? latestPost.toISOString() : null,
       },
     },
-    evidence_traceability: indexedSnippets.map((s) => ({
+    evidence_traceability: evidenceList.map((s) => ({
       citationTag: s.citationTag,
       id: s.id,
       platform: s.platform,
@@ -693,6 +781,9 @@ ${Object.entries(platformCounts).map(([p, count]) => `- **${p.toUpperCase()}**: 
     },
   };
 
+  // The structured report (narratives, claims, findings...) came from the same LLM call; saved with the summary in stats JSON.
+  if (structuredReport) result.stats.structured_report = structuredReport;
+
   // 6. Cache the result so re-opening the dialog is instant until new posts arrive.
   try {
     const cursor = await getEventMediaCursor(prisma, numericId);
@@ -709,4 +800,5 @@ module.exports = {
   getCachedEventSummary,
   saveEventSummaryPdf,
   getLLMConfig,
+  __test: { buildBatchDigest },
 };

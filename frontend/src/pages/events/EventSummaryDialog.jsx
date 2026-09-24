@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../lib/api';
 import ReactMarkdown from 'react-markdown';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { useAuth } from '../../context/auth.context';
 import {
   Dialog,
@@ -13,6 +11,7 @@ import {
 } from '../../components/ui/dialog';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
+import { Progress } from '../../components/ui/progress';
 import { ScrollArea } from '../../components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs';
 import {
@@ -33,6 +32,7 @@ import {
   Info,
   List,
   Loader2,
+  Clock,
 } from 'lucide-react';
 import {
   XBrandLogo,
@@ -44,6 +44,7 @@ import {
   AllPlatformsLogo,
 } from '../../components/PlatformBrandIcon';
 import { toast } from 'sonner';
+import { EventBrief, RiskAlerts } from './EventSummaryBrief';
 
 /**
  * Extracts sections from the markdown text based on common section headers.
@@ -85,17 +86,28 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
   const [allPostsLoaded, setAllPostsLoaded] = useState(false);
   const [allPostsPlatform, setAllPostsPlatform] = useState('all');
   const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const loadingSteps = useMemo(
     () => [
-      'Extracting event parameters & scope',
-      'Aggregating telemetry rows from database',
-      'Computing sentiment & risk indicators',
-      'Analyzing cross-platform signals',
-      'Synthesizing event summary',
+      { label: '1. Loading event details & scope', description: 'Checking keywords, platforms & time window', threshold: 15 },
+      { label: '2. Reading all social media posts', description: 'Gathering all relevant posts across platforms', threshold: 35 },
+      { label: '3. Analyzing sentiment & public tone', description: 'Measuring praise, neutral updates & criticism', threshold: 55 },
+      { label: '4. Clustering key discussion themes', description: 'Grouping posts by shared topics & claims', threshold: 75 },
+      { label: '5. AI writing executive summary', description: 'Synthesizing bottom line, key findings & recommendations', threshold: 95 },
     ],
     []
   );
+
+  const currentActiveStep = useMemo(() => {
+    for (let i = 0; i < loadingSteps.length; i++) {
+      if (loadingProgress < loadingSteps[i].threshold) {
+        return loadingSteps[i];
+      }
+    }
+    return loadingSteps[loadingSteps.length - 1];
+  }, [loadingProgress, loadingSteps]);
 
   const fetchSummary = useCallback(
     async (refresh = false) => {
@@ -103,10 +115,24 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       setLoading(true);
       setError(null);
       setLoadingStep(0);
+      setLoadingProgress(6);
+      setElapsedSeconds(0);
 
-      const stepInterval = setInterval(() => {
-        setLoadingStep((prev) => (prev < loadingSteps.length - 1 ? prev + 1 : prev));
-      }, 1800);
+      const startTime = Date.now();
+      const progressInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        setElapsedSeconds(elapsed);
+
+        setLoadingProgress((prev) => {
+          let next = prev;
+          if (prev < 25) next = prev + 4;
+          else if (prev < 50) next = prev + 2.5;
+          else if (prev < 75) next = prev + 1.8;
+          else if (prev < 92) next = prev + 0.8;
+          else if (prev < 96) next = prev + 0.2;
+          return Math.min(96, Math.round(next * 10) / 10);
+        });
+      }, 500);
 
       try {
         const res = refresh
@@ -115,6 +141,11 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
         const data = res?.data?.data || res?.data;
 
         if (data && (data.summary || data.structuredBriefing)) {
+          if (!data.cached) {
+            setLoadingProgress(100);
+            setLoadingStep(4);
+            await new Promise((resolve) => setTimeout(resolve, 300));
+          }
           setSummaryData(data);
           if (data.summary_source === 'fallback') {
             toast.warning('AI model unavailable — showing database-only summary', {
@@ -138,11 +169,11 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
         setError(msg);
         toast.error('AI Summary generation failed', { description: msg });
       } finally {
-        clearInterval(stepInterval);
+        clearInterval(progressInterval);
         setLoading(false);
       }
     },
-    [eventId, loadingSteps.length]
+    [eventId]
   );
 
   useEffect(() => {
@@ -311,6 +342,15 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
     return 'DIGITAL INTELLIGENCE PLATFORM';
   }, [user]);
 
+  // Clicking a [Post #n] citation opens the evidence list (Data Telemetry tab) and scrolls to that post.
+  const handleCite = (n) => {
+    setActiveTab('telemetry');
+    setTimeout(() => {
+      const el = document.getElementById(`ev-${n}`);
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('ring-2', 'ring-indigo-400'); setTimeout(() => el.classList.remove('ring-2', 'ring-indigo-400'), 2200); }
+    }, 250);
+  };
+
   const handleCopy = () => {
     if (!summaryData?.summary) return;
     const textToCopy = `# Event Summary: ${displayName}\nGenerated: ${generatedAt || new Date().toISOString()}\n\n${summaryData.summary}`;
@@ -320,742 +360,34 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const arrayBufferToBase64 = (buffer) => {
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    const chunkSize = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
-    }
-    return btoa(binary);
-  };
-
   /**
-   * Embeds Devanagari/Oriya Unicode fonts into the PDF so Hindi/Odia post text
-   * renders instead of being stripped — jsPDF's built-in Helvetica is ASCII-only.
-   * Failures are non-fatal: those posts just fall back to the ASCII-stripped text.
+   * Downloads the Event Intelligence & Social Analytics report. The PDF is rendered on the
+   * server (HTML → PDF) from the cached Summary AI result and keyword analytics, so charts
+   * and multilingual post text render consistently.
    */
-  const loadPdfUnicodeFonts = async (doc) => {
-    const fonts = [
-      { url: '/fonts/NotoSansDevanagari-Regular.ttf', vfsName: 'NotoSansDevanagari-Regular.ttf', family: 'NotoDevanagari' },
-      { url: '/fonts/NotoSansOriya-Regular.ttf', vfsName: 'NotoSansOriya-Regular.ttf', family: 'NotoOriya' },
-    ];
-    const loaded = new Set();
-    await Promise.all(
-      fonts.map(async (f) => {
-        try {
-          const res = await fetch(f.url);
-          if (!res.ok) return;
-          const buf = await res.arrayBuffer();
-          const base64 = arrayBufferToBase64(buf);
-          doc.addFileToVFS(f.vfsName, base64);
-          doc.addFont(f.vfsName, f.family, 'normal');
-          loaded.add(f.family);
-        } catch (err) {
-          console.warn(`PDF font load failed (${f.family}):`, err.message);
-        }
-      })
-    );
-    return loaded;
-  };
-
-  /** Picks an embedded font family for text containing Devanagari/Oriya script; else Helvetica. */
-  const scriptFontFor = (text, loadedFonts) => {
-    const t = String(text || '');
-    if (loadedFonts?.has('NotoOriya') && /[଀-୿]/.test(t)) return 'NotoOriya';
-    if (loadedFonts?.has('NotoDevanagari') && /[ऀ-ॿ]/.test(t)) return 'NotoDevanagari';
-    return 'helvetica';
-  };
-
   const handleDownload = async () => {
-    if (!summaryData?.summary) return;
+    if (!summaryData?.summary || !eventId) return;
     setPdfGenerating(true);
     try {
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pageW = doc.internal.pageSize.getWidth();
-      const pageH = doc.internal.pageSize.getHeight();
-      const margin = 14;
-      const usableW = pageW - margin * 2;
-
-      const loadedFonts = await loadPdfUnicodeFonts(doc);
-
-      // Helper: Clean markdown, repetitive strings, and emojis.
-      const cleanMdText = (txt) => {
-        if (!txt) return '';
-        return txt
-          .replace(/```[\s\S]*?```/g, '')
-          .replace(/`([^`]+)`/g, '$1')
-          .replace(/\*\*([^*]+)\*\*/g, '$1')
-          .replace(/\*([^*]+)\*/g, '$1')
-          .replace(/__([^_]+)__/g, '$1')
-          .replace(/_([^_]+)_/g, '$1')
-          .replace(/^>\s*/gm, '')
-          .replace(/^#{1,6}\s*/gm, '')
-          .replace(/^\s*[-*_]{3,}\s*$/gm, '')
-          .replace(/(3D\s*){4,}/gi, '[3D Graphics]')
-          .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')
-          .replace(/[\u2600-\u27BF\uE000-\uF8FF\u200D\uFE0F]/g, '')
-          .replace(/[^\x00-\x7F\u0900-\u097F\u0B00-\u0B7F]/g, (char) => {
-            const map = {
-              '‘': "'", '’': "'", '“': '"', '”': '"',
-              '•': '-', '–': '-', '—': '-', '…': '...',
-            };
-            return map[char] || '';
-          })
-          .trim();
-      };
-
-      const drawWatermark = (targetPage) => {
-        if (targetPage != null) doc.setPage(targetPage);
-        if (typeof doc.saveGraphicsState === 'function') {
-          doc.saveGraphicsState();
-        }
-        if (typeof doc.GState === 'function' && typeof doc.setGState === 'function') {
-          try {
-            doc.setGState(new doc.GState({ opacity: 0.3 }));
-          } catch (_) {}
-        }
-        doc.setTextColor(218, 224, 235);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(36);
-        doc.text(cleanMdText(tenantName).toUpperCase(), pageW / 2, pageH / 2, {
-          align: 'center',
-          angle: -35,
-        });
-        if (typeof doc.restoreGraphicsState === 'function') {
-          doc.restoreGraphicsState();
-        }
-      };
-
-      const pdfPageHooks = {
-        willDrawPage: () => drawWatermark(),
-      };
-
-      drawWatermark(1);
-
-      const negCount = sentiment?.negative || 0;
-      const neuCount = sentiment?.neutral || 0;
-      const posCount = sentiment?.positive || 0;
-      const riskCount = (risk?.critical || 0) + (risk?.high || 0);
-      const relevantPosts = stats.relevant_posts_count ?? totalPosts;
-      const dominantPlatform =
-        platformList.length > 0
-          ? [...platformList].sort((a, b) => b.count - a.count)[0]?.label || 'X'
-          : 'X';
-      const eventLocation = summaryData?.event?.location || '';
-      const narrativeSource =
-        summaryData?.summary_source === 'llm'
-          ? 'AI narrative (LLM)'
-          : summaryData?.summary_source === 'fallback'
-            ? 'Database template (LLM unavailable)'
-            : 'Automated synthesis';
-
-      // 1. Header banner (Slate-900 with Indigo & Sky accent rules)
-      doc.setFillColor(15, 23, 42); // Slate-900
-      doc.rect(0, 0, pageW, 28, 'F');
-      doc.setFillColor(79, 70, 229); // Indigo-600
-      doc.rect(0, 28, pageW, 1.8, 'F');
-      doc.setFillColor(14, 165, 233); // Sky-500
-      doc.rect(0, 29.8, pageW, 0.6, 'F');
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.setTextColor(255, 255, 255);
-      doc.text(cleanMdText(tenantName).toUpperCase(), margin, 12);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(199, 210, 254);
-      doc.text('EVENT INTELLIGENCE & EXECUTIVE SUMMARY AUDIT REPORT', margin, 18);
-
-      const generatedDate = new Date().toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
+      const res = await api.get(`/events/${eventId}/summary-llm/report.pdf`, {
+        params: { tenant: tenantName },
+        responseType: 'blob',
+        timeout: 300000,
       });
-      doc.setFontSize(7.5);
-      doc.setTextColor(148, 163, 184);
-      doc.text(`Generated: ${generatedDate}`, pageW - margin, 12, { align: 'right' });
-      doc.text('Security Level: RESTRICTED / LAW ENFORCEMENT ONLY', pageW - margin, 18, { align: 'right' });
-
-      let yPos = 36;
-
-      // 2. Target Event Context Card
-      const generatedByName = summaryData?.generated_by?.name;
-      const contextCardHeight = generatedByName ? 21 : 17;
-      doc.setFillColor(248, 250, 252);
-      doc.setDrawColor(226, 232, 240);
-      doc.roundedRect(margin, yPos, usableW, contextCardHeight, 2, 2, 'FD');
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.setTextColor(15, 23, 42);
-      doc.text(`Target Event: ${cleanMdText(displayName)}`, margin + 4, yPos + 6);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(71, 85, 105);
-      const scopeParts = [
-        eventLocation ? `Region: ${cleanMdText(eventLocation)}` : null,
-        `Unique Posts: ${totalPosts}`,
-        `Event-Relevant Posts: ${relevantPosts}`,
-        `Keyword Mentions: ${totalKeywordMentions || totalPosts}`,
-        `Dominant Channel: ${cleanMdText(dominantPlatform).toUpperCase()}`,
-      ].filter(Boolean);
-      doc.text(scopeParts.join('   |   '), margin + 4, yPos + 11.5);
-
-      if (generatedByName) {
-        doc.setFontSize(7);
-        doc.setTextColor(100, 116, 139);
-        doc.text(`AI Summary generated by: ${cleanMdText(generatedByName)}`, margin + 4, yPos + 16.5);
-      }
-
-      yPos += contextCardHeight + 5;
-
-      // 3. 5 KPI Cards Row (Mirrors the sleek Keyword Analytics design)
-      const kpiCards = [
-        {
-          label: 'Total Ingested Posts',
-          value: Number(totalPosts).toLocaleString(),
-          sub: `${platformList.length} monitored channels`,
-          accent: [79, 70, 229], // Indigo
-        },
-        {
-          label: 'Event Relevant Posts',
-          value: Number(relevantPosts).toLocaleString(),
-          sub: totalPosts > 0 ? `${Math.round((relevantPosts / totalPosts) * 100)}% event match rate` : '0% matches',
-          accent: [14, 165, 233], // Sky
-        },
-        {
-          label: 'Dominant Channel',
-          value: cleanMdText(dominantPlatform),
-          sub: platformList[0] ? `${platformList[0].count} posts (${platformList[0].percentage}% vol)` : 'Direct feed',
-          accent: [245, 158, 11], // Amber
-          valueColor: [79, 70, 229],
-        },
-        {
-          label: 'Sentiment Breakdown',
-          value: `${sentimentPercentages?.positive ?? 0}% Praise`,
-          sub: `${posCount} Praise · ${neuCount} News · ${negCount} Crit`,
-          accent: [16, 185, 129], // Emerald
-          valueColor: [16, 185, 129],
-          badge: `${sentimentPercentages?.negative ?? 0}% Criticism`,
-        },
-        {
-          label: 'Public Order Threat',
-          value: riskCount > 0 ? `${riskCount} Flags` : '0 Flags',
-          sub: riskCount > 0 ? 'Threat triggers flagged' : 'Low / negligible risk',
-          accent: riskCount > 0 ? [225, 29, 72] : [16, 185, 129],
-          valueColor: riskCount > 0 ? [225, 29, 72] : [16, 185, 129],
-        },
-      ];
-
-      const cardGap = 3;
-      const cardW = (usableW - cardGap * 4) / 5;
-      const cardH = 24;
-      kpiCards.forEach((card, i) => {
-        const cx = margin + i * (cardW + cardGap);
-        doc.setFillColor(252, 252, 253);
-        doc.setDrawColor(226, 232, 240);
-        doc.roundedRect(cx, yPos, cardW, cardH, 1.5, 1.5, 'FD');
-        doc.setFillColor(...card.accent);
-        doc.circle(cx + cardW - 4, yPos + 4, 1, 'F');
-
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(6.3);
-        doc.setTextColor(100, 116, 139);
-        doc.text(doc.splitTextToSize(card.label, cardW - 3), cx + 2.5, yPos + 5);
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11);
-        doc.setTextColor(...(card.valueColor || [15, 23, 42]));
-        doc.text(String(card.value), cx + 2.5, yPos + 12.5);
-
-        if (card.badge) {
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(6);
-          doc.setTextColor(225, 29, 72);
-          doc.text(card.badge, cx + 2.5, yPos + 16.5);
-        }
-
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(5.8);
-        doc.setTextColor(100, 116, 139);
-        const subLines = doc.splitTextToSize(card.sub, cardW - 3);
-        doc.text(subLines.slice(0, 2), cx + 2.5, yPos + (card.badge ? 20.5 : 18));
-      });
-
-      yPos += cardH + 4;
-
-      // 4. Standard Guide Legend (matching Keyword Report style)
-      const guideHeight = 13;
-      doc.setFillColor(248, 250, 252);
-      doc.setDrawColor(226, 232, 240);
-      doc.roundedRect(margin, yPos, usableW, guideHeight, 1.5, 1.5, 'FD');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(6.8);
-      doc.setTextColor(15, 23, 42);
-      doc.text('Standard Guide:', margin + 3, yPos + 5);
-
-      const legendItems = [
-        { color: [16, 185, 129], label: 'Green = Praise (Positive)', note: 'Commendations & approval' },
-        { color: [14, 165, 233], label: 'Sky Blue = News/Updates (Neutral)', note: 'Factual reports & updates' },
-        { color: [244, 63, 94], label: 'Red = Criticism (Negative)', note: 'Critique & non-threat feedback' },
-        {
-          color: [99, 102, 241],
-          label: 'Indigo = Signal Volume',
-          note: `(${totalPosts} posts across ${platformList.length} channels)`,
-        },
-      ];
-      let legendX = margin + 3;
-      let legendY = yPos + 9.5;
-      const legendRowLimit = margin + usableW - 3;
-      legendItems.forEach((item) => {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(6);
-        const labelW = doc.getTextWidth(item.label);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(5.6);
-        const noteW = doc.getTextWidth(item.note);
-        const totalW = 4 + labelW + 2 + noteW;
-        if (legendX + totalW > legendRowLimit) {
-          legendX = margin + 3;
-          legendY += 4.5;
-        }
-        doc.setFillColor(...item.color);
-        doc.circle(legendX + 1, legendY - 0.8, 0.9, 'F');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(6);
-        doc.setTextColor(...item.color);
-        doc.text(item.label, legendX + 3, legendY);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(5.6);
-        doc.setTextColor(100, 116, 139);
-        doc.text(item.note, legendX + 3.5 + labelW, legendY);
-        legendX += totalW + 5;
-      });
-
-      yPos += guideHeight + 6;
-
-      // Smart Page Break Helper
-      const checkPageBreak = (neededHeight) => {
-        if (yPos + neededHeight > pageH - 18) {
-          doc.addPage();
-          drawWatermark(doc.internal.getNumberOfPages());
-          yPos = 20;
-          return true;
-        }
-        return false;
-      };
-
-      // Section Banner Component (clean Indigo banner bar)
-      const drawSectionBanner = (title) => {
-        checkPageBreak(14);
-        doc.setFillColor(79, 70, 229);
-        doc.roundedRect(margin, yPos, usableW, 7.5, 1, 1, 'F');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8.5);
-        doc.setTextColor(255, 255, 255);
-        doc.text(title.toUpperCase(), margin + 3.5, yPos + 5.2);
-        yPos += 11;
-      };
-
-      // ───────────────────────── SECTION 1: EXECUTIVE EVENT SUMMARY ─────────────────────────
-      drawSectionBanner('Section 1: Executive Event Summary');
-
-      const rawSummary = summaryData.summary || '';
-      const rawSections = rawSummary.split(/(?=(?:^|\n)#{1,4}\s+)/g).filter(Boolean);
-
-      for (const sec of rawSections) {
-        const lines = sec.trim().split('\n');
-        const headerRaw = lines[0] || '';
-        const headerLine = cleanMdText(headerRaw.replace(/^#{1,4}\s*/, '')).replace(/^[-–—:\s]+/, '').trim();
-        const bodyContent = cleanMdText(lines.slice(1).join('\n')).trim();
-
-        if (/^event summary\b/i.test(headerLine) && (!bodyContent || bodyContent === '---')) {
-          continue;
-        }
-        if (!headerLine && !bodyContent) continue;
-
-        checkPageBreak(16);
-
-        if (headerLine) {
-          checkPageBreak(10);
-          // Elegant subsection header banner (Soft Slate-100 with Indigo left border)
-          doc.setFillColor(241, 245, 249);
-          doc.setDrawColor(226, 232, 240);
-          doc.roundedRect(margin, yPos, usableW, 6.5, 1, 1, 'FD');
-          doc.setFillColor(79, 70, 229);
-          doc.rect(margin, yPos, 1.5, 6.5, 'F');
-
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(7.5);
-          doc.setTextColor(15, 23, 42);
-          doc.text(headerLine.toUpperCase(), margin + 4, yPos + 4.5);
-          yPos += 8.5;
-        }
-
-        if (bodyContent) {
-          const bodyParagraphs = bodyContent.split('\n\n');
-          for (const para of bodyParagraphs) {
-            const trimmed = para.trim();
-            if (!trimmed || trimmed === '---') continue;
-
-            const isBullet = trimmed.startsWith('- ') || trimmed.startsWith('* ');
-            const cleanedText = isBullet ? trimmed.replace(/^[-*]\s+/, '') : trimmed;
-            const fontToUse = scriptFontFor(cleanedText, loadedFonts);
-
-            doc.setFont(fontToUse, 'normal');
-            doc.setFontSize(7.5);
-            doc.setTextColor(51, 65, 85);
-
-            const textIndent = isBullet ? margin + 5 : margin + 2;
-            const textWidth = isBullet ? usableW - 7 : usableW - 4;
-            const splitLines = doc.splitTextToSize(cleanedText, textWidth);
-
-            checkPageBreak(splitLines.length * 3.8 + 3);
-
-            if (isBullet) {
-              doc.setFillColor(79, 70, 229);
-              doc.circle(margin + 2.5, yPos + 1.2, 0.7, 'F');
-            }
-
-            doc.text(splitLines, textIndent, yPos + 2.5);
-            yPos += splitLines.length * 3.8 + 2.5;
-          }
-        }
-        yPos += 2;
-      }
-
-      yPos += 3;
-
-      // ───────────────────────── SECTION 2: RISK & OPERATIONAL ADVISORY ─────────────────────────
-      drawSectionBanner('Section 2: Risk & Operational Advisory');
-
-      const advisoryBlocks = [
-        {
-          title: 'Threat, Misinformation & Public Order Risk',
-          body:
-            extracted.threat ||
-            summaryData?.structuredBriefing?.threatAndRisk ||
-            'Continuous monitoring active. Zero critical physical unrest triggers detected in current ingested sample.',
-          accent: [217, 119, 6], // Amber-600
-          fill: [254, 252, 232], // Amber-50
-          border: [254, 240, 138],
-        },
-        {
-          title: 'Recommended Law Enforcement & Administrative Advisory',
-          body:
-            extracted.actions ||
-            summaryData?.structuredBriefing?.recommendedActions ||
-            'Deploy counter-narrative verification for health/security rumors, monitor digital engagement surges, and sustain cross-platform tracking.',
-          accent: [126, 34, 206], // Purple-700
-          fill: [250, 245, 255], // Purple-50
-          border: [233, 213, 255],
-        },
-        {
-          title: 'Public Sentiment & Ground Atmosphere',
-          body:
-            extracted.sentiment ||
-            summaryData?.structuredBriefing?.publicSentiment ||
-            'Public sentiment remains predominantly neutral-to-positive across mainstream broadcasts, with non-disruptive policy critique confined to digital commentary.',
-          accent: [71, 85, 105], // Slate-600
-          fill: [248, 250, 252], // Slate-50
-          border: [226, 232, 240],
-        },
-      ];
-
-      for (const block of advisoryBlocks) {
-        const cleanBody = cleanMdText(block.body);
-        const bodyFont = scriptFontFor(cleanBody, loadedFonts);
-        doc.setFont(bodyFont, 'normal');
-        doc.setFontSize(7.5);
-        const splitLines = doc.splitTextToSize(cleanBody, usableW - 12);
-        const blockHeight = 7.5 + splitLines.length * 3.8 + 4;
-        checkPageBreak(blockHeight + 3);
-
-        doc.setFillColor(...block.fill);
-        doc.setDrawColor(...block.border);
-        doc.roundedRect(margin, yPos, usableW, blockHeight, 1.5, 1.5, 'FD');
-        doc.setFillColor(...block.accent);
-        doc.rect(margin, yPos, 1.5, blockHeight, 'F');
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7.2);
-        doc.setTextColor(...block.accent);
-        doc.text(block.title.toUpperCase(), margin + 5, yPos + 5);
-
-        doc.setFont(bodyFont, 'normal');
-        doc.setFontSize(7.5);
-        doc.setTextColor(51, 65, 85);
-        doc.text(splitLines, margin + 5, yPos + 9.5);
-        yPos += blockHeight + 3.5;
-      }
-
-      yPos += 3;
-
-      // ───────────────────────── SECTION 3: DATA TELEMETRY & CLASSIFICATION ─────────────────────────
-      drawSectionBanner('Section 3: Data Telemetry & Entity Analysis');
-
-      const platformShareLines =
-        platformList.length > 0
-          ? platformList.map((p) => `${cleanMdText(p.label)}: ${p.count} (${p.percentage}%)`)
-          : ['No platform breakdown available'];
-
-      autoTable(doc, {
-        startY: yPos,
-        margin: { left: margin, right: margin },
-        head: [['Telemetry Metric', 'Observed Volume & Share', 'Operational Intelligence Assessment']],
-        body: [
-          [
-            'Total Unique Media Ingested',
-            `${Number(totalPosts).toLocaleString()} posts`,
-            'Distinct social media records analyzed for this monitoring event',
-          ],
-          [
-            'Event-Relevant Commentary',
-            `${Number(relevantPosts).toLocaleString()} posts`,
-            'Posts classified as directly related to the target event scope',
-          ],
-          [
-            'Aggregate Keyword Mentions',
-            `${Number(totalKeywordMentions || totalPosts).toLocaleString()} mentions`,
-            'Term occurrences across tracked keywords (multi-keyword overlap included)',
-          ],
-          [
-            'Praise / Positive Sentiment',
-            `${posCount} (${sentimentPercentages?.positive ?? 0}%)`,
-            'Commendations, endorsements, and favorable public reception',
-          ],
-          [
-            'News / Neutral Broadcasts',
-            `${neuCount} (${sentimentPercentages?.neutral ?? 0}%)`,
-            'Factual reporting, announcements, and routine information updates',
-          ],
-          [
-            'Criticism / Dissent',
-            `${negCount} (${sentimentPercentages?.negative ?? 0}%)`,
-            'Policy critique and grievance feedback (decoupled from physical threat)',
-          ],
-          [
-            'Threat & Disruption Signals',
-            `${riskCount} flags`,
-            riskCount > 0
-              ? 'Potential public disorder or mobilization indicators detected in sample'
-              : 'Zero physical unrest, agitation, or mobilization triggers detected in dataset',
-          ],
-          [
-            'Platform Ingestion Mix',
-            platformShareLines.join('\n'),
-            'Share of ingested volume by monitored social channel',
-          ],
-          [
-            'Executive Narrative Source',
-            narrativeSource,
-            summaryData?.llm_error
-              ? String(summaryData.llm_error).slice(0, 120)
-              : 'Structured briefing synthesized from telemetry and sampled post evidence',
-          ],
-        ],
-        theme: 'striped',
-        ...pdfPageHooks,
-        headStyles: {
-          fillColor: [15, 23, 42],
-          textColor: 255,
-          fontSize: 7.2,
-          fontStyle: 'bold',
-          halign: 'center',
-        },
-        styles: {
-          fontSize: 7,
-          cellPadding: 2,
-          valign: 'middle',
-        },
-        columnStyles: {
-          0: { cellWidth: 52, fontStyle: 'bold', textColor: [15, 23, 42] },
-          1: { cellWidth: 40, halign: 'center', fontStyle: 'bold', textColor: [79, 70, 229] },
-          2: { fontStyle: 'normal', textColor: [71, 85, 105] },
-        },
-        didParseCell: (hookData) => {
-          if (hookData.section === 'body' && hookData.row.index === 7 && hookData.column.index === 1) {
-            hookData.cell.styles.halign = 'left';
-          }
-        },
-      });
-
-      yPos = (doc.lastAutoTable?.finalY ?? yPos + 18) + 6;
-
-      // Target & Entity Sentiment Classification Table
-      const targetEntries = Object.entries(targetClassification).filter(([, s]) => (s?.total || 0) > 0);
-      if (targetEntries.length > 0) {
-        checkPageBreak(20);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        doc.setTextColor(15, 23, 42);
-        doc.text('Target & Entity Sentiment Classification', margin, yPos);
-        yPos += 3;
-
-        autoTable(doc, {
-          startY: yPos,
-          margin: { left: margin, right: margin },
-          head: [['Target Entity', 'Total Mentions', 'Praise', 'News/Updates', 'Criticism']],
-          body: targetEntries.map(([entity, s]) => [
-            cleanMdText(entity),
-            String(s.total || 0),
-            String(s.praise || 0),
-            String(s.news || 0),
-            String(s.criticism || 0),
-          ]),
-          theme: 'striped',
-          ...pdfPageHooks,
-          headStyles: {
-            fillColor: [15, 23, 42],
-            textColor: 255,
-            fontSize: 7.2,
-            fontStyle: 'bold',
-            halign: 'center',
-          },
-          styles: {
-            fontSize: 7,
-            cellPadding: 2,
-            valign: 'middle',
-          },
-          columnStyles: {
-            0: { cellWidth: 54, fontStyle: 'bold', textColor: [15, 23, 42] },
-            1: { cellWidth: 32, halign: 'center', fontStyle: 'bold' },
-            2: { cellWidth: 32, halign: 'center', textColor: [16, 185, 129], fontStyle: 'bold' },
-            3: { cellWidth: 32, halign: 'center', textColor: [14, 165, 233], fontStyle: 'bold' },
-            4: { cellWidth: 32, halign: 'center', textColor: [225, 29, 72], fontStyle: 'bold' },
-          },
-        });
-
-        yPos = (doc.lastAutoTable?.finalY ?? yPos + 14) + 6;
-      }
-
-      // ───────────────────────── SECTION 4: PLATFORM DISTRIBUTION & EVIDENCE POSTS ─────────────────────────
-      drawSectionBanner('Section 4: Platform Mix & Evidence Traceability');
-
-      autoTable(doc, {
-        startY: yPos,
-        margin: { left: margin, right: margin },
-        head: [['Platform / Channel', 'Ingested Posts', 'Share of Volume']],
-        body:
-          platformList.length > 0
-            ? platformList.map((p) => [cleanMdText(p.label), String(p.count), `${p.percentage}%`])
-            : [['No platform breakdown available', '-', '-']],
-        theme: 'striped',
-        ...pdfPageHooks,
-        headStyles: {
-          fillColor: [15, 23, 42],
-          textColor: 255,
-          fontSize: 7.2,
-          fontStyle: 'bold',
-          halign: 'center',
-        },
-        styles: {
-          fontSize: 7,
-          cellPadding: 2,
-          valign: 'middle',
-        },
-        columnStyles: {
-          0: { cellWidth: 60, fontStyle: 'bold', textColor: [15, 23, 42] },
-          1: { cellWidth: 40, halign: 'center' },
-          2: { cellWidth: 40, halign: 'center', fontStyle: 'bold', textColor: [79, 70, 229] },
-        },
-      });
-
-      yPos = (doc.lastAutoTable?.finalY ?? yPos + 14) + 6;
-
-      const evidenceList = summaryData?.evidence_traceability || [];
-      if (evidenceList.length > 0) {
-        checkPageBreak(20);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        doc.setTextColor(15, 23, 42);
-        doc.text(`Representative Sampled Posts (${evidenceList.length} of ${totalPosts} cited in executive narrative)`, margin, yPos);
-        yPos += 3;
-
-        autoTable(doc, {
-          startY: yPos,
-          margin: { left: margin, right: margin },
-          head: [['Cite', 'Platform', 'Author', 'Sentiment / Target', 'Post Text Content']],
-          body: evidenceList.map((e) => [
-            cleanMdText(e.citationTag || ''),
-            cleanMdText(e.platform || '').toUpperCase(),
-            cleanMdText(`@${e.author || 'Unknown'}`),
-            cleanMdText(`${e.sentiment || ''} / ${e.target_entity || ''}`),
-            cleanMdText(e.text || ''),
-          ]),
-          theme: 'striped',
-          ...pdfPageHooks,
-          headStyles: {
-            fillColor: [15, 23, 42],
-            textColor: 255,
-            fontSize: 7.2,
-            fontStyle: 'bold',
-            halign: 'center',
-          },
-          styles: {
-            fontSize: 7,
-            cellPadding: 2,
-            valign: 'middle',
-            overflow: 'linebreak',
-          },
-          didParseCell: (hookData) => {
-            if (hookData.section === 'body' && hookData.column.index === 4) {
-              hookData.cell.styles.font = scriptFontFor(hookData.cell.text?.join(' '), loadedFonts);
-            }
-          },
-          columnStyles: {
-            0: { cellWidth: 16, fontStyle: 'bold', halign: 'center' },
-            1: { cellWidth: 18, halign: 'center' },
-            2: { cellWidth: 26 },
-            3: { cellWidth: 32 },
-            4: { cellWidth: 'auto' },
-          },
-        });
-
-        yPos = (doc.lastAutoTable?.finalY ?? yPos + 14) + 4;
-        doc.setFont('helvetica', 'italic');
-        doc.setFontSize(6.8);
-        doc.setTextColor(148, 163, 184);
-        doc.text(`For the complete list of all ${totalPosts} posts, open the "All Posts" tab in the intelligence platform.`, margin, yPos);
-      }
-
-      // 5. Bottom Footers across all pages
-      const totalPages = doc.internal.getNumberOfPages();
-      for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i);
-        doc.setDrawColor(226, 232, 240);
-        doc.setLineWidth(0.3);
-        doc.line(margin, pageH - 12, pageW - margin, pageH - 12);
-
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7.5);
-        doc.setTextColor(100, 116, 139);
-        doc.text('Developed by Bluecloud softech solutions Hyderabad', margin, pageH - 7);
-        doc.text(`Page ${i} of ${totalPages}`, pageW - margin, pageH - 7, { align: 'right' });
-      }
-
-      const cleanFileName = `${cleanMdText(tenantName).replace(/[^a-z0-9]/gi, '_')}_${cleanMdText(displayName).replace(/[^a-z0-9]/gi, '_')}_Summary_Report.pdf`;
-      doc.save(cleanFileName);
-      toast.success('Executive Event Summary PDF report exported successfully');
-
-      // Persist alongside the cached summary so it's retrievable without regenerating.
-      try {
-        const dataUri = doc.output('datauristring');
-        const base64 = dataUri.split(',')[1];
-        if (base64 && eventId) {
-          api.put(`/events/${eventId}/summary-llm/pdf`, { pdf_base64: base64 }).catch(() => {});
-        }
-      } catch (_) {
-        /* non-fatal: download already succeeded */
-      }
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const safe = (v) => String(v || '').replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${safe(tenantName)}_${safe(displayName)}_Summary_Report.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Event Intelligence report exported successfully');
     } catch (err) {
       console.error('Failed to generate PDF report:', err);
-      toast.error('Failed to generate PDF report: ' + err.message);
+      toast.error('Failed to generate PDF report: ' + (err?.response?.statusText || err.message));
     } finally {
       setPdfGenerating(false);
     }
@@ -1086,10 +418,10 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
               </div>
               <DialogDescription className="text-xs text-muted-foreground flex items-center gap-2 mt-1 truncate">
                 <span>Event: <strong className="text-foreground">{displayName}</strong></span>
-                {totalKeywordMentions > 0 && (
+                {(stats.relevant_posts_count ?? totalPosts) > 0 && (
                   <>
                     <span>•</span>
-                    <span title="Aggregate keyword occurrences across all tracked terms">{totalKeywordMentions} keyword mentions</span>
+                    <span title="Posts classified as directly related to the event">{stats.relevant_posts_count ?? totalPosts} event-relevant posts</span>
                   </>
                 )}
                 {generatedAt && (
@@ -1300,44 +632,103 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
         {/* Body content */}
         <div className="flex-1 overflow-hidden p-0 relative">
           {loading ? (
-            <div className="flex flex-col items-center justify-center p-12 min-h-[380px] text-center">
-              <div className="h-12 w-12 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 flex items-center justify-center mb-4 text-purple-600 dark:text-purple-400">
-                <Sparkles className="h-6 w-6 animate-pulse" />
+            <div className="flex flex-col items-center justify-center p-8 sm:p-12 min-h-[420px] text-center max-w-xl mx-auto">
+              <div className="h-14 w-14 rounded-2xl bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 flex items-center justify-center mb-4 text-purple-600 dark:text-purple-400 shadow-sm shadow-purple-500/10">
+                <Sparkles className="h-7 w-7 animate-pulse text-purple-600 dark:text-purple-400" />
               </div>
-              <h3 className="text-base font-semibold text-foreground mb-1">
-                Generating Event Summary
+              
+              <h3 className="text-lg font-bold text-foreground mb-1 tracking-tight">
+                Synthesizing Event Summary
               </h3>
-              <p className="text-xs text-muted-foreground max-w-sm mb-6">
-                Analyzing database telemetry and synthesizing a clear, natural-language overview.
+              <p className="text-xs text-muted-foreground max-w-md mb-6">
+                Processing all telemetry rows, clustering cross-platform signals, and generating neural OSINT narratives.
               </p>
 
-              {/* Step indicator */}
-              <div className="w-full max-w-md bg-muted/40 rounded-xl p-3.5 border border-border/50 text-left space-y-2.5">
-                {loadingSteps.map((step, idx) => {
-                  const isCurrent = idx === loadingStep;
-                  const isDone = idx < loadingStep;
-                  return (
-                    <div
-                      key={idx}
-                      className={`flex items-center gap-2.5 text-xs transition-colors duration-200 ${isCurrent
-                        ? 'text-purple-600 dark:text-purple-300 font-semibold'
-                        : isDone
-                          ? 'text-muted-foreground line-through opacity-70'
-                          : 'text-muted-foreground/50'
-                        }`}
-                    >
-                      {isDone ? (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                      ) : isCurrent ? (
-                        <div className="h-3.5 w-3.5 rounded-full border-2 border-purple-500 border-t-transparent animate-spin shrink-0" />
-                      ) : (
-                        <div className="h-3.5 w-3.5 rounded-full border border-border shrink-0" />
-                      )}
-                      <span>{step}</span>
+              {/* Progress & Percentage Box */}
+              <div className="w-full bg-card/80 backdrop-blur-sm rounded-2xl p-5 border border-border shadow-sm text-left space-y-4">
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 font-medium text-foreground">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-purple-600"></span>
+                    </span>
+                    <span className="font-semibold text-foreground">Live Progress</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
+                      <Clock className="h-3 w-3 text-purple-500" />
+                      {String(Math.floor(elapsedSeconds / 60)).padStart(2, '0')}:{String(elapsedSeconds % 60).padStart(2, '0')}s
+                    </span>
+                    <Badge className="bg-purple-600 text-white font-bold text-xs px-2.5 py-0.5 shadow-sm shadow-purple-500/20">
+                      {Math.round(loadingProgress)}%
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Animated Progress Bar */}
+                <div className="space-y-1">
+                  <Progress
+                    value={loadingProgress}
+                    className="h-2.5 rounded-full bg-muted overflow-hidden"
+                    indicatorClassName="bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-500 transition-all duration-300 ease-out"
+                  />
+                </div>
+
+                {/* Active Step Highlight Banner */}
+                {currentActiveStep && (
+                  <div className="bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 rounded-xl px-3.5 py-2.5 flex items-start gap-2.5 text-xs text-purple-950 dark:text-purple-100">
+                    <Loader2 className="h-4 w-4 text-purple-600 dark:text-purple-400 animate-spin shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold">{currentActiveStep.label}</div>
+                      <div className="text-[11px] text-purple-700/80 dark:text-purple-300/80 mt-0.5">{currentActiveStep.description}</div>
                     </div>
-                  );
-                })}
+                  </div>
+                )}
+
+                {/* Step indicator */}
+                <div className="pt-2 border-t border-border/40 space-y-2">
+                  {loadingSteps.map((step, idx) => {
+                    const isDone = loadingProgress >= step.threshold;
+                    const isCurrent = !isDone && (idx === 0 || loadingProgress >= loadingSteps[idx - 1].threshold);
+
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex items-center justify-between gap-2.5 text-xs transition-colors duration-200 ${
+                          isCurrent
+                            ? 'text-purple-600 dark:text-purple-300 font-semibold'
+                            : isDone
+                            ? 'text-foreground font-medium'
+                            : 'text-muted-foreground/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {isDone ? (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                          ) : isCurrent ? (
+                            <Loader2 className="h-4 w-4 text-purple-600 dark:text-purple-400 animate-spin shrink-0" />
+                          ) : (
+                            <div className="h-4 w-4 rounded-full border border-border shrink-0" />
+                          )}
+                          <span className="truncate">{step.label}</span>
+                        </div>
+                        {isDone && (
+                          <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 shrink-0 font-medium">Done</span>
+                        )}
+                        {isCurrent && (
+                          <span className="text-[10px] font-mono text-purple-600 dark:text-purple-400 shrink-0 font-semibold animate-pulse">Running</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
+
+              <p className="text-[11px] text-muted-foreground/80 mt-4 flex items-center justify-center gap-1.5">
+                <Info className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                <span>All event posts are processed in prioritized batches for complete evidence coverage.</span>
+              </p>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center p-12 min-h-[360px] text-center">
@@ -1394,14 +785,13 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
               <div className="flex-1 overflow-hidden">
                 <TabsContent value="briefing" className="h-full m-0 p-0">
                   <ScrollArea className="h-[calc(92vh-185px)] px-7 py-6">
-                    <div className="prose dark:prose-invert max-w-none text-sm leading-relaxed space-y-4 prose-headings:font-semibold prose-headings:tracking-tight prose-h1:text-lg prose-h2:text-base prose-h3:text-sm prose-h3:font-bold prose-h3:text-purple-600 dark:prose-h3:text-purple-300 prose-h3:mt-5 prose-h3:first:mt-0 prose-p:text-muted-foreground prose-p:leading-6 prose-li:text-muted-foreground prose-strong:text-foreground">
-                      <ReactMarkdown>{summaryData.summary}</ReactMarkdown>
-                    </div>
+                    <EventBrief summaryData={summaryData} platformList={platformList} displayName={displayName} onCite={handleCite} />
                   </ScrollArea>
                 </TabsContent>
 
                 <TabsContent value="advisory" className="h-full m-0 p-0">
                   <ScrollArea className="h-[calc(92vh-185px)] px-7 py-6 space-y-6">
+                    <RiskAlerts summaryData={summaryData} onCite={handleCite} />
                     {/* Threat & Order Assessment Card */}
                     <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5">
                       <div className="flex items-center gap-2 mb-2 text-amber-700 dark:text-amber-400 font-semibold text-sm">
@@ -1410,9 +800,10 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                       </div>
                       <div className="prose dark:prose-invert max-w-none text-xs text-muted-foreground leading-relaxed">
                         <ReactMarkdown>
-                          {extracted.threat ||
+                          {summaryData?.stats?.structured_report?.publicOrder ||
+                            extracted.threat ||
                             summaryData.structuredBriefing?.threatAndRisk ||
-                            'Continuous monitoring recommended. Review key influencers and escalating sentiment channels.'}
+                            '_Not available for this summary. Regenerate to create it._'}
                         </ReactMarkdown>
                       </div>
                     </div>
@@ -1425,9 +816,12 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                       </div>
                       <div className="prose dark:prose-invert max-w-none text-xs text-muted-foreground leading-relaxed">
                         <ReactMarkdown>
-                          {extracted.actions ||
+                          {(summaryData?.stats?.structured_report?.actions?.length
+                            ? summaryData.stats.structured_report.actions.map((a, i) => `${i + 1}. **${a.action}:** ${a.detail}`).join('\n')
+                            : '') ||
+                            extracted.actions ||
                             summaryData.structuredBriefing?.recommendedActions ||
-                            'Deploy counter-narrative verification, monitor platform surges, and coordinate with ground response teams.'}
+                            '_Not available for this summary. Regenerate to create it._'}
                         </ReactMarkdown>
                       </div>
                     </div>
@@ -1440,9 +834,10 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                       </div>
                       <div className="prose dark:prose-invert max-w-none text-xs text-muted-foreground leading-relaxed">
                         <ReactMarkdown>
-                          {extracted.sentiment ||
+                          {summaryData?.stats?.structured_report?.sentimentCommentary ||
+                            extracted.sentiment ||
                             summaryData.structuredBriefing?.publicSentiment ||
-                            'Ground sentiment is dynamically fluctuating across channels.'}
+                            '_Not available for this summary. Regenerate to create it._'}
                         </ReactMarkdown>
                       </div>
                     </div>
@@ -1474,7 +869,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                           {totalKeywordMentions > 0 ? totalKeywordMentions : totalPosts}
                         </div>
                         <div className="text-[11px] text-muted-foreground mt-1" title="Posts frequently match multiple event keywords">
-                          Across all tracked keywords
+                          Summary calculation; differs from keyword-analytics matches
                         </div>
                       </div>
 
@@ -1620,6 +1015,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                           {evidenceTraceability.map((item, idx) => (
                             <div
                               key={item.id || idx}
+                              id={`ev-${(String(item.citationTag || '').match(/\d+/) || [idx + 1])[0]}`}
                               className="p-2.5 rounded-lg border bg-muted/20 border-border/50 text-xs flex flex-col gap-1.5"
                             >
                               <div className="flex items-center justify-between gap-2 flex-wrap">
