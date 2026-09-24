@@ -3,7 +3,7 @@ import { ExternalLink, Youtube, Facebook, Instagram, Download, Repeat, Heart, Me
 import { Button } from './ui/button';
 import ReactPlayer from 'react-player';
 import { VideoPlayer } from './AlertCards';
-import { TelegramBrandLogo } from './PlatformBrandIcon';
+import { TelegramBrandLogo, RedditBrandLogo } from './PlatformBrandIcon';
 import { AlertService } from '../api';
 
 /* ──────────────────────────────────────────────
@@ -87,6 +87,19 @@ const PLATFORM_THEMES = {
       { key: 'views', icon: Eye, label: 'Views' },
       { key: 'comments', icon: MessageSquare, label: 'Replies' },
       { key: 'likes', icon: Heart, label: 'Reactions' }
+    ]
+  },
+  reddit: {
+    bg: 'bg-white dark:bg-zinc-900',
+    text: 'text-zinc-900 dark:text-zinc-100',
+    muted: 'text-zinc-500 dark:text-zinc-400',
+    border: 'border-zinc-200 dark:border-zinc-700',
+    accent: 'text-orange-600',
+    icon: <RedditBrandLogo className="h-4 w-4 text-orange-600" />,
+    name: 'Reddit',
+    engagement: [
+      { key: 'likes', icon: ThumbsUp, label: 'Upvotes' },
+      { key: 'comments', icon: MessageSquare, label: 'Comments' }
     ]
   }
 };

@@ -204,7 +204,8 @@
       "x",
       "youtube",
       "facebook",
-      "telegram"
+      "telegram",
+      "reddit"
     ],
     "endpoints": [
       {
@@ -213,7 +214,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "listEvents",
         "description": "List tracked events, schedules, and active monitoring states",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "telegram", "reddit"]
       },
       {
         "method": "POST",
