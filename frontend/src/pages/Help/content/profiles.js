@@ -8,7 +8,7 @@ const profiles = {
   title: 'Profiles & Monitors',
   icon: 'Users',
   summary:
-    'Add the accounts you want SOCEYE to watch, start or stop monitoring them, and read what they post.',
+    'Add the accounts you want Blurasaga to watch, start or stop monitoring them, and read what they post.',
   sections: [
     {
       id: 'overview',
@@ -21,7 +21,7 @@ const profiles = {
         {
           type: 'p',
           text:
-            'A profile is an account you want SOCEYE to follow. Once monitoring is started, SOCEYE fetches its new posts on a schedule and checks them against your keywords and policies to raise alerts.',
+            'A profile is an account you want Blurasaga to follow. Once monitoring is started, Blurasaga fetches its new posts on a schedule and checks them against your keywords and policies to raise alerts.',
         },
         {
           type: 'p',
@@ -72,7 +72,7 @@ const profiles = {
             { text: 'Type a **Name**. Any label you will recognise.' },
             { text: 'Choose **Poll**: Every 5 minutes, 15 minutes, 30 minutes, 1 hour, 6 hours, or **Custom**.', note: 'A custom interval must be a whole number of at least 1 minute.' },
             { text: 'In the platform card, pick the **Platform**, then enter the account in the main field (a handle or URL, depending on the platform).' },
-            { text: 'Click **Fetch**. SOCEYE looks the account up and shows its name and followers. The badge changes from **Needs fetch** to **Verified**.' },
+            { text: 'Click **Fetch**. Blurasaga looks the account up and shows its name and followers. The badge changes from **Needs fetch** to **Verified**.' },
             { text: 'To watch the same person on more platforms, add another platform card and repeat Fetch for each one.' },
             { text: 'Optionally add **Notes**, then click **Save**.' },
           ],

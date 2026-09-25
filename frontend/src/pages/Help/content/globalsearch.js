@@ -23,7 +23,7 @@ const globalsearch = {
         {
           type: 'p',
           text:
-            'Global Search asks the live platforms a question, rather than searching what SOCEYE has already collected. Use it to check whether a handle exists, find the real account behind a name, or discover accounts nobody is monitoring yet. A green **Live Probe** badge in the title reminds you of this.',
+            'Global Search asks the live platforms a question, rather than searching what Blurasaga has already collected. Use it to check whether a handle exists, find the real account behind a name, or discover accounts nobody is monitoring yet. A green **Live Probe** badge in the title reminds you of this.',
         },
         {
           type: 'p',
@@ -54,7 +54,7 @@ const globalsearch = {
           tone: 'info',
           title: 'This is a live lookup, not your collected data',
           text:
-            'Results come from the platforms themselves at the moment you search. An account appearing in results does not mean SOCEYE is watching it — use **Monitor** on the card if you want that.',
+            'Results come from the platforms themselves at the moment you search. An account appearing in results does not mean Blurasaga is watching it — use **Monitor** on the card if you want that.',
         },
       ],
     },
@@ -114,7 +114,7 @@ const globalsearch = {
         {
           type: 'p',
           text:
-            'With **All Platforms** selected, SOCEYE asks every connected platform at the same time. While it works the button reads **Probing…**, a progress bar fills under the search box, and a chip per platform turns green as each one answers.',
+            'With **All Platforms** selected, Blurasaga asks every connected platform at the same time. While it works the button reads **Probing…**, a progress bar fills under the search box, and a chip per platform turns green as each one answers.',
         },
         {
           type: 'callout',

@@ -8,7 +8,7 @@ const gettingStarted = {
   title: 'Getting started',
   icon: 'Rocket',
   summary:
-    'Sign in, understand what your role can see, and (for admins) finish the first-time setup so SOCEYE starts collecting.',
+    'Sign in, understand what your role can see, and (for admins) finish the first-time setup so Blurasaga starts collecting.',
   sections: [
     {
       id: 'sign-in',
@@ -129,7 +129,7 @@ const gettingStarted = {
           type: 'steps',
           title: 'Finish',
           items: [
-            { text: 'Click **Finish setup**. SOCEYE checks that a platform and a keyword are saved, then unlocks the app.' },
+            { text: 'Click **Finish setup**. Blurasaga checks that a platform and a keyword are saved, then unlocks the app.' },
           ],
         },
         {

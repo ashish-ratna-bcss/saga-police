@@ -9,7 +9,7 @@ const dashboard = {
   title: 'Home',
   icon: 'LayoutDashboard',
   summary:
-    'The first page you see: how many alerts need attention, how many profiles and events are being watched, where posts are coming from, and shortcuts into the rest of SOCEYE.',
+    'The first page you see: how many alerts need attention, how many profiles and events are being watched, where posts are coming from, and shortcuts into the rest of Blurasaga.',
   sections: [
     // ══════════════════════════════════════════ START HERE
     {

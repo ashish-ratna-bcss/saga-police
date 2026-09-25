@@ -65,7 +65,7 @@ const poi = {
         {
           type: 'callout',
           tone: 'info',
-          text: 'When a new source is added, SOCEYE generates a tracking profile for it in the background.',
+          text: 'When a new source is added, Blurasaga generates a tracking profile for it in the background.',
         },
       ],
     },

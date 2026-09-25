@@ -500,7 +500,7 @@ const AskAiAboutReport = ({ report, windowHours }) => {
         keywords: (report?.keywords_trends || []).slice(0, 10),
         recommendations: report?.recommendations
       };
-      const prompt = `You are reasoning over this Soceye Live Report snapshot (JSON):\n${JSON.stringify(snapshot, null, 2)}\n\nQuestion: ${text}\n\nAnswer concisely, cite specific numbers from the snapshot, and recommend the next step.`;
+      const prompt = `You are reasoning over this Blurasaga Live Report snapshot (JSON):\n${JSON.stringify(snapshot, null, 2)}\n\nQuestion: ${text}\n\nAnswer concisely, cite specific numbers from the snapshot, and recommend the next step.`;
       const res = await api.post('/rag/query', {
         question: prompt,
         collection: 'all',
@@ -617,7 +617,7 @@ const exportNodeAsPdf = async (node, filename, title) => {
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
   pdf.setFontSize(13);
-  pdf.text(title || 'Soceye Report', 14, 14);
+  pdf.text(title || 'Blurasaga Report', 14, 14);
   pdf.setFontSize(9);
   pdf.setTextColor(120);
   pdf.text(`Generated ${new Date().toLocaleString('en-IN')}`, 14, 19);
@@ -1701,7 +1701,7 @@ const SoceyeDailyReport = () => {
 
   const fileTag = useMemo(() => {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 16);
-    return `soceye_${hours}h_${stamp}`;
+    return `blurasaga_${hours}h_${stamp}`;
   }, [hours]);
 
   const rangeLabel = useMemo(() => {
@@ -1738,7 +1738,7 @@ const SoceyeDailyReport = () => {
     const pdf = new jsPDF('p', 'mm', 'a4');
     // Cover header
     pdf.setFontSize(16);
-    pdf.text('SOCEYE — AI Generated Report', 14, 18);
+    pdf.text('Blurasaga — AI Generated Report', 14, 18);
     pdf.setFontSize(10);
     pdf.setTextColor(120);
     pdf.text(`Window: last ${hours} hours`, 14, 25);
@@ -1814,7 +1814,7 @@ const SoceyeDailyReport = () => {
         <div className="flex items-center gap-2.5 flex-wrap">
           <Antenna className="h-5 w-5 text-[#185FA5]" />
           <span className="font-semibold text-slate-900">
-            <span className="font-bold">SOCEYE</span> — AI Generated Report
+            <span className="font-bold">Blurasaga</span> — AI Generated Report
           </span>
           <span className="inline-flex items-center gap-1 bg-[#E6F1FB] text-[#185FA5] text-[10px] font-medium px-2 py-0.5 rounded uppercase tracking-wider">
             <Cpu className="h-2.5 w-2.5" /> AI
@@ -2012,7 +2012,7 @@ const SoceyeDailyReport = () => {
         {loading && !report && (
           <div className="flex items-center justify-center py-20 text-slate-500 gap-2">
             <Loader2 className="h-5 w-5 animate-spin" />
-            <span className="text-sm">Generating Soceye Report from live data…</span>
+            <span className="text-sm">Generating Blurasaga Report from live data…</span>
           </div>
         )}
 

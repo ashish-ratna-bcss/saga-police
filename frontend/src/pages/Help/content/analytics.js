@@ -8,7 +8,7 @@ const analytics = {
   title: 'Analytics',
   icon: 'BarChart3',
   summary:
-    'See public stance, sentiment and risk across everything SOCEYE monitors, then export it as PDF or Excel.',
+    'See public stance, sentiment and risk across everything Blurasaga monitors, then export it as PDF or Excel.',
   sections: [
     {
       id: 'overview',
@@ -149,7 +149,7 @@ const analytics = {
         {
           type: 'p',
           text:
-            'This page counts and charts the reports SOCEYE has produced, for a date range you choose. It has four tabs.',
+            'This page counts and charts the reports Blurasaga has produced, for a date range you choose. It has four tabs.',
         },
         {
           type: 'live',

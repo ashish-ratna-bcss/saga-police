@@ -8,7 +8,7 @@ const platforms = {
   title: 'Platforms & BluGate',
   icon: 'Plug',
   summary:
-    'Connect your BluGate account, choose which platforms SOCEYE monitors, add other APIs, and read your BluGate usage and billing.',
+    'Connect your BluGate account, choose which platforms Blurasaga monitors, add other APIs, and read your BluGate usage and billing.',
   sections: [
     {
       id: 'concepts',
@@ -20,14 +20,14 @@ const platforms = {
       blocks: [
         {
           type: 'p',
-          text: 'BluGate is the gateway that gives SOCEYE access to each social platform. Your BluGate plan decides which platforms you may use. Inside SOCEYE you then decide which of those are switched on.',
+          text: 'BluGate is the gateway that gives Blurasaga access to each social platform. Your BluGate plan decides which platforms you may use. Inside Blurasaga you then decide which of those are switched on.',
         },
         {
           type: 'table',
           head: ['Label', 'Where it is decided', 'Meaning'],
           rows: [
-            ['**Access granted** / **No access**', 'BluGate', 'Whether your BluGate plan includes the platform. You cannot change this in SOCEYE.'],
-            ['**Active in this app** / **Stopped**', 'SOCEYE (you)', 'Whether SOCEYE uses the platform. Switch it with **Stop** or **Activate**.'],
+            ['**Access granted** / **No access**', 'BluGate', 'Whether your BluGate plan includes the platform. You cannot change this in Blurasaga.'],
+            ['**Active in this app** / **Stopped**', 'Blurasaga (you)', 'Whether Blurasaga uses the platform. Switch it with **Stop** or **Activate**.'],
           ],
         },
         {
@@ -94,7 +94,7 @@ const platforms = {
           type: 'table',
           head: ['What changed', 'Meaning'],
           rows: [
-            ['**New**', 'A platform that BluGate now lists and SOCEYE had not seen.'],
+            ['**New**', 'A platform that BluGate now lists and Blurasaga had not seen.'],
             ['**Access granted**', 'BluGate has newly given you access.'],
             ['**Access lost**', 'BluGate no longer grants access.'],
             ['**Removed**', 'BluGate no longer lists the platform.'],
@@ -151,7 +151,7 @@ const platforms = {
       blocks: [
         {
           type: 'p',
-          text: 'The **Custom endpoints** card lets an admin save any other API by its URL. It is a registry: SOCEYE keeps the details, and does not call the API for you.',
+          text: 'The **Custom endpoints** card lets an admin save any other API by its URL. It is a registry: Blurasaga keeps the details, and does not call the API for you.',
         },
         {
           type: 'steps',

@@ -129,7 +129,7 @@ const reports = {
           type: 'callout',
           tone: 'warn',
           title: 'Recurring Threat Detected',
-          text: 'If SOCEYE finds a similar earlier report, a dialog warns you. Read it, then click **Dismiss** to continue.',
+          text: 'If Blurasaga finds a similar earlier report, a dialog warns you. Read it, then click **Dismiss** to continue.',
         },
       ],
     },

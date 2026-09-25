@@ -1,6 +1,6 @@
 # Media & Sentiment Analysis Pipeline Architecture
 
-This document describes the end-to-end processing pipeline for social media posts and event media within Blura Saga / Sockeye.
+This document describes the end-to-end processing pipeline for social media posts and event media within Blurasaga.
 
 ---
 

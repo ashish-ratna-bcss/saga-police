@@ -23,7 +23,7 @@ const grievances = {
         {
           type: 'p',
           text:
-            'A grievance starts life as an ordinary post or comment — a citizen tagging or replying to a government account with a complaint, a suggestion, or criticism. SOCEYE collects the mentions of your watched accounts into one feed, where an officer decides what each one is and works it through to a close.',
+            'A grievance starts life as an ordinary post or comment — a citizen tagging or replying to a government account with a complaint, a suggestion, or criticism. Blurasaga collects the mentions of your watched accounts into one feed, where an officer decides what each one is and works it through to a close.',
         },
         {
           type: 'live',

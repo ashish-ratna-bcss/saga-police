@@ -26,7 +26,7 @@ const events = {
         {
           type: 'p',
           text:
-            'An Event is a container for “everything being said about this one thing”. You give it a name, dates, platforms and a set of keywords. SOCEYE then searches those platforms for the keywords and collects every matching post into that event’s own feed.',
+            'An Event is a container for “everything being said about this one thing”. You give it a name, dates, platforms and a set of keywords. Blurasaga then searches those platforms for the keywords and collects every matching post into that event’s own feed.',
         },
         {
           type: 'p',
@@ -109,7 +109,7 @@ const events = {
         {
           type: 'p',
           text:
-            'Keywords are what SOCEYE searches for. If an event returns nothing, the keywords are almost always why.',
+            'Keywords are what Blurasaga searches for. If an event returns nothing, the keywords are almost always why.',
         },
         {
           type: 'steps',
@@ -429,7 +429,7 @@ const events = {
             ['A platform is missing from the form', 'Your administrator has not enabled it', 'Ask an administrator to enable it'],
             ['Content from the wrong place', 'Keywords too generic', 'Add a place name, district or local hashtag'],
             ['No content from one platform', 'That platform returned nothing for those keywords, or its connection is failing', 'Try Fetch Now; check the keywords exist on that platform; report a persistent gap to your administrator'],
-            ['Export PDF does not open', 'The browser blocked the pop-up', 'Allow pop-ups for SOCEYE and try again'],
+            ['Export PDF does not open', 'The browser blocked the pop-up', 'Allow pop-ups for Blurasaga and try again'],
             ['Event Summary looks out of date', 'It is a saved snapshot', 'Click Regenerate'],
           ],
         },

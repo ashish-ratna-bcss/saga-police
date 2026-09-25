@@ -174,7 +174,7 @@ const admin = {
             { n: 1, target: { text: 'System Health' }, label: 'System Health', text: 'Overall state of the services.' },
             { n: 2, target: { text: 'Refresh' }, label: 'Refresh', text: 'Update the checks now.' },
             { n: 3, target: { text: 'Infrastructure' }, label: 'Infrastructure', text: 'Database and core services.' },
-            { n: 4, target: { text: 'AI services' }, label: 'AI services', text: 'The AI services SOCEYE relies on.' },
+            { n: 4, target: { text: 'AI services' }, label: 'AI services', text: 'The AI services Blurasaga relies on.' },
           ],
         },
         {

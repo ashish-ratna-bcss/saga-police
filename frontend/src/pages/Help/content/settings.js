@@ -20,7 +20,7 @@ const settings = {
       blocks: [
         {
           type: 'p',
-          text: 'Settings is where SOCEYE is configured. The tab you are on is kept in the address bar, so the browser Back button returns you to it.',
+          text: 'Settings is where Blurasaga is configured. The tab you are on is kept in the address bar, so the browser Back button returns you to it.',
         },
         {
           type: 'table',
@@ -68,7 +68,7 @@ const settings = {
     {
       id: 'risk-levels',
       group: 'Alerts',
-      groupBlurb: 'What SOCEYE treats as serious',
+      groupBlurb: 'What Blurasaga treats as serious',
       icon: 'ShieldAlert',
       blurb: 'The two numbers that split alerts into High, Medium and Low.',
       title: 'Risk levels',
@@ -409,20 +409,20 @@ const settings = {
     {
       id: 'theme',
       group: 'Theme',
-      groupBlurb: 'How SOCEYE looks for you',
+      groupBlurb: 'How Blurasaga looks for you',
       icon: 'Palette',
       blurb: 'Light or dark mode and the accent colour.',
       title: 'Theme & Appearance',
       blocks: [
         {
           type: 'p',
-          text: 'The **Theme** tab changes how SOCEYE looks for your account. Every choice saves as soon as you click it.',
+          text: 'The **Theme** tab changes how Blurasaga looks for your account. Every choice saves as soon as you click it.',
         },
         {
           type: 'live',
           route: '/settings?tab=theme',
           alt: 'Settings, Theme tab',
-          caption: 'The Theme tab changes how SOCEYE looks for you.',
+          caption: 'The Theme tab changes how Blurasaga looks for you.',
           height: 560,
           markers: [
             { n: 1, target: { text: 'Theme & Appearance' }, label: 'Theme & Appearance', text: 'Colour mode and theme choices.' },
