@@ -539,6 +539,42 @@ async function ensureOpsSchema(prisma) {
   await prisma.$executeRawUnsafe(`
     CREATE INDEX IF NOT EXISTS periscope_reports_date_idx ON social_media_periscope_reports (report_date DESC)
   `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS blugate_platform_meta (
+      slug VARCHAR(80) PRIMARY KEY,
+      base_url TEXT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'available',
+      last_seen_at TIMESTAMPTZ NULL,
+      raw JSONB NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  for (const col of [
+    'app_slug VARCHAR(80) NULL',
+    'name VARCHAR(120) NULL',
+    'blugate_id VARCHAR(40) NULL',
+    'version VARCHAR(40) NULL',
+    'health VARCHAR(40) NULL',
+    'endpoint_count INTEGER NULL',
+    'change VARCHAR(30) NULL',
+    'first_seen_at TIMESTAMPTZ NULL',
+  ]) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE blugate_platform_meta ADD COLUMN IF NOT EXISTS ${col}`);
+  }
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS custom_endpoints (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(120) NOT NULL,
+      base_url TEXT NOT NULL,
+      api_key TEXT NULL,
+      auth_header VARCHAR(80) NOT NULL DEFAULT 'Authorization',
+      auth_scheme VARCHAR(40) NOT NULL DEFAULT 'Bearer',
+      notes TEXT NULL,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
 }
 
 module.exports = {

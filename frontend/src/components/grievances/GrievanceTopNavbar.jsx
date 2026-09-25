@@ -53,6 +53,7 @@ const STATUS_FILTERS = [
 export const GrievanceTopNavbar = ({
   activePlatform = 'all',
   onPlatformChange,
+  onPlatformClick,
   activeStatus = 'total',
   onStatusChange,
   selectedHandle = null,
@@ -275,7 +276,10 @@ export const GrievanceTopNavbar = ({
                 <button
                   key={platform.id}
                   type="button"
-                  onClick={() => onPlatformChange?.(platform.id)}
+                  onClick={() => {
+                    onPlatformChange?.(platform.id);
+                    onPlatformClick?.(platform.id);
+                  }}
                   className={cn(
                     'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors whitespace-nowrap',
                     isActive

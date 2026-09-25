@@ -1,9 +1,17 @@
+// Telegram usernames: 5 to 32 letters, digits or underscores, starting with a letter.
+const USERNAME_RE = /^[A-Za-z][A-Za-z0-9_]{4,31}$/;
+const isValidUsername = (value) => USERNAME_RE.test(String(value || ''));
+
+// Private invite links (t.me/+abc, t.me/joinchat/abc) are not usernames; they must be sent as a url.
+const isInviteLink = (raw) => /(^|\/)(\+[\w-]+|joinchat\/[\w-]+)/i.test(String(raw || '').trim());
+
 const cleanUsername = (raw) => {
   let s = String(raw || '').trim();
   if (!s) return '';
-  s = s.replace(/^@/, '');
-  s = s.replace(/^https?:\/\/(www\.)?t\.me\//i, '');
-  s = s.split(/[/?#]/)[0];
+  s = s.replace(/^tg:\/\/resolve\?domain=/i, '');
+  s = s.replace(/^(https?:\/\/)?(www\.)?(t\.me|telegram\.me|telegram\.dog)\//i, '');
+  s = s.replace(/^s\//i, ''); // web preview links look like t.me/s/<name>
+  s = s.split(/[/?#&]/)[0];
   return s.replace(/^@/, '').trim();
 };
 
@@ -20,11 +28,14 @@ const resolveChannelRef = (data = {}) => {
   const d = data && typeof data === 'object' ? data : {};
   const channel_id = d.channel_id ? String(d.channel_id).trim() : '';
   const url = String(d.url || d.channel_url || '').trim();
-  const username = cleanUsername(d.username || d.handle || '');
+  const rawName = d.username || d.handle || '';
+  const invite = isInviteLink(rawName) || isInviteLink(url);
+  const username = invite ? '' : cleanUsername(rawName);
   const body = {};
   if (channel_id) body.channel_id = channel_id;
   if (username) body.username = username;
-  if (url) body.url = url;
+  if (invite) body.url = isInviteLink(url) ? url : String(rawName).trim();
+  else if (url) body.url = url;
   return body;
 };
 
@@ -82,6 +93,7 @@ const mapMessageToUpsert = (msg, accountId) => {
 
 module.exports = {
   cleanUsername,
+  isValidUsername,
   listItems,
   resolveChannelRef,
   mapMessageToUpsert,

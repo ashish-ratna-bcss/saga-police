@@ -437,12 +437,12 @@ const searchYouTubeContent = async (query, limit, auth) => {
 
 /* ── Telegram ── */
 
-const searchTelegramProfiles = async (query, limit) => {
+const searchTelegramProfiles = async (query, limit, auth = null) => {
   const q = String(query || '').trim();
   if (!q) return [];
   const out = [];
   try {
-    const raw = await callTelegramApi('SEARCH_CHANNELS', { q, limit });
+    const raw = await callTelegramApi('SEARCH_CHANNELS', { q, limit }, auth);
     for (const ch of listTelegramItems(raw)) {
       const handle = cleanTelegramUsername(ch.username || '');
       out.push({
@@ -464,7 +464,7 @@ const searchTelegramProfiles = async (query, limit) => {
     const username = cleanTelegramUsername(q);
     if (username) {
       try {
-        const ch = await callTelegramApi('CHANNEL_INFO', { username });
+        const ch = await callTelegramApi('CHANNEL_INFO', { username }, auth);
         const handle = cleanTelegramUsername(ch.username || username);
         out.push({
           id: ch.id != null ? String(ch.id) : handle,
@@ -485,10 +485,10 @@ const searchTelegramProfiles = async (query, limit) => {
   return out.slice(0, limit);
 };
 
-const searchTelegramContent = async (query, limit) => {
+const searchTelegramContent = async (query, limit, auth = null) => {
   const q = String(query || '').trim();
   if (!q) return [];
-  const raw = await callTelegramApi('SEARCH_MESSAGES', { q, limit });
+  const raw = await callTelegramApi('SEARCH_MESSAGES', { q, limit }, auth);
   return listTelegramItems(raw)
     .map((m) => {
       const id = m.id ?? m.message_id;
@@ -544,7 +544,8 @@ const searchProfiles = async ({ platform, query, limit = 20, db }) => {
     const auth = await loadPlatformAuth(prisma, ['instagram'], callInstagramApi.authFromPlatformRow);
     return withTimeout(searchInstagramProfiles(query, safeLimit, auth), timeout, 'Instagram search');
   }
-  return withTimeout(searchTelegramProfiles(query, safeLimit), timeout, 'Telegram search');
+  const telegramAuth = await loadPlatformAuth(prisma, ['telegram'], callTelegramApi.authFromPlatformRow);
+  return withTimeout(searchTelegramProfiles(query, safeLimit, telegramAuth), timeout, 'Telegram search');
 };
 
 const searchContent = async ({ platform, query, limit = 20, db }) => {
@@ -569,7 +570,8 @@ const searchContent = async ({ platform, query, limit = 20, db }) => {
     const auth = await loadPlatformAuth(prisma, ['instagram'], callInstagramApi.authFromPlatformRow);
     return withTimeout(searchInstagramContent(query, safeLimit, auth), timeout, 'Instagram content search');
   }
-  return withTimeout(searchTelegramContent(query, safeLimit), timeout, 'Telegram content search');
+  const telegramAuth = await loadPlatformAuth(prisma, ['telegram'], callTelegramApi.authFromPlatformRow);
+  return withTimeout(searchTelegramContent(query, safeLimit, telegramAuth), timeout, 'Telegram content search');
 };
 
 module.exports = {

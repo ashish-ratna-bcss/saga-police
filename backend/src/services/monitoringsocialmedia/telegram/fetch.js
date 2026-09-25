@@ -12,10 +12,10 @@ const isRateError = (err) => {
   return status === 429 || msg.includes('rate') || msg.includes('flood') || msg.includes('too many');
 };
 
-const callWithGap = async (endpointKey, body) => {
+const callWithGap = async (endpointKey, body, auth = null) => {
   await waitForSlot();
   try {
-    return await callTelegramApi(endpointKey, body);
+    return await callTelegramApi(endpointKey, body, auth);
   } catch (err) {
     if (isRateError(err)) noteRateLimit();
     throw err;
@@ -26,7 +26,7 @@ const callWithGap = async (endpointKey, body) => {
  * Fetch recent Telegram channel messages (Blugate-style CHANNEL_MESSAGES).
  * @returns {{ posts: object[], apiHits: number, dataPatch: object|null }}
  */
-const fetchTelegramPosts = async (account) => {
+const fetchTelegramPosts = async (account, auth = null) => {
   const data = account?.data && typeof account.data === 'object' ? account.data : {};
   const body = resolveChannelRef({
     ...data,
@@ -41,7 +41,7 @@ const fetchTelegramPosts = async (account) => {
 
   body.limit = Math.min(50, Math.max(1, Number(body.limit) || 40));
 
-  const raw = await callWithGap('CHANNEL_MESSAGES', body);
+  const raw = await callWithGap('CHANNEL_MESSAGES', body, auth);
   const items = listItems(raw);
   const posts = items.map((m) => mapMessageToUpsert(m, account.id)).filter(Boolean);
 

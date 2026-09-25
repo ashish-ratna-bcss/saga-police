@@ -180,7 +180,7 @@ const AddSocialProfileDialog = ({
     let cancelled = false;
     setLoadingPlatforms(true);
     socialProfilesApi
-      .listPlatforms()
+      .listPlatforms(accountType === 'grievance' ? { page: 'grievances' } : {})
       .then(async (res) => {
         if (cancelled) return;
         const list = Array.isArray(res.data) ? res.data : [];
@@ -200,7 +200,7 @@ const AddSocialProfileDialog = ({
     return () => {
       cancelled = true;
     };
-  }, [open, prefill, editingProfile, resetFromPrefill, loadEditForm]);
+  }, [open, prefill, editingProfile, resetFromPrefill, loadEditForm, accountType]);
 
   const updateAccount = (key, patch) => {
     setForm((f) => ({

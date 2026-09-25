@@ -409,10 +409,10 @@ const searchFacebookViaBlugate = async (query, auth = null) => {
 
 /* ── Blugate Telegram search ── */
 
-const searchTelegramViaBlugate = async (query) => {
+const searchTelegramViaBlugate = async (query, auth = null) => {
   const q = String(query || '').trim();
   if (!q) return [];
-  const raw = await callTelegramApi('SEARCH_MESSAGES', { q, limit: 25 });
+  const raw = await callTelegramApi('SEARCH_MESSAGES', { q, limit: 25 }, auth);
   return listTelegramItems(raw)
     .map((m) => {
       const id = m.id ?? m.message_id;
@@ -727,7 +727,8 @@ const runScanEventOnce = async (event, options = {}) => {
 
   if (platforms.includes('telegram')) {
     try {
-      const posts = await fetchUniqueByQueriesCounted(queries, searchTelegramViaBlugate);
+      const tgAuth = await loadPlatformAuth(['telegram'], callTelegramApi.authFromPlatformRow);
+      const posts = await fetchUniqueByQueriesCounted(queries, (q) => searchTelegramViaBlugate(q, tgAuth));
       const relevant = filterByKeywords(posts, event, (p) => p?.text || '');
       scanned += relevant.length;
       track('telegram', { scanned: relevant.length });

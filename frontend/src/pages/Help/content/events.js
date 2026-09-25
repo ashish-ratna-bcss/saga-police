@@ -4,7 +4,7 @@
  * Structured data rather than JSX so it stays searchable, easy to edit, and can
  * be moved into MongoDB later without rewriting the renderer.
  *
- * Block types: p | steps | shot | callout | table | list | fields
+ * Block types: p | steps | live | callout | table | list | fields
  */
 
 const events = {
@@ -26,7 +26,7 @@ const events = {
         {
           type: 'p',
           text:
-            'An Event is a container for “everything being said about this one thing”. You give it a name, dates and a set of keywords. SOCEYE then searches X, YouTube and Facebook for those keywords and collects every matching post into that event’s own feed.',
+            'An Event is a container for “everything being said about this one thing”. You give it a name, dates, platforms and a set of keywords. SOCEYE then searches those platforms for the keywords and collects every matching post into that event’s own feed.',
         },
         {
           type: 'p',
@@ -34,18 +34,26 @@ const events = {
             'Use an event when you need a temporary, focused watch on a specific happening. For monitoring a person or page continuously, add them under Settings → Profiles instead.',
         },
         {
-          type: 'shot',
-          src: '/help/events/events_overview.png',
-          alt: 'The Events page with an event selected',
-          caption: 'The Events page. Click any numbered marker to see what that control does.',
+          type: 'live',
+          route: "/events",
+          alt: "The Events page",
+          caption: "The Events page as it opens.",
           markers: [
-            { n: 1, x: 17, y: 19, side: 'left', at: 12, label: 'Live / paused / total', text: 'Click any of these three to filter the list by that status. “Live” is the number currently collecting.' },
-            { n: 2, x: 78, y: 18, side: 'top', at: 78, label: 'Header actions', text: 'HCP Recurring and Non-Recurring calendars, API Settings, and New Event.' },
-            { n: 3, x: 10, y: 50, side: 'left', at: 45, label: 'Year and month navigator', text: 'Jump to a month. The number beside each month is how many events fall in it.' },
-            { n: 4, x: 26, y: 62, side: 'left', at: 75, label: 'Event list', text: 'Events for the selected period, with their platforms, location and date range. Click one to open it.' },
-            { n: 5, x: 62, y: 26, side: 'right', at: 14, label: 'Event header', text: 'Name, status badge, keywords and dates — plus edit, pause, delete, Fetch Now and Export.' },
-            { n: 6, x: 83, y: 35, side: 'right', at: 38, label: 'Counters', text: 'CONTENT, PRIORITY, RECENT and PLATFORMS for the open event.' },
-            { n: 7, x: 65, y: 68, side: 'right', at: 70, label: 'Detected content', text: 'Every post collected for this event.' },
+            { n: 1, target: {"text": "live"}, label: "Live / stopped / total", text: "Click any of these three to filter the list by that status. “Live” is the number currently being monitored." },
+            { n: 2, target: {"text": "Recurring"}, label: "Recurring and One-time calendars", text: "Open the Recurring and One-time Occasion Calendars." },
+            { n: 3, target: {"text": "New Event"}, label: "New Event", text: "Creates an event directly." },
+            { n: 4, target: {"placeholder": "Search events"}, label: "Search events", text: "Search the events for the selected period." },
+            { n: 5, target: {"text": "Festivals"}, label: "List filters", text: "Filter the list by All, Festivals and One-time. Click an event to open it." },
+          ],
+        },
+        {
+          type: 'table',
+          head: ['Control', 'What it does'],
+          rows: [
+            ['**Recurring**', 'Opens **Occasion Calendar · Recurring** — yearly occasions such as festivals and national days.'],
+            ['**One-time**', 'Opens **Occasion Calendar · One-time** — occasions for a specific incident or situation.'],
+            ['**New Event**', 'Creates an event directly.'],
+            ['**Festivals / One-time** (list filter)', 'Shows only events that came from the Recurring calendar, or from one-time occasions and New Event.'],
           ],
         },
       ],
@@ -63,43 +71,29 @@ const events = {
           type: 'steps',
           items: [
             { text: 'Click **New Event** in the top-right of the Events page.' },
-            { text: 'Enter the **Event Name**. Required. It also doubles as a search term if you add no keywords at all.' },
-            { text: 'Enter the **Location** — for example `Hyderabad`. Used as a last-resort search term, and shown against the event in the list.' },
+            { text: 'Enter the **Event Name**. Required.' },
+            { text: 'Optionally enter the **Location** — for example `Station Road`. It is shown against the event in the list.' },
             { text: 'Set the **Start Date** and **End Date**. The end date must be on or after the start date, or the form is rejected.' },
-            { text: 'Leave **Scan Interval (per event)** on *Use global default* unless this event needs checking more often than the rest.' },
-            { text: 'Enter your **Keywords** under each language tab — Telugu, Hindi and English. See the next section.' },
-            { text: 'Click **Create Event**. It is saved as **Active** and starts collecting on the next scan.' },
+            { text: 'Choose the **Monitoring interval** — every 5 minutes, 15 minutes, 30 minutes, 1 hour or 6 hours, or **Custom** (1 to 10080 minutes). The form shows roughly how many fetches per day that means.' },
+            { text: 'Tick the **Platforms** to search. At least one is required.' },
+            { text: 'Enter your **Keywords** in the one keyword box, separated by commas. See the next section.' },
+            { text: 'Click the create button at the bottom of the form. The event is saved as **Stopped**.' },
+            { text: 'Open the event and click **Start** when you want monitoring to begin.', note: 'The first fetch runs in the background as soon as you start it.' },
           ],
         },
         {
-          type: 'shot',
-          src: '/help/events/events_new_form.png',
-          alt: 'The Create New Event dialog',
-          caption: 'The Create New Event form.',
-          markers: [
-            { n: 1, x: 26, y: 20, side: 'left', at: 12, label: 'Event Name', text: 'Required. Also used as a search term when no keywords are given.' },
-            { n: 2, x: 73, y: 20, side: 'right', at: 12, label: 'Location', text: 'e.g. Hyderabad. Shown in the event list and used as a fallback search term.' },
-            { n: 3, x: 26, y: 32, side: 'left', at: 32, label: 'Start Date', text: 'When the event begins.' },
-            { n: 4, x: 73, y: 32, side: 'right', at: 32, label: 'End Date', text: 'Must be on or after the start date.' },
-            { n: 5, x: 50, y: 44, side: 'left', at: 52, label: 'Scan Interval (per event)', text: 'Leave on “Use global default” unless this event needs checking more often than others.' },
-            { n: 6, x: 20, y: 58, side: 'left', at: 74, label: 'Language tabs', text: 'Telugu, Hindi and English keywords are entered separately. Fill in every language the conversation happens in.' },
-            { n: 7, x: 50, y: 74, side: 'right', at: 62, label: 'Keywords box', text: 'Separate each keyword with a comma, or put one per line.' },
-            { n: 8, x: 85, y: 92, side: 'right', at: 90, label: 'Create Event', text: 'Saves the event as Active.' },
+          type: 'table',
+          head: ['Platform', 'Notes'],
+          rows: [
+            ['**X, YouTube, Facebook, Instagram, Telegram, Reddit**', 'These can be chosen for an event. Only the platforms your administrator has enabled are shown in the form.'],
           ],
         },
         {
           type: 'callout',
           tone: 'info',
-          title: 'Platforms for events',
+          title: 'A new event does not collect until you Start it',
           text:
-            'X, YouTube and Facebook can be selected for event monitoring.',
-        },
-        {
-          type: 'callout',
-          tone: 'info',
-          title: 'A new event starts collecting immediately',
-          text:
-            'There is no “start” button. As soon as you click Create Event it is Active and will be picked up on the next scan.',
+            'New events are created **Stopped**. Nothing is collected until you open the event and click **Start**.',
         },
       ],
     },
@@ -108,7 +102,7 @@ const events = {
     {
       id: 'keywords',
       icon: 'Hash',
-      blurb: 'How to enter them, how matching works, and what to avoid.',
+      blurb: 'How to enter them and what to avoid.',
       group: 'Start here',
       title: 'Keywords',
       blocks: [
@@ -120,35 +114,33 @@ const events = {
         {
           type: 'steps',
           items: [
-            { text: 'Pick a **language tab** — Telugu, Hindi or English. Keywords are saved per tab and do not carry across.' },
-            { text: 'Type them **separated by commas**, or one per line. Both work, and you can mix them.' },
-            { text: 'Repeat for every language the conversation happens in. For most Telangana events, all three.' },
+            { text: 'Type your keywords into the single **Keywords** box, **separated by commas**. Any language or script works.' },
+            { text: 'Include every language the conversation happens in, in the same box.' },
+            { text: 'Use hashtags where people use them.' },
           ],
         },
         {
           type: 'callout',
           tone: 'tip',
-          title: 'Example — English tab',
-          text: '`Ganesh Nimarjan, Ganesh immersion, #GaneshNimajjanam, Tank Bund, Khairatabad Ganesh`',
+          title: 'Example',
+          text: '`Independence Day rally, Independence Day parade, #IndependenceDayRally, Station Road`',
         },
         {
           type: 'list',
-          title: 'Worth knowing',
           items: [
-            'Matching ignores **case, spacing and punctuation** — “Telangana Fest” finds `#TelanganaFest` and `telanganafest`.',
-            'Hashtags work as keywords. Do **not** use quotes — they are taken literally.',
+            'Each keyword is a **separate search** — 30 keywords costs roughly 30 times the API calls of one.',
+            'Do **not** put quotes around keywords.',
             'Spaces and trailing commas are trimmed automatically.',
-            'Each keyword is a **separate search** — 30 keywords costs roughly 30× the API calls of one.',
-            'Leave keywords empty and it falls back to the event name, then the location. That rarely works.',
+            'Editing keywords later applies from the next fetch; posts already collected stay.',
           ],
         },
         {
           type: 'table',
           head: ['Too broad', 'Use instead'],
           rows: [
-            ['`protest`', '`#LalagudaProtest`, `Lalaguda railway workshop protest`'],
-            ['`meeting`', '`TNGO state executive meeting`, `#TNGOMeeting`'],
-            ['`bonalu`', '`Secunderabad Bonalu`, `#Bonalu2026`, `Ujjaini Mahankali`'],
+            ['`protest`', '`#StationRoadProtest`, `Station Road protest`'],
+            ['`meeting`', '`Traders association general meeting`, `#TradersMeeting`'],
+            ['`rally`', '`Independence Day rally`, `#IndependenceDayRally`'],
           ],
         },
         {
@@ -156,7 +148,41 @@ const events = {
           tone: 'warn',
           title: 'A generic word will flood the event',
           text:
-            'One-word keywords like “meeting” or “rally” pull in thousands of unrelated posts from across the country and burn your API quota. Always pair them with a place, organisation, person or dedicated hashtag.',
+            'One-word keywords like “meeting” or “rally” pull in thousands of unrelated posts and burn your API quota. Always pair them with a place, organisation, person or dedicated hashtag.',
+        },
+      ],
+    },
+
+    // ────────────────────────────────────────────────────────────────────
+    {
+      id: 'occasion-calendar',
+      icon: 'CalendarDays',
+      blurb: 'Recurring and one-time occasion templates that appear in the Events list.',
+      group: 'Start here',
+      title: 'Occasion Calendar',
+      blocks: [
+        {
+          type: 'p',
+          text:
+            'The **Recurring** and **One-time** buttons in the header open the Occasion Calendar. **Recurring** holds yearly occasions (festivals, national days) whose date repeats every year. **One-time** holds an occasion for a specific incident or situation.',
+        },
+        {
+          type: 'steps',
+          items: [
+            { text: 'Click **Recurring** or **One-time** in the header. Use **Search occasions…** to find one already saved.' },
+            { text: 'Click the add button and enter the **Occasion name** (for example `Republic Day`).' },
+            { text: 'Set **When it happens** — a day and month for recurring, a full date for one-time.' },
+            { text: 'Optionally set the **Watch window** (**From** and **Until**), the **Platforms**, **Suggested keywords** and **Notes**.' },
+            { text: 'Save. The occasion also appears in the Events list as a **Stopped** event.' },
+            { text: 'Open that event and click **Start** when you want to monitor it.' },
+          ],
+        },
+        {
+          type: 'callout',
+          tone: 'info',
+          title: 'Editing an occasion updates its event',
+          text:
+            'Saving changes to an occasion also updates the linked event in the Events list. Use the pencil and bin icons on a row to edit or delete an occasion.',
         },
       ],
     },
@@ -164,34 +190,30 @@ const events = {
     // ────────────────────────────────────────────────────────────────────
     {
       id: 'status',
-      icon: 'PauseCircle',
-      blurb: 'When to pause, when to archive, and the controls on the event header.',
+      icon: 'PlayCircle',
+      blurb: 'Starting and stopping, and the controls on the event header.',
       group: 'Running an event',
       groupBlurb: 'Day-to-day operation',
-      title: 'Pausing and archiving',
+      title: 'Starting and stopping',
       blocks: [
         {
           type: 'steps',
           title: 'Recommended routine',
           items: [
-            { text: 'When the event finishes on the ground, open it and click the **Pause** button.' },
-            { text: 'Review the collected content and export anything needed for your report.' },
-            { text: 'Set it to **Archived** once the matter is closed.' },
+            { text: 'Open the event and click **Start**. The badge shows **Live**.' },
+            { text: 'Click **Fetch Now** to check straight away and confirm content is arriving.' },
+            { text: 'When the event finishes on the ground, click **Stop**. The badge shows **Stopped**.' },
+            { text: 'Review the collected content, then export anything you need.' },
           ],
         },
         {
-          type: 'shot',
-          src: '/help/events/events_detail_header.png',
-          alt: 'The header strip of an open event',
-          caption: 'The header of an open event — everything you need to run it.',
-          markers: [
-            { n: 1, x: 37.5, y: 39, side: 'top', at: 14, label: 'Event name', text: 'The open event. Click a different one in the list to switch.' },
-            { n: 2, x: 42.5, y: 39, side: 'top', at: 33, label: 'Status badge', text: 'Active, Paused or Archived.' },
-            { n: 3, x: 53, y: 39, side: 'top', at: 52, label: 'Keyword chips', text: 'Every keyword this event searches for, across all three languages.' },
-            { n: 4, x: 48, y: 48, side: 'bottom', at: 25, label: 'Location, dates and last scan', text: '“Last” is when this event was last checked — use it to confirm collection is running.' },
-            { n: 5, x: 76, y: 42, side: 'bottom', at: 62, label: 'Edit · Pause · Delete', text: 'Pencil edits the event, the orange button pauses collection, the bin deletes it permanently.' },
-            { n: 6, x: 85, y: 42, side: 'bottom', at: 82, label: 'Fetch Now', text: 'Scans straight away instead of waiting for the schedule.' },
-            { n: 7, x: 94, y: 42, side: 'top', at: 92, label: 'Export', text: 'Download this event as PDF or Excel.' },
+          type: 'fields',
+          items: [
+            { name: 'Start / Stop', text: 'Turns monitoring on or off for this event. Start is green, Stop is red.' },
+            { name: 'Fetch Now', text: 'Fetches once immediately.' },
+            { name: 'History', text: 'Lists past fetch runs (Running, Stopped, Failed or OK) and lifetime fetch stats: API hits, items returned, new items and run time.' },
+            { name: 'Analyses', text: 'Opens keyword analysis. See “Keyword analysis”.' },
+            { name: 'Event Summary / View Report', text: 'Opens the AI summary. Reads **View Report** once one has been generated. See “Event summary”.' },
           ],
         },
       ],
@@ -209,8 +231,8 @@ const events = {
           type: 'steps',
           items: [
             { text: 'Open the event and click the **pencil** icon.' },
-            { text: 'Change the name, location, dates, scan interval or keywords.' },
-            { text: 'Save. New keywords apply from the next scan onward.' },
+            { text: 'Change the name, location, dates, monitoring interval, platforms or keywords.' },
+            { text: 'Save. New keywords apply from the next fetch onward.' },
           ],
         },
         {
@@ -225,29 +247,30 @@ const events = {
           tone: 'danger',
           title: 'Deleting is permanent',
           text:
-            'The bin icon removes the event. Export anything you need for a report first — there is no undo.',
+            'The bin icon opens **Delete Event**. Export anything you need first — there is no undo.',
         },
       ],
     },
 
+    // ────────────────────────────────────────────────────────────────────
     {
-      id: 'export',
-      icon: 'Download',
-      blurb: 'Download an event as PDF or Excel.',
-      group: 'Reference',
-      groupBlurb: 'Look these up when you need them',
-      title: 'Exporting',
+      id: 'reading-content',
+      icon: 'Eye',
+      blurb: 'Priority alerts, detected content and the platform filter.',
+      group: 'Running an event',
+      title: 'Reading what was collected',
       blocks: [
         {
           type: 'p',
-          text: 'The **Export** button offers PDF and Excel, for the open event or for all events.',
+          text:
+            'Below the header, the counters show **Content**, **Priority**, **Recent** (last 24 hours) and **Platforms** for the open event. A platform dropdown narrows the view to one platform.',
         },
         {
-          type: 'table',
-          head: ['Format', 'Best for'],
-          rows: [
-            ['**PDF**', 'Attaching to a report or briefing — formatted and readable.'],
-            ['**Excel**', 'Further analysis — sortable rows, one post per line.'],
+          type: 'list',
+          items: [
+            '**Priority Alerts** are listed first, with the reason each was flagged and a **View** link to the original post.',
+            '**Detected Content** lists every collected post. It loads more as you scroll.',
+            'If nothing has arrived, the page reads “No content detected yet”.',
           ],
         },
       ],
@@ -255,23 +278,113 @@ const events = {
 
     // ────────────────────────────────────────────────────────────────────
     {
-      id: 'hcp',
-      icon: 'CalendarDays',
-      blurb: 'The recurring and non-recurring planning calendars.',
-      group: 'Reference',
-      title: 'HCP Recurring and Non-Recurring',
+      id: 'keyword-analysis',
+      icon: 'TrendingUp',
+      blurb: 'Which keywords are driving the conversation.',
+      group: 'Analysing an event',
+      groupBlurb: 'Keyword analysis, the AI summary and reports',
+      title: 'Keyword analysis',
       blocks: [
         {
           type: 'p',
           text:
-            'These two buttons open the master calendar — a planning list of known recurring occasions (festivals, anniversaries) and one-off entries.',
+            'Click **Analyses** on the event header to open **Keyword Intelligence & Analytics**. The top shows totals: monitored keywords, unique matched posts, total keyword mentions, sentiment breakdown and total engagement.',
+        },
+        {
+          type: 'table',
+          head: ['Tab', 'Shows'],
+          rows: [
+            ['**All Keywords Overview**', 'Mentions Volume by Keyword, Share of Voice, Sentiment Breakdown by Keyword, Mentions Timeline Trend, and the Keyword Performance Matrix table.'],
+            ['**Individual Keyword Deep Dive**', 'One keyword in detail: mentions volume, net sentiment score, engagement, risk status, timeline, platforms distribution, top accounts discussing it, and its posts (searchable).'],
+          ],
+        },
+        {
+          type: 'steps',
+          items: [
+            { text: 'Read the **Keyword Performance Matrix** to see posts, share, sentiment, dominant platform, engagement and risk alerts for each keyword.' },
+            { text: 'Click **Deep Dive** on a row to open that keyword.' },
+            { text: 'Use the **Export Executive PDF Report** button at the top to save the analysis as a PDF.' },
+          ],
+        },
+        {
+          type: 'callout',
+          tone: 'tip',
+          title: 'Use it to prune keywords',
+          text:
+            'A keyword with a huge share but no relevant posts is too broad. Edit the event and replace it with something more specific.',
+        },
+      ],
+    },
+
+    // ────────────────────────────────────────────────────────────────────
+    {
+      id: 'event-summary',
+      icon: 'Sparkles',
+      blurb: 'An AI-written briefing for the event.',
+      group: 'Analysing an event',
+      title: 'Event summary',
+      blocks: [
+        {
+          type: 'p',
+          text:
+            'Click **Event Summary** on the event header to generate an AI briefing from the collected posts. Once a summary exists the button reads **View Report** and opens the saved one.',
+        },
+        {
+          type: 'table',
+          head: ['Tab', 'Shows'],
+          rows: [
+            ['**Event Summary**', 'The written briefing.'],
+            ['**Risk & Advisory**', 'Risks identified and recommended actions.'],
+            ['**Data Telemetry**', 'Counts and figures behind the summary, including keyword mentions.'],
+            ['**All Posts**', 'Every post that was analysed, with a link to the original.'],
+          ],
+        },
+        {
+          type: 'fields',
+          items: [
+            { name: 'Regenerate', text: 'Re-analyses using the latest collected posts.' },
+            { name: 'Copy', text: 'Copies the summary text to the clipboard.' },
+            { name: 'Download PDF', text: 'Saves an executive PDF that includes every analysed post as an appendix.' },
+          ],
+        },
+        {
+          type: 'callout',
+          tone: 'warn',
+          title: 'Regenerate after new content arrives',
+          text:
+            'A saved summary is a snapshot. If the event has collected more posts since, click **Regenerate**. If a report says it is incomplete, regenerate it.',
+        },
+      ],
+    },
+
+    // ────────────────────────────────────────────────────────────────────
+    {
+      id: 'export',
+      icon: 'Download',
+      blurb: 'PDF and Excel, for one event or all of them.',
+      group: 'Analysing an event',
+      title: 'Exporting',
+      blocks: [
+        {
+          type: 'p',
+          text: 'The **Export** menu on the event header has two groups, each with **PDF** and **Excel**: **This event** and **All events**.',
+        },
+        {
+          type: 'table',
+          head: ['Export', 'Produces'],
+          rows: [
+            ['**This event · PDF**', 'An **Event Intelligence Report** opening in a new tab. Use its Print / Save as PDF button. Allow pop-ups if it does not open.'],
+            ['**This event · Excel**', 'A spreadsheet of the event’s posts, one per row.'],
+            ['**All events · PDF**', 'An **Events Report** listing every event with its dates, keywords and a **QR code** per row that opens the report.'],
+            ['**All events · Excel**', 'The same list as a spreadsheet.'],
+          ],
         },
         {
           type: 'callout',
           tone: 'info',
-          title: 'The calendar does not create events by itself',
+          title: 'Events Report page',
           text:
-            'Automatic creation from the master calendar is switched off. The calendar is a planning aid: when a date approaches, create the event manually with New Event.',
+            'A separate **Events Report** page shows the same calendar-and-manual event list by month, with search, **Refresh**, and **Export** to Excel or PDF. The QR opens the live Events page for that event.',
         },
       ],
     },
@@ -280,19 +393,20 @@ const events = {
     {
       id: 'checklist',
       icon: 'ListChecks',
-      blurb: 'Confirm these before you create an event.',
+      blurb: 'Confirm these before you start an event.',
       group: 'Reference',
-      title: 'Checklist before you create an event',
+      groupBlurb: 'Look these up when you need them',
+      title: 'Checklist before you start an event',
       blocks: [
         {
           type: 'list',
           items: [
             'Keywords are **specific** — a hashtag, place, organisation or person, not a generic word.',
             'You have **searched the hashtag yourself** and confirmed people are actually posting it.',
-            'Keywords are entered under **every language tab** the conversation uses — Telugu, Hindi and English.',
-            'Dates are correct.',
-            'You have a plan to **pause it** when the event finishes.',
-            'You clicked **Fetch Now** and confirmed content is arriving before relying on it.',
+            'Every platform the conversation happens on is ticked.',
+            'Dates are correct and the monitoring interval suits the event.',
+            'You clicked **Start**, then **Fetch Now**, and confirmed content is arriving.',
+            'You have a plan to click **Stop** when the event finishes.',
           ],
         },
       ],
@@ -310,10 +424,13 @@ const events = {
           type: 'table',
           head: ['Problem', 'Likely cause', 'Fix'],
           rows: [
-            ['No content at all', 'Event is Paused, or keywords match nothing', 'Set to Active; test the keyword on the platform itself; click Fetch Now'],
-            ['Content from the wrong city', 'Keywords too generic', 'Add “Hyderabad”, a district, or a local hashtag'],
-            ['No Facebook content', 'Facebook returned nothing for those keywords, or the Facebook API is failing', 'Try Fetch Now; check the keywords exist on Facebook; report a persistent gap to your administrator'],
-            ['Very old posts appearing', 'Search widened when few recent results exist', 'Use more specific keywords; check the post date on each card'],
+            ['No content at all', 'The event is Stopped, or the keywords match nothing', 'Click Start; test the keyword on the platform itself; click Fetch Now'],
+            ['A new event is not collecting', 'New events are created Stopped', 'Open it and click Start'],
+            ['A platform is missing from the form', 'Your administrator has not enabled it', 'Ask an administrator to enable it'],
+            ['Content from the wrong place', 'Keywords too generic', 'Add a place name, district or local hashtag'],
+            ['No content from one platform', 'That platform returned nothing for those keywords, or its connection is failing', 'Try Fetch Now; check the keywords exist on that platform; report a persistent gap to your administrator'],
+            ['Export PDF does not open', 'The browser blocked the pop-up', 'Allow pop-ups for SOCEYE and try again'],
+            ['Event Summary looks out of date', 'It is a saved snapshot', 'Click Regenerate'],
           ],
         },
       ],

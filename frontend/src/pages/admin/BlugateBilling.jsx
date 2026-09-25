@@ -1,118 +1,94 @@
 /**
- * BluGate Usage & Billing — full client-account snapshot: account status, every
- * platform's health, and live billing/quota consumption. Hits GET /api/blugate/billing,
- * backed by services/blugate/global (same module System Health's compact panel uses).
+ * BluGate Usage & Billing — the client account, this month's usage and every platform's access,
+ * health and consumption. Reads GET /api/blugate/billing, which returns BluGate's global
+ * /health and /billing responses as { health, billing }.
  */
-import React, { useState, useEffect, useCallback } from 'react';
-import { CreditCard, RefreshCw, ShieldAlert, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { CreditCard, RefreshCw, ShieldAlert, Gauge, CalendarDays } from 'lucide-react';
 import api from '../../lib/api';
 import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
+import { PlatformBrandIcon } from '../../components/PlatformBrandIcon';
 import { cn } from '../../lib/utils';
 
-/** Normalizes an unknown-shaped BluGate response section into a flat list of {name, ...fields}. */
-const normalizeEntries = (data) => {
-  if (!data) return [];
-  const source = Array.isArray(data) ? data : data.platforms || data.items || data.data || data;
-  if (Array.isArray(source)) {
-    return source.map((entry, idx) => {
-      if (entry && typeof entry === 'object') {
-        const name = entry.platform || entry.name || entry.id || `Item ${idx + 1}`;
-        const { platform, name: _n, id, ...rest } = entry;
-        return { name, ...rest };
-      }
-      return { name: `Item ${idx + 1}`, value: entry };
-    });
-  }
-  if (source && typeof source === 'object') {
-    return Object.entries(source)
-      .filter(([, value]) => typeof value !== 'function')
-      .map(([key, value]) =>
-        value && typeof value === 'object' && !Array.isArray(value)
-          ? { name: key, ...value }
-          : { name: key, value }
-      );
-  }
-  return [];
-};
+const num = (n) => (n == null || Number.isNaN(Number(n)) ? '—' : Number(n).toLocaleString());
+const latency = (ms) => (ms == null ? '—' : ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms)} ms`);
+const dayLabel = (d) => d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', timeZone: 'UTC' });
 
-/** Top-level scalar fields on a response (excluding the nested platforms/list section) — for an account-status card. */
-const scalarFields = (data) => {
-  if (!data || typeof data !== 'object') return [];
-  return Object.entries(data).filter(
-    ([key, value]) => key !== 'platforms' && key !== 'items' && key !== 'data' && (value == null || typeof value !== 'object')
-  );
+const GOOD = new Set(['operational', 'connected', 'healthy', 'active', 'ok', 'normal']);
+const WARN = new Set(['degraded', 'warning', 'development']);
+const toneOf = (v) => {
+  const k = String(v || '').toLowerCase();
+  return GOOD.has(k) ? 'good' : WARN.has(k) ? 'warn' : 'bad';
 };
+const TEXT = { good: 'text-emerald-600', warn: 'text-amber-600', bad: 'text-red-600' };
+const DOT = { good: 'bg-emerald-500', warn: 'bg-amber-500', bad: 'bg-red-500' };
 
-const STATUS_ICONS = {
-  ok: { Icon: CheckCircle2, className: 'text-emerald-600' },
-  online: { Icon: CheckCircle2, className: 'text-emerald-600' },
-  active: { Icon: CheckCircle2, className: 'text-emerald-600' },
-  healthy: { Icon: CheckCircle2, className: 'text-emerald-600' },
-  degraded: { Icon: AlertTriangle, className: 'text-amber-600' },
-  warning: { Icon: AlertTriangle, className: 'text-amber-600' },
-};
-
-const StatusIcon = ({ status }) => {
-  const key = String(status || '').toLowerCase();
-  const match = STATUS_ICONS[key] || { Icon: XCircle, className: 'text-red-600' };
-  const { Icon, className } = match;
-  return <Icon className={cn('h-4 w-4 shrink-0', className)} />;
-};
-
-const usageBar = (consumed, limit) => {
-  const c = Number(consumed);
-  const l = Number(limit);
-  if (!Number.isFinite(c) || !Number.isFinite(l) || l <= 0) return null;
-  const pct = Math.min(100, Math.round((c / l) * 100));
-  const color = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-emerald-500';
+const Pill = ({ label, value }) => {
+  if (!value) return null;
+  const tone = toneOf(value);
   return (
-    <div className="mt-1.5">
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-        <div className={cn('h-full rounded-full transition-all', color)} style={{ width: `${pct}%` }} />
-      </div>
-      <p className="mt-0.5 text-[10px] text-muted-foreground">
-        {c.toLocaleString()} / {l.toLocaleString()} ({pct}%)
-      </p>
-    </div>
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[11px]">
+      <span className={cn('h-1.5 w-1.5 rounded-full', DOT[tone])} />
+      <span className="text-muted-foreground">{label}</span>
+      <span className={cn('font-semibold capitalize', TEXT[tone])}>{value}</span>
+    </span>
   );
 };
 
-const CONSUMED_KEYS = ['consumed', 'used', 'calls', 'requests', 'consumed_requests'];
-const LIMIT_KEYS = ['limit', 'quota', 'max', 'cap'];
-const REMAINING_KEYS = ['remaining', 'left', 'available'];
+const Kpi = ({ label, value, sub, tone }) => (
+  <div className="rounded-xl border border-border bg-card px-4 py-3 min-w-0">
+    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+    <p className={cn('mt-1 text-2xl font-heading font-bold tabular-nums leading-none', tone && TEXT[tone])}>{value}</p>
+    {sub && <p className="mt-1.5 text-[11px] text-muted-foreground truncate">{sub}</p>}
+  </div>
+);
 
-const BillingEntryCard = ({ name, ...fields }) => {
-  const status = fields.status || fields.state;
-  const consumedKey = CONSUMED_KEYS.find((k) => fields[k] != null);
-  const limitKey = LIMIT_KEYS.find((k) => fields[k] != null);
-  const remainingKey = REMAINING_KEYS.find((k) => fields[k] != null);
-  const shown = new Set([consumedKey, limitKey, remainingKey, 'status', 'state'].filter(Boolean));
-  const rest = Object.entries(fields).filter(([k]) => !shown.has(k));
-
-  return (
-    <div className="rounded-xl border border-border/70 bg-card p-4 shadow-xs">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold capitalize">{name}</h3>
-        {status ? <StatusIcon status={status} /> : null}
-      </div>
-      {consumedKey && limitKey ? usageBar(fields[consumedKey], fields[limitKey]) : null}
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-        {remainingKey ? (
-          <span>
-            <span className="font-medium text-foreground">{String(fields[remainingKey])}</span> remaining
-          </span>
-        ) : null}
-        {rest.map(([k, v]) => (
-          <span key={k}>
-            <span className="text-muted-foreground/80">{k}:</span>{' '}
-            <span className="font-medium text-foreground">
-              {v && typeof v === 'object' ? JSON.stringify(v) : String(v)}
-            </span>
-          </span>
-        ))}
-      </div>
+const Section = ({ title, aside, children, className }) => (
+  <section className={cn('rounded-xl border border-border bg-card', className)}>
+    <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+      <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</h2>
+      {aside}
     </div>
-  );
+    {children}
+  </section>
+);
+
+const limitsText = (l) => {
+  const parts = [['/min', l?.perMinute], ['/day', l?.daily], ['/week', l?.weekly], ['/month', l?.monthly]]
+    .filter(([, v]) => v != null)
+    .map(([k, v]) => `${num(v)}${k}`);
+  return parts.length ? parts.join(' · ') : 'None';
+};
+
+/** Health platforms + billing usage joined by slug. */
+const buildRows = (health, billing) => {
+  const usage = new Map((billing?.platformUsage || []).map((p) => [String(p.slug || '').toLowerCase(), p]));
+  const rows = [];
+  const seen = new Set();
+  for (const p of Array.isArray(health?.platforms) ? health.platforms : []) {
+    const slug = String(p.slug || '').toLowerCase();
+    seen.add(slug);
+    rows.push({ slug, name: p.name || slug, version: p.version, granted: p.accessGranted !== false, health: p.health || p.status, endpoints: p.endpointCount, usage: usage.get(slug) || null });
+  }
+  for (const [slug, u] of usage) {
+    if (!seen.has(slug)) rows.push({ slug, name: u.providerName || slug, granted: true, health: u.status, endpoints: null, usage: u });
+  }
+  return rows.sort((a, b) =>
+    Number(b.granted) - Number(a.granted) ||
+    (b.usage?.consumed?.month || 0) - (a.usage?.consumed?.month || 0) ||
+    a.name.localeCompare(b.name));
+};
+
+const monthProgress = (period, month) => {
+  const start = period?.periodStart ? new Date(period.periodStart) : null;
+  const end = period?.periodEnd ? new Date(period.periodEnd) : null;
+  if (!start || !end || Number.isNaN(start) || Number.isNaN(end)) return null;
+  const DAY = 86400000;
+  const total = Math.max(1, Math.round((end - start) / DAY));
+  const day = Math.min(total, Math.max(1, Math.floor((Date.now() - start) / DAY) + 1));
+  const projected = month != null ? Math.round((month / day) * total) : null;
+  return { start, end, total, day, left: total - day, projected };
 };
 
 const BlugateBilling = () => {
@@ -138,42 +114,37 @@ const BlugateBilling = () => {
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   const health = data?.health;
   const billing = data?.billing;
-  const accountFields = scalarFields(health);
-  const platformHealth = normalizeEntries(health);
-  const billingEntries = normalizeEntries(billing);
+  const client = { ...(health?.client || {}), ...(billing?.client || {}) };
+  const system = health?.system;
+  const overall = billing?.overallUsage;
+  const rows = useMemo(() => buildRows(health, billing), [health, billing]);
+  const progress = useMemo(() => monthProgress(billing?.billingPeriod, overall?.requestsThisMonth), [billing, overall]);
+  const monthTotal = overall?.requestsThisMonth || rows.reduce((sum, r) => sum + (r.usage?.consumed?.month || 0), 0);
+  const ranked = rows.filter((r) => r.usage).sort((a, b) => b.usage.consumed.month - a.usage.consumed.month);
+  const maxMonth = ranked[0]?.usage.consumed.month || 0;
+  const noAccess = rows.filter((r) => !r.granted);
+  const success = overall?.successRate;
+  const successTone = success == null ? undefined : success >= 95 ? 'good' : success >= 80 ? 'warn' : 'bad';
+  const accessible = client.accessiblePlatformsCount ?? rows.filter((r) => r.granted).length;
+  const totalPlatforms = client.totalPlatformsCount ?? rows.length;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col bg-background">
-      {/* Toolbar */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-card px-4 py-3">
         <div className="min-w-0">
           <h1 className="flex items-center gap-2 text-base font-bold leading-none tracking-tight">
             <CreditCard className="h-4 w-4 text-primary" />
             BluGate Usage & Billing
           </h1>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            Client account status, per-platform health, and live quota consumption
-          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">Your account, this month&apos;s usage and every platform&apos;s access and health</p>
         </div>
         <div className="flex items-center gap-2">
-          {lastChecked ? (
-            <span className="text-[11px] text-muted-foreground">
-              Updated {lastChecked.toLocaleTimeString()}
-            </span>
-          ) : null}
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs"
-            onClick={() => load(true)}
-            disabled={loading || refreshing}
-          >
+          {lastChecked && <span className="text-[11px] text-muted-foreground">Updated {lastChecked.toLocaleTimeString()}</span>}
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => load(true)} disabled={loading || refreshing}>
             <RefreshCw className={cn('mr-1.5 h-3.5 w-3.5', refreshing && 'animate-spin')} />
             Refresh
           </Button>
@@ -182,86 +153,202 @@ const BlugateBilling = () => {
 
       <div className="flex-1 overflow-y-auto p-4">
         {loading && !data ? (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            Loading BluGate account data…
-          </div>
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading BluGate account data…</div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
             <ShieldAlert className="h-8 w-8 text-red-500" />
-            <h2 className="text-sm font-semibold text-red-900">Connection error</h2>
-            <p className="max-w-sm text-xs text-red-700">{error}</p>
+            <h2 className="text-sm font-semibold">Connection error</h2>
+            <p className="max-w-sm text-xs text-muted-foreground">{error}</p>
             <Button size="sm" className="mt-2 h-8 text-xs" onClick={() => load(true)}>
-              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-              Retry
+              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />Retry
             </Button>
           </div>
         ) : data?.configured === false ? (
           <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
             <CreditCard className="h-8 w-8 text-muted-foreground/40" />
             <h2 className="text-sm font-semibold">BluGate not configured</h2>
-            <p className="max-w-sm text-xs text-muted-foreground">{data.message}</p>
+            <p className="max-w-sm text-xs text-muted-foreground">Add your BluGate keys under Settings → Platforms, then fetch.</p>
           </div>
         ) : (
-          <div className="space-y-5">
-            {data?.health_error ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                Health check failed: {data.health_error}
+          <div className="mx-auto max-w-[1400px] space-y-4">
+            {data?.health_error && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">Health check failed: {data.health_error}</div>
+            )}
+            {data?.billing_error && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">Billing check failed: {data.billing_error}</div>
+            )}
+
+            {/* Account + system */}
+            {(client.name || system) && (
+              <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 rounded-xl border border-border bg-card px-4 py-3.5">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-heading font-bold tracking-tight">{client.name}</h2>
+                    {client.environment && <Badge variant="outline" className="h-5 text-[10px] uppercase">{client.environment}</Badge>}
+                    {client.status && (
+                      <span className={cn('inline-flex items-center gap-1.5 text-xs font-semibold', TEXT[toneOf(client.status)])}>
+                        <span className={cn('h-1.5 w-1.5 rounded-full', DOT[toneOf(client.status)])} />{client.status}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {[client.clientCode, client.id, client.email].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+                {system && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Pill label="System" value={system.status} />
+                    <Pill label="Gateway" value={system.gateway} />
+                    <Pill label="Database" value={system.database} />
+                    {system.version && (
+                      <span className="rounded-full border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground">
+                        BluGate {system.version}{system.environment ? ` · ${system.environment}` : ''}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
-            ) : null}
-            {data?.billing_error ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                Billing check failed: {data.billing_error}
+            )}
+
+            {/* KPIs */}
+            {overall && (
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                <Kpi label="Requests this month" value={num(overall.requestsThisMonth)} sub={billing?.billingPeriod?.currentMonth} />
+                <Kpi label="Requests today" value={num(overall.requestsToday)} />
+                <Kpi label="All time" value={num(overall.totalRequestsAllTime)} sub="requests" />
+                <Kpi label="Success rate" value={success != null ? `${success}%` : '—'} tone={successTone}
+                  sub={successTone === 'good' ? 'Healthy' : successTone === 'warn' ? 'Some requests failing' : successTone === 'bad' ? 'Many requests failing' : undefined} />
+                <Kpi label="Avg latency" value={latency(overall.averageLatencyMs)} sub="per request" />
+                <Kpi label="Platforms you can use" value={`${accessible} / ${totalPlatforms}`} sub={billing?.client?.activeApiKeys != null ? `${billing.client.activeApiKeys} active API key${billing.client.activeApiKeys === 1 ? '' : 's'}` : undefined} />
               </div>
-            ) : null}
+            )}
 
-            {/* Account status */}
-            {accountFields.length > 0 ? (
-              <section>
-                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Client Account Status
-                </h2>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {accountFields.map(([key, value]) => (
-                    <div key={key} className="rounded-xl border border-border/70 bg-card p-3">
-                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{key}</p>
-                      <p className="mt-0.5 truncate text-sm font-semibold">{String(value)}</p>
-                    </div>
-                  ))}
+            {/* Billing period */}
+            {progress && (
+              <Section title="Billing period" aside={<span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><CalendarDays className="h-3.5 w-3.5" />{billing.billingPeriod.currentMonth}</span>}>
+                <div className="px-4 py-3.5">
+                  <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2 text-xs">
+                    <span><span className="font-semibold">Day {progress.day}</span> of {progress.total} <span className="text-muted-foreground">({dayLabel(progress.start)} to {dayLabel(progress.end)})</span></span>
+                    <span className="text-muted-foreground">{progress.left} day{progress.left === 1 ? '' : 's'} left</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${(progress.day / progress.total) * 100}%` }} />
+                  </div>
+                  {progress.projected != null && (
+                    <p className="mt-2.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <Gauge className="h-3.5 w-3.5" />
+                      At this pace you will make about <span className="font-semibold text-foreground">{num(progress.projected)}</span> requests by the end of the month. This is an estimate.
+                    </p>
+                  )}
                 </div>
-              </section>
-            ) : null}
+              </Section>
+            )}
 
-            {/* Platform health */}
-            <section>
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Platform Health ({platformHealth.length})
-              </h2>
-              {platformHealth.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No per-platform health data returned.</p>
-              ) : (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {platformHealth.map((entry, idx) => (
-                    <BillingEntryCard key={`health-${entry.name}-${idx}`} {...entry} />
-                  ))}
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+              {/* Requests by platform */}
+              <Section title="Requests by platform · this month">
+                <div className="space-y-3 px-4 py-4">
+                  {ranked.length === 0 ? (
+                    <p className="py-6 text-center text-xs text-muted-foreground">No usage recorded this month.</p>
+                  ) : ranked.map((r) => {
+                    const month = r.usage.consumed.month;
+                    const share = monthTotal ? Math.round((month / monthTotal) * 1000) / 10 : 0;
+                    return (
+                      <div key={r.slug}>
+                        <div className="mb-1 flex items-center gap-2 text-xs">
+                          <PlatformBrandIcon platform={r.slug} className="h-3.5 w-3.5 shrink-0" />
+                          <span className="font-medium">{r.name}</span>
+                          <span className="ml-auto tabular-nums font-semibold">{num(month)}</span>
+                          <span className="w-12 text-right tabular-nums text-muted-foreground">{share}%</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-muted">
+                          <div className="h-full rounded-full bg-primary" style={{ width: `${maxMonth ? Math.max((month / maxMonth) * 100, month ? 2 : 0) : 0}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-            </section>
+              </Section>
 
-            {/* Billing / quotas */}
-            <section>
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Billing & Rate Limits ({billingEntries.length})
-              </h2>
-              {billingEntries.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No billing data returned.</p>
-              ) : (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {billingEntries.map((entry, idx) => (
-                    <BillingEntryCard key={`billing-${entry.name}-${idx}`} {...entry} />
+              {/* Access + health */}
+              <Section title="Platform access" aside={<span className="text-[11px] text-muted-foreground">{accessible} of {totalPlatforms} granted</span>}>
+                <ul className="divide-y divide-border">
+                  {rows.map((r) => (
+                    <li key={r.slug} className="flex items-center gap-2.5 px-4 py-2.5 text-xs">
+                      <PlatformBrandIcon platform={r.slug} className={cn('h-4 w-4 shrink-0', !r.granted && 'opacity-50')} />
+                      <div className="min-w-0 flex-1">
+                        <p className={cn('font-medium', !r.granted && 'text-muted-foreground')}>{r.name}</p>
+                        <p className="text-[10px] text-muted-foreground">{[r.version, r.endpoints != null && `${num(r.endpoints)} endpoints`].filter(Boolean).join(' · ')}</p>
+                      </div>
+                      {r.health && (
+                        <span className="inline-flex items-center gap-1.5 text-[11px] capitalize text-muted-foreground">
+                          <span className={cn('h-1.5 w-1.5 rounded-full', DOT[toneOf(r.health)])} />{r.health}
+                        </span>
+                      )}
+                      <span className={cn('w-20 text-right text-[11px] font-semibold', r.granted ? 'text-emerald-600' : 'text-muted-foreground')}>
+                        {r.granted ? 'Granted' : 'No access'}
+                      </span>
+                    </li>
                   ))}
-                </div>
-              )}
-            </section>
+                </ul>
+                {noAccess.length > 0 && (
+                  <p className="border-t border-border px-4 py-2.5 text-[11px] text-muted-foreground">
+                    {noAccess.map((r) => r.name).join(' and ')} {noAccess.length === 1 ? 'is' : 'are'} not included in your BluGate plan. Ask BluGate to enable {noAccess.length === 1 ? 'it' : 'them'}.
+                  </p>
+                )}
+              </Section>
+            </div>
+
+            {/* Detail table */}
+            <Section title="Usage, quota and limits by platform">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border text-left text-[11px] text-muted-foreground">
+                      <th className="px-4 py-2 font-medium">Platform</th>
+                      <th className="px-3 py-2 text-right font-medium">Today</th>
+                      <th className="px-3 py-2 text-right font-medium">This month</th>
+                      <th className="px-3 py-2 text-right font-medium">All time</th>
+                      <th className="px-3 py-2 text-right font-medium">Share</th>
+                      <th className="px-3 py-2 font-medium">Monthly quota</th>
+                      <th className="px-4 py-2 font-medium">Rate limits</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => {
+                      const u = r.usage;
+                      const q = u?.quota;
+                      const share = u && monthTotal ? Math.round((u.consumed.month / monthTotal) * 1000) / 10 : null;
+                      const pct = q?.percentConsumed;
+                      return (
+                        <tr key={r.slug} className={cn('border-b border-border last:border-0', !r.granted && 'text-muted-foreground')}>
+                          <td className="px-4 py-2.5">
+                            <span className="inline-flex items-center gap-2 font-medium">
+                              <PlatformBrandIcon platform={r.slug} className="h-3.5 w-3.5" />{r.name}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 text-right tabular-nums">{u ? num(u.consumed.today) : '—'}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums font-semibold">{u ? num(u.consumed.month) : '—'}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums">{u ? num(u.consumed.allTime) : '—'}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums">{share != null ? `${share}%` : '—'}</td>
+                          <td className="px-3 py-2.5">
+                            {!u ? '—' : q?.monthlyLimit != null ? (
+                              <div className="min-w-[140px]">
+                                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                                  <div className={cn('h-full rounded-full', pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-emerald-500')} style={{ width: `${Math.min(100, pct ?? 0)}%` }} />
+                                </div>
+                                <p className="mt-0.5 text-[10px] text-muted-foreground">{num(u.consumed.month)} of {num(q.monthlyLimit)}{q.remaining != null ? ` · ${num(q.remaining)} left` : ''}</p>
+                              </div>
+                            ) : <span className="text-muted-foreground">No limit</span>}
+                          </td>
+                          <td className="px-4 py-2.5 text-muted-foreground">{u ? limitsText(u.rateLimits) : '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Section>
           </div>
         )}
       </div>

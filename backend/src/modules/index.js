@@ -16,6 +16,7 @@ const { analyticsHubRoutes } = require('./analytics-hub');
 const { healthRoutes } = require('./health');
 const { blugateRoutes } = require('./blugate');
 const { socialProfileRoutes } = require('./social-profiles');
+const { integrationRoutes } = require('./integrations');
 const { intelligenceRoutes } = require('./intelligence');
 const {
   settingsRoutes,
@@ -72,6 +73,7 @@ router.use('/analytics-hub', analyticsHubRoutes);
 router.use('/health', healthRoutes);
 router.use('/blugate', blugateRoutes);
 router.use('/social-profiles', socialProfileRoutes);
+router.use('/integrations', integrationRoutes);
 router.use('/intelligence', intelligenceRoutes);
 router.use('/keywords', keywordRoutes);
 router.use('/settings', settingsRoutes);

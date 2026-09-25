@@ -4,6 +4,9 @@ import { useAuth } from '../../context/auth.context';
 import { authApi } from '../../api/auth.api';
 import { socialProfilesApi } from '../../api/socialProfiles.api';
 import { AlertService } from '../../api';
+import api from '../../lib/api';
+import { Switch } from '../../components/ui/switch';
+import { PlatformBrandIcon } from '../../components/PlatformBrandIcon';
 import { resolvePublicAssetUrl } from '../../lib/publicAssetUrl';
 import {
   ShieldAlert,
@@ -32,70 +35,11 @@ import {
   User,
   Check,
 } from 'lucide-react';
-import {
-  TelegramBrandLogo,
-  XBrandLogo,
-  FacebookBrandLogo,
-  InstagramBrandLogo,
-  YoutubeBrandLogo,
-  RedditBrandLogo,
-} from '../../components/PlatformBrandIcon';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
 import { toast } from 'sonner';
-
-const PLATFORM_PRESETS = [
-  {
-    slug: 'x',
-    name: 'X (Twitter)',
-    icon: 'twitter',
-    brandIcon: XBrandLogo,
-    color: '#000000',
-    description: 'Ingests real-time citizen posts, breaking trends, viral mentions, and complaints.',
-  },
-  {
-    slug: 'facebook',
-    name: 'Facebook',
-    icon: 'facebook',
-    brandIcon: FacebookBrandLogo,
-    color: '#1877F2',
-    description: 'Monitors public community pages, local civic groups, and citizen grievance discussions.',
-  },
-  {
-    slug: 'instagram',
-    name: 'Instagram',
-    icon: 'instagram',
-    brandIcon: InstagramBrandLogo,
-    color: '#E4405F',
-    description: 'Tracks multimedia posts, video reels, viral hashtags, and youth trends.',
-  },
-  {
-    slug: 'youtube',
-    name: 'YouTube',
-    icon: 'youtube',
-    brandIcon: YoutubeBrandLogo,
-    color: '#FF0000',
-    description: 'Monitors news broadcasts, citizen video uploads, speech streams, and comments.',
-  },
-  {
-    slug: 'telegram',
-    name: 'Telegram',
-    icon: 'telegram',
-    brandIcon: TelegramBrandLogo,
-    color: '#229ED9',
-    description: 'Monitors public broadcast channels, community groups, and intelligence feeds.',
-  },
-  {
-    slug: 'reddit',
-    name: 'Reddit',
-    icon: 'reddit',
-    brandIcon: RedditBrandLogo,
-    color: '#FF4500',
-    description: 'Tracks subreddit discussions and posts that match your event keywords.',
-  },
-];
 
 const SUGGESTED_KEYWORD_GROUPS = [
   {
@@ -134,22 +78,12 @@ export default function InitialSetupWizard() {
   const [keywords, setKeywords] = useState([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
 
-  // Platform form state
-  const [selectedPreset, setSelectedPreset] = useState(PLATFORM_PRESETS[0]);
-  const [platformName, setPlatformName] = useState(PLATFORM_PRESETS[0].name);
-  const [platformSlug, setPlatformSlug] = useState(PLATFORM_PRESETS[0].slug);
-  const [blugateKey, setBlugateKey] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [showBlugateKey, setShowBlugateKey] = useState(false);
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [lowThreshold, setLowThreshold] = useState(100);
-  const [medThreshold, setMedThreshold] = useState(500);
-  const [highThreshold, setHighThreshold] = useState(1000);
-  const [timeWindow, setTimeWindow] = useState(60);
-
-  const [savingPlatform, setSavingPlatform] = useState(false);
-  const [deletingPlatformId, setDeletingPlatformId] = useState(null);
+  const [info, setInfo] = useState(null);
+  const [togglingId, setTogglingId] = useState(null);
+  const [blugateClient, setBlugateClient] = useState('');
+  const [blugateApi, setBlugateApi] = useState('');
+  const [showKeys, setShowKeys] = useState(false);
+  const [fetching, setFetching] = useState(false);
 
   // Keyword form state
   const [keywordInput, setKeywordInput] = useState('');
@@ -159,6 +93,7 @@ export default function InitialSetupWizard() {
   // Unlock state
   const [unlocking, setUnlocking] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [kwCategory, setKwCategory] = useState(0);
 
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin' || user?.is_admin;
   const orgTitle = user?.blurasagatitle || user?.theme_name || 'Delhi Police';
@@ -185,6 +120,10 @@ export default function InitialSetupWizard() {
         const kwList = Array.isArray(keywordsRes.value?.data) ? keywordsRes.value.data : [];
         setKeywords(kwList);
       }
+      try {
+        const infoRes = await api.get('/integrations/blugate');
+        setInfo(infoRes.data || null);
+      } catch { /* platform details are optional */ }
     } catch (err) {
       console.error('[InitialSetupWizard] Load error:', err);
     } finally {
@@ -213,71 +152,44 @@ export default function InitialSetupWizard() {
     }
   }, [user]);
 
-  const handleSelectPreset = (preset) => {
-    setSelectedPreset(preset);
-    setPlatformName(preset.name);
-    setPlatformSlug(preset.slug);
-  };
-
-  const handleAddPlatform = async (e) => {
+  const handleFetch = async (e) => {
     e?.preventDefault();
-    if (!platformName.trim() || !platformSlug.trim()) {
-      toast.error('Platform name and slug are required');
+    const typed = Boolean(blugateClient.trim() || blugateApi.trim());
+    if (typed && (!blugateClient.trim() || !blugateApi.trim())) {
+      toast.error('Enter both the client key and the API key');
       return;
     }
-    if (!blugateKey.trim()) {
-      toast.error('Blugate Client Key is required');
+    if (!typed && !info?.configured) {
+      toast.error('Enter your client key and API key first');
       return;
     }
-    if (!apiKey.trim()) {
-      toast.error('API Key is required');
-      return;
-    }
-
-    setSavingPlatform(true);
+    setFetching(true);
     try {
-      await socialProfilesApi.createPlatform({
-        name: platformName.trim(),
-        slug: platformSlug.trim().toLowerCase(),
-        icon: selectedPreset?.icon || 'Globe2',
-        color: selectedPreset?.color || null,
-        blugate_client_key: blugateKey.trim(),
-        api_key: apiKey.trim(),
-        low_threshold: Number(lowThreshold) || 100,
-        medium_threshold: Number(medThreshold) || 500,
-        high_threshold: Number(highThreshold) || 1000,
-        time_window_minutes: Number(timeWindow) || 60,
-        is_active: true,
-      });
-
-      toast.success(`Platform ${platformName} connected`);
-      setBlugateKey('');
-      setApiKey('');
-      // Switch to next unconnected preset if possible
-      const existingSlugs = new Set([...platforms.map((p) => p.slug), platformSlug.trim().toLowerCase()]);
-      const nextUnused = PLATFORM_PRESETS.find((p) => !existingSlugs.has(p.slug));
-      if (nextUnused) {
-        handleSelectPreset(nextUnused);
-      }
+      await api.post('/integrations/blugate/fetch', typed
+        ? { api_key: blugateApi.trim(), blugate_client_key: blugateClient.trim() }
+        : {});
+      setBlugateClient('');
+      setBlugateApi('');
+      toast.success('Platforms fetched from BluGate');
       await loadData();
+      await fetchMe({ bypassCache: true }).catch(() => {});
     } catch (err) {
-      toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to save platform');
+      toast.error(err.response?.data?.error || err.response?.data?.message || 'Could not fetch from BluGate');
     } finally {
-      setSavingPlatform(false);
+      setFetching(false);
     }
   };
 
-  const handleDeletePlatform = async (id, name) => {
-    if (!window.confirm(`Disconnect platform "${name}"?`)) return;
-    setDeletingPlatformId(id);
+  const handleToggle = async (row) => {
+    setTogglingId(row.id);
     try {
-      await socialProfilesApi.deletePlatform(id);
-      toast.success('Platform removed');
+      await socialProfilesApi.updatePlatform(row.id, { is_active: !row.is_active });
+      toast.success(row.is_active ? `${row.name} stopped` : `${row.name} activated`);
       await loadData();
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to delete platform');
+      toast.error(err.response?.data?.error || 'Could not update platform');
     } finally {
-      setDeletingPlatformId(null);
+      setTogglingId(null);
     }
   };
 
@@ -346,7 +258,7 @@ export default function InitialSetupWizard() {
   };
 
   const handleUnlockAndLaunch = async () => {
-    const canUnlock = platforms.length > 0 && keywords.length > 0;
+    const canUnlock = platforms.some((p) => p.is_active) && keywords.length > 0;
     if (!canUnlock) {
       toast.error('Please configure at least 1 platform and 1 keyword before proceeding.');
       return;
@@ -376,7 +288,8 @@ export default function InitialSetupWizard() {
     }
   };
 
-  const hasPlatforms = platforms.length > 0;
+  const activePlatforms = platforms.filter((p) => p.is_active);
+  const hasPlatforms = activePlatforms.length > 0;
   const hasKeywords = keywords.length > 0;
   const isReadyToUnlock = hasPlatforms && hasKeywords;
 
@@ -433,569 +346,314 @@ export default function InitialSetupWizard() {
   }
 
   // ADMIN SETUP VIEW
+  const doneCount = Number(hasPlatforms) + Number(hasKeywords);
+  const platformItems = (() => {
+    const ALIAS = { twitter: 'x', x: 'twitter' };
+    const rowFor = (slug) => platforms.find((r) => r.slug === slug) || (ALIAS[slug] ? platforms.find((r) => r.slug === ALIAS[slug]) : null) || null;
+    const items = (info?.meta || []).map((m) => ({ key: m.slug, slug: m.slug, name: m.name || rowFor(m.app_slug || m.slug)?.name || m.slug, granted: m.status === 'available', row: rowFor(m.app_slug || m.slug) }));
+    const used = new Set(items.map((i) => i.row?.id).filter(Boolean));
+    platforms.filter((r) => !used.has(r.id)).forEach((r) => items.push({ key: `r${r.id}`, slug: r.slug, name: r.name, granted: true, row: r }));
+    items.sort((a, b) => Number(b.granted) - Number(a.granted) || a.name.localeCompare(b.name));
+    return items;
+  })();
+  const client = info?.client;
+  // Live search: the last comma-separated token filters suggestions and saved keywords as you type.
+  const kwQuery = keywordInput.split(/[,;\n]+/).pop().trim().toLowerCase();
+  const kwSearching = kwQuery.length > 0;
+  const kwMatches = SUGGESTED_KEYWORD_GROUPS.flatMap((g) => g.items.map((item) => ({ item, category: g.category })))
+    .filter((x) => x.item.toLowerCase().includes(kwQuery));
+  const kwExact = keywords.some((k) => k.keyword?.toLowerCase() === kwQuery) || kwMatches.some((x) => x.item.toLowerCase() === kwQuery);
+  const visibleKeywords = kwSearching ? keywords.filter((k) => k.keyword?.toLowerCase().includes(kwQuery)) : keywords;
+  const steps = [
+    { n: 1, title: 'Connect BluGate', hint: hasPlatforms ? `${activePlatforms.length} platform${activePlatforms.length === 1 ? '' : 's'} monitoring` : 'Keys and platforms', done: hasPlatforms },
+    { n: 2, title: 'Add keywords', hint: hasKeywords ? `${keywords.length} keyword${keywords.length === 1 ? '' : 's'} added` : 'What to watch for', done: hasKeywords },
+  ];
+
   return (
     <div className="min-h-screen w-full bg-background text-foreground flex flex-col font-sans">
-      {/* Official Drishti Primary Header */}
       <header
-        className="sticky top-0 z-50 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-white/10 shadow-md px-4 sm:px-6 text-white transition-all duration-300"
+        className="sticky top-0 z-50 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-white/10 shadow-md px-4 sm:px-6 text-white"
         style={{ background: 'var(--primary-gradient)' }}
       >
         <div className="flex min-w-0 items-center gap-3">
-          <img
-            src={resolvePublicAssetUrl(orgLogo)}
-            alt={orgTitle}
-            className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-white/30 bg-white/10"
-          />
+          <img src={resolvePublicAssetUrl(orgLogo)} alt={orgTitle}
+            className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-white/30 bg-white/10" />
           <div className="min-w-0 leading-tight">
             <div className="flex items-center gap-2">
-              <h1 className="truncate font-heading text-base font-bold tracking-[0.12em] text-white sm:text-lg">
-                {orgTitle}
-              </h1>
-              <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/20 text-white border border-white/30">
-                Setup Mode
-              </span>
+              <h1 className="truncate font-heading text-base font-bold tracking-[0.12em] text-white sm:text-lg">{orgTitle}</h1>
+              <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/20 text-white border border-white/30">Setup Mode</span>
             </div>
-            <p className="hidden truncate text-[10px] font-semibold uppercase tracking-widest text-white/90 sm:block">
-              {orgDesc}
-            </p>
+            <p className="hidden truncate text-[10px] font-semibold uppercase tracking-widest text-white/90 sm:block">{orgDesc}</p>
           </div>
         </div>
-
         <div className="flex shrink-0 items-center gap-3">
-          <img
-            src="/Logo.png"
-            alt="Blue Cloud Softech"
-            className="h-8 w-auto object-contain opacity-95 hidden md:block"
-          />
+          <img src="/Logo.png" alt="Blue Cloud Softech" className="h-8 w-auto object-contain opacity-95 hidden md:block" />
           <div className="mx-1 hidden h-8 w-px bg-white/25 sm:block" aria-hidden />
           <div className="hidden text-right sm:block">
-            <div className="max-w-[150px] truncate text-sm font-bold text-white">
-              {user?.name || user?.username}
-            </div>
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-white/90">
-              Administrator
-            </div>
+            <div className="max-w-[150px] truncate text-sm font-bold text-white">{user?.name || user?.username}</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-white/90">Administrator</div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={logout}
-            className="text-white hover:bg-white/10 h-9 px-3 gap-1.5"
-            title="Sign Out"
-          >
+          <Button variant="ghost" size="sm" onClick={logout} className="text-white hover:bg-white/10 h-9 px-3 gap-1.5" title="Sign Out">
             <LogOut className="h-4 w-4" />
             <span className="hidden sm:inline text-xs">Sign Out</span>
           </Button>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-5xl mx-auto p-4 sm:p-6 md:p-8 space-y-6">
-        {/* Organization / Website Overview Card */}
-        <div className="rounded-xl border border-border bg-card p-5 sm:p-6 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-primary" />
-                <h2 className="text-lg sm:text-xl font-bold tracking-tight text-foreground">
-                  {orgTitle} · Workspace Onboarding
-                </h2>
+      <main className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-6 p-4 pb-28 sm:p-6 sm:pb-28 lg:grid-cols-[280px_1fr]">
+        {/* LEFT RAIL */}
+        <aside className="lg:sticky lg:top-24 lg:self-start">
+          <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+            <div className="relative px-5 pb-5 pt-6" style={{ background: 'var(--primary-gradient)' }}>
+              <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-white/10" aria-hidden />
+              <div className="absolute -bottom-10 right-10 h-20 w-20 rounded-full bg-white/10" aria-hidden />
+              <div className="relative">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
+                  <Sparkles className="h-3 w-3" /> Quick setup
+                </span>
+                <h2 className="mt-3 font-heading text-xl font-bold leading-tight text-white">Let&apos;s get {orgTitle} live</h2>
+                <p className="mt-1 text-xs text-white/85">Two quick steps and the full app unlocks.</p>
+                <div className="mt-4 flex items-center gap-3">
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/25">
+                    <div className="h-full rounded-full bg-white transition-all duration-500" style={{ width: `${(doneCount / 2) * 100}%` }} />
+                  </div>
+                  <span className="text-[11px] font-semibold tabular-nums text-white">{doneCount}/2</span>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Tenant Environment: <span className="font-mono font-medium text-foreground">{tenantDb}</span>
-              </p>
             </div>
 
-            {/* Live Progress Indicators */}
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              <div
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium ${
-                  hasPlatforms
-                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                    : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                }`}
-              >
-                {hasPlatforms ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
-                <span>Platform ({platforms.length})</span>
-              </div>
-
-              <div
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium ${
-                  hasKeywords
-                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                    : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                }`}
-              >
-                {hasKeywords ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
-                <span>Keywords ({keywords.length})</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Clear Requirement Notice */}
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-3">
-            <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="font-semibold">Mandatory Configuration Required Before Website Access</p>
-              <p className="text-[11px] leading-relaxed opacity-90">
-                To activate automated observation, alert scanning, and citizen grievance monitoring for{' '}
-                <strong>{orgTitle}</strong>, you must configure at least <strong>1 social media platform</strong> with
-                API credentials and add at least <strong>1 monitoring keyword</strong>. All other pages will unlock
-                automatically upon completion.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* STEP 1: SOCIAL PLATFORM CONFIGURATION */}
-        <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
-          <div className="px-5 py-4 border-b border-border bg-muted/20 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
-                1
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">Social Platform Connection</h3>
-                <p className="text-xs text-muted-foreground">
-                  Connect data streams for social media monitoring and alert ingestion
-                </p>
-              </div>
-            </div>
-            <Badge
-              variant={hasPlatforms ? 'default' : 'secondary'}
-              className="text-[11px] font-medium"
-            >
-              {hasPlatforms ? `${platforms.length} Connected` : 'Required'}
-            </Badge>
-          </div>
-
-          <div className="p-5 sm:p-6 space-y-5">
-            {/* Quick Pick Platform Presets */}
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Select Platform
-              </Label>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                {PLATFORM_PRESETS.map((preset) => {
-                  const Brand = preset.brandIcon;
-                  const isSelected = selectedPreset?.slug === preset.slug;
-                  const isAlreadyAdded = platforms.some((p) => p.slug === preset.slug);
-
-                  return (
-                    <button
-                      key={preset.slug}
-                      type="button"
-                      onClick={() => handleSelectPreset(preset)}
-                      className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-left transition-all ${
-                        isSelected
-                          ? 'border-primary bg-primary/10 text-primary font-semibold shadow-xs ring-1 ring-primary'
-                          : 'border-border bg-background hover:bg-muted/40 text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      <Brand className="w-4 h-4 shrink-0" />
-                      <span className="text-xs truncate flex-1">{preset.name}</span>
-                      {isAlreadyAdded && (
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Connected" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-[11px] text-muted-foreground italic mt-1">
-                {selectedPreset.name}: {selectedPreset.description}
-              </p>
-            </div>
-
-            {/* Platform Credential Form */}
-            <form onSubmit={handleAddPlatform} className="space-y-4 pt-1">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="wiz_plat_name" className="text-xs font-medium">Platform Name</Label>
-                  <Input
-                    id="wiz_plat_name"
-                    value={platformName}
-                    onChange={(e) => setPlatformName(e.target.value)}
-                    placeholder="e.g. X (Twitter)"
-                    className="h-9 text-xs"
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="wiz_plat_slug" className="text-xs font-medium">Slug Identifier</Label>
-                  <Input
-                    id="wiz_plat_slug"
-                    value={platformSlug}
-                    onChange={(e) => setPlatformSlug(e.target.value)}
-                    placeholder="e.g. x"
-                    className="h-9 text-xs font-mono"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Blugate Client Key */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="wiz_blugate" className="text-xs font-medium">
-                    Blugate Client Key <span className="text-destructive">*</span>
-                  </Label>
-                  <button
-                    type="button"
-                    onClick={() => setShowBlugateKey(!showBlugateKey)}
-                    className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
-                  >
-                    {showBlugateKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                    {showBlugateKey ? 'Hide' : 'Show'}
-                  </button>
-                </div>
-                <div className="relative">
-                  <Input
-                    id="wiz_blugate"
-                    type={showBlugateKey ? 'text' : 'password'}
-                    value={blugateKey}
-                    onChange={(e) => setBlugateKey(e.target.value)}
-                    placeholder="Enter Blugate crawler client gateway key"
-                    className="h-9 text-xs font-mono pr-9"
-                    required
-                  />
-                </div>
-                <p className="text-[10px] text-muted-foreground">
-                  Provided by Blugate crawler gateway to authorize incoming data streams for this tenant.
-                </p>
-              </div>
-
-              {/* Platform API Key */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="wiz_apikey" className="text-xs font-medium">
-                    Platform API Key <span className="text-destructive">*</span>
-                  </Label>
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
-                  >
-                    {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                    {showApiKey ? 'Hide' : 'Show'}
-                  </button>
-                </div>
-                <div className="relative">
-                  <Input
-                    id="wiz_apikey"
-                    type={showApiKey ? 'text' : 'password'}
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Enter platform pipeline API secret key"
-                    className="h-9 text-xs font-mono pr-9"
-                    required
-                  />
-                </div>
-                <p className="text-[10px] text-muted-foreground">
-                  Authentication token used by crawler workers to stream posts from {selectedPreset.name}.
-                </p>
-              </div>
-
-              {/* Optional Viral Thresholds Accordion */}
-              <div className="border border-border rounded-lg bg-muted/20 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="w-full px-3 py-2 text-left text-xs font-medium text-muted-foreground hover:text-foreground flex items-center justify-between"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <Sliders className="w-3.5 h-3.5 text-primary" />
-                    Viral Alert Thresholds (Optional)
+            <ol className="relative space-y-1 p-4">
+              {steps.map((s, i) => (
+                <li key={s.n} className="relative flex items-start gap-3 rounded-xl p-2.5">
+                  {i < steps.length - 1 && (
+                    <span className={`absolute left-[22px] top-10 h-[calc(100%-8px)] w-px ${s.done ? 'bg-emerald-500/50' : 'bg-border'}`} aria-hidden />
+                  )}
+                  <span className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-4 ring-card transition-colors ${s.done ? 'bg-emerald-500 text-white' : 'bg-primary/10 text-primary'}`}>
+                    {s.done ? <Check className="h-4 w-4" /> : s.n}
                   </span>
-                  {showAdvanced ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                </button>
+                  <div className="min-w-0 pt-0.5">
+                    <p className="text-sm font-semibold leading-none">{s.title}</p>
+                    <p className={`mt-1 text-xs ${s.done ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>{s.hint}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
 
-                {showAdvanced && (
-                  <div className="p-3 border-t border-border space-y-2.5">
-                    <p className="text-[11px] text-muted-foreground">
-                      Engagement thresholds (likes/reposts) to trigger viral alerts:
-                    </p>
-                    <div className="grid grid-cols-4 gap-2">
-                      <div>
-                        <Label className="text-[10px] text-muted-foreground block mb-1">Low (L)</Label>
-                        <Input
-                          type="number"
-                          value={lowThreshold}
-                          onChange={(e) => setLowThreshold(e.target.value)}
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-[10px] text-muted-foreground block mb-1">Medium (M)</Label>
-                        <Input
-                          type="number"
-                          value={medThreshold}
-                          onChange={(e) => setMedThreshold(e.target.value)}
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-[10px] text-muted-foreground block mb-1">High (H)</Label>
-                        <Input
-                          type="number"
-                          value={highThreshold}
-                          onChange={(e) => setHighThreshold(e.target.value)}
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-[10px] text-muted-foreground block mb-1">Window (min)</Label>
-                        <Input
-                          type="number"
-                          value={timeWindow}
-                          onChange={(e) => setTimeWindow(e.target.value)}
-                          className="h-8 text-xs"
-                        />
-                      </div>
+            <div className="border-t border-border bg-muted/20 px-5 py-3 text-[11px] text-muted-foreground">
+              Tenant <span className="block truncate font-mono font-medium text-foreground">{tenantDb}</span>
+            </div>
+          </div>
+        </aside>
+
+        {/* RIGHT CONTENT */}
+        <div className="min-w-0 space-y-6">
+          {/* STEP 1 */}
+          <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+            <div className="flex items-center gap-3 border-b border-border px-5 py-4 sm:px-6">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Database className="h-5 w-5" /></span>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-semibold leading-none">Connect BluGate</h3>
+                <p className="mt-1.5 text-xs text-muted-foreground">Enter your keys once. We fetch every platform your account can use.</p>
+              </div>
+              {info?.configured ? (
+                <Badge className="gap-1 bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-400"><CheckCircle2 className="h-3 w-3" />Connected</Badge>
+              ) : (
+                <Badge variant="secondary" className="text-[11px]">Required</Badge>
+              )}
+            </div>
+
+            <div className="space-y-6 p-5 sm:p-6">
+              <form onSubmit={handleFetch} className="rounded-xl border border-dashed border-border bg-muted/20 p-4">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="wiz_bg_client" className="text-xs font-medium">Client key</Label>
+                    <div className="relative">
+                      <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input id="wiz_bg_client" type={showKeys ? 'text' : 'password'} value={blugateClient}
+                        onChange={(e) => setBlugateClient(e.target.value)} autoComplete="off" className="h-10 bg-background pl-9 text-sm"
+                        placeholder={info?.configured ? 'Saved. Type only to replace' : 'e.g. SOC-EYE-001'} />
                     </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="wiz_bg_api" className="text-xs font-medium">API key</Label>
+                    <div className="relative">
+                      <Key className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input id="wiz_bg_api" type={showKeys ? 'text' : 'password'} value={blugateApi}
+                        onChange={(e) => setBlugateApi(e.target.value)} autoComplete="new-password" className="h-10 bg-background pl-9 pr-10 text-sm"
+                        placeholder={info?.configured ? 'Saved. Type only to replace' : 'BluGate API key'} />
+                      <button type="button" onClick={() => setShowKeys((v) => !v)} aria-label={showKeys ? 'Hide keys' : 'Show keys'}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+                        {showKeys ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-col-reverse items-stretch justify-between gap-3 sm:flex-row sm:items-center">
+                  <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <Lock className="h-3 w-3" /> Keys are stored encrypted and never shown again.
+                  </p>
+                  <Button type="submit" className="h-10 gap-2 px-5 text-sm" disabled={fetching || (!info?.configured && !blugateClient.trim() && !blugateApi.trim())}>
+                    {fetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                    {info?.configured ? 'Refresh platforms' : 'Fetch platforms'}
+                  </Button>
+                </div>
+              </form>
+
+              {platformItems.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="text-sm font-semibold">
+                      {client?.name ? `${client.name} · ` : ''}
+                      <span className="font-normal text-muted-foreground">
+                        {client?.accessible_count != null ? `${client.accessible_count} of ${client.total_count} platforms available` : `${platformItems.length} platforms`}
+                      </span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">Tap a tile to start or stop monitoring.</p>
+                  </div>
+                  <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                    {platformItems.map((it) => {
+                      const canUse = Boolean(it.row) && it.granted;
+                      const on = Boolean(it.row?.is_active);
+                      const busy = togglingId === it.row?.id;
+                      return (
+                        <li key={it.key}>
+                          <button type="button" disabled={!canUse || busy} onClick={() => handleToggle(it.row)} aria-pressed={on}
+                            className={`group relative flex h-full w-full flex-col items-start gap-3 rounded-xl border p-3.5 text-left transition-all
+                              ${on ? 'border-primary bg-primary/5 shadow-sm ring-1 ring-primary/30'
+                                : canUse ? 'border-border bg-background hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md'
+                                : 'cursor-not-allowed border-border bg-muted/30'}`}>
+                            <div className="flex w-full items-start justify-between">
+                              <span className={`flex h-10 w-10 items-center justify-center rounded-xl border ${on ? 'border-primary/30 bg-background' : 'border-border bg-card'}`}>
+                                <PlatformBrandIcon platform={it.slug} className={`h-5 w-5 ${canUse ? '' : 'opacity-40 grayscale'}`} />
+                              </span>
+                              {busy ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                : !canUse ? <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                                : on ? <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground"><Check className="h-3 w-3" /></span>
+                                : <span className="h-5 w-5 rounded-full border border-border group-hover:border-primary/60" />}
+                            </div>
+                            <div className="min-w-0">
+                              <p className={`truncate text-sm font-semibold leading-none ${canUse ? '' : 'text-muted-foreground'}`}>{it.name}</p>
+                              <p className={`mt-1.5 text-[11px] ${on ? 'font-medium text-primary' : 'text-muted-foreground'}`}>
+                                {!it.granted ? 'Not in your plan' : !it.row ? 'Not supported yet' : on ? 'Monitoring on' : 'Off'}
+                              </p>
+                            </div>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* STEP 2 */}
+          <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+            <div className="flex items-center gap-3 border-b border-border px-5 py-4 sm:px-6">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Tag className="h-5 w-5" /></span>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-semibold leading-none">Add keywords</h3>
+                <p className="mt-1.5 text-xs text-muted-foreground">Terms to watch for in posts and comments.</p>
+              </div>
+              <Badge variant={hasKeywords ? 'default' : 'secondary'} className="text-[11px]">
+                {hasKeywords ? `${keywords.length} added` : 'Required'}
+              </Badge>
+            </div>
+
+            <div className="space-y-5 p-5 sm:p-6">
+              <form onSubmit={(e) => { e.preventDefault(); handleAddKeywordsBatch(keywordInput); }} className="flex gap-2">
+                <div className="relative flex-1">
+                  <Tag className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input id="wiz_kw_input" value={keywordInput} onChange={(e) => setKeywordInput(e.target.value)}
+                    placeholder="Type a keyword, or several separated by commas" className="h-10 pl-9 text-sm" />
+                </div>
+                <Button type="submit" disabled={savingKeyword || !keywordInput.trim()} className="h-10 shrink-0 gap-1.5 px-5 text-sm">
+                  {savingKeyword ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  Add
+                </Button>
+              </form>
+
+              <div className="rounded-xl border border-border bg-muted/20 p-4">
+                <p className="mb-3 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {kwSearching ? `${kwMatches.length} suggestion${kwMatches.length === 1 ? '' : 's'} for “${kwQuery}”` : 'Suggestions. Click to add.'}
+                </p>
+                {!kwSearching && (
+                  <div className="mb-3 flex flex-wrap gap-1.5" role="tablist">
+                    {SUGGESTED_KEYWORD_GROUPS.map((g, i) => (
+                      <button key={g.category} type="button" role="tab" aria-selected={kwCategory === i} onClick={() => setKwCategory(i)}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${kwCategory === i ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-background text-muted-foreground hover:text-foreground border border-border'}`}>
+                        {g.category}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {kwSearching && !kwExact && (
+                    <button type="button" disabled={savingKeyword} onClick={() => handleAddKeywordsBatch(keywordInput)}
+                      className="inline-flex items-center gap-1 rounded-full border border-primary bg-primary/10 px-3 py-1 text-xs font-semibold text-primary hover:bg-primary/20">
+                      <Plus className="h-3 w-3" />Add “{kwQuery}”
+                    </button>
+                  )}
+                  {(kwSearching ? kwMatches : SUGGESTED_KEYWORD_GROUPS[kwCategory].items.map((item) => ({ item }))).map(({ item, category }) => {
+                    const exists = keywords.some((k) => k.keyword?.toLowerCase() === item.toLowerCase());
+                    return (
+                      <button key={item} type="button" disabled={exists || savingKeyword} onClick={() => handleAddKeywordsBatch(item)}
+                        className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs transition-colors ${exists
+                          ? 'cursor-default border-emerald-500/30 bg-emerald-500/10 font-medium text-emerald-700 dark:text-emerald-400'
+                          : 'border-border bg-background hover:border-primary hover:bg-primary/5 hover:text-primary'}`}>
+                        {exists ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}{item}
+                        {kwSearching && category && <span className="ml-1 text-[10px] text-muted-foreground">{category}</span>}
+                      </button>
+                    );
+                  })}
+                  {kwSearching && kwMatches.length === 0 && kwExact && (
+                    <p className="text-xs text-muted-foreground">Already added.</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Your keywords ({kwSearching ? `${visibleKeywords.length} of ${keywords.length}` : keywords.length})</p>
+                {visibleKeywords.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-border px-4 py-5 text-center text-xs text-muted-foreground">{kwSearching ? `No saved keywords match “${kwQuery}”.` : 'No keywords yet. Add one above or pick a suggestion.'}</p>
+                ) : (
+                  <div className="flex max-h-44 flex-wrap gap-2 overflow-y-auto">
+                    {visibleKeywords.map((kw) => (
+                      <span key={kw.id} className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 py-1 pl-3 pr-1.5 text-xs font-medium">
+                        {kw.keyword}
+                        <button type="button" disabled={deletingKeywordId === kw.id} onClick={() => handleDeleteKeyword(kw.id)}
+                          className="flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title="Remove keyword">
+                          {deletingKeywordId === kw.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                        </button>
+                      </span>
+                    ))}
                   </div>
                 )}
               </div>
-
-              <Button type="submit" disabled={savingPlatform} className="w-full h-9 text-xs gap-1.5">
-                {savingPlatform ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                Save & Connect Platform
-              </Button>
-            </form>
-
-            {/* List of Configured Platforms */}
-            <div className="pt-2 border-t border-border space-y-2">
-              <div className="flex justify-between items-center text-xs">
-                <span className="font-semibold text-muted-foreground uppercase tracking-wider">
-                  Configured Platforms ({platforms.length})
-                </span>
-              </div>
-
-              {platforms.length === 0 ? (
-                <p className="py-4 text-center text-xs text-muted-foreground border border-dashed border-border rounded-lg">
-                  No platforms connected yet. Select a platform above and click "Save & Connect Platform".
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {platforms.map((plat) => (
-                    <div
-                      key={plat.id}
-                      className="flex items-center justify-between p-3 rounded-lg border border-border bg-background"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-7 h-7 rounded-md bg-muted flex items-center justify-center shrink-0">
-                          <Globe2 className="w-4 h-4 text-primary" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-semibold text-foreground truncate">{plat.name}</div>
-                          <div className="text-[10px] text-muted-foreground font-mono">slug: {plat.slug} · Active</div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 text-[10px]">
-                          Active
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeletePlatform(plat.id, plat.name)}
-                          disabled={deletingPlatformId === plat.id}
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          title="Remove platform"
-                        >
-                          {deletingPlatformId === plat.id ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Trash2 className="w-3.5 h-3.5" />
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
-          </div>
-        </div>
-
-        {/* STEP 2: ALERT KEYWORDS CONFIGURATION */}
-        <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
-          <div className="px-5 py-4 border-b border-border bg-muted/20 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
-                2
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">Alert & Surveillance Keywords</h3>
-                <p className="text-xs text-muted-foreground">
-                  Add target terms to scan and detect across social media feeds in real-time
-                </p>
-              </div>
-            </div>
-            <Badge
-              variant={hasKeywords ? 'default' : 'secondary'}
-              className="text-[11px] font-medium"
-            >
-              {hasKeywords ? `${keywords.length} Active` : 'Required'}
-            </Badge>
-          </div>
-
-          <div className="p-5 sm:p-6 space-y-5">
-            {/* Input Form */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleAddKeywordsBatch(keywordInput);
-              }}
-              className="space-y-2"
-            >
-              <Label htmlFor="wiz_kw_input" className="text-xs font-medium">
-                Add Keyword (or Comma-Separated List)
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="wiz_kw_input"
-                  value={keywordInput}
-                  onChange={(e) => setKeywordInput(e.target.value)}
-                  placeholder="e.g. protest, strike, riot, accident, emergency"
-                  className="h-9 text-xs"
-                />
-                <Button
-                  type="submit"
-                  disabled={savingKeyword || !keywordInput.trim()}
-                  className="h-9 px-4 text-xs shrink-0"
-                >
-                  {savingKeyword ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5 mr-1" />}
-                  Add
-                </Button>
-              </div>
-              <p className="text-[10px] text-muted-foreground">
-                Tip: Enter multiple keywords separated by commas to add them in batch.
-              </p>
-            </form>
-
-            {/* Recommended Starter Keywords */}
-            <div className="space-y-2.5">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
-                <Sparkles className="w-3.5 h-3.5 text-secondary" />
-                <span>Quick-Add Recommended Surveillance Terms:</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {SUGGESTED_KEYWORD_GROUPS.map((group) => (
-                  <div key={group.category} className="p-2.5 rounded-lg border border-border bg-muted/20 space-y-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      {group.category}
-                    </span>
-                    <div className="flex flex-wrap gap-1">
-                      {group.items.map((item) => {
-                        const exists = keywords.some((k) => k.keyword?.toLowerCase() === item.toLowerCase());
-                        return (
-                          <button
-                            key={item}
-                            type="button"
-                            disabled={exists || savingKeyword}
-                            onClick={() => handleAddKeywordsBatch(item)}
-                            className={`text-[11px] px-2 py-0.5 rounded border transition-all ${
-                              exists
-                                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 cursor-default font-medium'
-                                : 'border-border bg-background text-foreground hover:border-primary hover:text-primary'
-                            }`}
-                          >
-                            {exists ? `✓ ${item}` : `+ ${item}`}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* List of Configured Keywords */}
-            <div className="pt-2 border-t border-border space-y-2">
-              <div className="flex justify-between items-center text-xs">
-                <span className="font-semibold text-muted-foreground uppercase tracking-wider">
-                  Configured Keywords ({keywords.length})
-                </span>
-              </div>
-
-              {keywords.length === 0 ? (
-                <p className="py-4 text-center text-xs text-muted-foreground border border-dashed border-border rounded-lg">
-                  No keywords added yet. Add custom keywords or click recommended terms above.
-                </p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-3 rounded-lg border border-border bg-background">
-                  {keywords.map((kw) => (
-                    <Badge
-                      key={kw.id}
-                      variant="outline"
-                      className="gap-1.5 text-xs py-1 px-2.5 bg-muted/30"
-                    >
-                      <span className="font-medium text-foreground">{kw.keyword}</span>
-                      <button
-                        type="button"
-                        disabled={deletingKeywordId === kw.id}
-                        onClick={() => handleDeleteKeyword(kw.id)}
-                        className="text-muted-foreground hover:text-destructive ml-0.5"
-                        title="Delete keyword"
-                      >
-                        {deletingKeywordId === kw.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3 w-3" />
-                        )}
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* STEP 3: FINAL UNLOCK & LAUNCH BAR */}
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="space-y-1 text-center sm:text-left">
-            <div className="flex items-center justify-center sm:justify-start gap-2">
-              {isReadyToUnlock ? (
-                <>
-                  <Unlock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  <span className="text-sm font-bold text-foreground">Ready to Unlock Workspace</span>
-                </>
-              ) : (
-                <>
-                  <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                  <span className="text-sm font-bold text-foreground">Setup Incomplete</span>
-                </>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {isReadyToUnlock
-                ? `Prerequisites satisfied (${platforms.length} platform, ${keywords.length} keywords). Click below to unlock the workspace.`
-                : 'Connect at least 1 platform and add at least 1 keyword to enable system launch.'}
-            </p>
-          </div>
-
-          <Button
-            size="lg"
-            disabled={!isReadyToUnlock || unlocking}
-            onClick={handleUnlockAndLaunch}
-            className="w-full sm:w-auto px-6 h-11 text-sm font-semibold gap-2 shadow-sm"
-          >
-            {unlocking ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Unlocking Workspace...
-              </>
-            ) : (
-              <>
-                Complete Setup & Launch Workspace
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </Button>
+          </section>
         </div>
       </main>
+
+      {/* Launch bar */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-3 sm:flex-row sm:px-6">
+          <div className="flex items-center gap-2.5 text-center sm:text-left">
+            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${isReadyToUnlock ? 'bg-emerald-500/15 text-emerald-600' : 'bg-amber-500/15 text-amber-600'}`}>
+              {isReadyToUnlock ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+            </span>
+            <p className="text-xs text-muted-foreground">
+              {isReadyToUnlock
+                ? `Ready: ${activePlatforms.length} platform${activePlatforms.length === 1 ? '' : 's'} on, ${keywords.length} keyword${keywords.length === 1 ? '' : 's'} added.`
+                : `${!hasPlatforms ? 'Turn on at least one platform. ' : ''}${!hasKeywords ? 'Add at least one keyword.' : ''}`}
+            </p>
+          </div>
+          <Button size="lg" disabled={!isReadyToUnlock || unlocking} onClick={handleUnlockAndLaunch} className="h-11 w-full gap-2 px-7 text-sm font-semibold sm:w-auto">
+            {unlocking ? <><Loader2 className="h-4 w-4 animate-spin" />Unlocking…</> : <>Finish setup<ArrowRight className="h-4 w-4" /></>}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

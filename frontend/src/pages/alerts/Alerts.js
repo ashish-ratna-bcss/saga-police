@@ -125,7 +125,7 @@ export default function Alerts() {
     platforms: pagePlatformRows,
     slugs: pagePlatformSlugs,
     loading: platformsLoading,
-  } = usePagePlatforms('alerts');
+  } = usePagePlatforms('social_profiles');
   const availablePlatforms = useMemo(
     () =>
       pagePlatformRows.map((p) => {
