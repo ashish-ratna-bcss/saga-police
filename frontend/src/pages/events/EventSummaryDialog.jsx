@@ -67,6 +67,14 @@ function extractSectionsFromMarkdown(md = '') {
   return sections;
 }
 
+/** Strip OCR dumps and intent footnotes that were historically appended into post.text. */
+function cleanPostDisplayText(t) {
+  return (t || '')
+    .replace(/\n*\[Image text\][\s\S]*$/i, '')
+    .replace(/\*\*Intent Detected:\*\*.*?(?:\n\n|\n|$)/g, '')
+    .trim();
+}
+
 export default function EventSummaryDialog({ open, onOpenChange, eventId, eventName }) {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
@@ -1714,7 +1722,9 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                       </div>
                     ) : (
                       <div className="space-y-2.5">
-                        {allPosts.map((post) => (
+                        {allPosts.map((post) => {
+                          const displayText = cleanPostDisplayText(post.text);
+                          return (
                           <div
                             key={post.id}
                             className="p-3 rounded-lg border bg-muted/20 border-border/50 text-xs flex flex-col gap-1.5"
@@ -1770,13 +1780,14 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                                 )}
                               </div>
                             </div>
-                            {post.text && (
+                            {displayText && (
                               <p className="text-muted-foreground text-[11px] leading-relaxed whitespace-pre-wrap">
-                                {post.text}
+                                {displayText}
                               </p>
                             )}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
 

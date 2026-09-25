@@ -283,27 +283,11 @@ const CopyUrl = ({ value }) => {
   );
 };
 
-const limitsText = (limits) => {
-  const parts = [
-    ['per minute', limits?.per_minute], ['per day', limits?.daily], ['per week', limits?.weekly], ['per month', limits?.monthly],
-  ].filter(([, v]) => v != null).map(([k, v]) => `${num(v)} ${k}`);
-  return parts.length ? parts.join(' · ') : 'No rate limits';
-};
-
-const Mini = ({ label, value }) => (
-  <div>
-    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
-    <p className="text-sm font-semibold tabular-nums">{value}</p>
-  </div>
-);
-
-const PlatformCard = ({ item, monthTotal, togglingId, onToggle }) => {
-  const { slug, name, m, row, usage } = item;
+const PlatformCard = ({ item, togglingId, onToggle }) => {
+  const { slug, name, m, row } = item;
   const granted = m?.status === 'available';
   const removed = m?.status === 'removed';
   const change = CHANGE_LABEL[m?.change];
-  const share = usage && monthTotal ? Math.round((usage.month / monthTotal) * 1000) / 10 : null;
-  const quota = usage?.quota;
   const blocked = Boolean(m) && !granted;
   const healthTone = toneOf(m?.health);
 
@@ -336,40 +320,18 @@ const PlatformCard = ({ item, monthTotal, togglingId, onToggle }) => {
         </div>
       </div>
 
-      <div className="border-t border-border px-3.5 py-3 space-y-3 flex-1">
-        {usage ? (
-          <>
-            <div className="grid grid-cols-3 gap-2">
-              <Mini label="This month" value={num(usage.month)} />
-              <Mini label="Today" value={num(usage.today)} />
-              <Mini label="All time" value={num(usage.all_time)} />
-            </div>
-            {share != null && (
-              <div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(share, usage.month ? 2 : 0)}%` }} />
-                </div>
-                <p className="mt-1 text-[10px] text-muted-foreground">{share}% of this month&apos;s requests</p>
-              </div>
-            )}
-            <div className="space-y-0.5 text-[11px] text-muted-foreground">
-              <p>
-                Quota: {quota?.monthly_limit != null
-                  ? <span className="text-foreground font-medium">{num(usage.month)} of {num(quota.monthly_limit)} used{quota.percent != null ? ` (${quota.percent}%)` : ''}</span>
-                  : <span className="text-foreground font-medium">No monthly limit</span>}
-              </p>
-              <p>{limitsText(usage.limits)}</p>
-            </div>
-          </>
-        ) : (
-          <p className="text-[11px] text-muted-foreground">
-            {granted ? 'No usage recorded yet.' : blocked ? 'BluGate has not granted your account access to this platform.' : 'No BluGate data for this platform.'}
-          </p>
-        )}
-        {m?.base_url && <CopyUrl value={m.base_url} />}
-      </div>
+      {(m?.base_url || (Boolean(m) && !granted)) && (
+        <div className="border-t border-border px-3.5 py-3 space-y-3 flex-1">
+          {blocked && (
+            <p className="text-[11px] text-muted-foreground">
+              BluGate has not granted your account access to this platform.
+            </p>
+          )}
+          {m?.base_url && <CopyUrl value={m.base_url} />}
+        </div>
+      )}
 
-      <div className="flex items-center gap-2 border-t border-border px-3.5 py-2.5">
+      <div className="flex items-center gap-2 border-t border-border px-3.5 py-2.5 mt-auto">
         <div className="min-w-0">
           {!row ? (
             <span className="text-[11px] text-muted-foreground">{granted ? 'Not supported in this app yet' : 'Not added'}</span>
@@ -398,21 +360,19 @@ const PlatformCard = ({ item, monthTotal, togglingId, onToggle }) => {
 
 export const BlugatePlatformsTable = ({ rows, info, loading, togglingId, onToggle }) => {
   const meta = info?.meta || [];
-  const usageMap = info?.billing?.usage || {};
-  const monthTotal = info?.billing?.overall?.month || 0;
 
   const items = [];
   const used = new Set();
   for (const m of meta) {
     const row = rowFor(rows, m.app_slug || m.slug);
     if (row) used.add(row.id);
-    items.push({ key: m.slug, slug: m.slug, name: m.name || row?.name || m.slug, m, row, usage: usageMap[m.slug] || null });
+    items.push({ key: m.slug, slug: m.slug, name: m.name || row?.name || m.slug, m, row });
   }
   for (const row of rows) {
-    if (!used.has(row.id)) items.push({ key: `row-${row.id}`, slug: row.slug, name: row.name, m: null, row, usage: usageMap[row.slug] || null });
+    if (!used.has(row.id)) items.push({ key: `row-${row.id}`, slug: row.slug, name: row.name, m: null, row });
   }
   const rank = (i) => (i.m?.status === 'available' ? 0 : i.m ? 1 : 2);
-  items.sort((a, b) => rank(a) - rank(b) || (b.usage?.month || 0) - (a.usage?.month || 0) || String(a.name).localeCompare(String(b.name)));
+  items.sort((a, b) => rank(a) - rank(b) || String(a.name).localeCompare(String(b.name)));
   const active = items.filter((i) => i.row?.is_active).length;
 
   return (
@@ -428,7 +388,7 @@ export const BlugatePlatformsTable = ({ rows, info, loading, togglingId, onToggl
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
           {items.map((item) => (
-            <PlatformCard key={item.key} item={item} monthTotal={monthTotal} togglingId={togglingId} onToggle={onToggle} />
+            <PlatformCard key={item.key} item={item} togglingId={togglingId} onToggle={onToggle} />
           ))}
         </div>
       )}
