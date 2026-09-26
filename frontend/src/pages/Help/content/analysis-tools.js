@@ -212,7 +212,7 @@ const analysisTools = {
             ['A crawl collected very few pages', 'Check **Max depth** (0 stops at the first page) and whether **Same domain only** is blocking the links.'],
             ['A table says "Could not load"', 'Click **Refresh**. If it keeps failing, check **Health** for the web intelligence service.'],
             ['"No summary fields returned"', 'The service returned no summary. Open the **Raw** tab to see the response.'],
-            ['An investigation failed', 'Try again, or use **General** instead of **Deep**. Check **Health** for the AI services.'],
+            ['An investigation failed', 'Try again, or use **General** instead of **Deep**. Check **Health** to see which services are running.'],
           ],
         },
       ],

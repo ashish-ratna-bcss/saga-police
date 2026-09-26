@@ -1,6 +1,8 @@
 /**
- * System Health — full-bleed ops console (matches Command center).
- * Polls GET /api/health/status; surfaces LLM/sentiment clearly for alert pipeline.
+ * System Health in exactly three layers: Infrastructure, AI services and Platforms.
+ * Each layer shows its own status, one line on what it does, and only the services that are running.
+ * Offline services are simply not listed.
+ * Polls GET /api/health/status.
  */
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
@@ -12,13 +14,12 @@ import {
   Zap,
   Circle,
   Globe,
-  AlertTriangle,
   Network,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { Button } from '../../components/ui/button';
 import { cn } from '../../lib/utils';
-import { TelegramBrandLogo } from '../../components/PlatformBrandIcon';
+import { PlatformBrandIcon } from '../../components/PlatformBrandIcon';
 
 const statusMeta = (status) => {
   if (status === 'online' || status === 'active' || status === 'ok') {
@@ -114,6 +115,84 @@ const BlugateEntryRow = ({ name, ...fields }) => {
   );
 };
 
+const okLike = (s) => s === 'online' || s === 'ok' || s === 'active';
+const asStatus = (s) => (okLike(s) ? 'online' : s === 'degraded' || s === 'quota_completed' ? 'degraded' : 'offline');
+
+/**
+ * One row per platform BluGate lists. Telegram and Reddit are checked against the services that really
+ * serve them (Reddit is not part of BluGate for this account), so their state is the real one.
+ */
+const buildPlatforms = (svc) => {
+  const listed = Array.isArray(svc.blugate?.health?.platforms) ? svc.blugate.health.platforms : [];
+  const items = listed.map((p) => {
+    const slug = String(p.slug || p.name || '').toLowerCase();
+    const granted = p.accessGranted !== false;
+    const health = String(p.health || p.status || '').toLowerCase();
+    return {
+      slug,
+      name: p.name || slug,
+      status: !granted ? 'noaccess' : asStatus(health === 'operational' ? 'online' : health),
+      note: !granted
+        ? 'Not included in your BluGate plan'
+        : [p.health ? `Health: ${p.health}` : null, p.endpointCount != null ? `${p.endpointCount} endpoints` : null].filter(Boolean).join(' · '),
+      latency: null,
+    };
+  });
+  const upsert = (slug, patch) => {
+    const i = items.findIndex((x) => x.slug === slug);
+    if (i >= 0) items[i] = { ...items[i], ...patch };
+    else items.push({ slug, name: slug.charAt(0).toUpperCase() + slug.slice(1), ...patch });
+  };
+  if (svc.telegram) {
+    const t = svc.telegram;
+    upsert('telegram', {
+      status: asStatus(t.status),
+      latency: t.latency,
+      note: t.error ? String(t.error) : t.connected || t.authorized ? 'Service up. Session connected' : 'Service up. Session not signed in',
+    });
+  }
+  if (svc.reddit) {
+    const r = svc.reddit;
+    upsert('reddit', {
+      status: asStatus(r.status),
+      latency: r.latency,
+      note: r.error ? String(r.error) : r.mode === 'login' ? 'Signed in to Reddit' : 'Public feed only. About 1 search per minute, shared',
+    });
+  }
+  const rank = { online: 0, degraded: 1, offline: 2, noaccess: 3 };
+  return items.sort((a, b) => rank[a.status] - rank[b.status] || a.name.localeCompare(b.name));
+};
+
+const PlatformRow = ({ p }) => {
+  const dim = p.status === 'noaccess';
+  const s = dim ? null : statusMeta(p.status);
+  return (
+    <div className={cn('flex min-h-[56px] items-center gap-3 border-l-[3px] bg-card px-3 py-2', dim ? 'border-l-border/40' : s.row)}>
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60">
+        <PlatformBrandIcon platform={p.slug} className={cn('h-4 w-4', dim && 'opacity-50')} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <h3 className={cn('truncate text-sm font-semibold leading-tight', dim && 'text-muted-foreground')}>{p.name}</h3>
+        <p className="mt-0.5 line-clamp-1 text-[11px] leading-snug text-muted-foreground">{p.note}</p>
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-0.5">
+        <span
+          className={cn(
+            'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+            dim ? 'border-border bg-muted/40 text-muted-foreground' : s.chip
+          )}
+        >
+          <span className={cn('h-1.5 w-1.5 rounded-full', dim ? 'bg-muted-foreground/50' : s.dot)} />
+          {dim ? 'No access' : s.label}
+        </span>
+        {p.latency != null && p.status === 'online' ? (
+          <span className="text-[10px] tabular-nums text-muted-foreground">{p.latency} ms</span>
+        ) : null}
+      </div>
+    </div>
+  );
+};
+
 const worstTone = (tones) => {
   if (tones.includes('bad')) return 'bad';
   if (tones.includes('warn')) return 'warn';
@@ -178,17 +257,25 @@ const ServiceRow = ({ title, description, status, icon: Icon, latency, meta, err
   );
 };
 
-const Panel = ({ title, icon: Icon, count, children, className }) => (
+const Panel = ({ n, title, desc, icon: Icon, tone, count, notice, children, className }) => (
   <section className={cn('flex min-h-0 flex-col bg-card', className)}>
-    <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
-      <div className="flex min-w-0 items-center gap-2">
-        <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
-        <h2 className="text-sm font-semibold leading-tight">{title}</h2>
+    <header className="shrink-0 space-y-1.5 border-b border-border px-3 py-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">{n}</span>
+          <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
+          <h2 className="text-sm font-semibold leading-tight">{title}</h2>
+        </div>
+        <span className={cn('rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase', toneChip(tone))}>
+          {toneLabel(tone)}
+        </span>
       </div>
-      {count != null ? (
-        <span className="text-[11px] tabular-nums text-muted-foreground">{count}</span>
-      ) : null}
+      <p className="text-[11px] leading-snug text-muted-foreground">
+        {desc}
+        {count != null ? <span className="ml-1 tabular-nums">· {count}</span> : null}
+      </p>
     </header>
+    {notice ? <div className="shrink-0 border-b border-red-200 bg-red-50 px-3 py-2 text-[11px] font-medium text-red-800">{notice}</div> : null}
     <div className="min-h-0 flex-1 divide-y divide-border overflow-y-auto">{children}</div>
   </section>
 );
@@ -231,10 +318,10 @@ const SystemHealth = () => {
       return {
         infra: [],
         ai: [],
-        blugate: { summary: null, health: [], billing: [] },
-        issues: [],
-        summary: { ok: 0, warn: 0, bad: 0, total: 0 },
-        groups: { infra: 'ok', ai: 'ok', blugate: 'ok' },
+        platforms: [],
+        blugate: { summary: null },
+        usableCount: 0,
+        groups: { infra: 'ok', ai: 'ok', platforms: 'ok' },
         llmDown: false,
       };
     }
@@ -242,7 +329,10 @@ const SystemHealth = () => {
     const pg = healthData.postgres;
     const svc = healthData.services || {};
 
-    const infra = [
+    // Services that are offline are not listed (only named in a note), so the page shows what works today.
+    const shownOnly = (list) => list.filter((i) => statusMeta(i.status).tone !== 'bad');
+
+    const infraAll = [
       {
         id: 'postgres',
         title: 'PostgreSQL',
@@ -254,7 +344,7 @@ const SystemHealth = () => {
       },
     ];
 
-    const ai = [
+    const aiAll = [
       {
         id: 'ollama',
         title: 'BCSS LLM',
@@ -263,7 +353,6 @@ const SystemHealth = () => {
         icon: Brain,
         latency: svc.ollama?.latency,
         error: svc.ollama?.error,
-        critical: true,
       },
       {
         id: 'sentiment',
@@ -302,74 +391,46 @@ const SystemHealth = () => {
         latency: svc.bluweb?.latency,
         error: svc.bluweb?.error,
       },
-      {
-        id: 'telegram',
-        title: 'Telegram',
-        description: svc.telegram?.error
-          ? String(svc.telegram.error)
-          : svc.telegram?.connected || svc.telegram?.authorized
-            ? 'Service up — session connected'
-            : 'Service / session status',
-        status: svc.telegram?.status || 'offline',
-        icon: TelegramBrandLogo,
-        latency: svc.telegram?.latency,
-        error: svc.telegram?.error,
-        meta: svc.telegram?.authorized
-          ? 'Authorized'
-          : svc.telegram?.connected
-            ? 'Connected'
-            : null,
-      },
     ];
 
-    // BluGate global client-account status — real health + billing data from
-    // services/blugate/global, not per-platform quota guesses.
+    const infra = shownOnly(infraAll);
+    const ai = shownOnly(aiAll);
+
+    // BluGate global client-account status, then one row per platform.
     const bg = svc.blugate || {};
     const blugateSummary = {
       id: 'blugate',
       title: 'BluGate Gateway',
-      description: 'Client account & platform gateway health',
+      description: bg.health?.client?.name
+        ? `${bg.health.client.name} · client account & platform gateway`
+        : 'Client account & platform gateway health',
       status: bg.status || 'offline',
       icon: Network,
       latency: bg.latency,
       error: bg.error,
     };
-    const blugateHealth = normalizeBlugateEntries(bg.health);
-    const blugateBilling = normalizeBlugateEntries(bg.billing);
-
-    const all = [...infra, ...ai, blugateSummary];
-    let ok = 0;
-    let warn = 0;
-    let bad = 0;
-    all.forEach((item) => {
-      const t = statusMeta(item.status).tone;
-      if (t === 'ok') ok += 1;
-      else if (t === 'warn') warn += 1;
-      else bad += 1;
-    });
-
-    const issues = all.filter((item) => statusMeta(item.status).tone !== 'ok');
+    const platforms = buildPlatforms(svc);
+    const usable = platforms.filter((p) => p.status !== 'noaccess');
 
     const groupTone = (list) => worstTone(list.map((i) => statusMeta(i.status).tone));
 
-    const llmDown =
-      statusMeta(svc.sentiment?.status || 'offline').tone === 'bad' ||
-      statusMeta(svc.ollama?.status || 'offline').tone === 'bad';
+    // Alert analysis needs the sentiment service. The LLM is optional, so it does not raise this banner.
+    const llmDown = statusMeta(svc.sentiment?.status || 'offline').tone === 'bad';
 
     return {
       infra,
       ai,
-      blugate: { summary: blugateSummary, health: blugateHealth, billing: blugateBilling },
-      issues,
-      summary: { ok, warn, bad, total: all.length },
+      platforms,
+      blugate: { summary: blugateSummary },
       groups: {
-        infra: groupTone(infra),
-        ai: groupTone(ai),
-        blugate: groupTone([blugateSummary]),
+        infra: groupTone(infra.length ? infra : [{ status: 'online' }]),
+        ai: groupTone(ai.length ? ai : [{ status: 'online' }]),
+        platforms: groupTone([blugateSummary, ...usable]),
       },
+      usableCount: usable.length,
       llmDown,
       sentimentError: svc.sentiment?.error,
-      ollamaError: svc.ollama?.error,
+      ollamaError: null,
     };
   }, [healthData]);
 
@@ -400,27 +461,6 @@ const SystemHealth = () => {
     );
   }
 
-  const kpiDefs = [
-    {
-      key: 'infra',
-      label: 'Infrastructure',
-      count: catalog.infra.length,
-      tone: catalog.groups.infra,
-    },
-    {
-      key: 'ai',
-      label: 'AI services',
-      count: catalog.ai.length,
-      tone: catalog.groups.ai,
-    },
-    {
-      key: 'blugate',
-      label: 'BluGate',
-      count: catalog.blugate.health.length + catalog.blugate.billing.length,
-      tone: catalog.groups.blugate,
-    },
-  ];
-
   return (
     <div
       className="flex h-full min-h-0 w-full flex-col bg-background"
@@ -431,28 +471,12 @@ const SystemHealth = () => {
         <div className="min-w-0">
           <h1 className="text-base font-bold leading-none tracking-tight">System Health</h1>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            Live status · databases · AI · platform APIs
+            Three layers: infrastructure, AI services and platforms
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {healthData ? (
             <>
-              <span className="inline-flex items-baseline gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] text-emerald-800">
-                <span className="font-semibold tabular-nums">{catalog.summary.ok}</span>
-                <span>ok</span>
-              </span>
-              {catalog.summary.warn > 0 ? (
-                <span className="inline-flex items-baseline gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
-                  <span className="font-semibold tabular-nums">{catalog.summary.warn}</span>
-                  <span>warn</span>
-                </span>
-              ) : null}
-              {catalog.summary.bad > 0 ? (
-                <span className="inline-flex items-baseline gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[11px] text-red-800">
-                  <span className="font-semibold tabular-nums">{catalog.summary.bad}</span>
-                  <span>down</span>
-                </span>
-              ) : null}
               {lastChecked ? (
                 <span className="hidden items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-[11px] text-muted-foreground sm:inline-flex">
                   <Circle className="h-2 w-2 fill-emerald-500 text-emerald-500" />
@@ -486,121 +510,36 @@ const SystemHealth = () => {
         </div>
       ) : healthData ? (
         <>
-          {/* KPI strip */}
-          <div className="grid shrink-0 grid-cols-1 divide-y divide-border border-b border-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-            {kpiDefs.map((k) => (
-              <div key={k.key} className="flex items-center gap-3 bg-card px-3 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    {k.label}
-                  </p>
-                  <p className="text-lg font-bold tabular-nums leading-none">{k.count}</p>
-                </div>
-                <span
-                  className={cn(
-                    'rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase',
-                    toneChip(k.tone)
-                  )}
-                >
-                  {toneLabel(k.tone)}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* LLM / sentiment alert banner */}
-          {catalog.llmDown ? (
-            <div className="flex shrink-0 items-start gap-2 border-b border-red-200 bg-red-50 px-3 py-2.5 text-red-900">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold leading-tight">
-                  Alert analysis unavailable — intelligence / LLM service unreachable
-                </p>
-                <p className="mt-0.5 text-[11px] text-red-800/90">
-                  {[catalog.sentimentError, catalog.ollamaError].filter(Boolean).join(' · ') ||
-                    'New catalog posts will not mint risk alerts until Custom Sentiment or BCSS LLM is back online.'}
-                </p>
-              </div>
-            </div>
-          ) : null}
-
-          {/* Main service grid */}
           <div className="grid min-h-0 flex-1 grid-cols-1 divide-y divide-border md:grid-cols-3 md:divide-x md:divide-y-0">
-            <Panel title="Infrastructure" icon={Database} count="1 store">
-              {catalog.infra.map((item) => (
-                <ServiceRow key={item.id} {...item} />
-              ))}
+            <Panel n={1} title="Infrastructure" icon={Database} tone={catalog.groups.infra}
+              desc="Where your data is stored" count={`${catalog.infra.length} running`}>
+              {catalog.infra.length === 0 ? (
+                <p className="px-3 py-4 text-center text-[11px] text-muted-foreground">Nothing running in this layer.</p>
+              ) : (
+                catalog.infra.map((item) => <ServiceRow key={item.id} {...item} />)
+              )}
             </Panel>
-            <Panel title="AI services" icon={Brain} count={`${catalog.ai.length} services`}>
-              {catalog.ai.map((item) => (
-                <ServiceRow key={item.id} {...item} />
-              ))}
+            <Panel n={2} title="AI services" icon={Brain} tone={catalog.groups.ai}
+              desc="What analyses posts and images" count={`${catalog.ai.length} running`}
+              notice={catalog.llmDown ? 'Sentiment analysis is offline. New posts will not raise risk alerts until it is back.' : null}>
+              {catalog.ai.length === 0 ? (
+                <p className="px-3 py-4 text-center text-[11px] text-muted-foreground">Nothing running in this layer.</p>
+              ) : (
+                catalog.ai.map((item) => <ServiceRow key={item.id} {...item} />)
+              )}
             </Panel>
-            <Panel
-              title="BluGate"
-              icon={Network}
-              count={`${catalog.blugate.health.length + catalog.blugate.billing.length} data points`}
-            >
+            <Panel n={3} title="Platforms" icon={Network} tone={catalog.groups.platforms}
+              desc="Where the posts come from" count={`${catalog.usableCount} of ${catalog.platforms.length} available`}>
               {catalog.blugate.summary ? <ServiceRow {...catalog.blugate.summary} /> : null}
-              {catalog.blugate.health.length > 0 ? (
-                <div className="bg-muted/20 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Client & platform health
-                </div>
-              ) : null}
-              {catalog.blugate.health.map((entry, idx) => (
-                <BlugateEntryRow key={`health-${entry.name}-${idx}`} {...entry} />
+              {catalog.platforms.map((p) => (
+                <PlatformRow key={p.slug} p={p} />
               ))}
-              {catalog.blugate.billing.length > 0 ? (
-                <div className="bg-muted/20 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Billing & rate limits
-                </div>
-              ) : null}
-              {catalog.blugate.billing.map((entry, idx) => (
-                <BlugateEntryRow key={`billing-${entry.name}-${idx}`} {...entry} />
-              ))}
-              {catalog.blugate.summary?.status !== 'online' &&
-              catalog.blugate.health.length === 0 &&
-              catalog.blugate.billing.length === 0 ? (
+              {catalog.blugate.summary?.status !== 'online' && catalog.platforms.length === 0 ? (
                 <p className="px-3 py-4 text-center text-[11px] text-muted-foreground">
-                  No BluGate data yet — configure a platform's API key & client key under
-                  Settings → Platforms.
+                  No platform data yet. Connect BluGate under Settings &gt; Platforms.
                 </p>
               ) : null}
             </Panel>
-          </div>
-
-          {/* Issues strip */}
-          <div className="shrink-0 border-t border-border bg-card">
-            <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5">
-              <p className="text-xs font-semibold">
-                Issues
-                <span className="ml-1.5 font-normal tabular-nums text-muted-foreground">
-                  {catalog.issues.length}
-                </span>
-              </p>
-            </div>
-            {catalog.issues.length === 0 ? (
-              <p className="px-3 py-2 text-[11px] text-emerald-700">All checked services healthy.</p>
-            ) : (
-              <ul className="max-h-28 divide-y divide-border overflow-y-auto">
-                {catalog.issues.map((item) => {
-                  const s = statusMeta(item.status);
-                  return (
-                    <li
-                      key={item.id}
-                      className="flex items-center gap-2 px-3 py-1.5 text-[11px]"
-                    >
-                      <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', s.dot)} />
-                      <span className="font-semibold">{item.title}</span>
-                      <span className="text-muted-foreground">{s.label}</span>
-                      <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                        {item.error || item.description || item.meta || ''}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
           </div>
         </>
       ) : null}

@@ -36,6 +36,83 @@ const getLLMConfig = () => {
   return { baseUrl, apiKey, model, timeoutMs, maxTokens };
 };
 
+/* ── Fit the request to the model's context window ─────────────────────────────
+ * Models differ: one server allows 16k tokens, another only 4k. Asking for 8192 output tokens on a
+ * 4096-token model is rejected outright. So the window is learned (from /models, or from the server's
+ * own error message), the prompt is built at a matching size, and max_tokens is set to what fits.
+ */
+const CONTEXT_RESERVE_TOKENS = 96;
+const CONTEXT_TIERS = [
+  { minContext: 12000, evidence: 32, chars: 240, compact: false },
+  { minContext: 6000, evidence: 16, chars: 180, compact: false },
+  { minContext: 0, evidence: 8, chars: 120, compact: true },
+];
+let learnedContextLimit = null;
+
+const tierFor = (limit) => CONTEXT_TIERS.find((t) => limit >= t.minContext) || CONTEXT_TIERS[CONTEXT_TIERS.length - 1];
+// Conservative estimate. Indian-language text uses far more tokens per character than English.
+const approxTokens = (text) => Math.ceil(String(text || '').length / 2.5);
+
+const parseContextError = (err) => {
+  const msg = String(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || '');
+  const m = msg.match(/maximum context length is (\d+) tokens.*?(\d+) input tokens/i);
+  return m ? { limit: Number(m[1]), input: Number(m[2]) } : null;
+};
+
+const discoverContextLimit = async ({ baseUrl, apiKey, model }) => {
+  const fromEnv = Number(process.env.LLM_CONTEXT_TOKENS);
+  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+  try {
+    const res = await axios.get(`${baseUrl}/models`, { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 8000 });
+    const models = Array.isArray(res.data?.data) ? res.data.data : [];
+    const entry = models.find((m) => m.id === model) || models[0];
+    const n = Number(entry?.max_model_len);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * POST a chat completion sized for the model. build(tier, scale) returns { system, user }.
+ * If the server still says the request does not fit, its own numbers are used to shrink and retry.
+ */
+const callSummaryModel = async ({ baseUrl, apiKey, model, timeoutMs, maxTokens, build, extraMessages = [] }) => {
+  if (learnedContextLimit == null) learnedContextLimit = await discoverContextLimit({ baseUrl, apiKey, model });
+  let limit = learnedContextLimit || 16384;
+  let calibration = 1; // real token count / our estimate, learned from the server's own error message
+  let scale = 1; // shrinks the evidence part of the prompt after a rejection
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const tier = tierFor(limit);
+    const { system, user } = build(tier, scale);
+    const messages = [{ role: 'system', content: system }, { role: 'user', content: user }, ...extraMessages];
+    const rawEstimate = messages.reduce((n, m) => n + approxTokens(m.content) + 8, 0);
+    const inputEstimate = rawEstimate * calibration;
+    // The estimate is only a guess, so keep a safety margin of about 8% of the window.
+    const room = limit - inputEstimate - Math.max(CONTEXT_RESERVE_TOKENS, Math.floor(limit * 0.08));
+    const max = Math.floor(Math.max(300, Math.min(maxTokens, room)));
+    try {
+      const res = await axios.post(
+        `${baseUrl}/chat/completions`,
+        { model, messages, max_tokens: max, temperature: 0.15 },
+        { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, timeout: timeoutMs }
+      );
+      res.contextLimit = limit;
+      return res;
+    } catch (err) {
+      const info = parseContextError(err);
+      if (!info || attempt === 2) throw err;
+      learnedContextLimit = info.limit;
+      limit = info.limit;
+      calibration = Math.max(calibration, info.input / Math.max(rawEstimate, 1));
+      // Shrink the prompt so that about 1500 tokens are left for the answer.
+      scale = Math.min(scale, Math.max(0.3, (limit - 1500 - CONTEXT_RESERVE_TOKENS) / info.input));
+      logger.warn(`[SummaryLLM] Model window is ${info.limit} tokens (request had ${info.input}). Retrying with a smaller prompt.`);
+    }
+  }
+  throw new Error('Could not fit the request to the model context window');
+};
+
 /** Heuristic: model hit token limit or stopped before required sections. */
 const isSummaryLikelyTruncated = (markdown, finishReason) => {
   if (finishReason === 'length') return true;
@@ -424,7 +501,7 @@ const generateEventSummary = async (eventId, { db, generatedBy } = {}) => {
   // 5. Construct Prompt Context
   const { baseUrl, apiKey, model, timeoutMs, maxTokens } = getLLMConfig();
 
-  const userContext = `
+  const buildUserContext = (evidenceLimit = indexedSnippets.length, evidenceChars = 240) => `
 EVENT DETAILS:
 - Event Name: ${event.name}
 - Monitored Location: ${event.location || 'General'}
@@ -455,14 +532,8 @@ AGGREGATED TELEMETRY ACROSS ALL ${totalMediaCount} INGESTED POSTS:
 - Ground Engagement: Likes: ${totalEngagement.likes}, Shares: ${totalEngagement.shares}, Comments: ${totalEngagement.comments}, Views: ${totalEngagement.views}
 
 VERIFIED GROUND INTELLIGENCE EVIDENCE (Sampled from ingested posts):
-${indexedSnippets.length > 0 ? indexedSnippets.map((s) => `${s.citationTag} (${s.platform.toUpperCase()}) @${s.author}: "${s.text}" [Target: ${s.target_entity} (${s.target_semantic}), Risk: ${s.risk_level}]`).join('\n') : 'No text posts available yet in the database.'}
+${indexedSnippets.length > 0 ? indexedSnippets.slice(0, evidenceLimit).map((s) => `${s.citationTag} (${s.platform.toUpperCase()}) @${s.author}: "${String(s.text).slice(0, evidenceChars)}" [Target: ${s.target_entity} (${s.target_semantic}), Risk: ${s.risk_level}]`).join('\n') : 'No text posts available yet in the database.'}
 `.trim();
-
-  const maxPromptChars = Math.max(8000, Number(process.env.LLM_SUMMARY_MAX_PROMPT_CHARS || 32000));
-  let llmUserContext = userContext;
-  if (llmUserContext.length > maxPromptChars) {
-    llmUserContext = `${llmUserContext.slice(0, maxPromptChars)}\n\n[Evidence list truncated for model context limit.]`;
-  }
 
   const systemPrompt = `You are a Senior Strategic OSINT Analyst specializing in social media intelligence.
 Synthesize a comprehensive, factual, and strictly evidence-grounded Event Summary for "${event.name}".
@@ -518,6 +589,23 @@ OUTPUT LENGTH:
 - You MUST output all 6 sections completely. Never stop mid-sentence or mid-citation.
 - If space is tight, shorten sections 1–3 slightly rather than omitting sections 5–6.`;
 
+  // Short version for small-window models: same six sections, far fewer instructions.
+  const compactSystemPrompt = `You are a Senior OSINT Analyst. Write a factual Event Summary for "${event.name}" using ONLY the data given.
+Rules: say "monitored social commentary", never "public sentiment". Criticism is feedback, not a threat. Praise = Positive, News = Neutral, Criticism = Negative. Cite evidence tags like [Post #1] for every claim. Ignore unrelated noise.
+Output exactly this Markdown, 2 to 4 sentences per section, and finish all six sections:
+# 📋 Event Summary: ${event.name}
+### 📌 1. Situation & Event Scope
+### 🌐 2. Social Commentary & Target Sentiment
+### 📢 3. Key Narratives & Public Claims
+### ⚠️ 4. Public Order & Threat Assessment
+### 👥 5. Active Platforms & Distribution Channels
+### 🎯 6. Recommended Operational Actions for Authorities`;
+
+  const buildPrompt = (tier, scale = 1) => ({
+    system: tier.compact ? compactSystemPrompt : systemPrompt,
+    user: buildUserContext(Math.max(3, Math.floor(tier.evidence * scale)), Math.max(60, Math.floor(tier.chars * scale))),
+  });
+
   let summaryMarkdown = '';
   let summarySource = 'llm';
   let llmError = null;
@@ -525,25 +613,7 @@ OUTPUT LENGTH:
   let llmFinishReason = null;
 
   try {
-    const llmRes = await axios.post(
-      `${baseUrl}/chat/completions`,
-      {
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: llmUserContext },
-        ],
-        max_tokens: maxTokens,
-        temperature: 0.15,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: timeoutMs,
-      }
-    );
+    const llmRes = await callSummaryModel({ baseUrl, apiKey, model, timeoutMs, maxTokens, build: buildPrompt });
 
     const choice = llmRes.data?.choices?.[0] || {};
     llmFinishReason = choice.finish_reason || null;
@@ -551,36 +621,27 @@ OUTPUT LENGTH:
     summaryMarkdown = cleanLLMOutput(rawContent);
     summaryTruncated = isSummaryLikelyTruncated(summaryMarkdown, llmFinishReason);
 
-    if (summaryTruncated && summaryMarkdown) {
+    if (summaryTruncated && summaryMarkdown && (llmRes.contextLimit || 16384) >= 8000) {
       logger.warn(
         `[SummaryLLM] Summary appears truncated (finish_reason=${llmFinishReason}, len=${summaryMarkdown.length}) — requesting continuation`
       );
       try {
-        const contRes = await axios.post(
-          `${baseUrl}/chat/completions`,
-          {
-            model,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: llmUserContext },
-              { role: 'assistant', content: rawContent },
-              {
-                role: 'user',
-                content:
-                  'Your previous reply was cut off. Continue EXACTLY where you stopped. Finish section 4 if incomplete, then write sections 5 and 6 in full. Do not repeat earlier sections.',
-              },
-            ],
-            max_tokens: maxTokens,
-            temperature: 0.15,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
+        const contRes = await callSummaryModel({
+          baseUrl,
+          apiKey,
+          model,
+          timeoutMs,
+          maxTokens,
+          build: buildPrompt,
+          extraMessages: [
+            { role: 'assistant', content: rawContent },
+            {
+              role: 'user',
+              content:
+                'Your previous reply was cut off. Continue EXACTLY where you stopped. Finish section 4 if incomplete, then write sections 5 and 6 in full. Do not repeat earlier sections.',
             },
-            timeout: timeoutMs,
-          }
-        );
+          ],
+        });
         const contRaw = contRes.data?.choices?.[0]?.message?.content || '';
         const contClean = cleanLLMOutput(contRaw);
         if (contClean) {
@@ -705,6 +766,7 @@ ${Object.entries(platformCounts).map(([p, count]) => `- **${p.toUpperCase()}**: 
 };
 
 module.exports = {
+  _llm: { callSummaryModel, tierFor, resetLearnedContext: () => { learnedContextLimit = null; } },
   generateEventSummary,
   getCachedEventSummary,
   saveEventSummaryPdf,

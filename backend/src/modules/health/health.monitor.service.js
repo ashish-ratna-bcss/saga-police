@@ -123,6 +123,28 @@ const checkTelegram = async (db) => {
   };
 };
 
+/**
+ * Reddit is served by the unified service, not by BluGate. /ready says whether the service has Reddit
+ * API credentials. Without them only the public-feed search works (about 1 request per minute, shared).
+ */
+const checkReddit = async () => {
+  const base = String(process.env.REDDIT_UNIFIED_API_URL || '').replace(/\/+$/, '');
+  if (!base) return { status: 'offline', error: 'Not configured' };
+  const start = Date.now();
+  try {
+    const { data } = await axios.get(`${base}/ready`, { timeout: PING_TIMEOUT_MS * 2 });
+    const configured = Boolean(data?.reddit_configured);
+    return {
+      status: configured ? 'online' : 'degraded',
+      latency: Date.now() - start,
+      configured,
+      mode: configured ? 'login' : 'public_feed',
+    };
+  } catch (error) {
+    return { status: 'offline', error: error.code || error.message };
+  }
+};
+
 const unknownQuota = () => ({
   totalCalls: 0,
   remaining: 'n/a',
@@ -171,7 +193,7 @@ const checkBlugateGlobal = async (db) => {
 
 const checkSystemHealth = async (db) => {
   // Run probes in parallel — sequential pings were ~12s when hosts were unreachable.
-  const [postgres, ollama, sentiment, mediaAnalyzer, ragApi, bluweb, telegram, blugate] =
+  const [postgres, ollama, sentiment, mediaAnalyzer, ragApi, bluweb, telegram, reddit, blugate] =
     await Promise.all([
       checkPostgres(),
       pingService(process.env.OLLAMA_BASE_URL, '/api/tags'),
@@ -183,6 +205,7 @@ const checkSystemHealth = async (db) => {
       pingService(process.env.RAG_API_URL, '/api/rag/health'),
       pingService(process.env.BLUWEB_API_URL, '/health/ready'),
       checkTelegram(db),
+      checkReddit(),
       checkBlugateGlobal(db),
     ]);
 
@@ -219,6 +242,7 @@ const checkSystemHealth = async (db) => {
       ragApi,
       bluweb,
       telegram,
+      reddit,
       blugate,
     },
     quotas: {
@@ -234,4 +258,5 @@ const checkSystemHealth = async (db) => {
 module.exports = {
   checkSystemHealth,
   checkTelegram,
+  checkReddit,
 };

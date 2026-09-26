@@ -487,9 +487,35 @@ const searchYouTubeViaBlugate = async (query, auth = null) => {
 
 /* ── Reddit search ── */
 
-const searchRedditViaUnifiedApi = async (query) => {
-  const q = String(query || '').trim();
-  if (!q) return [];
+// The Reddit RSS service allows the whole server about ONE request per minute (shared by every tenant
+// and event) and answers 429 or 504 when that budget is used up. So a scan sends a single request that
+// carries as many keywords as fit, never one request per keyword.
+const REDDIT_MAX_KEYWORDS_PER_CALL = 25; // the service accepts at most 25 keywords
+const REDDIT_MAX_QUERY_CHARS = 480; // and 512 characters once the keywords are joined with OR
+
+const batchRedditKeywords = (queries) => {
+  const batches = [];
+  let current = [];
+  let chars = 0;
+  for (const raw of queries) {
+    const q = String(raw || '').trim();
+    if (!q) continue;
+    const cost = q.length + 4; // " OR "
+    if (current.length && (current.length >= REDDIT_MAX_KEYWORDS_PER_CALL || chars + cost > REDDIT_MAX_QUERY_CHARS)) {
+      batches.push(current);
+      current = [];
+      chars = 0;
+    }
+    current.push(q);
+    chars += cost;
+  }
+  if (current.length) batches.push(current);
+  return batches;
+};
+
+const searchRedditViaUnifiedApi = async (keywords) => {
+  const list = (Array.isArray(keywords) ? keywords : [keywords]).map((k) => String(k || '').trim()).filter(Boolean);
+  if (!list.length) return [];
   const baseUrl = process.env.REDDIT_UNIFIED_API_URL;
   if (!baseUrl) {
     throw new Error('REDDIT_UNIFIED_API_URL is not defined in environment');
@@ -498,7 +524,7 @@ const searchRedditViaUnifiedApi = async (query) => {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: q }),
+    body: JSON.stringify({ keywords: list, limit: 50 }),
   });
   if (!response.ok) {
     let detail = '';
@@ -506,10 +532,14 @@ const searchRedditViaUnifiedApi = async (query) => {
       const body = await response.json();
       detail = body?.error?.message || body?.detail || '';
     } catch { /* non-JSON error body */ }
-    throw new Error(`Reddit API returned ${response.status}${detail ? `: ${detail}` : ` ${response.statusText}`}`);
+    const err = new Error(`Reddit API returned ${response.status}${detail ? `: ${detail}` : ` ${response.statusText}`}`);
+    err.status = response.status;
+    throw err;
   }
   const data = await response.json();
-  return Array.isArray(data?.posts) ? data.posts : [];
+  const posts = Array.isArray(data?.posts) ? data.posts : [];
+  // The RSS search also returns subreddit entries (guid t5_…). Keep real posts and comments only.
+  return posts.filter((p) => !String(p?.guid || '').startsWith('t5_'));
 };
 
 /** One in-flight scan per event — prevents duplicate kickoff/scheduler/manual overlap. */
@@ -779,7 +809,19 @@ const runScanEventOnce = async (event, options = {}) => {
 
   if (platforms.includes('reddit')) {
     try {
-      const posts = await fetchUniqueByQueriesCounted(queries, searchRedditViaUnifiedApi);
+      // One request per scan. A second request would have to wait about a minute for the shared budget,
+      // longer than the service is willing to queue (55 s), so it would fail anyway.
+      const redditBatches = batchRedditKeywords(queries);
+      if (redditBatches.length > 1) {
+        const skipped = redditBatches.slice(1).reduce((n, b) => n + b.length, 0);
+        logger.info(`[EventScan] Reddit: sending ${redditBatches[0].length} keywords this scan, ${skipped} did not fit in one request`);
+      }
+      const redditPosts = [];
+      if (redditBatches.length) {
+        apiHits += 1;
+        redditPosts.push(...(await searchRedditViaUnifiedApi(redditBatches[0])));
+      }
+      const posts = uniqueById(redditPosts);
       const relevant = filterByKeywords(posts, event, (p) => `${p?.title || ''} ${p?.content || ''}`);
       scanned += relevant.length;
       track('reddit', { scanned: relevant.length });
@@ -842,4 +884,5 @@ const runScanEventOnce = async (event, options = {}) => {
 module.exports = {
   scanEventOnce,
   buildEventQueries,
+  _reddit: { batchRedditKeywords, searchRedditViaUnifiedApi },
 };
