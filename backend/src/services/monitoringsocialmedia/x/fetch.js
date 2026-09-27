@@ -275,7 +275,27 @@ const mapXPost = (raw, accountId, fallbackHandle) => {
   }
 
   const media = legacy.extended_entities?.media || legacy.entities?.media || [];
-  const mediaUrls = media.map((m) => m.media_url_https || m.media_url).filter(Boolean);
+  // media[].type is Twitter's own per-item classifier (photo/video/animated_gif)
+  // -- unlike Instagram/Facebook, no guessing needed here. For video/GIF items,
+  // media_url_https is only ever the still-frame preview; the real file lives in
+  // video_info.variants[], picked the same way (highest-bitrate mp4, else HLS)
+  // as the already-working event-scan path's pickBestVideoUrl (event.scan.service.js).
+  const pickBestVideoUrl = (variants = []) => {
+    const list = Array.isArray(variants) ? variants : [];
+    const mp4 = list
+      .filter((v) => v?.url && String(v.content_type || '').includes('mp4'))
+      .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+    if (mp4?.url) return mp4.url;
+    const hls = list.find((v) => v?.url && /mpegurl|m3u8/i.test(String(v.content_type || v.url)));
+    return hls?.url || list.find((v) => v?.url)?.url || null;
+  };
+  const mediaUrls = media
+    .map((m) =>
+      m.type === 'video' || m.type === 'animated_gif'
+        ? pickBestVideoUrl(m.video_info?.variants) || m.media_url_https || m.media_url
+        : m.media_url_https || m.media_url
+    )
+    .filter(Boolean);
 
   return {
     account_id: accountId,
