@@ -12,11 +12,8 @@ const {
 } = require('../../modules/events/eventTelemetry.service');
 
 const getLLMConfig = () => {
-  let baseUrl = (process.env.LLM_BASE_URL || '').trim().replace(/\/$/, '');
-  if (!baseUrl && process.env.OLLAMA_BASE_URL) {
-    baseUrl = `${process.env.OLLAMA_BASE_URL.trim().replace(/\/$/, '')}/v1`;
-  }
-  const apiKey = (process.env.LLM_API_KEY || 'ollama').trim();
+  const baseUrl = (process.env.LLM_BASE_URL || '').trim().replace(/\/$/, '');
+  const apiKey = (process.env.LLM_API_KEY || 'vllm').trim();
   const model = (process.env.LLM_MODEL || 'qwen3-14b').trim();
   const timeoutMs = Math.max(
     30000,

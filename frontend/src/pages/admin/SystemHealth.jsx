@@ -346,13 +346,13 @@ const SystemHealth = () => {
 
     const aiAll = [
       {
-        id: 'ollama',
+        id: 'llm',
         title: 'BCSS LLM',
-        description: 'Local language model — risk scoring',
-        status: svc.ollama?.status || 'offline',
+        description: 'vLLM language model — risk scoring',
+        status: svc.llm?.status || 'offline',
         icon: Brain,
-        latency: svc.ollama?.latency,
-        error: svc.ollama?.error,
+        latency: svc.llm?.latency,
+        error: svc.llm?.error,
       },
       {
         id: 'sentiment',
@@ -430,7 +430,6 @@ const SystemHealth = () => {
       usableCount: usable.length,
       llmDown,
       sentimentError: svc.sentiment?.error,
-      ollamaError: null,
     };
   }, [healthData]);
 

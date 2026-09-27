@@ -193,10 +193,10 @@ const checkBlugateGlobal = async (db) => {
 
 const checkSystemHealth = async (db) => {
   // Run probes in parallel — sequential pings were ~12s when hosts were unreachable.
-  const [postgres, ollama, sentiment, mediaAnalyzer, ragApi, bluweb, telegram, reddit, blugate] =
+  const [postgres, llm, sentiment, mediaAnalyzer, ragApi, bluweb, telegram, reddit, blugate] =
     await Promise.all([
       checkPostgres(),
-      pingService(process.env.OLLAMA_BASE_URL, '/api/tags'),
+      pingService(process.env.LLM_BASE_URL, '/models'),
       pingService(
         process.env.INTELLIGENCE_SERVICE_URL || process.env.CUSTOM_SENTIMENT_URL,
         '/health'
@@ -236,7 +236,7 @@ const checkSystemHealth = async (db) => {
     timestamp: new Date().toISOString(),
     postgres,
     services: {
-      ollama,
+      llm,
       sentiment,
       mediaAnalyzer,
       ragApi,
