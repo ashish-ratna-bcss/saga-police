@@ -1,7 +1,9 @@
 const axios = require('axios');
 const logger = require('../../lib/logger');
 
-const OCR_BASE_URL = (process.env.OCR_SERVICE_URL || 'http://98.86.63.69:8000').replace(/\/$/, '');
+// Fallback only matters when OCR_SERVICE_URL isn't set (production always
+// sets it via .env) -- points at the real saga GPU box, not a stale address.
+const OCR_BASE_URL = (process.env.OCR_SERVICE_URL || 'http://101.53.140.97:8000').replace(/\/$/, '');
 const OCR_MAX_ATTEMPTS = Math.max(1, Number(process.env.OCR_MAX_ATTEMPTS) || 3);
 
 // Video analysis is much more expensive per attempt than image OCR (the service
@@ -53,9 +55,13 @@ async function downloadImageAsBase64(imageUrl) {
  * @param {string} imageUrl - The URL of the image to extract text from
  * @param {object} [options]
  * @param {string} [options.postId] - For logging context
+ * @param {string} [options.tenantKey] - Tenant identifier (dbName) so the OCR
+ *   service's admission gate can order concurrent requests fairly across
+ *   tenants, same purpose as the sentiment-api's tenant_key -- never affects
+ *   OCR output, purely a scheduling hint.
  * @returns {Promise<{ success: boolean, data?: object, error?: string, attempts: number }>}
  */
-async function extractOcr(imageUrl, { postId = 'unknown' } = {}) {
+async function extractOcr(imageUrl, { postId = 'unknown', tenantKey = null } = {}) {
   if (!imageUrl || typeof imageUrl !== 'string') {
     return { success: false, error: 'Invalid or missing image URL', attempts: 0 };
   }
@@ -78,7 +84,7 @@ async function extractOcr(imageUrl, { postId = 'unknown' } = {}) {
     try {
       const res = await axios.post(
         `${OCR_BASE_URL}/extract`,
-        { image_base64: base64Image },
+        { image_base64: base64Image, ...(tenantKey ? { tenant_key: tenantKey } : {}) },
         {
           headers: {
             'Content-Type': 'application/json',
@@ -140,9 +146,10 @@ async function extractOcr(imageUrl, { postId = 'unknown' } = {}) {
  *   platform permalink/watch page)
  * @param {object} [options]
  * @param {string} [options.postId] - for logging context
+ * @param {string} [options.tenantKey] - see extractOcr's jsdoc -- same purpose.
  * @returns {Promise<{ success: boolean, data?: object, error?: string, attempts: number }>}
  */
-async function extractVideo(videoUrl, { postId = 'unknown' } = {}) {
+async function extractVideo(videoUrl, { postId = 'unknown', tenantKey = null } = {}) {
   if (!videoUrl || typeof videoUrl !== 'string') {
     return { success: false, error: 'Invalid or missing video URL', attempts: 0 };
   }
@@ -152,7 +159,7 @@ async function extractVideo(videoUrl, { postId = 'unknown' } = {}) {
     try {
       const res = await axios.post(
         `${OCR_BASE_URL}/extract`,
-        { video_url: videoUrl },
+        { video_url: videoUrl, ...(tenantKey ? { tenant_key: tenantKey } : {}) },
         {
           headers: { 'Content-Type': 'application/json' },
           timeout: OCR_VIDEO_TIMEOUT_MS,

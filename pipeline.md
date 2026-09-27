@@ -23,10 +23,10 @@ flowchart TD
         B -- Yes --> C
     end
 
-    subgraph OCR_PIPELINE["2. Image OCR Extraction (ACB Server)"]
+    subgraph OCR_PIPELINE["2. Image OCR Extraction (saga Server)"]
         D{"Contains Image Media?"}:::step
         E["Download Image & Convert to Base64"]:::step
-        F["POST http://98.86.63.69:8000/extract<br/>(NVIDIA A10G GPU)"]:::gpu
+        F["POST http://101.53.140.97:8000/extract<br/>(NVIDIA L40S GPU)"]:::gpu
         G["Full OCR Response:<br/>• full_text<br/>• bounding_boxes<br/>• confidence, language"]:::step
         H["Save image_analysis in DB<br/>(Post text remains clean description)"]:::step
 
@@ -92,7 +92,7 @@ flowchart TD
 
 ### Step 2: GPU-Accelerated Image OCR
 * **Component**: `src/services/media_post_analysis/extractOcr.js`
-* **Target Server**: `acb` (`http://98.86.63.69:8000/extract`) running on an **NVIDIA A10G GPU**.
+* **Target Server**: `saga` (`http://101.53.140.97:8000/extract`) running on an **NVIDIA L40S GPU**.
 * **Behavior**:
   * Images are downloaded into memory and converted to Base64.
   * Sent to the OCR service which extracts detected text, bounding boxes, language, and confidence scores.
