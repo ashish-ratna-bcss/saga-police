@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { ExternalLink, Image as ImageIcon } from 'lucide-react';
+import { ExternalLink, Image as ImageIcon, Video as VideoIcon } from 'lucide-react';
 import {
     XBrandLogo,
     YoutubeBrandLogo,
@@ -169,6 +169,15 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
 
     const isVideoPost =
         mediaItems.length > 0 && mediaItems.every(m => m.type === 'video');
+
+    // A video post whose media was actually run through video analysis (not
+    // just detected as video -- older rows analyzed before that feature
+    // shipped fall through to isVideoPost's placeholder message instead).
+    const isVideoAnalysis = imageAnalysis?.media_type === 'video';
+    const videoEvents = Array.isArray(imageAnalysis?.events) ? imageAnalysis.events : [];
+    const videoVisibleText = Array.isArray(imageAnalysis?.visible_text)
+        ? imageAnalysis.visible_text.filter(Boolean)
+        : [];
 
     // Expert Logic or Reasons
     const reasons = alert?.llm_analysis?.reasoning ? [alert.llm_analysis.reasoning] : (alert?.threat_details?.reasons || analysis?.reasons || []);
@@ -478,16 +487,70 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
                                     </td>
                                 </tr>
 
-                                {/* Image Analysis (OCR Extraction) */}
+                                {/* Media Analysis (Video description, or Image OCR extraction) */}
                                 <tr className="border-b">
                                     <td className="py-3 pr-4 font-medium text-gray-600 dark:text-gray-400 align-top">
                                         <div className="flex items-center gap-1.5">
-                                            <ImageIcon className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                                            <span>Image Analysis</span>
+                                            {isVideoAnalysis ? (
+                                                <VideoIcon className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                                            ) : (
+                                                <ImageIcon className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                                            )}
+                                            <span>{isVideoAnalysis ? 'Video Analysis' : 'Image Analysis'}</span>
                                         </div>
                                     </td>
                                     <td className="py-3">
-                                        {ocrText ? (
+                                        {isVideoAnalysis ? (
+                                            imageAnalysis?.failed || imageAnalysis?.error ? (
+                                                <div className="text-xs text-amber-600 dark:text-amber-400 italic">
+                                                    Extraction failed: {imageAnalysis.error}
+                                                </div>
+                                            ) : (imageAnalysis?.description || imageAnalysis?.summary || videoVisibleText.length > 0) ? (
+                                                <div className="space-y-2">
+                                                    {/* Duration & scene-event count badges */}
+                                                    {(imageAnalysis?.duration_seconds != null || videoEvents.length > 0) && (
+                                                        <div className="flex flex-wrap items-center gap-1.5">
+                                                            {imageAnalysis?.duration_seconds != null && (
+                                                                <Badge
+                                                                    variant="outline"
+                                                                    className="text-[10px] uppercase font-semibold bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400"
+                                                                >
+                                                                    {Math.round(imageAnalysis.duration_seconds)}s
+                                                                </Badge>
+                                                            )}
+                                                            {videoEvents.length > 0 && (
+                                                                <span className="text-[11px] text-gray-400">
+                                                                    {videoEvents.length} scene{videoEvents.length === 1 ? '' : 's'} detected
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    {imageAnalysis?.summary && (
+                                                        <div className="text-[11px] text-gray-500 dark:text-gray-400 italic">
+                                                            {imageAnalysis.summary}
+                                                        </div>
+                                                    )}
+
+                                                    {imageAnalysis?.description && (
+                                                        <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/80 text-xs text-gray-800 dark:text-gray-200 leading-relaxed font-sans whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+                                                            {imageAnalysis.description}
+                                                        </div>
+                                                    )}
+
+                                                    {videoVisibleText.length > 0 && (
+                                                        <div>
+                                                            <div className="text-[11px] text-gray-400 mb-1">On-screen text</div>
+                                                            <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/80 text-xs text-gray-800 dark:text-gray-200 leading-relaxed font-sans whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+                                                                {videoVisibleText.join('\n\n')}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <span className="text-gray-400 italic text-xs">No video content extracted</span>
+                                            )
+                                        ) : ocrText ? (
                                             <div className="space-y-2">
                                                 {/* Language & Block count badges */}
                                                 {(detectedLangs.length > 0 || blocksCount > 0) && (
@@ -519,7 +582,7 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
                                                 Extraction failed: {imageAnalysis.error}
                                             </div>
                                         ) : isVideoPost ? (
-                                            <span className="text-gray-400 italic text-xs">Video content — no image OCR required</span>
+                                            <span className="text-gray-400 italic text-xs">Video content — not yet analyzed</span>
                                         ) : (
                                             <span className="text-gray-400 italic text-xs">No image text extracted or text-only post</span>
                                         )}
