@@ -208,7 +208,7 @@ const startServer = async () => {
     } catch (_) {}
 
     const pgStatus = health?.postgres?.status === 'online' ? `Online (${health.postgres.latency}ms)` : 'Active (PostgreSQL)';
-    const ollamaStatus = health?.services?.ollama?.status === 'online' ? `Online (${health.services.ollama.latency}ms)` : (process.env.OLLAMA_BASE_URL ? 'Configured' : 'Standby / Local');
+    const llmStatus = health?.services?.llm?.status === 'online' ? `Online (${health.services.llm.latency}ms)` : (process.env.LLM_BASE_URL ? 'Configured' : 'Standby / Local');
     const sentimentStatus = 'Active (Queue Ready)';
     const xStatus = 'Active (Scheduler Online)';
     const fbStatus = 'Active (Scheduler Online)';
@@ -223,7 +223,7 @@ const startServer = async () => {
 ├─────────────────────────────────────────────────────────────┤
 │  🚀 Server Status  : Online (${HOST}:${PORT})               │
 │  🐘 PostgreSQL DB  : ${pgStatus.padEnd(39)}│
-│  🤖 Ollama / AI    : ${ollamaStatus.padEnd(39)}│
+│  🤖 vLLM / AI      : ${llmStatus.padEnd(39)}│
 │  🧠 Sentiment AI   : ${sentimentStatus.padEnd(39)}│
 ├─────────────────────────────────────────────────────────────┤
 │  MONITORING SCHEDULERS & PLATFORMS                          │
