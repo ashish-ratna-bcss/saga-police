@@ -177,7 +177,11 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
   const rowText = String(row.text || '').trim();
   const mediaText = ocrData?.full_text
     ? String(ocrData.full_text).trim()
-    : String([ocrData?.description, ocrData?.summary].filter(Boolean).join('\n')).trim();
+    : String(
+        [ocrData?.description, ocrData?.summary, ...(Array.isArray(ocrData?.visible_text) ? ocrData.visible_text : [])]
+          .filter(Boolean)
+          .join('\n')
+      ).trim();
   const textForAnalysis = rowText || mediaText;
 
   if (rowText.length < 3 && mediaText.length < 3) {

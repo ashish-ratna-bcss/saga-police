@@ -259,7 +259,11 @@ const analyzeMediaPost = async (postId, { db, dbName } = {}) => {
   const postText = String(post.text || '').trim();
   const mediaText = ocrData?.full_text
     ? String(ocrData.full_text).trim()
-    : String([ocrData?.description, ocrData?.summary].filter(Boolean).join('\n')).trim();
+    : String(
+        [ocrData?.description, ocrData?.summary, ...(Array.isArray(ocrData?.visible_text) ? ocrData.visible_text : [])]
+          .filter(Boolean)
+          .join('\n')
+      ).trim();
   const textForAnalysis = postText || mediaText;
 
   if (postText.length < 3 && mediaText.length < 3) {
