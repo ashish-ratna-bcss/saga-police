@@ -5,7 +5,7 @@ const intelligenceClient = require('../../modules/intelligence/intelligence.clie
 const mappingService = require('../../modules/settings/mapping.service');
 const { createAlertFromCatalogPost } = require('../../modules/alerts');
 const { resolveTenantName } = require('../../lib/tenantDatabase.service');
-const { extractOcr } = require('./extractOcr');
+const { extractOcr, extractVideo } = require('./extractOcr');
 
 const MAX_ATTEMPTS = Math.max(1, Number(process.env.SENTIMENT_MAX_ATTEMPTS) || 5);
 
@@ -51,6 +51,26 @@ function extractFirstImageUrl(post) {
 function hasImageMedia(post) {
   const imageUrl = extractFirstImageUrl(post);
   return Boolean(imageUrl);
+}
+
+const VIDEO_URL_RE = /\.(mp4|m4v|mov|webm|avi|mkv)(\?.*)?$/i;
+const isVideoUrl = (url) => VIDEO_URL_RE.test(String(url || '')) || String(url || '').toLowerCase().includes('.m3u8');
+
+/**
+ * Finds a real video FILE url in media_urls (not a thumbnail, not a platform
+ * permalink/watch page -- those are already what extractFirstImageUrl would
+ * pick up instead). Per-platform population of a real video url into
+ * media_urls is what determines whether this ever finds anything -- see
+ * each platform's mapper (e.g. blugate.instagram.helpers.js).
+ */
+function extractFirstVideoUrl(post) {
+  if (!post || !Array.isArray(post.media_urls)) return null;
+  return post.media_urls.find((u) => isVideoUrl(u)) || null;
+}
+
+/** Already-analyzed check that works for either result shape (section below). */
+function hasMediaAnalysis(imageAnalysis) {
+  return Boolean(imageAnalysis?.full_text) || Boolean(imageAnalysis?.description);
 }
 
 const matchKeywords = async (text, { db } = {}) => {
@@ -169,52 +189,80 @@ const analyzeMediaPost = async (postId, { db, dbName } = {}) => {
     return { ok: false, skipped: true, reason: 'not_found' };
   }
 
-  // ── STEP 1: CONDITIONAL OCR EXTRACTION ──
-  let ocrData = post.image_analysis?.full_text ? post.image_analysis : (post.raw_data?.ocr || null);
-  const shouldRunOcr = hasImageMedia(post) && (!ocrData || !ocrData.full_text);
+  // ── STEP 1: CONDITIONAL MEDIA ENRICHMENT (video analysis, else image OCR) ──
+  let ocrData = hasMediaAnalysis(post.image_analysis) ? post.image_analysis : (post.raw_data?.ocr || null);
+  const alreadyAnalyzed = hasMediaAnalysis(ocrData);
+  const videoUrl = alreadyAnalyzed ? null : extractFirstVideoUrl(post);
 
-  if (shouldRunOcr) {
-    const imageUrl = extractFirstImageUrl(post);
+  if (videoUrl) {
+    logger.info(`[media_post_analysis] Running video analysis for post ${id}`);
+    const videoResult = await extractVideo(videoUrl, { postId: String(id) });
 
-    if (imageUrl) {
-      logger.info(`[media_post_analysis] Running OCR extraction for post ${id}`);
-      const ocrResult = await extractOcr(imageUrl, { postId: String(id) });
-
-      if (ocrResult.success && ocrResult.data) {
-        ocrData = ocrResult.data;
-        const imageText = ocrData.full_text || '';
-
-        // Persist directly into dedicated image_analysis column without corrupting real post.text
-        await prisma.social_media_posts.update({
-          where: { id },
-          data: {
-            image_analysis: ocrData,
-          },
-        });
-
-        // Update local object
-        post.image_analysis = ocrData;
-        logger.info(`[media_post_analysis] OCR extracted successfully for post ${id} (${imageText.length} chars)`);
-      } else {
-        logger.warn(`[media_post_analysis] OCR failed for post ${id}: ${ocrResult.error}`);
-        const failedAnalysis = { error: ocrResult.error, failed: true, attempts: ocrResult.attempts };
-        await prisma.social_media_posts.update({
-          where: { id },
-          data: { image_analysis: failedAnalysis },
-        });
-        post.image_analysis = failedAnalysis;
-      }
+    if (videoResult.success && videoResult.data) {
+      ocrData = { media_type: 'video', ...videoResult.data };
+      await prisma.social_media_posts.update({
+        where: { id },
+        data: { image_analysis: ocrData },
+      });
+      post.image_analysis = ocrData;
+      logger.info(`[media_post_analysis] Video analysis succeeded for post ${id}`);
+    } else {
+      logger.warn(`[media_post_analysis] Video analysis failed for post ${id}: ${videoResult.error}`);
+      const failedAnalysis = { error: videoResult.error, failed: true, attempts: videoResult.attempts, media_type: 'video' };
+      await prisma.social_media_posts.update({
+        where: { id },
+        data: { image_analysis: failedAnalysis },
+      });
+      post.image_analysis = failedAnalysis;
     }
-  } else if (!hasImageMedia(post)) {
-    logger.debug(`[media_post_analysis] Post ${id} is video or text-only; skipping OCR step.`);
+  } else if (!alreadyAnalyzed) {
+    const shouldRunOcr = hasImageMedia(post) && (!ocrData || !ocrData.full_text);
+
+    if (shouldRunOcr) {
+      const imageUrl = extractFirstImageUrl(post);
+
+      if (imageUrl) {
+        logger.info(`[media_post_analysis] Running OCR extraction for post ${id}`);
+        const ocrResult = await extractOcr(imageUrl, { postId: String(id) });
+
+        if (ocrResult.success && ocrResult.data) {
+          ocrData = ocrResult.data;
+          const imageText = ocrData.full_text || '';
+
+          // Persist directly into dedicated image_analysis column without corrupting real post.text
+          await prisma.social_media_posts.update({
+            where: { id },
+            data: {
+              image_analysis: ocrData,
+            },
+          });
+
+          // Update local object
+          post.image_analysis = ocrData;
+          logger.info(`[media_post_analysis] OCR extracted successfully for post ${id} (${imageText.length} chars)`);
+        } else {
+          logger.warn(`[media_post_analysis] OCR failed for post ${id}: ${ocrResult.error}`);
+          const failedAnalysis = { error: ocrResult.error, failed: true, attempts: ocrResult.attempts };
+          await prisma.social_media_posts.update({
+            where: { id },
+            data: { image_analysis: failedAnalysis },
+          });
+          post.image_analysis = failedAnalysis;
+        }
+      }
+    } else if (!hasImageMedia(post)) {
+      logger.debug(`[media_post_analysis] Post ${id} is text-only or has no usable media; skipping media enrichment.`);
+    }
   }
 
   // ── STEP 2: SENTIMENT & INTELLIGENCE ANALYSIS ──
   const postText = String(post.text || '').trim();
-  const imageText = String(ocrData?.full_text || '').trim();
-  const textForAnalysis = postText || imageText;
+  const mediaText = ocrData?.full_text
+    ? String(ocrData.full_text).trim()
+    : String([ocrData?.description, ocrData?.summary].filter(Boolean).join('\n')).trim();
+  const textForAnalysis = postText || mediaText;
 
-  if (postText.length < 3 && imageText.length < 3) {
+  if (postText.length < 3 && mediaText.length < 3) {
     await prisma.social_media_posts.update({
       where: { id },
       data: {
@@ -362,6 +410,7 @@ const analyzeMediaPost = async (postId, { db, dbName } = {}) => {
     risk_score: riskScore,
     sentiment: analysis_result.sentiment,
     ocr_extracted: Boolean(ocrData?.full_text),
+    video_analyzed: Boolean(ocrData?.description),
     alert: alertInfo,
   };
 };

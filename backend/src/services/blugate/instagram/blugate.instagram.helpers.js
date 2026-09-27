@@ -60,6 +60,19 @@ const mapFeedItemToUpsert = (node, accountId, mediaType = 'post') => {
     node.text ||
     '';
 
+  // Video takes priority over the cover image when both exist (video_versions
+  // is only present on actual video/reel nodes) -- one media_urls entry per
+  // post, media_post_analysis picks OCR vs. video analysis off its extension.
+  const videoUrl = Array.isArray(node.video_versions) && node.video_versions[0]?.url
+    ? node.video_versions[0].url
+    : null;
+  const imageUrl =
+    node.image_versions2?.candidates?.[0]?.url ||
+    node.display_uri ||
+    node.thumbnail_url ||
+    null;
+  const mediaUrl = videoUrl || imageUrl;
+
   return {
     account_id: accountId,
     platform: 'instagram',
@@ -69,7 +82,7 @@ const mapFeedItemToUpsert = (node, accountId, mediaType = 'post') => {
     author_name: node.user?.full_name || node.owner?.full_name || null,
     author_handle: node.user?.username || node.owner?.username || null,
     media_type: mediaType,
-    media_urls: [],
+    media_urls: mediaUrl ? [mediaUrl] : [],
     engagement: {
       likes: node.like_count || node.likes || 0,
       comments: node.comment_count || node.comments || 0,

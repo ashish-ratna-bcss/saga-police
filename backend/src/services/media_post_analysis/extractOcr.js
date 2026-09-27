@@ -4,6 +4,14 @@ const logger = require('../../lib/logger');
 const OCR_BASE_URL = (process.env.OCR_SERVICE_URL || 'http://98.86.63.69:8000').replace(/\/$/, '');
 const OCR_MAX_ATTEMPTS = Math.max(1, Number(process.env.OCR_MAX_ATTEMPTS) || 3);
 
+// Video analysis is much more expensive per attempt than image OCR (the service
+// downloads + frame-samples + runs a VLM over up to a 60-minute clip, vs. a single
+// image inference) and the media queue only runs 2 concurrent jobs -- a stuck video
+// request retried 3x at a long timeout could tie up half the queue's capacity for
+// a long time. Fewer attempts, shorter default timeout than the theoretical max.
+const OCR_VIDEO_MAX_ATTEMPTS = Math.max(1, Number(process.env.OCR_VIDEO_MAX_ATTEMPTS) || 2);
+const OCR_VIDEO_TIMEOUT_MS = Math.max(30000, Number(process.env.OCR_VIDEO_TIMEOUT_MS) || 600000);
+
 /**
  * Derives an appropriate Referer header based on image CDN hostname to prevent 403 Forbidden.
  */
@@ -122,8 +130,77 @@ async function extractOcr(imageUrl, { postId = 'unknown' } = {}) {
   };
 }
 
+/**
+ * Sends a video URL to the OCR/video service for scene description + on-screen
+ * text extraction. Unlike images, the service fetches the video itself
+ * server-side (SSRF-guarded) -- there is no base64/bytes-upload path for video
+ * (deliberately not implemented upstream, to avoid huge JSON request bodies),
+ * so this only ever sends the URL, never downloads it here.
+ * @param {string} videoUrl - direct video file URL (not a thumbnail, not a
+ *   platform permalink/watch page)
+ * @param {object} [options]
+ * @param {string} [options.postId] - for logging context
+ * @returns {Promise<{ success: boolean, data?: object, error?: string, attempts: number }>}
+ */
+async function extractVideo(videoUrl, { postId = 'unknown' } = {}) {
+  if (!videoUrl || typeof videoUrl !== 'string') {
+    return { success: false, error: 'Invalid or missing video URL', attempts: 0 };
+  }
+
+  let lastError = null;
+  for (let attempt = 1; attempt <= OCR_VIDEO_MAX_ATTEMPTS; attempt++) {
+    try {
+      const res = await axios.post(
+        `${OCR_BASE_URL}/extract`,
+        { video_url: videoUrl },
+        {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: OCR_VIDEO_TIMEOUT_MS,
+        }
+      );
+
+      const result = res.data;
+      if (result && result.success && result.data) {
+        return { success: true, data: result.data, attempts: attempt };
+      }
+
+      const errMsg = result?.error || 'Video analysis service returned success=false';
+      throw new Error(errMsg);
+    } catch (err) {
+      lastError = err;
+      const status = err.response?.status;
+      const detail = err.response?.data?.error || err.message;
+      const isRetryable =
+        !status ||
+        status === 429 ||
+        status >= 500 ||
+        err.code === 'ECONNABORTED' ||
+        err.code === 'ECONNREFUSED' ||
+        err.code === 'ETIMEDOUT';
+
+      logger.warn(
+        `[Video] Attempt ${attempt}/${OCR_VIDEO_MAX_ATTEMPTS} failed for post ${postId}${status ? ` (HTTP ${status})` : ''}: ${detail}`
+      );
+
+      if (!isRetryable || attempt >= OCR_VIDEO_MAX_ATTEMPTS) {
+        break;
+      }
+
+      const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+      await new Promise((r) => setTimeout(r, backoffMs));
+    }
+  }
+
+  return {
+    success: false,
+    error: lastError?.response?.data?.error || lastError?.message || 'Video analysis failed',
+    attempts: OCR_VIDEO_MAX_ATTEMPTS,
+  };
+}
+
 module.exports = {
   extractOcr,
+  extractVideo,
   downloadImageAsBase64,
   refererFor,
 };
