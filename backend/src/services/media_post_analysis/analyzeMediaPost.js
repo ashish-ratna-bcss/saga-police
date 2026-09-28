@@ -196,7 +196,7 @@ const analyzeMediaPost = async (postId, { db, dbName } = {}) => {
 
   if (videoUrl) {
     logger.info(`[media_post_analysis] Running video analysis for post ${id}`);
-    const videoResult = await extractVideo(videoUrl, { postId: String(id) });
+    const videoResult = await extractVideo(videoUrl, { postId: String(id), tenantKey: dbName });
 
     if (videoResult.success && videoResult.data) {
       ocrData = { media_type: 'video', ...videoResult.data };
@@ -223,7 +223,7 @@ const analyzeMediaPost = async (postId, { db, dbName } = {}) => {
 
       if (imageUrl) {
         logger.info(`[media_post_analysis] Running OCR extraction for post ${id}`);
-        const ocrResult = await extractOcr(imageUrl, { postId: String(id) });
+        const ocrResult = await extractOcr(imageUrl, { postId: String(id), tenantKey: dbName });
 
         if (ocrResult.success && ocrResult.data) {
           ocrData = ocrResult.data;

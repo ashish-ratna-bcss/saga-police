@@ -136,7 +136,7 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
 
   if (videoUrl) {
     logger.info(`[media_post_analysis/event] Running video analysis for event media ${id}`);
-    const videoResult = await extractVideo(videoUrl, { postId: `event_${id}` });
+    const videoResult = await extractVideo(videoUrl, { postId: `event_${id}`, tenantKey: dbName });
     if (videoResult.success && videoResult.data) {
       ocrData = { media_type: 'video', ...videoResult.data };
       await prisma.social_media_event_media.update({
@@ -158,7 +158,7 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
 
     if (imageUrl) {
       logger.info(`[media_post_analysis/event] Running OCR extraction for event media ${id}`);
-      const ocrResult = await extractOcr(imageUrl, { postId: `event_${id}` });
+      const ocrResult = await extractOcr(imageUrl, { postId: `event_${id}`, tenantKey: dbName });
       if (ocrResult.success && ocrResult.data) {
         ocrData = ocrResult.data;
 
