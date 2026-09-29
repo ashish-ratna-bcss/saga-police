@@ -699,6 +699,59 @@ const runScanEventOnce = async (event, options = {}) => {
     return uniqueById(merged);
   };
 
+  // Instagram first: DB-only keyword match against Alerts-stored posts (no API).
+  // Run before Blugate platforms so Fetch Now isn't blocked by X/FB rate limits.
+  if (platforms.includes('instagram')) {
+    try {
+      const instagramPosts = await prisma.social_media_posts.findMany({
+        where: buildInstagramPostsWhere(event),
+        orderBy: [{ posted_at: 'desc' }, { fetched_at: 'desc' }],
+      });
+      const matchEvent = resolveInstagramMatchEvent(event, queries);
+      const relevant = filterByKeywords(instagramPosts, matchEvent, getInstagramPostSearchText);
+      scanned += relevant.length;
+      track('instagram', { scanned: relevant.length });
+      let instaIn = 0;
+      for (const p of relevant) {
+        const pid = p.external_id || p.id;
+        if (!pid) continue;
+        const engagement = asJson(p.engagement, {});
+        const { isNew } = await upsertMedia({
+          db,
+          dbName,
+          eventId: event.id,
+          platform: 'instagram',
+          externalId: String(pid),
+          payload: {
+            url: p.url || null,
+            text: p.text || '',
+            author_name: p.author_name || p.author_handle || 'Unknown',
+            author_handle: p.author_handle || 'unknown',
+            posted_at: p.posted_at || p.fetched_at || new Date(),
+            engagement,
+            media: mediaItemsFromPostUrls(p.media_urls, p.media_type),
+            raw_data: {
+              ...(asJson(p.raw_data, {}) || {}),
+              _source: 'alerts_social_media_posts',
+              post_id: String(p.id),
+              media_type: p.media_type || null,
+              image_analysis: p.image_analysis || null,
+            },
+          },
+        });
+        if (isNew) instaIn += 1;
+      }
+      ingested += instaIn;
+      track('instagram', { ingested: instaIn });
+      logger.info(
+        `[EventScan] Instagram DB match for ${event.name}: scanned=${relevant.length} new=${instaIn}`
+      );
+    } catch (error) {
+      logger.error(`[EventScan] Instagram failed for ${event.name}: ${error.message}`);
+      errors.push({ platform: 'instagram', message: error.message });
+    }
+  }
+
   if (platforms.includes('x')) {
     try {
       const xAuth = await loadPlatformAuth(['x', 'twitter'], callXApi.authFromPlatformRow);
@@ -932,56 +985,6 @@ const runScanEventOnce = async (event, options = {}) => {
     } catch (error) {
       logger.error(`[EventScan] Reddit failed for ${event.name}: ${error.message}`);
       errors.push({ platform: 'reddit', message: error.message });
-    }
-  }
-
-  if (platforms.includes('instagram')) {
-    try {
-      // DB-only: Alerts profile monitoring already stores IG posts in social_media_posts.
-      // Never call Instagram/Blugate keyword APIs from Events.
-      const instagramPosts = await prisma.social_media_posts.findMany({
-        where: buildInstagramPostsWhere(event),
-        orderBy: [{ posted_at: 'desc' }, { fetched_at: 'desc' }],
-      });
-      const matchEvent = resolveInstagramMatchEvent(event, queries);
-      const relevant = filterByKeywords(instagramPosts, matchEvent, getInstagramPostSearchText);
-      scanned += relevant.length;
-      track('instagram', { scanned: relevant.length });
-      let instaIn = 0;
-      for (const p of relevant) {
-        const pid = p.external_id || p.id;
-        if (!pid) continue;
-        const engagement = asJson(p.engagement, {});
-        const { isNew } = await upsertMedia({
-          db,
-          dbName,
-          eventId: event.id,
-          platform: 'instagram',
-          externalId: String(pid),
-          payload: {
-            url: p.url || null,
-            text: p.text || '',
-            author_name: p.author_name || p.author_handle || 'Unknown',
-            author_handle: p.author_handle || 'unknown',
-            posted_at: p.posted_at || p.fetched_at || new Date(),
-            engagement,
-            media: mediaItemsFromPostUrls(p.media_urls, p.media_type),
-            raw_data: {
-              ...(asJson(p.raw_data, {}) || {}),
-              _source: 'alerts_social_media_posts',
-              post_id: String(p.id),
-              media_type: p.media_type || null,
-              image_analysis: p.image_analysis || null,
-            },
-          },
-        });
-        if (isNew) instaIn += 1;
-      }
-      ingested += instaIn;
-      track('instagram', { ingested: instaIn });
-    } catch (error) {
-      logger.error(`[EventScan] Instagram failed for ${event.name}: ${error.message}`);
-      errors.push({ platform: 'instagram', message: error.message });
     }
   }
 
