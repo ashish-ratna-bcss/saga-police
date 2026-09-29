@@ -856,6 +856,45 @@ const runScanEventOnce = async (event, options = {}) => {
     }
   }
 
+  if (platforms.includes('instagram')) {
+    try {
+      const instagramAlerts = await prisma.social_media_alerts.findMany({
+        where: { platform: 'instagram' },
+      });
+      const relevant = filterByKeywords(instagramAlerts, event, (p) => `${p?.title || ''} ${p?.description || ''}`);
+      scanned += relevant.length;
+      track('instagram', { scanned: relevant.length });
+      let instaIn = 0;
+      for (const p of relevant) {
+        const pid = p.external_id || p.id;
+        if (!pid) continue;
+        const { isNew } = await upsertMedia({
+          db,
+          dbName,
+          eventId: event.id,
+          platform: 'instagram',
+          externalId: String(pid),
+          payload: {
+            url: p.content_url || null,
+            text: p.description || p.title || '',
+            author_name: p.author || 'Unknown',
+            author_handle: p.author_handle || 'unknown',
+            posted_at: p.posted_at || p.created_at || new Date(),
+            engagement: {},
+            media: [],
+            raw_data: p,
+          },
+        });
+        if (isNew) instaIn += 1;
+      }
+      ingested += instaIn;
+      track('instagram', { ingested: instaIn });
+    } catch (error) {
+      logger.error(`[EventScan] Instagram failed for ${event.name}: ${error.message}`);
+      errors.push({ platform: 'instagram', message: error.message });
+    }
+  }
+
   const ok = errors.length === 0;
   const message =
     source === 'manual'
