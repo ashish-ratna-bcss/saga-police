@@ -110,6 +110,7 @@
       "x",
       "youtube",
       "facebook",
+      "instagram",
       "telegram",
       "reddit"
     ],
@@ -120,7 +121,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "listEvents",
         "description": "List tracked events, schedules, and active monitoring states",
-        "platforms": ["x", "youtube", "facebook", "telegram", "reddit"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "POST",
@@ -128,7 +129,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "createEvent",
         "description": "Create a new event with target platforms, keywords, hashtags, and dates",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "GET",
@@ -136,7 +137,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "getEvent",
         "description": "Get detailed configuration and status for a specific event",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "PUT",
@@ -144,7 +145,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "updateEvent",
         "description": "Update event parameters, keywords, locations, and platforms",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "GET",
@@ -152,7 +153,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "getEventDashboard",
         "description": "Get event metrics, post breakdown by platform, and sentiment stats",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "GET",
@@ -160,7 +161,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "getEventContent",
         "description": "Get posts and media collected across platforms for this event",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "POST",
@@ -168,7 +169,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "runEventScan",
         "description": "Trigger on-demand multi-platform scan for event keywords and hashtags",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "PUT",
@@ -176,7 +177,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "toggleMonitoring",
         "description": "Enable or disable automated recurring scans for an event",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "GET",
@@ -184,7 +185,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "getEventsReport",
         "description": "Generate summary analytics report across multiple events",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "GET",
@@ -192,15 +193,15 @@
         "controller": "modules/events/event.calendar.controller.js",
         "function": "listOccasionCalendar",
         "description": "List calendar occasions, holidays, and VIP schedules",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "GET",
         "path": "/api/social-profiles/platforms?page=events",
         "controller": "modules/social-profiles/socialProfile.controller.js",
         "function": "listPlatforms",
-        "description": "Retrieve platforms enabled for event tracking (excludes Instagram)",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "description": "Retrieve platforms enabled for event tracking (Instagram uses Alerts-stored posts, no IG keyword API)",
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       }
     ]
   },
