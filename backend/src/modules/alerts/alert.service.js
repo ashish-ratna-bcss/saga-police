@@ -345,7 +345,7 @@ const listTopCatalogAlertsByCategory = async ({
       ],
     },
     include: ALERT_INCLUDE,
-    orderBy: [{ risk_score: 'desc' }, { posted_at: { sort: 'desc', nulls: 'last' } }, { created_at: 'desc' }, { id: 'desc' }],
+    orderBy: [{ posted_at: { sort: 'desc', nulls: 'last' } }, { created_at: 'desc' }, { id: 'desc' }],
     take: 2500,
   });
 
