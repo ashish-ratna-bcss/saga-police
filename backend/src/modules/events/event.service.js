@@ -182,7 +182,7 @@ const getDashboard = async (id, { db } = {}) => {
 
   const byPlatformRows = await prisma.social_media_event_media.groupBy({
     by: ['platform'],
-    where: { event_id: Number(id), NOT: { platform: 'instagram' } },
+    where: { event_id: Number(id) },
     _count: { _all: true },
   });
   const content_by_platform = {};
@@ -240,10 +240,9 @@ const listEventContent = async (id, { page = 1, limit = 50, platform = 'all', db
     throw err;
   }
 
-  const where = { event_id: Number(id), NOT: { platform: 'instagram' } };
+  const where = { event_id: Number(id) };
   if (platform && platform !== 'all') {
     where.platform = String(platform).toLowerCase();
-    delete where.NOT;
   }
 
   const skip = (Math.max(1, page) - 1) * Math.min(200, Math.max(1, limit));
