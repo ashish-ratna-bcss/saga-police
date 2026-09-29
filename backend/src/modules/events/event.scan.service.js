@@ -75,6 +75,85 @@ const filterByKeywords = (items, event, getText) => {
   });
 };
 
+/**
+ * Instagram has no keyword search API. Events reuse posts already fetched by
+ * Alerts profile monitoring (social_media_posts) and match event keywords
+ * against caption/text, hashtags, and OCR/analysis metadata.
+ */
+const getInstagramPostSearchText = (post) => {
+  const parts = [];
+  if (post?.text) parts.push(String(post.text));
+
+  const raw = asJson(post?.raw_data, {});
+  if (typeof raw.caption === 'string') parts.push(raw.caption);
+  else if (raw.caption?.text) parts.push(String(raw.caption.text));
+  if (raw.title) parts.push(String(raw.title));
+
+  const pushHashtags = (list) => {
+    if (!Array.isArray(list)) return;
+    for (const tag of list) {
+      const t = String(tag?.name || tag?.tag || tag || '').trim();
+      if (t) parts.push(t.startsWith('#') ? t : `#${t}`);
+    }
+  };
+  pushHashtags(raw.hashtags);
+  pushHashtags(raw.caption?.hashtags);
+
+  if (Array.isArray(raw.usertags?.in)) {
+    for (const u of raw.usertags.in) {
+      const handle = u?.user?.username || u?.username;
+      if (handle) parts.push(`@${handle}`);
+    }
+  }
+
+  const imageAnalysis = asJson(post?.image_analysis, {});
+  if (imageAnalysis.full_text) parts.push(String(imageAnalysis.full_text));
+  if (imageAnalysis.visible_text) parts.push(String(imageAnalysis.visible_text));
+  if (Array.isArray(imageAnalysis.texts)) {
+    parts.push(imageAnalysis.texts.map((t) => (typeof t === 'string' ? t : t?.text || '')).join(' '));
+  }
+
+  const analysis = asJson(post?.analysis_result, {});
+  if (analysis.summary) parts.push(String(analysis.summary));
+  if (Array.isArray(analysis.matched_keywords)) {
+    parts.push(analysis.matched_keywords.map((k) => k?.keyword || k).filter(Boolean).join(' '));
+  }
+
+  return parts.join(' ');
+};
+
+const mediaItemsFromPostUrls = (mediaUrls, mediaType) => {
+  const urls = Array.isArray(mediaUrls) ? mediaUrls : asJson(mediaUrls, []);
+  const list = Array.isArray(urls) ? urls.filter(Boolean) : [];
+  const preferVideo = String(mediaType || '').toLowerCase() === 'reel' || String(mediaType || '').toLowerCase() === 'video';
+  return list.map((url) => {
+    const u = String(url);
+    const isVideo =
+      preferVideo ||
+      /\.(mp4|mov|webm|m3u8)(\?|$)/i.test(u) ||
+      /\/video\//i.test(u);
+    return { type: isVideo ? 'video' : 'photo', url: u, preview: u };
+  });
+};
+
+/** Keywords for DB-side Instagram matching (fall back to event name/location queries). */
+const resolveInstagramMatchEvent = (event, queries = []) => {
+  if (normalizeEventKeywords(event).length) return event;
+  const fallback = (queries || [])
+    .map((q) => String(q || '').replace(/^"|"$/g, '').trim())
+    .filter(Boolean);
+  return fallback.length ? { keywords: fallback } : event;
+};
+
+const buildInstagramPostsWhere = (event) => {
+  const where = { platform: 'instagram' };
+  const postedAt = {};
+  if (event?.start_date) postedAt.gte = new Date(event.start_date);
+  if (event?.end_date) postedAt.lte = new Date(event.end_date);
+  if (Object.keys(postedAt).length) where.posted_at = postedAt;
+  return where;
+};
+
 const uniqueById = (items = []) => {
   const map = new Map();
   for (const item of items) {
@@ -858,16 +937,21 @@ const runScanEventOnce = async (event, options = {}) => {
 
   if (platforms.includes('instagram')) {
     try {
-      const instagramAlerts = await prisma.social_media_alerts.findMany({
-        where: { platform: 'instagram' },
+      // DB-only: Alerts profile monitoring already stores IG posts in social_media_posts.
+      // Never call Instagram/Blugate keyword APIs from Events.
+      const instagramPosts = await prisma.social_media_posts.findMany({
+        where: buildInstagramPostsWhere(event),
+        orderBy: [{ posted_at: 'desc' }, { fetched_at: 'desc' }],
       });
-      const relevant = filterByKeywords(instagramAlerts, event, (p) => `${p?.title || ''} ${p?.description || ''}`);
+      const matchEvent = resolveInstagramMatchEvent(event, queries);
+      const relevant = filterByKeywords(instagramPosts, matchEvent, getInstagramPostSearchText);
       scanned += relevant.length;
       track('instagram', { scanned: relevant.length });
       let instaIn = 0;
       for (const p of relevant) {
         const pid = p.external_id || p.id;
         if (!pid) continue;
+        const engagement = asJson(p.engagement, {});
         const { isNew } = await upsertMedia({
           db,
           dbName,
@@ -875,14 +959,20 @@ const runScanEventOnce = async (event, options = {}) => {
           platform: 'instagram',
           externalId: String(pid),
           payload: {
-            url: p.content_url || null,
-            text: p.description || p.title || '',
-            author_name: p.author || 'Unknown',
+            url: p.url || null,
+            text: p.text || '',
+            author_name: p.author_name || p.author_handle || 'Unknown',
             author_handle: p.author_handle || 'unknown',
-            posted_at: p.posted_at || p.created_at || new Date(),
-            engagement: {},
-            media: [],
-            raw_data: p,
+            posted_at: p.posted_at || p.fetched_at || new Date(),
+            engagement,
+            media: mediaItemsFromPostUrls(p.media_urls, p.media_type),
+            raw_data: {
+              ...(asJson(p.raw_data, {}) || {}),
+              _source: 'alerts_social_media_posts',
+              post_id: String(p.id),
+              media_type: p.media_type || null,
+              image_analysis: p.image_analysis || null,
+            },
           },
         });
         if (isNew) instaIn += 1;
