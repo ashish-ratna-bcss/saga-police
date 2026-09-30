@@ -37,6 +37,29 @@ const svg = (w, h, body) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 
 const txt = (x, y, s, size = 10, fill = INK, anchor = 'start', weight = 400) =>
   `<text x="${x}" y="${y}" font-size="${size}" fill="${fill}" text-anchor="${anchor}" font-weight="${weight}" font-family="Helvetica Neue,Arial,'Report Devanagari','Report Oriya',sans-serif">${esc(s)}</text>`;
 
+/** Word-wrap SVG text into multiple tspans (avoids hard truncation like "Partici"). */
+const wrapTxt = (x, y, s, maxChars, size = 9, fill = INK, anchor = 'start', weight = 400, lineH = size + 2.5) => {
+  const words = String(s || '').split(/\s+/).filter(Boolean);
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    const next = cur ? `${cur} ${w}` : w;
+    if (next.length > maxChars && cur) {
+      lines.push(cur);
+      cur = w;
+    } else {
+      cur = next;
+    }
+  }
+  if (cur) lines.push(cur);
+  if (!lines.length) return '';
+  if (lines.length === 1) return txt(x, y, lines[0], size, fill, anchor, weight);
+  return `<text x="${x}" y="${y}" font-size="${size}" fill="${fill}" text-anchor="${anchor}" font-weight="${weight}" font-family="Helvetica Neue,Arial,'Report Devanagari','Report Oriya',sans-serif">${lines.map((line, i) => `<tspan x="${x}" dy="${i === 0 ? 0 : lineH}">${esc(line)}</tspan>`).join('')}</text>`;
+};
+
+/** Cap bubble radius so large counts (e.g. 34) cannot overflow neighbouring rows. */
+const bubbleR = (v) => Math.min(11, 3.2 + Math.sqrt(Math.max(0, n0(v))) * 2.35);
+
 const stack = (x, y, w, h, parts, minLab = 26, size = 9) => {
   const live = parts.filter((p) => p.v > 0);
   const tot = live.reduce((s, p) => s + p.v, 0);
@@ -101,16 +124,24 @@ const splitSections = (md) => {
 const CSS = `
 *{box-sizing:border-box}
 body{margin:0;font-family:'Helvetica Neue',Arial,'Report Devanagari','Report Oriya','Noto Sans','Noto Sans Devanagari','Noto Sans Oriya','Noto Sans Telugu',sans-serif;color:${INK};font-size:8.6pt;line-height:1.42;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.pg{break-before:page}
+.pg{break-before:page;overflow:hidden;max-width:100%;position:relative;z-index:1}
 .pg:first-of-type{break-before:auto}
-.rh{background:#0B1220;color:#9FB0CC;font-size:6pt;letter-spacing:.12em;display:flex;justify-content:space-between;align-items:center;padding:1.6mm 3mm;border-radius:2px;margin:0 0 3mm}
-.rh b{color:#fff}.rb{display:flex;gap:2.2mm;white-space:nowrap}.rb span{color:#5D6C88}.rb span.on{color:#fff;font-weight:700;border-bottom:1.2px solid #7C8CFF}
+/* Fixed so Chromium repeats it on every printed page at true page center (not middle of a tall section). */
+.wm{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:0;overflow:visible}
+.wm span{font-size:28pt;font-weight:700;letter-spacing:.04em;color:#DAE0EB;opacity:.32;transform:rotate(-35deg);white-space:nowrap;user-select:none;max-width:none}
+.rh{background:#0B1220;color:#9FB0CC;font-size:6pt;letter-spacing:.12em;display:flex;justify-content:space-between;align-items:center;padding:1.6mm 3mm;border-radius:2px;margin:0 0 3mm;gap:2mm;overflow:hidden;max-width:100%}
+.rh b{color:#fff}.rb{display:flex;flex-wrap:wrap;gap:1.2mm 2mm;justify-content:flex-end;max-width:115mm}.rb span{color:#5D6C88;white-space:nowrap}.rb span.on{color:#fff;font-weight:700;border-bottom:1.2px solid #7C8CFF}
 .sec{font-size:6.6pt;letter-spacing:.16em;color:#3B4CCA;font-weight:700;text-transform:uppercase}
 .chip{display:inline-block;border:.5px solid #C5CDE0;background:#F5F7FB;border-radius:8px;padding:.3mm 1.8mm;margin:0 1mm 1mm 0;font-size:7pt}
 .nar{border:.6px solid #D5DBE6;border-radius:3px;overflow:hidden;margin-bottom:2.6mm;display:grid;grid-template-columns:2.2mm 1fr;break-inside:avoid}
 .nar>div:last-child{padding:2.4mm 3.5mm}
-.nar .row{display:grid;grid-template-columns:27mm 1fr;gap:2mm;font-size:7.9pt;margin-top:.8mm}
-.nar .row span:first-child{color:#5B6474;font-size:6.4pt;text-transform:uppercase;letter-spacing:.06em;padding-top:.3mm}
+.nar .row{display:grid;grid-template-columns:22mm 1fr;gap:1.5mm 2.5mm;font-size:7.9pt;margin-top:1.2mm;align-items:start}
+.nar .row span:first-child{color:#5B6474;font-size:6.2pt;text-transform:uppercase;letter-spacing:.05em;padding-top:.2mm;line-height:1.25}
+.nar .row span:last-child{min-width:0;overflow-wrap:anywhere;word-break:break-word}
+.narkey{display:flex;flex-wrap:wrap;gap:1.2mm 3.5mm;font-size:7pt;margin:0 0 2.5mm;padding:2mm 2.5mm;border:.5px solid #E3E8F1;border-radius:3px;background:#F8F9FC}
+.narkey span{display:inline-flex;align-items:center;gap:1.2mm;max-width:100%}
+.narkey i{display:inline-block;width:2.4mm;height:2.4mm;border-radius:1px;flex-shrink:0}
+.narkey b{margin-right:.4mm}
 .stg{display:flex;align-items:baseline;gap:3mm;border-bottom:2px solid ${INK};padding-bottom:1.5mm;margin:0 0 3mm}
 .stg b{font-size:16pt;color:${IND}}.stg .nm{font-size:12pt;font-weight:700;letter-spacing:.09em}.stg .qq{font-size:8.4pt;color:${MUT}}
 h1{font-size:15pt;line-height:1.15;margin:0 0 1.5mm;letter-spacing:-.01em}
@@ -118,11 +149,12 @@ h2{font-size:10pt;margin:0 0 1.5mm}h3{font-size:8.6pt;margin:0 0 1mm}
 p{margin:0 0 1.6mm}
 .lead{font-size:9.8pt;color:#26304A;margin-bottom:3mm}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-bottom:3mm}
-.card{border:.6px solid #D5DBE6;border-radius:3px;padding:3mm 3.5mm;background:#fff;break-inside:avoid;margin-bottom:3mm}
-.g2>*{min-width:0}.g2 .card{margin-bottom:0}.kpi>*{min-width:0}svg{max-width:100%}
+.card{border:.6px solid #D5DBE6;border-radius:3px;padding:3mm 3.5mm;background:#fff;break-inside:avoid;margin-bottom:3mm;overflow:hidden;max-width:100%}
+.g2>*{min-width:0}.g2 .card{margin-bottom:0}.kpi>*{min-width:0}
+svg{max-width:100%;height:auto;overflow:hidden;display:block}
 .card.soft{background:#F5F7FB;border-color:#E3E8F1}
 .q{margin:0 0 1.2mm;font-size:7.4pt;color:${MUT};font-style:italic}
-.call{border-left:3px solid ${IND};background:#EEF1FD;padding:2.6mm 3.5mm;margin:0 0 3mm;border-radius:0 3px 3px 0;break-inside:avoid}
+.call{border-left:3px solid ${IND};background:#EEF1FD;padding:2.6mm 3.5mm;margin:0 0 3mm;border-radius:0 3px 3px 0;break-inside:avoid;overflow-wrap:anywhere;max-width:100%}
 .call.warn{border-color:${CR};background:#FDEFED}.call.amb{border-color:${YC};background:#FFF7E8}.call.grn{border-color:${PR};background:#EAF7F1}
 .tag{font-size:5.6pt;font-weight:700;letter-spacing:.08em;padding:.5mm 1.4mm;border-radius:2px;margin-right:1.5mm;vertical-align:1px;white-space:nowrap}
 .kpi{display:grid;grid-template-columns:repeat(6,1fr);gap:2.4mm;margin:0 0 3.5mm}
@@ -143,9 +175,11 @@ td.r,th.r{text-align:right}
 .sm{font-size:7.2pt;color:${MUT}}
 .ev{font-size:7.6pt;color:#26304A}
 a{color:${IND}}a.cite{text-decoration:none;font-weight:700}
-.narr{border:.6px solid #D5DBE6;border-radius:3px;margin-bottom:3mm;display:grid;grid-template-columns:2.2mm 1fr;overflow:hidden;break-inside:avoid}
+.narr{border:.6px solid #D5DBE6;border-radius:3px;margin-bottom:3mm;display:grid;grid-template-columns:2.2mm 1fr;overflow:hidden;break-inside:auto}
 .narr>div:last-child{padding:2.6mm 3.5mm}
-.narr p,.narr li{font-size:8.2pt;margin:0 0 1mm}.narr ul,.narr ol{margin:0 0 1mm;padding-left:4.5mm}
+.narr h2{break-after:avoid}
+.narr p,.narr li{font-size:8.2pt;margin:0 0 1mm;orphans:2;widows:2}.narr ul,.narr ol{margin:0 0 1mm;padding-left:4.5mm}
+.narr li{break-inside:avoid}
 .hero{background:linear-gradient(120deg,#0B1220,#1B2A5C);color:#fff;border-radius:4px;padding:6mm 7mm;margin-bottom:3.5mm}
 .st{display:inline-block;font-size:6pt;font-weight:700;letter-spacing:.06em;padding:.5mm 1.6mm;border-radius:2px;color:#fff}
 .ac{border:.6px solid #D5DBE6;border-left-width:3px;border-radius:3px;padding:2.2mm 3mm;margin-bottom:2.2mm;break-inside:avoid}
@@ -314,34 +348,60 @@ ${evPlatSvg ? `<div class="card"><p class="q">Which platform carries the critica
 
   // ================= 3-4. UNDERSTAND =================
   const platsIn = [...new Set(ev.map((e) => e.plat))].slice(0, 4);
+  const narrKeyHtml = hasN
+    ? `<div class="narkey"><span class="sm" style="width:100%;margin:0 0 .5mm"><b>Narrative key</b> — letters A–${N[N.length - 1]?.code || 'F'} are used in charts below:</span>${N.map((n) => `<span><i style="background:${ncol(n.code)}"></i><b>${esc(n.code)}</b> ${esc(n.title)}</span>`).join('')}</div>`
+    : '';
   let mx = '';
   if (hasN && platsIn.length) {
-    const rh = 26, cx0 = 290, cw = 30;
+    const titleW = 38; // chars per line for wrapped narrative titles
+    const rh = 30;
+    const cx0 = 250;
+    const cw = 28;
+    const maxBubble = Math.max(1, ...N.map((n) => Math.max(0, ...platsIn.map((p) => evOf(n.code).filter((e) => e.plat === p).length))));
+    const rMax = bubbleR(maxBubble);
+    const rowPad = Math.max(rh, rMax * 2 + 10);
     mx += txt(0, 12, 'Narrative', 7.5, MUT);
     platsIn.forEach((p, j) => { mx += txt(cx0 + j * cw, 12, platLabel(p), 7, MUT, 'middle'); });
-    const tx = cx0 + platsIn.length * cw + 4;
-    mx += txt(tx, 12, 'Tone of cited posts (source labels)', 7.5, MUT);
+    const tx = cx0 + platsIn.length * cw + 8;
+    mx += txt(tx, 12, 'Tone of cited posts', 7.5, MUT);
     N.forEach((n, i) => {
-      const y = 18 + i * rh, es = evOf(n.code);
-      mx += `<rect x="0" y="${y + 4}" width="4" height="${rh - 10}" fill="${ncol(n.code)}"/>` + txt(10, y + 17, `${n.code}. ${n.title.slice(0, 44)}`, 9);
+      const y = 20 + i * rowPad;
+      const es = evOf(n.code);
+      const cy = y + rowPad / 2;
+      mx += `<rect x="0" y="${(cy - 6).toFixed(1)}" width="4" height="12" fill="${ncol(n.code)}"/>`;
+      mx += wrapTxt(10, cy - 2, `${n.code}. ${n.title}`, titleW, 8.2, INK, 'start', 600, 10);
       platsIn.forEach((p, j) => {
         const v = es.filter((e) => e.plat === p).length;
-        if (v) mx += `<circle cx="${cx0 + j * cw}" cy="${y + 13}" r="${4.5 + v * 1.4}" fill="${platColor(p)}"/>` + txt(cx0 + j * cw, y + 16.5, v, 8.5, '#fff', 'middle', 700);
+        if (!v) return;
+        const r = bubbleR(v);
+        mx += `<circle cx="${cx0 + j * cw}" cy="${cy}" r="${r.toFixed(1)}" fill="${platColor(p)}"/>`;
+        if (r >= 5.5) mx += txt(cx0 + j * cw, cy + 3, v, 7.5, '#fff', 'middle', 700);
       });
-      mx += stack(tx, y + 6, 520 - tx, 16, [{ v: es.filter((e) => e.sentK === 'positive').length, c: PR }, { v: es.filter((e) => e.sentK === 'neutral').length, c: NW }, { v: es.filter((e) => e.sentK === 'negative').length, c: CR }], 10, 9);
+      mx += stack(tx, cy - 7, Math.max(80, 520 - tx), 14, [
+        { v: es.filter((e) => e.sentK === 'positive').length, c: PR },
+        { v: es.filter((e) => e.sentK === 'neutral').length, c: NW },
+        { v: es.filter((e) => e.sentK === 'negative').length, c: CR },
+      ], 10, 8);
     });
-    mx = svg(520, 18 + N.length * rh, mx);
+    mx = svg(520, 22 + N.length * rowPad, mx);
   }
   const ncard = (n) => {
     const es = evOf(n.code);
-    const platS = platsIn.map((p) => [p, es.filter((e) => e.plat === p).length]).filter(([, c]) => c).map(([p, c]) => `${platLabel(p)} ${c}`).join(' · ');
-    const tone = `${es.filter((e) => e.sentK === 'positive').length} positive · ${es.filter((e) => e.sentK === 'neutral').length} neutral · ${es.filter((e) => e.sentK === 'negative').length} negative`;
+    const platBits = platsIn.map((p) => [p, es.filter((e) => e.plat === p).length]).filter(([, c]) => c)
+      .map(([p, c]) => `${platLabel(p)} ${c}`).join(' · ') || '–';
+    const toneBits = [
+      `${es.filter((e) => e.sentK === 'positive').length} positive`,
+      `${es.filter((e) => e.sentK === 'neutral').length} neutral`,
+      `${es.filter((e) => e.sentK === 'negative').length} negative`,
+    ].join(' · ');
     return `<div class="nar"><div style="background:${ncol(n.code)}"></div><div>
-<div style="display:flex;justify-content:space-between;align-items:baseline"><h2 style="margin:0">${n.code}. ${esc(n.title)}</h2><span class="sm">${es.length} cited posts</span></div>
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:3mm"><h2 style="margin:0">${esc(n.code)}. ${esc(n.title)}</h2><span class="sm" style="flex-shrink:0">${es.length} cited posts</span></div>
 <div class="row"><span>What is discussed</span><span>${inline(n.discussed)}</span></div>
 <div class="row"><span>Tone</span><span>${esc(n.tone || '–')}</span></div>
 <div class="row"><span>Risk / sensitivity</span><span>${esc(n.risk || '–')}</span></div>
-<div class="row"><span>Platforms · tone · evidence</span><span class="sm" style="color:#26304A">${esc(platS)} &nbsp;|&nbsp; ${tone} &nbsp;|&nbsp; <b>${citeList(n.posts)}</b></span></div></div></div>`;
+<div class="row"><span>Platforms</span><span class="sm" style="color:#26304A">${esc(platBits)}</span></div>
+<div class="row"><span>Tone mix</span><span class="sm" style="color:#26304A">${esc(toneBits)}</span></div>
+<div class="row"><span>Evidence</span><span class="sm" style="color:#26304A;line-height:1.55">${citeList(n.posts)}</span></div></div></div>`;
   };
   // Text comes from the LLM's structured report when present (single source of content); markdown only for older summaries.
   const cites = (arr) => (arr && arr.length ? ' ' + arr.map((n) => `[Post #${n}]`).join('') : '');
@@ -356,11 +416,12 @@ ${evPlatSvg ? `<div class="card"><p class="q">Which platform carries the critica
     : splitSections(summary?.summary);
   const briefCards = briefSections.map((s, i) => `<div class="narr"><div style="background:${NARRATIVE_COLORS[i % NARRATIVE_COLORS.length]}"></div><div><h2>${esc(s.title)}</h2>${mdToHtml(s.body)}</div></div>`).join('');
   pages.push(pgWrap([1], `${stageHeader(2, 'UNDERSTAND', 'What are the key issues and narratives?')}<h1>What people are talking about</h1>
-<p class="lead">Narratives are read by the AI from the ${fmt(ev.length)} cited posts, one main narrative per post. Volumes are not measured, so treat them as qualitative intelligence ${tag('O')}. Bubble size means how well evidenced, not how big.</p>
-${hasN ? `<div class="card"><p class="q">Which narratives, on which platforms, in what tone? ${tag('D')}${tag('O')}</p>${mx}</div>${N.slice(0, 3).map(ncard).join('')}` : notAvail('Narrative map')}`));
+<p class="lead">Narratives are read by the AI from the ${fmt(ev.length)} cited posts, one main narrative per post. Volumes are not measured, so treat them as qualitative intelligence ${tag('O')}. Bubble size shows how well evidenced on that platform (capped scale — not literal volume).</p>
+${narrKeyHtml}
+${hasN ? `<div class="card"><p class="q">Which narratives, on which platforms, in what tone? ${tag('D')}${tag('O')}</p>${mx}${legend([[PR, 'Praise (positive)'], [NW, 'News (neutral)'], [CR, 'Criticism (negative)'], ...platsIn.slice(0, 3).map((p) => [platColor(p), platLabel(p)])])}<p class="sm">Bubble radius uses a capped square-root scale so large counts do not cover neighbouring rows.</p></div>${N.slice(0, 2).map(ncard).join('')}` : notAvail('Narrative map')}`));
   pages.push(pgWrap([1], `${stageHeader(2, 'UNDERSTAND', 'What are the key issues and narratives?', true)}
-${hasN ? N.slice(3).map(ncard).join('') : ''}
-<h2 style="margin-top:2mm">AI briefing ${tag('O')}</h2><p class="sm">${isFallback ? 'Rule-based briefing (the language model did not return a full narrative).' : `Generated by ${esc(summary?.model || 'the platform language model')}.`} Post citations link to the evidence register.</p>
+${hasN ? N.slice(2).map(ncard).join('') : ''}
+<h2 style="margin-top:2mm">AI briefing ${tag('O')}</h2><p class="sm">${isFallback ? 'Rule-based briefing (the language model did not return a full narrative).' : `Generated by ${esc(summary?.model || 'the platform language model')}.`} Post citations link to the evidence register. Tags: ${tag('R')} from platform data · ${tag('D')} calculated here · ${tag('O')} AI reading.</p>
 ${briefCards || '<div class="card"><p class="ev">No briefing text is available for this event yet.</p></div>'}`));
 
   // ================= 5. CONNECT: entity → narrative, hashtags =================
@@ -371,25 +432,68 @@ ${briefCards || '<div class="card"><p class="ev">No briefing text is available f
   let sankey = '';
   if (hasN) {
     const assigned = ev.filter((e) => e.narr);
-    const W = 520, H = 240, u = Math.min(5, 190 / Math.max(assigned.length, 1)), lx = 150, rx = 370, nw = 10;
     const L = evEntities.sort((a, b) => entCited(b) - entCited(a));
-    const lh = Object.fromEntries(L.map((e) => [e, assigned.filter((x) => entOf(x) === e).length * u]));
-    const gap = 26;
-    let y = (H - Object.values(lh).reduce((a, b) => a + b, 0) - gap * (L.length - 1)) / 2;
-    const ly = {}; L.forEach((e) => { ly[e] = y; y += lh[e] + gap; });
-    const rc = Object.fromEntries(N.map((n) => [n.code, assigned.filter((x) => x.narr === n.code).length]));
-    const rgap = 9; y = (H - N.reduce((s, n) => s + rc[n.code] * u, 0) - rgap * (N.length - 1)) / 2;
-    const ry = {}; N.forEach((n) => { ry[n.code] = y; y += rc[n.code] * u + rgap; });
-    const lo = { ...ly }, ro = { ...ry };
+    // Keep all ink inside the viewBox so the SVG cannot widen the page and clip left text in print.
+    const leftPad = 112;
+    const rightPad = 148;
+    const plotW = 250;
+    const lx = leftPad;
+    const rx = leftPad + plotW;
+    const nw = 10;
+    const W = leftPad + plotW + rightPad;
+    const minH = 14;
+    const gap = 10;
+    const rgap = 8;
+    const availH = 250;
+    const leftWeight = L.map((e) => Math.max(entCited(e), 1));
+    const rightWeight = N.map((n) => Math.max(assigned.filter((x) => x.narr === n.code).length, 1));
+    const leftSum = leftWeight.reduce((a, b) => a + b, 0);
+    const rightSum = rightWeight.reduce((a, b) => a + b, 0);
+    const leftGaps = gap * Math.max(L.length - 1, 0);
+    const rightGaps = rgap * Math.max(N.length - 1, 0);
+    const uL = (availH - leftGaps) / Math.max(leftSum, 1);
+    const uR = (availH - rightGaps) / Math.max(rightSum, 1);
+    const lh = Object.fromEntries(L.map((e, i) => [e, Math.max(minH, leftWeight[i] * uL)]));
+    const rhN = Object.fromEntries(N.map((n, i) => [n.code, Math.max(minH, rightWeight[i] * uR)]));
+    const H = Math.max(
+      availH + 8,
+      Object.values(lh).reduce((a, b) => a + b, 0) + leftGaps,
+      Object.values(rhN).reduce((a, b) => a + b, 0) + rightGaps,
+    ) + 12;
+    let y = 8;
+    const ly = {};
+    L.forEach((e) => { ly[e] = y; y += lh[e] + gap; });
+    y = 8;
+    const ry = {};
+    N.forEach((n) => { ry[n.code] = y; y += rhN[n.code] + rgap; });
+    const lo = { ...ly };
+    const ro = { ...ry };
+    const flowU = Math.min(uL, uR);
     L.forEach((e) => N.forEach((n) => {
       const c = assigned.filter((x) => entOf(x) === e && x.narr === n.code).length;
       if (!c) return;
-      const w = c * u, a = lo[e] + w / 2, b = ro[n.code] + w / 2; lo[e] += w; ro[n.code] += w;
+      const w = Math.max(2, c * flowU);
+      const a = lo[e] + w / 2;
+      const b = ro[n.code] + w / 2;
+      lo[e] += w;
+      ro[n.code] += w;
       sankey += `<path d="M${lx + nw},${a.toFixed(1)} C${(lx + rx) / 2 + nw / 2},${a.toFixed(1)} ${(lx + rx) / 2 + nw / 2},${b.toFixed(1)} ${rx},${b.toFixed(1)}" stroke="${ncol(n.code)}" stroke-width="${w.toFixed(1)}" fill="none" opacity=".5"/>`;
     }));
-    L.forEach((e) => { sankey += `<rect x="${lx}" y="${ly[e].toFixed(1)}" width="${nw}" height="${lh[e].toFixed(1)}" fill="${INK}"/>` + txt(lx - 6, ly[e] + lh[e] / 2 + 1, e, 9, INK, 'end', 700) + txt(lx - 6, ly[e] + lh[e] / 2 + 11, `${entCited(e)} cited${corpusOf(e) ? ` · ${fmt(corpusOf(e))} in corpus` : ''}`, 7, MUT, 'end'); });
-    N.forEach((n) => { sankey += `<rect x="${rx}" y="${ry[n.code].toFixed(1)}" width="${nw}" height="${(rc[n.code] * u).toFixed(1)}" fill="${ncol(n.code)}"/>` + txt(rx + nw + 6, ry[n.code] + rc[n.code] * u / 2 + 3, `${n.code}. ${n.title.slice(0, 30)} (${rc[n.code]})`, 8.4); });
-    sankey = svg(W + 60, H, sankey);
+    L.forEach((e) => {
+      const mid = ly[e] + lh[e] / 2;
+      const sub = `${entCited(e)} cited${corpusOf(e) ? ` · ${fmt(corpusOf(e))} corpus` : ''}`;
+      sankey += `<rect x="${lx}" y="${ly[e].toFixed(1)}" width="${nw}" height="${lh[e].toFixed(1)}" fill="${INK}"/>`;
+      sankey += wrapTxt(lx - 5, mid - 3, e, 15, 8, INK, 'end', 700, 9.5);
+      sankey += txt(lx - 5, mid + 11, sub, 6.2, MUT, 'end');
+    });
+    N.forEach((n) => {
+      const mid = ry[n.code] + rhN[n.code] / 2;
+      const count = assigned.filter((x) => x.narr === n.code).length;
+      const label = `${n.code}. ${n.title} (${count})`;
+      sankey += `<rect x="${rx}" y="${ry[n.code].toFixed(1)}" width="${nw}" height="${rhN[n.code].toFixed(1)}" fill="${ncol(n.code)}"/>`;
+      sankey += wrapTxt(rx + nw + 5, mid - (label.length > 22 ? 5 : 1), label, 22, 7.4, INK, 'start', 600, 9);
+    });
+    sankey = svg(W, H, sankey);
   }
   const tagMap = new Map();
   ev.forEach((e) => { (String(e.text || '').match(/#[\p{L}\p{N}_]+/gu) || []).forEach((t0) => { const k = t0.toLowerCase(); const c = tagMap.get(k) || { tag: t0, posts: new Set(), plats: new Set() }; c.posts.add(e.n); c.plats.add(e.plat); tagMap.set(k, c); }); });
@@ -399,7 +503,7 @@ ${briefCards || '<div class="card"><p class="ev">No briefing text is available f
   const pairRows = [...pairs.entries()].filter(([, s]) => s.size >= 2).sort((a, b) => b[1].size - a[1].size).slice(0, 6);
   pages.push(pgWrap([2], `${stageHeader(3, 'CONNECT', 'Who and what is connected to these narratives?')}<h1>Who and what each narrative is about</h1>
 <p class="lead">Entities are the classifier's per-post targets; narratives are the AI grouping. Flow width is the number of cited posts.</p>
-${hasN ? `<div class="card"><p class="q">Which entities carry which narratives? ${tag('D')}${tag('O')}</p><h2>Entity → narrative flow (${ev.length} cited posts)</h2>${sankey}<p class="sm">The corpus counts come from the platform. The flow covers cited posts only.</p></div>
+${hasN ? `<div class="card"><p class="q">Which entities carry which narratives? ${tag('D')}${tag('O')}</p><h2>Entity → narrative flow (${ev.length} cited posts)</h2>${narrKeyHtml}${sankey}<p class="sm">The corpus counts come from the platform. The flow covers cited posts only. Letters A–${N[N.length - 1]?.code || 'F'} match the narrative key above.</p></div>
 <div class="call"><b>Reading the flow.</b> ${tag('O')}The entity label is the <i>target</i> of a post, so it does not always say whom the post is about. Consider adding an issue field and a “subject” entity.</div>` : notAvail('Entity → narrative flow')}
 <h2 style="margin-top:3mm">Keyword co-occurrence: what the visible hashtags show</h2>
 ${tagRows.length ? `<div class="g2"><div class="card" style="padding:1.5mm 3mm"><p class="q">Hashtags in the evidence ${tag('D')}</p><table><tr><th>Hashtag</th><th class="r">Posts</th><th>Platforms</th><th>IDs</th></tr>${tagRows.map((r) => `<tr><td>${esc(r.tag)}</td><td class="r">${r.posts.size}</td><td>${[...r.plats].map(platLabel).join(', ')}</td><td class="sm">${citeList([...r.posts].slice(0, 5))}</td></tr>`).join('')}</table></div>
@@ -409,21 +513,92 @@ ${tagRows.length ? `<div class="g2"><div class="card" style="padding:1.5mm 3mm">
   // ================= 6. CONNECT: network + propagation =================
   let net = '';
   if (hasN) {
-    const Wd = 560, Hd = 410, cx = 280, cy = 205;
-    const ang = {}; N.forEach((n, i) => { ang[n.code] = (-90 + i * 360 / N.length) * Math.PI / 180; });
-    const npos = {}; N.forEach((n) => { npos[n.code] = [cx + 88 * Math.cos(ang[n.code]), cy + 88 * Math.sin(ang[n.code])]; });
+    const Wd = 560;
+    const Hd = 430;
+    const cx = 280;
+    const cy = 215;
+    const ang = {};
+    N.forEach((n, i) => { ang[n.code] = (-90 + (i * 360) / N.length) * Math.PI / 180; });
+    const npos = {};
+    N.forEach((n) => { npos[n.code] = [cx + 78 * Math.cos(ang[n.code]), cy + 78 * Math.sin(ang[n.code])]; });
     const acc = new Map();
-    ev.filter((e) => e.narr).forEach((e) => { const a = acc.get(e.author) || []; a.push(e); acc.set(e.author, a); });
+    ev.filter((e) => e.narr).forEach((e) => {
+      const a = acc.get(e.author) || [];
+      a.push(e);
+      acc.set(e.author, a);
+    });
+    // Keep the graph readable: top accounts per narrative only (others summarised in the note).
+    const MAX_PER_NARR = 6;
     const bynar = {};
+    const omitted = {};
+    acc.forEach((ps, a) => {
+      const ks = [...new Set(ps.map((p) => p.narr))];
+      if (ks.length !== 1) return;
+      (bynar[ks[0]] = bynar[ks[0]] || []).push({ a, n: ps.length });
+    });
+    Object.keys(bynar).forEach((k) => {
+      bynar[k].sort((x, y) => y.n - x.n || String(x.a).localeCompare(String(y.a)));
+      if (bynar[k].length > MAX_PER_NARR) {
+        omitted[k] = bynar[k].length - MAX_PER_NARR;
+        bynar[k] = bynar[k].slice(0, MAX_PER_NARR);
+      }
+    });
     const pos = {};
-    acc.forEach((ps, a) => { const ks = [...new Set(ps.map((p) => p.narr))]; if (ks.length === 1) (bynar[ks[0]] = bynar[ks[0]] || []).push(a); });
-    Object.entries(bynar).forEach(([k, al]) => { al.sort(); al.forEach((a, i) => { const off = (i - (al.length - 1) / 2) * (Math.min(15, 48 / Math.max(al.length - 1, 1)) * Math.PI / 180); const r = 140 + (i % 3) * 24; pos[a] = [cx + r * Math.cos(ang[k] + off), cy + r * Math.sin(ang[k] + off), ang[k] + off]; }); });
-    acc.forEach((ps, a) => { const ks = [...new Set(ps.map((p) => p.narr))]; if (ks.length > 1) { const x = ks.reduce((s, k) => s + Math.cos(ang[k]), 0) / ks.length, y = ks.reduce((s, k) => s + Math.sin(ang[k]), 0) / ks.length; pos[a] = [cx + 150 * x * 1.25, cy + 150 * y * 1.25, Math.atan2(y, x)]; } });
-    acc.forEach((ps, a) => ps.forEach((p) => { if (pos[a]) net += `<line x1="${pos[a][0].toFixed(1)}" y1="${pos[a][1].toFixed(1)}" x2="${npos[p.narr][0].toFixed(1)}" y2="${npos[p.narr][1].toFixed(1)}" stroke="${ncol(p.narr)}" stroke-width="1.3" opacity=".55"/>`; }));
-    acc.forEach((ps, a) => { if (!pos[a]) return; const [x, y, an] = pos[a]; const r = 3.6 + 1.8 * (ps.length - 1); const multi = new Set(ps.map((p) => p.plat)).size > 1;
-      net += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${platColor(ps[0].plat)}" stroke="${multi ? YC : '#fff'}" stroke-width="${multi ? 2 : 1}"/>` + txt((x + Math.cos(an) * (r + 3)).toFixed(1), (y + Math.sin(an) * (r + 3) + 2.5).toFixed(1), String(a).length < 19 ? a : String(a).slice(0, 17) + '…', 6.6, INK, Math.cos(an) > 0.25 ? 'start' : Math.cos(an) < -0.25 ? 'end' : 'middle'); });
-    N.forEach((n) => { const [x, y] = npos[n.code]; net += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${10 + evOf(n.code).length * 1.6}" fill="${ncol(n.code)}"/>` + txt(x.toFixed(1), (y + 4).toFixed(1), n.code, 11, '#fff', 'middle', 700); });
+    Object.entries(bynar).forEach(([k, al]) => {
+      const fan = Math.min(18, 56 / Math.max(al.length - 1, 1));
+      al.forEach(({ a }, i) => {
+        const off = (i - (al.length - 1) / 2) * (fan * Math.PI / 180);
+        const r = 155 + (i % 2) * 28;
+        pos[a] = [cx + r * Math.cos(ang[k] + off), cy + r * Math.sin(ang[k] + off), ang[k] + off];
+      });
+    });
+    // Multi-narrative accounts (bridges) — keep top 8 by citation count
+    const bridges = [];
+    acc.forEach((ps, a) => {
+      const ks = [...new Set(ps.map((p) => p.narr))];
+      if (ks.length > 1) bridges.push({ a, ps, ks, n: ps.length });
+    });
+    bridges.sort((x, y) => y.n - x.n);
+    bridges.slice(0, 8).forEach(({ a, ks }) => {
+      const x = ks.reduce((s, k) => s + Math.cos(ang[k]), 0) / ks.length;
+      const y = ks.reduce((s, k) => s + Math.sin(ang[k]), 0) / ks.length;
+      pos[a] = [cx + 125 * x * 1.15, cy + 125 * y * 1.15, Math.atan2(y, x)];
+    });
+    acc.forEach((ps, a) => {
+      if (!pos[a]) return;
+      ps.forEach((p) => {
+        net += `<line x1="${pos[a][0].toFixed(1)}" y1="${pos[a][1].toFixed(1)}" x2="${npos[p.narr][0].toFixed(1)}" y2="${npos[p.narr][1].toFixed(1)}" stroke="${ncol(p.narr)}" stroke-width="1.2" opacity=".5"/>`;
+      });
+    });
+    acc.forEach((ps, a) => {
+      if (!pos[a]) return;
+      const [x, y, an] = pos[a];
+      const r = 3.4 + 1.5 * Math.min(ps.length - 1, 3);
+      const multi = new Set(ps.map((p) => p.plat)).size > 1;
+      const label = String(a).length < 16 ? a : `${String(a).slice(0, 14)}…`;
+      net += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${platColor(ps[0].plat)}" stroke="${multi ? YC : '#fff'}" stroke-width="${multi ? 2 : 1}"/>`;
+      net += txt(
+        (x + Math.cos(an) * (r + 3)).toFixed(1),
+        (y + Math.sin(an) * (r + 3) + 2.2).toFixed(1),
+        label,
+        6.2,
+        INK,
+        Math.cos(an) > 0.2 ? 'start' : Math.cos(an) < -0.2 ? 'end' : 'middle',
+      );
+    });
+    N.forEach((n) => {
+      const [x, y] = npos[n.code];
+      const hubR = Math.min(18, 9 + Math.sqrt(evOf(n.code).length) * 1.8);
+      net += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${hubR.toFixed(1)}" fill="${ncol(n.code)}"/>`;
+      net += txt(x.toFixed(1), (y + 3.5).toFixed(1), n.code, 10, '#fff', 'middle', 700);
+    });
+    const omitNote = Object.entries(omitted).filter(([, c]) => c > 0)
+      .map(([k, c]) => `${k}: +${c} more`)
+      .join(' · ');
     net = svg(Wd, Hd, net);
+    if (omitNote) {
+      net += `<p class="sm" style="margin-top:1mm">Graph shows up to ${MAX_PER_NARR} accounts per narrative (by cited posts). Also on graph but not labelled in full: ${esc(omitNote)}.</p>`;
+    }
   }
   const propRows = hasN ? N.map((n) => {
     const es = evOf(n.code);
@@ -431,8 +606,8 @@ ${tagRows.length ? `<div class="g2"><div class="card" style="padding:1.5mm 3mm">
     return `<tr><td><b>${n.code}. ${esc(n.title)}</b></td><td>${ps.map((p) => `${platLabel(p)} ${citeList(es.filter((e) => e.plat === p).map((e) => e.n))}`).join(' · ')}</td><td class="r">${ps.length}</td></tr>`;
   }).join('') : '';
   pages.push(pgWrap([2], `${stageHeader(3, 'CONNECT', 'Who and what is connected to these narratives?', true)}<h1>Network of sources and narratives</h1>
-${hasN ? `<div class="card"><p class="q">Which accounts connect to which narratives? ${tag('D')}${tag('O')}</p><div style="width:88%;margin:0 auto">${net}</div>${legend([[XC, 'X'], [YC, 'YouTube'], [FC, 'Facebook'], ['#7A8499', 'Other'], ['#fff', 'Gold ring = account cited on 2+ platforms']])}
-<p class="sm">Accounts sit near their narrative; accounts connected to two narratives sit between them. The graph covers cited posts only. No reply, mention or repost links are in the data, so no influence or amplification is implied.</p></div>
+${hasN ? `${narrKeyHtml}<div class="card"><p class="q">Which accounts connect to which narratives? ${tag('D')}${tag('O')}</p><p class="sm" style="margin-bottom:1.5mm">Coloured hubs are narratives <b>A–${N[N.length - 1]?.code || 'F'}</b> (see key above). Small dots are accounts; colour = platform.</p><div style="width:92%;margin:0 auto">${net}</div>${legend([[XC, 'X'], [YC, 'YouTube'], [FC, 'Facebook'], ['#7A8499', 'Other'], ['#E0A030', 'Gold ring = account cited on 2+ platforms']])}
+<p class="sm">Accounts sit near their narrative; accounts connected to two narratives sit between them. The graph covers cited posts only (top accounts per narrative). No reply, mention or repost links are in the data, so no influence or amplification is implied.</p></div>
 <h2 style="margin-top:3mm">Cross-platform presence</h2><div class="card" style="padding:1.5mm 3mm"><p class="q">Do topics appear on more than one platform? ${tag('D')}${tag('O')}</p><table><tr><th>Narrative</th><th>Cited posts by platform</th><th class="r">Platforms</th></tr>${propRows}</table></div>
 <div class="call amb"><b>Co-presence, not propagation.</b> Showing that a topic moved from one platform to another needs post timestamps and reply/repost links. The report shows where topics co-exist and does not claim direction or speed.</div>` : notAvail('Network graph and cross-platform presence')}`));
 
@@ -683,7 +858,7 @@ ${actions ? `<div class="narr" style="margin-top:3mm"><div style="background:${I
 <div class="call" style="margin-top:3mm"><h3>Method &amp; provenance</h3><div class="ev">Generated from the cached Summary AI result${isFallback ? ' (rule-based fallback)' : ''}, the keyword analytics and ${analysis ? 'an AI structured analysis of the cited posts' : 'no structured analysis (unavailable)'} for this event. Counts and post text come from collected data. Calculations are shares, ratios, sums and spike flags (DERIVED). Narratives, source types, claims, emerging keywords, entity targets and risk levels are AI classifications and must be reviewed by an analyst. No timeline, momentum or change measure is created where the data does not exist.</div></div>
 <div class="call warn"><b>Restricted document.</b> Classified “Restricted / Law Enforcement Only”. Handle under the same classification.</div>`));
 
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(event.name || 'Event')} — Event Intelligence Report</title><style>${FONT_FACES}${CSS}</style></head><body>${pages.join('')}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(event.name || 'Event')} — Event Intelligence Report</title><style>${FONT_FACES}${CSS}</style></head><body><div class="wm" aria-hidden="true"><span style="font-size:${Math.max(14, Math.min(30, Math.floor(420 / Math.max(tenant.length, 1))))}pt">${esc(tenant)}</span></div>${pages.join('')}</body></html>`;
 };
 
 module.exports = { buildReportHtml };
