@@ -114,6 +114,19 @@ const AppLayout = () => {
     return <Navigate to={fallback} replace />;
   }
 
+  // The Help page embeds real pages in an iframe (?helpEmbed=1) without the header and sidebar.
+  const helpEmbed =
+    typeof window !== 'undefined' &&
+    window.self !== window.top &&
+    (window.name === 'help-embed' || new URLSearchParams(location.search).get('helpEmbed') === '1');
+  if (helpEmbed) {
+    return (
+      <div className="h-screen w-full overflow-hidden bg-background p-3 lg:p-4">
+        <Outlet />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background">
       <Header

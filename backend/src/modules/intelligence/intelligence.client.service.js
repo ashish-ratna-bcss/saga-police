@@ -3,7 +3,7 @@
  *   POST {INTELLIGENCE_SERVICE_URL}/analyze/intelligence
  *
  * One call returns Cardiff sentiment (via the deterministic pipeline) plus
- * Ollama category / intent / risk_score / reasoning / summary / action —
+ * vLLM category / intent / risk_score / reasoning / summary / action —
  * constrained by a PolicyMapping-derived policy_pack so Pass B still resolves.
  *
  * Failure semantics mirror llmService.categorizeText:
@@ -470,7 +470,7 @@ async function analyzeText(text, options = {}) {
 
 function getEngineMode() {
   const raw = String(process.env.INTELLIGENCE_ENGINE || 'SENTIMENT_SERVICE').trim().toUpperCase();
-  if (raw === 'LOCAL_OLLAMA' || raw === 'SHADOW' || raw === 'SENTIMENT_SERVICE') return raw;
+  if (raw === 'SHADOW' || raw === 'SENTIMENT_SERVICE') return raw;
   return 'SENTIMENT_SERVICE';
 }
 

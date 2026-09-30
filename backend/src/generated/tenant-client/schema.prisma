@@ -71,7 +71,7 @@ model social_media_accounts {
   posts                 social_media_posts[]
   grievances            social_media_grievances[]
 
-  @@unique([platform_id, handle])
+  @@unique([platform_id, handle, type])
   @@index([profile_id])
   @@index([platform_id])
   @@index([is_active])

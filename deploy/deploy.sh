@@ -104,6 +104,16 @@ node "$SCRIPT_DIR/render_nginx.js" "$SITES_JSON" --web-root "$WEB_ROOT" --out "$
 if command -v pm2 >/dev/null 2>&1; then
   log "Starting/reloading independent PM2 apps from ecosystem.config.js"
   pm2 startOrReload "$APP_DIR/deploy/ecosystem.config.js" --update-env
+  # Keep only the last 3 days of PM2 stdout/stderr logs (logs/<site>-out.log, -error.log).
+  # The app's own dated folders under backend/logs/ are pruned by src/lib/logger.js (fixed 3 days).
+  if ! pm2 describe pm2-logrotate >/dev/null 2>&1; then
+    log "Installing pm2-logrotate"
+    pm2 install pm2-logrotate || echo "pm2-logrotate install failed — PM2 logs will not rotate" >&2
+  fi
+  pm2 set pm2-logrotate:retain 3 >/dev/null 2>&1 || true
+  pm2 set pm2-logrotate:rotateInterval '0 0 * * *' >/dev/null 2>&1 || true
+  pm2 set pm2-logrotate:max_size 1G >/dev/null 2>&1 || true
+  pm2 set pm2-logrotate:compress false >/dev/null 2>&1 || true
   pm2 save || true
 else
   echo "pm2 not found — start each site from $SITES_JSON manually, e.g.:" >&2

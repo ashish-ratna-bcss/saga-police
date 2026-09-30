@@ -76,7 +76,7 @@ model social_media_accounts {
   @@index([is_active])
   @@index([monitoring_status])
   @@index([last_fetched_at])
-  @@unique([platform_id, handle])
+  @@unique([platform_id, handle, type])
 }
 
 /// Unified posts for all platforms.

@@ -1,6 +1,6 @@
 /**
- * Telegram provider endpoints for Sockeye (Blugate-style).
- * Provider returns data only — Sockeye owns Start/Stop, schedule, and storage.
+ * Telegram provider endpoints for Blurasaga (Blugate-style).
+ * Provider returns data only — Blurasaga owns Start/Stop, schedule, and storage.
  * Host via TELEGRAM_BASE_URL (see blugate.telegram.env.js).
  */
 const TELEGRAM_ENDPOINTS = {

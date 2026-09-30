@@ -74,10 +74,13 @@ const GrievanceTextWithTranslate = ({
     const [translatedText, setTranslatedText] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
 
-    if (!text) return null;
+    const cleanText = (t) => (t || '').replace(/\n*\[Image text\][\s\S]*$/i, '').replace(/\*\*Intent Detected:\*\*.*?(?:\n\n|\n|$)/g, '').trim();
+    const effectiveText = cleanText(text) || text || '';
 
-    const shouldShowReadMore = text.length > 180 || (text.match(/\n/g) || []).length >= 3;
-    const displayText = isTranslated ? translatedText : text;
+    if (!effectiveText) return null;
+
+    const shouldShowReadMore = effectiveText.length > 180 || (effectiveText.match(/\n/g) || []).length >= 3;
+    const displayText = isTranslated ? translatedText : effectiveText;
 
     const handleTranslate = async (e) => {
         e.preventDefault();
@@ -92,7 +95,7 @@ const GrievanceTextWithTranslate = ({
         }
         setIsTranslating(true);
         try {
-            const res = await AlertService.translate(text);
+            const res = await AlertService.translate(effectiveText);
             if (res?.data?.translatedText) {
                 setTranslatedText(res.data.translatedText);
                 setIsTranslated(true);

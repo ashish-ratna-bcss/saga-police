@@ -156,7 +156,9 @@ const listPlatforms = async (req, res) => {
     }
 
     // 2. If the user has allowed_platforms restrictions, filter against those as well
-    const userAllowed = Array.isArray(req.user?.allowed_platforms) && req.user.allowed_platforms.length > 0
+    // Admins managing platforms (all=1) must still see stopped ones, otherwise they can't be activated again.
+    const adminSeesAll = includeInactive && req.user?.role === 'admin';
+    const userAllowed = !adminSeesAll && Array.isArray(req.user?.allowed_platforms) && req.user.allowed_platforms.length > 0
       ? new Set(req.user.allowed_platforms.map((s) => String(s).toLowerCase().replace(/^twitter$/, 'x')))
       : null;
 
@@ -1185,6 +1187,9 @@ const previewProfileIdentity = async (req, res) => {
     } else if (slug === 'youtube') {
       const { authFromPlatformRow } = require('../../services/blugate/youtube/blugate.youtube.api_client');
       auth = authFromPlatformRow(platformRow);
+    } else if (slug === 'telegram') {
+      const { authFromPlatformRow } = require('../../services/blugate/telegram/blugate.telegram.api_client');
+      auth = authFromPlatformRow(platformRow);
     }
 
     const result = await previewProfile(platformRow.slug, data || {}, auth);
@@ -1196,6 +1201,7 @@ const previewProfileIdentity = async (req, res) => {
 };
 
 module.exports = {
+  syncAdminAllowedPlatforms,
   getPagePlatformsMapping,
   listPlatforms,
   getPlatform,

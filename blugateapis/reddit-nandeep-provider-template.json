@@ -1,0 +1,656 @@
+{
+  "format": "blugate-documentation-v1",
+  "provider": "Reddit",
+  "providerSlug": "reddit-nandeep",
+  "endpoints": [
+    {
+      "method": "GET",
+      "route": "/api/reddit/status",
+      "name": "Get connection status",
+      "description": "Reddit connection/auth status.",
+      "groupName": "Status",
+      "params": []
+    },
+    {
+      "method": "POST",
+      "route": "/api/reddit/subreddit",
+      "name": "Get subreddit info",
+      "description": "Resolve subreddit metadata.",
+      "groupName": "Subreddits",
+      "params": [
+        {
+          "name": "name",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "e.g. 'india' or 'r/india'."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/reddit/subreddit/access",
+      "name": "Check subreddit access",
+      "description": "Check whether a subreddit is readable.",
+      "groupName": "Subreddits",
+      "params": [
+        {
+          "name": "subreddit",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "e.g. 'india' or 'r/india'."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/reddit/subreddit/posts",
+      "name": "Get subreddit posts",
+      "description": "Posts from a subreddit, or several combined via '+' (SOC Eye polling target).",
+      "groupName": "Subreddits",
+      "params": [
+        {
+          "name": "subreddit",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "One subreddit, or several via Reddit's '+'-joined combined-subreddit syntax (e.g. 'worldnews+politics+India') to poll a fixed set of 'event subreddits' as a single listing/cursor."
+        },
+        {
+          "name": "sort",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Sort order. One of: new, hot, top, rising, controversial. Default: new."
+        },
+        {
+          "name": "limit",
+          "in": "body",
+          "required": false,
+          "type": "integer",
+          "description": "Max results to return"
+        },
+        {
+          "name": "cursor",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor from a previous response"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/reddit/post",
+      "name": "Get post details",
+      "description": "Get a post by post_id or url. Send at least one of them.",
+      "groupName": "Posts",
+      "params": [
+        {
+          "name": "post_id",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Reddit post id"
+        },
+        {
+          "name": "url",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Reddit URL"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/reddit/post/comments",
+      "name": "Get post comments",
+      "description": "Comments/replies belonging to a post.",
+      "groupName": "Posts",
+      "params": [
+        {
+          "name": "post_id",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "Reddit post id"
+        },
+        {
+          "name": "limit",
+          "in": "body",
+          "required": false,
+          "type": "integer",
+          "description": "Max results to return"
+        },
+        {
+          "name": "cursor",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor from a previous response"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/reddit/comment",
+      "name": "Get comment details",
+      "description": "Comment details by comment_id.",
+      "groupName": "Comments",
+      "params": [
+        {
+          "name": "comment_id",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "Reddit comment id"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/reddit/user",
+      "name": "Get user profile",
+      "description": "User profile.",
+      "groupName": "Users",
+      "params": [
+        {
+          "name": "username",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "e.g. 'someuser' or 'u/someuser'."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/reddit/user/comments",
+      "name": "Get user comments",
+      "description": "Comments made by a user.",
+      "groupName": "Users",
+      "params": [
+        {
+          "name": "username",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "Reddit username, e.g. someuser or u/someuser"
+        },
+        {
+          "name": "limit",
+          "in": "body",
+          "required": false,
+          "type": "integer",
+          "description": "Max results to return"
+        },
+        {
+          "name": "cursor",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor from a previous response"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/reddit/user/posts",
+      "name": "Get user posts",
+      "description": "Posts submitted by a user.",
+      "groupName": "Users",
+      "params": [
+        {
+          "name": "username",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "Reddit username, e.g. someuser or u/someuser"
+        },
+        {
+          "name": "limit",
+          "in": "body",
+          "required": false,
+          "type": "integer",
+          "description": "Max results to return"
+        },
+        {
+          "name": "cursor",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor from a previous response"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/api/reddit/search",
+      "name": "Unified search",
+      "description": "Unified search abstraction (type=posts|subreddits).",
+      "groupName": "Search",
+      "params": [
+        {
+          "name": "q",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Search text"
+        },
+        {
+          "name": "keywords",
+          "in": "query",
+          "required": false,
+          "type": "array",
+          "description": "Convenience for 'any of these terms' monitoring; OR'd into q when q is not given."
+        },
+        {
+          "name": "type",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "What to search: posts or subreddits. One of: posts, subreddits. Default: posts."
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Max results to return. Default: 25."
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor from a previous response"
+        },
+        {
+          "name": "subreddit",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "One subreddit, or several via '+'-joined combined-subreddit syntax."
+        },
+        {
+          "name": "time",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Time window. One of: hour, day, week, month, year, all. Default: all."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/api/reddit/search/posts",
+      "name": "Search posts",
+      "description": "Global public post discovery / keyword+event monitoring.",
+      "groupName": "Search",
+      "params": [
+        {
+          "name": "q",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Search text"
+        },
+        {
+          "name": "keywords",
+          "in": "query",
+          "required": false,
+          "type": "array",
+          "description": "Convenience for 'any of these terms' monitoring, e.g. ?keywords=protest&keywords=strike&keywords=curfew. OR'd together into a single query when q is not given. Ignored if q is set."
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Max results to return. Default: 25."
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor from a previous response"
+        },
+        {
+          "name": "sort",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Sort order. One of: relevance, hot, top, new, comments. Default: relevance."
+        },
+        {
+          "name": "time",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Time window. One of: hour, day, week, month, year, all. Default: all."
+        },
+        {
+          "name": "subreddit",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Restrict the search to one subreddit, or several via Reddit's '+'-joined combined-subreddit syntax, e.g. 'india+worldnews+politics'."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/api/reddit/search/subreddits",
+      "name": "Search subreddits",
+      "description": "Discover subreddits by keyword.",
+      "groupName": "Search",
+      "params": [
+        {
+          "name": "q",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Search text"
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Max results to return. Default: 25."
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination cursor from a previous response"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/reddit/rss/event",
+      "name": "Monitor an event (RSS)",
+      "description": "Event monitoring: fixed subreddit/keyword strategy + a stateless activity signal. Send query or keywords. No Reddit credentials needed, but Reddit may block the server IP.",
+      "groupName": "RSS Monitoring",
+      "params": [
+        {
+          "name": "subreddits",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "Subreddit names. Empty means all of Reddit"
+        },
+        {
+          "name": "keywords",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "Any-of terms (repeat the param)"
+        },
+        {
+          "name": "strong_keywords",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "Any match marks the result as a signal"
+        },
+        {
+          "name": "exclude",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "Posts matching any of these are dropped"
+        },
+        {
+          "name": "match_field",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Where to match keywords. One of: title, full. Default: full."
+        },
+        {
+          "name": "min_matches",
+          "in": "body",
+          "required": false,
+          "type": "integer",
+          "description": "Minimum keyword matches for a signal. Default: 1."
+        },
+        {
+          "name": "time_range",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Time window. One of: hour, day, week, month, year, all. Default: day."
+        },
+        {
+          "name": "from_date",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "ISO 8601 date/datetime, applied client-side."
+        },
+        {
+          "name": "to_date",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "ISO 8601 date/datetime, applied client-side."
+        },
+        {
+          "name": "limit",
+          "in": "body",
+          "required": false,
+          "type": "integer",
+          "description": "Max results to return. Default: 100."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/reddit/rss/monitor",
+      "name": "Monitor keywords (RSS)",
+      "description": "Keyword/event monitoring via Reddit's public RSS (no Reddit credentials). Send query or keywords. No Reddit credentials needed, but Reddit may block the server IP.",
+      "groupName": "RSS Monitoring",
+      "params": [
+        {
+          "name": "query",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Search text"
+        },
+        {
+          "name": "keywords",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "OR'd into a query when 'query' is not given, e.g. ['protest', 'strike']."
+        },
+        {
+          "name": "strong_keywords",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "Any match here sets signal=true regardless of min_matches."
+        },
+        {
+          "name": "exclude",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "A post matching any of these is dropped from the results entirely."
+        },
+        {
+          "name": "match_field",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "'title' matches only the post title; 'full' also checks content/flair. One of: title, full. Default: full."
+        },
+        {
+          "name": "min_matches",
+          "in": "body",
+          "required": false,
+          "type": "integer",
+          "description": "Minimum matched_keywords count (excluding strong_keywords) for signal=true. Default: 1."
+        },
+        {
+          "name": "subreddits",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "Empty means global search across all of Reddit."
+        },
+        {
+          "name": "sort",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Sort order. One of: relevance, hot, top, new, comments. Default: new."
+        },
+        {
+          "name": "time_range",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Time window. One of: hour, day, week, month, year, all. Default: day."
+        },
+        {
+          "name": "from_date",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "ISO 8601 date/datetime (e.g. '2026-08-01'). Applied client-side against each post's published_at -- Reddit's RSS API has no server-side absolute date-range param, only the relative time_range buckets above."
+        },
+        {
+          "name": "to_date",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "ISO 8601 date/datetime; a bare date means through the end of that day."
+        },
+        {
+          "name": "limit",
+          "in": "body",
+          "required": false,
+          "type": "integer",
+          "description": "Max results to return. Default: 50."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/api/reddit/rss/search",
+      "name": "Search keywords (RSS, GET)",
+      "description": "Convenience GET form of /monitor -- same use-case, no Reddit credentials.",
+      "groupName": "RSS Monitoring",
+      "params": [
+        {
+          "name": "q",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Search text"
+        },
+        {
+          "name": "keywords",
+          "in": "query",
+          "required": false,
+          "type": "array",
+          "description": "Repeatable, e.g. ?keywords=protest&keywords=strike. OR'd into a query when q is not given."
+        },
+        {
+          "name": "strong_keywords",
+          "in": "query",
+          "required": false,
+          "type": "array",
+          "description": "Repeatable. Any match sets signal=true regardless of min_matches."
+        },
+        {
+          "name": "exclude",
+          "in": "query",
+          "required": false,
+          "type": "array",
+          "description": "Repeatable. A post matching any of these is dropped entirely."
+        },
+        {
+          "name": "match_field",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "'title' matches only the post title; 'full' also checks content/flair. One of: title, full. Default: full."
+        },
+        {
+          "name": "min_matches",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Minimum keyword matches for a signal. Default: 1."
+        },
+        {
+          "name": "subreddit",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "One subreddit, or several via '+'-joined combined-subreddit syntax."
+        },
+        {
+          "name": "sort",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Sort order. One of: relevance, hot, top, new, comments. Default: new."
+        },
+        {
+          "name": "time",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Time window. One of: hour, day, week, month, year, all. Default: day."
+        },
+        {
+          "name": "from_date",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "ISO 8601 date/datetime, e.g. 2026-08-01. Applied client-side."
+        },
+        {
+          "name": "to_date",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "ISO 8601 date/datetime; a bare date means through end of day."
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Max results to return. Default: 50."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/reddit/resolve",
+      "name": "Resolve Reddit URL",
+      "description": "Resolve a Reddit URL.",
+      "groupName": "Utilities",
+      "params": [
+        {
+          "name": "url",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "Reddit URL"
+        }
+      ]
+    }
+  ]
+}

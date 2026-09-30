@@ -18,15 +18,19 @@ const withTimeout = (promise, ms, onTimeout) => {
 };
 
 // Internal service ping helper
-const pingService = async (url, path = '') => {
+const pingService = async (url, path = '', headers = undefined) => {
   if (!url) return { status: 'offline', error: 'Not configured' };
   try {
     const target = url.endsWith('/') ? `${url.slice(0, -1)}${path}` : `${url}${path}`;
     const start = Date.now();
-    await axios.get(target, { timeout: PING_TIMEOUT_MS });
+    await axios.get(target, { timeout: PING_TIMEOUT_MS, headers });
     return { status: 'online', latency: Date.now() - start };
   } catch (error) {
-    return { status: 'offline', error: error.code || error.message };
+    const http = error.response?.status;
+    return {
+      status: 'offline',
+      error: http === 401 || http === 403 ? 'Unauthorized: BluGate keys are missing or invalid' : error.code || error.message,
+    };
   }
 };
 
@@ -41,7 +45,7 @@ const checkPostgres = async () => {
   }
 };
 
-const checkTelegram = async () => {
+const checkTelegram = async (db) => {
   const base = getTelegramBaseUrl();
   if (!base) {
     return {
@@ -52,9 +56,21 @@ const checkTelegram = async () => {
     };
   }
 
-  const ready = await pingService(base, '/ready');
+  // Through the BluGate gateway every Telegram call needs the client credentials (401 without them).
+  // BluGate uses one client account for every platform, so the shared credentials are used here.
+  let auth = null;
+  try {
+    auth = db ? await resolveGlobalAuth(db) : null;
+  } catch {
+    auth = null;
+  }
+  const authHeaders = auth
+    ? { Authorization: `Bearer ${auth.accessKey}`, 'x-client-id': auth.clientId }
+    : undefined;
+
+  const ready = await pingService(base, '/ready', authHeaders);
   if (ready.status !== 'online') {
-    const live = await pingService(base, '/health');
+    const live = await pingService(base, '/health', authHeaders);
     return {
       status: live.status,
       latency: live.latency,
@@ -66,7 +82,7 @@ const checkTelegram = async () => {
 
   // STATUS can hang up to 60s in the client — race it for health checks.
   const statusResult = await withTimeout(
-    callTelegramApi('STATUS').then((status) => ({ ok: true, status })).catch((err) => ({
+    callTelegramApi('STATUS', {}, auth).then((status) => ({ ok: true, status })).catch((err) => ({
       ok: false,
       error: err.message,
     })),
@@ -105,6 +121,28 @@ const checkTelegram = async () => {
     authorized,
     account,
   };
+};
+
+/**
+ * Reddit is served by the unified service, not by BluGate. /ready says whether the service has Reddit
+ * API credentials. Without them only the public-feed search works (about 1 request per minute, shared).
+ */
+const checkReddit = async () => {
+  const base = String(process.env.REDDIT_UNIFIED_API_URL || '').replace(/\/+$/, '');
+  if (!base) return { status: 'offline', error: 'Not configured' };
+  const start = Date.now();
+  try {
+    const { data } = await axios.get(`${base}/ready`, { timeout: PING_TIMEOUT_MS * 2 });
+    const configured = Boolean(data?.reddit_configured);
+    return {
+      status: configured ? 'online' : 'degraded',
+      latency: Date.now() - start,
+      configured,
+      mode: configured ? 'login' : 'public_feed',
+    };
+  } catch (error) {
+    return { status: 'offline', error: error.code || error.message };
+  }
 };
 
 const unknownQuota = () => ({
@@ -155,10 +193,10 @@ const checkBlugateGlobal = async (db) => {
 
 const checkSystemHealth = async (db) => {
   // Run probes in parallel — sequential pings were ~12s when hosts were unreachable.
-  const [postgres, ollama, sentiment, mediaAnalyzer, ragApi, bluweb, telegram, blugate] =
+  const [postgres, llm, sentiment, mediaAnalyzer, ragApi, bluweb, telegram, reddit, blugate] =
     await Promise.all([
       checkPostgres(),
-      pingService(process.env.OLLAMA_BASE_URL, '/api/tags'),
+      pingService(process.env.LLM_BASE_URL, '/models'),
       pingService(
         process.env.INTELLIGENCE_SERVICE_URL || process.env.CUSTOM_SENTIMENT_URL,
         '/health'
@@ -166,7 +204,8 @@ const checkSystemHealth = async (db) => {
       pingService(process.env.MEDIA_ANALYZER_URL, '/health'),
       pingService(process.env.RAG_API_URL, '/api/rag/health'),
       pingService(process.env.BLUWEB_API_URL, '/health/ready'),
-      checkTelegram(),
+      checkTelegram(db),
+      checkReddit(),
       checkBlugateGlobal(db),
     ]);
 
@@ -197,12 +236,13 @@ const checkSystemHealth = async (db) => {
     timestamp: new Date().toISOString(),
     postgres,
     services: {
-      ollama,
+      llm,
       sentiment,
       mediaAnalyzer,
       ragApi,
       bluweb,
       telegram,
+      reddit,
       blugate,
     },
     quotas: {
@@ -217,4 +257,6 @@ const checkSystemHealth = async (db) => {
 
 module.exports = {
   checkSystemHealth,
+  checkTelegram,
+  checkReddit,
 };

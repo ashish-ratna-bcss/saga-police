@@ -24738,7 +24738,7 @@ export namespace Prisma {
 
   export type social_media_accountsWhereUniqueInput = Prisma.AtLeast<{
     id?: number
-    platform_id_handle?: social_media_accountsPlatform_idHandleCompoundUniqueInput
+    platform_id_handle_type?: social_media_accountsPlatform_idHandleTypeCompoundUniqueInput
     AND?: social_media_accountsWhereInput | social_media_accountsWhereInput[]
     OR?: social_media_accountsWhereInput[]
     NOT?: social_media_accountsWhereInput | social_media_accountsWhereInput[]
@@ -24760,7 +24760,7 @@ export namespace Prisma {
     platforms?: XOR<PlatformsScalarRelationFilter, platformsWhereInput>
     posts?: Social_media_postsListRelationFilter
     grievances?: Social_media_grievancesListRelationFilter
-  }, "id" | "platform_id_handle">
+  }, "id" | "platform_id_handle_type">
 
   export type social_media_accountsOrderByWithAggregationInput = {
     id?: SortOrder
@@ -29001,9 +29001,10 @@ export namespace Prisma {
     _count?: SortOrder
   }
 
-  export type social_media_accountsPlatform_idHandleCompoundUniqueInput = {
+  export type social_media_accountsPlatform_idHandleTypeCompoundUniqueInput = {
     platform_id: number
     handle: string
+    type: string
   }
 
   export type social_media_accountsCountOrderByAggregateInput = {

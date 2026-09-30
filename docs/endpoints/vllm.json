@@ -1,0 +1,35 @@
+{
+  "name": "vLLM servers (OpenAI-compatible)",
+  "host": "101.53.140.97",
+  "externalFacing": false,
+  "auth": "none",
+  "gpuSharing": "One L40S 46 GB shared with the OCR API: Qwen2.5-VL ~27.8 GB, Qwen3-14B-AWQ ~13.1 GB, ~4.7 GB free",
+  "servers": [
+    {
+      "name": "Qwen2.5-VL (backs the OCR/video API)",
+      "baseUrl": "http://101.53.140.97:8001",
+      "model": "Qwen/Qwen2.5-VL-7B-Instruct",
+      "maxModelLen": 16384,
+      "callDirectly": false,
+      "endpoints": [
+        { "method": "GET", "path": "/health", "verified": 200 },
+        { "method": "GET", "path": "/v1/models", "verified": 200 },
+        { "method": "POST", "path": "/v1/chat/completions", "purpose": "Chat completions, accepts image content parts", "verified": 200 }
+      ]
+    },
+    {
+      "name": "Qwen3-14B-AWQ (general text LLM)",
+      "baseUrl": "http://101.53.140.97:8002",
+      "models": ["qwen3:14b-awq", "Qwen3-14B-AWQ", "qwen3-14b"],
+      "maxModelLen": 4096,
+      "maxConcurrentSequences": 4,
+      "callDirectly": true,
+      "usedBy": "backend LLM_BASE_URL (event summary / reports); keep max_tokens + input <= 4096",
+      "endpoints": [
+        { "method": "GET", "path": "/health", "verified": 200 },
+        { "method": "GET", "path": "/v1/models", "verified": 200 },
+        { "method": "POST", "path": "/v1/chat/completions", "purpose": "Text-only chat completions" }
+      ]
+    }
+  ]
+}

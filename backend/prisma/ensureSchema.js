@@ -523,7 +523,7 @@ async function migrateCatalogSplit(prisma) {
       last_fetched_history JSONB NOT NULL DEFAULT '[]'::jsonb,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      CONSTRAINT social_media_accounts_platform_id_handle_key UNIQUE (platform_id, handle)
+      CONSTRAINT social_media_accounts_platform_id_handle_type_key UNIQUE (platform_id, handle, type)
     )
   `);
   await prisma.$executeRawUnsafe(`
@@ -698,6 +698,25 @@ async function ensureCatalogColumns(prisma) {
     await prisma.$executeRawUnsafe(`
       ALTER TABLE social_media_accounts
       ADD COLUMN IF NOT EXISTS last_fetched_at TIMESTAMPTZ NULL
+    `);
+    await prisma.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM pg_constraint 
+          WHERE conname = 'social_media_accounts_platform_id_handle_key'
+        ) THEN
+          ALTER TABLE social_media_accounts 
+          DROP CONSTRAINT social_media_accounts_platform_id_handle_key;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint 
+          WHERE conname = 'social_media_accounts_platform_id_handle_type_key'
+        ) THEN
+          ALTER TABLE social_media_accounts 
+          ADD CONSTRAINT social_media_accounts_platform_id_handle_type_key UNIQUE (platform_id, handle, type);
+        END IF;
+      END $$;
     `);
 
     if (await tableExists(prisma, 'social_media_posts')) {

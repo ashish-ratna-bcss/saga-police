@@ -27,7 +27,7 @@ const listActiveEventPlatforms = async (prisma) => {
   const out = [];
   for (const row of rows) {
     const slug = normalizeEventPlatformSlug(row.slug);
-    if (!slug || slug === 'instagram' || seen.has(slug)) continue;
+    if (!slug || seen.has(slug)) continue;
     seen.add(slug);
     out.push(slug);
   }
@@ -38,7 +38,7 @@ const listActiveEventPlatforms = async (prisma) => {
 const resolveEventPlatforms = async (prisma, requested) => {
   const configured = await listActiveEventPlatforms(prisma);
   const wanted = Array.isArray(requested)
-    ? requested.map(normalizeEventPlatformSlug).filter((p) => p && p !== 'instagram')
+    ? requested.map(normalizeEventPlatformSlug).filter((p) => p)
     : [];
   if (!configured.length) return wanted;
   if (!wanted.length) return configured;
@@ -107,7 +107,7 @@ const normalizeEventPayload = (body = {}) => {
   if (Array.isArray(payload.platforms)) {
     payload.platforms = payload.platforms
       .map((p) => String(p).toLowerCase())
-      .filter((p) => p && p !== 'instagram');
+      .filter((p) => p);
   }
 
   if (payload.polling_interval_minutes != null) {
@@ -135,7 +135,7 @@ const hydrateEvent = (row) => {
     location: row.location || '',
     platforms: (Array.isArray(row.platforms) ? row.platforms : [])
       .map((p) => String(p).toLowerCase().replace(/^twitter$/, 'x'))
-      .filter((p) => p && p !== 'instagram'),
+      .filter((p) => p),
     keywords: asJson(row.keywords, []),
     high_risk_threshold: row.high_risk_threshold,
     medium_risk_threshold: row.medium_risk_threshold,
@@ -227,7 +227,7 @@ const hydrateEventMedia = (row) => {
 const hydrateOccasion = (row) => {
   if (!row) return null;
   const platforms = Array.isArray(row.platforms) && row.platforms.length
-    ? row.platforms.map((p) => String(p).toLowerCase().replace(/^twitter$/, 'x')).filter((p) => p && p !== 'instagram')
+    ? row.platforms.map((p) => String(p).toLowerCase().replace(/^twitter$/, 'x')).filter((p) => p)
     : [];
   return serialize({
     id: String(row.id),

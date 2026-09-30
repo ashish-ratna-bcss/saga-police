@@ -5,24 +5,76 @@ import {
   MessageSquare,
   Settings as SettingsIcon,
   Globe,
+  LayoutDashboard,
+  Users,
+  UserSearch,
+  BarChart3,
+  Radar,
+  FileText,
+  Rocket,
+  Wrench,
+  Plug,
+  ShieldCheck,
   Search,
   BookOpen,
   ChevronRight,
   X,
 } from 'lucide-react';
 import HelpArticle from './HelpArticle';
-import events from './content/events';
+import gettingStarted from './content/getting-started';
+import dashboard from './content/dashboard';
 import alerts from './content/alerts';
+import events from './content/events';
 import grievances from './content/grievances';
-import settings from './content/settings';
 import globalsearch from './content/globalsearch';
+import profiles from './content/profiles';
+import poi from './content/poi';
+import analytics from './content/analytics';
+import periscope from './content/periscope';
+import reports from './content/reports';
+import analysisTools from './content/analysis-tools';
+import platforms from './content/platforms';
+import settings from './content/settings';
+import admin from './content/admin';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { cn } from '../../lib/utils';
 
-const ICONS = { CalendarDays, AlertTriangle, MessageSquare, SettingsIcon, Globe };
+const ICONS = {
+  CalendarDays,
+  AlertTriangle,
+  MessageSquare,
+  SettingsIcon,
+  Globe,
+  LayoutDashboard,
+  Users,
+  UserSearch,
+  BarChart3,
+  Radar,
+  FileText,
+  Rocket,
+  Wrench,
+  Plug,
+  ShieldCheck,
+};
 
-const ARTICLES = [events, alerts, grievances, globalsearch, settings];
+const ARTICLES = [
+  gettingStarted,
+  dashboard,
+  alerts,
+  events,
+  grievances,
+  globalsearch,
+  profiles,
+  poi,
+  analytics,
+  periscope,
+  reports,
+  analysisTools,
+  platforms,
+  settings,
+  admin,
+];
 
 const sectionText = (section) => {
   const out = [section.title];

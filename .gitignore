@@ -13,3 +13,5 @@ build/
 backend/logs/
 backend/archive/
 frontend/archive/
+
+/archive/

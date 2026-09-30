@@ -41,6 +41,12 @@
       "domain": "jharkhandpolice.blurasaga.com",
       "ssl_certificate": "/etc/letsencrypt/live/jharkhandpolice.blurasaga.com/fullchain.pem",
       "ssl_certificate_key": "/etc/letsencrypt/live/jharkhandpolice.blurasaga.com/privkey.pem"
+    },
+    {
+      "admin": "andhrapradesh",
+      "frontend_port": 3005,
+      "backend_port": 5010,
+      "domain": "andhrapradesh.blurasaga.com"
     }
   ]
 }

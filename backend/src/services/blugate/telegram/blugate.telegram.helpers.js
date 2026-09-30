@@ -1,9 +1,17 @@
+// Telegram usernames: 5 to 32 letters, digits or underscores, starting with a letter.
+const USERNAME_RE = /^[A-Za-z][A-Za-z0-9_]{4,31}$/;
+const isValidUsername = (value) => USERNAME_RE.test(String(value || ''));
+
+// Private invite links (t.me/+abc, t.me/joinchat/abc) are not usernames; they must be sent as a url.
+const isInviteLink = (raw) => /(^|\/)(\+[\w-]+|joinchat\/[\w-]+)/i.test(String(raw || '').trim());
+
 const cleanUsername = (raw) => {
   let s = String(raw || '').trim();
   if (!s) return '';
-  s = s.replace(/^@/, '');
-  s = s.replace(/^https?:\/\/(www\.)?t\.me\//i, '');
-  s = s.split(/[/?#]/)[0];
+  s = s.replace(/^tg:\/\/resolve\?domain=/i, '');
+  s = s.replace(/^(https?:\/\/)?(www\.)?(t\.me|telegram\.me|telegram\.dog)\//i, '');
+  s = s.replace(/^s\//i, ''); // web preview links look like t.me/s/<name>
+  s = s.split(/[/?#&]/)[0];
   return s.replace(/^@/, '').trim();
 };
 
@@ -20,18 +28,24 @@ const resolveChannelRef = (data = {}) => {
   const d = data && typeof data === 'object' ? data : {};
   const channel_id = d.channel_id ? String(d.channel_id).trim() : '';
   const url = String(d.url || d.channel_url || '').trim();
-  const username = cleanUsername(d.username || d.handle || '');
+  const rawName = d.username || d.handle || '';
+  const invite = isInviteLink(rawName) || isInviteLink(url);
+  const username = invite ? '' : cleanUsername(rawName);
   const body = {};
   if (channel_id) body.channel_id = channel_id;
   if (username) body.username = username;
-  if (url) body.url = url;
+  if (invite) body.url = isInviteLink(url) ? url : String(rawName).trim();
+  else if (url) body.url = url;
   return body;
 };
 
-const mapMessageToUpsert = (msg, accountId) => {
+const mapMessageToUpsert = (msg, accountId, channelId = null) => {
   if (!msg) return null;
   const id = msg.id ?? msg.message_id ?? msg.msg_id;
   if (id == null || id === '') return null;
+
+  const resolvedChannelId = msg.channel_id ?? msg.peer_id ?? channelId ?? '';
+  const externalId = resolvedChannelId ? `${resolvedChannelId}_${id}` : String(id);
 
   const postedAt = msg.date || msg.posted_at || msg.created_at || null;
   const media = Array.isArray(msg.media) ? msg.media : [];
@@ -62,7 +76,7 @@ const mapMessageToUpsert = (msg, accountId) => {
   return {
     account_id: accountId,
     platform: 'telegram',
-    external_id: String(id),
+    external_id: externalId,
     url: msg.url || null,
     text: text || null,
     author_name: msg.author?.name || msg.author_name || null,
@@ -82,6 +96,7 @@ const mapMessageToUpsert = (msg, accountId) => {
 
 module.exports = {
   cleanUsername,
+  isValidUsername,
   listItems,
   resolveChannelRef,
   mapMessageToUpsert,

@@ -107,6 +107,13 @@ const PLATFORM_CATALOG_DEFS = [
       },
     ],
   },
+  {
+    slug: 'reddit',
+    name: 'Reddit',
+    icon: 'reddit',
+    color: '#FF4500',
+    fields: [],
+  },
 ];
 
 const PLATFORM_SLUGS = PLATFORM_CATALOG_DEFS.map((p) => p.slug);

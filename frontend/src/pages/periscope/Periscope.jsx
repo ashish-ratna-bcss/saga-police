@@ -333,7 +333,7 @@ function PeriscopeDatePicker({
 
 export default function Periscope() {
   const { user } = useAuth();
-  const { platforms: periscopePlatformRows } = usePagePlatforms('periscope');
+  const { platforms: periscopePlatformRows } = usePagePlatforms('social_profiles');
   const periscopePlatformOptions = useMemo(
     () =>
       periscopePlatformRows.map((row) => {

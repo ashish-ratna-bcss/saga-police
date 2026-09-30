@@ -69,7 +69,9 @@ const listCatalogSources = async (platformFilter = 'all', { db } = {}) => {
     orderBy: { updated_at: 'desc' },
   });
 
-  return accounts.map((a) => shapeCatalogAccount(a, a._count?.grievances || 0));
+  return accounts
+    .map((a) => shapeCatalogAccount(a, a._count?.grievances || 0))
+    .sort((a, b) => (b.total_grievances || 0) - (a.total_grievances || 0));
 };
 
 const getCatalogAccount = async (id, { db } = {}) => {

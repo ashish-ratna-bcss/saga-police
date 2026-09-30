@@ -46,12 +46,31 @@ const resolvePageId = async (profileData = {}, auth = null) => {
   };
 };
 
+/**
+ * Real image/video CDN url for a PAGE_POSTS item, if any. The API has no
+ * `media` array -- same field names already verified working in the event-
+ * scan path's normalizeFbMedia() (event.scan.service.js): `video` here is a
+ * Facebook PAGE permalink, not a media file, so it's deliberately not used.
+ * Video takes priority over the cover image when both exist, same as the
+ * Instagram mapper.
+ */
+const pickFacebookMediaUrl = (post) => {
+  const videoUrl = post?.video_files?.video_sd_file || post?.video_files?.video_hd_file || null;
+  if (videoUrl) return videoUrl;
+  if (post?.image?.uri) return post.image.uri;
+  if (Array.isArray(post?.album_preview) && post.album_preview[0]?.image_file_uri) {
+    return post.album_preview[0].image_file_uri;
+  }
+  return null;
+};
+
 /** Map one Blugate PAGE_POSTS item → shared upsert shape. */
 const mapFacebookPost = (post, accountId) => {
   const postedAt =
     post?.timestamp != null && Number.isFinite(Number(post.timestamp))
       ? new Date(Number(post.timestamp) * 1000)
       : null;
+  const mediaUrl = pickFacebookMediaUrl(post);
 
   return {
     account_id: accountId,
@@ -62,7 +81,7 @@ const mapFacebookPost = (post, accountId) => {
     author_name: post.author?.name || null,
     author_handle: post.author?.url || null,
     media_type: post.type || 'post',
-    media_urls: [],
+    media_urls: mediaUrl ? [mediaUrl] : [],
     engagement: {
       comments: post.comments_count ?? 0,
       reactions: post.reactions_count ?? 0,

@@ -4,7 +4,7 @@ const intelligenceClient = require('../../modules/intelligence/intelligence.clie
 const mappingService = require('../../modules/settings/mapping.service');
 const { getSettingsDoc } = require('../../modules/settings/settings.service');
 const { resolveTenantName } = require('../../lib/tenantDatabase.service');
-const { extractOcr } = require('./extractOcr');
+const { extractOcr, extractVideo } = require('./extractOcr');
 
 const MAX_ATTEMPTS = Math.max(1, Number(process.env.SENTIMENT_MAX_ATTEMPTS) || 5);
 
@@ -24,6 +24,36 @@ function extractFirstImageUrl(mediaField) {
     }
   }
   return null;
+}
+
+const VIDEO_URL_RE = /\.(mp4|m4v|mov|webm|avi|mkv)(\?.*)?$/i;
+const looksLikeVideoUrl = (url) => VIDEO_URL_RE.test(String(url || '')) || String(url || '').toLowerCase().includes('.m3u8');
+
+/**
+ * Finds a real video url in the event media field. Items already carry an
+ * explicit type when the scan-time mapper knows it (normalizeFbMedia /
+ * mapBlugateTweet in event.scan.service.js already resolve the real video
+ * file, not a thumbnail, for Facebook/X) -- trust that first, then fall back
+ * to sniffing the url extension the same way extractFirstImageUrl above
+ * sniffs it to *exclude* video.
+ */
+function extractFirstVideoUrl(mediaField) {
+  if (!mediaField || !Array.isArray(mediaField)) return null;
+  for (const item of mediaField) {
+    if (typeof item === 'string' && looksLikeVideoUrl(item)) return item;
+    if (typeof item === 'object' && item) {
+      const url = item.video_url || item.url;
+      if (!url) continue;
+      const declaredVideo = ['video', 'animated_gif'].includes(String(item.type || '').toLowerCase());
+      if (declaredVideo || looksLikeVideoUrl(url)) return url;
+    }
+  }
+  return null;
+}
+
+/** Already-analyzed check that works for either result shape (image OCR or video). */
+function hasMediaAnalysis(imageAnalysis) {
+  return Boolean(imageAnalysis?.full_text) || Boolean(imageAnalysis?.description);
 }
 
 const matchKeywords = async (text, { db } = {}) => {
@@ -99,36 +129,62 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
     return { ok: false, skipped: true, reason: 'not_found' };
   }
 
-  // ── STEP 1: OCR EXTRACTION IF IMAGE PRESENT ──
-  let ocrData = row.image_analysis?.full_text ? row.image_analysis : (row.raw_data?.ocr || null);
-  const imageUrl = !ocrData?.full_text ? extractFirstImageUrl(row.media) : null;
+  // ── STEP 1: MEDIA ENRICHMENT (video analysis, else image OCR) ──
+  let ocrData = hasMediaAnalysis(row.image_analysis) ? row.image_analysis : (row.raw_data?.ocr || null);
+  const alreadyAnalyzed = hasMediaAnalysis(ocrData);
+  const videoUrl = alreadyAnalyzed ? null : extractFirstVideoUrl(row.media);
 
-  if (imageUrl) {
-    logger.info(`[media_post_analysis/event] Running OCR extraction for event media ${id}`);
-    const ocrResult = await extractOcr(imageUrl, { postId: `event_${id}` });
-    if (ocrResult.success && ocrResult.data) {
-      ocrData = ocrResult.data;
-      const imageText = ocrData.full_text || '';
-      let updatedText = row.text || '';
-      if (imageText && !updatedText.includes(imageText)) {
-        updatedText = [updatedText, imageText].filter(Boolean).join('\n\n[Image text]\n');
-      }
-
+  if (videoUrl) {
+    logger.info(`[media_post_analysis/event] Running video analysis for event media ${id}`);
+    const videoResult = await extractVideo(videoUrl, { postId: `event_${id}`, tenantKey: dbName });
+    if (videoResult.success && videoResult.data) {
+      ocrData = { media_type: 'video', ...videoResult.data };
       await prisma.social_media_event_media.update({
         where: { id },
-        data: {
-          text: updatedText,
-          image_analysis: ocrData,
-        },
+        data: { image_analysis: ocrData },
       });
-      row.text = updatedText;
       row.image_analysis = ocrData;
+    } else {
+      logger.warn(`[media_post_analysis/event] Video analysis failed for event media ${id}: ${videoResult.error}`);
+      const failedAnalysis = { error: videoResult.error, failed: true, attempts: videoResult.attempts, media_type: 'video' };
+      await prisma.social_media_event_media.update({
+        where: { id },
+        data: { image_analysis: failedAnalysis },
+      });
+      row.image_analysis = failedAnalysis;
+    }
+  } else if (!alreadyAnalyzed) {
+    const imageUrl = extractFirstImageUrl(row.media);
+
+    if (imageUrl) {
+      logger.info(`[media_post_analysis/event] Running OCR extraction for event media ${id}`);
+      const ocrResult = await extractOcr(imageUrl, { postId: `event_${id}`, tenantKey: dbName });
+      if (ocrResult.success && ocrResult.data) {
+        ocrData = ocrResult.data;
+
+        await prisma.social_media_event_media.update({
+          where: { id },
+          data: {
+            image_analysis: ocrData,
+          },
+        });
+        row.image_analysis = ocrData;
+      }
     }
   }
 
   // ── STEP 2: SENTIMENT ANALYSIS ──
-  const text = String(row.text || '').trim();
-  if (text.length < 3) {
+  const rowText = String(row.text || '').trim();
+  const mediaText = ocrData?.full_text
+    ? String(ocrData.full_text).trim()
+    : String(
+        [ocrData?.description, ocrData?.summary, ...(Array.isArray(ocrData?.visible_text) ? ocrData.visible_text : [])]
+          .filter(Boolean)
+          .join('\n')
+      ).trim();
+  const textForAnalysis = rowText || mediaText;
+
+  if (rowText.length < 3 && mediaText.length < 3) {
     await prisma.social_media_event_media.update({
       where: { id },
       data: {
@@ -142,7 +198,7 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
     return { ok: true, skipped: true, reason: 'empty_text' };
   }
 
-  const matchedKeywords = await matchKeywords(text, { db });
+  const matchedKeywords = await matchKeywords(textForAnalysis, { db });
   const { high, medium } = await loadRiskThresholds({ db });
   const tenantName = await resolveTenantName(dbName).catch(() => null);
 
@@ -151,10 +207,10 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
   let preMapping = { category_id: null, legal_sections: [], platform_policies: [], triggered_keywords: [] };
   try {
     await mappingService.waitForLoad(5000);
-    const inferredCategory = mappingService.inferCategoryFromText(text);
+    const inferredCategory = mappingService.inferCategoryFromText(textForAnalysis);
     preMapping = mappingService.resolveForAnalysis({
       category: inferredCategory,
-      text,
+      text: textForAnalysis,
       platform,
       country: 'IN',
     });
@@ -164,7 +220,7 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
 
   let intel = null;
   try {
-    intel = await intelligenceClient.analyzeText(text, {
+    intel = await intelligenceClient.analyzeText(textForAnalysis, {
       lane: 'bulk',
       tenantName,
       tenantKey: dbName,
@@ -267,6 +323,8 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
     risk_level: riskLevel,
     risk_score: riskScore,
     sentiment: analysis_result.sentiment,
+    ocr_extracted: Boolean(ocrData?.full_text),
+    video_analyzed: Boolean(ocrData?.description),
   };
 };
 

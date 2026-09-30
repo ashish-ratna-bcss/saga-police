@@ -6,6 +6,7 @@ const callTelegramApi = require('../blugate/telegram/blugate.telegram.api_client
 const { pickUser } = require('../blugate/instagram/blugate.instagram.helpers');
 const {
   cleanUsername: cleanTelegramUsername,
+  isValidUsername,
   resolveChannelRef,
 } = require('../blugate/telegram/blugate.telegram.helpers');
 const { parseChannelRef } = require('./youtube/fetch');
@@ -216,7 +217,7 @@ const previewProfile = async (platformSlug, data, auth = null) => {
   if (slug === 'x' || slug === 'twitter') return previewX(data, auth);
   if (slug === 'youtube') return previewYouTube(data, auth);
   if (slug === 'instagram') return previewInstagram(data, auth);
-  if (slug === 'telegram') return previewTelegram(data);
+  if (slug === 'telegram') return previewTelegram(data, auth);
 
   const err = new Error(
     `Preview/fetch is not set up for "${slug}" yet. Supported: facebook, x, youtube, instagram, telegram`
@@ -279,7 +280,7 @@ const previewInstagram = async (data = {}, auth = null) => {
   };
 };
 
-const previewTelegram = async (data = {}) => {
+const previewTelegram = async (data = {}, auth = null) => {
   const body = resolveChannelRef({
     username: data.username || data.handle,
     url: data.url || data.channel_url,
@@ -291,7 +292,30 @@ const previewTelegram = async (data = {}) => {
     throw err;
   }
 
-  const raw = await callTelegramApi('CHANNEL_INFO', body);
+  // Catch typos before calling Telegram: a name typed with spaces, too short, or with odd characters.
+  if (body.username && !body.url && !body.channel_id && !isValidUsername(body.username)) {
+    const err = new Error(
+      `"${body.username}" is not a Telegram username. Usernames are 5 to 32 letters, numbers or underscores (for example @durov). You can also paste the channel's t.me link.`
+    );
+    err.status = 400;
+    throw err;
+  }
+
+  let raw;
+  try {
+    raw = await callTelegramApi('CHANNEL_INFO', body, auth);
+  } catch (e) {
+    const code = String(e.providerCode || '');
+    if (e.status === 422 && ['USERNAME_INVALID', 'INVALID_REQUEST'].includes(code)) {
+      const who = body.username ? `@${body.username}` : body.url || body.channel_id;
+      const err = new Error(
+        `Telegram can't find ${who}. Check the spelling, or paste the channel's t.me link. Private channels need an invite link.`
+      );
+      err.status = 404;
+      throw err;
+    }
+    throw e;
+  }
   const channel = raw?.channel && typeof raw.channel === 'object' ? raw.channel : raw;
   if (!channel || (!channel.id && !channel.username && !channel.title)) {
     const err = new Error('Could not load Telegram channel');

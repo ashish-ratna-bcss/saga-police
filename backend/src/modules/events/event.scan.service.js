@@ -6,6 +6,7 @@ const callTelegramApi = require('../../services/blugate/telegram/blugate.telegra
 const {
   listItems: listTelegramItems,
 } = require('../../services/blugate/telegram/blugate.telegram.helpers');
+const { authFromPlatformRow } = require('../../services/blugate/blugate.http');
 const { engagementFromXMetricsBag } = require('../../lib/engagementMetrics');
 const { asJson, resolveEventPlatforms } = require('./event.utils');
 const { recordFetch } = require('./event.service');
@@ -73,6 +74,85 @@ const filterByKeywords = (items, event, getText) => {
     if (!text) return false;
     return keywords.some((keyword) => keywordMatchesText(keyword, text));
   });
+};
+
+/**
+ * Instagram has no keyword search API. Events reuse posts already fetched by
+ * Alerts profile monitoring (social_media_posts) and match event keywords
+ * against caption/text, hashtags, and OCR/analysis metadata.
+ */
+const getInstagramPostSearchText = (post) => {
+  const parts = [];
+  if (post?.text) parts.push(String(post.text));
+
+  const raw = asJson(post?.raw_data, {});
+  if (typeof raw.caption === 'string') parts.push(raw.caption);
+  else if (raw.caption?.text) parts.push(String(raw.caption.text));
+  if (raw.title) parts.push(String(raw.title));
+
+  const pushHashtags = (list) => {
+    if (!Array.isArray(list)) return;
+    for (const tag of list) {
+      const t = String(tag?.name || tag?.tag || tag || '').trim();
+      if (t) parts.push(t.startsWith('#') ? t : `#${t}`);
+    }
+  };
+  pushHashtags(raw.hashtags);
+  pushHashtags(raw.caption?.hashtags);
+
+  if (Array.isArray(raw.usertags?.in)) {
+    for (const u of raw.usertags.in) {
+      const handle = u?.user?.username || u?.username;
+      if (handle) parts.push(`@${handle}`);
+    }
+  }
+
+  const imageAnalysis = asJson(post?.image_analysis, {});
+  if (imageAnalysis.full_text) parts.push(String(imageAnalysis.full_text));
+  if (imageAnalysis.visible_text) parts.push(String(imageAnalysis.visible_text));
+  if (Array.isArray(imageAnalysis.texts)) {
+    parts.push(imageAnalysis.texts.map((t) => (typeof t === 'string' ? t : t?.text || '')).join(' '));
+  }
+
+  const analysis = asJson(post?.analysis_result, {});
+  if (analysis.summary) parts.push(String(analysis.summary));
+  if (Array.isArray(analysis.matched_keywords)) {
+    parts.push(analysis.matched_keywords.map((k) => k?.keyword || k).filter(Boolean).join(' '));
+  }
+
+  return parts.join(' ');
+};
+
+const mediaItemsFromPostUrls = (mediaUrls, mediaType) => {
+  const urls = Array.isArray(mediaUrls) ? mediaUrls : asJson(mediaUrls, []);
+  const list = Array.isArray(urls) ? urls.filter(Boolean) : [];
+  const preferVideo = String(mediaType || '').toLowerCase() === 'reel' || String(mediaType || '').toLowerCase() === 'video';
+  return list.map((url) => {
+    const u = String(url);
+    const isVideo =
+      preferVideo ||
+      /\.(mp4|mov|webm|m3u8)(\?|$)/i.test(u) ||
+      /\/video\//i.test(u);
+    return { type: isVideo ? 'video' : 'photo', url: u, preview: u };
+  });
+};
+
+/** Keywords for DB-side Instagram matching (fall back to event name/location queries). */
+const resolveInstagramMatchEvent = (event, queries = []) => {
+  if (normalizeEventKeywords(event).length) return event;
+  const fallback = (queries || [])
+    .map((q) => String(q || '').replace(/^"|"$/g, '').trim())
+    .filter(Boolean);
+  return fallback.length ? { keywords: fallback } : event;
+};
+
+const buildInstagramPostsWhere = (event) => {
+  const where = { platform: 'instagram' };
+  const postedAt = {};
+  if (event?.start_date) postedAt.gte = new Date(event.start_date);
+  if (event?.end_date) postedAt.lte = new Date(event.end_date);
+  if (Object.keys(postedAt).length) where.posted_at = postedAt;
+  return where;
 };
 
 const uniqueById = (items = []) => {
@@ -409,10 +489,10 @@ const searchFacebookViaBlugate = async (query, auth = null) => {
 
 /* ── Blugate Telegram search ── */
 
-const searchTelegramViaBlugate = async (query) => {
+const searchTelegramViaBlugate = async (query, auth = null) => {
   const q = String(query || '').trim();
   if (!q) return [];
-  const raw = await callTelegramApi('SEARCH_MESSAGES', { q, limit: 25 });
+  const raw = await callTelegramApi('SEARCH_MESSAGES', { q, limit: 25 }, auth);
   return listTelegramItems(raw)
     .map((m) => {
       const id = m.id ?? m.message_id;
@@ -483,6 +563,66 @@ const searchYouTubeViaBlugate = async (query, auth = null) => {
       commentCount: Number(video.statistics?.commentCount || 0),
     },
   }));
+};
+
+/* ── Reddit search ── */
+
+// The Reddit RSS service allows the whole server about ONE request per minute (shared by every tenant
+// and event) and answers 429 or 504 when that budget is used up. So a scan sends a single request that
+// carries as many keywords as fit, never one request per keyword.
+const REDDIT_MAX_KEYWORDS_PER_CALL = 25; // the service accepts at most 25 keywords
+const REDDIT_MAX_QUERY_CHARS = 480; // and 512 characters once the keywords are joined with OR
+
+const batchRedditKeywords = (queries) => {
+  const batches = [];
+  let current = [];
+  let chars = 0;
+  for (const raw of queries) {
+    const q = String(raw || '').trim();
+    if (!q) continue;
+    const cost = q.length + 4; // " OR "
+    if (current.length && (current.length >= REDDIT_MAX_KEYWORDS_PER_CALL || chars + cost > REDDIT_MAX_QUERY_CHARS)) {
+      batches.push(current);
+      current = [];
+      chars = 0;
+    }
+    current.push(q);
+    chars += cost;
+  }
+  if (current.length) batches.push(current);
+  return batches;
+};
+
+const searchRedditViaUnifiedApi = async (keywords, auth = null) => {
+  const list = (Array.isArray(keywords) ? keywords : [keywords]).map((k) => String(k || '').trim()).filter(Boolean);
+  if (!list.length) return [];
+  const baseUrl = process.env.REDDIT_UNIFIED_API_URL;
+  if (!baseUrl) {
+    throw new Error('REDDIT_UNIFIED_API_URL is not defined in environment');
+  }
+  const headers = { 'Content-Type': 'application/json' };
+  if (auth && auth.accessKey) headers['Authorization'] = `Bearer ${auth.accessKey}`;
+  if (auth && auth.clientId) headers['x-client-id'] = auth.clientId;
+  const url = `${baseUrl}/api/reddit/rss/monitor`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ keywords: list, limit: 50 }),
+  });
+  if (!response.ok) {
+    let detail = '';
+    try {
+      const body = await response.json();
+      detail = body?.error?.message || body?.detail || '';
+    } catch { /* non-JSON error body */ }
+    const err = new Error(`Reddit API returned ${response.status}${detail ? `: ${detail}` : ` ${response.statusText}`}`);
+    err.status = response.status;
+    throw err;
+  }
+  const data = await response.json();
+  const posts = Array.isArray(data?.posts) ? data.posts : [];
+  // The RSS search also returns subreddit entries (guid t5_…). Keep real posts and comments only.
+  return posts.filter((p) => !String(p?.guid || '').startsWith('t5_'));
 };
 
 /** One in-flight scan per event — prevents duplicate kickoff/scheduler/manual overlap. */
@@ -562,6 +702,59 @@ const runScanEventOnce = async (event, options = {}) => {
     }
     return uniqueById(merged);
   };
+
+  // Instagram first: DB-only keyword match against Alerts-stored posts (no API).
+  // Run before Blugate platforms so Fetch Now isn't blocked by X/FB rate limits.
+  if (platforms.includes('instagram')) {
+    try {
+      const instagramPosts = await prisma.social_media_posts.findMany({
+        where: buildInstagramPostsWhere(event),
+        orderBy: [{ posted_at: 'desc' }, { fetched_at: 'desc' }],
+      });
+      const matchEvent = resolveInstagramMatchEvent(event, queries);
+      const relevant = filterByKeywords(instagramPosts, matchEvent, getInstagramPostSearchText);
+      scanned += relevant.length;
+      track('instagram', { scanned: relevant.length });
+      let instaIn = 0;
+      for (const p of relevant) {
+        const pid = p.external_id || p.id;
+        if (!pid) continue;
+        const engagement = asJson(p.engagement, {});
+        const { isNew } = await upsertMedia({
+          db,
+          dbName,
+          eventId: event.id,
+          platform: 'instagram',
+          externalId: String(pid),
+          payload: {
+            url: p.url || null,
+            text: p.text || '',
+            author_name: p.author_name || p.author_handle || 'Unknown',
+            author_handle: p.author_handle || 'unknown',
+            posted_at: p.posted_at || p.fetched_at || new Date(),
+            engagement,
+            media: mediaItemsFromPostUrls(p.media_urls, p.media_type),
+            raw_data: {
+              ...(asJson(p.raw_data, {}) || {}),
+              _source: 'alerts_social_media_posts',
+              post_id: String(p.id),
+              media_type: p.media_type || null,
+              image_analysis: p.image_analysis || null,
+            },
+          },
+        });
+        if (isNew) instaIn += 1;
+      }
+      ingested += instaIn;
+      track('instagram', { ingested: instaIn });
+      logger.info(
+        `[EventScan] Instagram DB match for ${event.name}: scanned=${relevant.length} new=${instaIn}`
+      );
+    } catch (error) {
+      logger.error(`[EventScan] Instagram failed for ${event.name}: ${error.message}`);
+      errors.push({ platform: 'instagram', message: error.message });
+    }
+  }
 
   if (platforms.includes('x')) {
     try {
@@ -700,7 +893,8 @@ const runScanEventOnce = async (event, options = {}) => {
 
   if (platforms.includes('telegram')) {
     try {
-      const posts = await fetchUniqueByQueriesCounted(queries, searchTelegramViaBlugate);
+      const tgAuth = await loadPlatformAuth(['telegram'], callTelegramApi.authFromPlatformRow);
+      const posts = await fetchUniqueByQueriesCounted(queries, (q) => searchTelegramViaBlugate(q, tgAuth));
       const relevant = filterByKeywords(posts, event, (p) => p?.text || '');
       scanned += relevant.length;
       track('telegram', { scanned: relevant.length });
@@ -749,6 +943,56 @@ const runScanEventOnce = async (event, options = {}) => {
     }
   }
 
+  if (platforms.includes('reddit')) {
+    try {
+      const redditAuth = await loadPlatformAuth(['reddit'], (row) => authFromPlatformRow(row, 'Reddit'));
+      // One request per scan. A second request would have to wait about a minute for the shared budget,
+      // longer than the service is willing to queue (55 s), so it would fail anyway.
+      const redditBatches = batchRedditKeywords(queries);
+      if (redditBatches.length > 1) {
+        const skipped = redditBatches.slice(1).reduce((n, b) => n + b.length, 0);
+        logger.info(`[EventScan] Reddit: sending ${redditBatches[0].length} keywords this scan, ${skipped} did not fit in one request`);
+      }
+      const redditPosts = [];
+      if (redditBatches.length) {
+        apiHits += 1;
+        redditPosts.push(...(await searchRedditViaUnifiedApi(redditBatches[0], redditAuth)));
+      }
+      const posts = uniqueById(redditPosts);
+      const relevant = filterByKeywords(posts, event, (p) => `${p?.title || ''} ${p?.content || ''}`);
+      scanned += relevant.length;
+      track('reddit', { scanned: relevant.length });
+      let redditIn = 0;
+      for (const p of relevant) {
+        const pid = p.id || p.guid;
+        if (!pid) continue;
+        const { isNew } = await upsertMedia({
+          db,
+          dbName,
+          eventId: event.id,
+          platform: 'reddit',
+          externalId: String(pid),
+          payload: {
+            url: p.url || null,
+            text: `${p.title || ''}\n${p.content || ''}`.trim(),
+            author_name: p.author || 'Unknown',
+            author_handle: p.author || 'unknown',
+            posted_at: p.published_at ? new Date(p.published_at) : new Date(),
+            engagement: {},
+            media: [],
+            raw_data: p,
+          },
+        });
+        if (isNew) redditIn += 1;
+      }
+      ingested += redditIn;
+      track('reddit', { ingested: redditIn });
+    } catch (error) {
+      logger.error(`[EventScan] Reddit failed for ${event.name}: ${error.message}`);
+      errors.push({ platform: 'reddit', message: error.message });
+    }
+  }
+
   const ok = errors.length === 0;
   const message =
     source === 'manual'
@@ -777,4 +1021,5 @@ const runScanEventOnce = async (event, options = {}) => {
 module.exports = {
   scanEventOnce,
   buildEventQueries,
+  _reddit: { batchRedditKeywords, searchRedditViaUnifiedApi },
 };

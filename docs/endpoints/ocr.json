@@ -1,0 +1,33 @@
+{
+  "name": "Social Media OCR + Video API",
+  "baseUrl": "http://101.53.140.97:8000",
+  "externalFacing": true,
+  "auth": "none",
+  "envVar": "OCR_SERVICE_URL",
+  "usedBy": "backend/src/services/media_post_analysis/extractOcr.js",
+  "endpoints": [
+    { "method": "GET", "path": "/health", "purpose": "Liveness, active engine, IndicOCR fallback state", "verified": 200 },
+    {
+      "method": "POST",
+      "path": "/extract",
+      "purpose": "Image OCR or video description",
+      "headers": { "Content-Type": "application/json" },
+      "body": {
+        "oneOf": ["image_url", "image_base64", "video_url"],
+        "optional": { "min_confidence": "0.0-1.0, IndicOCR fallback only" },
+        "limits": { "image": "25 MB", "video": "500 MB, 3600 s" }
+      },
+      "response": { "success": "boolean", "data": "object | null", "error": "string | null" },
+      "errors": { "400": "bad scheme / private IP / invalid base64", "413": "payload too large", "422": "zero or multiple media fields, unreachable or undecodable media, Qwen failure with fallback disabled" },
+      "verified": 200
+    },
+    { "method": "GET", "path": "/docs", "purpose": "Swagger UI", "verified": 200 },
+    { "method": "GET", "path": "/redoc", "purpose": "ReDoc UI" },
+    { "method": "GET", "path": "/openapi.json", "purpose": "OpenAPI schema", "verified": 200 },
+    { "method": "GET", "path": "/", "purpose": "Manual test web page" }
+  ],
+  "notes": [
+    "pool_size / workers_available in /health describe only the IndicOCR fallback pool; 0 is normal.",
+    "Backend sends image_base64 (downloads the image itself); image_url would let the service fetch it."
+  ]
+}

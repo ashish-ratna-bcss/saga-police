@@ -22,7 +22,9 @@ const runTelegramProfile = async (accountId, opts = {}) => {
   const dbName = opts.dbName || null;
   const account = await prisma.social_media_accounts.findUnique({
     where: { id: accountId },
-    include: { platforms: { select: { slug: true } } },
+    include: {
+      platforms: { select: { slug: true, api_key: true, blugate_client_key: true } },
+    },
   });
 
   if (!account) return { ok: false, skipped: true, reason: 'not_found' };
@@ -52,7 +54,9 @@ const runTelegramProfile = async (accountId, opts = {}) => {
       return { ok: false, skipped: true, reason: 'stopped' };
     }
 
-    const { posts, apiHits: hits, dataPatch } = await fetchTelegramPosts(account);
+    const { authFromPlatformRow } = require('../../blugate/telegram/blugate.telegram.api_client');
+    const auth = authFromPlatformRow(account.platforms);
+    const { posts, apiHits: hits, dataPatch } = await fetchTelegramPosts(account, auth);
     apiHits = hits;
     postsReturned = posts.length;
 

@@ -1268,7 +1268,7 @@ const OperationsDashboard = () => {
                   <div className="h-1.5 w-full bg-muted/60 rounded-full overflow-hidden">
                     <div
                       className={cn('h-full rounded-full transition-all duration-500', barColor)}
-                      style={{ width: `${Math.max(3, Math.min(100, Number(pct)))}%` }}
+                      style={{ width: `${Number(pct) > 0 ? Math.max(3, Math.min(100, Number(pct))) : 0}%` }}
                     />
                   </div>
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground">
