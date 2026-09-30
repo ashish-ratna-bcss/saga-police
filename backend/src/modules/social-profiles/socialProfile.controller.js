@@ -23,9 +23,37 @@ const parsePollInterval = (value, { required = false } = {}) => {
 const resolvePlatform = async (slug, { activeOnly = true, db } = {}) => {
   const prisma = dbOf(db);
   if (!slug) return null;
-  return prisma.platforms.findFirst({
+  const row = await prisma.platforms.findFirst({
     where: { slug, ...(activeOnly ? { is_active: true } : {}) },
   });
+  if (!row) return null;
+  return hydratePlatformFields(row, { persist: true, db: prisma });
+};
+
+/** If platforms.fields is empty in DB, fill from PLATFORM_CATALOG_DEFS (e.g. Reddit username). */
+const hydratePlatformFields = async (platform, { persist = false, db } = {}) => {
+  if (!platform) return platform;
+  const existing = normalizeFields(platform.fields);
+  if (existing.length) return { ...platform, fields: existing };
+
+  const { PLATFORM_CATALOG_DEFS } = require('../../lib/platformCatalog');
+  const slug = String(platform.slug || '').toLowerCase();
+  const def = PLATFORM_CATALOG_DEFS.find((d) => d.slug === slug);
+  const catalogFields = normalizeFields(def?.fields || []);
+  if (!catalogFields.length) return { ...platform, fields: existing };
+
+  if (persist && platform.id) {
+    try {
+      const prisma = dbOf(db);
+      await prisma.platforms.update({
+        where: { id: platform.id },
+        data: { fields: catalogFields },
+      });
+    } catch (_) {
+      /* list still works with hydrated fields */
+    }
+  }
+  return { ...platform, fields: catalogFields };
 };
 
 const normalizeFields = (raw) => {
@@ -171,7 +199,10 @@ const listPlatforms = async (req, res) => {
     }
 
     // Never return plaintext or ciphertext credentials in list responses
-    res.json(platforms.map(maskPlatformSecrets));
+    const hydrated = await Promise.all(
+      platforms.map((p) => hydratePlatformFields(p, { persist: true, db: prisma }))
+    );
+    res.json(hydrated.map(maskPlatformSecrets));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -581,10 +612,11 @@ const assertFetchedPreview = (preview_data, data) => {
     return 'Fetch details first — preview is required before save';
   }
   const hasId =
-    (data && (data.page_id || data.user_id || data.channel_id)) ||
+    (data && (data.page_id || data.user_id || data.channel_id || data.username)) ||
     preview_data.summary.page_id ||
     preview_data.summary.user_id ||
-    preview_data.summary.channel_id;
+    preview_data.summary.channel_id ||
+    preview_data.summary.username;
   if (!hasId) {
     return 'Fetch details first — could not resolve page_id / user_id / channel_id';
   }
@@ -1189,6 +1221,9 @@ const previewProfileIdentity = async (req, res) => {
       auth = authFromPlatformRow(platformRow);
     } else if (slug === 'telegram') {
       const { authFromPlatformRow } = require('../../services/blugate/telegram/blugate.telegram.api_client');
+      auth = authFromPlatformRow(platformRow);
+    } else if (slug === 'reddit') {
+      const { authFromPlatformRow } = require('../../services/blugate/reddit/blugate.reddit.api_client');
       auth = authFromPlatformRow(platformRow);
     }
 
