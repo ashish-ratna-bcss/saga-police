@@ -73,6 +73,32 @@ function hasMediaAnalysis(imageAnalysis) {
   return Boolean(imageAnalysis?.full_text) || Boolean(imageAnalysis?.description);
 }
 
+const keywordText = (value) => {
+  if (typeof value === 'string') return value.trim();
+  if (value && typeof value === 'object') return String(value.keyword || '').trim();
+  return '';
+};
+
+/** Flatten an event.keywords JSON value into display strings. */
+const eventKeywordStrings = (raw) => {
+  let list = raw;
+  if (typeof list === 'string') {
+    try {
+      list = JSON.parse(list);
+    } catch {
+      list = [];
+    }
+  }
+  if (!Array.isArray(list)) return [];
+  return list.map(keywordText).filter(Boolean);
+};
+
+/**
+ * Settings keywords plus keywords from started Events.
+ * Event keywords are a secondary Alerts source only. They are not copied
+ * into the keywords table and do not trigger platform searches.
+ * Case-insensitive duplicates are kept once; Settings wording wins.
+ */
 const matchKeywords = async (text, { db } = {}) => {
   const prisma = dbOf(db);
   const matched = [];
@@ -81,13 +107,36 @@ const matchKeywords = async (text, { db } = {}) => {
       select: { keyword: true },
       take: 2000,
     });
+
+    const seen = new Set();
+    const needles = [];
+    const pushNeedle = (raw) => {
+      const display = keywordText(raw);
+      const key = display.toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      needles.push(display);
+    };
+
+    for (const row of keywords) pushNeedle(row.keyword);
+
+    try {
+      const events = await prisma.social_media_events.findMany({
+        where: { monitoring_status: 'started' },
+        select: { keywords: true },
+      });
+      for (const event of events) {
+        for (const kw of eventKeywordStrings(event.keywords)) pushNeedle(kw);
+      }
+    } catch (eventErr) {
+      logger.warn('[media_post_analysis] event keyword load failed:', eventErr.message);
+    }
+
     const hay = String(text || '').toLowerCase();
-    for (const k of keywords) {
-      const needle = String(k.keyword || '').toLowerCase().trim();
-      if (!needle) continue;
-      if (hay.includes(needle)) {
+    for (const display of needles) {
+      if (hay.includes(display.toLowerCase())) {
         matched.push({
-          keyword: k.keyword,
+          keyword: display,
           weight: 50,
           category: 'other',
         });
