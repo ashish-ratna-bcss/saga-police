@@ -39,10 +39,13 @@ const resolveChannelRef = (data = {}) => {
   return body;
 };
 
-const mapMessageToUpsert = (msg, accountId) => {
+const mapMessageToUpsert = (msg, accountId, channelId = null) => {
   if (!msg) return null;
   const id = msg.id ?? msg.message_id ?? msg.msg_id;
   if (id == null || id === '') return null;
+
+  const resolvedChannelId = msg.channel_id ?? msg.peer_id ?? channelId ?? '';
+  const externalId = resolvedChannelId ? `${resolvedChannelId}_${id}` : String(id);
 
   const postedAt = msg.date || msg.posted_at || msg.created_at || null;
   const media = Array.isArray(msg.media) ? msg.media : [];
@@ -73,7 +76,7 @@ const mapMessageToUpsert = (msg, accountId) => {
   return {
     account_id: accountId,
     platform: 'telegram',
-    external_id: String(id),
+    external_id: externalId,
     url: msg.url || null,
     text: text || null,
     author_name: msg.author?.name || msg.author_name || null,
