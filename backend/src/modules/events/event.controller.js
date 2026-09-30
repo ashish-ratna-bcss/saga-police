@@ -239,6 +239,7 @@ const getEventsReport = async (req, res) => {
 };
 
 const { generateEventSummary, getCachedEventSummary, saveEventSummaryPdf } = require('../../services/SummaryLLM');
+const { generateEventIntelligencePdf } = require('./eventIntelligenceReport');
 
 /** GET: return the cached report instantly if one exists; only calls the LLM the first time. */
 const getEventSummaryLLM = async (req, res) => {
@@ -281,6 +282,27 @@ const saveEventSummaryPdfHandler = async (req, res) => {
   }
 };
 
+/** GET: render the Event Intelligence & Social Analytics PDF (server-side, Puppeteer). */
+const getEventIntelligenceReportPdf = async (req, res) => {
+  try {
+    const tenantName = String(req.query.tenant || '').replace(/[^\p{L}\p{N} &._-]/gu, '').slice(0, 80) || undefined;
+    const { pdf, eventName } = await generateEventIntelligencePdf(req.params.id, {
+      db: req.tenantPrisma,
+      tenantName,
+      user: req.user,
+    });
+    // Keep the "PDF saved" flag on the cached summary in sync; failure here must not block the download.
+    saveEventSummaryPdf(req.params.id, pdf.toString('base64'), { db: req.tenantPrisma }).catch(() => {});
+    const safe = `${tenantName || 'Report'}_${eventName}`.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${safe}_Summary_Report.pdf"`);
+    res.setHeader('Content-Length', pdf.length);
+    return res.status(200).send(pdf);
+  } catch (error) {
+    return res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   listEvents,
   getEvent,
@@ -296,6 +318,7 @@ module.exports = {
   getEventSummaryLLM,
   regenerateEventSummaryLLM,
   saveEventSummaryPdfHandler,
+  getEventIntelligenceReportPdf,
   runEventScan,
   getEventsReport,
 };
