@@ -112,7 +112,15 @@ const PLATFORM_CATALOG_DEFS = [
     name: 'Reddit',
     icon: 'reddit',
     color: '#FF4500',
-    fields: [],
+    fields: [
+      {
+        key: 'username',
+        label: 'Username',
+        type: 'text',
+        required: true,
+        placeholder: 'e.g. spez',
+      },
+    ],
   },
 ];
 
@@ -141,9 +149,10 @@ async function syncTenantPlatforms(tenantPrisma, allowedSlugs = []) {
           name: def.name,
           icon: def.icon,
           color: def.color,
-          ...(Array.isArray(existing.fields) && existing.fields.length
-            ? {}
-            : { fields: def.fields }),
+          // Always keep catalog field defs in sync when DB has none (e.g. Reddit username).
+          fields: Array.isArray(existing.fields) && existing.fields.length
+            ? existing.fields
+            : def.fields,
         },
       });
     } else if (active) {

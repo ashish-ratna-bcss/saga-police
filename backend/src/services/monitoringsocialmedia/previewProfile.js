@@ -3,12 +3,18 @@ const callXApi = require('../blugate/x/blugate.x.api_client');
 const callYouTubeApi = require('../blugate/youtube/blugate.youtube.api_client');
 const callInstagramApi = require('../blugate/instagram/blugate.instagram.api_client');
 const callTelegramApi = require('../blugate/telegram/blugate.telegram.api_client');
+const callRedditApi = require('../blugate/reddit/blugate.reddit.api_client');
 const { pickUser } = require('../blugate/instagram/blugate.instagram.helpers');
 const {
   cleanUsername: cleanTelegramUsername,
   isValidUsername,
   resolveChannelRef,
 } = require('../blugate/telegram/blugate.telegram.helpers');
+const {
+  cleanUsername: cleanRedditUsername,
+  isValidUsername: isValidRedditUsername,
+  listPosts: listRedditPosts,
+} = require('../blugate/reddit/blugate.reddit.helpers');
 const { parseChannelRef } = require('./youtube/fetch');
 
 /**
@@ -218,12 +224,79 @@ const previewProfile = async (platformSlug, data, auth = null) => {
   if (slug === 'youtube') return previewYouTube(data, auth);
   if (slug === 'instagram') return previewInstagram(data, auth);
   if (slug === 'telegram') return previewTelegram(data, auth);
+  if (slug === 'reddit') return previewReddit(data, auth);
 
   const err = new Error(
-    `Preview/fetch is not set up for "${slug}" yet. Supported: facebook, x, youtube, instagram, telegram`
+    `Preview/fetch is not set up for "${slug}" yet. Supported: facebook, x, youtube, instagram, telegram, reddit`
   );
   err.status = 400;
   throw err;
+};
+
+const previewReddit = async (data = {}, auth = null) => {
+  const username = cleanRedditUsername(data.username || data.handle || data.url);
+  if (!username) {
+    const err = new Error('Enter a Reddit username');
+    err.status = 400;
+    throw err;
+  }
+  if (!isValidRedditUsername(username)) {
+    const err = new Error(
+      `"${username}" is not a Reddit username. Use 3–20 letters, numbers, _ or - (for example spez), or paste reddit.com/user/…`
+    );
+    err.status = 400;
+    throw err;
+  }
+
+  let raw;
+  try {
+    raw = await callRedditApi(
+      'RSS_USER',
+      { username, kind: 'overview', limit: 5 },
+      auth
+    );
+  } catch (e) {
+    if (e.status === 404 || e.status === 422) {
+      const err = new Error(`Reddit can't find u/${username}. Check the spelling.`);
+      err.status = 404;
+      throw err;
+    }
+    throw e;
+  }
+
+  const posts = listRedditPosts(raw);
+  const first = posts[0] || null;
+  const author =
+    first?.author ||
+    (typeof first?.author === 'object' ? first?.author?.name : null) ||
+    username;
+
+  const summary = {
+    name: String(author || username),
+    biography: null,
+    image: null,
+    url: `https://www.reddit.com/user/${username}/`,
+    username,
+    user_id: username,
+    recent_posts: posts.length,
+  };
+
+  const preview_data = {
+    fetched_at: new Date().toISOString(),
+    platform: 'reddit',
+    summary,
+    raw: { username, sample_posts: posts.slice(0, 3) },
+  };
+
+  return {
+    platform: 'reddit',
+    preview: summary,
+    preview_data,
+    data_patch: {
+      username,
+      user_id: username,
+    },
+  };
 };
 
 const previewInstagram = async (data = {}, auth = null) => {
