@@ -43,8 +43,7 @@ const fetchTelegramPosts = async (account, auth = null) => {
 
   const raw = await callWithGap('CHANNEL_MESSAGES', body, auth);
   const items = listItems(raw);
-  const posts = items.map((m) => mapMessageToUpsert(m, account.id)).filter(Boolean);
-
+  
   let dataPatch = null;
   const first = items[0];
   const channelId =
@@ -52,6 +51,9 @@ const fetchTelegramPosts = async (account, auth = null) => {
     first?.channel_id ||
     body.channel_id ||
     null;
+
+  const posts = items.map((m) => mapMessageToUpsert(m, account.id, channelId)).filter(Boolean);
+
   if (channelId && String(data.channel_id || '') !== String(channelId)) {
     dataPatch = { ...data, channel_id: String(channelId) };
     if (body.username && !data.username) dataPatch.username = body.username;

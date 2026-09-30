@@ -6,6 +6,7 @@ const callTelegramApi = require('../../services/blugate/telegram/blugate.telegra
 const {
   listItems: listTelegramItems,
 } = require('../../services/blugate/telegram/blugate.telegram.helpers');
+const { authFromPlatformRow } = require('../../services/blugate/blugate.http');
 const { engagementFromXMetricsBag } = require('../../lib/engagementMetrics');
 const { asJson, resolveEventPlatforms } = require('./event.utils');
 const { recordFetch } = require('./event.service');
@@ -643,17 +644,20 @@ const batchRedditKeywords = (queries) => {
   return batches;
 };
 
-const searchRedditViaUnifiedApi = async (keywords) => {
+const searchRedditViaUnifiedApi = async (keywords, auth = null) => {
   const list = (Array.isArray(keywords) ? keywords : [keywords]).map((k) => String(k || '').trim()).filter(Boolean);
   if (!list.length) return [];
   const baseUrl = process.env.REDDIT_UNIFIED_API_URL;
   if (!baseUrl) {
     throw new Error('REDDIT_UNIFIED_API_URL is not defined in environment');
   }
+  const headers = { 'Content-Type': 'application/json' };
+  if (auth && auth.accessKey) headers['Authorization'] = `Bearer ${auth.accessKey}`;
+  if (auth && auth.clientId) headers['x-client-id'] = auth.clientId;
   const url = `${baseUrl}/api/reddit/rss/monitor`;
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ keywords: list, limit: 50 }),
   });
   if (!response.ok) {
@@ -965,6 +969,7 @@ const runScanEventOnce = async (event, options = {}) => {
 
   if (platforms.includes('reddit')) {
     try {
+      const redditAuth = await loadPlatformAuth(['reddit'], (row) => authFromPlatformRow(row, 'Reddit'));
       // One request per scan. A second request would have to wait about a minute for the shared budget,
       // longer than the service is willing to queue (55 s), so it would fail anyway.
       const redditBatches = batchRedditKeywords(queries);
@@ -975,7 +980,7 @@ const runScanEventOnce = async (event, options = {}) => {
       const redditPosts = [];
       if (redditBatches.length) {
         apiHits += 1;
-        redditPosts.push(...(await searchRedditViaUnifiedApi(redditBatches[0])));
+        redditPosts.push(...(await searchRedditViaUnifiedApi(redditBatches[0], redditAuth)));
       }
       const posts = uniqueById(redditPosts);
       const relevant = filterByKeywords(posts, event, (p) => `${p?.title || ''} ${p?.content || ''}`);
