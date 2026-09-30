@@ -425,7 +425,7 @@ const ContentCard = ({ item, index, onDownload, onAddSource }) => {
   const [isTranslated, setIsTranslated] = useState(false);
   const [translatedText, setTranslatedText] = useState('');
   const [isTranslating, setIsTranslating] = useState(false);
-  const theme = PLATFORM_THEMES[item.platform] || DEFAULT_THEME;
+  const theme = PLATFORM_THEMES[String(item.platform || '').toLowerCase()] || DEFAULT_THEME;
 
   const cleanText = (t) => (t || '').replace(/\n*\[Image text\][\s\S]*$/i, '').replace(/\*\*Intent Detected:\*\*.*?(?:\n\n|\n|$)/g, '').trim();
   const rawText = item?.text || '';

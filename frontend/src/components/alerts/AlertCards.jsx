@@ -8,6 +8,7 @@ import {
     FacebookBrandLogo,
     InstagramBrandLogo,
     TelegramBrandLogo,
+    RedditBrandLogo,
 } from './PlatformBrandIcon';
 import { formatDistanceToNow, format, startOfDay, startOfWeek, endOfDay } from 'date-fns';
 
@@ -521,6 +522,14 @@ const PlatformLogoBadge = ({ platform = 'x', className = '' }) => {
         return (
             <div className={`${badgeBaseClass} border-[#229ED9]/70 bg-gradient-to-r from-[#229ED9] via-[#229ED9] to-[#54B3E7]`}>
                 <TelegramBrandLogo className="h-4 w-4" />
+            </div>
+        );
+    }
+
+    if (platformKey === 'reddit') {
+        return (
+            <div className={`${badgeBaseClass} border-[#FF4500]/70 bg-gradient-to-r from-[#FF4500] via-[#FF4500] to-[#FF8717]`}>
+                <RedditBrandLogo className="h-4 w-4" />
             </div>
         );
     }

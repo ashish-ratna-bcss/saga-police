@@ -285,7 +285,8 @@
       "facebook",
       "instagram",
       "youtube",
-      "telegram"
+      "telegram",
+      "reddit"
     ],
     "endpoints": [
       {
@@ -294,7 +295,7 @@
         "controller": "modules/social-profiles/socialProfile.controller.js",
         "function": "listProfiles",
         "description": "List monitored social target profiles and handles",
-        "platforms": ["x", "facebook", "instagram", "youtube", "telegram"]
+        "platforms": ["x", "facebook", "instagram", "youtube", "telegram", "reddit"]
       },
       {
         "method": "POST",
@@ -302,7 +303,7 @@
         "controller": "modules/social-profiles/socialProfile.controller.js",
         "function": "createProfile",
         "description": "Add a new target profile/channel to monitor",
-        "platforms": ["x", "facebook", "instagram", "youtube", "telegram"]
+        "platforms": ["x", "facebook", "instagram", "youtube", "telegram", "reddit"]
       },
       {
         "method": "POST",
@@ -310,7 +311,7 @@
         "controller": "modules/social-profiles/socialProfile.controller.js",
         "function": "previewAccount",
         "description": "Live preview of an external profile (avatar, followers, bio) before adding",
-        "platforms": ["x", "facebook", "instagram", "youtube", "telegram"]
+        "platforms": ["x", "facebook", "instagram", "youtube", "telegram", "reddit"]
       },
       {
         "method": "PUT",
@@ -318,7 +319,7 @@
         "controller": "modules/social-profiles/socialProfile.controller.js",
         "function": "toggleMonitoring",
         "description": "Start or stop automated post ingestion for a target profile",
-        "platforms": ["x", "facebook", "instagram", "youtube", "telegram"]
+        "platforms": ["x", "facebook", "instagram", "youtube", "telegram", "reddit"]
       },
       {
         "method": "GET",
@@ -326,7 +327,7 @@
         "controller": "modules/social-profiles/socialProfile.controller.js",
         "function": "listPlatforms",
         "description": "List all configured tenant platforms",
-        "platforms": ["x", "facebook", "instagram", "youtube", "telegram"]
+        "platforms": ["x", "facebook", "instagram", "youtube", "telegram", "reddit"]
       },
       {
         "method": "GET",
@@ -334,7 +335,7 @@
         "controller": "modules/social-profiles/socialProfile.controller.js",
         "function": "getPagePlatformsMapping",
         "description": "Get complete page-to-platform and endpoint registry mapping",
-        "platforms": ["x", "facebook", "instagram", "youtube", "telegram"]
+        "platforms": ["x", "facebook", "instagram", "youtube", "telegram", "reddit"]
       }
     ]
   }

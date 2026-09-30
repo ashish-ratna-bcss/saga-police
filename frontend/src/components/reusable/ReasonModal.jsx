@@ -9,6 +9,7 @@ import {
     FacebookBrandLogo,
     InstagramBrandLogo,
     TelegramBrandLogo,
+    RedditBrandLogo,
 } from './PlatformBrandIcon';
 
 const renderPlatformLogo = (platform) => {
@@ -17,6 +18,7 @@ const renderPlatformLogo = (platform) => {
     if (p === 'youtube') return <YoutubeBrandLogo className="h-3.5 w-3.5 text-red-600" />;
     if (p === 'facebook') return <FacebookBrandLogo className="h-3.5 w-3.5 text-blue-600" />;
     if (p === 'telegram') return <TelegramBrandLogo className="h-3.5 w-3.5 text-sky-600" />;
+    if (p === 'reddit') return <RedditBrandLogo className="h-3.5 w-3.5 text-orange-600" />;
     return <XBrandLogo className="h-3.5 w-3.5" />;
 };
 
