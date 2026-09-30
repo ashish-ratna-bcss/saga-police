@@ -77,11 +77,10 @@ const filterByKeywords = (items, event, getText) => {
 };
 
 /**
- * Instagram has no keyword search API. Events reuse posts already fetched by
- * Alerts profile monitoring (social_media_posts) and match event keywords
- * against caption/text, hashtags, and OCR/analysis metadata.
+ * Search text for a catalog post already stored by Alerts profile monitoring.
+ * Covers caption/body, hashtags, mentions, and OCR/analysis metadata.
  */
-const getInstagramPostSearchText = (post) => {
+const getCatalogPostSearchText = (post) => {
   const parts = [];
   if (post?.text) parts.push(String(post.text));
 
@@ -137,8 +136,8 @@ const mediaItemsFromPostUrls = (mediaUrls, mediaType) => {
   });
 };
 
-/** Keywords for DB-side Instagram matching (fall back to event name/location queries). */
-const resolveInstagramMatchEvent = (event, queries = []) => {
+/** Keywords for DB-side catalog matching (fall back to event name/location queries). */
+const resolveCatalogMatchEvent = (event, queries = []) => {
   if (normalizeEventKeywords(event).length) return event;
   const fallback = (queries || [])
     .map((q) => String(q || '').replace(/^"|"$/g, '').trim())
@@ -146,13 +145,65 @@ const resolveInstagramMatchEvent = (event, queries = []) => {
   return fallback.length ? { keywords: fallback } : event;
 };
 
-const buildInstagramPostsWhere = (event) => {
-  const where = { platform: 'instagram' };
+const buildCatalogPostsWhere = (event, platform) => {
+  const where = { platform: String(platform || '').toLowerCase() };
   const postedAt = {};
   if (event?.start_date) postedAt.gte = new Date(event.start_date);
   if (event?.end_date) postedAt.lte = new Date(event.end_date);
   if (Object.keys(postedAt).length) where.posted_at = postedAt;
   return where;
+};
+
+/**
+ * Match event keywords against posts Alerts already stored in social_media_posts.
+ * No platform API calls. Instagram uses only this path (no keyword search API).
+ * Other platforms also keep their keyword API search and merge both sources.
+ */
+const ingestCatalogMatches = async ({
+  prisma,
+  event,
+  queries,
+  platform,
+  db,
+  dbName,
+}) => {
+  const catalogPosts = await prisma.social_media_posts.findMany({
+    where: buildCatalogPostsWhere(event, platform),
+    orderBy: [{ posted_at: 'desc' }, { fetched_at: 'desc' }],
+  });
+  const matchEvent = resolveCatalogMatchEvent(event, queries);
+  const relevant = filterByKeywords(catalogPosts, matchEvent, getCatalogPostSearchText);
+  let ingested = 0;
+  for (const p of relevant) {
+    const pid = p.external_id || p.id;
+    if (!pid) continue;
+    const engagement = asJson(p.engagement, {});
+    const { isNew } = await upsertMedia({
+      db,
+      dbName,
+      eventId: event.id,
+      platform,
+      externalId: String(pid),
+      payload: {
+        url: p.url || null,
+        text: p.text || '',
+        author_name: p.author_name || p.author_handle || 'Unknown',
+        author_handle: p.author_handle || 'unknown',
+        posted_at: p.posted_at || p.fetched_at || new Date(),
+        engagement,
+        media: mediaItemsFromPostUrls(p.media_urls, p.media_type),
+        raw_data: {
+          ...(asJson(p.raw_data, {}) || {}),
+          _source: 'alerts_social_media_posts',
+          post_id: String(p.id),
+          media_type: p.media_type || null,
+          image_analysis: p.image_analysis || null,
+        },
+      },
+    });
+    if (isNew) ingested += 1;
+  }
+  return { scanned: relevant.length, ingested };
 };
 
 const uniqueById = (items = []) => {
@@ -682,56 +733,29 @@ const runScanEventOnce = async (event, options = {}) => {
     return uniqueById(merged);
   };
 
-  // Instagram first: DB-only keyword match against Alerts-stored posts (no API).
-  // Run before Blugate platforms so Fetch Now isn't blocked by X/FB rate limits.
-  if (platforms.includes('instagram')) {
+  // DB scan first for every selected platform. Alerts profile monitoring already
+  // stored these posts. Instagram stops here — it has no keyword search API.
+  // X / Facebook / YouTube / Telegram / Reddit continue into API search below
+  // and merge with these matches (upsert dedupes on external id).
+  for (const platform of platforms) {
     try {
-      const instagramPosts = await prisma.social_media_posts.findMany({
-        where: buildInstagramPostsWhere(event),
-        orderBy: [{ posted_at: 'desc' }, { fetched_at: 'desc' }],
+      const catalog = await ingestCatalogMatches({
+        prisma,
+        event,
+        queries,
+        platform,
+        db,
+        dbName,
       });
-      const matchEvent = resolveInstagramMatchEvent(event, queries);
-      const relevant = filterByKeywords(instagramPosts, matchEvent, getInstagramPostSearchText);
-      scanned += relevant.length;
-      track('instagram', { scanned: relevant.length });
-      let instaIn = 0;
-      for (const p of relevant) {
-        const pid = p.external_id || p.id;
-        if (!pid) continue;
-        const engagement = asJson(p.engagement, {});
-        const { isNew } = await upsertMedia({
-          db,
-          dbName,
-          eventId: event.id,
-          platform: 'instagram',
-          externalId: String(pid),
-          payload: {
-            url: p.url || null,
-            text: p.text || '',
-            author_name: p.author_name || p.author_handle || 'Unknown',
-            author_handle: p.author_handle || 'unknown',
-            posted_at: p.posted_at || p.fetched_at || new Date(),
-            engagement,
-            media: mediaItemsFromPostUrls(p.media_urls, p.media_type),
-            raw_data: {
-              ...(asJson(p.raw_data, {}) || {}),
-              _source: 'alerts_social_media_posts',
-              post_id: String(p.id),
-              media_type: p.media_type || null,
-              image_analysis: p.image_analysis || null,
-            },
-          },
-        });
-        if (isNew) instaIn += 1;
-      }
-      ingested += instaIn;
-      track('instagram', { ingested: instaIn });
+      scanned += catalog.scanned;
+      ingested += catalog.ingested;
+      track(platform, { scanned: catalog.scanned, ingested: catalog.ingested });
       logger.info(
-        `[EventScan] Instagram DB match for ${event.name}: scanned=${relevant.length} new=${instaIn}`
+        `[EventScan] ${platform} DB match for ${event.name}: scanned=${catalog.scanned} new=${catalog.ingested}`
       );
     } catch (error) {
-      logger.error(`[EventScan] Instagram failed for ${event.name}: ${error.message}`);
-      errors.push({ platform: 'instagram', message: error.message });
+      logger.error(`[EventScan] ${platform} DB match failed for ${event.name}: ${error.message}`);
+      errors.push({ platform, message: error.message });
     }
   }
 
