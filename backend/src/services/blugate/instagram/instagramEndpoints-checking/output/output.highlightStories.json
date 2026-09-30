@@ -3,9 +3,9 @@
   "params": {
     "highlightId": "highlight:17936913893330057"
   },
-  "status": "PASS",
-  "checkedAt": "2026-09-07T07:36:32.061Z",
-  "response": {
-    "result": []
-  }
+  "status": "FAIL",
+  "checkedAt": "2026-09-29T11:40:22.740Z",
+  "error": "Blugate credentials required: accessKey (api_key) and clientId (blugate_client_key) from platforms table",
+  "httpStatus": null,
+  "providerError": null
 }
