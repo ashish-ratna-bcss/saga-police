@@ -265,6 +265,7 @@ export default function Alerts() {
       facebook: 'Facebook',
       instagram: 'Instagram',
       telegram: 'Telegram',
+      reddit: 'Reddit',
       whatsapp: 'WhatsApp',
       unknown: 'Unknown'
     };
@@ -298,6 +299,11 @@ export default function Alerts() {
         iconClass: 'text-sky-700',
         rowClass: 'bg-sky-200/60 hover:bg-sky-300/60',
         stickyClass: 'bg-sky-200/75'
+      },
+      reddit: {
+        iconClass: 'text-orange-700',
+        rowClass: 'bg-orange-200/60 hover:bg-orange-300/60',
+        stickyClass: 'bg-orange-200/75'
       },
       whatsapp: {
         iconClass: 'text-emerald-700',
