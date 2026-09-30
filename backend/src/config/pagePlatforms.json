@@ -1,98 +1,4 @@
 {
-  "alerts": {
-    "page": "alerts",
-    "title": "Alerts & Threat Intelligence",
-    "route": "/alerts",
-    "description": "Monitors threat keywords, public sentiment, and real-time triggers across social media channels",
-    "platforms": [
-      "x",
-      "youtube",
-      "facebook",
-      "instagram"
-    ],
-    "endpoints": [
-      {
-        "method": "GET",
-        "path": "/api/alerts",
-        "controller": "modules/alerts/alert.controller.js",
-        "function": "listAlerts",
-        "description": "Fetch paginated alerts filtered by platform, severity, status, search, and date range",
-        "platforms": ["x", "youtube", "facebook", "instagram"]
-      },
-      {
-        "method": "GET",
-        "path": "/api/alerts/stats",
-        "controller": "modules/alerts/alert.controller.js",
-        "function": "getStats",
-        "description": "Get alert statistics and counts grouped by platform, severity, and category",
-        "platforms": ["x", "youtube", "facebook", "instagram"]
-      },
-      {
-        "method": "GET",
-        "path": "/api/alerts/unread",
-        "controller": "modules/alerts/alert.controller.js",
-        "function": "getUnread",
-        "description": "Get count and list of unread alerts",
-        "platforms": ["x", "youtube", "facebook", "instagram"]
-      },
-      {
-        "method": "GET",
-        "path": "/api/alerts/:id",
-        "controller": "modules/alerts/alert.controller.js",
-        "function": "getAlert",
-        "description": "Retrieve full details and post metadata for a single alert",
-        "platforms": ["x", "youtube", "facebook", "instagram"]
-      },
-      {
-        "method": "PUT",
-        "path": "/api/alerts/:id",
-        "controller": "modules/alerts/alert.controller.js",
-        "function": "putAlert",
-        "description": "Update alert status, assignment, category, or notes",
-        "platforms": ["x", "youtube", "facebook", "instagram"]
-      },
-      {
-        "method": "PUT",
-        "path": "/api/alerts/read",
-        "controller": "modules/alerts/alert.controller.js",
-        "function": "putMarkAllRead",
-        "description": "Mark all alerts as read",
-        "platforms": ["x", "youtube", "facebook", "instagram"]
-      },
-      {
-        "method": "POST",
-        "path": "/api/alerts/translate",
-        "controller": "modules/alerts/alert.controller.js",
-        "function": "translateAlertContent",
-        "description": "Translate alert text/posts to target language",
-        "platforms": ["x", "youtube", "facebook", "instagram"]
-      },
-      {
-        "method": "GET",
-        "path": "/api/keywords",
-        "controller": "modules/alerts/keyword.controller.js",
-        "function": "getKeywords",
-        "description": "List alert monitoring keywords and their active status",
-        "platforms": ["x", "youtube", "facebook", "instagram"]
-      },
-      {
-        "method": "POST",
-        "path": "/api/keywords/catalog-rescan",
-        "controller": "modules/alerts/keyword.controller.js",
-        "function": "catalogRescan",
-        "description": "Trigger ingestion scan on social platforms for monitored keywords",
-        "platforms": ["x", "youtube", "facebook", "instagram"]
-      },
-      {
-        "method": "GET",
-        "path": "/api/social-profiles/platforms?page=alerts",
-        "controller": "modules/social-profiles/socialProfile.controller.js",
-        "function": "listPlatforms",
-        "description": "Retrieve active platform filters for the alerts page",
-        "platforms": ["x", "youtube", "facebook", "instagram"]
-      }
-    ]
-  },
   "grievances": {
     "page": "grievances",
     "title": "Public Grievances & Redressal",
@@ -204,7 +110,9 @@
       "x",
       "youtube",
       "facebook",
-      "telegram"
+      "instagram",
+      "telegram",
+      "reddit"
     ],
     "endpoints": [
       {
@@ -213,7 +121,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "listEvents",
         "description": "List tracked events, schedules, and active monitoring states",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "POST",
@@ -221,7 +129,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "createEvent",
         "description": "Create a new event with target platforms, keywords, hashtags, and dates",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "GET",
@@ -229,7 +137,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "getEvent",
         "description": "Get detailed configuration and status for a specific event",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "PUT",
@@ -237,7 +145,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "updateEvent",
         "description": "Update event parameters, keywords, locations, and platforms",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "GET",
@@ -245,7 +153,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "getEventDashboard",
         "description": "Get event metrics, post breakdown by platform, and sentiment stats",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "GET",
@@ -253,7 +161,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "getEventContent",
         "description": "Get posts and media collected across platforms for this event",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "POST",
@@ -261,7 +169,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "runEventScan",
         "description": "Trigger on-demand multi-platform scan for event keywords and hashtags",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "PUT",
@@ -269,7 +177,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "toggleMonitoring",
         "description": "Enable or disable automated recurring scans for an event",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "GET",
@@ -277,7 +185,7 @@
         "controller": "modules/events/event.controller.js",
         "function": "getEventsReport",
         "description": "Generate summary analytics report across multiple events",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "GET",
@@ -285,15 +193,15 @@
         "controller": "modules/events/event.calendar.controller.js",
         "function": "listOccasionCalendar",
         "description": "List calendar occasions, holidays, and VIP schedules",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       },
       {
         "method": "GET",
         "path": "/api/social-profiles/platforms?page=events",
         "controller": "modules/social-profiles/socialProfile.controller.js",
         "function": "listPlatforms",
-        "description": "Retrieve platforms enabled for event tracking (excludes Instagram)",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "description": "Retrieve platforms enabled for event tracking (Instagram uses Alerts-stored posts, no IG keyword API)",
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram", "reddit"]
       }
     ]
   },
@@ -363,76 +271,6 @@
         "controller": "modules/social-profiles/socialProfile.controller.js",
         "function": "listPlatforms",
         "description": "Retrieve platforms available for global search filtering",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
-      }
-    ]
-  },
-  "periscope": {
-    "page": "periscope",
-    "title": "Periscope Daily Intelligence Briefing",
-    "route": "/periscope",
-    "description": "Daily intelligence report curation, auto-scrolling live ticker, and event feeds",
-    "platforms": [
-      "x",
-      "youtube",
-      "facebook",
-      "telegram"
-    ],
-    "endpoints": [
-      {
-        "method": "GET",
-        "path": "/api/periscope/feed",
-        "controller": "modules/periscope/periscope.controller.js",
-        "function": "getFeed",
-        "description": "Live multi-platform feed of trending topics, events, and viral posts",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
-      },
-      {
-        "method": "GET",
-        "path": "/api/periscope/by-date",
-        "controller": "modules/periscope/periscope.controller.js",
-        "function": "getReportByDate",
-        "description": "Retrieve Periscope intelligence briefing report for a specific date",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
-      },
-      {
-        "method": "POST",
-        "path": "/api/periscope/save",
-        "controller": "modules/periscope/periscope.controller.js",
-        "function": "saveReport",
-        "description": "Save or update the daily Periscope briefing document",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
-      },
-      {
-        "method": "GET",
-        "path": "/api/periscope/list",
-        "controller": "modules/periscope/periscope.controller.js",
-        "function": "listReports",
-        "description": "List generated and saved Periscope reports",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
-      },
-      {
-        "method": "POST",
-        "path": "/api/periscope/export-docx",
-        "controller": "modules/periscope/periscope.controller.js",
-        "function": "exportDocx",
-        "description": "Export the Periscope intelligence report as a Word document (.docx)",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
-      },
-      {
-        "method": "GET",
-        "path": "/api/periscope/import-events",
-        "controller": "modules/periscope/periscope.controller.js",
-        "function": "importEvents",
-        "description": "Import active calendar events and monitored platform occurrences into Periscope report",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
-      },
-      {
-        "method": "GET",
-        "path": "/api/social-profiles/platforms?page=periscope",
-        "controller": "modules/social-profiles/socialProfile.controller.js",
-        "function": "listPlatforms",
-        "description": "Retrieve platforms available for Periscope intelligence feeds",
         "platforms": ["x", "youtube", "facebook", "telegram"]
       }
     ]

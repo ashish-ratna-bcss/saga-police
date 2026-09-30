@@ -1,7 +1,7 @@
 /**
  * Help content — Alerts module.
  *
- * Block types: p | steps | shot | callout | table | list | fields
+ * Block types: p | steps | live | callout | table | list | fields
  */
 
 const alerts = {
@@ -52,19 +52,18 @@ const alerts = {
       title: 'The Alerts screen',
       blocks: [
         {
-          type: 'shot',
-          src: '/help/alerts/alerts_overview.png',
-          alt: 'The Alerts page',
-          caption: 'The Alerts page.',
+          type: 'live',
+          route: "/alerts",
+          alt: "The Alerts page",
+          caption: "The Alerts page as it opens.",
           markers: [
-            { n: 1, x: 63, y: 15.7, side: 'top', at: 58, label: 'Top 50 / Category · 24h', text: 'AI-ranked shortlist of the most significant alerts. See “AI-ranked top alerts”.' },
-            { n: 2, x: 74.7, y: 15.7, side: 'top', at: 84, label: 'Frequent Engagers', text: 'Every X account analysed so far, and who repeatedly amplifies them.' },
-            { n: 3, x: 26.5, y: 25.8, side: 'left', at: 16, label: 'Search', text: 'Search alert text, or paste a post link to pull it in. See “Investigating a link”.' },
-            { n: 4, x: 60, y: 25.8, side: 'top', at: 30, label: 'Platform · Category · Keyword filters', text: 'Narrow to one platform, one of the seven categories, or a single keyword.' },
-            { n: 5, x: 85.5, y: 25.8, side: 'right', at: 18, label: 'Date range', text: 'Limits the queue to alerts raised between these dates.' },
-            { n: 6, x: 24.9, y: 34.8, side: 'left', at: 34, label: 'Status tabs', text: 'Active, False Positive, Acknowledged, Escalated and Reports. The number beside a tab is how many sit in it.' },
-            { n: 7, x: 20.1, y: 41, side: 'left', at: 50, label: 'Risk filter', text: 'All, High, Medium, Low — or Viral for posts spreading unusually fast.' },
-            { n: 8, x: 22, y: 76, side: 'left', at: 78, label: 'Alert cards', text: 'One card per flagged post. The coloured strip and badge show its risk level.' },
+            { n: 1, target: {"text": "Top 50 / Category"}, label: "Top 50 / Category", text: "AI-ranked shortlist of the most significant alerts. See “AI-ranked top alerts”." },
+            { n: 2, target: {"text": "Frequent Engagers"}, label: "Frequent Engagers", text: "Every X account analysed so far, and who repeatedly amplifies them." },
+            { n: 3, target: {"placeholder": "Search alerts or paste URL"}, label: "Search", text: "Search alert text, or paste a post link to pull it in. See “Investigating a link”." },
+            { n: 4, target: {"text": ["All Platforms", "Platform"]}, label: "Platform · Category · Keyword filters", text: "Narrow to one platform, one of the seven categories, or a single keyword." },
+            { n: 5, target: {"text": "From"}, label: "Date range", text: "Limits the queue to alerts raised between these dates." },
+            { n: 6, target: {"text": "Active"}, label: "Status tabs", text: "Active, False Positive, Acknowledged, Escalated and Reports. The number beside a tab is how many sit in it." },
+            { n: 7, target: {"text": "Apply"}, label: "Risk and Virality filters", text: "Choose a Risk and a Virality level (All, Low, Medium, High), then click Apply. Reset clears both." },
           ],
         },
         {
@@ -73,11 +72,21 @@ const alerts = {
             'The five tabs are the stages an alert passes through. **Active** is the inbox; **Acknowledged** and **False Positive** are the two ways an alert ends; **Escalated** is where alerts wait for a notice to be raised; **Reports** is where the notices you have already served are tracked.',
         },
         {
+          type: 'p',
+          text:
+            'Across the top of the page: **Top 50 / Category** (AI-ranked shortlist), **Frequent Engagers** (X accounts analysed so far) and **Monitored Profiles** (watched profiles by platform and category). A badge shows how many alerts are in the Active queue.',
+        },
+        {
+          type: 'p',
+          text:
+            'The filter row has **Platform** (only the platforms your administrator enabled), **Keyword**, category and a **From / To** date range. Beside the tabs are **Risk** and **Virality** dropdowns; they only take effect when you click **Apply**. On Instagram you also get three views: **All Posts & Reels**, **Stories (Last 24 hrs)** and **Captured Stories**.',
+        },
+        {
           type: 'callout',
           tone: 'info',
           title: 'You may not see every tab',
           text:
-            'Which status tabs appear depends on your permissions. If a colleague can see a tab you cannot, ask an administrator to check your access under Settings → Access Management.',
+            'Which status tabs appear depends on your permissions. If a colleague can see a tab you cannot, ask an administrator to check your access.',
         },
       ],
     },
@@ -92,27 +101,9 @@ const alerts = {
       title: 'Step 1 — Read the alert',
       blocks: [
         {
-          type: 'shot',
-          src: '/help/alerts/alerts_card.png',
-          alt: 'A single alert card',
-          caption: 'One alert card. The account name is blurred here.',
-          markers: [
-            { n: 1, x: 11.2, y: 3.3, side: 'left', at: 3, label: 'Risk badges', text: 'HIGH, MEDIUM or LOW. VIRAL appears alongside when the post is spreading unusually fast.' },
-            { n: 2, x: 29.4, y: 9.5, side: 'top', at: 20, label: 'Action', text: 'The menu that moves the alert. Covered in the next step.' },
-            { n: 3, x: 52.3, y: 9.5, side: 'top', at: 46, label: 'Format & Share', text: 'Builds a briefing message for the WhatsApp group.' },
-            { n: 4, x: 69.9, y: 9.3, side: 'top', at: 68, label: 'Download', text: 'Saves the images or video from the post.' },
-            { n: 5, x: 76.8, y: 9.3, side: 'top', at: 84, label: 'Frequent Engagers', text: 'Who repeatedly reshares this account. X only — struck through on other platforms.' },
-            { n: 6, x: 89.2, y: 11.9, side: 'right', at: 9, label: 'Platform · View Details', text: 'The eye opens the analysis — why this post was flagged. Read it before you decide.' },
-            { n: 7, x: 24, y: 21, side: 'left', at: 20, label: 'Account and location', text: 'Who posted, and the location the system worked out from the post. “Omnipresent” means it could not narrow it down.' },
-            { n: 8, x: 29.2, y: 41.8, side: 'left', at: 42, label: 'Read more · Translate', text: 'Expands the full post text, or turns Telugu, Hindi or Urdu into English in place.' },
-            { n: 9, x: 50.5, y: 62.7, side: 'left', at: 62, label: 'Media', text: 'Plays here. Download it if the alert may become a case.' },
-            { n: 10, x: 40, y: 90, side: 'bottom', at: 40, label: 'Time and engagement', text: 'When it was posted, and the views, reposts and likes at the last check.' },
-          ],
-        },
-        {
           type: 'p',
           text:
-            'Read the post itself, not only the badge. Use **Translate** if it is in Telugu, Hindi or Urdu, **Read more** for the full text, and open the original post on the platform if you need the replies or the surrounding thread.',
+            'Read the post itself, not only the badge. Use **Translate** if it is not in English, **Read more** for the full text, and open the original post on the platform if you need the replies or the surrounding thread.',
         },
         {
           type: 'callout',
@@ -126,7 +117,7 @@ const alerts = {
           tone: 'warn',
           title: 'Read the post, not just the score',
           text:
-            'The AI is a filter, not a decision. A HIGH score on routine police reporting happens, and so does a LOW score on something that matters locally. Your judgement is the one that counts.',
+            'The AI is a filter, not a decision. A HIGH score on a routine news post happens, and so does a LOW score on something that matters locally. Your judgement is the one that counts.',
         },
       ],
     },
@@ -142,19 +133,6 @@ const alerts = {
         {
           type: 'p',
           text: 'Click **Action** on the card. Five choices open:',
-        },
-        {
-          type: 'shot',
-          src: '/help/alerts/alert_action_menu.png',
-          alt: 'The Action menu open on an alert card',
-          caption: 'The Action menu. The top three move the alert; the bottom two correct how it is labelled.',
-          markers: [
-            { n: 1, x: 39.1, y: 16.5, side: 'left', at: 15, label: 'Acknowledge', text: 'Seen and understood, no further action.' },
-            { n: 2, x: 35.7, y: 21.9, side: 'left', at: 22, label: 'Escalate', text: 'Needs a notice to the platform, or attention from another unit.' },
-            { n: 3, x: 36.8, y: 27.2, side: 'left', at: 29, label: 'False Positive', text: 'The system was wrong — this is not a concern.' },
-            { n: 4, x: 42.2, y: 33.9, side: 'right', at: 34, label: 'Change Risk Level', text: 'Correct the AI — set High, Medium or Low yourself.' },
-            { n: 5, x: 41.7, y: 39.2, side: 'right', at: 41, label: 'Change Category', text: 'Move the alert into the right one of the seven categories.' },
-          ],
         },
         {
           type: 'table',
@@ -201,18 +179,6 @@ const alerts = {
             'Once an alert is escalated it appears in the **Escalated** tab with a red **Generate** button on the card. That button opens the **Official Notice Generator** — the formal letter served on the platform asking for account details and IP logs.',
         },
         {
-          type: 'shot',
-          src: '/help/alerts/alert_escalated.png',
-          alt: 'An escalated alert card showing the Generate button',
-          caption: 'An escalated card. Before a notice exists you see Generate; afterwards it turns into a green Generated badge.',
-          markers: [
-            { n: 1, x: 83.8, y: 4.1, side: 'top', at: 84, label: 'Escalated tab', text: 'The number beside it is how many alerts are waiting for a notice.' },
-            { n: 2, x: 32.7, y: 31.0, side: 'left', at: 30, label: 'Action', text: 'Still available — you can move the alert back out of Escalated at any time.' },
-            { n: 3, x: 49.1, y: 30.9, side: 'top', at: 42, label: 'Generate', text: 'Opens the Official Notice Generator in a new tab. Only appears on escalated alerts.' },
-            { n: 4, x: 62.1, y: 30.9, side: 'right', at: 30, label: 'Format & Share', text: 'Same button as before — on this tab it shrinks to just its icon to make room for Generate.' },
-          ],
-        },
-        {
           type: 'callout',
           tone: 'info',
           title: 'Format & Share loses its label here',
@@ -237,25 +203,11 @@ const alerts = {
             },
             {
               text: 'Click **Save** to store your edits against the serial number, then **Print / PDF** for the signed copy.',
-              note: 'Save first. Print / PDF builds the document from what is currently on screen, but only Save keeps your edits.',
+              note: 'Print / PDF also saves your edits first.',
             },
             {
               text: 'Serve the PDF on the platform through your usual channel, then set the report to **Sent to Intermediary** in the Reports tab.',
             },
-          ],
-        },
-        {
-          type: 'shot',
-          src: '/help/alerts/report_generator.png',
-          alt: 'The top of the Official Notice Generator',
-          caption: 'The top of the notice — the letter continues below the fold with the profile/content URLs, legal sections, the four-point request and the signature block (see the field list below).',
-          markers: [
-            { n: 1, x: 3, y: 4, side: 'left', at: 6, label: 'Back', text: 'Returns to the alert without losing a saved notice.' },
-            { n: 2, x: 14, y: 6, side: 'left', at: 14, label: 'Serial number', text: 'Assigned automatically the moment you click Generate. This is the reference you quote afterwards.' },
-            { n: 3, x: 89, y: 4, side: 'top', at: 89, label: 'Save', text: 'Stores your edits against the serial number. Do this before Print / PDF.' },
-            { n: 4, x: 97, y: 4, side: 'right', at: 6, label: 'Print / PDF', text: 'Builds the document from what is currently on screen.' },
-            { n: 5, x: 50, y: 37, side: 'left', at: 42, label: 'Notice heading', text: 'The legal sections cited (IT Act, BNS) and the crime/case reference — carried over from the alert.' },
-            { n: 6, x: 50, y: 90, side: 'bottom', at: 50, label: 'Alleged account URL', text: 'The profile being reported. Check it against the original post.' },
           ],
         },
         {
@@ -270,7 +222,7 @@ const alerts = {
             { name: 'Legal sections', text: 'The BNS sections the AI identified. **Check these against the post yourself.**' },
             { name: 'Request', text: 'The standard four asks — account details, IP logs for a date range, registered email, registered mobile. Edit the date range to your case.' },
             { name: 'Declaration', text: 'The MLAT declaration. Standard text — leave it unless instructed.' },
-            { name: 'Sender address & signature', text: 'IT Cell, Commissioner of Police office, Hyderabad. Change the signature to the officer actually signing.' },
+            { name: 'Sender address & signature', text: 'Pre-filled from your account and organisation details. Change the signature to the person actually signing.' },
           ],
         },
         {
@@ -304,17 +256,15 @@ const alerts = {
             'Every notice you generate appears in the **Reports** tab, one row per serial number. This is where a notice is tracked from the day it is served to the day the platform replies.',
         },
         {
-          type: 'shot',
-          src: '/help/alerts/reports_tab.png',
-          alt: 'The Reports tab',
-          caption: 'The Reports tab, filtered to Sent to Intermediary — its default.',
+          type: 'live',
+          route: "/alerts?status=reports",
+          alt: "The Reports tab",
+          caption: "The Reports tab.",
           markers: [
-            { n: 1, x: 20, y: 27, side: 'left', at: 22, label: 'Search', text: 'By serial number, officer or handle.' },
-            { n: 2, x: 68, y: 27, side: 'top', at: 66, label: 'Platform · Status filters', text: 'Status opens on Sent to Intermediary, so closed reports are hidden until you switch it.' },
-            { n: 3, x: 91, y: 27, side: 'right', at: 20, label: 'Export Excel', text: 'Downloads the current list as an Excel file.' },
-            { n: 4, x: 8, y: 54, side: 'left', at: 50, label: 'Report ID', text: 'The serial number on the notice. Click the eye icon in Actions to open the full report.' },
-            { n: 5, x: 63, y: 54, side: 'left', at: 62, label: 'Status', text: 'Change it here as the case moves. See the table below.' },
-            { n: 6, x: 80, y: 54, side: 'right', at: 50, label: 'Closing remarks', text: 'What happened in the end. Required before a report can be closed — shows as a dash until then.' },
+            { n: 1, target: {"placeholder": "Search by SN"}, label: "Search", text: "By serial number, user or handle." },
+            { n: 2, target: {"text": "From Date"}, label: "Date filters", text: "Narrow by From / To date, platform, and status." },
+            { n: 3, target: {"text": ["All Statuses", "Status"]}, label: "Status filter", text: "All Statuses, Sent to Intermediary or Closed." },
+            { n: 4, target: {"text": "Export Excel"}, label: "Export Excel", text: "Downloads the current list as an Excel file." },
           ],
         },
         {
@@ -334,7 +284,7 @@ const alerts = {
           type: 'steps',
           title: 'Updating the status',
           items: [
-            { text: 'Find the row by serial number. If it is not there, switch the **Status** filter — it opens on *Sent to Intermediary* and hides closed reports.' },
+            { text: 'Find the row by serial number, or filter by date, platform or **Status**.' },
             { text: 'Use the status dropdown in that row and pick the new stage.' },
             { text: 'A confirmation box appears showing the change from the old status to the new one.' },
             { text: 'To close, type the **closing remarks** — what the platform did, or why no action was needed. The system will not let you close without them.', note: 'For example: *content removed by X on 14/07*, or *account already suspended*.' },
@@ -373,20 +323,6 @@ const alerts = {
             'Click the **eye** below the platform logo, at the top right of the card. This is the alert\'s reasoning — it is the single most useful thing on the card and it is not visible until you open it.',
         },
         {
-          type: 'shot',
-          src: '/help/alerts/view_details.png',
-          alt: 'The Alert Analysis Details window',
-          caption: 'The analysis behind an alert, top to bottom.',
-          markers: [
-            { n: 1, x: 50, y: 16, side: 'left', at: 12, label: 'Risk Summary', text: 'Risk level, risk score, category and the AI\'s one-line intent.' },
-            { n: 2, x: 30, y: 25, side: 'left', at: 24, label: 'Detected Keywords', text: 'Words from your keyword list found in the post. Reads “None detected” when the alert was raised on AI score alone.' },
-            { n: 3, x: 30, y: 36, side: 'left', at: 36, label: 'Indian Laws Violated', text: 'The BNS sections the AI identified, with what each one covers. These carry into the notice — verify them.' },
-            { n: 4, x: 30, y: 52, side: 'right', at: 46, label: 'Platform Policies Violated', text: 'Which policy is breached on each platform the post touches.' },
-            { n: 5, x: 30, y: 68, side: 'left', at: 62, label: 'Expert Logic', text: 'The AI\'s own reasoning, in plain words.' },
-            { n: 6, x: 50, y: 80, side: 'right', at: 76, label: 'Subject Content', text: 'The post text the AI actually analysed. Compare it against the card if anything looks off.' },
-          ],
-        },
-        {
           type: 'callout',
           tone: 'warn',
           title: 'Check the legal sections here, not on the notice',
@@ -408,16 +344,6 @@ const alerts = {
           type: 'p',
           text:
             'Turns an alert into a ready-to-send briefing message for the duty WhatsApp group — greeting, who posted it, the post text, what was detected, the link and the engagement figures.',
-        },
-        {
-          type: 'shot',
-          src: '/help/alerts/format_share.png',
-          alt: 'The Format & Share dialog',
-          caption: 'The Format & Share dialog. The text is editable before you send it.',
-          markers: [
-            { n: 1, x: 50, y: 40, side: 'left', at: 40, label: 'The message', text: 'Fully editable — trim it, or add your own line, before sharing. Scrolls to show engagement figures further down.' },
-            { n: 2, x: 88, y: 87, side: 'bottom', at: 88, label: 'Share', text: 'Copies the message and opens the WhatsApp group.' },
-          ],
         },
         {
           type: 'steps',
@@ -460,21 +386,6 @@ const alerts = {
           type: 'p',
           text:
             'Answers the question *who keeps amplifying this account?* It reads the account\'s tweets from the last 30 days, collects everyone who reposted them, and ranks those people by how often they do it. A one-off repost is noise; the same twelve accounts resharing everything is a network.',
-        },
-        {
-          type: 'shot',
-          src: '/help/alerts/frequent_engagers.png',
-          alt: 'The Frequent Engagers analysis',
-          caption: 'Engager analysis for one account — the network map on the left, the ranked list on the right.',
-          markers: [
-            { n: 1, x: 10, y: 6, side: 'top', at: 10, label: 'The account analysed', text: 'Tweets read, unique engagers found, and the 30-day window used.' },
-            { n: 2, x: 22, y: 16, side: 'left', at: 22, label: 'Network Map', text: 'A visual web of the account and everyone who reshares it — click any node to add that person to monitoring.' },
-            { n: 3, x: 53, y: 13, side: 'top', at: 50, label: 'All Engagers · count', text: 'The total number of unique accounts found reposting this one.' },
-            { n: 4, x: 90, y: 13, side: 'top', at: 90, label: 'Search', text: 'Filter the list to one handle or name.' },
-            { n: 5, x: 60, y: 50, side: 'right', at: 38, label: 'Engager list', text: 'Ranked by how many of the account\'s posts they reshared. Row colour is the frequency tier.' },
-            { n: 6, x: 94, y: 50, side: 'right', at: 66, label: 'Add', text: 'Adds that engager as a monitored profile without leaving the dialog.' },
-            { n: 7, x: 60, y: 97, side: 'bottom', at: 55, label: 'Tier legend', text: 'Frequent, Regular, Occasional, One-time — matches the row colours.' },
-          ],
         },
         {
           type: 'steps',
@@ -524,18 +435,7 @@ const alerts = {
         {
           type: 'p',
           text:
-            'When a post reaches you from outside the system — a WhatsApp forward, a phone call, a complaint — you do not have to wait for it to be picked up by monitoring. Paste the link into the search box at the top of the Alerts page and the system will fetch it, analyse it and add it to the queue.',
-        },
-        {
-          type: 'shot',
-          src: '/help/alerts/url_investigate.png',
-          alt: 'A URL pasted into the alerts search box, mid-fetch',
-          caption: 'Right after pressing Escalate — the box reads “Escalating…” while it fetches and analyses the post. The Escalated(1) badge here is from an earlier alert, not this one — the result of this action lands in Active.',
-          markers: [
-            { n: 1, x: 35, y: 27, side: 'left', at: 27, label: 'The pasted link', text: 'A recognised post URL. Plain words search the existing queue instead.' },
-            { n: 2, x: 88, y: 27, side: 'right', at: 27, label: 'Escalating…', text: 'Reads Escalate before you click it, then Escalating… while it works.' },
-            { n: 3, x: 8, y: 60, side: 'bottom', at: 20, label: 'Active tab', text: 'Not Escalated — the new alert lands here, outlined in amber, once the fetch finishes.' },
-          ],
+            'When a post reaches you from outside the system — a WhatsApp forward, a phone call, a complaint — you do not have to wait for it to be picked up by monitoring. Paste the link into the search box (it reads “Search alerts or paste URL to escalate…”) and the system will fetch it, analyse it and add it to the queue.',
         },
         {
           type: 'steps',
@@ -589,7 +489,7 @@ const alerts = {
         {
           type: 'fields',
           items: [
-            { name: 'Translate', text: 'Turns Telugu, Hindi or Urdu into English in place on the card. Click again to see the original.' },
+            { name: 'Translate', text: 'Translates the post into English in place on the card. Click again to see the original.' },
             { name: 'Download', text: 'Saves the images or the video from the post to your machine, for attaching to a case file.' },
           ],
         },
@@ -615,7 +515,7 @@ const alerts = {
         {
           type: 'p',
           text:
-            '**Top 50 / Category** asks the AI to pick the most significant alerts in each category from the last 24, 48 or 72 hours — ranked by threat to public order, how fast it is spreading, and risk score, while avoiding the same account filling the list.',
+            '**Top 50 / Category** (top right) opens a full-screen page titled **Top Alerts · Per Category**. It ranks up to 50 alerts per category by risk score. Choose **24h**, **48h** or **72h** at the top, and use **Refresh** to rebuild the list.',
         },
         {
           type: 'callout',
@@ -640,13 +540,13 @@ const alerts = {
           head: ['Problem', 'Likely cause', 'Fix'],
           rows: [
             ['No **Generate** button on the card', 'The alert is not escalated yet', 'Escalate it first — Generate only appears on the Escalated tab'],
-            ['A report is missing from the Reports tab', 'The Status filter opens on *Sent to Intermediary*', 'Switch the Status filter, or search the serial number'],
+            ['A report is missing from the Reports tab', 'A Status, platform or date filter is hiding it', 'Set Status to All Statuses, clear the dates, or search the serial number'],
             ['Cannot close a report', 'Closing remarks are empty', 'Type what the platform did — the system requires it'],
             ['Nothing arrived in the WhatsApp group', 'Share copies the message; it does not send it', 'Paste into the group with Ctrl+V, then send'],
             ['**Escalate** does not appear when I paste a link', 'The link is not from a supported platform', 'Check the list under “Investigating a link”'],
             ['No **Frequent Engagers** button', 'The alert is not from X', 'Engager analysis reads reposts, which only X exposes'],
             ['Too many low-value alerts', 'A keyword is too broad, or the threshold is too low', 'Mark them False Positive and ask an administrator to retune the keyword'],
-            ['A tab is missing', 'Your account does not have access to it', 'Ask an administrator to check Settings → Access Management'],
+            ['A tab is missing', 'Your account does not have access to it', 'Ask an administrator to check your access'],
             ['Video will not download', 'Some platform videos are stream-only', 'Open the original post using the link on the card'],
             ['Translate returns nothing', 'The post has no text — image or video only', 'Nothing to translate; judge it from the media'],
             ['Top 50 takes a long time', 'It is ranking thousands of alerts with the AI', 'Expected. Leave it running for about a minute'],

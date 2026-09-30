@@ -3,7 +3,7 @@ import { ExternalLink, Youtube, Facebook, Instagram, Download, Repeat, Heart, Me
 import { Button } from './ui/button';
 import ReactPlayer from 'react-player';
 import { VideoPlayer } from './AlertCards';
-import { TelegramBrandLogo } from './PlatformBrandIcon';
+import { TelegramBrandLogo, RedditBrandLogo } from './PlatformBrandIcon';
 import { AlertService } from '../api';
 
 /* ──────────────────────────────────────────────
@@ -87,6 +87,19 @@ const PLATFORM_THEMES = {
       { key: 'views', icon: Eye, label: 'Views' },
       { key: 'comments', icon: MessageSquare, label: 'Replies' },
       { key: 'likes', icon: Heart, label: 'Reactions' }
+    ]
+  },
+  reddit: {
+    bg: 'bg-white dark:bg-zinc-900',
+    text: 'text-zinc-900 dark:text-zinc-100',
+    muted: 'text-zinc-500 dark:text-zinc-400',
+    border: 'border-zinc-200 dark:border-zinc-700',
+    accent: 'text-orange-600',
+    icon: <RedditBrandLogo className="h-4 w-4 text-orange-600" />,
+    name: 'Reddit',
+    engagement: [
+      { key: 'likes', icon: ThumbsUp, label: 'Upvotes' },
+      { key: 'comments', icon: MessageSquare, label: 'Comments' }
     ]
   }
 };
@@ -414,6 +427,10 @@ const ContentCard = ({ item, index, onDownload, onAddSource }) => {
   const [isTranslating, setIsTranslating] = useState(false);
   const theme = PLATFORM_THEMES[item.platform] || DEFAULT_THEME;
 
+  const cleanText = (t) => (t || '').replace(/\n*\[Image text\][\s\S]*$/i, '').replace(/\*\*Intent Detected:\*\*.*?(?:\n\n|\n|$)/g, '').trim();
+  const rawText = item?.text || '';
+  const postText = cleanText(rawText) || rawText;
+
   const handleTranslate = async (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -425,10 +442,10 @@ const ContentCard = ({ item, index, onDownload, onAddSource }) => {
       setIsTranslated(true);
       return;
     }
-    if (!item?.text) return;
+    if (!postText) return;
     setIsTranslating(true);
     try {
-      const res = await AlertService.translate(item.text);
+      const res = await AlertService.translate(postText);
       if (res?.data?.translatedText) {
         setTranslatedText(res.data.translatedText);
         setIsTranslated(true);
@@ -441,7 +458,7 @@ const ContentCard = ({ item, index, onDownload, onAddSource }) => {
   };
 
   const handleCopyText = useCallback(() => {
-    const text = item.text || '';
+    const text = postText || '';
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -457,7 +474,7 @@ const ContentCard = ({ item, index, onDownload, onAddSource }) => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  }, [item.text]);
+  }, [postText]);
 
   return (
     <div className={`rounded-2xl border ${theme.border} ${theme.bg} overflow-hidden shadow-sm hover:shadow-md transition-shadow`} data-testid={`content-item-${index}`}>
@@ -589,9 +606,9 @@ const ContentCard = ({ item, index, onDownload, onAddSource }) => {
         {/* Text Content */}
         <div className="relative group/text">
           <p className={`text-[14px] leading-[1.6] whitespace-pre-wrap break-words select-text ${theme.text} ${isExpanded ? '' : 'line-clamp-4'} overflow-hidden`}>
-            {isTranslated ? translatedText : item.text}
+            {isTranslated ? translatedText : postText}
           </p>
-          {item.text && (
+          {postText && (
             <button
               onClick={handleCopyText}
               title="Copy text"
@@ -600,7 +617,7 @@ const ContentCard = ({ item, index, onDownload, onAddSource }) => {
             </button>
           )}
           <div className="flex items-center gap-3 mt-1.5">
-            {item.text && (item.text.length > 180 || (item.text.match(/\n/g) || []).length > 3) && (
+            {postText && (postText.length > 180 || (postText.match(/\n/g) || []).length > 3) && (
               <button
                 type="button"
                 onClick={() => setIsExpanded(!isExpanded)}
@@ -609,7 +626,7 @@ const ContentCard = ({ item, index, onDownload, onAddSource }) => {
                 {isExpanded ? 'Read less' : 'Read more'}
               </button>
             )}
-            {item.text && (
+            {postText && (
               <button
                 type="button"
                 onClick={handleTranslate}

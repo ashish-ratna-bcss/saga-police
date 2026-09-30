@@ -60,13 +60,43 @@ const authFromPlatformRow = (row, platformLabel = 'platform') => {
   return { accessKey, clientId };
 };
 
+/**
+ * Turn any provider error body into readable text (FastAPI 422 lists, {error:{code,message}}, plain strings).
+ * Never returns "[object Object]".
+ */
+const describeProviderError = (data) => {
+  if (data == null || data === '') return '';
+  if (typeof data === 'string') return data.slice(0, 300);
+  if (Array.isArray(data)) {
+    return data.map(describeProviderError).filter(Boolean).join('; ').slice(0, 300);
+  }
+  if (typeof data === 'object') {
+    if (typeof data.msg === 'string') {
+      const where = Array.isArray(data.loc) ? data.loc.filter((p) => p !== 'body').join('.') : '';
+      return where ? `${where}: ${data.msg}` : data.msg;
+    }
+    for (const key of ['error', 'message', 'detail']) {
+      if (data[key] != null && data[key] !== '') {
+        const inner = describeProviderError(data[key]);
+        if (inner) return inner;
+      }
+    }
+    try {
+      return JSON.stringify(data).slice(0, 300);
+    } catch {
+      return 'Unreadable error response';
+    }
+  }
+  return String(data);
+};
+
 const formatAxiosError = (err, label, endpointKey) => {
   const status = err.response?.status;
   const data = err.response?.data;
   let detail = '';
   if (typeof data === 'string') detail = data.slice(0, 300);
   else if (data && typeof data === 'object') {
-    detail = data.message || data.error || data.detail || JSON.stringify(data).slice(0, 300);
+    detail = describeProviderError(data) || err.message;
   } else {
     detail = err.message;
   }
@@ -156,6 +186,7 @@ const blugateRequest = async ({
 module.exports = {
   normalizeBaseUrl,
   resolveGatewayBaseUrl,
+  describeProviderError,
   authFromPlatformRow,
   blugateRequest,
 };

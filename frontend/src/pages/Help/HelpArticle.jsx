@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import AnnotatedShot from './AnnotatedShot';
+import LivePreview from './LivePreview';
 import { Button } from '../../components/ui/button';
 import { cn } from '../../lib/utils';
 
 /**
  * Renders one help article from ./content/*.js
- * Block types: p | steps | shot | callout | table | list | fields
+ * Block types: p | steps | shot | live | callout | table | list | fields
  */
 
 const inline = (text) => {
@@ -92,6 +93,9 @@ const Block = ({ block }) => {
 
     case 'shot':
       return <AnnotatedShot {...block} />;
+
+    case 'live':
+      return <LivePreview {...block} />;
 
     case 'callout': {
       const cfg = NOTE[block.tone] || NOTE.info;

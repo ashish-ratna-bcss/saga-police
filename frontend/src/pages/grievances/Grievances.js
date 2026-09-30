@@ -1246,21 +1246,32 @@ const Grievances = () => {
         }
     };
 
-    const handleFetchAll = async () => {
+    // Always call the newest loaders: a fetch that started on one tab can finish after the user switched tabs.
+    const latestLoaders = useRef({});
+    latestLoaders.current = { fetchGrievances, fetchDashboardStats, fetchSources };
+    const lastAutoFetchRef = useRef({});
+    const AUTO_FETCH_COOLDOWN_MS = 5 * 60 * 1000;
+
+    /**
+     * Fetch mentions for one platform tab (or every watched account when platform is 'all').
+     * auto = triggered by clicking a tab: quiet when nothing is new, and never falls back to "fetch everything".
+     */
+    const fetchForPlatform = async (platform, { auto = false } = {}) => {
+        const want = String(platform || 'all').toLowerCase();
+        const targets = (
+            want === 'all'
+                ? sources
+                : sources.filter((s) => {
+                    const p = String(s.platform || '').toLowerCase();
+                    if (want === 'x' || want === 'twitter') return p === 'x' || p === 'twitter';
+                    return p === want;
+                  })
+        ).filter((s) => s?.id);
+
+        if (auto && targets.length === 0) return;
+
         setFetchingSource('all');
         try {
-            // Prefer current platform sources so FB/X tabs fetch the right set.
-            const targets = (
-                navbarPlatform === 'all'
-                    ? sources
-                    : sources.filter((s) => {
-                        const p = String(s.platform || '').toLowerCase();
-                        const want = String(navbarPlatform || '').toLowerCase();
-                        if (want === 'x' || want === 'twitter') return p === 'x' || p === 'twitter';
-                        return p === want;
-                      })
-            ).filter((s) => s?.id);
-
             if (targets.length === 0) {
                 const res = await GrievanceService.fetchAll();
                 const newCount = res.data?.newGrievances || 0;
@@ -1281,18 +1292,34 @@ const Grievances = () => {
                     toast.error(`Fetch failed for ${failCount} account${failCount !== 1 ? 's' : ''}. Check platform credentials and try again.`);
                 } else if (failCount > 0) {
                     toast.success(`Fetched ${newCount} new · ${failCount} account${failCount !== 1 ? 's' : ''} failed`);
-                } else {
+                } else if (!auto || newCount > 0) {
                     toast.success(`Fetched ${newCount} new grievance${newCount !== 1 ? 's' : ''}`);
                 }
             }
-            fetchGrievances();
-            fetchDashboardStats();
-            fetchSources();
+            latestLoaders.current.fetchGrievances();
+            latestLoaders.current.fetchDashboardStats();
+            latestLoaders.current.fetchSources();
         } catch (error) {
             toast.error(error?.response?.data?.message || 'Failed to fetch grievances');
         } finally {
             setFetchingSource(null);
         }
+    };
+
+    // Button: fetch the tab that is open right now.
+    const handleFetchAll = () => fetchForPlatform(navbarPlatform);
+
+    // Clicking a platform tab fetches that platform (at most once per 5 minutes per platform).
+    // Clicking "All" fetches every watched account on every platform, on each click.
+    // The Reports view never auto-fetches, and a click while a fetch is already running is ignored.
+    const handlePlatformTabClick = (platformId) => {
+        if (!platformId || navbarStatus === 'reports' || fetchingSource) return;
+        if (platformId !== 'all') {
+            const last = lastAutoFetchRef.current[platformId] || 0;
+            if (Date.now() - last < AUTO_FETCH_COOLDOWN_MS) return;
+            lastAutoFetchRef.current[platformId] = Date.now();
+        }
+        fetchForPlatform(platformId, { auto: true });
     };
 
     const handleUpdateGrievanceWorkflowStatus = async (grievance, status) => {
@@ -1814,6 +1841,7 @@ const Grievances = () => {
             <GrievanceTopNavbar
                 activePlatform={navbarPlatform}
                 onPlatformChange={setNavbarPlatform}
+                onPlatformClick={handlePlatformTabClick}
                 activeStatus={navbarStatus}
                 onStatusChange={setNavbarStatus}
                 selectedHandle={selectedHandle}

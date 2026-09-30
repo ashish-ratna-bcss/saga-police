@@ -27,14 +27,3 @@ const getServiceUrl = (envVar, devPort, path) => {
 
 export { getServiceUrl };
 
-export const RAG_BASE_URL = getServiceUrl(
-  process.env.REACT_APP_RAG_API_URL,
-  8100,
-  '/api/rag'
-);
-
-export const OSINT_BASE_URL = getServiceUrl(
-  process.env.REACT_APP_OSINT_API_URL,
-  8100,
-  '/osint'
-);

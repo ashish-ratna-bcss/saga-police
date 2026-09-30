@@ -42,23 +42,12 @@ const PersonOfInterest = lazy(() => import('./pages/POI/PersonOfInterest'));
 const POIDetail = lazy(() => import('./pages/POI/POIDetail'));
 const UsersManagement = lazy(() => import('./pages/admin/UsersManagement'));
 const AnalysisTools = lazy(() => import('./pages/intelligence/AnalysisTools'));
-const WebIntelligence = lazy(() => import('./pages/intelligence/WebIntelligence'));
-const OSINTLayout = lazy(() => import('./pages/osint/OSINTLayout'));
-const OSINTDashboard = lazy(() => import('./pages/osint/OSINTDashboard'));
-const EmailTools = lazy(() => import('./pages/osint/EmailTools'));
-const UsernameTools = lazy(() => import('./pages/osint/UsernameTools'));
-const PhoneToolsPage = lazy(() => import('./pages/osint/PhoneTools'));
-const ImageIntel = lazy(() => import('./pages/osint/ImageIntel'));
-const InfrastructureIntel = lazy(() => import('./pages/osint/InfrastructureIntel'));
-const AIAssistantPage = lazy(() => import('./pages/osint/AIAssistant'));
-const AskAIPage = lazy(() => import('./pages/osint/AskAI'));
-const MasterPromptPage = lazy(() => import('./pages/osint/MasterPrompt'));
-const OtherLinksPage = lazy(() => import('./pages/osint/OtherLinks'));
+const ScrapeWorkspace = lazy(() => import('./pages/intelligence/scrape/ScrapeWorkspace'));
+const OsintWorkspace = lazy(() => import('./pages/intelligence/osint/OsintWorkspace'));
+
+
 const EventsReport = lazy(() => import('./pages/events/EventsReport'));
-const MaigretSearch = lazy(() => import('./pages/intelligence/MaigretSearch'));
-const WhatsMyNameSearch = lazy(() => import('./pages/intelligence/WhatsMyNameSearch'));
-const AiAssistant = lazy(() => import('./pages/intelligence/AiAssistant'));
-const PostLocationLookup = lazy(() => import('./pages/intelligence/PostLocationLookup'));
+
 const SystemHealth = lazy(() => import('./pages/admin/SystemHealth'));
 const BlugateBilling = lazy(() => import('./pages/admin/BlugateBilling'));
 const InitialSetupWizard = lazy(() => import('./pages/setup/InitialSetupWizard'));
@@ -123,28 +112,18 @@ function App() {
               <Route path="users-management" element={<UsersManagement />} />
               <Route path="person-of-interest" element={<PersonOfInterest />} />
               <Route path="person-of-interest/:id" element={<POIDetail />} />
-              <Route path="analysis-tools" element={<AnalysisTools />} />
-              <Route path="web-intelligence" element={<WebIntelligence />} />
+              <Route path="analysis-tools" element={<AnalysisTools />}>
+                <Route index element={<Navigate to="scrape" replace />} />
+                <Route path="scrape" element={<ScrapeWorkspace />} />
+                <Route path="osint" element={<OsintWorkspace />} />
+              </Route>
+
               <Route path="system-health" element={<SystemHealth />} />
               <Route path="blugate-billing" element={<BlugateBilling />} />
-              <Route path="analysis-tools/osint-tools" element={<OSINTLayout />}>
-                <Route index element={<OSINTDashboard />} />
-                <Route path="email" element={<EmailTools />} />
-                <Route path="username" element={<UsernameTools />} />
-                <Route path="phone" element={<PhoneToolsPage />} />
-                <Route path="image" element={<ImageIntel />} />
-                <Route path="infrastructure" element={<InfrastructureIntel />} />
-                <Route path="ai-assistant" element={<AIAssistantPage />} />
-                <Route path="ask-ai" element={<AskAIPage />} />
-                <Route path="master-prompt" element={<MasterPromptPage />} />
-                <Route path="other-links" element={<OtherLinksPage />} />
-              </Route>
-              <Route path="maigret-search" element={<MaigretSearch />} />
-              <Route path="whatsmyname-search" element={<WhatsMyNameSearch />} />
+
               <Route path="events-report" element={<EventsReport />} />
               <Route path="help" element={<HelpGuide />} />
-              <Route path="ai-assistant" element={<AiAssistant />} />
-              <Route path="post-location-lookup" element={<PostLocationLookup />} />
+
             </Route>
           </Routes>
         </Suspense>
