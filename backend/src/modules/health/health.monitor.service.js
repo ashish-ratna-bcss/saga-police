@@ -124,21 +124,21 @@ const checkTelegram = async (db) => {
 };
 
 /**
- * Reddit is served by the unified service, not by BluGate. /ready says whether the service has Reddit
- * API credentials. Without them only the public-feed search works (about 1 request per minute, shared).
+ * Reddit via BluGate gateway (/ready). Public RSS still works without upstream Reddit login.
  */
 const checkReddit = async () => {
-  const base = String(process.env.REDDIT_UNIFIED_API_URL || '').replace(/\/+$/, '');
+  const { getRedditBaseUrl } = require('../../services/blugate/reddit/blugate.reddit.env');
+  const base = getRedditBaseUrl();
   if (!base) return { status: 'offline', error: 'Not configured' };
   const start = Date.now();
   try {
     const { data } = await axios.get(`${base}/ready`, { timeout: PING_TIMEOUT_MS * 2 });
-    const configured = Boolean(data?.reddit_configured);
+    const configured = data?.reddit_configured == null ? true : Boolean(data.reddit_configured);
     return {
       status: configured ? 'online' : 'degraded',
       latency: Date.now() - start,
       configured,
-      mode: configured ? 'login' : 'public_feed',
+      mode: configured ? 'blugate' : 'public_feed',
     };
   } catch (error) {
     return { status: 'offline', error: error.code || error.message };

@@ -3,10 +3,10 @@ const callXApi = require('../../services/blugate/x/blugate.x.api_client');
 const callFacebookApi = require('../../services/blugate/facebook/blugate.facebook.api_client');
 const callYouTubeApi = require('../../services/blugate/youtube/blugate.youtube.api_client');
 const callTelegramApi = require('../../services/blugate/telegram/blugate.telegram.api_client');
+const callRedditApi = require('../../services/blugate/reddit/blugate.reddit.api_client');
 const {
   listItems: listTelegramItems,
 } = require('../../services/blugate/telegram/blugate.telegram.helpers');
-const { authFromPlatformRow } = require('../../services/blugate/blugate.http');
 const { engagementFromXMetricsBag } = require('../../lib/engagementMetrics');
 const { asJson, resolveEventPlatforms } = require('./event.utils');
 const { recordFetch } = require('./event.service');
@@ -565,13 +565,11 @@ const searchYouTubeViaBlugate = async (query, auth = null) => {
   }));
 };
 
-/* ── Reddit search ── */
+/* ── Reddit search (BluGate gateway) ── */
 
-// The Reddit RSS service allows the whole server about ONE request per minute (shared by every tenant
-// and event) and answers 429 or 504 when that budget is used up. So a scan sends a single request that
-// carries as many keywords as fit, never one request per keyword.
-const REDDIT_MAX_KEYWORDS_PER_CALL = 25; // the service accepts at most 25 keywords
-const REDDIT_MAX_QUERY_CHARS = 480; // and 512 characters once the keywords are joined with OR
+// Docs: keywords array is OR'd into one query. ~1 req/min server-wide — never one call per keyword.
+const REDDIT_MAX_KEYWORDS_PER_CALL = 25;
+const REDDIT_MAX_QUERY_CHARS = 480; // ~512 once joined with OR
 
 const batchRedditKeywords = (queries) => {
   const batches = [];
@@ -593,35 +591,16 @@ const batchRedditKeywords = (queries) => {
   return batches;
 };
 
-const searchRedditViaUnifiedApi = async (keywords, auth = null) => {
-  const list = (Array.isArray(keywords) ? keywords : [keywords]).map((k) => String(k || '').trim()).filter(Boolean);
+/** One POST /api/reddit/rss/monitor with { keywords: [...] } — OR'd server-side. */
+const searchRedditViaBlugate = async (keywords, auth = null) => {
+  const list = (Array.isArray(keywords) ? keywords : [keywords])
+    .map((k) => String(k || '').trim())
+    .filter(Boolean);
   if (!list.length) return [];
-  const baseUrl = process.env.REDDIT_UNIFIED_API_URL;
-  if (!baseUrl) {
-    throw new Error('REDDIT_UNIFIED_API_URL is not defined in environment');
-  }
-  const headers = { 'Content-Type': 'application/json' };
-  if (auth && auth.accessKey) headers['Authorization'] = `Bearer ${auth.accessKey}`;
-  if (auth && auth.clientId) headers['x-client-id'] = auth.clientId;
-  const url = `${baseUrl}/api/reddit/rss/monitor`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ keywords: list, limit: 50 }),
-  });
-  if (!response.ok) {
-    let detail = '';
-    try {
-      const body = await response.json();
-      detail = body?.error?.message || body?.detail || '';
-    } catch { /* non-JSON error body */ }
-    const err = new Error(`Reddit API returned ${response.status}${detail ? `: ${detail}` : ` ${response.statusText}`}`);
-    err.status = response.status;
-    throw err;
-  }
-  const data = await response.json();
+
+  const data = await callRedditApi('RSS_MONITOR', { keywords: list, limit: 50 }, auth);
   const posts = Array.isArray(data?.posts) ? data.posts : [];
-  // The RSS search also returns subreddit entries (guid t5_…). Keep real posts and comments only.
+  // RSS search also returns subreddit entries (guid t5_…). Keep posts/comments only.
   return posts.filter((p) => !String(p?.guid || '').startsWith('t5_'));
 };
 
@@ -630,7 +609,7 @@ const inflightScans = new Map();
 
 /**
  * Keyword search for one event → upsert social_media_event_media.
- * X / Facebook / YouTube use Blugate.
+ * X / Facebook / YouTube / Telegram / Reddit use Blugate.
  * @param {object} event
  * @param {{ source?: 'scheduler'|'manual'|'kickoff' }} [options]
  */
@@ -945,9 +924,8 @@ const runScanEventOnce = async (event, options = {}) => {
 
   if (platforms.includes('reddit')) {
     try {
-      const redditAuth = await loadPlatformAuth(['reddit'], (row) => authFromPlatformRow(row, 'Reddit'));
-      // One request per scan. A second request would have to wait about a minute for the shared budget,
-      // longer than the service is willing to queue (55 s), so it would fail anyway.
+      const redditAuth = await loadPlatformAuth(['reddit'], callRedditApi.authFromPlatformRow);
+      // One request per scan — keywords OR'd in a single BluGate RSS_MONITOR call.
       const redditBatches = batchRedditKeywords(queries);
       if (redditBatches.length > 1) {
         const skipped = redditBatches.slice(1).reduce((n, b) => n + b.length, 0);
@@ -956,7 +934,7 @@ const runScanEventOnce = async (event, options = {}) => {
       const redditPosts = [];
       if (redditBatches.length) {
         apiHits += 1;
-        redditPosts.push(...(await searchRedditViaUnifiedApi(redditBatches[0], redditAuth)));
+        redditPosts.push(...(await searchRedditViaBlugate(redditBatches[0], redditAuth)));
       }
       const posts = uniqueById(redditPosts);
       const relevant = filterByKeywords(posts, event, (p) => `${p?.title || ''} ${p?.content || ''}`);
@@ -1021,5 +999,5 @@ const runScanEventOnce = async (event, options = {}) => {
 module.exports = {
   scanEventOnce,
   buildEventQueries,
-  _reddit: { batchRedditKeywords, searchRedditViaUnifiedApi },
+  _reddit: { batchRedditKeywords, searchRedditViaBlugate },
 };
