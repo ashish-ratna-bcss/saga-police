@@ -1,0 +1,409 @@
+{
+  "format": "blugate-client-documentation-v1",
+  "gatewayBaseUrl": "https://blugate.blurasaga.com/api/gateway/reddit",
+  "auth": {
+    "note": "Authenticate with your BluGate client API key and client code. BluGate handles upstream credentials for you.",
+    "headers": [
+      {
+        "name": "Authorization",
+        "value": "Bearer <BLUGATE_API_KEY>",
+        "required": true,
+        "description": "BluGate client API key"
+      },
+      {
+        "name": "x-client-id",
+        "value": "<CLIENT_CODE>",
+        "required": true,
+        "description": "Your BluGate client code (e.g. SOC-EYE-001)"
+      }
+    ]
+  },
+  "endpoints": [
+    {
+      "method": "GET",
+      "route": "/health",
+      "gatewayPath": "/api/gateway/reddit/health",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/reddit/health",
+      "name": "Process liveness",
+      "description": "Service liveness check.",
+      "groupName": "Health",
+      "params": []
+    },
+    {
+      "method": "GET",
+      "route": "/ready",
+      "gatewayPath": "/api/gateway/reddit/ready",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/reddit/ready",
+      "name": "Process readiness",
+      "description": "Service readiness check.",
+      "groupName": "Health",
+      "params": []
+    },
+    {
+      "method": "POST",
+      "route": "/api/reddit/rss/event",
+      "gatewayPath": "/api/gateway/reddit/api/reddit/rss/event",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/reddit/api/reddit/rss/event",
+      "name": "Monitor an event (RSS)",
+      "description": "Event monitoring: fixed subreddit/keyword strategy + a stateless activity signal",
+      "groupName": "RSS Monitoring",
+      "params": [
+        {
+          "name": "subreddits",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "Subreddit names. Default: internal event subreddits list."
+        },
+        {
+          "name": "keywords",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "Any-of terms. Default: internal event keywords list."
+        },
+        {
+          "name": "strong_keywords",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "Any match sets signal=true regardless of min_matches"
+        },
+        {
+          "name": "exclude",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "Posts matching any of these are dropped"
+        },
+        {
+          "name": "match_field",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Where to match keywords. One of: title, full. Default: full."
+        },
+        {
+          "name": "min_matches",
+          "in": "body",
+          "required": false,
+          "type": "integer",
+          "description": "Minimum keyword matches for a signal. Default: 1."
+        },
+        {
+          "name": "time_range",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Time window. One of: hour, day, week, month, year, all. Default: day."
+        },
+        {
+          "name": "from_date",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "ISO 8601 date/datetime, applied client-side."
+        },
+        {
+          "name": "to_date",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "ISO 8601 date/datetime, applied client-side."
+        },
+        {
+          "name": "limit",
+          "in": "body",
+          "required": false,
+          "type": "integer",
+          "description": "Max results to return. Default: 100."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/reddit/rss/monitor",
+      "gatewayPath": "/api/gateway/reddit/api/reddit/rss/monitor",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/reddit/api/reddit/rss/monitor",
+      "name": "Monitor keywords (RSS)",
+      "description": "Keyword/event monitoring via Reddit's public RSS (no Reddit credentials). Send query or keywords.",
+      "groupName": "RSS Monitoring",
+      "params": [
+        {
+          "name": "query",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Search text"
+        },
+        {
+          "name": "keywords",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "OR'd into a query when 'query' is not given, e.g. ['protest', 'strike']."
+        },
+        {
+          "name": "strong_keywords",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "Any match here sets signal=true regardless of min_matches."
+        },
+        {
+          "name": "exclude",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "A post matching any of these is dropped from the results entirely."
+        },
+        {
+          "name": "match_field",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "'title' matches only the post title; 'full' also checks content/flair. One of: title, full. Default: full."
+        },
+        {
+          "name": "min_matches",
+          "in": "body",
+          "required": false,
+          "type": "integer",
+          "description": "Minimum matched_keywords count (excluding strong_keywords) for signal=true. Default: 1."
+        },
+        {
+          "name": "subreddits",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "Empty means global search across all of Reddit."
+        },
+        {
+          "name": "sort",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Sort order. One of: relevance, hot, top, new, comments. Default: new."
+        },
+        {
+          "name": "time_range",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Time window. One of: hour, day, week, month, year, all. Default: day."
+        },
+        {
+          "name": "from_date",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "ISO 8601 date/datetime. Applied client-side against each post's published_at."
+        },
+        {
+          "name": "to_date",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "ISO 8601 date/datetime; a bare date means through the end of that day."
+        },
+        {
+          "name": "limit",
+          "in": "body",
+          "required": false,
+          "type": "integer",
+          "description": "Max results to return. Default: 50."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/api/reddit/rss/search",
+      "gatewayPath": "/api/gateway/reddit/api/reddit/rss/search",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/reddit/api/reddit/rss/search",
+      "name": "Search keywords (RSS, GET)",
+      "description": "Convenience GET form of /monitor -- same use-case, no Reddit credentials.",
+      "groupName": "RSS Monitoring",
+      "params": [
+        {
+          "name": "q",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Search text"
+        },
+        {
+          "name": "keywords",
+          "in": "query",
+          "required": false,
+          "type": "array",
+          "description": "Repeatable. OR'd into a query when q is not given."
+        },
+        {
+          "name": "strong_keywords",
+          "in": "query",
+          "required": false,
+          "type": "array",
+          "description": "Repeatable. Any match sets signal=true regardless of min_matches."
+        },
+        {
+          "name": "exclude",
+          "in": "query",
+          "required": false,
+          "type": "array",
+          "description": "Repeatable. A post matching any of these is dropped entirely."
+        },
+        {
+          "name": "match_field",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "'title' matches only the post title; 'full' also checks content/flair. One of: title, full. Default: full."
+        },
+        {
+          "name": "min_matches",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Minimum keyword matches for a signal. Default: 1."
+        },
+        {
+          "name": "subreddit",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "One subreddit, or several via '+'-joined combined-subreddit syntax."
+        },
+        {
+          "name": "sort",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Sort order. One of: relevance, hot, top, new, comments. Default: new."
+        },
+        {
+          "name": "time",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Time window. One of: hour, day, week, month, year, all. Default: day."
+        },
+        {
+          "name": "from_date",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "ISO 8601 date/datetime, applied client-side."
+        },
+        {
+          "name": "to_date",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "ISO 8601 date/datetime; a bare date means through end of day."
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Max results to return. Default: 50."
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/api/reddit/rss/user",
+      "gatewayPath": "/api/gateway/reddit/api/reddit/rss/user",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/reddit/api/reddit/rss/user",
+      "name": "Monitor a user (RSS)",
+      "description": "Profile activity monitoring via Reddit's public RSS (no Reddit credentials)",
+      "groupName": "Users",
+      "params": [
+        {
+          "name": "username",
+          "in": "body",
+          "required": true,
+          "type": "string",
+          "description": "Reddit username"
+        },
+        {
+          "name": "kind",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "'overview', 'submitted', 'comments'. Default: overview."
+        },
+        {
+          "name": "keywords",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "Optional. Only annotates matched_keywords/signal -- never narrows the feed itself."
+        },
+        {
+          "name": "strong_keywords",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "Any match sets signal=true regardless of min_matches."
+        },
+        {
+          "name": "exclude",
+          "in": "body",
+          "required": false,
+          "type": "array",
+          "description": "A post/comment matching any of these is dropped from the results entirely."
+        },
+        {
+          "name": "match_field",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "'title' matches only the post title; 'full' also checks content/flair. One of: title, full. Default: full."
+        },
+        {
+          "name": "min_matches",
+          "in": "body",
+          "required": false,
+          "type": "integer",
+          "description": "Minimum matched_keywords count (excluding strong_keywords) for signal=true. Default: 1."
+        },
+        {
+          "name": "sort",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Sort order. One of: new, hot, top, controversial. Default: new."
+        },
+        {
+          "name": "time_range",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "Time window. One of: hour, day, week, month, year, all. Default: all."
+        },
+        {
+          "name": "from_date",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "ISO 8601 date/datetime, applied client-side against each item's published_at."
+        },
+        {
+          "name": "to_date",
+          "in": "body",
+          "required": false,
+          "type": "string",
+          "description": "ISO 8601 date/datetime; a bare date means through the end of that day."
+        },
+        {
+          "name": "limit",
+          "in": "body",
+          "required": false,
+          "type": "integer",
+          "description": "Max results to return. Default: 25."
+        }
+      ]
+    }
+  ]
+}
