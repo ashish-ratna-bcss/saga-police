@@ -1,6 +1,7 @@
 const { getCachedEventSummary, getSummaryJob, startSummaryJob } = require('../../../services/SummaryLLM');
 const eventService = require('../event.service');
 const { buildReportHtml } = require('./template');
+const { resolveHeadquarters } = require('./headquarters');
 const { renderHtmlToPdf } = require('./render');
 
 /**
@@ -18,6 +19,7 @@ const generateEventIntelligencePdf = async (eventId, { db, dbName, tenantName, u
           eventId,
           db,
           dbName,
+          tenantName,
           generatedBy: user ? { id: user.id, name: user.name || user.username } : null,
         });
     summary = await job.promise;
@@ -30,7 +32,13 @@ const generateEventIntelligencePdf = async (eventId, { db, dbName, tenantName, u
   }
   // Saved with the summary by the single generation call (stats.structured_report). Older summaries have none, so those parts show a regenerate note.
   const analysis = summary?.stats?.structured_report || null;
-  const html = buildReportHtml({ summary, keywordData, tenantName, analysis });
+  const html = buildReportHtml({
+    summary,
+    keywordData,
+    tenantName,
+    analysis,
+    headquarters: resolveHeadquarters(tenantName),
+  });
   const name = summary?.event?.name || 'Event';
   const pdf = await renderHtmlToPdf(html, {
     footerLabel: `${(tenantName || 'DIGITAL INTELLIGENCE PLATFORM').toUpperCase()} · ${name}`,
