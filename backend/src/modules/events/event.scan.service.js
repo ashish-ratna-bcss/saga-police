@@ -223,6 +223,7 @@ const ingestCatalogMatches = async ({
       eventId: event.id,
       platform,
       externalId: String(pid),
+      publicationWindow,
       payload: {
         url: p.url || null,
         text: p.text || '',
@@ -255,6 +256,19 @@ const uniqueById = (items = []) => {
   return Array.from(map.values());
 };
 
+/** Parse a platform timestamp. Never invent "now" — missing date stays null so range gate can reject. */
+const parsePostedAt = (value) => {
+  if (value == null || value === '') return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value === 'number') {
+    const ms = value < 1e12 ? value * 1000 : value;
+    const d = new Date(ms);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
 const fetchUniqueByQueries = async (queries, fetcher) => {
   const merged = [];
   for (const query of queries) {
@@ -268,7 +282,13 @@ const fetchUniqueByQueries = async (queries, fetcher) => {
   return uniqueById(merged);
 };
 
-const upsertMedia = async ({ eventId, platform, externalId, payload, db, dbName }) => {
+const upsertMedia = async ({ eventId, platform, externalId, payload, db, dbName, publicationWindow }) => {
+  // Never persist posts outside the event's start_date / end_date window.
+  // Missing posted_at is treated as out of range when a window is set.
+  if (!postedAtInEventWindow(payload?.posted_at, publicationWindow)) {
+    return { isNew: false, skipped: true, reason: 'out_of_range' };
+  }
+
   const prisma = dbOf(db);
   const existing = await prisma.social_media_event_media.findUnique({
     where: {
@@ -730,6 +750,7 @@ const runScanEventOnce = async (event, options = {}) => {
 
   const prisma = dbOf(db);
   const platforms = await resolveEventPlatforms(prisma, event.platforms);
+  const publicationWindow = eventPublicationWindow(event);
   const loadPlatformAuth = async (slugs, authFn) => {
     const platformRow = await prisma.platforms.findFirst({
       where: { slug: { in: slugs }, is_active: true },
@@ -795,12 +816,13 @@ const runScanEventOnce = async (event, options = {}) => {
           eventId: event.id,
           platform: 'x',
           externalId: t.id,
+          publicationWindow,
           payload: {
             url: t.url || null,
             text: t.text || '',
             author_name: t.author || t.author_handle || 'Unknown',
             author_handle: t.author_handle || 'unknown',
-            posted_at: t.created_at ? new Date(t.created_at) : new Date(),
+            posted_at: parsePostedAt(t.created_at),
             engagement: engagementFromXMetricsBag(t.metrics || {}),
             media: t.media || [],
             raw_data: t.raw_data || {},
@@ -838,12 +860,13 @@ const runScanEventOnce = async (event, options = {}) => {
           eventId: event.id,
           platform: 'youtube',
           externalId: v.id,
+          publicationWindow,
           payload: {
             url: `https://www.youtube.com/watch?v=${v.id}`,
             text: text || v.title || 'Untitled',
             author_name: v.channelTitle || 'Unknown',
             author_handle: v.channelId || 'unknown',
-            posted_at: v.publishedAt ? new Date(v.publishedAt) : new Date(),
+            posted_at: parsePostedAt(v.publishedAt),
             engagement: {
               views: v.statistics?.viewCount,
               likes: v.statistics?.likeCount,
@@ -888,12 +911,13 @@ const runScanEventOnce = async (event, options = {}) => {
           eventId: event.id,
           platform: 'facebook',
           externalId: String(pid),
+          publicationWindow,
           payload: {
             url: p.url || `https://facebook.com/${pid}`,
             text: p.message || p.text || '',
             author_name: p.author || p.author_name || 'Unknown',
             author_handle: p.author_handle || '',
-            posted_at: p.created_at || (p.timestamp ? new Date(p.timestamp < 1e12 ? p.timestamp * 1000 : p.timestamp) : new Date()),
+            posted_at: parsePostedAt(p.created_at ?? p.timestamp),
             engagement: {
               comments: p.comments_count ?? p.comments ?? 0,
               reactions: p.reactions_count ?? p.reactions ?? 0,
@@ -934,18 +958,13 @@ const runScanEventOnce = async (event, options = {}) => {
           eventId: event.id,
           platform: 'telegram',
           externalId: String(pid),
+          publicationWindow,
           payload: {
             url,
             text: p.text || '',
             author_name: p.author_name || 'Telegram',
             author_handle: handle || '',
-            posted_at: p.created_at
-              ? new Date(
-                  typeof p.created_at === 'number' && p.created_at < 1e12
-                    ? p.created_at * 1000
-                    : p.created_at
-                )
-              : new Date(),
+            posted_at: parsePostedAt(p.created_at),
             engagement: {
               views: p.views ?? 0,
               shares: p.forwards ?? 0,
@@ -990,12 +1009,13 @@ const runScanEventOnce = async (event, options = {}) => {
           eventId: event.id,
           platform: 'reddit',
           externalId: String(pid),
+          publicationWindow,
           payload: {
             url: p.url || null,
             text: `${p.title || ''}\n${p.content || ''}`.trim(),
             author_name: p.author || 'Unknown',
             author_handle: p.author || 'unknown',
-            posted_at: p.published_at ? new Date(p.published_at) : new Date(),
+            posted_at: parsePostedAt(p.published_at),
             engagement: {},
             media: [],
             raw_data: p,
