@@ -123,7 +123,7 @@ const createAlertFromCatalogPost = async (post, analysisResult, options = {}) =>
       ocr: analysisResult.ocr || post.raw_data?.ocr || null,
       image_analysis: analysisResult.ocr || post.raw_data?.ocr || null,
     },
-    posted_at: post.posted_at || post.fetched_at || null,
+    posted_at: post.posted_at || null,
   };
 
   if (options.skipIfExists) {
@@ -200,7 +200,7 @@ const listCatalogAlerts = async ({ query = {}, page = 1, limit = 20, db } = {}) 
     prisma.social_media_alerts.findMany({
       where,
       include: ALERT_INCLUDE,
-      orderBy: [{ posted_at: { sort: 'desc', nulls: 'last' } }, { created_at: 'desc' }, { id: 'desc' }],
+      orderBy: [{ posted_at: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
       skip,
       take: limit + 1,
     }),
@@ -248,7 +248,7 @@ const getCatalogAlertsByIds = async (ids = [], { db } = {}) => {
   const rows = await prisma.social_media_alerts.findMany({
     where: { id: { in: bigIds } },
     include: ALERT_INCLUDE,
-    orderBy: [{ created_at: 'desc' }],
+    orderBy: [{ posted_at: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
   });
 
   return rows.map(hydrateCatalogAlert);
@@ -345,7 +345,7 @@ const listTopCatalogAlertsByCategory = async ({
       ],
     },
     include: ALERT_INCLUDE,
-    orderBy: [{ posted_at: { sort: 'desc', nulls: 'last' } }, { created_at: 'desc' }, { id: 'desc' }],
+    orderBy: [{ posted_at: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
     take: 2500,
   });
 
@@ -363,10 +363,10 @@ const listTopCatalogAlertsByCategory = async ({
     list.sort((a, b) => {
       const scoreDiff = (Number(b.risk_score) || 0) - (Number(a.risk_score) || 0);
       if (scoreDiff !== 0) return scoreDiff;
-      // Newest ingested first within the same risk score
-      const ta = new Date(a.created_at || a.posted_at || 0).getTime();
-      const tb = new Date(b.created_at || b.posted_at || 0).getTime();
-      return tb - ta;
+      const ta = a.posted_at ? new Date(a.posted_at).getTime() : 0;
+      const tb = b.posted_at ? new Date(b.posted_at).getTime() : 0;
+      if (tb !== ta) return tb - ta;
+      return Number(b.id) - Number(a.id);
     });
 
     const authorCounts = new Map();

@@ -8,7 +8,13 @@ const {
   listItems: listTelegramItems,
 } = require('../../services/blugate/telegram/blugate.telegram.helpers');
 const { engagementFromXMetricsBag } = require('../../lib/engagementMetrics');
-const { asJson, resolveEventPlatforms } = require('./event.utils');
+const {
+  asJson,
+  resolveEventPlatforms,
+  eventPublicationWindow,
+  postedAtInEventWindow,
+  postedAtRangeWhere,
+} = require('./event.utils');
 const { recordFetch } = require('./event.service');
 const logger = require('../../lib/logger');
 
@@ -180,10 +186,8 @@ const resolveCatalogMatchEvent = (event, queries = []) => {
 
 const buildCatalogPostsWhere = (event, platform) => {
   const where = { platform: String(platform || '').toLowerCase() };
-  const postedAt = {};
-  if (event?.start_date) postedAt.gte = new Date(event.start_date);
-  if (event?.end_date) postedAt.lte = new Date(event.end_date);
-  if (Object.keys(postedAt).length) where.posted_at = postedAt;
+  const postedAt = postedAtRangeWhere(event);
+  if (postedAt) where.posted_at = postedAt;
   return where;
 };
 
@@ -205,7 +209,9 @@ const ingestCatalogMatches = async ({
     orderBy: [{ posted_at: 'desc' }, { fetched_at: 'desc' }],
   });
   const matchEvent = resolveCatalogMatchEvent(event, queries);
-  const relevant = filterByKeywords(catalogPosts, matchEvent, getCatalogPostSearchText);
+  const publicationWindow = eventPublicationWindow(event);
+  const inRange = catalogPosts.filter((p) => postedAtInEventWindow(p.posted_at, publicationWindow));
+  const relevant = filterByKeywords(inRange, matchEvent, getCatalogPostSearchText);
   let ingested = 0;
   for (const p of relevant) {
     const pid = p.external_id || p.id;
@@ -222,7 +228,7 @@ const ingestCatalogMatches = async ({
         text: p.text || '',
         author_name: p.author_name || p.author_handle || 'Unknown',
         author_handle: p.author_handle || 'unknown',
-        posted_at: p.posted_at || p.fetched_at || new Date(),
+        posted_at: p.posted_at || null,
         engagement,
         media: mediaItemsFromPostUrls(p.media_urls, p.media_type),
         raw_data: {

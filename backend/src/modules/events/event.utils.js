@@ -10,6 +10,52 @@ const serialize = (value) => {
   return value;
 };
 
+/**
+ * Inclusive publication window for an event's start_date / end_date.
+ * Those fields are the calendar dates chosen on the form (stored as UTC midnight).
+ * The window is that full day in India (UTC+5:30), so a post is in range only
+ * when posted_at falls on one of those calendar days. A missing posted_at is
+ * not in range.
+ */
+const eventPublicationWindow = (event) => {
+  const bound = (value, edge) => {
+    if (!value) return null;
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    const iso = edge === 'end'
+      ? `${y}-${m}-${day}T23:59:59.999+05:30`
+      : `${y}-${m}-${day}T00:00:00.000+05:30`;
+    const out = new Date(iso);
+    return Number.isNaN(out.getTime()) ? null : out;
+  };
+  return {
+    start: bound(event?.start_date, 'start'),
+    end: bound(event?.end_date, 'end'),
+  };
+};
+
+const postedAtInEventWindow = (postedAt, window) => {
+  if (!window?.start && !window?.end) return true;
+  const time = postedAt ? new Date(postedAt).getTime() : NaN;
+  if (Number.isNaN(time)) return false;
+  if (window.start && time < window.start.getTime()) return false;
+  if (window.end && time > window.end.getTime()) return false;
+  return true;
+};
+
+/** Prisma where fragment. Null posted_at does not match a bounded range. */
+const postedAtRangeWhere = (event) => {
+  const window = eventPublicationWindow(event);
+  if (!window.start && !window.end) return null;
+  const posted_at = {};
+  if (window.start) posted_at.gte = window.start;
+  if (window.end) posted_at.lte = window.end;
+  return posted_at;
+};
+
 const normalizeEventPlatformSlug = (slug) => {
   const s = String(slug || '').trim().toLowerCase();
   if (s === 'twitter') return 'x';
@@ -261,4 +307,7 @@ module.exports = {
   normalizeEventPlatformSlug,
   listActiveEventPlatforms,
   resolveEventPlatforms,
+  eventPublicationWindow,
+  postedAtInEventWindow,
+  postedAtRangeWhere,
 };

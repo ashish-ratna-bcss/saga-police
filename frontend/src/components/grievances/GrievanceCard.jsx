@@ -1360,7 +1360,7 @@ const WhatsAppLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState
             </div>
             <div className="flex justify-center mb-3">
                 <span className="bg-[#e1f3fb] text-[#54656f] text-[11px] font-medium px-3 py-1 rounded-lg shadow-sm">
-                    {grievance.post_date ? format(new Date(grievance.post_date), 'MMMM d, yyyy') : 'Today'}
+                    {grievance.post_date ? format(new Date(grievance.post_date), 'MMMM d, yyyy') : 'Date unknown'}
                 </span>
             </div>
             <div className="max-w-[85%]">

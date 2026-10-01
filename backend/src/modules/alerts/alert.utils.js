@@ -330,9 +330,9 @@ const buildWhere = (query = {}) => {
   }
 
   if (startDate || endDate) {
-    where.created_at = {};
-    if (startDate) where.created_at.gte = new Date(`${startDate}T00:00:00.000Z`);
-    if (endDate) where.created_at.lte = new Date(`${endDate}T23:59:59.999Z`);
+    where.posted_at = {};
+    if (startDate) where.posted_at.gte = new Date(`${startDate}T00:00:00.000Z`);
+    if (endDate) where.posted_at.lte = new Date(`${endDate}T23:59:59.999Z`);
   }
 
   const and = [];

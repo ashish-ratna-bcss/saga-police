@@ -141,6 +141,7 @@ model social_media_alerts {
 
   @@unique([platform, external_id])
   @@index([status, created_at])
+  @@index([status, posted_at, id])
   @@index([risk_level, created_at])
   @@index([post_id])
   @@index([account_id])

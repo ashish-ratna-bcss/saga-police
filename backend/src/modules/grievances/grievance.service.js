@@ -156,7 +156,8 @@ const listCatalogGrievances = async (query = {}, { db } = {}) => {
 
   let where = baseWhere;
 
-  // Cursor: "isoTimestamp|id" from the last row of the previous page (created_at order)
+  // Cursor: "posted_at|id". A missing publication time is the token "null".
+  // Dated rows come first; null posted_at follows (NULLS LAST).
   const rawCursor = String(query.cursor || '').trim();
   if (rawCursor) {
     try {
@@ -164,16 +165,20 @@ const listCatalogGrievances = async (query = {}, { db } = {}) => {
       const ts = sep >= 0 ? rawCursor.slice(0, sep) : '';
       const idStr = sep >= 0 ? rawCursor.slice(sep + 1) : rawCursor;
       const cursorId = BigInt(idStr);
-      const cursorAt = ts ? new Date(ts) : null;
       const cursorClause =
-        cursorAt && !Number.isNaN(cursorAt.getTime())
-          ? {
-              OR: [
-                { created_at: { lt: cursorAt } },
-                { AND: [{ created_at: cursorAt }, { id: { lt: cursorId } }] },
-              ],
-            }
-          : { id: { lt: cursorId } };
+        ts === 'null' || ts === ''
+          ? { AND: [{ posted_at: null }, { id: { lt: cursorId } }] }
+          : (() => {
+              const cursorAt = new Date(ts);
+              if (Number.isNaN(cursorAt.getTime())) return { id: { lt: cursorId } };
+              return {
+                OR: [
+                  { posted_at: { lt: cursorAt } },
+                  { AND: [{ posted_at: cursorAt }, { id: { lt: cursorId } }] },
+                  { posted_at: null },
+                ],
+              };
+            })();
       where = { AND: [baseWhere, cursorClause] };
     } catch (_) {
       /* ignore bad cursor — return first page */
@@ -182,8 +187,7 @@ const listCatalogGrievances = async (query = {}, { db } = {}) => {
 
   const rows = await prisma.social_media_grievances.findMany({
     where,
-    // Newest ingested first (Fetch / detect time), not original social post date
-    orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+    orderBy: [{ posted_at: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
     take: limit + 1,
   });
 
@@ -194,7 +198,7 @@ const listCatalogGrievances = async (query = {}, { db } = {}) => {
   const last = pageRows[pageRows.length - 1];
   const nextCursor =
     hasMore && last
-      ? `${last.created_at ? new Date(last.created_at).toISOString() : ''}|${String(last.id)}`
+      ? `${last.posted_at ? new Date(last.posted_at).toISOString() : 'null'}|${String(last.id)}`
       : null;
 
   return {
@@ -291,7 +295,7 @@ const createGrievanceIfNew = async ({
       content,
       engagement,
       context,
-      posted_at: postedAt || new Date(),
+      posted_at: postedAt || null,
       detected_at: new Date(),
     },
   });
@@ -326,7 +330,7 @@ const upsertMentionRow = async ({ account, taggedHandle, mention, db }) =>
     context: mention.context || {},
     contentUrl: mention.url || null,
     text: mention.text || '',
-    postedAt: mention.created_at ? new Date(mention.created_at) : new Date(),
+    postedAt: mention.created_at ? new Date(mention.created_at) : null,
     db,
   });
 
@@ -431,7 +435,7 @@ const fetchCatalogFacebookGrievances = async (account, startDate, endDate, { db 
       },
       contentUrl: postUrl,
       text: postText,
-      postedAt: post.posted_at || new Date(),
+      postedAt: post.posted_at || null,
       db,
     });
     if (postResult.created) newCount += 1;
@@ -480,7 +484,7 @@ const fetchCatalogFacebookGrievances = async (account, startDate, endDate, { db 
         },
         contentUrl: commentUrl,
         text: commentText,
-        postedAt: commentDate || new Date(),
+        postedAt: commentDate || null,
       db,
     });
       if (commentResult.created) newCount += 1;
@@ -580,7 +584,7 @@ const fetchCatalogInstagramGrievances = async (account, startDate, endDate, { db
       },
       contentUrl: postUrl,
       text: postText,
-      postedAt: post.posted_at || new Date(),
+      postedAt: post.posted_at || null,
       db,
     });
     if (postResult.created) newCount += 1;
@@ -631,7 +635,7 @@ const fetchCatalogInstagramGrievances = async (account, startDate, endDate, { db
         },
         contentUrl: commentUrl,
         text: commentText,
-        postedAt: commentDate || new Date(),
+        postedAt: commentDate || null,
       db,
     });
       if (commentResult.created) newCount += 1;
@@ -743,7 +747,7 @@ const fetchCatalogTelegramGrievances = async (account, startDate, endDate, { db 
       },
       contentUrl: postUrl,
       text: postText,
-      postedAt: post.posted_at || new Date(),
+      postedAt: post.posted_at || null,
     };
 
     const existing = await prisma.social_media_grievances.findUnique({
