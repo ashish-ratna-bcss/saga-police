@@ -24,7 +24,6 @@ import {
   FileText,
   BarChart3,
   ShieldAlert,
-  TrendingUp,
   CheckCircle2,
   Layers,
   ExternalLink,
@@ -484,8 +483,8 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
               size="sm"
               onClick={handleDownload}
               disabled={loading || pdfGenerating || !summaryData?.summary}
-              className="h-8 gap-1.5 text-xs text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/60 hover:bg-purple-50 dark:hover:bg-purple-950/40 font-medium"
-              title="Download executive PDF report (includes every analyzed post as an appendix)"
+              className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground font-medium"
+              title="Download executive PDF report"
             >
               {pdfGenerating ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -798,56 +797,76 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                 </TabsContent>
 
                 <TabsContent value="advisory" className="h-full m-0 p-0">
-                  <ScrollArea className="h-[calc(92vh-185px)] px-7 py-6 space-y-6">
-                    <RiskAlerts summaryData={summaryData} onCite={handleCite} />
-                    {/* Threat & Order Assessment Card */}
-                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5">
-                      <div className="flex items-center gap-2 mb-2 text-amber-700 dark:text-amber-400 font-semibold text-sm">
-                        <AlertTriangle className="h-4 w-4" />
-                        Threat, Misinformation & Public Order Risk
-                      </div>
-                      <div className="prose dark:prose-invert max-w-none text-xs text-muted-foreground leading-relaxed">
-                        <ReactMarkdown>
-                          {summaryData?.stats?.structured_report?.publicOrder ||
-                            extracted.threat ||
-                            summaryData.structuredBriefing?.threatAndRisk ||
-                            '_Not available for this summary. Regenerate to create it._'}
-                        </ReactMarkdown>
-                      </div>
-                    </div>
+                  <ScrollArea className="h-[calc(92vh-185px)] px-7 py-6">
+                    <div className="max-w-3xl text-foreground">
+                      <header className="mb-6">
+                        <div className="text-[10px] font-semibold tracking-[0.14em] uppercase text-muted-foreground mb-1.5">
+                          Risk &amp; advisory
+                        </div>
+                        <h2 className="text-xl font-semibold tracking-tight leading-snug">
+                          {displayName || summaryData?.event?.name || 'Event'}
+                        </h2>
+                        <p className="mt-1.5 text-[12px] text-muted-foreground leading-5">
+                          Public order, recommended actions, and sentiment context
+                        </p>
+                      </header>
 
-                    {/* Recommended Actions Card */}
-                    <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 p-5">
-                      <div className="flex items-center gap-2 mb-2 text-purple-700 dark:text-purple-300 font-semibold text-sm">
-                        <ShieldAlert className="h-4 w-4" />
-                        Recommended Law Enforcement & Administrative Advisory
-                      </div>
-                      <div className="prose dark:prose-invert max-w-none text-xs text-muted-foreground leading-relaxed">
-                        <ReactMarkdown>
-                          {(summaryData?.stats?.structured_report?.actions?.length
-                            ? summaryData.stats.structured_report.actions.map((a, i) => `${i + 1}. **${a.action}:** ${a.detail}`).join('\n')
-                            : '') ||
-                            extracted.actions ||
-                            summaryData.structuredBriefing?.recommendedActions ||
-                            '_Not available for this summary. Regenerate to create it._'}
-                        </ReactMarkdown>
-                      </div>
-                    </div>
+                      <RiskAlerts summaryData={summaryData} onCite={handleCite} />
 
-                    {/* Public Sentiment & Ground Atmosphere */}
-                    <div className="rounded-xl border border-border/80 bg-muted/20 p-5">
-                      <div className="flex items-center gap-2 mb-2 text-foreground font-semibold text-sm">
-                        <TrendingUp className="h-4 w-4 text-indigo-500" />
-                        Public Sentiment & Ground Atmosphere
-                      </div>
-                      <div className="prose dark:prose-invert max-w-none text-xs text-muted-foreground leading-relaxed">
-                        <ReactMarkdown>
-                          {summaryData?.stats?.structured_report?.sentimentCommentary ||
-                            extracted.sentiment ||
-                            summaryData.structuredBriefing?.publicSentiment ||
-                            '_Not available for this summary. Regenerate to create it._'}
-                        </ReactMarkdown>
-                      </div>
+                      <section className="mb-8">
+                        <div className="flex items-baseline gap-2.5 border-b border-border/80 pb-2 mb-4">
+                          <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">05</span>
+                          <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-foreground/90">
+                            Threat &amp; public order
+                          </span>
+                        </div>
+                        <div className="prose dark:prose-invert max-w-none text-[13.5px] leading-6 prose-p:my-1.5 prose-p:text-foreground/85">
+                          <ReactMarkdown>
+                            {summaryData?.stats?.structured_report?.publicOrder ||
+                              extracted.threat ||
+                              summaryData.structuredBriefing?.threatAndRisk ||
+                              '_Not available for this summary. Regenerate to create it._'}
+                          </ReactMarkdown>
+                        </div>
+                      </section>
+
+                      <section className="mb-8">
+                        <div className="flex items-baseline gap-2.5 border-b border-border/80 pb-2 mb-4">
+                          <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">06</span>
+                          <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-foreground/90">
+                            Recommended actions
+                          </span>
+                        </div>
+                        <div className="prose dark:prose-invert max-w-none text-[13.5px] leading-6 prose-p:my-1.5 prose-li:my-1 prose-ol:my-1.5 prose-p:text-foreground/85 prose-li:text-foreground/85">
+                          <ReactMarkdown>
+                            {(summaryData?.stats?.structured_report?.actions?.length
+                              ? summaryData.stats.structured_report.actions
+                                  .map((a, i) => `${i + 1}. **${a.action}:** ${a.detail}`)
+                                  .join('\n')
+                              : '') ||
+                              extracted.actions ||
+                              summaryData.structuredBriefing?.recommendedActions ||
+                              '_Not available for this summary. Regenerate to create it._'}
+                          </ReactMarkdown>
+                        </div>
+                      </section>
+
+                      <section className="mb-8">
+                        <div className="flex items-baseline gap-2.5 border-b border-border/80 pb-2 mb-4">
+                          <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">07</span>
+                          <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-foreground/90">
+                            Public sentiment
+                          </span>
+                        </div>
+                        <div className="prose dark:prose-invert max-w-none text-[13.5px] leading-6 prose-p:my-1.5 prose-p:text-foreground/85">
+                          <ReactMarkdown>
+                            {summaryData?.stats?.structured_report?.sentimentCommentary ||
+                              extracted.sentiment ||
+                              summaryData.structuredBriefing?.publicSentiment ||
+                              '_Not available for this summary. Regenerate to create it._'}
+                          </ReactMarkdown>
+                        </div>
+                      </section>
                     </div>
                   </ScrollArea>
                 </TabsContent>
