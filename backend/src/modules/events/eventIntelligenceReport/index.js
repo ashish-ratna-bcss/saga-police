@@ -27,7 +27,7 @@ const generateEventIntelligencePdf = async (eventId, { db, tenantName, user } = 
   const html = buildReportHtml({ summary, keywordData, tenantName, analysis });
   const name = summary?.event?.name || 'Event';
   const pdf = await renderHtmlToPdf(html, {
-    footerLabel: `${(tenantName || 'DIGITAL INTELLIGENCE PLATFORM').toUpperCase()} · ${name} · RESTRICTED / LAW ENFORCEMENT ONLY`,
+    footerLabel: `${(tenantName || 'DIGITAL INTELLIGENCE PLATFORM').toUpperCase()} · ${name}`,
   });
   return { pdf, eventName: name };
 };

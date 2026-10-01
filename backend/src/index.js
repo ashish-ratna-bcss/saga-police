@@ -1,4 +1,5 @@
-require('dotenv').config();
+// override: true so backend/.env always wins over stale PM2-frozen env
+require('dotenv').config({ override: true });
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
