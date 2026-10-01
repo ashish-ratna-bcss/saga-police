@@ -1,7 +1,7 @@
 const queue = require('./queue');
 const { analyzeMediaPost } = require('./analyzeMediaPost');
 const { analyzeEventMedia } = require('./analyzeEventMedia');
-const { startPoller, stopPoller, pollPending } = require('./pollPending');
+const { startPoller, stopPoller, pollPending, nudgeTenant } = require('./pollPending');
 const { getTenantPrisma } = require('../../lib/tenantDatabase.service');
 
 queue.setProcessor(async (job) => {
@@ -14,15 +14,27 @@ queue.setProcessor(async (job) => {
 });
 
 /** Enqueue a catalog post for media analysis (OCR + Sentiment). */
-const enqueuePost = (postId, { dbName } = {}) => {
+const enqueuePost = (postId, { dbName, postedAt, fetchedAt } = {}) => {
   if (postId == null) return false;
-  return queue.enqueue({ postId, dbName: dbName || null, kind: 'catalog' });
+  return queue.enqueue({
+    postId,
+    dbName: dbName || null,
+    kind: 'catalog',
+    postedAt: postedAt ?? null,
+    fetchedAt: fetchedAt ?? null,
+  });
 };
 
 /** Enqueue an event media row for media analysis (OCR + Sentiment). */
-const enqueueEventMedia = (mediaId, { dbName } = {}) => {
+const enqueueEventMedia = (mediaId, { dbName, postedAt, fetchedAt } = {}) => {
   if (mediaId == null) return false;
-  return queue.enqueue({ postId: mediaId, dbName: dbName || null, kind: 'event' });
+  return queue.enqueue({
+    postId: mediaId,
+    dbName: dbName || null,
+    kind: 'event',
+    postedAt: postedAt ?? null,
+    fetchedAt: fetchedAt ?? null,
+  });
 };
 
 const startScheduler = () => {
@@ -38,6 +50,7 @@ module.exports = {
   stopScheduler,
   enqueuePost,
   enqueueEventMedia,
+  nudgeTenant,
   analyzeMediaPost,
   analyzeEventMedia,
   pollPending,
