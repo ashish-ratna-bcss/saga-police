@@ -40,14 +40,20 @@ const callRedditApi = async (endpointKey, payload = {}, auth = null) => {
     method,
     url: requestUrl,
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    timeout: 60000,
+    // Stay open until BluGate/Reddit responds. The server queues per tenant
+    // and must not be cut off by a client timer.
+    timeout: 0,
   };
 
   const accessKey = String(auth?.accessKey || '').trim();
   const clientId = String(auth?.clientId || '').trim();
+  const tenantKey = String(auth?.tenantKey || '').trim();
   if (accessKey && clientId) {
     config.headers.Authorization = `Bearer ${accessKey}`;
     config.headers['x-client-id'] = clientId;
+  }
+  if (tenantKey) {
+    config.headers['x-tenant-key'] = tenantKey;
   }
 
   if (method === 'GET' || method === 'DELETE') {

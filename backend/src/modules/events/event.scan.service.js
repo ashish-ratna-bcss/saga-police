@@ -44,6 +44,39 @@ const buildEventQueries = (event) => {
   return Array.from(new Set(queries));
 };
 
+/** Reddit searches the event keywords and also the event location as its own query. */
+const redditQueriesForEvent = (event) => {
+  const queries = buildEventQueries(event);
+  const locationTerm = formatQueryTerm(event?.location);
+  if (!locationTerm) return queries;
+  const seen = new Set(queries.map((q) => q.toLowerCase()));
+  if (!seen.has(locationTerm.toLowerCase())) queries.push(locationTerm);
+  return queries;
+};
+
+/** Event date fields are date-only in the form; Reddit accepts YYYY-MM-DD. */
+const redditDateBound = (value) => {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+};
+
+const redditDateRange = (event) => ({
+  fromDate: redditDateBound(event?.start_date),
+  toDate: redditDateBound(event?.end_date),
+});
+
+/** Keep Reddit posts that match a keyword or the event location. */
+const redditRelevanceEvent = (event) => {
+  const keywords = normalizeEventKeywords(event).map((keyword) => ({ keyword }));
+  const location = squeezeWhitespace(event?.location);
+  if (location && !keywords.some((k) => k.keyword.toLowerCase() === location.toLowerCase())) {
+    keywords.push({ keyword: location });
+  }
+  return keywords.length ? { ...event, keywords } : event;
+};
+
 const normalizeForKeywordMatch = (text) => squeezeWhitespace(String(text || '').toLowerCase());
 const collapseForFuzzyMatch = (text) =>
   String(text || '')
@@ -618,38 +651,18 @@ const searchYouTubeViaBlugate = async (query, auth = null) => {
 
 /* ── Reddit search (BluGate gateway) ── */
 
-// Docs: keywords array is OR'd into one query. ~1 req/min server-wide — never one call per keyword.
-const REDDIT_MAX_KEYWORDS_PER_CALL = 25;
-const REDDIT_MAX_QUERY_CHARS = 480; // ~512 once joined with OR
+// Same usage as X: one Latest-style search per event keyword.
+// RSS_MONITOR already accepts a single `query`. time_range "all" keeps the
+// fetch open; the event's start/end dates are sent as from_date/to_date.
+const searchRedditViaBlugate = async (query, auth = null, range = null) => {
+  const q = String(query || '').trim();
+  if (!q) return [];
 
-const batchRedditKeywords = (queries) => {
-  const batches = [];
-  let current = [];
-  let chars = 0;
-  for (const raw of queries) {
-    const q = String(raw || '').trim();
-    if (!q) continue;
-    const cost = q.length + 4; // " OR "
-    if (current.length && (current.length >= REDDIT_MAX_KEYWORDS_PER_CALL || chars + cost > REDDIT_MAX_QUERY_CHARS)) {
-      batches.push(current);
-      current = [];
-      chars = 0;
-    }
-    current.push(q);
-    chars += cost;
-  }
-  if (current.length) batches.push(current);
-  return batches;
-};
+  const body = { query: q, limit: 20, sort: 'new', time_range: 'all' };
+  if (range?.fromDate) body.from_date = range.fromDate;
+  if (range?.toDate) body.to_date = range.toDate;
 
-/** One POST /api/reddit/rss/monitor with { keywords: [...] } — OR'd server-side. */
-const searchRedditViaBlugate = async (keywords, auth = null) => {
-  const list = (Array.isArray(keywords) ? keywords : [keywords])
-    .map((k) => String(k || '').trim())
-    .filter(Boolean);
-  if (!list.length) return [];
-
-  const data = await callRedditApi('RSS_MONITOR', { keywords: list, limit: 50 }, auth);
+  const data = await callRedditApi('RSS_MONITOR', body, auth);
   const posts = Array.isArray(data?.posts) ? data.posts : [];
   // RSS search also returns subreddit entries (guid t5_…). Keep posts/comments only.
   return posts.filter((p) => !String(p?.guid || '').startsWith('t5_'));
@@ -949,19 +962,16 @@ const runScanEventOnce = async (event, options = {}) => {
   if (platforms.includes('reddit')) {
     try {
       const redditAuth = await loadPlatformAuth(['reddit'], callRedditApi.authFromPlatformRow);
-      // One request per scan — keywords OR'd in a single BluGate RSS_MONITOR call.
-      const redditBatches = batchRedditKeywords(queries);
-      if (redditBatches.length > 1) {
-        const skipped = redditBatches.slice(1).reduce((n, b) => n + b.length, 0);
-        logger.info(`[EventScan] Reddit: sending ${redditBatches[0].length} keywords this scan, ${skipped} did not fit in one request`);
-      }
-      const redditPosts = [];
-      if (redditBatches.length) {
-        apiHits += 1;
-        redditPosts.push(...(await searchRedditViaBlugate(redditBatches[0], redditAuth)));
-      }
-      const posts = uniqueById(redditPosts);
-      const relevant = filterByKeywords(posts, event, (p) => `${p?.title || ''} ${p?.content || ''}`);
+      if (dbName) redditAuth.tenantKey = dbName;
+      const redditRange = redditDateRange(event);
+      const posts = await fetchUniqueByQueriesCounted(redditQueriesForEvent(event), (q) =>
+        searchRedditViaBlugate(q, redditAuth, redditRange)
+      );
+      const relevant = filterByKeywords(
+        posts,
+        redditRelevanceEvent(event),
+        (p) => `${p?.title || ''} ${p?.content || ''}`
+      );
       scanned += relevant.length;
       track('reddit', { scanned: relevant.length });
       let redditIn = 0;
@@ -1023,5 +1033,5 @@ const runScanEventOnce = async (event, options = {}) => {
 module.exports = {
   scanEventOnce,
   buildEventQueries,
-  _reddit: { batchRedditKeywords, searchRedditViaBlugate },
+  _reddit: { searchRedditViaBlugate },
 };

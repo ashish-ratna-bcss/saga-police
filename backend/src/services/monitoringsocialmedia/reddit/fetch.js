@@ -4,23 +4,7 @@ const {
   listPosts,
   mapPostToUpsert,
 } = require('../../blugate/reddit/blugate.reddit.helpers');
-const { waitForSlot, noteRateLimit } = require('./rateLimit');
-
-const isRateError = (err) => {
-  const status = err?.response?.status || err?.status;
-  const msg = String(err?.message || '').toLowerCase();
-  return status === 429 || status === 504 || msg.includes('rate') || msg.includes('too many');
-};
-
-const callWithGap = async (endpointKey, body, auth = null) => {
-  await waitForSlot();
-  try {
-    return await callRedditApi(endpointKey, body, auth);
-  } catch (err) {
-    if (isRateError(err)) noteRateLimit();
-    throw err;
-  }
-};
+const callWithGap = async (endpointKey, body, auth = null) => callRedditApi(endpointKey, body, auth);
 
 /**
  * Fetch recent activity for a Reddit user (BluGate RSS_USER).

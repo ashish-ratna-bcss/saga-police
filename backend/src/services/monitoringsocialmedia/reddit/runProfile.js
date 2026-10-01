@@ -56,6 +56,7 @@ const runRedditProfile = async (accountId, opts = {}) => {
 
     const { authFromPlatformRow } = require('../../blugate/reddit/blugate.reddit.api_client');
     const auth = authFromPlatformRow(account.platforms);
+    if (dbName) auth.tenantKey = dbName;
     const { posts, apiHits: hits, dataPatch } = await fetchRedditPosts(account, auth);
     apiHits = hits;
     postsReturned = posts.length;
