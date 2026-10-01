@@ -14,7 +14,7 @@ const REDDIT_FIELDS = [
     label: 'Username',
     type: 'text',
     required: true,
-    placeholder: 'e.g. spez',
+    placeholder: 'e.g. spez or r/Odisha',
   },
 ];
 
