@@ -123,6 +123,8 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
   const pollTimer = useRef(null);
   const progressTimer = useRef(null);
   const progressAnchor = useRef(null);
+  const generatingRef = useRef(false);
+  const refreshStartedRef = useRef(0);
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
 
@@ -152,6 +154,8 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       const id = eventIdRef.current;
       if (!id) return;
       clearInterval(pollTimer.current);
+      generatingRef.current = true;
+      if (refresh) refreshStartedRef.current = Date.now();
       setLoading(true);
       setError(null);
       if (refresh) {
@@ -181,9 +185,35 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
             return;
           }
 
+          const generatedAtMs = data?.generated_at ? new Date(data.generated_at).getTime() : 0;
+          const stillOld =
+            refreshStartedRef.current &&
+            !data?.regenerate_error &&
+            generatedAtMs &&
+            generatedAtMs + 1500 < refreshStartedRef.current;
+          if (stillOld) {
+            if (Date.now() - refreshStartedRef.current > 12 * 60 * 1000) {
+              stopped = true;
+              clearInterval(pollTimer.current);
+              pollTimer.current = null;
+              generatingRef.current = false;
+              refreshStartedRef.current = 0;
+              clearInterval(progressTimer.current);
+              progressTimer.current = null;
+              setLoading(false);
+              setError('Regenerate did not finish. Open Event Summary and try again.');
+              toast.error('Regenerate did not finish');
+              return;
+            }
+            setLoading(true);
+            return;
+          }
+
           stopped = true;
           clearInterval(pollTimer.current);
           pollTimer.current = null;
+          generatingRef.current = false;
+          refreshStartedRef.current = 0;
 
           if (data?.status === 'failed') {
             clearInterval(progressTimer.current);
@@ -226,6 +256,8 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
 
           clearInterval(progressTimer.current);
           progressTimer.current = null;
+          generatingRef.current = false;
+          refreshStartedRef.current = 0;
           setLoading(false);
           setError('No summary data returned from the service.');
         } catch (err) {
@@ -235,6 +267,8 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
           clearInterval(progressTimer.current);
           pollTimer.current = null;
           progressTimer.current = null;
+          generatingRef.current = false;
+          refreshStartedRef.current = 0;
           console.error('Failed to fetch event summary:', err);
           const msg =
             err?.response?.data?.message ||
@@ -270,6 +304,8 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
     if (prevEventId.current === eventId) return;
     prevEventId.current = eventId;
     clearJobTimers();
+    generatingRef.current = false;
+    refreshStartedRef.current = 0;
     progressAnchor.current = null;
     setSummaryData(null);
     setError(null);
@@ -498,7 +534,12 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-5xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden bg-background border-border shadow-2xl rounded-xl">
+      <DialogContent
+        className="sm:max-w-5xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden bg-background border-border shadow-2xl rounded-xl"
+        onPointerDownOutside={(e) => { if (generatingRef.current) e.preventDefault(); }}
+        onInteractOutside={(e) => { if (generatingRef.current) e.preventDefault(); }}
+        onFocusOutside={(e) => { if (generatingRef.current) e.preventDefault(); }}
+      >
         {/* Header */}
         <DialogHeader className="px-6 py-4 border-b bg-muted/20 flex flex-row items-center justify-between space-y-0">
           <div className="flex items-center gap-3 min-w-0">
@@ -553,9 +594,11 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
 
           <div className="flex items-center gap-2 pr-6 shrink-0">
             <Button
+              type="button"
               variant="outline"
               size="sm"
-              onClick={() => fetchSummary(true)}
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); fetchSummary(true); }}
               disabled={loading}
               className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
               title="Force re-analyze with latest DB posts"
@@ -639,7 +682,8 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
               variant="outline"
               size="sm"
               className="h-7 text-xs shrink-0"
-              onClick={() => fetchSummary(true)}
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); fetchSummary(true); }}
             >
               Regenerate
             </Button>
@@ -660,7 +704,8 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
               variant="outline"
               size="sm"
               className="h-7 text-xs shrink-0"
-              onClick={() => fetchSummary(true)}
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); fetchSummary(true); }}
             >
               Regenerate
             </Button>
