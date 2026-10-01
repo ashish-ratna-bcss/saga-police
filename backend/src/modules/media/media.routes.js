@@ -13,6 +13,7 @@ const os = require('os');
 const rateLimit = require('express-rate-limit');
 const { authorize } = require('../../middleware/auth.middleware');
 const logger = require('../../lib/logger');
+const { publicBaseFromReq, buildPublicFileUrl } = require('../../lib/publicUrl');
 
 const router = express.Router();
 router.use(authorize());
@@ -27,7 +28,6 @@ const downloadLimiter = rateLimit({
 router.use(downloadLimiter);
 
 const STORAGE_DIR = process.env.REPORT_STORAGE_DIR || path.join(__dirname, '..', '..', '..', 'storage');
-const PUBLIC_BASE = (process.env.PUBLIC_BACKEND_URL || '').replace(/\/+$/, '');
 const DOWNLOAD_FOLDER = process.env.MEDIA_DOWNLOAD_FOLDER || 'downloads';
 const YT_DLP_BIN = process.env.YT_DLP_PATH || 'yt-dlp';
 
@@ -59,11 +59,6 @@ const PAGE_HOST_RE =
   /(?:^|\.)(?:youtube\.com|youtu\.be|youtube-nocookie\.com|facebook\.com|fb\.watch|instagram\.com|x\.com|twitter\.com)$/i;
 const DIRECT_MEDIA_RE = /\.(mp4|webm|mkv|mov|m4v|avi|jpe?g|png|gif|webp)(\?|$)/i;
 
-const buildPublicUrl = (key) => {
-  const pathPart = `/files/${key.split('/').map(encodeURIComponent).join('/')}`;
-  return PUBLIC_BASE ? `${PUBLIC_BASE}${pathPart}` : pathPart;
-};
-
 const getHostAllowlist = () => {
   const fromEnv = (process.env.UPLOAD_PROXY_HOST_ALLOWLIST || '')
     .split(',')
@@ -71,8 +66,11 @@ const getHostAllowlist = () => {
     .filter(Boolean);
   const list = fromEnv.length ? fromEnv : DEFAULT_HOST_SUFFIXES.slice();
   try {
-    const publicHost = new URL(PUBLIC_BASE).hostname.toLowerCase();
-    if (publicHost && !list.includes(publicHost)) list.push(publicHost);
+    const fallbackBase = publicBaseFromReq(null);
+    if (fallbackBase) {
+      const publicHost = new URL(fallbackBase).hostname.toLowerCase();
+      if (publicHost && !list.includes(publicHost)) list.push(publicHost);
+    }
   } catch {
     // ignore
   }
@@ -152,7 +150,7 @@ const refererFor = (url) => {
   return undefined;
 };
 
-const storeBufferAsFile = async (buffer, { kind = 'file', index = 1, ext = 'bin', contentType = 'application/octet-stream' } = {}) => {
+const storeBufferAsFile = async (buffer, { kind = 'file', index = 1, ext = 'bin', contentType = 'application/octet-stream', req = null } = {}) => {
   const filename = `${kind}_${index}_${Date.now()}.${ext}`;
   const key = `${DOWNLOAD_FOLDER}/${crypto.randomUUID()}-${filename}`;
   const absPath = path.join(STORAGE_DIR, key);
@@ -164,14 +162,14 @@ const storeBufferAsFile = async (buffer, { kind = 'file', index = 1, ext = 'bin'
   fs.mkdirSync(path.dirname(absPath), { recursive: true });
   await fs.promises.writeFile(absPath, buffer);
   return {
-    download_url: buildPublicUrl(key),
+    download_url: buildPublicFileUrl(key, req),
     filename,
     content_type: contentType,
     bytes: buffer.length,
   };
 };
 
-const fetchAndStore = async (rawUrl, { kind = 'file', index = 1 } = {}) => {
+const fetchAndStore = async (rawUrl, { kind = 'file', index = 1, req = null } = {}) => {
   const url = String(rawUrl || '').trim();
   if (!url) throw Object.assign(new Error('URL is required'), { status: 400 });
   if (!isUrlAllowed(url)) throw Object.assign(new Error('URL host is not allowed'), { status: 400 });
@@ -209,7 +207,7 @@ const fetchAndStore = async (rawUrl, { kind = 'file', index = 1 } = {}) => {
 
   const fallback = kind === 'video' ? 'mp4' : 'jpg';
   const ext = guessExt(fetchUrl, contentType, fallback);
-  return storeBufferAsFile(buffer, { kind, index, ext, contentType });
+  return storeBufferAsFile(buffer, { kind, index, ext, contentType, req });
 };
 
 const runYtDlp = (args, { timeoutMs = 180000 } = {}) =>
@@ -243,7 +241,7 @@ const runYtDlp = (args, { timeoutMs = 180000 } = {}) =>
     });
   });
 
-const downloadPageWithYtDlp = async (rawUrl, { kind = 'video', index = 1 } = {}) => {
+const downloadPageWithYtDlp = async (rawUrl, { kind = 'video', index = 1, req = null } = {}) => {
   const url = String(rawUrl || '').trim();
   if (!url) throw Object.assign(new Error('URL is required'), { status: 400 });
   if (!isUrlAllowed(url)) throw Object.assign(new Error('URL host is not allowed'), { status: 400 });
@@ -280,26 +278,27 @@ const downloadPageWithYtDlp = async (rawUrl, { kind = 'video', index = 1 } = {})
       index,
       ext,
       contentType: ext === 'mp4' ? 'video/mp4' : `video/${ext}`,
+      req,
     });
   } finally {
     await fs.promises.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }
 };
 
-const downloadMediaUrl = async (rawUrl, { kind = 'video', index = 1 } = {}) => {
+const downloadMediaUrl = async (rawUrl, { kind = 'video', index = 1, req = null } = {}) => {
   const url = String(rawUrl || '').trim();
   if (!url) throw Object.assign(new Error('URL is required'), { status: 400 });
 
   if (isPageMediaUrl(url) || !isLikelyDirectMediaUrl(url)) {
     try {
-      return await downloadPageWithYtDlp(url, { kind, index });
+      return await downloadPageWithYtDlp(url, { kind, index, req });
     } catch (err) {
       // Fall through to direct fetch for CDN-like URLs that failed page detection.
       if (isPageMediaUrl(url)) throw err;
       logger.warn(`[media] yt-dlp failed, trying direct fetch: ${err.message}`);
     }
   }
-  return fetchAndStore(url, { kind, index });
+  return fetchAndStore(url, { kind, index, req });
 };
 
 const pickBestVideoUrl = (body = {}) => {
@@ -332,7 +331,7 @@ router.post('/download-images', async (req, res) => {
     const errors = [];
     for (let i = 0; i < urls.length; i += 1) {
       try {
-        items.push(await fetchAndStore(urls[i], { kind: 'image', index: i + 1 }));
+        items.push(await fetchAndStore(urls[i], { kind: 'image', index: i + 1, req }));
       } catch (err) {
         logger.warn(`[media] image download failed: ${err.message}`);
         errors.push({ url: urls[i], error: err.message });
@@ -360,7 +359,7 @@ router.post('/download-video', async (req, res) => {
       return res.status(400).json({ error: 'media_url required' });
     }
 
-    const item = await downloadMediaUrl(mediaUrl, { kind: 'video', index: 1 });
+    const item = await downloadMediaUrl(mediaUrl, { kind: 'video', index: 1, req });
     return res.json({
       download_url: item.download_url,
       filename: item.filename,
@@ -382,7 +381,7 @@ router.post('/download', async (req, res) => {
     const kind = isLikelyDirectMediaUrl(mediaUrl) && DIRECT_MEDIA_RE.test(mediaUrl) && !/\.(mp4|webm|mkv|mov|m4v)(\?|$)/i.test(mediaUrl)
       ? 'image'
       : 'video';
-    const item = await downloadMediaUrl(mediaUrl, { kind, index: 1 });
+    const item = await downloadMediaUrl(mediaUrl, { kind, index: 1, req });
     return res.json({
       download_url: item.download_url,
       filename: item.filename,
