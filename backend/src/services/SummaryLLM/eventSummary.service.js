@@ -826,8 +826,10 @@ const startSummaryJob = ({ eventId, db, dbName, generatedBy, tenantName } = {}) 
     error: null,
     promise: null,
   };
+  logger.info(`[SummaryLLM] regenerate started event=${eventId} tenant=${tenantName || dbName || 'default'}`);
   const promise = generateEventSummary(eventId, { db, generatedBy, tenantName })
     .then((result) => {
+      logger.info(`[SummaryLLM] regenerate finished event=${eventId} source=${result?.summary_source || 'unknown'}`);
       if (summaryJobs.get(key) === job) summaryJobs.delete(key);
       return result;
     })
