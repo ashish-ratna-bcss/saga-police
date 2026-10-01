@@ -11,8 +11,7 @@ const {
   resolveChannelRef,
 } = require('../blugate/telegram/blugate.telegram.helpers');
 const {
-  cleanUsername: cleanRedditUsername,
-  isValidUsername: isValidRedditUsername,
+  parseRedditTarget,
   listPosts: listRedditPosts,
 } = require('../blugate/reddit/blugate.reddit.helpers');
 const { parseChannelRef } = require('./youtube/fetch');
@@ -234,15 +233,10 @@ const previewProfile = async (platformSlug, data, auth = null) => {
 };
 
 const previewReddit = async (data = {}, auth = null) => {
-  const username = cleanRedditUsername(data.username || data.handle || data.url);
-  if (!username) {
-    const err = new Error('Enter a Reddit username');
-    err.status = 400;
-    throw err;
-  }
-  if (!isValidRedditUsername(username)) {
+  const target = parseRedditTarget(data.username || data.handle || data.url || data.subreddit);
+  if (!target) {
     const err = new Error(
-      `"${username}" is not a Reddit username. Use 3–20 letters, numbers, _ or - (for example spez), or paste reddit.com/user/…`
+      'Enter a Reddit user (spez or u/spez) or a subreddit (r/Odisha).'
     );
     err.status = 400;
     throw err;
@@ -250,14 +244,21 @@ const previewReddit = async (data = {}, auth = null) => {
 
   let raw;
   try {
-    raw = await callRedditApi(
-      'RSS_USER',
-      { username, kind: 'overview', limit: 5 },
-      auth
-    );
+    raw = target.kind === 'subreddit'
+      ? await callRedditApi(
+          'RSS_MONITOR',
+          { subreddits: [target.name], sort: 'new', time_range: 'all', limit: 5 },
+          auth
+        )
+      : await callRedditApi(
+          'RSS_USER',
+          { username: target.name, kind: 'overview', limit: 5 },
+          auth
+        );
   } catch (e) {
     if (e.status === 404 || e.status === 422) {
-      const err = new Error(`Reddit can't find u/${username}. Check the spelling.`);
+      const label = target.kind === 'subreddit' ? `r/${target.name}` : `u/${target.name}`;
+      const err = new Error(`Reddit can't find ${label}. Check the spelling.`);
       err.status = 404;
       throw err;
     }
@@ -269,15 +270,19 @@ const previewReddit = async (data = {}, auth = null) => {
   const author =
     first?.author ||
     (typeof first?.author === 'object' ? first?.author?.name : null) ||
-    username;
+    target.name;
+  const isSubreddit = target.kind === 'subreddit';
+  const handle = isSubreddit ? `r/${target.name}` : target.name;
 
   const summary = {
-    name: String(author || username),
+    name: isSubreddit ? handle : String(author || target.name),
     biography: null,
     image: null,
-    url: `https://www.reddit.com/user/${username}/`,
-    username,
-    user_id: username,
+    url: isSubreddit
+      ? `https://www.reddit.com/r/${target.name}/`
+      : `https://www.reddit.com/user/${target.name}/`,
+    username: handle,
+    user_id: handle,
     recent_posts: posts.length,
   };
 
@@ -285,17 +290,16 @@ const previewReddit = async (data = {}, auth = null) => {
     fetched_at: new Date().toISOString(),
     platform: 'reddit',
     summary,
-    raw: { username, sample_posts: posts.slice(0, 3) },
+    raw: { username: handle, sample_posts: posts.slice(0, 3) },
   };
 
   return {
     platform: 'reddit',
     preview: summary,
     preview_data,
-    data_patch: {
-      username,
-      user_id: username,
-    },
+    data_patch: isSubreddit
+      ? { username: handle, subreddit: target.name, profile_kind: 'subreddit' }
+      : { username: target.name, user_id: target.name, profile_kind: 'user' },
   };
 };
 
