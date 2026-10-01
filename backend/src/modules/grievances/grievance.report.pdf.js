@@ -6,6 +6,7 @@ const fs = require('fs');
 const puppeteer = require('puppeteer');
 const dbOf = require('../../lib/dbOf');
 const logger = require('../../lib/logger');
+const { publicBaseFromReq } = require('../../lib/publicUrl');
 const { asJson } = require('./grievance.utils');
 const { findReport } = require('./grievance.report.service');
 const {
@@ -19,24 +20,6 @@ const STORAGE_DIR =
 const asObject = (value, fallback = {}) => {
   const parsed = asJson(value, fallback);
   return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback;
-};
-
-const publicBaseFromReq = (req) => {
-  const envBase = (process.env.PUBLIC_BACKEND_URL || '').replace(/\/+$/, '');
-  if (envBase) return envBase;
-  if (req) {
-    return `${req.protocol}://${req.get('host')}`.replace(/\/+$/, '');
-  }
-  return '';
-};
-
-const buildPublicFileUrl = (key, req) => {
-  const base = publicBaseFromReq(req);
-  const pathPart = `/files/${String(key)
-    .split('/')
-    .map(encodeURIComponent)
-    .join('/')}`;
-  return base ? `${base}${pathPart}` : pathPart;
 };
 
 const escapeHtml = (s) =>

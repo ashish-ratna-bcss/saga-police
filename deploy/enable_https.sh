@@ -81,10 +81,12 @@ if [[ -f "$ENV_FILE" ]]; then
   if grep -q '^COOKIE_SECURE=' "$ENV_FILE"; then
     sed -i '/^COOKIE_SECURE=/d' "$ENV_FILE"
   fi
+  # Do not set PUBLIC_BACKEND_URL to a single tenant domain — multi-tenant
+  # public file/PDF URLs are derived from each request's Host / X-Forwarded-Host.
+  # Optional fallback for jobs without a request: leave unset or set per process.
   if grep -q '^PUBLIC_BACKEND_URL=' "$ENV_FILE"; then
-    sed -i "s|^PUBLIC_BACKEND_URL=.*|PUBLIC_BACKEND_URL=https://$FIRST|" "$ENV_FILE"
-  else
-    printf 'PUBLIC_BACKEND_URL=https://%s\n' "$FIRST" >> "$ENV_FILE"
+    echo "==> Leaving PUBLIC_BACKEND_URL unset for multi-tenant (was pinned to first domain)"
+    sed -i '/^PUBLIC_BACKEND_URL=/d' "$ENV_FILE"
   fi
 fi
 
