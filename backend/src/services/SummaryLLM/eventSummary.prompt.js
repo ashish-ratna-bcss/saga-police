@@ -25,8 +25,10 @@ RULES:
 4. Tone & Style: Plain English, concise, analytical sentences for seniors. Avoid generic filler. Ground all claims in evidence.
 5. Never say something is absent when its count is above 0 (praise 7 means "7 praise posts", not "no praise"); if a count is 0, say none were recorded. The statistics are the truth even if a post's wording seems to disagree.
 6. Avoid the phrases: "public sentiment", "dominated conversations" (unless over 80%), "no organized dissent", "proceeded smoothly", "fostering public confidence", "not verified", "field verification", "keyword-matched related discourse", "may not be named", "caveat", "peripheral noise". Describe non-English posts in English.
-7. Structure the briefing so a reader can quickly see: activity, locations when present in posts or the event location field, sentiment, critical/negative discourse, active leaders or targets, and amplifying accounts. Do not invent geography or organisations not in the data.
-8. Leave out anything the posts do not support.`;
+7. This brief is for a State DGP and Crime Branch. Answer, from the posts only: what activity is being organised; where people or representatives were present; which specific places are named; how the volume and tone sit; which accounts carry the criticism; which named leaders or representatives appear; and which accounts amplify it.
+8. Locations: name the district, city, town, chowk, road, highway, institution, or building written in the post (for example a city dateline, an assembly, a highway, a chowk). Do not collapse a specific place into the state name. If a post only names the state, say the state. Never invent a place the post does not contain.
+9. Public order: a bandh, blockade, highway block, gherao, rally, or protest named in a post is a fact. Do not write that there is no unrest or no blockade when the evidence says otherwise. Keep peaceful criticism separate from those calls.
+10. Leave out anything the posts do not support.`;
 
 /* ---------------------------------------------------------------- 2. OUTPUT CONTRACT ---------------------- */
 const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only (no conversational text, no markdown code fences) with exactly these fields:
@@ -42,6 +44,11 @@ const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only (no conversational text, n
  "claims": [{"claim": "short factual claim", "posts": [1], "triage": "VERIFY or MONITOR", "note": "verification path or monitoring reason"}],
  "changes": [{"from": "earlier state", "to": "later state", "post": 1}],
  "emerging_keywords": [{"term": "#tag or phrase", "posts": [1], "why": "short reason"}],
+ "activities": [{"what": "campaign, meeting, protest, bandh, rally, or programme named in posts", "where": "specific place in the post, or empty", "when": "date in the post, or empty", "posts": [1]}],
+ "presence": [{"who": "account or person the post says was present", "place": "specific place in the post", "posts": [1]}],
+ "geography": [{"place": "specific place, not only the state", "note": "what the posts say happened there", "posts": [1]}],
+ "leaders": [{"name": "person named in a post", "role": "how the post describes them", "posts": [1]}],
+ "amplifiers": [{"account": "page or handle", "why": "how they amplify", "posts": [1]}],
  "source_types": {"1": "media", "2": "creator", "3": "individual"}   // EVERY post number; media = outlet/agency/think tank/official, creator = channel/page/blog, individual = personal account
 }
 claims: 0-8 factual assertions (not opinions). VERIFY = checkable against an official source; MONITOR = theme to watch. changes: only if a post itself states a before/after. Finish every field; shorten paragraphs rather than dropping fields. Output valid complete JSON.`;
@@ -134,7 +141,12 @@ OUTPUT: ONE JSON object only (no text around it, no code fences) with exactly th
  "recommended_actions": [{"action": "short imperative", "detail": "1-2 sentences", "posts": [5]}],   // 3-6
  "claims": [{"claim": "short", "posts": [5], "triage": "VERIFY or MONITOR", "note": "verification path or reason to monitor"}],   // 0-8, chosen from CLAIMS, post numbers as given
  "changes": [{"from": "earlier state", "to": "later state", "post": 8}],   // 0-6, from SHIFTS only
- "emerging_keywords": [{"term": "#tag or phrase from HASHTAGS or the notes", "why": "short reason"}]   // 5-12
+ "emerging_keywords": [{"term": "#tag or phrase from HASHTAGS or the notes", "why": "short reason"}],
+ "activities": [{"what": "campaign, meeting, protest, bandh, rally, or programme", "where": "specific place or empty", "when": "date or empty", "posts": [5]}],
+ "presence": [{"who": "who the note says was present", "place": "specific place", "posts": [5]}],
+ "geography": [{"place": "specific place from the notes, not only the state", "note": "what happened there", "posts": [5]}],
+ "leaders": [{"name": "person named in the notes", "role": "how they are described", "posts": [5]}],
+ "amplifiers": [{"account": "page or handle", "why": "how they amplify", "posts": [5]}]
 }
 Cite only post numbers that appear in the notes. Finish every field; shorten paragraphs rather than dropping fields.`;
 
@@ -306,6 +318,38 @@ const parseLLMReport = (raw, evidence) => {
   const postNarrative = {};
   narratives.forEach((n) => n.posts.forEach((p) => { if (!postNarrative[p]) postNarrative[p] = n.code; }));
 
+  const briefRows = (arr, map) => (Array.isArray(arr) ? arr : []).slice(0, 8).map(map).filter(Boolean);
+  const activities = briefRows(obj.activities, (a) => {
+    const posts = ids(a.posts);
+    const what = str(a.what, 180);
+    if (!what) return null;
+    return { what, where: str(a.where, 120), when: str(a.when, 80), posts };
+  });
+  const presence = briefRows(obj.presence, (a) => {
+    const posts = ids(a.posts);
+    const who = str(a.who, 120);
+    if (!who) return null;
+    return { who, place: str(a.place, 120), posts };
+  });
+  const geography = briefRows(obj.geography, (a) => {
+    const posts = ids(a.posts);
+    const place = str(a.place, 120);
+    if (!place || !posts.length) return null;
+    return { place, note: str(a.note, 240), posts };
+  });
+  const leaders = briefRows(obj.leaders, (a) => {
+    const posts = ids(a.posts);
+    const name = str(a.name, 120);
+    if (!name) return null;
+    return { name, role: str(a.role, 160), posts };
+  });
+  const amplifiers = briefRows(obj.amplifiers, (a) => {
+    const posts = ids(a.posts);
+    const account = str(a.account, 80);
+    if (!account) return null;
+    return { account, why: str(a.why, 200), posts };
+  });
+
   const report = {
     bottomLine: para(obj.bottom_line),
     keyFindings,
@@ -318,6 +362,11 @@ const parseLLMReport = (raw, evidence) => {
     claims,
     changes,
     emerging,
+    activities,
+    presence,
+    geography,
+    leaders,
+    amplifiers,
     sourceTypes,
     postNarrative,
   };

@@ -469,6 +469,10 @@ const generateEventSummary = async (eventId, { db, generatedBy } = {}) => {
         has_threat_vector: hasThreatVector,
         is_relevant: relevance.isRelevant,
         url: m.url || null,
+        likes: Number(eng.likes || eng.like_count || eng.favorite_count || 0) || 0,
+        shares: Number(eng.shares || eng.retweets || eng.reposts || eng.share_count || 0) || 0,
+        comments: Number(eng.comments || eng.replies || eng.comment_count || 0) || 0,
+        views: Number(eng.views || eng.view_count || 0) || 0,
         engagementScore: getEngagementTotal(m.engagement),
         postedAt: m.posted_at,
       };
@@ -704,8 +708,7 @@ ${topCitations ? `\n**Sampled Evidence Citations:**\n${topCitations}\n` : ''}
 
 ### ⚠️ 4. Threat & Public Order Risk Assessment
 Public order evaluation indicates **${riskCounts.critical + riskCounts.high} critical/high threat signals** and **${riskCounts.medium} medium risk items**.
-- **Important Distinction**: Negative sentiment (${activeSentiment.negative} posts) represents policy criticism and grievance feedback, and does not constitute an agitation or disruption signal.
-- No organized bandhs, violent mobilization, or disruption vectors were identified within the monitored sample.
+- Negative sentiment (${activeSentiment.negative} posts) is policy criticism unless the post itself calls a bandh, blockade, rally, or other disruption. Those calls are reported only when the post text contains them.
 
 ### 👥 5. Amplifiers & Key Vector Channels
 Distribution of analyzed content by platform:
@@ -718,16 +721,8 @@ ${Object.entries(platformCounts).map(([p, count]) => `- **${p.toUpperCase()}**: 
 `;
   }
 
-  // Evidence register = the top 32 posts by priority (risk, reach, criticism) plus any other post the report cites.
-  const EVIDENCE_SAMPLE = 32;
-  const evidenceNumbers = new Set(analysed.slice(0, EVIDENCE_SAMPLE).map(postNo));
-  if (structuredReport) {
-    const { postNarrative, sourceTypes, ...citable } = structuredReport;
-    (JSON.stringify(citable).match(/\[Post #(\d+)\]/g) || []).forEach((t) => evidenceNumbers.add(Number(t.replace(/\D/g, ''))));
-    [...(structuredReport.claims || []), ...(structuredReport.actions || []), ...(structuredReport.emerging || [])].forEach((c) => (c.posts || []).slice(0, 3).forEach((n) => evidenceNumbers.add(n)));
-    (structuredReport.changes || []).forEach((c) => evidenceNumbers.add(c.post));
-  }
-  const evidenceList = analysed.filter((x) => evidenceNumbers.has(postNo(x))).slice(0, 90);
+  // Every analysed post is evidence. The brief tables quote them; the annex lists them.
+  const evidenceList = analysed;
 
   const result = {
     ok: true,
@@ -777,6 +772,11 @@ ${Object.entries(platformCounts).map(([p, count]) => `- **${p.toUpperCase()}**: 
       target_semantic: s.target_semantic,
       risk_level: s.risk_level,
       url: s.url,
+      posted_at: s.postedAt || null,
+      likes: s.likes || 0,
+      shares: s.shares || 0,
+      comments: s.comments || 0,
+      views: s.views || 0,
     })),
     model,
     generated_at: new Date().toISOString(),
@@ -800,10 +800,51 @@ ${Object.entries(platformCounts).map(([p, count]) => `- **${p.toUpperCase()}**: 
   return result;
 };
 
+const summaryJobs = new Map();
+
+const summaryJobKey = (dbName, eventId) => `${dbName || 'default'}:${Number(eventId)}`;
+
+const getSummaryJob = (dbName, eventId) => summaryJobs.get(summaryJobKey(dbName, eventId)) || null;
+
+/**
+ * Run summary generation off the HTTP request. Closing the dialog ends the
+ * browser call; this job keeps going and is saved when it finishes.
+ * A second click joins the job already running for that event.
+ */
+const startSummaryJob = ({ eventId, db, dbName, generatedBy } = {}) => {
+  const key = summaryJobKey(dbName, eventId);
+  const existing = summaryJobs.get(key);
+  if (existing?.status === 'running') return existing;
+
+  const job = {
+    status: 'running',
+    started_at: new Date().toISOString(),
+    error: null,
+    promise: null,
+  };
+  const promise = generateEventSummary(eventId, { db, generatedBy })
+    .then((result) => {
+      if (summaryJobs.get(key) === job) summaryJobs.delete(key);
+      return result;
+    })
+    .catch((err) => {
+      job.status = 'failed';
+      job.error = err.message || 'Failed to generate event summary.';
+      job.finished_at = new Date().toISOString();
+      logger.error(`[SummaryLLM] background job failed event=${eventId}: ${job.error}`);
+      throw err;
+    });
+  job.promise = promise;
+  summaryJobs.set(key, job);
+  return job;
+};
+
 module.exports = {
   generateEventSummary,
   getCachedEventSummary,
   saveEventSummaryPdf,
   getLLMConfig,
+  getSummaryJob,
+  startSummaryJob,
   __test: { buildBatchDigest },
 };

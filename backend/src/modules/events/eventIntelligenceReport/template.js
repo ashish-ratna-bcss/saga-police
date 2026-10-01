@@ -144,7 +144,64 @@ const extractPlacePhrases = (text) => {
 };
 
 const VISIT_RE =
-  /(?:visit(?:ed|ing)?|tour|press\s*conference|rally|protest|hunger\s*strike|inspected|inspection|meeting|yatra|padayatra|morcha)/i;
+  /(?:visit(?:ed|ing)?|participat(?:ed|ing)|tour|press\s*conference|rally|protest|bandh|blockade|blocked|gherao|hunger\s*strike|inspected|inspection|meeting|yatra|padayatra|morcha|highway)/i;
+
+const SKIP_PLACE = new Set([
+  'the', 'this', 'that', 'today', 'yesterday', 'watch', 'students', 'student', 'protest',
+  'massive', 'national', 'public', 'people', 'letter', 'state', 'india', 'news', 'post',
+  'call', 'called', 'bandh', 'rally', 'meeting', 'campaign', 'minister', 'government',
+  'police', 'education', 'school', 'assembly', 'wednesday', 'tomorrow', 'september',
+  'october', 'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august',
+  'november', 'december',
+]);
+
+/** Places written in the post: datelines, institutions, highways, and single place hashtags. */
+const specificPlaces = (text) => {
+  const hits = [];
+  const add = (raw) => {
+    const p = String(raw || '')
+      .replace(/^#/, '')
+      .replace(/\s+/g, ' ')
+      .replace(/[|.,;:]+$/g, '')
+      .trim();
+    if (p.length < 3 || p.length > 64) return;
+    if (SKIP_PLACE.has(p.toLowerCase())) return;
+    if (!hits.some((h) => h.toLowerCase() === p.toLowerCase())) hits.push(p);
+  };
+  const src = String(text || '');
+  let m;
+  const dateLine = /\b([A-Z][\p{L}]{2,}),\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b/gu;
+  while ((m = dateLine.exec(src))) add(m[1]);
+  const title = (s) => String(s).toLowerCase().replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase());
+  const placeTail = /(Sabha|Assembly|Chowk|Chhak|Nagar|Highway|District|Panchayat|University|College|Maidan|Road|Ghat|Bazar|Bazaar|Square|Junction|Pur|Garh)$/i;
+  const fixed = /\b(national highway(?:\s*\d+)?|nh[-\s]?\d+|vidhan sabha|legislative assembly|odisha assembly)\b/gi;
+  while ((m = fixed.exec(src))) add(title(m[1]));
+  const suffix = /\b([A-Z][\p{L}]+(?:\s+(?:of|the|[A-Z][\p{L}]+)){0,2}\s+(?:Sabha|Assembly|Chowk|Chhak|Nagar|Pur|Garh|Highway|District|Panchayat|University|College|Maidan|Square|Junction|Ghat|Bazar|Bazaar|Road))\b/gu;
+  while ((m = suffix.exec(src))) add(m[1]);
+  const caps = /\b[A-Z]{3,}(?:\s+[A-Z]{2,}){0,6}\b/g;
+  while ((m = caps.exec(src))) {
+    const words = m[0].trim().split(/\s+/);
+    if (!placeTail.test(words[words.length - 1])) continue;
+    const kept = words.slice(-3).filter((w) => !/^(THE|OF|AND|IN|AT|TO|FOR|ON)$/.test(w));
+    if (kept.length) add(title(kept.join(' ').toLowerCase()));
+  }
+  const prep = /\b(?:in front of|outside|near|across|at|in|from)\s+(?:the\s+)?((?:[A-Z][\p{L}’']+|[A-Z]{2,})(?:\s+(?:[A-Z][\p{L}’']+|[A-Z]{2,})){0,3})/gu;
+  while ((m = prep.exec(src))) {
+    const phrase = m[1].trim();
+    const words = phrase.split(/\s+/);
+    if (placeTail.test(phrase) || words.length === 1) add(phrase);
+  }
+  const hash = /#([A-Z][a-z]{3,18})\b/g;
+  while ((m = hash.exec(src))) add(m[1]);
+  return hits.slice(0, 6);
+};
+
+const broadPlaces = (event) => new Set(
+  String(event?.location || '')
+    .split(/[,;/|]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => s.length >= 2)
+);
 
 const CSS = `
 *{box-sizing:border-box}
@@ -203,6 +260,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis }) => {
   const tenant = (tenantName || 'DIGITAL INTELLIGENCE PLATFORM').toUpperCase();
   const lead = platformEntries[0];
   const placeLexicon = buildPlaceLexicon(event);
+  const broad = broadPlaces(event);
 
   const rawEv = summary?.evidence_traceability || [];
   const ev = rawEv.map((e, i) => {
@@ -210,8 +268,18 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis }) => {
     const text = String(e.text || '');
     const sk = sentKey(e.sentiment);
     const isVisit = VISIT_RE.test(text);
-    let places = placesIn(text, placeLexicon);
-    if (!places.length && isVisit) places = extractPlacePhrases(text);
+    const places = [];
+    const addPlace = (name) => {
+      if (!name || places.some((h) => h.toLowerCase() === name.toLowerCase())) return;
+      places.push(name);
+    };
+    specificPlaces(text).forEach(addPlace);
+    placesIn(text, placeLexicon).forEach(addPlace);
+    if (!places.length && isVisit) extractPlacePhrases(text).forEach(addPlace);
+    const likes = n0(e.likes ?? e.engagement?.likes);
+    const comments = n0(e.comments ?? e.engagement?.comments);
+    const shares = n0(e.shares ?? e.engagement?.shares);
+    const views = n0(e.views ?? e.engagement?.views);
     return {
       ...e,
       n,
@@ -220,18 +288,18 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis }) => {
       text,
       sentK: sk,
       places,
+      specific: places.filter((p) => !broad.has(p.toLowerCase())),
       isVisit,
-      eng:
-        n0(e.engagement?.likes || e.likes) +
-        n0(e.engagement?.comments || e.comments) * 2 +
-        n0(e.engagement?.shares || e.shares) * 3,
+      when: e.posted_at ? new Date(e.posted_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—',
+      eng: likes + comments * 2 + shares * 3 + Math.floor(views / 10),
     };
   });
 
-  // Location coverage from evidence (lexicon = event location + keywords only)
+  // Geographic penetration: places named inside posts. The state name is kept, but it does not hide a city or site.
   const placeMap = {};
   ev.forEach((e) => {
-    e.places.forEach((d) => {
+    const named = e.specific.length ? e.specific : e.places;
+    named.forEach((d) => {
       placeMap[d] = placeMap[d] || { count: 0, sample: null };
       placeMap[d].count += 1;
       if (!placeMap[d].sample) placeMap[d].sample = e;
@@ -242,14 +310,12 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis }) => {
     .sort((a, b) => b.count - a.count);
 
   const visits = ev
-    .filter((e) => e.isVisit)
-    .sort((a, b) => String(b.posted_at || '').localeCompare(String(a.posted_at || '')))
-    .slice(0, 12);
+    .filter((e) => e.specific.length || e.isVisit)
+    .sort((a, b) => String(b.posted_at || '').localeCompare(String(a.posted_at || '')));
 
   const critical = ev
     .filter((e) => e.sentK === 'negative' || ['critical', 'high'].includes(String(e.risk_level || '').toLowerCase()))
-    .sort((a, b) => b.eng - a.eng)
-    .slice(0, 12);
+    .sort((a, b) => b.eng - a.eng);
 
   // Amplifiers / authors
   const authors = {};
@@ -261,7 +327,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis }) => {
   });
   const promoters = Object.values(authors)
     .sort((a, b) => b.eng - a.eng || b.count - a.count)
-    .slice(0, 12);
+    .slice(0, 20);
 
   // Targets from entity classification (tenant/event data — not hardcoded orgs)
   const entities = Object.entries(stats.target_classification || {})
@@ -280,10 +346,16 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis }) => {
   const platStr = platformEntries.map(([k, v]) => `${platLabel(k)}: ${fmt(v)}`).join(', ') || '—';
   const kwStr = kws.slice(0, 14).map((k) => k.keyword).join(', ') || (event.keywords || []).map((k) => (k.keyword || k)).join(', ') || '—';
 
-  const activityRows = ev.slice(0, 12)
+  const placeLabel = (e) => (e.specific.length ? e.specific.join(', ') : e.places.length ? e.places.join(', ') : 'Not named in the post');
+  const postRef = (e) => (e.citationTag ? e.citationTag : `Post #${e.n}`);
+
+  const activityPosts = ev.filter((e) => e.isVisit);
+  const activityRows = (activityPosts.length ? activityPosts : ev)
     .map(
       (e) => `<tr>
-<td>${esc(String(e.posted_at || e.fetched_at || '').slice(0, 16).replace('T', ' '))}</td>
+<td>${esc(postRef(e))}</td>
+<td>${esc(e.when)}</td>
+<td>${esc(placeLabel(e))}</td>
 <td>${esc(platLabel(e.plat))}</td>
 <td>${esc(e.author)}</td>
 <td class="tone-${e.sentK || 'neu'}">${esc(toneLabel(e.sentK))}</td>
@@ -292,19 +364,24 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis }) => {
     )
     .join('');
 
+  const activityBrief = (analysis?.activities || [])
+    .map((a) => `<li><b>${esc(a.what)}</b>${a.where ? ` — ${esc(a.where)}` : ''}${a.when ? `, ${esc(a.when)}` : ''}${a.posts?.length ? ` <span class="sm">${esc(a.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`)
+    .join('');
+
   const visitRows = visits.length
     ? visits
         .map(
           (e) => `<tr>
-<td>${esc(String(e.posted_at || '').slice(0, 10))}</td>
-<td>${esc(e.places.length ? e.places.join(', ') : event.location || '—')}</td>
+<td>${esc(postRef(e))}</td>
+<td>${esc(e.when)}</td>
+<td>${esc(placeLabel(e))}</td>
 <td>${esc(platLabel(e.plat))}</td>
 <td>${esc(e.author)}</td>
 <td>${esc(clip(e.text, 120))}</td>
 </tr>`
         )
         .join('')
-    : `<tr><td colspan="5">No visit / field-activity posts in the cited evidence sample.</td></tr>`;
+    : `<tr><td colspan="6">No post in this set names a place or a field activity.</td></tr>`;
 
   const placeRows = places.length
     ? places
@@ -322,6 +399,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis }) => {
     ? critical
         .map(
           (e) => `<tr>
+<td>${esc(postRef(e))}</td>
+<td>${esc(placeLabel(e))}</td>
 <td>${esc(platLabel(e.plat))}</td>
 <td>${esc(e.author)}</td>
 <td class="tone-neg">${esc(toneLabel(e.sentK) === '—' ? 'Negative' : toneLabel(e.sentK))}</td>
@@ -329,7 +408,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis }) => {
 </tr>`
         )
         .join('')
-    : `<tr><td colspan="4">No negative or high-risk posts in the cited evidence sample.</td></tr>`;
+    : `<tr><td colspan="6">No negative or high-risk posts in this evidence set.</td></tr>`;
 
   const promoterRows = promoters
     .map(
@@ -377,9 +456,9 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis }) => {
   const body = `
 <section class="pg">
   <div class="hero">
-    <div class="eyebrow">${esc(tenant)} · DAILY INTELLIGENCE BRIEF</div>
+    <div class="eyebrow">${esc(tenant)} · CRIME BRANCH BRIEF FOR THE DGP</div>
     <h1>${esc(event.name || 'Event')}</h1>
-    <div class="sub">${esc(event.location || 'Location not specified')} · Social media monitoring</div>
+    <div class="sub">${esc(event.location || 'Location not specified')} · Each row below is a monitored post used as evidence</div>
     <div class="meta">
       <span>MONITORING WINDOW<b>${esc(windowStr)}</b></span>
       <span>GENERATED<b>${esc(dateStr)}</b></span>
@@ -410,23 +489,25 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis }) => {
   ${analysis?.bottomLine ? `<p class="lead"><b>Bottom line.</b> ${esc(analysis.bottomLine)}</p>` : ''}
   ${findingsHtml}
 
-  <div class="sec"><span class="no">01.</span><span class="nm">Activity</span></div>
-  ${narrHtml}
-  ${analysis?.sentimentCommentary ? `<p>${esc(analysis.sentimentCommentary)}</p>` : ''}
+  <div class="sec"><span class="no">01.</span><span class="nm">Activity analysis</span></div>
+  <p class="sm">Campaigns, meetings, protests, bandhs, rallies, and programmes named in the posts.</p>
+  ${activityBrief ? `<ul class="bul">${activityBrief}</ul>` : narrHtml}
   <table>
-    <thead><tr><th>When</th><th>Platform</th><th>Author</th><th>Tone</th><th>Snippet</th></tr></thead>
-    <tbody>${activityRows || '<tr><td colspan="5">No cited evidence posts.</td></tr>'}</tbody>
+    <thead><tr><th>Post</th><th>When</th><th>Place in the post</th><th>Platform</th><th>Author</th><th>Tone</th><th>Evidence</th></tr></thead>
+    <tbody>${activityRows || '<tr><td colspan="7">No activity posts in this set.</td></tr>'}</tbody>
   </table>
 
-  <div class="sec"><span class="no">02.</span><span class="nm">Locations / visits</span></div>
-  <p class="sm">Field / visit activity identified from monitored posts for this event.</p>
+  <div class="sec"><span class="no">02.</span><span class="nm">Recent movement / presence</span></div>
+  <p class="sm">Where a post says someone was present, or names a site of a rally, meeting, protest, or blockade. A blank place means the post did not name one.</p>
+  ${(analysis?.presence || []).length ? `<ul class="bul">${analysis.presence.map((p) => `<li><b>${esc(p.who)}</b>${p.place ? ` at ${esc(p.place)}` : ''}${p.posts?.length ? ` <span class="sm">${esc(p.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : ''}
   <table>
-    <thead><tr><th>Date</th><th>Place(s)</th><th>Platform</th><th>Author</th><th>Activity</th></tr></thead>
+    <thead><tr><th>Post</th><th>When</th><th>Place named</th><th>Platform</th><th>Author</th><th>Evidence</th></tr></thead>
     <tbody>${visitRows}</tbody>
   </table>
 
-  <div class="sec"><span class="no">03.</span><span class="nm">Location coverage</span></div>
-  <p class="sm"><b>${fmt(places.length)}</b> place name${places.length === 1 ? '' : 's'} matched from the event location in cited posts.</p>
+  <div class="sec"><span class="no">03.</span><span class="nm">Geographic penetration</span></div>
+  <p class="sm"><b>${fmt(places.length)}</b> place${places.length === 1 ? '' : 's'} written in the posts. These are cities, sites, highways, and institutions from the text, not only the event’s state.</p>
+  ${(analysis?.geography || []).length ? `<ul class="bul">${analysis.geography.map((g) => `<li><b>${esc(g.place)}</b> — ${esc(g.note || '')} ${g.posts?.length ? `<span class="sm">${esc(g.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : ''}
   <table>
     <thead><tr><th>Place</th><th>Posts</th><th>Evidence</th></tr></thead>
     <tbody>${placeRows}</tbody>
@@ -434,7 +515,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis }) => {
 </section>
 
 <section class="pg">
-  <div class="sec"><span class="no">04.</span><span class="nm">Social media sentiment</span></div>
+  <div class="sec"><span class="no">04.</span><span class="nm">Popularity / sentiment</span></div>
   <div class="kpi">
     <div><div class="n tone-pos">${fmt(sent.positive)}</div><div class="l">Positive (${pct(sent.positive, sentTotal)})</div></div>
     <div><div class="n tone-neu">${fmt(sent.neutral)}</div><div class="l">Neutral (${pct(sent.neutral, sentTotal)})</div></div>
@@ -450,15 +531,15 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis }) => {
         : 'Positive tone is prominent'
   }, with ${pct(sent.negative, sentTotal)} negative share.</p>
 
-  <div class="sec"><span class="no">05.</span><span class="nm">Critical comments / negative discourse</span></div>
-  <p class="sm">High-attention negative and high-risk posts from the evidence sample.</p>
+  <div class="sec"><span class="no">05.</span><span class="nm">Critical comment tracking</span></div>
+  <p class="sm">Every negative or high-risk post in this evidence set, with the account that posted it.</p>
   <table>
-    <thead><tr><th>Platform</th><th>Account</th><th>Tone</th><th>Snippet</th></tr></thead>
+    <thead><tr><th>Post</th><th>Place</th><th>Platform</th><th>Account</th><th>Tone</th><th>Evidence</th></tr></thead>
     <tbody>${critRows}</tbody>
   </table>
   ${analysis?.publicOrder ? `<p><b>Public order.</b> ${esc(analysis.publicOrder)}</p>` : ''}
 
-  <div class="sec"><span class="no">06.</span><span class="nm">Active leaders / targets</span></div>
+  <div class="sec"><span class="no">06.</span><span class="nm">Active leaders / representatives</span></div>
   ${
     entities.length
       ? `<table>
@@ -467,23 +548,41 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis }) => {
   </table>`
       : '<p class="sm">Entity classification not available for this event.</p>'
   }
+  ${(analysis?.leaders || []).length ? `<ul class="bul">${analysis.leaders.map((l) => `<li><b>${esc(l.name)}</b>${l.role ? ` — ${esc(l.role)}` : ''}${l.posts?.length ? ` <span class="sm">${esc(l.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : ''}
   ${analysis?.platformsCommentary ? `<p>${esc(analysis.platformsCommentary)}</p>` : ''}
 
-  <div class="sec"><span class="no">07.</span><span class="nm">Influencers / amplifying accounts</span></div>
-  <p class="sm">Ranked by engagement on cited evidence posts.</p>
+  <div class="sec"><span class="no">07.</span><span class="nm">Influencer ecosystem</span></div>
+  <p class="sm">Accounts ranked by how often they post in this set and by likes, comments, shares, and views stored on those posts.</p>
+  ${(analysis?.amplifiers || []).length ? `<ul class="bul">${analysis.amplifiers.map((a) => `<li><b>${esc(a.account)}</b> — ${esc(a.why || '')}${a.posts?.length ? ` <span class="sm">${esc(a.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : ''}
   <table>
     <thead><tr><th>Platform</th><th>Account</th><th>Posts</th><th>Eng. score</th><th>Sample</th></tr></thead>
     <tbody>${promoterRows || '<tr><td colspan="5">No amplifier data in cited evidence.</td></tr>'}</tbody>
   </table>
 
-  ${actionsHtml ? `<div class="sec"><span class="no">08.</span><span class="nm">Recommended actions</span></div>${actionsHtml}` : ''}
+  <div class="sec"><span class="no">08.</span><span class="nm">Evidence register</span></div>
+  <p class="sm">All ${fmt(ev.length)} posts used for this brief. Post numbers match the citations above.</p>
+  <table>
+    <thead><tr><th>Post</th><th>When</th><th>Place</th><th>Platform</th><th>Account</th><th>Tone</th><th>Eng.</th><th>Text</th></tr></thead>
+    <tbody>${ev.map((e) => `<tr>
+<td>${esc(postRef(e))}</td>
+<td>${esc(e.when)}</td>
+<td>${esc(placeLabel(e))}</td>
+<td>${esc(platLabel(e.plat))}</td>
+<td>${esc(e.author)}</td>
+<td class="tone-${e.sentK || 'neu'}">${esc(toneLabel(e.sentK))}</td>
+<td>${fmt(e.eng)}</td>
+<td>${esc(clip(e.text, 160))}</td>
+</tr>`).join('') || '<tr><td colspan="8">No posts in this evidence set.</td></tr>'}</tbody>
+  </table>
+
+  ${actionsHtml ? `<div class="sec"><span class="no">09.</span><span class="nm">Recommended actions</span></div>${actionsHtml}` : ''}
 
   <div class="footnote">
     <b>Summary</b><br>
     • Tenant: ${esc(tenant)}. Event: ${esc(event.name || '—')}.<br>
     • Posts analysed from database: ${fmt(total)}. Cited evidence: ${fmt(ev.length)}.<br>
     • Platforms: ${esc(platStr)}.<br>
-    • Location coverage: ${fmt(places.length)}${places[0] ? `; highest volume in ${esc(places[0].name)}` : event.location ? `; event location ${esc(event.location)}` : ''}.<br>
+    • Places named in posts: ${fmt(places.length)}${places[0] ? `; highest volume in ${esc(places[0].name)}` : ''}.<br>
     • Sentiment (Positive / Neutral / Negative): ${fmt(sent.positive)} / ${fmt(sent.neutral)} / ${fmt(sent.negative)}.
   </div>
 </section>

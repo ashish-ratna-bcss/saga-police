@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import api from '../../lib/api';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../../context/auth.context';
@@ -75,7 +75,7 @@ function cleanPostDisplayText(t) {
     .trim();
 }
 
-export default function EventSummaryDialog({ open, onOpenChange, eventId, eventName }) {
+export default function EventSummaryDialog({ open, onOpenChange, eventId, eventName, onGeneratingChange, onReady }) {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState(null);
@@ -116,80 +116,175 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
     return loadingSteps[loadingSteps.length - 1];
   }, [loadingProgress, loadingSteps]);
 
+  const openRef = useRef(open);
+  openRef.current = open;
+  const eventIdRef = useRef(eventId);
+  eventIdRef.current = eventId;
+  const pollTimer = useRef(null);
+  const progressTimer = useRef(null);
+  const progressAnchor = useRef(null);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+
+  const clearJobTimers = useCallback(() => {
+    clearInterval(pollTimer.current);
+    clearInterval(progressTimer.current);
+    pollTimer.current = null;
+    progressTimer.current = null;
+  }, []);
+
+  const startProgress = useCallback((startedAtIso) => {
+    const anchor = startedAtIso || progressAnchor.current || new Date().toISOString();
+    if (progressTimer.current && progressAnchor.current === anchor) return;
+    progressAnchor.current = anchor;
+    const startTime = new Date(anchor).getTime();
+    clearInterval(progressTimer.current);
+    progressTimer.current = setInterval(() => {
+      const elapsed = Math.max(0, Math.floor((Date.now() - startTime) / 1000));
+      setElapsedSeconds(elapsed);
+      const next = Math.min(96, Math.round((6 + elapsed * 1.1) * 10) / 10);
+      setLoadingProgress(next);
+    }, 500);
+  }, []);
+
   const fetchSummary = useCallback(
-    async (refresh = false) => {
-      if (!eventId) return;
+    (refresh = false) => {
+      const id = eventIdRef.current;
+      if (!id) return;
+      clearInterval(pollTimer.current);
       setLoading(true);
       setError(null);
-      setLoadingStep(0);
-      setLoadingProgress(6);
-      setElapsedSeconds(0);
-
-      const startTime = Date.now();
-      const progressInterval = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        setElapsedSeconds(elapsed);
-
-        setLoadingProgress((prev) => {
-          let next = prev;
-          if (prev < 25) next = prev + 4;
-          else if (prev < 50) next = prev + 2.5;
-          else if (prev < 75) next = prev + 1.8;
-          else if (prev < 92) next = prev + 0.8;
-          else if (prev < 96) next = prev + 0.2;
-          return Math.min(96, Math.round(next * 10) / 10);
-        });
-      }, 500);
-
-      try {
-        const res = refresh
-          ? await api.post(`/events/${eventId}/summary-llm`)
-          : await api.get(`/events/${eventId}/summary-llm`, { params: { _t: Date.now() } });
-        const data = res?.data?.data || res?.data;
-
-        if (data && (data.summary || data.structuredBriefing)) {
-          if (!data.cached) {
-            setLoadingProgress(100);
-            setLoadingStep(4);
-            await new Promise((resolve) => setTimeout(resolve, 300));
-          }
-          setSummaryData(data);
-          if (data.summary_source === 'fallback') {
-            toast.warning('AI model unavailable — showing database-only summary', {
-              description:
-                data.llm_error ||
-                'Check LLM_BASE_URL / LLM_API_KEY on the backend and that the model server is running.',
-            });
-          } else if (refresh) {
-            toast.success('Event summary regenerated');
-          }
-        } else {
-          setError('No summary data returned from the service.');
-        }
-      } catch (err) {
-        console.error('Failed to fetch event summary:', err);
-        const msg =
-          err?.response?.data?.message ||
-          err?.response?.data?.error ||
-          err?.message ||
-          'Failed to generate event summary.';
-        setError(msg);
-        toast.error('AI Summary generation failed', { description: msg });
-      } finally {
-        clearInterval(progressInterval);
-        setLoading(false);
+      if (refresh) {
+        setSummaryData(null);
+        setLoadingStep(0);
+        setLoadingProgress(6);
+        setElapsedSeconds(0);
+        progressAnchor.current = null;
       }
+      startProgress();
+
+      let usePost = refresh;
+      let stopped = false;
+      const tick = async () => {
+        if (stopped || eventIdRef.current !== id) return;
+        try {
+          const res = usePost
+            ? await api.post(`/events/${id}/summary-llm`)
+            : await api.get(`/events/${id}/summary-llm`, { params: { _t: Date.now() } });
+          usePost = false;
+          if (stopped || eventIdRef.current !== id) return;
+          const data = res?.data?.data || res?.data;
+
+          if (data?.status === 'running') {
+            setLoading(true);
+            startProgress(data.started_at);
+            return;
+          }
+
+          stopped = true;
+          clearInterval(pollTimer.current);
+          pollTimer.current = null;
+
+          if (data?.status === 'failed') {
+            clearInterval(progressTimer.current);
+            progressTimer.current = null;
+            setLoading(false);
+            const msg = data.message || 'Failed to generate event summary.';
+            setError(msg);
+            toast.error('AI Summary generation failed', { description: msg });
+            return;
+          }
+
+          if (data && (data.summary || data.structuredBriefing)) {
+            if (!data.cached) {
+              setLoadingProgress(100);
+              setLoadingStep(4);
+              await new Promise((resolve) => setTimeout(resolve, 300));
+            }
+            clearInterval(progressTimer.current);
+            progressTimer.current = null;
+            setSummaryData(data);
+            setLoading(false);
+            onReadyRef.current?.();
+            if (data.regenerate_error) {
+              toast.error('Regenerate failed', { description: data.regenerate_error });
+            } else if (data.summary_source === 'fallback') {
+              toast.warning('AI model unavailable — showing database-only summary', {
+                description:
+                  data.llm_error ||
+                  'Check LLM_BASE_URL / LLM_API_KEY on the backend and that the model server is running.',
+              });
+            } else if (!openRef.current) {
+              toast.success('Event summary is ready', {
+                description: 'Open Event Summary to read it.',
+              });
+            } else if (refresh) {
+              toast.success('Event summary regenerated');
+            }
+            return;
+          }
+
+          clearInterval(progressTimer.current);
+          progressTimer.current = null;
+          setLoading(false);
+          setError('No summary data returned from the service.');
+        } catch (err) {
+          if (stopped || eventIdRef.current !== id) return;
+          stopped = true;
+          clearInterval(pollTimer.current);
+          clearInterval(progressTimer.current);
+          pollTimer.current = null;
+          progressTimer.current = null;
+          console.error('Failed to fetch event summary:', err);
+          const msg =
+            err?.response?.data?.message ||
+            err?.response?.data?.error ||
+            err?.message ||
+            'Failed to generate event summary.';
+          setError(msg);
+          setLoading(false);
+          toast.error('AI Summary generation failed', { description: msg });
+        }
+      };
+
+      tick();
+      pollTimer.current = setInterval(tick, 4000);
     },
-    [eventId]
+    [startProgress]
   );
 
+  useEffect(() => () => clearJobTimers(), [clearJobTimers]);
+
   useEffect(() => {
-    if (open && eventId) {
+    onGeneratingChange?.(Boolean(loading && !summaryData));
+  }, [loading, summaryData, onGeneratingChange]);
+
+  useEffect(() => {
+    if (open && eventId && !summaryData && !loading && !error) {
       fetchSummary(false);
-    } else {
-      setSummaryData(null);
-      setError(null);
-      setLoading(false);
+    }
+  }, [open, eventId, summaryData, loading, error, fetchSummary]);
+
+  const prevEventId = useRef(eventId);
+  useEffect(() => {
+    if (prevEventId.current === eventId) return;
+    prevEventId.current = eventId;
+    clearJobTimers();
+    progressAnchor.current = null;
+    setSummaryData(null);
+    setError(null);
+    setLoading(false);
+    setLoadingProgress(0);
+    setElapsedSeconds(0);
+  }, [eventId, clearJobTimers]);
+
+  const handleOpenChange = (next) => {
+    if (!next && loading && !summaryData) {
+      toast.message('Report is still generating', {
+        description: 'You can close this. It keeps running, and Event Summary will show it when it is ready.',
+      });
+    }
+    if (!next) {
       setAllPosts([]);
       setAllPostsPage(1);
       setAllPostsHasMore(true);
@@ -197,7 +292,8 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       setAllPostsLoaded(false);
       setAllPostsPlatform('all');
     }
-  }, [open, eventId, fetchSummary]);
+    onOpenChange(next);
+  };
 
   const fetchAllPosts = useCallback(
     async (page = 1, platform = allPostsPlatform, append = false) => {
@@ -401,7 +497,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-5xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden bg-background border-border shadow-2xl rounded-xl">
         {/* Header */}
         <DialogHeader className="px-6 py-4 border-b bg-muted/20 flex flex-row items-center justify-between space-y-0">
