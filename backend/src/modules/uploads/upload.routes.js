@@ -7,6 +7,7 @@ const path = require('path');
 const rateLimit = require('express-rate-limit');
 const { authorize } = require('../../middleware/auth.middleware');
 const logger = require('../../lib/logger');
+const { publicBaseFromReq, buildPublicFileUrl } = require('../../lib/publicUrl');
 
 logger.info('📦 UPLOAD ROUTES LOADED - VERSION: ONPREM-V1');
 
@@ -23,8 +24,6 @@ const uploadLimiter = rateLimit({
 router.use(uploadLimiter);
 
 const STORAGE_DIR = process.env.REPORT_STORAGE_DIR || path.join(__dirname, '..', '..', '..', 'storage');
-/** Absolute CDN/base only when explicitly set. Otherwise return same-origin `/files/...` paths. */
-const PUBLIC_BASE = (process.env.PUBLIC_BACKEND_URL || '').replace(/\/+$/, '');
 const UPLOAD_FOLDER = process.env.UPLOAD_FOLDER || 'uploads';
 
 const DEFAULT_PROXY_HOST_SUFFIXES = [
@@ -46,11 +45,6 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 100 * 1024 * 1024 } // 100MB limit
 });
-
-const buildPublicUrl = (key) => {
-  const pathPart = `/files/${key.split('/').map(encodeURIComponent).join('/')}`;
-  return PUBLIC_BASE ? `${PUBLIC_BASE}${pathPart}` : pathPart;
-};
 
 const sanitizeStorageKey = (customKey) => {
   if (customKey == null || customKey === '' || customKey === 'undefined' || customKey === 'null') {
@@ -82,8 +76,11 @@ const getProxyHostAllowlist = () => {
   const list = fromEnv.length ? fromEnv : DEFAULT_PROXY_HOST_SUFFIXES.slice();
 
   try {
-    const publicHost = new URL(PUBLIC_BASE).hostname.toLowerCase();
-    if (publicHost && !list.includes(publicHost)) list.push(publicHost);
+    const fallbackBase = publicBaseFromReq(null);
+    if (fallbackBase) {
+      const publicHost = new URL(fallbackBase).hostname.toLowerCase();
+      if (publicHost && !list.includes(publicHost)) list.push(publicHost);
+    }
   } catch {
     // ignore invalid PUBLIC_BACKEND_URL
   }
@@ -108,7 +105,7 @@ const isProxyUrlAllowed = (rawUrl) => {
   });
 };
 
-const writeBufferToDisk = async (file, customKey = null) => {
+const writeBufferToDisk = async (file, customKey = null, req = null) => {
   const safeKey = sanitizeStorageKey(customKey);
   const key = safeKey || `${UPLOAD_FOLDER}/${crypto.randomUUID()}-${file.originalname.replace(/\s+/g, '-')}`;
 
@@ -126,7 +123,7 @@ const writeBufferToDisk = async (file, customKey = null) => {
   fs.mkdirSync(path.dirname(absPath), { recursive: true });
   await fs.promises.writeFile(absPath, file.buffer);
 
-  const url = buildPublicUrl(key);
+  const url = buildPublicFileUrl(key, req);
   const resourceType = file.mimetype?.startsWith('image/') ? 'image' :
     file.mimetype?.startsWith('video/') ? 'video' : 'file';
 
@@ -151,7 +148,7 @@ router.post('/s3', upload.array('files', 10), async (req, res) => {
     let customKey = queryKey || headerKey || bodyKey;
     if (customKey === 'undefined' || customKey === 'null') customKey = null;
 
-    const uploads = await Promise.all(req.files.map(file => writeBufferToDisk(file, customKey)));
+    const uploads = await Promise.all(req.files.map(file => writeBufferToDisk(file, customKey, req)));
     res.status(200).json({ uploads });
   } catch (error) {
     logger.error('[Upload] ❌ FAILURE:', error);
@@ -169,7 +166,7 @@ router.get('/predict', (req, res) => {
     const uuid = crypto.randomUUID();
     const cleanFileName = filename.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9-_.]/g, '');
     const key = `${UPLOAD_FOLDER}/${uuid}-${cleanFileName}`;
-    const url = buildPublicUrl(key);
+    const url = buildPublicFileUrl(key, req);
 
     res.json({ url, key });
   } catch (error) {
