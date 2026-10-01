@@ -694,27 +694,27 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                   </div>
                 )}
 
-                {/* Step indicator */}
+              {/* Step indicator */}
                 <div className="pt-2 border-t border-border/40 space-y-2">
-                  {loadingSteps.map((step, idx) => {
+                {loadingSteps.map((step, idx) => {
                     const isDone = loadingProgress >= step.threshold;
                     const isCurrent = !isDone && (idx === 0 || loadingProgress >= loadingSteps[idx - 1].threshold);
 
-                    return (
-                      <div
-                        key={idx}
+                  return (
+                    <div
+                      key={idx}
                         className={`flex items-center justify-between gap-2.5 text-xs transition-colors duration-200 ${
                           isCurrent
-                            ? 'text-purple-600 dark:text-purple-300 font-semibold'
-                            : isDone
+                        ? 'text-purple-600 dark:text-purple-300 font-semibold'
+                        : isDone
                             ? 'text-foreground font-medium'
-                            : 'text-muted-foreground/50'
+                          : 'text-muted-foreground/50'
                         }`}
-                      >
+                    >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          {isDone ? (
+                      {isDone ? (
                             <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                          ) : isCurrent ? (
+                      ) : isCurrent ? (
                             <Loader2 className="h-4 w-4 text-purple-600 dark:text-purple-400 animate-spin shrink-0" />
                           ) : (
                             <div className="h-4 w-4 rounded-full border border-border shrink-0" />
@@ -727,10 +727,10 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                         {isCurrent && (
                           <span className="text-[10px] font-mono text-purple-600 dark:text-purple-400 shrink-0 font-semibold animate-pulse">Running</span>
                         )}
-                      </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })}
+              </div>
               </div>
 
               <p className="text-[11px] text-muted-foreground/80 mt-4 flex items-center justify-center gap-1.5">
@@ -793,7 +793,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
               <div className="flex-1 overflow-hidden">
                 <TabsContent value="briefing" className="h-full m-0 p-0">
                   <ScrollArea className="h-[calc(92vh-185px)] px-7 py-6">
-                    <EventBrief summaryData={summaryData} platformList={platformList} displayName={displayName} onCite={handleCite} />
+                    <EventBrief summaryData={summaryData} platformList={platformList} displayName={displayName} tenantName={tenantName} onCite={handleCite} />
                   </ScrollArea>
                 </TabsContent>
 

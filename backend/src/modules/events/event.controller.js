@@ -282,10 +282,29 @@ const saveEventSummaryPdfHandler = async (req, res) => {
   }
 };
 
+const resolveTenantLabel = (queryTenant, user) => {
+  const fromQuery = String(queryTenant || '').replace(/[^\p{L}\p{N} &._-]/gu, '').trim().slice(0, 80);
+  if (fromQuery) return fromQuery;
+  const candidates = [
+    user?.blurasagatitle,
+    user?.theme_name,
+    user?.organization_name,
+    user?.organization,
+    user?.tenant_name,
+    user?.tenantName,
+    user?.agency_name,
+    user?.department,
+  ];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) return c.trim().slice(0, 80);
+  }
+  return undefined;
+};
+
 /** GET: render the Event Intelligence & Social Analytics PDF (server-side, Puppeteer). */
 const getEventIntelligenceReportPdf = async (req, res) => {
   try {
-    const tenantName = String(req.query.tenant || '').replace(/[^\p{L}\p{N} &._-]/gu, '').slice(0, 80) || undefined;
+    const tenantName = resolveTenantLabel(req.query.tenant, req.user);
     const { pdf, eventName } = await generateEventIntelligencePdf(req.params.id, {
       db: req.tenantPrisma,
       tenantName,
