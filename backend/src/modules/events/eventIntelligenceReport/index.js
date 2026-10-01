@@ -1,4 +1,4 @@
-const { generateEventSummary, getCachedEventSummary } = require('../../../services/SummaryLLM');
+const { getCachedEventSummary, getSummaryJob, startSummaryJob } = require('../../../services/SummaryLLM');
 const eventService = require('../event.service');
 const { buildReportHtml } = require('./template');
 const { renderHtmlToPdf } = require('./render');
@@ -8,13 +8,19 @@ const { renderHtmlToPdf } = require('./render');
  * Uses the cached Summary AI result (generating it if missing) plus keyword analytics.
  * Keyword analytics is optional: sections that depend on it degrade with a note.
  */
-const generateEventIntelligencePdf = async (eventId, { db, tenantName, user } = {}) => {
+const generateEventIntelligencePdf = async (eventId, { db, dbName, tenantName, user } = {}) => {
   let summary = await getCachedEventSummary(eventId, { db });
   if (!summary) {
-    summary = await generateEventSummary(eventId, {
-      db,
-      generatedBy: user ? { id: user.id, name: user.name || user.username } : null,
-    });
+    const existing = getSummaryJob(dbName, eventId);
+    const job = existing?.status === 'running'
+      ? existing
+      : startSummaryJob({
+          eventId,
+          db,
+          dbName,
+          generatedBy: user ? { id: user.id, name: user.name || user.username } : null,
+        });
+    summary = await job.promise;
   }
   let keywordData = null;
   try {

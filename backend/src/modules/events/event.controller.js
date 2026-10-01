@@ -238,34 +238,55 @@ const getEventsReport = async (req, res) => {
   }
 };
 
-const { generateEventSummary, getCachedEventSummary, saveEventSummaryPdf } = require('../../services/SummaryLLM');
+const { getCachedEventSummary, saveEventSummaryPdf, getSummaryJob, startSummaryJob } = require('../../services/SummaryLLM');
+
+const summaryCaller = (req) => ({
+  eventId: req.params.id,
+  db: req.tenantPrisma,
+  dbName: req.tenantDbName,
+  generatedBy: req.user ? { id: req.user.id, name: req.user.name || req.user.username } : null,
+});
+
+const runningSummaryResponse = (res, job, eventId) =>
+  res.status(202).json({
+    status: 'running',
+    started_at: job.started_at,
+    event_id: String(eventId),
+  });
 const { generateEventIntelligencePdf } = require('./eventIntelligenceReport');
 
-/** GET: return the cached report instantly if one exists; only calls the LLM the first time. */
+/** GET: cached report, or the background job already writing one. Starts the job if needed. */
 const getEventSummaryLLM = async (req, res) => {
   try {
+    const existing = getSummaryJob(req.tenantDbName, req.params.id);
+    if (existing?.status === 'running') {
+      return runningSummaryResponse(res, existing, req.params.id);
+    }
     const cached = await getCachedEventSummary(req.params.id, { db: req.tenantPrisma });
     if (cached) {
-      return res.status(200).json(cached);
+      return res.status(200).json(
+        existing?.status === 'failed' ? { ...cached, regenerate_error: existing.error } : cached
+      );
     }
-    const data = await generateEventSummary(req.params.id, {
-      db: req.tenantPrisma,
-      generatedBy: req.user ? { id: req.user.id, name: req.user.name || req.user.username } : null,
-    });
-    return res.status(200).json({ ...data, is_stale: false, new_posts_count: 0 });
+    if (existing?.status === 'failed') {
+      return res.status(200).json({ status: 'failed', message: existing.error, started_at: existing.started_at });
+    }
+    const job = startSummaryJob(summaryCaller(req));
+    return runningSummaryResponse(res, job, req.params.id);
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
   }
 };
 
-/** POST: force a fresh regenerate (Regenerate button / stale-report banner). */
+/** POST: start a fresh report in the background. Joins the job if one is already running. */
 const regenerateEventSummaryLLM = async (req, res) => {
   try {
-    const data = await generateEventSummary(req.params.id, {
-      db: req.tenantPrisma,
-      generatedBy: req.user ? { id: req.user.id, name: req.user.name || req.user.username } : null,
-    });
-    return res.status(200).json({ ...data, is_stale: false, new_posts_count: 0 });
+    const existing = getSummaryJob(req.tenantDbName, req.params.id);
+    if (existing?.status === 'running') {
+      return runningSummaryResponse(res, existing, req.params.id);
+    }
+    const job = startSummaryJob(summaryCaller(req));
+    return runningSummaryResponse(res, job, req.params.id);
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
   }
@@ -307,6 +328,7 @@ const getEventIntelligenceReportPdf = async (req, res) => {
     const tenantName = resolveTenantLabel(req.query.tenant, req.user);
     const { pdf, eventName } = await generateEventIntelligencePdf(req.params.id, {
       db: req.tenantPrisma,
+      dbName: req.tenantDbName,
       tenantName,
       user: req.user,
     });

@@ -920,6 +920,7 @@ const Events = () => {
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [keywordAnalysisOpen, setKeywordAnalysisOpen] = useState(false);
   const [eventSummaryOpen, setEventSummaryOpen] = useState(false);
+  const [summaryGenerating, setSummaryGenerating] = useState(false);
 
 
   // ── Occasion Calendar state ──
@@ -2698,8 +2699,8 @@ const Events = () => {
                       : 'Generate AI Executive Intelligence Summary with LLM'
                   }
                 >
-                  <Sparkles className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
-                  {dashboard?.summary?.exists ? 'View Report' : 'Event Summary'}
+                  <Sparkles className={`h-3.5 w-3.5 text-purple-600 dark:text-purple-400 ${summaryGenerating ? 'animate-pulse' : ''}`} />
+                  {summaryGenerating ? 'Generating…' : dashboard?.summary?.exists ? 'View Report' : 'Event Summary'}
                   {dashboard?.summary?.exists && (
                     <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400 absolute -top-1 -right-1 bg-background rounded-full" />
                   )}
@@ -3031,6 +3032,8 @@ const Events = () => {
         onOpenChange={setEventSummaryOpen}
         eventId={selectedId}
         eventName={selectedEvent?.name}
+        onGeneratingChange={setSummaryGenerating}
+        onReady={() => { if (selectedId) fetchDashboard(selectedId); }}
       />
 
       {/* Occasion Calendar Dialog */}

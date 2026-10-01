@@ -3,6 +3,8 @@ const {
   getCachedEventSummary,
   saveEventSummaryPdf,
   getLLMConfig,
+  getSummaryJob,
+  startSummaryJob,
 } = require('./eventSummary.service');
 
 module.exports = {
@@ -10,4 +12,6 @@ module.exports = {
   getCachedEventSummary,
   saveEventSummaryPdf,
   getLLMConfig,
+  getSummaryJob,
+  startSummaryJob,
 };
