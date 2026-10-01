@@ -53,7 +53,7 @@ const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only (no conversational text, n
 }
 claims: 0-8 factual assertions (not opinions). VERIFY = checkable against an official source; MONITOR = theme to watch. changes: only if a post itself states a before/after. Finish every field; shorten paragraphs rather than dropping fields. Output valid complete JSON.`;
 
-const buildSystemPrompt = (ctx) => `${RULES}\n\nEVENT: "${ctx.event.name}"\n\n${OUTPUT_CONTRACT}`;
+const buildSystemPrompt = (ctx) => `${RULES}\n\n${ctx.addresseeLine || ''}\n\nEVENT: "${ctx.event.name}"\n\n${OUTPUT_CONTRACT}`;
 
 /* ----------------------------------------------------------------- 3. USER CONTEXT ---------------------- */
 const buildUserContext = (ctx = {}) => {
@@ -78,7 +78,8 @@ const buildUserContext = (ctx = {}) => {
   const dateStart = earliestPost ? (typeof earliestPost.toLocaleDateString === 'function' ? earliestPost.toLocaleDateString() : String(earliestPost)) : 'N/A';
   const dateEnd = latestPost ? (typeof latestPost.toLocaleDateString === 'function' ? latestPost.toLocaleDateString() : String(latestPost)) : 'N/A';
 
-  return `EVENT: ${event.name || 'Event'} | Loc: ${event.location || 'General'} | Platforms: ${(event.platforms || []).join(',') || 'all'} | Keywords: ${(keywordsList || []).join(',') || 'general'}
+  return `${ctx.addresseeLine || ''}
+EVENT: ${event.name || 'Event'} | Loc: ${event.location || 'General'} | Platforms: ${(event.platforms || []).join(',') || 'all'} | Keywords: ${(keywordsList || []).join(',') || 'general'}
 STATS: TotalPosts=${totalMediaCount} (Relevant=${relevantPostsCount}, Peripheral=${unrelatedPostsCount}, KeywordMentions=${totalKeywordMentionsCount}) | Dates: ${dateStart} to ${dateEnd}
 PLATFORMS: ${platStr}
 SENTIMENT: Praise=${activeSentiment.positive || 0}(${sentimentPercentages.positive || 0}%) News=${activeSentiment.neutral || 0}(${sentimentPercentages.neutral || 0}%) Criticism=${activeSentiment.negative || 0}(${sentimentPercentages.negative || 0}%)
@@ -150,7 +151,7 @@ OUTPUT: ONE JSON object only (no text around it, no code fences) with exactly th
 }
 Cite only post numbers that appear in the notes. Finish every field; shorten paragraphs rather than dropping fields.`;
 
-const buildReducerSystemPrompt = (ctx) => `${RULES}\n\nEVENT: "${ctx.event.name}"\n\n${REDUCER_CONTRACT}`;
+const buildReducerSystemPrompt = (ctx) => `${RULES}\n\n${ctx.addresseeLine || ''}\n\nEVENT: "${ctx.event.name}"\n\n${REDUCER_CONTRACT}`;
 
 /** Statistics + batch-note digest. */
 const buildReducerUserContext = (ctx, digest) => {

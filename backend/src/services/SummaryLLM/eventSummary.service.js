@@ -16,6 +16,7 @@ const {
   calculateReconciledPercentages,
 } = require('../../modules/events/eventTelemetry.service');
 const { postedAtRangeWhere } = require('../../modules/events/event.utils');
+const { headquartersPromptLine, resolveHeadquarters } = require('../../modules/events/eventIntelligenceReport/headquarters');
 
 const getLLMConfig = () => {
   let baseUrl = (process.env.LLM_BASE_URL || '').trim().replace(/\/$/, '');
@@ -297,7 +298,7 @@ const buildBatchDigest = (notesMap, analysed) => {
  * @param {object} [options]
  * @param {object} [options.generatedBy] - { id, name } of the user who triggered generation
  */
-const generateEventSummary = async (eventId, { db, generatedBy } = {}) => {
+const generateEventSummary = async (eventId, { db, generatedBy, tenantName } = {}) => {
   const prisma = dbOf(db);
   const numericId = Number(eventId);
   if (!Number.isFinite(numericId) || numericId <= 0) {
@@ -525,10 +526,13 @@ const generateEventSummary = async (eventId, { db, generatedBy } = {}) => {
 
   // 5. Prompt + answer contract live in ONE file: eventSummary.prompt.js
   const { baseUrl, apiKey, model, timeoutMs, maxTokens, contextWindow, maxInputTokens } = getLLMConfig();
+  const headquarters = resolveHeadquarters(tenantName);
   const promptCtx = {
     event, keywordsList, totalMediaCount, relevantPostsCount, unrelatedPostsCount, totalKeywordMentionsCount,
     earliestPost, latestPost, platformCounts, platformPercentages, activeSentiment, sentimentPercentages,
     targetBreakdown, riskCounts, totalEngagement, indexedSnippets,
+    addresseeLine: headquartersPromptLine(headquarters),
+    headquarters,
   };
 
   // ---- Which posts the AI reads. Relevant posts only (unrelated noise stays in the statistics, not in the analysis),
@@ -811,7 +815,7 @@ const getSummaryJob = (dbName, eventId) => summaryJobs.get(summaryJobKey(dbName,
  * browser call; this job keeps going and is saved when it finishes.
  * A second click joins the job already running for that event.
  */
-const startSummaryJob = ({ eventId, db, dbName, generatedBy } = {}) => {
+const startSummaryJob = ({ eventId, db, dbName, generatedBy, tenantName } = {}) => {
   const key = summaryJobKey(dbName, eventId);
   const existing = summaryJobs.get(key);
   if (existing?.status === 'running') return existing;
@@ -822,7 +826,7 @@ const startSummaryJob = ({ eventId, db, dbName, generatedBy } = {}) => {
     error: null,
     promise: null,
   };
-  const promise = generateEventSummary(eventId, { db, generatedBy })
+  const promise = generateEventSummary(eventId, { db, generatedBy, tenantName })
     .then((result) => {
       if (summaryJobs.get(key) === job) summaryJobs.delete(key);
       return result;

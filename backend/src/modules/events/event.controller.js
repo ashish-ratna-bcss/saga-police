@@ -244,6 +244,7 @@ const summaryCaller = (req) => ({
   eventId: req.params.id,
   db: req.tenantPrisma,
   dbName: req.tenantDbName,
+  tenantName: resolveTenantLabel(req.query.tenant, req.user),
   generatedBy: req.user ? { id: req.user.id, name: req.user.name || req.user.username } : null,
 });
 
