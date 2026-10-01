@@ -1,56 +1,36 @@
 const { listTenantDbNames, getTenantPrisma } = require('../../lib/tenantDatabase.service');
 const { enqueue } = require('./queue');
+const { enqueueOldestPending } = require('../analysisFairQueue');
 
 const POLL_MS = Number(process.env.MEDIA_ANALYSIS_POLL_MS) || 30_000;
 const BATCH = Math.max(1, Number(process.env.MEDIA_ANALYSIS_POLL_BATCH) || 20);
+const NUDGE_MS = 50;
 
 let timer = null;
+const nudgeTimers = new Map();
+
+const maxAttempts = () => Math.max(1, Number(process.env.SENTIMENT_MAX_ATTEMPTS) || 5);
 
 /**
- * Claim pending/failed catalog posts + event media and push into media_post_analysis memory queue.
+ * Load this tenant's oldest eligible catalog posts and event media
+ * (posted_at, nulls last) and enqueue at most BATCH of them together.
  */
+const pollTenant = async (dbName) => {
+  const prisma = getTenantPrisma(dbName);
+  if (!prisma) return;
+  await enqueueOldestPending(prisma, dbName, enqueue, {
+    batch: BATCH,
+    maxAttempts: maxAttempts(),
+  });
+};
+
+/** Claim pending/failed catalog posts + event media and push into the per-tenant queues. */
 const pollPending = async () => {
   try {
     const dbNames = await listTenantDbNames();
-    const maxAttempts = Math.max(1, Number(process.env.SENTIMENT_MAX_ATTEMPTS) || 5);
-
     for (const dbName of dbNames) {
       try {
-        const prisma = getTenantPrisma(dbName);
-
-        const posts = await prisma.social_media_posts.findMany({
-          where: {
-            analysis_status: { in: ['pending', 'failed'] },
-            analysis_attempts: { lt: maxAttempts },
-          },
-          select: { id: true },
-          orderBy: { fetched_at: 'asc' },
-          take: BATCH,
-        });
-        for (const row of posts) {
-          enqueue({ postId: row.id, dbName, kind: 'catalog' });
-        }
-
-        if (prisma.social_media_event_media?.findMany) {
-          try {
-            const media = await prisma.social_media_event_media.findMany({
-              where: {
-                analysis_status: { in: ['pending', 'failed'] },
-                analysis_attempts: { lt: maxAttempts },
-              },
-              select: { id: true },
-              orderBy: { fetched_at: 'asc' },
-              take: BATCH,
-            });
-            for (const row of media) {
-              enqueue({ postId: row.id, dbName, kind: 'event' });
-            }
-          } catch (mediaErr) {
-            if (!/analysis_status|does not exist/i.test(mediaErr.message || '')) {
-              throw mediaErr;
-            }
-          }
-        }
+        await pollTenant(dbName);
       } catch (err) {
         console.error(`[media_post_analysis] pollPending tenant=${dbName}:`, err.message);
       }
@@ -58,6 +38,25 @@ const pollPending = async () => {
   } catch (err) {
     console.error('[media_post_analysis] pollPending:', err.message);
   }
+};
+
+/**
+ * Ask the poller to refill one tenant soon.
+ * Ingest uses this instead of enqueueing the new row directly, so a post that
+ * was just fetched cannot run ahead of an older pending post still in the DB.
+ * Rows already stored are not modified.
+ */
+const nudgeTenant = (dbName) => {
+  if (!dbName || nudgeTimers.has(dbName)) return;
+  nudgeTimers.set(
+    dbName,
+    setTimeout(() => {
+      nudgeTimers.delete(dbName);
+      pollTenant(dbName).catch((err) => {
+        console.error(`[media_post_analysis] nudge tenant=${dbName}:`, err.message);
+      });
+    }, NUDGE_MS)
+  );
 };
 
 const startPoller = () => {
@@ -71,6 +70,8 @@ const stopPoller = () => {
     clearInterval(timer);
     timer = null;
   }
+  for (const timeout of nudgeTimers.values()) clearTimeout(timeout);
+  nudgeTimers.clear();
 };
 
-module.exports = { pollPending, startPoller, stopPoller };
+module.exports = { pollPending, pollTenant, nudgeTenant, startPoller, stopPoller };

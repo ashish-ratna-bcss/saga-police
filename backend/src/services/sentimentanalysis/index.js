@@ -14,15 +14,27 @@ queue.setProcessor(async (job) => {
 });
 
 /** Enqueue a catalog post for sentiment (after upsert). */
-const enqueuePost = (postId, { dbName } = {}) => {
+const enqueuePost = (postId, { dbName, postedAt, fetchedAt } = {}) => {
   if (postId == null) return false;
-  return queue.enqueue({ postId, dbName: dbName || null, kind: 'catalog' });
+  return queue.enqueue({
+    postId,
+    dbName: dbName || null,
+    kind: 'catalog',
+    postedAt: postedAt ?? null,
+    fetchedAt: fetchedAt ?? null,
+  });
 };
 
 /** Enqueue an event media row for sentiment (after event scan upsert). */
-const enqueueEventMedia = (mediaId, { dbName } = {}) => {
+const enqueueEventMedia = (mediaId, { dbName, postedAt, fetchedAt } = {}) => {
   if (mediaId == null) return false;
-  return queue.enqueue({ postId: mediaId, dbName: dbName || null, kind: 'event' });
+  return queue.enqueue({
+    postId: mediaId,
+    dbName: dbName || null,
+    kind: 'event',
+    postedAt: postedAt ?? null,
+    fetchedAt: fetchedAt ?? null,
+  });
 };
 
 const startScheduler = () => {

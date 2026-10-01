@@ -274,7 +274,7 @@ const upsertMedia = async ({ eventId, platform, externalId, payload, db, dbName 
     },
   });
 
-  const { enqueueEventMedia } = require('../../services/media_post_analysis');
+  const { nudgeTenant } = require('../../services/media_post_analysis');
 
   if (!existing) {
     const created = await prisma.social_media_event_media.create({
@@ -294,7 +294,7 @@ const upsertMedia = async ({ eventId, platform, externalId, payload, db, dbName 
       },
     });
     try {
-      enqueueEventMedia(created.id, { dbName });
+      nudgeTenant(dbName);
     } catch (_) {
       /* queue optional */
     }
@@ -329,7 +329,7 @@ const upsertMedia = async ({ eventId, platform, externalId, payload, db, dbName 
 
   if (textChanged || existing.analysis_status === 'pending' || existing.analysis_status === 'failed') {
     try {
-      enqueueEventMedia(updated.id, { dbName });
+      nudgeTenant(dbName);
     } catch (_) {
       /* optional */
     }

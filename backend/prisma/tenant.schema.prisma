@@ -110,6 +110,7 @@ model social_media_posts {
   @@index([account_id, posted_at])
   @@index([fetched_at])
   @@index([analysis_status, fetched_at])
+  @@index([analysis_status, posted_at, fetched_at, id])
 }
 
 /// Catalog sentiment alerts.
@@ -348,6 +349,7 @@ model social_media_event_media {
   @@index([platform, posted_at])
   @@index([fetched_at])
   @@index([analysis_status, fetched_at])
+  @@index([analysis_status, posted_at, fetched_at, id])
 }
 
 /// Global alert risk bands + viral toggle (single row).

@@ -1,5 +1,5 @@
 const dbOf = require('../../lib/dbOf');
-const { enqueuePost } = require('../media_post_analysis');
+const { nudgeTenant } = require('../media_post_analysis');
 
 /**
  * Upsert a normalized post into social_media_posts.
@@ -71,7 +71,7 @@ const upsertPost = async (row, { db, dbName } = {}) => {
     });
 
     if (shouldReanalyze) {
-      enqueuePost(updated.id, { dbName });
+      nudgeTenant(dbName);
     }
     return { created: false, id: updated.id };
   }
@@ -82,7 +82,7 @@ const upsertPost = async (row, { db, dbName } = {}) => {
       analysis_status: 'pending',
     },
   });
-  enqueuePost(created.id, { dbName });
+  nudgeTenant(dbName);
   return { created: true, id: created.id };
 };
 
