@@ -1532,9 +1532,6 @@ const Events = () => {
       return Number.isFinite(n) ? n : 0;
     };
     return [...contentItems].sort((a, b) => {
-      // Newest ingested first (fetch time), not original social post date
-      const fetchedDiff = time(b.fetched_at || b.updated_at) - time(a.fetched_at || a.updated_at);
-      if (fetchedDiff !== 0) return fetchedDiff;
       const postedDiff = time(b.published_at || b.posted_at) - time(a.published_at || a.posted_at);
       if (postedDiff !== 0) return postedDiff;
       return Number(b.id) - Number(a.id);

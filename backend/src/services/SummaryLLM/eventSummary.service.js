@@ -15,6 +15,7 @@ const {
   evaluateThreatRisk,
   calculateReconciledPercentages,
 } = require('../../modules/events/eventTelemetry.service');
+const { postedAtRangeWhere } = require('../../modules/events/event.utils');
 
 const getLLMConfig = () => {
   let baseUrl = (process.env.LLM_BASE_URL || '').trim().replace(/\/$/, '');
@@ -324,8 +325,12 @@ const generateEventSummary = async (eventId, { db, generatedBy } = {}) => {
   } catch {}
 
   // 2. Fetch ALL Event Media rows without arbitrary limit
+  const publicationRange = postedAtRangeWhere(event);
   const mediaRows = await prisma.social_media_event_media.findMany({
-    where: { event_id: numericId },
+    where: {
+      event_id: numericId,
+      ...(publicationRange ? { posted_at: publicationRange } : {}),
+    },
     select: {
       id: true,
       platform: true,

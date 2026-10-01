@@ -290,7 +290,7 @@ export const GrievancePopup = ({ grievance, onClose, userName = '', onReportCrea
                 profile_id: g.posted_by?.id || g.posted_by?.handle || '',
                 profile_link: g.posted_by?.profile_url || '',
                 post_link: g.tweet_url || g.url || g.post_url || '',
-                post_date: g.posted_at || g.created_at || new Date().toISOString(),
+                post_date: g.post_date || g.posted_at || null,
                 post_description: g.content?.full_text || g.content?.text || '',
                 posted_by: {
                     handle: g.posted_by?.handle || '',

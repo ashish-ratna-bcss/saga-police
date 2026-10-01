@@ -214,6 +214,11 @@ async function ensureOpsSchema(prisma) {
   `);
 
   await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS social_media_alerts_status_posted_at_id_idx
+    ON social_media_alerts (status, posted_at DESC NULLS LAST, id DESC)
+  `);
+
+  await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS social_media_grievances (
       id BIGSERIAL PRIMARY KEY,
       account_id INTEGER NOT NULL REFERENCES social_media_accounts(id) ON DELETE CASCADE,

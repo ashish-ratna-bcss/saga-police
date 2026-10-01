@@ -1111,7 +1111,7 @@ export default function Alerts() {
         const firstMedia = firstVideo || mediaList[0] || {};
 
         const storyId = content?.id || alert?.id || `alert-story-${index}`;
-        const publishedAt = content?.published_at || alert?.created_at || alert?.timestamp || null;
+        const publishedAt = content?.published_at || alert?.posted_at || alert?.content_published_at || content?.taken_at || null;
         const rawStoryUrl = content?.content_url || alert?.content_url || content?.url || '';
 
         // Preserve original CDN URLs for fallback
@@ -1705,9 +1705,12 @@ export default function Alerts() {
         }
       }
 
-      // Date range filter
+      // Date range filter — publication time, not when the alert row was created.
       if (dateRange.start || dateRange.end) {
-        const alertDate = new Date(alert.created_at || alert.timestamp);
+        const content = alert.content_details || alert.content_id || {};
+        const alertDate = new Date(
+          content.published_at || alert.posted_at || alert.content_published_at || content.taken_at || NaN
+        );
         const alertTime = alertDate.getTime();
         if (Number.isNaN(alertTime)) return false;
         const startTime = toStartOfSelectedDay(dateRange.start);
@@ -1771,12 +1774,9 @@ export default function Alerts() {
         const contentUrl = item?.content_url || content?.content_url || content?.url || '';
         const publishedAt =
           content?.published_at
-          || content?.created_at
-          || content?.updated_at
+          || item?.posted_at
+          || item?.content_published_at
           || content?.taken_at
-          || item?.created_at
-          || item?.updated_at
-          || item?.timestamp
           || content?.raw_data?.taken_at
           || item?.raw_data?.taken_at;
         const isStory = contentType === 'story' || /instagram\.com\/stories\//i.test(contentUrl);
@@ -1847,17 +1847,22 @@ export default function Alerts() {
       return 0;
     };
 
-    // Newest alerts first — sort by when the alert was created/ingested.
+    // Newest publication first. Missing posted_at sorts last (parseDateTime → 0).
     const getAlertTime = (item) => {
       const content = item?.content_details || item?.content_id || {};
       return parseDateTime(
-        item?.created_at ||
-        item?.timestamp ||
         content?.published_at ||
+        item?.posted_at ||
+        item?.content_published_at ||
+        content?.taken_at ||
         content?.dateTime ||
-        content?.timestamp ||
-        item?.posted_at
+        null
       );
+    };
+    const byPublication = (a, b) => {
+      const diff = getAlertTime(b) - getAlertTime(a);
+      if (diff !== 0) return diff;
+      return Number(b.id) - Number(a.id);
     };
 
     const mapStoryToAlert = (story, index) => mapInstagramStoryToAlert(story, index);
@@ -1869,11 +1874,10 @@ export default function Alerts() {
         .filter((story) => {
           const publishedTime = parseDateTime(
             story?.published_at
-            || story?.created_at
-            || story?.updated_at
             || story?.taken_at
             || story?.raw_data?.taken_at
             || story?.raw_data?.published_at
+            || story?.created_at
           );
           if (!publishedTime) return false;
           if (now - publishedTime > 24 * 60 * 60 * 1000) return false;
@@ -1887,7 +1891,7 @@ export default function Alerts() {
           return true;
         })
         .map(mapStoryToAlert)
-        .sort((a, b) => getAlertTime(b) - getAlertTime(a));
+        .sort(byPublication);
     }
 
     if (isCapturedStoriesView) {
@@ -1901,11 +1905,10 @@ export default function Alerts() {
 
           const storyTime = parseDateTime(
             story?.published_at
-            || story?.created_at
-            || story?.updated_at
             || story?.taken_at
             || story?.raw_data?.taken_at
             || story?.raw_data?.published_at
+            || story?.created_at
           );
           if ((startTime || endTime) && !storyTime) return false;
           if (startTime && storyTime < startTime) return false;
@@ -1913,12 +1916,11 @@ export default function Alerts() {
           return true;
         })
         .map(mapStoryToAlert)
-        .sort((a, b) => getAlertTime(b) - getAlertTime(a));
+        .sort(byPublication);
     }
 
-    // Newest ingested alerts first (created_at via getAlertTime).
     const combined = [...filteredInvestigated, ...filteredRegular]
-      .sort((a, b) => getAlertTime(b) - getAlertTime(a));
+      .sort(byPublication);
     return applyInstagramContentFilter(combined);
   }, [alerts, investigatedAlerts, filterInvestigatedAlerts, platformFilter, normalizePlatform, riskFilter, viralityFilter, instagramContentFilter, instagramStoriesStatusFilter, dateRange.start, dateRange.end, capturedStories, recentStories, isStories24hView, isCapturedStoriesView, toStartOfSelectedDay, toEndOfSelectedDay]);
 

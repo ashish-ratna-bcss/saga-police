@@ -1,5 +1,11 @@
 const dbOf = require('../../lib/dbOf');
-const { hydrateEvent, hydrateEventMedia, normalizeEventPayload, asJson, resolveEventPlatforms } = require('./event.utils');
+const { hydrateEvent, hydrateEventMedia, normalizeEventPayload, asJson, resolveEventPlatforms, postedAtRangeWhere } = require('./event.utils');
+
+const withPublicationRange = (where, event) => {
+  const postedAt = postedAtRangeWhere(event);
+  if (!postedAt) return where;
+  return { ...where, posted_at: postedAt };
+};
 
 const HISTORY_CAP = 200;
 
@@ -182,7 +188,7 @@ const getDashboard = async (id, { db } = {}) => {
 
   const byPlatformRows = await prisma.social_media_event_media.groupBy({
     by: ['platform'],
-    where: { event_id: Number(id) },
+    where: withPublicationRange({ event_id: Number(id) }, event),
     _count: { _all: true },
   });
   const content_by_platform = {};
@@ -240,7 +246,7 @@ const listEventContent = async (id, { page = 1, limit = 50, platform = 'all', db
     throw err;
   }
 
-  const where = { event_id: Number(id) };
+  const where = withPublicationRange({ event_id: Number(id) }, event);
   if (platform && platform !== 'all') {
     where.platform = String(platform).toLowerCase();
   }
@@ -251,7 +257,7 @@ const listEventContent = async (id, { page = 1, limit = 50, platform = 'all', db
   const [rows, total] = await Promise.all([
     prisma.social_media_event_media.findMany({
       where,
-      orderBy: [{ fetched_at: 'desc' }, { updated_at: 'desc' }, { id: 'desc' }],
+      orderBy: [{ posted_at: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
       skip,
       take,
     }),
@@ -379,8 +385,8 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
 
   // 2. Fetch event media across all monitored platforms (no artificial exclusions)
   const rows = await prisma.social_media_event_media.findMany({
-    where: { event_id: Number(id) },
-    orderBy: [{ posted_at: 'desc' }, { fetched_at: 'desc' }, { id: 'desc' }],
+    where: withPublicationRange({ event_id: Number(id) }, event),
+    orderBy: [{ posted_at: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
     take: 5000,
   });
 
@@ -405,8 +411,10 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
     const sentiment = parseSentiment(ar.sentiment || ar.label || 'neutral');
     const { riskLevel, riskScore, hasThreatVector } = evaluateThreatRisk(ar, row.text || '');
 
-    const postedDate = row.posted_at ? new Date(row.posted_at) : (row.fetched_at ? new Date(row.fetched_at) : new Date());
-    const dateKey = !isNaN(postedDate.getTime()) ? postedDate.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+    const postedDate = row.posted_at ? new Date(row.posted_at) : null;
+    const dateKey = postedDate && !Number.isNaN(postedDate.getTime())
+      ? postedDate.toISOString().slice(0, 10)
+      : null;
 
     const matchedKws = Array.isArray(ar.matched_keywords) ? ar.matched_keywords.map((k) => String(k?.keyword || k).toLowerCase().trim()) : [];
     const relevance = classifyEventRelevance(row.text || '', event.name, keywordsList);
@@ -419,7 +427,7 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
       text: row.text || '',
       author: row.author_name || row.author_handle || 'Anonymous',
       author_handle: row.author_handle || '',
-      posted_at: row.posted_at || row.fetched_at,
+      posted_at: row.posted_at || null,
       dateKey,
       url: row.url || null,
       engagement: { likes, shares, comments, views, total: totalEngagement },
@@ -490,7 +498,7 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
       a.count += 1;
       a.engagement += item.engagement.total;
 
-      if (!timelineMap.has(item.dateKey)) {
+      if (item.dateKey && !timelineMap.has(item.dateKey)) {
         timelineMap.set(item.dateKey, {
           date: item.dateKey,
           count: 0,
@@ -500,10 +508,12 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
           engagement: 0,
         });
       }
-      const t = timelineMap.get(item.dateKey);
-      t.count += 1;
-      t[item.sentiment] += 1;
-      t.engagement += item.engagement.total;
+      const t = item.dateKey ? timelineMap.get(item.dateKey) : null;
+      if (t) {
+        t.count += 1;
+        t[item.sentiment] += 1;
+        t.engagement += item.engagement.total;
+      }
     }
 
     const timeline = Array.from(timelineMap.values()).sort((a, b) => a.date.localeCompare(b.date));
@@ -616,6 +626,7 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
   const totalKeywordMentionsSum = keywordAnalytics.reduce((sum, k) => sum + (k.total_posts || 0), 0);
 
   for (const item of parsedItems) {
+    if (!item.dateKey) continue;
     if (!overallTimelineMap.has(item.dateKey)) {
       overallTimelineMap.set(item.dateKey, {
         date: item.dateKey,
