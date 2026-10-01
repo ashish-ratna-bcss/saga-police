@@ -2,6 +2,8 @@
 
 const USERNAME_RE = /^[A-Za-z0-9_-]{3,20}$/;
 
+const SUBREDDIT_RE = /^[A-Za-z0-9_]{2,21}$/;
+
 const isValidUsername = (value) => USERNAME_RE.test(String(value || ''));
 
 const cleanUsername = (raw) => {
@@ -11,6 +13,25 @@ const cleanUsername = (raw) => {
   s = s.replace(/^\/?(user|u)\//i, '');
   s = s.split(/[/?#]/)[0];
   return s.replace(/^u\//i, '').replace(/^@/, '').trim();
+};
+
+/** r/Odisha, /r/Odisha, or reddit.com/r/Odisha. A bare name stays a username. */
+const parseSubreddit = (raw) => {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  const fromUrl = s.match(/reddit\.com\/r\/([A-Za-z0-9_]{2,21})/i);
+  if (fromUrl) return fromUrl[1];
+  const prefixed = s.replace(/^\/+/, '').match(/^r\/([A-Za-z0-9_]{2,21})\/?$/i);
+  if (prefixed && SUBREDDIT_RE.test(prefixed[1])) return prefixed[1];
+  return '';
+};
+
+const parseRedditTarget = (raw) => {
+  const subreddit = parseSubreddit(raw);
+  if (subreddit) return { kind: 'subreddit', name: subreddit };
+  const username = cleanUsername(raw);
+  if (isValidUsername(username)) return { kind: 'user', name: username };
+  return null;
 };
 
 const listPosts = (raw) => {
@@ -64,6 +85,8 @@ const mapPostToUpsert = (post, accountId, username = null) => {
 module.exports = {
   cleanUsername,
   isValidUsername,
+  parseSubreddit,
+  parseRedditTarget,
   listPosts,
   mapPostToUpsert,
 };

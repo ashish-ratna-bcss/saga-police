@@ -1225,6 +1225,7 @@ const previewProfileIdentity = async (req, res) => {
     } else if (slug === 'reddit') {
       const { authFromPlatformRow } = require('../../services/blugate/reddit/blugate.reddit.api_client');
       auth = authFromPlatformRow(platformRow);
+      if (req.tenantDbName) auth.tenantKey = req.tenantDbName;
     }
 
     const result = await previewProfile(platformRow.slug, data || {}, auth);
