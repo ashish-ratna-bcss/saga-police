@@ -194,7 +194,8 @@ ${loc}
     }
 
     location / {
-        try_files $uri $uri/ /index.html;
+        # Avoid $uri/ → /index.html redirect cycles (common when root is under /home).
+        try_files $uri /index.html =404;
     }
 
     gzip on;
