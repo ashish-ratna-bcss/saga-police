@@ -390,7 +390,8 @@ function main() {
   }
 
   const data = loadSites(sitesPath);
-  const finalWebRoot = webRoot || data.web_root || '/var/www/sockeye/frontend/build';
+  // Always absolute — relative roots are resolved from nginx prefix (/etc/nginx), not the app.
+  const finalWebRoot = path.resolve(webRoot || data.web_root || '/var/www/sockeye/frontend/build');
   const confText = render(data, finalWebRoot);
 
   fs.writeFileSync(outPath, confText, 'utf8');
