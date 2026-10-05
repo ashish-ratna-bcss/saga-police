@@ -2624,70 +2624,113 @@ const Events = () => {
                       <BarChart3 className="h-3.5 w-3.5" /> Stats
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent align="start" className="w-88 p-0">
-                    <div className="border-b px-3 py-2">
-                      <p className="text-sm font-medium">Fetch stats</p>
-                      <p className="text-[11px] text-muted-foreground">Lifetime totals · survive Stop</p>
+                  <PopoverContent align="start" className="w-[380px] p-0 shadow-lg border-border">
+                    <div className="flex items-center justify-between border-b px-3.5 py-2.5 bg-muted/20">
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">Fetch Activity & Stats</p>
+                        <p className="text-[10px] text-muted-foreground">Lifetime summary & recent query logs</p>
+                      </div>
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                        {selectedFetchStats.runs} {selectedFetchStats.runs === 1 ? 'run' : 'runs'}
+                      </span>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 px-3 py-2.5 text-xs">
-                      <div>
-                        <p className="text-muted-foreground">API hits</p>
-                        <p className="font-medium tabular-nums">{selectedFetchStats.apiHits}</p>
+
+                    <div className="grid grid-cols-2 gap-2 p-3 bg-muted/5 border-b text-xs">
+                      <div className="rounded-lg bg-background border p-2 shadow-2xs">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">API Requests</p>
+                        <p className="text-sm font-semibold tabular-nums mt-0.5">{selectedFetchStats.apiHits?.toLocaleString?.() || selectedFetchStats.apiHits}</p>
                       </div>
-                      <div>
-                        <p className="text-muted-foreground">Items returned</p>
-                        <p className="font-medium tabular-nums">{selectedFetchStats.postsReturned}</p>
+                      <div className="rounded-lg bg-background border p-2 shadow-2xs">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Posts Scanned</p>
+                        <p className="text-sm font-semibold tabular-nums mt-0.5">{selectedFetchStats.postsReturned?.toLocaleString?.() || selectedFetchStats.postsReturned}</p>
                       </div>
-                      <div>
-                        <p className="text-muted-foreground">New items</p>
-                        <p className="font-medium tabular-nums">{selectedFetchStats.postsNew}</p>
+                      <div className="rounded-lg bg-background border p-2 shadow-2xs">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">New Ingested</p>
+                        <p className="text-sm font-semibold tabular-nums text-emerald-600 mt-0.5">+{selectedFetchStats.postsNew?.toLocaleString?.() || selectedFetchStats.postsNew}</p>
                       </div>
-                      <div>
-                        <p className="text-muted-foreground">Run time</p>
-                        <p className="font-medium tabular-nums">{formatDuration(selectedFetchStats.totalRunningMs)}</p>
+                      <div className="rounded-lg bg-background border p-2 shadow-2xs">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Total Duration</p>
+                        <p className="text-sm font-semibold tabular-nums mt-0.5">{formatDuration(selectedFetchStats.totalRunningMs)}</p>
                       </div>
                     </div>
-                    <div className="border-t max-h-56 overflow-y-auto">
+
+                    <div className="max-h-64 overflow-y-auto">
+                      <div className="px-3.5 py-1.5 bg-muted/30 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b flex justify-between">
+                        <span>Execution History</span>
+                        <span>Latest 20 Runs</span>
+                      </div>
                       {selectedFetchStats.runsNewestFirst.length === 0 ? (
-                        <p className="px-3 py-4 text-center text-xs text-muted-foreground">No fetches yet</p>
+                        <p className="px-3 py-6 text-center text-xs text-muted-foreground">No fetch operations recorded yet</p>
                       ) : (
-                        <ul className="divide-y">
-                          {selectedFetchStats.runsNewestFirst.slice(0, 20).map((run, idx) => (
-                            <li key={`${run.at}-${idx}`} className="px-3 py-2 text-[11px]">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className={run.ok === false ? 'text-red-600 font-medium' : 'text-emerald-700 font-medium'}>
-                                  {run.ok === false ? 'Failed' : 'OK'}
-                                </span>
-                                <span className="text-muted-foreground tabular-nums">{formatWhen(run.at)}</span>
-                              </div>
-                              <p className="text-muted-foreground mt-0.5">
-                                {Number(run.api_hits) || 0} hits · {Number(run.posts_returned ?? run.items_returned) || 0} returned · {Number(run.posts_new ?? run.items_new) || 0} new
-                                {run.source ? ` · ${run.source}` : ''}
-                              </p>
-                              {run.by_platform && typeof run.by_platform === 'object' && Object.keys(run.by_platform).length > 0 && (
-                                <div className="mt-1 flex flex-wrap gap-1">
-                                  {Object.entries(run.by_platform)
-                                    .filter(([, c]) => Number(c?.scanned) > 0 || Number(c?.ingested) > 0)
-                                    .map(([plat, counts]) => {
-                                      const isNew = Number(counts?.ingested) > 0;
-                                      return (
-                                        <span
-                                          key={plat}
-                                          className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium capitalize ${
-                                            isNew
-                                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                                              : 'bg-muted text-muted-foreground'
-                                          }`}
-                                        >
-                                          {plat}: {Number(counts?.ingested) || 0} new ({Number(counts?.scanned) || 0} fetched)
-                                        </span>
-                                      );
-                                    })}
+                        <ul className="divide-y divide-border/60">
+                          {selectedFetchStats.runsNewestFirst.slice(0, 20).map((run, idx) => {
+                            const isOk = run.ok !== false;
+                            const newCount = Number(run.posts_new ?? run.items_new) || 0;
+                            const returnedCount = Number(run.posts_returned ?? run.items_returned) || 0;
+                            const hitsCount = Number(run.api_hits) || 0;
+                            const sourceLabel = run.source ? String(run.source).toUpperCase() : 'AUTO';
+
+                            return (
+                              <li key={`${run.at}-${idx}`} className="px-3.5 py-2.5 hover:bg-muted/20 transition-colors text-xs space-y-1.5">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={`h-2 w-2 rounded-full shrink-0 ${isOk ? 'bg-emerald-500 ring-2 ring-emerald-500/20' : 'bg-red-500 ring-2 ring-red-500/20'}`} />
+                                    <span className="font-semibold text-[11px] text-foreground">
+                                      {isOk ? 'Success' : 'Failed'}
+                                    </span>
+                                    <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border/50">
+                                      {sourceLabel}
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground tabular-nums">{formatWhen(run.at)}</span>
                                 </div>
-                              )}
-                              {run.message && <p className="text-muted-foreground/80 mt-0.5 truncate">{run.message}</p>}
-                            </li>
-                          ))}
+
+                                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                                  <span>{hitsCount} hits</span>
+                                  <span>•</span>
+                                  <span>{returnedCount} matched</span>
+                                  <span>•</span>
+                                  <span className={newCount > 0 ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}>
+                                    {newCount > 0 ? `+${newCount} new` : '0 new'}
+                                  </span>
+                                </div>
+
+                                {run.by_platform && typeof run.by_platform === 'object' && Object.keys(run.by_platform).length > 0 && (
+                                  <div className="flex flex-wrap gap-1 pt-0.5">
+                                    {Object.entries(run.by_platform)
+                                      .filter(([, c]) => Number(c?.scanned) > 0 || Number(c?.ingested) > 0)
+                                      .map(([plat, counts]) => {
+                                        const pNew = Number(counts?.ingested) || 0;
+                                        const pScanned = Number(counts?.scanned) || 0;
+                                        return (
+                                          <span
+                                            key={plat}
+                                            className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+                                              pNew > 0
+                                                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold border border-emerald-500/30'
+                                                : 'bg-muted/70 text-muted-foreground border border-border/40'
+                                            }`}
+                                          >
+                                            <span className="capitalize">{plat}</span>
+                                            {pNew > 0 ? (
+                                              <span className="text-emerald-600 dark:text-emerald-400">+{pNew}</span>
+                                            ) : (
+                                              <span className="opacity-60">({pScanned})</span>
+                                            )}
+                                          </span>
+                                        );
+                                      })}
+                                  </div>
+                                )}
+
+                                {run.message && run.message !== 'Manual fetch' && (
+                                  <p className="text-[10px] text-red-600 dark:text-red-400 mt-1 line-clamp-2 bg-red-50 dark:bg-red-950/30 p-1.5 rounded border border-red-200 dark:border-red-900/50">
+                                    {run.message}
+                                  </p>
+                                )}
+                              </li>
+                            );
+                          })}
                         </ul>
                       )}
                     </div>
