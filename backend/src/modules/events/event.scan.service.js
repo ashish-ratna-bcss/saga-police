@@ -602,7 +602,7 @@ const searchFacebookViaBlugate = async (query, auth = null) => {
 const searchTelegramViaBlugate = async (query, auth = null) => {
   const q = String(query || '').trim();
   if (!q) return [];
-  const raw = await callTelegramApi('SEARCH_MESSAGES', { q, limit: 25 }, auth);
+  const raw = await callTelegramApi('SEARCH_MESSAGES', { q, limit: 50 }, auth);
   return listTelegramItems(raw)
     .map((m) => {
       const id = m.id ?? m.message_id;
@@ -640,7 +640,7 @@ const searchYouTubeViaBlugate = async (query, auth = null) => {
       part: 'snippet',
       q: query,
       type: 'video',
-      maxResults: 25,
+      maxResults: 50,
     },
     auth
   );
@@ -759,15 +759,23 @@ const runScanEventOnce = async (event, options = {}) => {
     return authFn(platformRow);
   };
 
-  const fetchUniqueByQueriesCounted = async (qs, fetcher) => {
+  const fetchUniqueByQueriesCounted = async (qs, fetcher, concurrency = 5) => {
     const merged = [];
-    for (const query of qs) {
-      try {
-        apiHits += 1;
-        const batch = await fetcher(query);
-        if (Array.isArray(batch) && batch.length) merged.push(...batch);
-      } catch (error) {
-        logger.warn(`[EventScan] Query "${query}" skipped: ${error.message}`);
+    for (let i = 0; i < qs.length; i += concurrency) {
+      const chunk = qs.slice(i, i + concurrency);
+      const results = await Promise.allSettled(
+        chunk.map(async (query) => {
+          apiHits += 1;
+          return await fetcher(query);
+        })
+      );
+      for (let j = 0; j < results.length; j++) {
+        const res = results[j];
+        if (res.status === 'fulfilled' && Array.isArray(res.value) && res.value.length) {
+          merged.push(...res.value);
+        } else if (res.status === 'rejected') {
+          logger.warn(`[EventScan] Query "${chunk[j]}" skipped: ${res.reason?.message || res.reason}`);
+        }
       }
     }
     return uniqueById(merged);
