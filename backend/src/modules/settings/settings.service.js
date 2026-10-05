@@ -240,7 +240,8 @@ const listPolicies = async ({ db } = {}) => {
   const mappedTenant = tenantRows.map(hydratePolicy);
   const mappedGlobal = globalRows.map(r => ({ ...hydratePolicy(r), is_global: true }));
   
-  return [...mappedGlobal, ...mappedTenant];
+  // Custom policies first, then default policies
+  return [...mappedTenant, ...mappedGlobal];
 };
 
 const getPolicy = async (id, { db } = {}) => {
@@ -331,7 +332,8 @@ const listActivePolicies = async ({ db } = {}) => {
   const mappedTenant = tenantRows.map(hydratePolicy);
   const mappedGlobal = globalRows.map((r) => ({ ...hydratePolicy(r), is_global: true }));
 
-  return [...mappedGlobal, ...mappedTenant];
+  // Custom policies first, then default policies
+  return [...mappedTenant, ...mappedGlobal];
 };
 
 module.exports = {
