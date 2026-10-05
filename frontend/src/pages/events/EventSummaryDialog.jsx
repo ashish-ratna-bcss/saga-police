@@ -593,39 +593,76 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
     }
   }, [summaryData?.stats?.timeframe_label, timeframe, fromDate, toDate]);
 
-  const scopeOptions = useMemo(
-    () => [
+  const scopeOptions = useMemo(() => {
+    const now = new Date();
+    const eventStart = event?.start_date ? new Date(event.start_date) : null;
+    const eventEnd = event?.end_date ? new Date(event.end_date) : null;
+
+    // Check if a timeframe window [wStart, wEnd] intersects with [eventStart, eventEnd]
+    const intersectsEvent = (wStart, wEnd) => {
+      if (eventStart && wEnd && wEnd < eventStart) return false;
+      if (eventEnd && wStart && wStart > eventEnd) return false;
+      return true;
+    };
+
+    // 1. Daily: today
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const isDailyValid = intersectsEvent(startOfToday, endOfToday);
+
+    // 2. Weekly: last 7 days
+    const startOfWeekly = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const isWeeklyValid = intersectsEvent(startOfWeekly, now);
+
+    // 3. Monthly: current month (1st of this month to end of this month)
+    const currentMonthName = now.toLocaleString('default', { month: 'long' });
+    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+    const endOfCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const isMonthlyValid = intersectsEvent(startOfCurrentMonth, endOfCurrentMonth);
+
+    // 4. Last Month: previous month (1st of last month to end of last month)
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthName = lastMonthDate.toLocaleString('default', { month: 'long' });
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0);
+    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+    const isLastMonthValid = intersectsEvent(startOfLastMonth, endOfLastMonth);
+
+    return [
       {
         id: 'daily',
         label: 'Daily Report',
-        description: 'Current date activity (today)',
-        badge: 'Today',
+        description: isDailyValid ? 'Current date activity (today)' : 'Event was not active today',
+        badge: isDailyValid ? 'Today' : 'Out of Range',
         icon: Clock,
-        color: 'text-amber-500',
+        color: isDailyValid ? 'text-amber-500' : 'text-muted-foreground',
+        available: isDailyValid,
       },
       {
         id: 'weekly',
         label: 'Weekly Report',
-        description: 'Rolling last 7 days activity window',
-        badge: 'Last 7 Days',
+        description: isWeeklyValid ? 'Rolling last 7 days activity window' : 'Event ended before last 7 days',
+        badge: isWeeklyValid ? 'Last 7 Days' : 'Out of Range',
         icon: CalendarDays,
-        color: 'text-blue-500',
+        color: isWeeklyValid ? 'text-blue-500' : 'text-muted-foreground',
+        available: isWeeklyValid,
       },
       {
         id: 'monthly',
         label: 'Monthly Report',
-        description: 'Current calendar month (1st to now)',
-        badge: 'This Month',
+        description: isMonthlyValid ? `Current month (${currentMonthName}) activity` : `Event was not active in ${currentMonthName}`,
+        badge: isMonthlyValid ? 'This Month' : 'Out of Range',
         icon: Calendar,
-        color: 'text-purple-500',
+        color: isMonthlyValid ? 'text-purple-500' : 'text-muted-foreground',
+        available: isMonthlyValid,
       },
       {
         id: 'last_month',
         label: 'Last Month Report',
-        description: 'Full previous calendar month',
-        badge: 'Previous Month',
+        description: isLastMonthValid ? `Previous month (${lastMonthName}) activity` : `Event was not active in ${lastMonthName}`,
+        badge: isLastMonthValid ? 'Previous Month' : 'Out of Range',
         icon: Calendar,
-        color: 'text-indigo-500',
+        color: isLastMonthValid ? 'text-indigo-500' : 'text-muted-foreground',
+        available: isLastMonthValid,
       },
       {
         id: 'full',
@@ -634,6 +671,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
         badge: 'All Dates',
         icon: Layers,
         color: 'text-emerald-500',
+        available: true,
       },
       {
         id: 'custom',
@@ -642,10 +680,10 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
         badge: 'Custom',
         icon: SlidersHorizontal,
         color: 'text-cyan-500',
+        available: true,
       },
-    ],
-    []
-  );
+    ];
+  }, [event?.start_date, event?.end_date]);
 
   /**
    * Downloads the Event Intelligence & Social Analytics report. The PDF is rendered on the
@@ -761,7 +799,9 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
               variant="outline"
               size="sm"
               onClick={() => {
-                setTempTimeframe(timeframe);
+                const isCurrentAvail = scopeOptions.find((o) => o.id === timeframe)?.available !== false;
+                const fallbackTf = scopeOptions.find((o) => o.id === 'last_month')?.available ? 'last_month' : 'full';
+                setTempTimeframe(isCurrentAvail ? timeframe : fallbackTf);
                 setTempFromDate(fromDate);
                 setTempToDate(toDate);
                 setScopeModalOpen(true);
@@ -783,7 +823,9 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                setTempTimeframe(timeframe);
+                const isCurrentAvail = scopeOptions.find((o) => o.id === timeframe)?.available !== false;
+                const fallbackTf = scopeOptions.find((o) => o.id === 'last_month')?.available ? 'last_month' : 'full';
+                setTempTimeframe(isCurrentAvail ? timeframe : fallbackTf);
                 setTempFromDate(fromDate);
                 setTempToDate(toDate);
                 setScopeModalOpen(true);
@@ -1611,13 +1653,19 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
               {scopeOptions.map((opt) => {
                 const isSelected = tempTimeframe === opt.id;
                 const IconComponent = opt.icon;
+                const isAvail = opt.available !== false;
                 return (
                   <button
                     key={opt.id}
                     type="button"
-                    onClick={() => setTempTimeframe(opt.id)}
+                    disabled={!isAvail}
+                    onClick={() => {
+                      if (isAvail) setTempTimeframe(opt.id);
+                    }}
                     className={`p-3 rounded-xl border text-left transition-all relative flex flex-col justify-between ${
-                      isSelected
+                      !isAvail
+                        ? 'opacity-40 cursor-not-allowed bg-muted/20 border-dashed border-border/60'
+                        : isSelected
                         ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/40 shadow-sm ring-2 ring-indigo-600/20'
                         : 'border-border/80 bg-card hover:bg-muted/40 hover:border-border'
                     }`}
@@ -1625,14 +1673,16 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                     <div className="flex items-start justify-between gap-2 mb-1.5">
                       <div className="flex items-center gap-2 min-w-0">
                         <IconComponent className={`h-4 w-4 shrink-0 ${opt.color}`} />
-                        <span className="text-xs font-semibold text-foreground truncate">
+                        <span className={`text-xs font-semibold truncate ${!isAvail ? 'text-muted-foreground line-through decoration-muted-foreground/50' : 'text-foreground'}`}>
                           {opt.label}
                         </span>
                       </div>
                       <Badge
                         variant="secondary"
                         className={`text-[10px] px-1.5 py-0 shrink-0 ${
-                          isSelected
+                          !isAvail
+                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20'
+                            : isSelected
                             ? 'bg-indigo-600 text-white font-semibold'
                             : 'bg-muted text-muted-foreground'
                         }`}

@@ -354,11 +354,33 @@ function computeEffectiveDateWindow(event, timeframe = 'full', fromDate = null, 
   }
 
   // Intersect / Clamp with event publication window so no out-of-bounds queries happen
-  if (eventWindow.start) {
-    if (!start || start < eventWindow.start) start = eventWindow.start;
+  if (eventWindow.start && eventWindow.end) {
+    // If the entire requested window is after the event end date (e.g. Current Month for a past event)
+    if (start && start > eventWindow.end) {
+      start = eventWindow.start;
+      end = eventWindow.end;
+      label += ` (Clamped: ${eventWindow.start.toLocaleDateString('en-IN')} – ${eventWindow.end.toLocaleDateString('en-IN')})`;
+    } else if (end && end < eventWindow.start) {
+      start = eventWindow.start;
+      end = eventWindow.end;
+      label += ` (Clamped: ${eventWindow.start.toLocaleDateString('en-IN')} – ${eventWindow.end.toLocaleDateString('en-IN')})`;
+    } else {
+      if (eventWindow.start && (!start || start < eventWindow.start)) start = eventWindow.start;
+      if (eventWindow.end && (!end || end > eventWindow.end)) end = eventWindow.end;
+    }
+  } else {
+    if (eventWindow.start && (!start || start < eventWindow.start)) start = eventWindow.start;
+    if (eventWindow.end && (!end || end > eventWindow.end)) end = eventWindow.end;
   }
-  if (eventWindow.end) {
-    if (!end || end > eventWindow.end) end = eventWindow.end;
+
+  // Final sanity check: start cannot be after end
+  if (start && end && start > end) {
+    if (eventWindow.start && eventWindow.end) {
+      start = eventWindow.start;
+      end = eventWindow.end;
+    } else {
+      start = end;
+    }
   }
 
   const rangeWhere = {};
