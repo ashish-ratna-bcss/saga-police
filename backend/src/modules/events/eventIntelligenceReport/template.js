@@ -377,9 +377,11 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const generated = summary?.generated_at ? new Date(summary.generated_at) : new Date();
   const dateStr = generated.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   const windowStr =
-    stats.date_range?.start && stats.date_range?.end
-      ? `${new Date(stats.date_range.start).toLocaleDateString('en-GB')} – ${new Date(stats.date_range.end).toLocaleDateString('en-GB')}`
-      : '—';
+    stats.timeframe_label
+      ? `${stats.timeframe_label}${stats.date_range?.start && stats.date_range?.end ? ` (${new Date(stats.date_range.start).toLocaleDateString('en-GB')} – ${new Date(stats.date_range.end).toLocaleDateString('en-GB')})` : ''}`
+      : stats.date_range?.start && stats.date_range?.end
+        ? `${new Date(stats.date_range.start).toLocaleDateString('en-GB')} – ${new Date(stats.date_range.end).toLocaleDateString('en-GB')}`
+        : '—';
   const tenant = (tenantName || 'DIGITAL INTELLIGENCE PLATFORM').toUpperCase();
   const hq = headquarters || null;
   const hqHtml = hq
