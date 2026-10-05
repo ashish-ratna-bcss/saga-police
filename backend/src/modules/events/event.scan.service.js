@@ -591,8 +591,12 @@ const mapBlugateFacebookPost = (post) => {
   };
 };
 
+const unquote = (str) => String(str || '').replace(/^["']|["']$/g, '').trim();
+
 const searchFacebookViaBlugate = async (query, auth = null) => {
-  const data = await callFacebookApi('SEARCH_POSTS', { query }, auth);
+  const q = unquote(query);
+  if (!q) return [];
+  const data = await callFacebookApi('SEARCH_POSTS', { query: q }, auth);
   const results = Array.isArray(data?.results) ? data.results : [];
   return results.map(mapBlugateFacebookPost).filter(Boolean);
 };
@@ -600,7 +604,7 @@ const searchFacebookViaBlugate = async (query, auth = null) => {
 /* ── Blugate Telegram search ── */
 
 const searchTelegramViaBlugate = async (query, auth = null) => {
-  const q = String(query || '').trim();
+  const q = unquote(query);
   if (!q) return [];
   const raw = await callTelegramApi('SEARCH_MESSAGES', { q, limit: 50 }, auth);
   return listTelegramItems(raw)
@@ -634,11 +638,13 @@ const searchTelegramViaBlugate = async (query, auth = null) => {
 /* ── Blugate YouTube search ── */
 
 const searchYouTubeViaBlugate = async (query, auth = null) => {
+  const q = unquote(query);
+  if (!q) return [];
   const search = await callYouTubeApi(
     'SEARCH_LIST',
     {
       part: 'snippet',
-      q: query,
+      q,
       type: 'video',
       maxResults: 50,
     },
@@ -681,7 +687,7 @@ const searchYouTubeViaBlugate = async (query, auth = null) => {
 // RSS_MONITOR already accepts a single `query`. time_range "all" keeps the
 // fetch open; the event's start/end dates are sent as from_date/to_date.
 const searchRedditViaBlugate = async (query, auth = null, range = null) => {
-  const q = String(query || '').trim();
+  const q = unquote(query);
   if (!q) return [];
 
   const body = { query: q, limit: 20, sort: 'new', time_range: 'all' };
