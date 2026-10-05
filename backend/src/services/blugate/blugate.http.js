@@ -124,7 +124,7 @@ const blugateRequest = async ({
   method = 'GET',
   params = {},
   auth,
-  timeout = 45000,
+  timeout = 15000,
   label = 'API',
   endpointKey = '',
 }) => {

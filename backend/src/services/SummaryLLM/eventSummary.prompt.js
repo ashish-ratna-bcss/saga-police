@@ -28,7 +28,11 @@ RULES:
 7. This brief is for a State DGP and Crime Branch. Answer, from the posts only: what activity is being organised; where people or representatives were present; which specific places are named; how the volume and tone sit; which accounts carry the criticism; which named leaders or representatives appear; and which accounts amplify it.
 8. Locations: name the district, city, town, chowk, road, highway, institution, or building written in the post (for example a city dateline, an assembly, a highway, a chowk). Do not collapse a specific place into the state name. If a post only names the state, say the state. Never invent a place the post does not contain.
 9. Public order: a bandh, blockade, highway block, gherao, rally, or protest named in a post is a fact. Do not write that there is no unrest or no blockade when the evidence says otherwise. Keep peaceful criticism separate from those calls.
-10. Leave out anything the posts do not support.`;
+10. Leave out anything the posts do not support.
+11. Recommended Actions: Provide 3-6 actionable, operationally specific directives tailored for executive and law enforcement units (e.g., District Police / SHO, Cyber Crime Cell / OSINT Desk, Public Relations & Fact-Check Unit, Traffic Unit, Platform Escalation Desk). Never write vague generic advice like "Monitor Protests" or "Engage with criticism". Each action MUST specify:
+    - Tactical Mandate & Lead Unit (e.g., "Ground Security & Precautionary Bandobast (Local Police / SHO)", "Cyber & Digital Surveillance (Cyber Cell)", "Counter-Disinformation & Fact-Check (Media / PRO Cell)", "Traffic & Route Regulation (Traffic Police)", "Platform Escalation & Nodal Coordination (Cyber Desk)");
+    - Concrete operational details: name the specific location/venue/route (e.g., Jantar Mantar, specific district/chowk), named leaders/accounts, viral hashtags, specific rumors/claims to verify or rebut, and concrete tactical steps;
+    - Evidence citations [Post #n].`;
 
 /* ---------------------------------------------------------------- 2. OUTPUT CONTRACT ---------------------- */
 const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only (no conversational text, no markdown code fences) with exactly these fields:
@@ -40,7 +44,7 @@ const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only (no conversational text, n
  "narratives": [{"title": "3-7 words", "discussed": "2-3 sentences: theme, kind of discussion (analysis, news, rumour, opinion, satire, notice), [Post #n] citations", "tone": "1-2 sentences on sentiment mix, using the posts' labels", "risk": "1-2 sentences or 'No risk signal.'", "posts": [1, 2]}],   // 3-7; EVERY evidence post in exactly ONE narrative
  "public_order": "paragraph: threat evaluation, agitation/protest indicators (strictly separate peaceful criticism from threats)",
  "platforms_commentary": "paragraph: platform distribution and key amplifying voices",
- "recommended_actions": [{"action": "short imperative", "detail": "1-2 actionable sentences", "posts": [1]}],
+ "recommended_actions": [{"action": "Tactical Action & Lead Unit (e.g., 'Ground Bandobast at [Specific Location] — Local Police / SHO', 'Fact-Check & Rebuttal on [Claim] — Media / PRO Cell', 'Digital Surveillance of [Hashtag/Handle] — Cyber Cell')", "detail": "2-3 highly concrete, actionable sentences specifying exact venues, handles/hashtags, claims to verify/rebut, deployment steps, or digital tracking measures", "posts": [1]}],
  "claims": [{"claim": "short factual claim", "posts": [1], "triage": "VERIFY or MONITOR", "note": "verification path or monitoring reason"}],
  "changes": [{"from": "earlier state", "to": "later state", "post": 1}],
  "emerging_keywords": [{"term": "#tag or phrase", "posts": [1], "why": "short reason"}],
@@ -139,7 +143,7 @@ OUTPUT: ONE JSON object only (no text around it, no code fences) with exactly th
  "narratives": [{"title": "3-7 words", "clusters": ["C1", "C4"], "discussed": "2-3 sentences: theme, kind of discussion (analysis, news, rumour, opinion, satire, notice), example posts [Post #n]", "tone": "1-2 sentences using the sentiment mix of its clusters", "risk": "1-2 sentences or 'No risk signal.'"}],   // 3-7; EVERY cluster id in TOPIC CLUSTERS (C1, C2, ...) must appear in exactly ONE narrative's clusters (none left out); merge clusters about the same theme
  "public_order": "paragraph: threat evaluation; separate peaceful criticism from threat indicators",
  "platforms_commentary": "paragraph: platform distribution and key voices",
- "recommended_actions": [{"action": "short imperative", "detail": "1-2 sentences", "posts": [5]}],   // 3-6
+ "recommended_actions": [{"action": "Tactical Action & Lead Unit (e.g., 'Ground Bandobast at [Specific Venue] — Local Police', 'Fact-Check on [Claim] — PRO Cell', 'Digital Surveillance — Cyber Cell')", "detail": "2-3 concrete operational sentences naming exact locations, handles, hashtags, or claims from the notes with tactical steps", "posts": [5]}],   // 3-6
  "claims": [{"claim": "short", "posts": [5], "triage": "VERIFY or MONITOR", "note": "verification path or reason to monitor"}],   // 0-8, chosen from CLAIMS, post numbers as given
  "changes": [{"from": "earlier state", "to": "later state", "post": 8}],   // 0-6, from SHIFTS only
  "emerging_keywords": [{"term": "#tag or phrase from HASHTAGS or the notes", "why": "short reason"}],
@@ -302,7 +306,7 @@ const parseLLMReport = (raw, evidence) => {
   const keyFindings = (Array.isArray(obj.key_findings) ? obj.key_findings : []).slice(0, 6)
     .map((k) => ({ headline: str(k.headline, 160), detail: str(k.detail, 400) })).filter((k) => k.headline);
   const actions = (Array.isArray(obj.recommended_actions) ? obj.recommended_actions : []).slice(0, 6)
-    .map((a) => ({ action: str(a.action, 120), detail: str(a.detail, 400), posts: ids(a.posts) })).filter((a) => a.action);
+    .map((a) => ({ action: str(a.action, 200), detail: str(a.detail, 800), posts: ids(a.posts) })).filter((a) => a.action);
   const claims = (Array.isArray(obj.claims) ? obj.claims : []).slice(0, 8).map((c) => ({
     claim: str(c.claim, 200), posts: ids(c.posts), triage: String(c.triage).toUpperCase() === 'MONITOR' ? 'MONITOR' : 'VERIFY', note: str(c.note, 300),
   })).filter((c) => c.claim && c.posts.length);

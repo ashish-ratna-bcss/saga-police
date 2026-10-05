@@ -601,7 +601,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     : '';
 
   const actionsHtml = actions.length
-    ? `<ul class="bul">${actions.map((a) => `<li><b>${esc(a.action)}</b> — ${esc(a.detail)}</li>`).join('')}</ul>`
+    ? `<ul class="bul">${actions.map((a) => `<li><b>${esc(a.action)}</b> — ${esc(a.detail)}${a.posts && a.posts.length ? ` <span class="sm">(${esc(a.posts.map(p => `Post #${p}`).join(', '))})</span>` : ''}</li>`).join('')}</ul>`
     : '';
 
   const platMax = platformEntries.length ? n0(platformEntries[0][1]) : 1;
