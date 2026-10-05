@@ -178,11 +178,18 @@ const PolicyManager = () => {
     setFormData({ ...formData, [platformField]: next });
   };
 
-  const filteredPolicies = policies.filter(
-    (p) =>
-      (p.category_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.definition || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredPolicies = policies
+    .filter(
+      (p) =>
+        (p.category_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.definition || '').toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      // Custom policies (is_global === false / undefined) come first
+      if (!a.is_global && b.is_global) return -1;
+      if (a.is_global && !b.is_global) return 1;
+      return (a.category_id || '').localeCompare(b.category_id || '');
+    });
 
   const isDirty = useMemo(
     () => JSON.stringify(formData) !== JSON.stringify(originalData),
