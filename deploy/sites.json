@@ -14,7 +14,6 @@
     },
     {
       "admin": "delhipolice",
-      "enabled": false,
       "frontend_port": 3001,
       "backend_port": 5006,
       "domain": "delhipolice.blurasaga.com",
