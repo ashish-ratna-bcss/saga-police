@@ -6,6 +6,7 @@ import { cn } from '../../lib/utils';
 import * as XLSX from 'xlsx';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import { Textarea } from '../../components/ui/textarea';
 import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
 import { ScrollArea } from '../../components/ui/scroll-area';
@@ -949,7 +950,7 @@ const Events = () => {
   const [nrEditId, setNrEditId] = useState(null);
   const [nrSaving, setNrSaving] = useState(false);
   const [nrForm, setNrForm] = useState({
-    name: '', location: '', start_date: '', end_date: '',
+    name: '', location: '', description: '', start_date: '', end_date: '',
     keywords: '',
     polling_interval_minutes: 60, poll_preset: '60',
     platforms: [],
@@ -966,6 +967,7 @@ const Events = () => {
   // ── Form fields ──
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
+  const [description, setDescription] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [keywords, setKeywords] = useState('');
@@ -1062,7 +1064,7 @@ const Events = () => {
   const openNrCreate = () => {
     setNrEditId(null);
     setNrForm({
-      name: '', location: '', start_date: '', end_date: '',
+      name: '', location: '', description: '', start_date: '', end_date: '',
       keywords: '',
       polling_interval_minutes: 60, poll_preset: '60',
       platforms: dbPlatformSlugs,
@@ -1076,6 +1078,7 @@ const Events = () => {
     setNrForm({
       name: evt.name || '',
       location: evt.location || '',
+      description: evt.description || '',
       start_date: evt.start_date ? new Date(evt.start_date).toISOString().split('T')[0] : '',
       end_date: evt.end_date ? new Date(evt.end_date).toISOString().split('T')[0] : '',
       keywords: keywordsToSingleField(evt.keywords || []),
@@ -1102,6 +1105,7 @@ const Events = () => {
       const kw = parseKeywordsField(nrForm.keywords);
       const payload = {
         name: nrForm.name, location: nrForm.location,
+        description: nrForm.description || '',
         keywords: kw, platforms: nrForm.platforms,
         ...(nrForm.start_date ? { start_date: nrForm.start_date } : {}),
         ...(nrForm.end_date ? { end_date: nrForm.end_date } : {}),
@@ -1354,6 +1358,7 @@ const Events = () => {
     if (prefill) {
       setName(prefill.name || '');
       setLocation(prefill.location || '');
+      setDescription(prefill.description || '');
       setStartDate(prefill.start_date || '');
       setEndDate(prefill.end_date || '');
       setKeywords(
@@ -1588,6 +1593,7 @@ const Events = () => {
     const payload = {
       name,
       location,
+      description: description || '',
       keywords: parseKeywordsField(keywords),
       platforms: selectedPlatforms,
       polling_interval_minutes: Number(eventPollMinutes) || 60,
@@ -1599,7 +1605,7 @@ const Events = () => {
 
 
   const resetForm = () => {
-    setName(''); setLocation(''); setStartDate(''); setEndDate('');
+    setName(''); setLocation(''); setDescription(''); setStartDate(''); setEndDate('');
     setKeywords('');
     setEventPollMinutes(60); setEventPollPreset('60');
     setSelectedPlatforms(dbPlatformSlugs);
@@ -1611,6 +1617,7 @@ const Events = () => {
     closeActionOverlays();
     setName(selectedEvent.name || '');
     setLocation(selectedEvent.location || '');
+    setDescription(selectedEvent.description || '');
     setStartDate(selectedEvent.start_date ? new Date(selectedEvent.start_date).toISOString().split('T')[0] : '');
     setEndDate(selectedEvent.end_date ? new Date(selectedEvent.end_date).toISOString().split('T')[0] : '');
     setKeywords(keywordsToSingleField(selectedEvent.keywords || []));
@@ -2492,6 +2499,11 @@ const Events = () => {
                     <span className="text-muted-foreground/80">({fetchesPerDayHint(selectedEvent.polling_interval_minutes || 60)})</span>
                   </span>
                 </div>
+                {selectedEvent.description && (
+                  <p className="mt-1 text-xs text-muted-foreground line-clamp-2" title={selectedEvent.description}>
+                    {selectedEvent.description}
+                  </p>
+                )}
                 {selectedEvent.keywords?.length > 0 && (
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     {selectedEvent.keywords.slice(0, 6).map((kw, i) => (
@@ -3023,6 +3035,15 @@ const Events = () => {
                 <Label className="text-xs font-semibold">End Date</Label>
                 <EventDateField value={endDate} onChange={setEndDate} placeholder="End date" />
               </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label className="text-xs font-semibold">Description</Label>
+                <Textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Brief description or context about this event..."
+                  className="min-h-[64px] resize-none text-sm"
+                />
+              </div>
             </div>
 
 
@@ -3361,6 +3382,15 @@ const Events = () => {
                   value={nrForm.end_date}
                   onChange={(end_date) => setNrForm({ ...nrForm, end_date })}
                   placeholder="End date"
+                />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label className="text-xs font-semibold">Description</Label>
+                <Textarea
+                  value={nrForm.description || ''}
+                  onChange={(e) => setNrForm({ ...nrForm, description: e.target.value })}
+                  placeholder="Brief description or context about this event..."
+                  className="min-h-[64px] resize-none text-sm"
                 />
               </div>
             </div>
