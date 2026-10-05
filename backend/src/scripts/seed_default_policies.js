@@ -51,43 +51,25 @@ async function seed() {
   }
   console.log('✓ Main Database default_policies seeded successfully.');
 
-  // 2. Seed across all tenant databases
-  console.log('Seeding into all Tenant Databases policy_mappings tables...');
+  // 2. Clean duplicate default copies from tenant tables (tenants inherit default_policies from main DB)
+  console.log('Cleaning duplicate default policy copies from tenant tables...');
   let tenantCount = 0;
   try {
     await forEachTenant(async (tenantPrisma, user) => {
       tenantCount++;
       const userTag = user?.email || user?.username || `User #${user?.id}`;
-      console.log(` -> Seeding tenant for: ${userTag}`);
-      for (const p of policies) {
-        await tenantPrisma.policy_mappings.upsert({
-          where: { category_id: p.category_id },
-          create: {
-            category_id: p.category_id,
-            definition: p.definition,
-            severity_level: p.severity_level || 'Medium',
-            keywords: Array.isArray(p.keywords) ? p.keywords : [],
-            legal_sections: p.legal_sections || [],
-            platform_policies: p.platform_policies || {},
-            is_active: true,
-          },
-          update: {
-            definition: p.definition,
-            severity_level: p.severity_level || 'Medium',
-            keywords: Array.isArray(p.keywords) ? p.keywords : [],
-            legal_sections: p.legal_sections || [],
-            platform_policies: p.platform_policies || {},
-            is_active: true,
-          },
-        });
-      }
+      // Remove records from tenant policy_mappings if they match default category_ids
+      const deleted = await tenantPrisma.policy_mappings.deleteMany({
+        where: { category_id: { in: categoryIds } },
+      });
+      console.log(` -> Tenant ${userTag}: removed ${deleted.count} duplicate default policies`);
     });
-    console.log(`✓ Seeded policies across ${tenantCount} tenant databases.`);
+    console.log(`✓ Cleaned tenant databases across ${tenantCount} tenants.`);
   } catch (err) {
-    console.warn(`[Warning] Tenant database seeding encountered an issue:`, err.message);
+    console.warn(`[Warning] Tenant database cleanup encountered an issue:`, err.message);
   }
 
-  console.log('--- All 12 Policies Successfully Seeded! ---');
+  console.log('--- All 12 Global Default Policies Seeded into Main DB! ---');
   await mainPrisma.$disconnect();
 }
 
