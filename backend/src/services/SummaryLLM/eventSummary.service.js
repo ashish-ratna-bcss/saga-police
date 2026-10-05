@@ -15,7 +15,7 @@ const {
   evaluateThreatRisk,
   calculateReconciledPercentages,
 } = require('../../modules/events/eventTelemetry.service');
-const { postedAtRangeWhere } = require('../../modules/events/event.utils');
+const { postedAtRangeWhere, eventPublicationWindow } = require('../../modules/events/event.utils');
 const { headquartersPromptLine, resolveHeadquarters } = require('../../modules/events/eventIntelligenceReport/headquarters');
 
 const getLLMConfig = () => {
