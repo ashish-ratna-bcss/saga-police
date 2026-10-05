@@ -289,16 +289,106 @@ const buildBatchDigest = (notesMap, analysed) => {
   };
 };
 
+function computeEffectiveDateWindow(event, timeframe = 'full', fromDate = null, toDate = null) {
+  const eventWindow = eventPublicationWindow(event);
+  const now = new Date();
+  let start = null;
+  let end = null;
+  let label = 'Full Event Range';
+
+  const tf = String(timeframe || 'full').toLowerCase();
+
+  if (tf === 'daily') {
+    // Current date (clamped to event dates if event is in the past/future)
+    let targetDay = new Date(now);
+    if (eventWindow.end && targetDay > eventWindow.end) {
+      targetDay = new Date(eventWindow.end);
+    }
+    if (eventWindow.start && targetDay < eventWindow.start) {
+      targetDay = new Date(eventWindow.start);
+    }
+    const y = targetDay.getFullYear();
+    const m = String(targetDay.getMonth() + 1).padStart(2, '0');
+    const d = String(targetDay.getDate()).padStart(2, '0');
+    start = new Date(`${y}-${m}-${d}T00:00:00.000+05:30`);
+    end = new Date(`${y}-${m}-${d}T23:59:59.999+05:30`);
+    label = `Daily Report (${d}/${m}/${y})`;
+  } else if (tf === 'weekly') {
+    // Last 7 days
+    let endAnchor = new Date(now);
+    if (eventWindow.end && endAnchor > eventWindow.end) {
+      endAnchor = new Date(eventWindow.end);
+    }
+    end = new Date(endAnchor.getTime());
+    start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+    label = 'Weekly Report (Last 7 Days)';
+  } else if (tf === 'monthly') {
+    // Current month (1st of month to end of month / now)
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    start = new Date(y, m, 1, 0, 0, 0);
+    end = new Date(y, m + 1, 0, 23, 59, 59, 999);
+    label = `Monthly Report (${now.toLocaleString('default', { month: 'long', year: 'numeric' })})`;
+  } else if (tf === 'last_month') {
+    // Previous month (1st to last day)
+    const y = now.getFullYear();
+    const m = now.getMonth() - 1;
+    start = new Date(y, m, 1, 0, 0, 0);
+    end = new Date(y, m + 1, 0, 23, 59, 59, 999);
+    const lastMonthDate = new Date(y, m, 1);
+    label = `Last Month Report (${lastMonthDate.toLocaleString('default', { month: 'long', year: 'numeric' })})`;
+  } else if (tf === 'custom' && (fromDate || toDate)) {
+    if (fromDate) start = new Date(fromDate);
+    if (toDate) {
+      const td = new Date(toDate);
+      td.setHours(23, 59, 59, 999);
+      end = td;
+    }
+    const fmt = (d) => d ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+    label = `Custom Range Report (${fmt(start)} – ${fmt(end)})`;
+  } else {
+    // Full event
+    start = eventWindow.start;
+    end = eventWindow.end;
+    label = 'Full Event Duration Report';
+  }
+
+  // Intersect / Clamp with event publication window so no out-of-bounds queries happen
+  if (eventWindow.start) {
+    if (!start || start < eventWindow.start) start = eventWindow.start;
+  }
+  if (eventWindow.end) {
+    if (!end || end > eventWindow.end) end = eventWindow.end;
+  }
+
+  const rangeWhere = {};
+  if (start && !isNaN(start.getTime())) rangeWhere.gte = start;
+  if (end && !isNaN(end.getTime())) rangeWhere.lte = end;
+
+  return {
+    start,
+    end,
+    label,
+    rangeWhere: Object.keys(rangeWhere).length > 0 ? rangeWhere : null,
+  };
+}
+
 /**
  * Generate comprehensive AI Executive Summary for an event using telemetry and LLM.
- * Fetches and analyzes ALL rows (N rows) for the event from the database.
+ * Fetches and analyzes ALL rows (N rows) for the event from the database within the requested timeframe.
  * Result is cached (upserted) into social_media_event_summaries for instant re-open.
  *
  * @param {number|string} eventId
  * @param {object} [options]
  * @param {object} [options.generatedBy] - { id, name } of the user who triggered generation
+ * @param {string} [options.timeframe] - 'daily' | 'weekly' | 'monthly' | 'last_month' | 'custom' | 'full'
+ * @param {string} [options.fromDate] - Start date for custom range
+ * @param {string} [options.toDate] - End date for custom range
  */
-const generateEventSummary = async (eventId, { db, generatedBy, tenantName } = {}) => {
+const generateEventSummary = async (
+  eventId,
+  { db, generatedBy, tenantName, timeframe = 'full', fromDate = null, toDate = null } = {}
+) => {
   const prisma = dbOf(db);
   const numericId = Number(eventId);
   if (!Number.isFinite(numericId) || numericId <= 0) {
@@ -325,8 +415,10 @@ const generateEventSummary = async (eventId, { db, generatedBy, tenantName } = {
     }
   } catch {}
 
-  // 2. Fetch ALL Event Media rows without arbitrary limit
-  const publicationRange = postedAtRangeWhere(event);
+  // 2. Fetch Event Media rows within effective date window (strictly clamped to event range)
+  const { start: effectiveStart, end: effectiveEnd, label: timeframeLabel, rangeWhere: publicationRange } =
+    computeEffectiveDateWindow(event, timeframe, fromDate, toDate);
+
   const mediaRows = await prisma.social_media_event_media.findMany({
     where: {
       event_id: numericId,
@@ -746,6 +838,12 @@ ${Object.entries(platformCounts).map(([p, count]) => `- **${p.toUpperCase()}**: 
     llm_finish_reason: llmFinishReason,
     llm_error: llmError,
     stats: {
+      timeframe,
+      timeframe_label: timeframeLabel,
+      from_date: fromDate,
+      to_date: toDate,
+      effective_start: effectiveStart ? effectiveStart.toISOString() : null,
+      effective_end: effectiveEnd ? effectiveEnd.toISOString() : null,
       total_media_count: totalMediaCount,
       total_unique_posts: totalMediaCount,
       relevant_posts_count: relevantPostsCount,
@@ -806,17 +904,17 @@ ${Object.entries(platformCounts).map(([p, count]) => `- **${p.toUpperCase()}**: 
 
 const summaryJobs = new Map();
 
-const summaryJobKey = (dbName, eventId) => `${dbName || 'default'}:${Number(eventId)}`;
+const summaryJobKey = (dbName, eventId, timeframe = 'full') => `${dbName || 'default'}:${Number(eventId)}:${timeframe}`;
 
-const getSummaryJob = (dbName, eventId) => summaryJobs.get(summaryJobKey(dbName, eventId)) || null;
+const getSummaryJob = (dbName, eventId, timeframe = 'full') => summaryJobs.get(summaryJobKey(dbName, eventId, timeframe)) || null;
 
 /**
  * Run summary generation off the HTTP request. Closing the dialog ends the
  * browser call; this job keeps going and is saved when it finishes.
  * A second click joins the job already running for that event.
  */
-const startSummaryJob = ({ eventId, db, dbName, generatedBy, tenantName } = {}) => {
-  const key = summaryJobKey(dbName, eventId);
+const startSummaryJob = ({ eventId, db, dbName, generatedBy, tenantName, timeframe = 'full', fromDate = null, toDate = null } = {}) => {
+  const key = summaryJobKey(dbName, eventId, timeframe);
   const existing = summaryJobs.get(key);
   if (existing?.status === 'running') return existing;
 
@@ -826,8 +924,8 @@ const startSummaryJob = ({ eventId, db, dbName, generatedBy, tenantName } = {}) 
     error: null,
     promise: null,
   };
-  logger.info(`[SummaryLLM] regenerate started event=${eventId} tenant=${tenantName || dbName || 'default'}`);
-  const promise = generateEventSummary(eventId, { db, generatedBy, tenantName })
+  logger.info(`[SummaryLLM] regenerate started event=${eventId} timeframe=${timeframe} tenant=${tenantName || dbName || 'default'}`);
+  const promise = generateEventSummary(eventId, { db, generatedBy, tenantName, timeframe, fromDate, toDate })
     .then((result) => {
       logger.info(`[SummaryLLM] regenerate finished event=${eventId} source=${result?.summary_source || 'unknown'}`);
       if (summaryJobs.get(key) === job) summaryJobs.delete(key);

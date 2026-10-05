@@ -240,13 +240,21 @@ const getEventsReport = async (req, res) => {
 
 const { getCachedEventSummary, saveEventSummaryPdf, getSummaryJob, startSummaryJob } = require('../../services/SummaryLLM');
 
-const summaryCaller = (req) => ({
-  eventId: req.params.id,
-  db: req.tenantPrisma,
-  dbName: req.tenantDbName,
-  tenantName: resolveTenantLabel(req.query.tenant, req.user),
-  generatedBy: req.user ? { id: req.user.id, name: req.user.name || req.user.username } : null,
-});
+const summaryCaller = (req) => {
+  const timeframe = req.body?.timeframe || req.query?.timeframe || 'full';
+  const fromDate = req.body?.from_date || req.body?.fromDate || req.query?.from_date || req.query?.fromDate || null;
+  const toDate = req.body?.to_date || req.body?.toDate || req.query?.to_date || req.query?.toDate || null;
+  return {
+    eventId: req.params.id,
+    db: req.tenantPrisma,
+    dbName: req.tenantDbName,
+    tenantName: resolveTenantLabel(req.query.tenant || req.body?.tenant, req.user),
+    generatedBy: req.user ? { id: req.user.id, name: req.user.name || req.user.username } : null,
+    timeframe,
+    fromDate,
+    toDate,
+  };
+};
 
 const runningSummaryResponse = (res, job, eventId) =>
   res.status(202).json({
@@ -259,12 +267,14 @@ const { generateEventIntelligencePdf } = require('./eventIntelligenceReport');
 /** GET: cached report, or the background job already writing one. Starts the job if needed. */
 const getEventSummaryLLM = async (req, res) => {
   try {
-    const existing = getSummaryJob(req.tenantDbName, req.params.id);
+    const caller = summaryCaller(req);
+    const existing = getSummaryJob(req.tenantDbName, req.params.id, caller.timeframe);
     if (existing?.status === 'running') {
       return runningSummaryResponse(res, existing, req.params.id);
     }
     const cached = await getCachedEventSummary(req.params.id, { db: req.tenantPrisma });
-    if (cached) {
+    // If client requested specific timeframe, check if cached matches or regenerate
+    if (cached && (!caller.timeframe || caller.timeframe === 'full' || cached.stats?.timeframe === caller.timeframe)) {
       return res.status(200).json(
         existing?.status === 'failed' ? { ...cached, regenerate_error: existing.error } : cached
       );
@@ -272,7 +282,7 @@ const getEventSummaryLLM = async (req, res) => {
     if (existing?.status === 'failed') {
       return res.status(200).json({ status: 'failed', message: existing.error, started_at: existing.started_at });
     }
-    const job = startSummaryJob(summaryCaller(req));
+    const job = startSummaryJob(caller);
     return runningSummaryResponse(res, job, req.params.id);
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
@@ -282,11 +292,12 @@ const getEventSummaryLLM = async (req, res) => {
 /** POST: start a fresh report in the background. Joins the job if one is already running. */
 const regenerateEventSummaryLLM = async (req, res) => {
   try {
-    const existing = getSummaryJob(req.tenantDbName, req.params.id);
+    const caller = summaryCaller(req);
+    const existing = getSummaryJob(req.tenantDbName, req.params.id, caller.timeframe);
     if (existing?.status === 'running') {
       return runningSummaryResponse(res, existing, req.params.id);
     }
-    const job = startSummaryJob(summaryCaller(req));
+    const job = startSummaryJob(caller);
     return runningSummaryResponse(res, job, req.params.id);
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
@@ -327,11 +338,17 @@ const resolveTenantLabel = (queryTenant, user) => {
 const getEventIntelligenceReportPdf = async (req, res) => {
   try {
     const tenantName = resolveTenantLabel(req.query.tenant, req.user);
+    const timeframe = req.query?.timeframe || 'full';
+    const fromDate = req.query?.from_date || req.query?.fromDate || null;
+    const toDate = req.query?.to_date || req.query?.toDate || null;
     const { pdf, eventName } = await generateEventIntelligencePdf(req.params.id, {
       db: req.tenantPrisma,
       dbName: req.tenantDbName,
       tenantName,
       user: req.user,
+      timeframe,
+      fromDate,
+      toDate,
     });
     // Keep the "PDF saved" flag on the cached summary in sync; failure here must not block the download.
     saveEventSummaryPdf(req.params.id, pdf.toString('base64'), { db: req.tenantPrisma }).catch(() => {});

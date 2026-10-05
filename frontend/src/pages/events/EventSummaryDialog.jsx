@@ -32,6 +32,11 @@ import {
   List,
   Loader2,
   Clock,
+  Calendar,
+  CalendarDays,
+  SlidersHorizontal,
+  ChevronDown,
+  ArrowRight,
 } from 'lucide-react';
 import {
   XBrandLogo,
@@ -75,13 +80,22 @@ function cleanPostDisplayText(t) {
     .trim();
 }
 
-export default function EventSummaryDialog({ open, onOpenChange, eventId, eventName, onGeneratingChange, onReady }) {
+export default function EventSummaryDialog({ open, onOpenChange, eventId, eventName, event, onGeneratingChange, onReady }) {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState(null);
   const [summaryData, setSummaryData] = useState(null);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('briefing');
+
+  // Report Timeframe & Scope states
+  const [timeframe, setTimeframe] = useState('full');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [scopeModalOpen, setScopeModalOpen] = useState(false);
+  const [tempTimeframe, setTempTimeframe] = useState('full');
+  const [tempFromDate, setTempFromDate] = useState('');
+  const [tempToDate, setTempToDate] = useState('');
 
   // "All Posts" tab — full paginated list of every post analyzed for this event
   // (the narrative/evidence tab only cites a small representative sample).
@@ -149,10 +163,21 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
     }, 500);
   }, []);
 
+  const timeframeRef = useRef(timeframe);
+  timeframeRef.current = timeframe;
+  const fromDateRef = useRef(fromDate);
+  fromDateRef.current = fromDate;
+  const toDateRef = useRef(toDate);
+  toDateRef.current = toDate;
+
   const fetchSummary = useCallback(
-    (refresh = false) => {
+    (refresh = false, overrideParams = {}) => {
       const id = eventIdRef.current;
       if (!id) return;
+      const tf = overrideParams.timeframe !== undefined ? overrideParams.timeframe : timeframeRef.current;
+      const fDate = overrideParams.fromDate !== undefined ? overrideParams.fromDate : fromDateRef.current;
+      const tDate = overrideParams.toDate !== undefined ? overrideParams.toDate : toDateRef.current;
+
       clearInterval(pollTimer.current);
       generatingRef.current = true;
       if (refresh) refreshStartedRef.current = Date.now();
@@ -173,8 +198,19 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
         if (stopped || eventIdRef.current !== id) return;
         try {
           const res = usePost
-            ? await api.post(`/events/${id}/summary-llm`)
-            : await api.get(`/events/${id}/summary-llm`, { params: { _t: Date.now() } });
+            ? await api.post(`/events/${id}/summary-llm`, {
+                timeframe: tf,
+                from_date: fDate || null,
+                to_date: tDate || null,
+              })
+            : await api.get(`/events/${id}/summary-llm`, {
+                params: {
+                  timeframe: tf,
+                  from_date: fDate || null,
+                  to_date: tDate || null,
+                  _t: Date.now(),
+                },
+              });
           usePost = false;
           if (stopped || eventIdRef.current !== id) return;
           const data = res?.data?.data || res?.data;
@@ -234,6 +270,15 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
             clearInterval(progressTimer.current);
             progressTimer.current = null;
             setSummaryData(data);
+            if (data.stats?.timeframe) {
+              setTimeframe(data.stats.timeframe);
+            }
+            if (data.stats?.from_date) {
+              setFromDate(data.stats.from_date);
+            }
+            if (data.stats?.to_date) {
+              setToDate(data.stats.to_date);
+            }
             setLoading(false);
             onReadyRef.current?.();
             if (data.regenerate_error) {
@@ -499,6 +544,109 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const eventMinDate = useMemo(() => {
+    if (!event?.start_date) return '';
+    try {
+      const d = new Date(event.start_date);
+      return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
+    } catch (e) {
+      return '';
+    }
+  }, [event?.start_date]);
+
+  const eventMaxDate = useMemo(() => {
+    if (!event?.end_date) return '';
+    try {
+      const d = new Date(event.end_date);
+      return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
+    } catch (e) {
+      return '';
+    }
+  }, [event?.end_date]);
+
+  const eventDateRangeFormatted = useMemo(() => {
+    if (!event?.start_date && !event?.end_date) return null;
+    const fmt = (iso) => {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    };
+    return `${fmt(event?.start_date) || 'Beginning'} – ${fmt(event?.end_date) || 'Ongoing'}`;
+  }, [event?.start_date, event?.end_date]);
+
+  const timeframeLabel = useMemo(() => {
+    if (summaryData?.stats?.timeframe_label) return summaryData.stats.timeframe_label;
+    switch (timeframe) {
+      case 'daily':
+        return 'Daily (Today)';
+      case 'weekly':
+        return 'Weekly (Last 7 Days)';
+      case 'monthly':
+        return 'Monthly (Current Month)';
+      case 'last_month':
+        return 'Last Month';
+      case 'custom':
+        return fromDate || toDate ? `Custom (${fromDate || '...'} – ${toDate || '...'})` : 'Custom Range';
+      case 'full':
+      default:
+        return 'Full Event Duration';
+    }
+  }, [summaryData?.stats?.timeframe_label, timeframe, fromDate, toDate]);
+
+  const scopeOptions = useMemo(
+    () => [
+      {
+        id: 'daily',
+        label: 'Daily Report',
+        description: 'Current date activity (today)',
+        badge: 'Today',
+        icon: Clock,
+        color: 'text-amber-500',
+      },
+      {
+        id: 'weekly',
+        label: 'Weekly Report',
+        description: 'Rolling last 7 days activity window',
+        badge: 'Last 7 Days',
+        icon: CalendarDays,
+        color: 'text-blue-500',
+      },
+      {
+        id: 'monthly',
+        label: 'Monthly Report',
+        description: 'Current calendar month (1st to now)',
+        badge: 'This Month',
+        icon: Calendar,
+        color: 'text-purple-500',
+      },
+      {
+        id: 'last_month',
+        label: 'Last Month Report',
+        description: 'Full previous calendar month',
+        badge: 'Previous Month',
+        icon: Calendar,
+        color: 'text-indigo-500',
+      },
+      {
+        id: 'full',
+        label: 'Full Event Duration',
+        description: 'All historical monitored posts for this event',
+        badge: 'All Dates',
+        icon: Layers,
+        color: 'text-emerald-500',
+      },
+      {
+        id: 'custom',
+        label: 'Custom Date Range',
+        description: 'Select custom start and end dates',
+        badge: 'Custom',
+        icon: SlidersHorizontal,
+        color: 'text-cyan-500',
+      },
+    ],
+    []
+  );
+
   /**
    * Downloads the Event Intelligence & Social Analytics report. The PDF is rendered on the
    * server (HTML → PDF) from the cached Summary AI result and keyword analytics, so charts
@@ -509,7 +657,12 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
     setPdfGenerating(true);
     try {
       const res = await api.get(`/events/${eventId}/summary-llm/report.pdf`, {
-        params: { tenant: tenantName },
+        params: {
+          tenant: tenantName,
+          timeframe: timeframe || 'full',
+          from_date: fromDate || undefined,
+          to_date: toDate || undefined,
+        },
         responseType: 'blob',
         timeout: 300000,
       });
@@ -518,7 +671,8 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${safe(tenantName)}_${safe(displayName)}_Summary_Report.pdf`;
+      const tfSuffix = timeframe && timeframe !== 'full' ? `_${safe(timeframe).toUpperCase()}` : '';
+      link.download = `${safe(tenantName)}_${safe(displayName)}${tfSuffix}_Summary_Report.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -559,6 +713,14 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                     {totalPosts} unique posts analyzed
                   </Badge>
                 )}
+                {timeframe && timeframe !== 'full' && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] px-2 py-0.5 font-medium border-indigo-300 text-indigo-700 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 shrink-0"
+                  >
+                    {timeframeLabel}
+                  </Badge>
+                )}
               </div>
               <DialogDescription className="text-xs text-muted-foreground flex items-center gap-2 mt-1 truncate">
                 <span>Event: <strong className="text-foreground">{displayName}</strong></span>
@@ -593,15 +755,42 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
           </div>
 
           <div className="flex items-center gap-2 pr-6 shrink-0">
+            {/* Timeframe Scope Selector Trigger */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setTempTimeframe(timeframe);
+                setTempFromDate(fromDate);
+                setTempToDate(toDate);
+                setScopeModalOpen(true);
+              }}
+              disabled={loading}
+              className="h-8 gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 font-medium"
+              title="Select report timeframe (Daily, Weekly, Monthly, Custom Range)"
+            >
+              <CalendarDays className="h-3.5 w-3.5 text-indigo-500" />
+              <span className="max-w-[130px] truncate">{timeframeLabel}</span>
+              <ChevronDown className="h-3 w-3 opacity-60 shrink-0" />
+            </Button>
+
             <Button
               type="button"
               variant="outline"
               size="sm"
               onPointerDown={(e) => e.preventDefault()}
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); fetchSummary(true); }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setTempTimeframe(timeframe);
+                setTempFromDate(fromDate);
+                setTempToDate(toDate);
+                setScopeModalOpen(true);
+              }}
               disabled={loading}
               className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-              title="Force re-analyze with latest DB posts"
+              title="Change timeframe and regenerate report"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
               <span>Regenerate</span>
@@ -1368,6 +1557,161 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
           ) : null}
         </div>
       </DialogContent>
+
+      {/* Report Scope / Timeframe Selector Modal */}
+      <Dialog open={scopeModalOpen} onOpenChange={setScopeModalOpen}>
+        <DialogContent
+          className="sm:max-w-xl p-0 gap-0 overflow-hidden bg-background border-border shadow-2xl rounded-2xl z-[100]"
+          onPointerDownOutside={(e) => { if (loading) e.preventDefault(); }}
+        >
+          <DialogHeader className="px-6 py-4 border-b bg-muted/20 flex flex-row items-center justify-between space-y-0">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-medium shrink-0">
+                <CalendarDays className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-foreground">
+                  Select Report Timeframe
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  Choose analysis window for AI intelligence synthesis and PDF export.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="p-6 space-y-4">
+            {eventDateRangeFormatted && (
+              <div className="p-3 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-800/50 flex items-start gap-2.5 text-xs text-indigo-950 dark:text-indigo-200">
+                <Info className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-semibold">Monitored Event Activity Period</div>
+                  <div className="text-[11px] text-indigo-800/90 dark:text-indigo-300/80 mt-0.5">
+                    {eventDateRangeFormatted} · Report queries and custom selections are strictly bounded to this active event window.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {scopeOptions.map((opt) => {
+                const isSelected = tempTimeframe === opt.id;
+                const IconComponent = opt.icon;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setTempTimeframe(opt.id)}
+                    className={`p-3 rounded-xl border text-left transition-all relative flex flex-col justify-between ${
+                      isSelected
+                        ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/40 shadow-sm ring-2 ring-indigo-600/20'
+                        : 'border-border/80 bg-card hover:bg-muted/40 hover:border-border'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <IconComponent className={`h-4 w-4 shrink-0 ${opt.color}`} />
+                        <span className="text-xs font-semibold text-foreground truncate">
+                          {opt.label}
+                        </span>
+                      </div>
+                      <Badge
+                        variant="secondary"
+                        className={`text-[10px] px-1.5 py-0 shrink-0 ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white font-semibold'
+                            : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        {opt.badge}
+                      </Badge>
+                    </div>
+                    <span className="text-[11px] text-muted-foreground leading-snug">
+                      {opt.description}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {tempTimeframe === 'custom' && (
+              <div className="p-4 rounded-xl border border-border/80 bg-muted/20 space-y-3 animate-in fade-in-50 duration-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-foreground">Custom Date Range</span>
+                  {eventMinDate && eventMaxDate && (
+                    <span className="text-[10px] text-muted-foreground">
+                      Allowed: {eventMinDate} to {eventMaxDate}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] text-muted-foreground font-medium block mb-1">
+                      From Date (Start)
+                    </label>
+                    <input
+                      type="date"
+                      min={eventMinDate || undefined}
+                      max={tempToDate || eventMaxDate || undefined}
+                      value={tempFromDate}
+                      onChange={(e) => setTempFromDate(e.target.value)}
+                      className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-muted-foreground font-medium block mb-1">
+                      To Date (End)
+                    </label>
+                    <input
+                      type="date"
+                      min={tempFromDate || eventMinDate || undefined}
+                      max={eventMaxDate || undefined}
+                      value={tempToDate}
+                      onChange={(e) => setTempToDate(e.target.value)}
+                      className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="px-6 py-3.5 border-t bg-muted/20 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setScopeModalOpen(false)}
+              className="h-8 text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                if (tempTimeframe === 'custom' && !tempFromDate && !tempToDate) {
+                  toast.error('Please select at least a start date or end date for custom range');
+                  return;
+                }
+                setTimeframe(tempTimeframe);
+                setFromDate(tempFromDate);
+                setToDate(tempToDate);
+                setScopeModalOpen(false);
+                fetchSummary(true, {
+                  timeframe: tempTimeframe,
+                  fromDate: tempFromDate,
+                  toDate: tempToDate,
+                });
+              }}
+              className="h-8 text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Generate Report</span>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

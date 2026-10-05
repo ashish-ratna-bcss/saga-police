@@ -3096,6 +3096,7 @@ const Events = () => {
         onOpenChange={setEventSummaryOpen}
         eventId={selectedId}
         eventName={selectedEvent?.name}
+        event={selectedEvent}
         onGeneratingChange={setSummaryGenerating}
         onReady={() => { if (selectedId) fetchDashboard(selectedId); }}
       />
