@@ -1,97 +1,565 @@
 [
   {
-    "category_id": "Hate_Speech",
-    "definition": "Content that attacks or demeans a group based on race, religion, ethnic origin, caste, sexual orientation, disability, or gender.",
+    "category_id": "COMMUNAL_INCITEMENT_RELIGIOUS_DISCORD",
+    "definition": "Content promoting enmity, hatred, hostility, or ill-will between different religious, racial, linguistic, or caste communities, insulting religious beliefs, or inciting communal riots and disharmony across India.",
+    "severity_level": "Critical",
+    "keywords": [
+      "communal riot",
+      "danga",
+      "mandir masjid",
+      "love jihad",
+      "sar tan se juda",
+      "religious clash",
+      "stone pelting",
+      "pattharbazi",
+      "lynching",
+      "kafir",
+      "dharamyuddh",
+      "caste abuse",
+      "dalit attack",
+      "minority attack",
+      "religious insult"
+    ],
+    "legal_sections": [
+      { "id": "BNS_196", "code": "BNS 196", "title": "Promoting enmity between groups on grounds of religion, race, caste (IPC 153A)" },
+      { "id": "BNS_197", "code": "BNS 197", "title": "Imputations prejudicial to national integration (IPC 153B)" },
+      { "id": "BNS_299", "code": "BNS 299", "title": "Deliberate acts outraging religious feelings (IPC 295A)" },
+      { "id": "BNS_302", "code": "BNS 302", "title": "Uttering words with intent to wound religious feelings (IPC 298)" },
+      { "id": "IT_ACT_69A", "code": "IT Act 69A", "title": "Blocking public access of content prejudicial to public order" }
+    ],
+    "platform_policies": {
+      "x": [
+        { "id": "X_HATEFUL_CONDUCT", "name": "Hateful Conduct & Violence Policy" },
+        { "id": "X_RELIGIOUS_HARASSMENT", "name": "Religious Dehumanization and Incitement" }
+      ],
+      "facebook": [
+        { "id": "FB_HATE_SPEECH", "name": "Hate Speech Policy - Protected Characteristics (Religion/Caste)" },
+        { "id": "FB_VIOLENCE_INCITEMENT", "name": "Violence and Incitement Policy" }
+      ],
+      "instagram": [
+        { "id": "IG_HATE_SPEECH", "name": "Hate Speech & Caste/Religious Slurs Policy" },
+        { "id": "IG_COMMUNITY_STANDARDS", "name": "Dehumanizing Content & Targeted Attacks" }
+      ],
+      "youtube": [
+        { "id": "YT_HATE_SPEECH", "name": "Hate Speech Policy (Religion, Caste, Ethnic Origin)" },
+        { "id": "YT_HARASSMENT", "name": "Harassment and Incitement to Hatred" }
+      ],
+      "telegram": [
+        { "id": "TG_VIOLENCE_TERMS", "name": "Terms of Service - Incitement to Violence and Communal Discord" },
+        { "id": "TG_PUBLIC_CHANNELS", "name": "Public Channel Moderation on Hate & Violence" }
+      ],
+      "reddit": [
+        { "id": "RD_RULE_1_HATE", "name": "Rule 1: Promoting Hate Based on Identity or Vulnerability" },
+        { "id": "RD_HARASSMENT", "name": "Harassment and Dehumanizing Language" }
+      ]
+    }
+  },
+  {
+    "category_id": "MISINFORMATION_CIVIC_ELECTION_DEEPFAKES",
+    "definition": "Fabricated, synthetic, AI-generated deepfakes, cheapfakes, false news, or misleading rumors aimed at undermining election integrity, manipulating civic voting, creating public panic, or destabilizing democratic institutions.",
     "severity_level": "High",
-    "keywords": ["hate", "communal", "religion", "caste", "racist", "bigot", "genocide", "go back", "kill them"],
+    "keywords": [
+      "deepfake",
+      "fake news",
+      "evm hack",
+      "election rigging",
+      "fake circular",
+      "viral video fake",
+      "ai cloned voice",
+      "morphed video",
+      "vote fraud",
+      "rumour",
+      "fake govt notice",
+      "bogus polling",
+      "election violence"
+    ],
     "legal_sections": [
-      { "id": "BNS_196", "code": "196", "title": "Promoting enmity between groups" },
-      { "id": "BNS_299", "code": "299", "title": "Religious insult" }
+      { "id": "BNS_353_1", "code": "BNS 353(1)", "title": "Statements conducing to public mischief (IPC 505(1))" },
+      { "id": "BNS_353_2", "code": "BNS 353(2)", "title": "Statements promoting enmity between classes (IPC 505(2))" },
+      { "id": "IT_ACT_66D", "code": "IT Act 66D", "title": "Cheating by personation using computer resource" },
+      { "id": "RPA_123_3A", "code": "RPA 123(3A)/125", "title": "Promoting enmity in connection with election" },
+      { "id": "IT_RULES_3_1_B_V", "code": "IT Rules 3(1)(b)(v)", "title": "Misleading information & deceptive origin" }
     ],
     "platform_policies": {
-      "youtube": [{ "id": "HATE_SPEECH", "name": "Hate Speech" }],
-      "x": [{ "id": "HATEFUL_CONDUCT", "name": "Hateful Conduct" }],
-      "facebook": [{ "id": "HATE_SPEECH", "name": "Hate Speech" }],
-      "instagram": [{ "id": "HATE_SPEECH", "name": "Hate Speech" }]
+      "x": [
+        { "id": "X_SYNTHETIC_MEDIA", "name": "Synthetic and Manipulated Media Policy" },
+        { "id": "X_CIVIC_INTEGRITY", "name": "Civic and Election Integrity Policy" }
+      ],
+      "facebook": [
+        { "id": "FB_MISINFORMATION", "name": "Misinformation & Third-Party Fact Checking" },
+        { "id": "FB_MANIPULATED_MEDIA", "name": "Manipulated Media & Deepfake Policy" }
+      ],
+      "instagram": [
+        { "id": "IG_MISINFORMATION", "name": "Misinformation & Fact-Check Warnings" },
+        { "id": "IG_SYNTHETIC_CONTENT", "name": "Synthetic, Altered or AI-Generated Content Policy" }
+      ],
+      "youtube": [
+        { "id": "YT_MISINFORMATION", "name": "Elections & Civic Misinformation Policy" },
+        { "id": "YT_ALTERED_CONTENT", "name": "Altered or Synthetic Content Disclosure Policy" }
+      ],
+      "telegram": [
+        { "id": "TG_MISINFO_FRAUD", "name": "Disinformation and Deceptive Forwarding Policy" },
+        { "id": "TG_IMPERSONATION", "name": "Impersonation and Channel Deception Terms" }
+      ],
+      "reddit": [
+        { "id": "RD_IMPERSONATION", "name": "Impersonation and Deceptive Media Policy" },
+        { "id": "RD_RULE_AUTHENTIC", "name": "Authentic Content and Coordinated Disinformation" }
+      ]
     }
   },
   {
-    "category_id": "Misinformation",
-    "definition": "False or misleading information presented as fact, especially when likely to deceive the public or cause panic, communal tension, or civic harm.",
-    "severity_level": "Medium",
-    "keywords": ["fake news", "rumour", "rumor", "false claim", "hoax", "misleading", "propaganda", "deepfake"],
+    "category_id": "CHILD_SEXUAL_EXPLOITATION_POCSO",
+    "definition": "Production, distribution, possession, dissemination, solicitation, or facilitation of Child Sexual Abuse Material (CSAM), grooming, child trafficking, or sexually explicit content involving minors.",
+    "severity_level": "Critical",
+    "keywords": [
+      "csam",
+      "child abuse",
+      "minor video",
+      "pocso",
+      "underage video",
+      "school girl mms",
+      "child trafficking",
+      "minor leak",
+      "child porn",
+      "pedo group",
+      "telegram link minor"
+    ],
     "legal_sections": [
-      { "id": "BNS_197", "code": "197", "title": "Prejudicial to national integration" },
-      { "id": "BNS_353_2", "code": "353(2)", "title": "Statements conducing to public mischief" }
+      { "id": "POCSO_13_14_15", "code": "POCSO 13/14/15", "title": "Use of child for pornography & storage/transmission of material" },
+      { "id": "IT_ACT_67B", "code": "IT Act 67B", "title": "Publishing material depicting children in sexually explicit acts" },
+      { "id": "BNS_95", "code": "BNS 95", "title": "Sexual offences against minor child (IPC 376DA/DB)" }
     ],
     "platform_policies": {
-      "youtube": [{ "id": "MISINFORMATION", "name": "Misinformation" }],
-      "x": [{ "id": "CIVIC_INTEGRITY", "name": "Civic Integrity" }],
-      "facebook": [{ "id": "MISINFORMATION", "name": "Misinformation" }],
-      "instagram": [{ "id": "MISINFORMATION", "name": "Misinformation" }]
+      "x": [
+        { "id": "X_CSAE", "name": "Child Sexual Exploitation and Abuse Policy (Zero Tolerance)" }
+      ],
+      "facebook": [
+        { "id": "FB_CHILD_SAFETY", "name": "Child Sexual Exploitation, Abuse and Nudity Policy" }
+      ],
+      "instagram": [
+        { "id": "IG_CHILD_SAFETY", "name": "Child Sexual Exploitation, Abuse and Grooming Policy" }
+      ],
+      "youtube": [
+        { "id": "YT_CHILD_SAFETY", "name": "Child Safety Policy & CSAM Enforcement" }
+      ],
+      "telegram": [
+        { "id": "TG_CSAM_BAN", "name": "Strict Prohibition of Child Abuse and Instant Deplatforming" }
+      ],
+      "reddit": [
+        { "id": "RD_RULE_4_CSAM", "name": "Rule 4: Zero Tolerance for Child Sexual Abuse Material (CSAM)" }
+      ]
     }
   },
   {
-    "category_id": "Defamation",
-    "definition": "Content intended to damage the good reputation of a person or institution by publishing false or malicious allegations.",
-    "severity_level": "Medium",
-    "keywords": ["defame", "defamation", "slander", "libel", "character assassination", "false allegation", "smear"],
-    "legal_sections": [
-      { "id": "BNS_356", "code": "356", "title": "Defamation" }
-    ],
-    "platform_policies": {
-      "youtube": [{ "id": "HARASSMENT_CYBERBULLYING", "name": "Harassment & Cyberbullying" }],
-      "x": [{ "id": "ABUSE_HARASSMENT", "name": "Abuse and Harassment" }],
-      "facebook": [{ "id": "BULLYING_HARASSMENT", "name": "Bullying and Harassment" }],
-      "instagram": [{ "id": "BULLYING_HARASSMENT", "name": "Bullying and Harassment" }]
-    }
-  },
-  {
-    "category_id": "Communal_Violence",
-    "definition": "Content that promotes enmity between communities or is likely to provoke communal violence, intimidation, or public mischief.",
+    "category_id": "CYBER_HARASSMENT_WOMEN_SAFETY_DOXXING",
+    "definition": "Online stalking, cyber-flashing, non-consensual sharing of intimate images (NCII), deepfake pornography, doxxing (publishing private contact/home address), rape threats, or gender-based harassment targeting women and vulnerable individuals.",
     "severity_level": "High",
-    "keywords": ["riot", "communal", "mob", "lynch", "attack community", "burn", "violence"],
+    "keywords": [
+      "doxxing",
+      "leak phone number",
+      "mms leak",
+      "rape threat",
+      "stalking",
+      "ncii",
+      "sextortion",
+      "blackmail video",
+      "character assassination",
+      "private photo leak",
+      "slutshaming",
+      "morph photo"
+    ],
     "legal_sections": [
-      { "id": "BNS_196", "code": "196", "title": "Promoting enmity between groups" },
-      { "id": "BNS_351", "code": "351", "title": "Criminal intimidation" },
-      { "id": "BNS_353_2", "code": "353(2)", "title": "Statements conducing to public mischief" }
+      { "id": "BNS_78", "code": "BNS 78", "title": "Stalking including electronic/cyber stalking (IPC 354D)" },
+      { "id": "BNS_79", "code": "BNS 79", "title": "Word or gesture insulting modesty of woman (IPC 509)" },
+      { "id": "BNS_77", "code": "BNS 77", "title": "Voyeurism & publishing private images (IPC 354C)" },
+      { "id": "IT_ACT_66E", "code": "IT Act 66E", "title": "Violation of privacy by capturing or publishing private area images" },
+      { "id": "IT_ACT_67_67A", "code": "IT Act 67/67A", "title": "Transmitting obscene or sexually explicit material electronically" }
     ],
     "platform_policies": {
-      "youtube": [{ "id": "VIOLENT_GRAPHIC_CONTENT", "name": "Violent or Graphic Content" }],
-      "x": [{ "id": "VIOLENT_SPEECH", "name": "Violent Speech" }],
-      "facebook": [{ "id": "VIOLENCE_INCITEMENT", "name": "Violence and Incitement" }],
-      "instagram": [{ "id": "VIOLENCE_INCITEMENT", "name": "Violence and Incitement" }]
+      "x": [
+        { "id": "X_ABUSE_HARASSMENT", "name": "Abuse and Harassment Policy" },
+        { "id": "X_PRIVATE_INFO", "name": "Private Information and Doxxing Policy" },
+        { "id": "X_NCII", "name": "Non-Consensual Nudity Policy" }
+      ],
+      "facebook": [
+        { "id": "FB_BULLYING_HARASSMENT", "name": "Bullying and Harassment Policy" },
+        { "id": "FB_NCII", "name": "Non-Consensual Intimate Imagery (NCII) Policy" },
+        { "id": "FB_DOXXING", "name": "Privacy Violations and Doxxing Policy" }
+      ],
+      "instagram": [
+        { "id": "IG_HARASSMENT", "name": "Bullying, Harassment & Online Stalking Policy" },
+        { "id": "IG_NCII", "name": "Non-Consensual Sexual Imagery & Sextortion Policy" }
+      ],
+      "youtube": [
+        { "id": "YT_HARASSMENT", "name": "Harassment and Cyberbullying Policy" },
+        { "id": "YT_PRIVACY", "name": "Privacy and Disclosure of Personally Identifiable Information" }
+      ],
+      "telegram": [
+        { "id": "TG_HARASSMENT", "name": "Anti-Harassment, Blackmail and Doxxing Policy" },
+        { "id": "TG_REVENGE_PORN", "name": "Prohibition on Non-Consensual Explicit Media" }
+      ],
+      "reddit": [
+        { "id": "RD_RULE_3_PRIVACY", "name": "Rule 3: Respect Privacy (No Doxxing or NCII)" },
+        { "id": "RD_HARASSMENT", "name": "Targeted Harassment and Threat Policy" }
+      ]
     }
   },
   {
-    "category_id": "Harassment",
-    "definition": "Repeated or targeted abuse intended to insult, intimidate, or provoke a breach of peace against an individual.",
-    "severity_level": "Medium",
-    "keywords": ["harass", "bully", "insult", "threaten", "stalk", "abuse"],
+    "category_id": "TERRORISM_EXTREMISM_SEPARATISM",
+    "definition": "Promotion of violent extremism, recruiting for banned terrorist organizations, secessionist propaganda threatening the sovereignty, unity, and territorial integrity of India, glorification of terror attacks, or insurgency incitement.",
+    "severity_level": "Critical",
+    "keywords": [
+      "khalistan",
+      "separatist",
+      "jihad terror",
+      "uapa",
+      "isis recruit",
+      "terror attack",
+      "banned outfit",
+      "naxalite ambushing",
+      "ulfa",
+      "waging war against india",
+      "terror cell",
+      "bomb blast planning",
+      "militancy kashmir"
+    ],
     "legal_sections": [
-      { "id": "BNS_352", "code": "352", "title": "Intentional insult provoking breach of peace" },
-      { "id": "BNS_356", "code": "356", "title": "Defamation" }
+      { "id": "UAPA_13_18_38", "code": "UAPA 13/18/38", "title": "Unlawful activities, conspiracy and membership of terrorist outfit" },
+      { "id": "BNS_113", "code": "BNS 113", "title": "Terrorist acts, recruiting & harboring terrorists" },
+      { "id": "BNS_152", "code": "BNS 152", "title": "Act endangering sovereignty, unity and integrity of India (IPC 124A)" },
+      { "id": "BNS_147", "code": "BNS 147", "title": "Waging or attempting to wage war against Government of India (IPC 121)" },
+      { "id": "IT_ACT_66F", "code": "IT Act 66F", "title": "Cyber terrorism & attacks against national integrity" }
     ],
     "platform_policies": {
-      "youtube": [{ "id": "HARASSMENT_CYBERBULLYING", "name": "Harassment & Cyberbullying" }],
-      "x": [{ "id": "ABUSE_HARASSMENT", "name": "Abuse and Harassment" }],
-      "facebook": [{ "id": "BULLYING_HARASSMENT", "name": "Bullying and Harassment" }],
-      "instagram": [{ "id": "BULLYING_HARASSMENT", "name": "Bullying and Harassment" }]
+      "x": [
+        { "id": "X_VIOLENT_ENTITIES", "name": "Violent and Hateful Entities Policy" },
+        { "id": "X_TERRORISM", "name": "Terrorism and Violent Extremism Policy" }
+      ],
+      "facebook": [
+        { "id": "FB_DANGEROUS_ORGS", "name": "Dangerous Organizations and Individuals (DOI) Policy" }
+      ],
+      "instagram": [
+        { "id": "IG_DANGEROUS_ORGS", "name": "Dangerous Individuals and Terrorist Organizations Policy" }
+      ],
+      "youtube": [
+        { "id": "YT_TERRORIST_ORGS", "name": "Violent Extremism and Terrorist Organizations Policy" }
+      ],
+      "telegram": [
+        { "id": "TG_TERRORISM", "name": "Counter-Terrorism & Blocking Terrorist Channels" }
+      ],
+      "reddit": [
+        { "id": "RD_RULE_1_VIOLENCE", "name": "Rule 1: Prohibiting Violent Extremism and Terrorist Content" }
+      ]
     }
   },
   {
-    "category_id": "threat",
-    "definition": "Content that threatens violence, harm, or criminal intimidation against a person, group, or institution.",
+    "category_id": "PUBLIC_DISORDER_MOB_VIOLENCE_INCITEMENT",
+    "definition": "Mobilization of violent mobs, road blockades, stone pelting, vandalism of public/private property, arson, calls for bandh enforcement by force, or unlawful assembly inciting violent clashes with security forces.",
     "severity_level": "High",
-    "keywords": ["threat", "kill you", "will attack", "bomb", "shoot", "intimidate"],
+    "keywords": [
+      "chakka jam",
+      "burn bus",
+      "rail roko violent",
+      "mob lynching",
+      "attack police station",
+      "stone pelting",
+      "bandh violent",
+      "torch vehicle",
+      "unlawful gathering",
+      "break curfew",
+      "sec 144 violation",
+      "riot plan"
+    ],
     "legal_sections": [
-      { "id": "BNS_351", "code": "351", "title": "Criminal intimidation" }
+      { "id": "BNS_189", "code": "BNS 189", "title": "Unlawful assembly (IPC 141/143)" },
+      { "id": "BNS_191", "code": "BNS 191", "title": "Rioting & violence by unlawful assembly (IPC 146/147)" },
+      { "id": "BNS_190", "code": "BNS 190", "title": "Common object liability for assembly offences (IPC 149)" },
+      { "id": "BNS_223", "code": "BNS 223", "title": "Disobedience to public servant order under Sec 144 BNSS (IPC 188)" },
+      { "id": "PDPP_ACT_3", "code": "PDPP Act 3", "title": "Mischief causing damage to public property" }
     ],
     "platform_policies": {
-      "youtube": [{ "id": "HARASSMENT_CYBERBULLYING", "name": "Harassment & Cyberbullying" }],
-      "x": [{ "id": "VIOLENT_SPEECH", "name": "Violent Speech" }],
-      "facebook": [{ "id": "VIOLENCE_INCITEMENT", "name": "Violence and Incitement" }],
-      "instagram": [{ "id": "VIOLENCE_INCITEMENT", "name": "Violence and Incitement" }]
+      "x": [
+        { "id": "X_VIOLENT_SPEECH", "name": "Violent Speech & Incitement of Riots" },
+        { "id": "X_CRISIS_RESPONSE", "name": "Crisis Response and Public Safety Policy" }
+      ],
+      "facebook": [
+        { "id": "FB_VIOLENCE_INCITEMENT", "name": "Violence and Incitement (Mob Mobilization)" }
+      ],
+      "instagram": [
+        { "id": "IG_VIOLENCE_INCITEMENT", "name": "Violence and Incitement Policy" }
+      ],
+      "youtube": [
+        { "id": "YT_VIOLENT_GRAPHIC", "name": "Violent or Graphic Content & Incitement of Violence" }
+      ],
+      "telegram": [
+        { "id": "TG_VIOLENCE_INCITEMENT", "name": "Terms of Service - Ban on Calling for Riots and Violent Assault" }
+      ],
+      "reddit": [
+        { "id": "RD_RULE_1_VIOLENCE", "name": "Rule 1: Prohibiting Incitement to Violence and Mob Action" }
+      ]
+    }
+  },
+  {
+    "category_id": "FINANCIAL_FRAUD_CYBER_CRIME_SCAMS",
+    "definition": "Online financial deception, UPI payment scams, APK phishing, fake job offers, investment/Ponzi schemes, unauthorized digital lending apps, loan shark harassment, crypto scams, or credit card/banking credential theft.",
+    "severity_level": "High",
+    "keywords": [
+      "upi fraud",
+      "part time job scam",
+      "task scam",
+      "apk scam",
+      "kyc update fraud",
+      "crypto investment guaranteed",
+      "loan app harassment",
+      "otpshare fraud",
+      "instant loan approval",
+      "work from home scam",
+      "fake lottery",
+      "card clone"
+    ],
+    "legal_sections": [
+      { "id": "BNS_318_4", "code": "BNS 318(4)", "title": "Cheating and dishonestly inducing delivery of property (IPC 420)" },
+      { "id": "BNS_319", "code": "BNS 319", "title": "Cheating by personation (IPC 419)" },
+      { "id": "IT_ACT_66C", "code": "IT Act 66C", "title": "Identity theft and stolen electronic credentials" },
+      { "id": "IT_ACT_66D", "code": "IT Act 66D", "title": "Cheating by personation using computer resource" },
+      { "id": "BNS_316", "code": "BNS 316", "title": "Criminal breach of trust (IPC 406)" }
+    ],
+    "platform_policies": {
+      "x": [
+        { "id": "X_SCAMS_FINANCIAL", "name": "Scams and Financial Manipulation Policy" }
+      ],
+      "facebook": [
+        { "id": "FB_FRAUD_DECEPTION", "name": "Fraud and Deception Policy" }
+      ],
+      "instagram": [
+        { "id": "IG_FRAUD_SCAMS", "name": "Fraud, Financial Scams & Phishing Policy" }
+      ],
+      "youtube": [
+        { "id": "YT_SPAM_SCAMS", "name": "Spam, Deceptive Practices, and Scams Policy" }
+      ],
+      "telegram": [
+        { "id": "TG_SCAM_CHANNELS", "name": "Prohibition on Financial Fraud, Impersonation and Phishing Bots" }
+      ],
+      "reddit": [
+        { "id": "RD_SPAM_PHISHING", "name": "Spam, Malicious Links and Financial Deception Policy" }
+      ]
+    }
+  },
+  {
+    "category_id": "DRUGS_NARCOTICS_CONTRABAND_TRAFFICKING",
+    "definition": "Sale, advertisement, trafficking, procurement, or distribution of illicit narcotics, psychotropic substances, synthetic drugs (MDMA, mephedrone, fentanyl), pharmaceutical contraband, or unlawful drug-peddling networks.",
+    "severity_level": "High",
+    "keywords": [
+      "buy ganja",
+      "mdma delivery",
+      "charas online",
+      "cocaine contact",
+      "weed score",
+      "mephedrone supply",
+      "codeine syrup black",
+      "drug dealer telegram",
+      "lsd stamp delivery",
+      "party drugs",
+      "narcotics supplier"
+    ],
+    "legal_sections": [
+      { "id": "NDPS_8_20_21_22", "code": "NDPS 8/20/21/22", "title": "Prohibition, possession, sale & trafficking of narcotics/psychotropics" },
+      { "id": "NDPS_27A", "code": "NDPS 27A", "title": "Financing illicit traffic and harboring drug offenders" },
+      { "id": "BNS_274_275", "code": "BNS 274/275", "title": "Adulteration and sale of noxious drugs (IPC 272/273)" },
+      { "id": "IT_ACT_69A", "code": "IT Act 69A", "title": "Blocking illicit narcotics marketplaces and trafficking portals" }
+    ],
+    "platform_policies": {
+      "x": [
+        { "id": "X_REGULATED_GOODS", "name": "Illegal or Regulated Goods Policy - Narcotics & Drugs" }
+      ],
+      "facebook": [
+        { "id": "FB_RESTRICTED_GOODS", "name": "Restricted Goods - Illicit Drugs & Prescription Medication" }
+      ],
+      "instagram": [
+        { "id": "IG_DRUG_SALES", "name": "Prohibition of Illicit Drug Sales & Paraphernalia" }
+      ],
+      "youtube": [
+        { "id": "YT_REGULATED_GOODS", "name": "Regulated Goods Policy - Illegal Drugs and Narcotics" }
+      ],
+      "telegram": [
+        { "id": "TG_DRUG_SALES", "name": "Terms of Service - Strict Prohibition on Drug Peddling & Contraband" }
+      ],
+      "reddit": [
+        { "id": "RD_RULE_7_TRANSACTIONS", "name": "Rule 7: Prohibited Transactions - Illicit Drugs & Regulated Substances" }
+      ]
+    }
+  },
+  {
+    "category_id": "DEFAMATION_EXTORTION_IMPERSONATION_OF_OFFICIALS",
+    "definition": "Impersonation of police officers, government dignitaries, constitutional authorities, or public servants to extort money, malign public officials, issue fake legal notices, or commit high-profile character assassination.",
+    "severity_level": "Medium",
+    "keywords": [
+      "fake ips officer",
+      "cbi raid fake",
+      "police notice whatsapp",
+      "digital arrest scam",
+      "extortion call",
+      "judge impersonation",
+      "fake fir copy",
+      "defamatory article",
+      "honeytrap blackmail",
+      "bribe allegation fake"
+    ],
+    "legal_sections": [
+      { "id": "BNS_204", "code": "BNS 204", "title": "Personating a public servant (IPC 170)" },
+      { "id": "BNS_205", "code": "BNS 205", "title": "Carrying garb or token used by public servant with fraudulent intent (IPC 171)" },
+      { "id": "BNS_308", "code": "BNS 308", "title": "Extortion and putting person in fear of injury (IPC 384)" },
+      { "id": "BNS_356", "code": "BNS 356", "title": "Defamation and malicious character assassination (IPC 499/500)" },
+      { "id": "IT_ACT_66D", "code": "IT Act 66D", "title": "Cheating by personation using computer resource" }
+    ],
+    "platform_policies": {
+      "x": [
+        { "id": "X_IMPERSONATION", "name": "Misleading and Deceptive Identities Policy" }
+      ],
+      "facebook": [
+        { "id": "FB_INAUTHENTIC_BEHAVIOR", "name": "Inauthentic Behavior & Impersonation Policy" }
+      ],
+      "instagram": [
+        { "id": "IG_IMPERSONATION", "name": "Impersonation and Account Authenticity Policy" }
+      ],
+      "youtube": [
+        { "id": "YT_IMPERSONATION", "name": "Impersonation Policy (Government Officials & Public Figures)" }
+      ],
+      "telegram": [
+        { "id": "TG_FAKE_ACCOUNTS", "name": "Fake Account and Official Channel Impersonation Moderation" }
+      ],
+      "reddit": [
+        { "id": "RD_IMPERSONATION", "name": "Impersonation of Official Personnel and Entities" }
+      ]
+    }
+  },
+  {
+    "category_id": "ILLEGAL_WEAPONS_EXPLOSIVES_FIREARMS",
+    "definition": "Illegal manufacture, sale, promotion, trafficking, or procurement of unlicensed firearms, country-made pistols (Desi Katta), ammunition, explosive devices, or modifications turning weapons into assault weapons.",
+    "severity_level": "Critical",
+    "keywords": [
+      "desi katta",
+      "illegal pistol",
+      "buy revolver",
+      "tamancha sale",
+      "arms supplier",
+      "gun delivery telegram",
+      "homemade bomb",
+      "rdx detonator",
+      "live cartridges",
+      "ammunition sale",
+      "315 bore"
+    ],
+    "legal_sections": [
+      { "id": "ARMS_ACT_3_25_27", "code": "Arms Act 3/25/27", "title": "Illegal possession, manufacturing, trafficking & use of firearms" },
+      { "id": "EXPLOSIVES_ACT_3_5", "code": "Explosive Substances Act 3/4/5", "title": "Causing explosion endangering life or possessing explosive substances" },
+      { "id": "BNS_113", "code": "BNS 113", "title": "Terrorist acts involving lethal weapons or explosives" }
+    ],
+    "platform_policies": {
+      "x": [
+        { "id": "X_WEAPONS_POLICY", "name": "Weapons, Explosives and Illegal Modification Policy" }
+      ],
+      "facebook": [
+        { "id": "FB_FIREARMS_WEAPONS", "name": "Firearms, Ammunition and Lethal Weapons Policy" }
+      ],
+      "instagram": [
+        { "id": "IG_WEAPONS_POLICY", "name": "Prohibition of Weapon Sales & Firearm Promotion" }
+      ],
+      "youtube": [
+        { "id": "YT_FIREARMS_POLICY", "name": "Firearms and Weapon Modification Policy" }
+      ],
+      "telegram": [
+        { "id": "TG_WEAPONS_BAN", "name": "Terms of Service - Strict Prohibition on Illegal Arms Trade & Explosives" }
+      ],
+      "reddit": [
+        { "id": "RD_RULE_7_FIREARMS", "name": "Rule 7: Prohibited Transactions - Firearms, Parts, and Ammunition" }
+      ]
+    }
+  },
+  {
+    "category_id": "THREAT_TO_CRITICAL_INFRASTRUCTURE_CYBER_WARFARE",
+    "definition": "Cyber attacks, hacking, malware dissemination, ransomware extortion, attacks on power grids, financial switches, telecom backbones, defense networks, or unauthorized access to government databases and protected systems.",
+    "severity_level": "Critical",
+    "keywords": [
+      "ransomware leak",
+      "power grid hack",
+      "data breach aadhar",
+      "ddos attack govt",
+      "cyber warfare",
+      "stolen credentials dump",
+      "malware injection",
+      "critical infra attack",
+      "scada exploit",
+      "defaced govt website"
+    ],
+    "legal_sections": [
+      { "id": "IT_ACT_66F", "code": "IT Act 66F", "title": "Cyber terrorism (denial of access, intrusion into critical systems)" },
+      { "id": "IT_ACT_70", "code": "IT Act 70", "title": "Unauthorized access to Protected Systems (Critical Infrastructure)" },
+      { "id": "IT_ACT_43_66", "code": "IT Act 43/66", "title": "Hacking, data damage, malware injection & disruption" },
+      { "id": "BNS_113", "code": "BNS 113", "title": "Terrorist act damaging critical infrastructure" }
+    ],
+    "platform_policies": {
+      "x": [
+        { "id": "X_HACKING_POLICY", "name": "Hacking and Compromised Materials Policy" }
+      ],
+      "facebook": [
+        { "id": "FB_CYBERSECURITY_HARMS", "name": "Cybersecurity, Malware and Malicious Network Policy" }
+      ],
+      "instagram": [
+        { "id": "IG_CYBER_SECURITY", "name": "Account Security, Phishing and Malware Distribution Policy" }
+      ],
+      "youtube": [
+        { "id": "YT_CYBERSECURITY_HARMS", "name": "Cybersecurity Harms, Exploits and Denial-of-Service Policy" }
+      ],
+      "telegram": [
+        { "id": "TG_MALWARE_DUMP", "name": "Ban on Malware Distribution, Stolen Database Dumps & Botnets" }
+      ],
+      "reddit": [
+        { "id": "RD_MALWARE_HACKING", "name": "Prohibition of Malware, Exploits and Stolen Data Trade" }
+      ]
+    }
+  },
+  {
+    "category_id": "SUICIDE_SELF_HARM_CYBER_BULLYING",
+    "definition": "Content promoting, encouraging, glorifying, providing instructions for suicide or self-harm, live-streaming suicide attempts, dangerous suicide challenges, or extreme cyberbullying driving individuals to self-harm.",
+    "severity_level": "High",
+    "keywords": [
+      "suicide live",
+      "end my life",
+      "suicide method how to",
+      "self harm challenge",
+      "die alone",
+      "hang myself",
+      "jumping from bridge",
+      "cut wrists",
+      "goodbye note suicide",
+      "suicide pact group"
+    ],
+    "legal_sections": [
+      { "id": "BNS_108", "code": "BNS 108", "title": "Abetment of suicide (IPC 306)" },
+      { "id": "BNS_107", "code": "BNS 107", "title": "Abetment of suicide of child or vulnerable person (IPC 305)" },
+      { "id": "MHA_115", "code": "Mental Healthcare Act 115", "title": "Presumption of severe stress and support mandate" },
+      { "id": "IT_ACT_67", "code": "IT Act 67", "title": "Publishing material harmful to public mental well-being" }
+    ],
+    "platform_policies": {
+      "x": [
+        { "id": "X_SELF_HARM", "name": "Suicide and Self-Harm Policy" }
+      ],
+      "facebook": [
+        { "id": "FB_SUICIDE_SELF_HARM", "name": "Suicide and Self-Injury Prevention Policy" }
+      ],
+      "instagram": [
+        { "id": "IG_SELF_HARM_EATING", "name": "Suicide, Self-Harm and Eating Disorders Policy" }
+      ],
+      "youtube": [
+        { "id": "YT_SELF_HARM", "name": "Self-Harm and Suicide Encouragement Policy" }
+      ],
+      "telegram": [
+        { "id": "TG_SUICIDE_BAN", "name": "Terms of Service - Strict Prohibition on Suicide Incitement" }
+      ],
+      "reddit": [
+        { "id": "RD_RULE_1_SELF_HARM", "name": "Rule 1 & Self-Harm Prevention: No Encouraging Suicide or Self-Harm" }
+      ]
     }
   }
 ]
