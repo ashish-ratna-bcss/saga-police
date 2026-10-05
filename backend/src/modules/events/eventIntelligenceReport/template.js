@@ -227,9 +227,9 @@ p{margin:0 0 1.6mm}
 .bul{margin:0 0 2mm;padding:0;list-style:none}
 .bul li{margin:0 0 1mm;padding-left:3mm;position:relative;font-size:8.3pt;color:#3D5568}
 .bul li:before{content:'•';position:absolute;left:0;color:${TEAL};font-weight:700}
-table{border-collapse:collapse;width:100%;font-size:7.5pt;margin:0 0 2.5mm}
-th{text-align:left;font-size:6.4pt;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:${NAVY};padding:1.6mm 2mm;border:.35px solid ${NAVY}}
-td{padding:1.5mm 2mm;border:.35px solid ${LINE};vertical-align:top;color:#3D5568;background:#fff}
+table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:7.5pt;margin:0 0 2.5mm}
+th{text-align:left;font-size:6.4pt;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:${NAVY};padding:1.6mm 2mm;border:.35px solid ${NAVY};word-break:break-word;overflow-wrap:anywhere}
+td{padding:1.5mm 2mm;border:.35px solid ${LINE};vertical-align:top;color:#3D5568;background:#fff;word-break:break-word;overflow-wrap:anywhere;word-wrap:break-word;white-space:normal}
 tr:nth-child(even) td{background:${BG}}
 tr{break-inside:avoid}thead{display:table-header-group}
 .sm{font-size:7.2pt;color:${MUT}}
@@ -356,6 +356,47 @@ const parseDateMs = (d) => {
   return Number.isFinite(t) ? t : 0;
 };
 
+const dateDayKey = (d) => {
+  if (!d) return '0000-00-00';
+  try {
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return '0000-00-00';
+    return dt.toISOString().slice(0, 10);
+  } catch {
+    return '0000-00-00';
+  }
+};
+
+const TONE_PRIORITY = {
+  negative: 1,
+  neutral: 2,
+  positive: 3,
+};
+
+const sortByDateAndTone = (list = []) =>
+  [...list].sort((a, b) => {
+    const dayA = dateDayKey(a.posted_at);
+    const dayB = dateDayKey(b.posted_at);
+    // 1. Group by Day descending (newest date first)
+    if (dayA !== dayB) {
+      return dayB.localeCompare(dayA);
+    }
+    // 2. Inside each date, sort by Tone: Negative -> Neutral -> Positive
+    const toneA = TONE_PRIORITY[a.sentK] || 4;
+    const toneB = TONE_PRIORITY[b.sentK] || 4;
+    if (toneA !== toneB) {
+      return toneA - toneB;
+    }
+    // 3. Within the same date and same tone: newest time first
+    const timeA = parseDateMs(a.posted_at);
+    const timeB = parseDateMs(b.posted_at);
+    if (timeA !== timeB) {
+      return timeB - timeA;
+    }
+    // 4. Then by engagement
+    return (b.eng || 0) - (a.eng || 0);
+  });
+
 const sortByLatest = (list = []) =>
   [...list].sort((a, b) => parseDateMs(b.posted_at) - parseDateMs(a.posted_at));
 
@@ -448,11 +489,11 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     .map(([name, info]) => ({ name, count: info.count, sample: info.sample }))
     .sort((a, b) => b.count - a.count);
 
-  const visits = sortByLatest(ev.filter((e) => e.specific.length || e.isVisit));
+  const visits = sortByDateAndTone(ev.filter((e) => e.specific.length || e.isVisit));
 
-  const critical = ev
-    .filter((e) => e.sentK === 'negative' || ['critical', 'high'].includes(String(e.risk_level || '').toLowerCase()))
-    .sort((a, b) => b.eng - a.eng || parseDateMs(b.posted_at) - parseDateMs(a.posted_at));
+  const critical = sortByDateAndTone(
+    ev.filter((e) => e.sentK === 'negative' || ['critical', 'high'].includes(String(e.risk_level || '').toLowerCase()))
+  );
 
   // Amplifiers / authors
   const authors = {};
@@ -486,8 +527,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const placeLabel = (e) => (e.specific.length ? e.specific.join(', ') : e.places.length ? e.places.join(', ') : 'Not named in the post');
   const postRef = (e) => (e.citationTag ? e.citationTag : `Post #${e.n}`);
 
-  const activityPosts = sortByLatest(ev.filter((e) => e.isVisit));
-  const activityList = activityPosts.length ? activityPosts : sortByLatest(ev);
+  const activityPosts = sortByDateAndTone(ev.filter((e) => e.isVisit));
+  const activityList = activityPosts.length ? activityPosts : sortByDateAndTone(ev);
   const activityRows = activityList
     .map(
       (e) => `<tr>
@@ -497,7 +538,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 <td>${esc(platLabel(e.plat))}</td>
 <td>${esc(e.author)}</td>
 <td class="tone-${e.sentK || 'neu'}">${esc(toneLabel(e.sentK))}</td>
-<td>${esc(clip(e.text, 140))}</td>
+<td>${esc(clip(e.text, 220))}</td>
 </tr>`
     )
     .join('');
@@ -515,7 +556,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 <td>${esc(placeLabel(e))}</td>
 <td>${esc(platLabel(e.plat))}</td>
 <td>${esc(e.author)}</td>
-<td>${esc(clip(e.text, 120))}</td>
+<td>${esc(clip(e.text, 200))}</td>
 </tr>`
         )
         .join('')
@@ -527,7 +568,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
           (d) => `<tr>
 <td>${esc(d.name)}</td>
 <td>${fmt(d.count)}</td>
-<td>${esc(clip(d.sample?.text || '', 110))}</td>
+<td>${esc(clip(d.sample?.text || '', 180))}</td>
 </tr>`
         )
         .join('')
@@ -542,7 +583,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 <td>${esc(platLabel(e.plat))}</td>
 <td>${esc(e.author)}</td>
 <td class="tone-neg">${esc(toneLabel(e.sentK) === '—' ? 'Negative' : toneLabel(e.sentK))}</td>
-<td>${esc(clip(e.text, 130))}</td>
+<td>${esc(clip(e.text, 200))}</td>
 </tr>`
         )
         .join('')
@@ -555,7 +596,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 <td>${esc(a.author)}</td>
 <td>${fmt(a.count)}</td>
 <td>${fmt(a.eng)}</td>
-<td>${esc(clip(a.sample, 90))}</td>
+<td>${esc(clip(a.sample, 160))}</td>
 </tr>`
     )
     .join('');
@@ -572,7 +613,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     )
     .join('');
 
-  const evidenceRows = sortByLatest(ev)
+  const evidenceRows = sortByDateAndTone(ev)
     .map(
       (e) => `<tr>
 <td>${esc(postRef(e))}</td>
@@ -582,7 +623,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 <td>${esc(e.author)}</td>
 <td class="tone-${e.sentK || 'neu'}">${esc(toneLabel(e.sentK))}</td>
 <td>${fmt(e.eng)}</td>
-<td>${esc(clip(e.text, 160))}</td>
+<td>${esc(clip(e.text, 240))}</td>
 </tr>`
     )
     .join('');
@@ -729,6 +770,15 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   <p class="sm">Campaigns, meetings, protests, bandhs, rallies, and programmes named in the posts.</p>
   ${activityBrief ? `<ul class="bul">${activityBrief}</ul>` : narrHtml}
   <table>
+    <colgroup>
+      <col style="width:11%">
+      <col style="width:14%">
+      <col style="width:16%">
+      <col style="width:10%">
+      <col style="width:15%">
+      <col style="width:9%">
+      <col style="width:25%">
+    </colgroup>
     <thead><tr><th>Post</th><th>When</th><th>Place in the post</th><th>Platform</th><th>Author</th><th>Tone</th><th>Evidence</th></tr></thead>
     <tbody>${activityRows || '<tr><td colspan="7">No activity posts in this set.</td></tr>'}</tbody>
   </table>
@@ -743,6 +793,14 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   <p class="sm">Where a post says someone was present, or names a site of a rally, meeting, protest, or blockade. A blank place means the post did not name one.</p>
   ${(analysis?.presence || []).length ? `<ul class="bul">${analysis.presence.map((p) => `<li><b>${esc(p.who)}</b>${p.place ? ` at ${esc(p.place)}` : ''}${p.posts?.length ? ` <span class="sm">${esc(p.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : ''}
   <table>
+    <colgroup>
+      <col style="width:12%">
+      <col style="width:15%">
+      <col style="width:20%">
+      <col style="width:11%">
+      <col style="width:16%">
+      <col style="width:26%">
+    </colgroup>
     <thead><tr><th>Post</th><th>When</th><th>Place named</th><th>Platform</th><th>Author</th><th>Evidence</th></tr></thead>
     <tbody>${visitRows}</tbody>
   </table>
@@ -755,6 +813,11 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   <p class="sm"><b>${fmt(places.length)}</b> place${places.length === 1 ? '' : 's'} written in the posts. These are cities, sites, highways, and institutions from the text, not only the event’s state.</p>
   ${(analysis?.geography || []).length ? `<ul class="bul">${analysis.geography.map((g) => `<li><b>${esc(g.place)}</b> — ${esc(g.note || '')} ${g.posts?.length ? `<span class="sm">${esc(g.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : ''}
   <table>
+    <colgroup>
+      <col style="width:26%">
+      <col style="width:12%">
+      <col style="width:62%">
+    </colgroup>
     <thead><tr><th>Place</th><th>Posts</th><th>Evidence</th></tr></thead>
     <tbody>${placeRows}</tbody>
   </table>
@@ -791,6 +854,14 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   <div class="chartbox"><h4>Risk bands</h4>${stackBar(riskParts)}</div>
   <p class="sm">Every negative or high-risk post in this evidence set, with the account that posted it.</p>
   <table>
+    <colgroup>
+      <col style="width:12%">
+      <col style="width:18%">
+      <col style="width:12%">
+      <col style="width:18%">
+      <col style="width:11%">
+      <col style="width:29%">
+    </colgroup>
     <thead><tr><th>Post</th><th>Place</th><th>Platform</th><th>Account</th><th>Tone</th><th>Evidence</th></tr></thead>
     <tbody>${critRows}</tbody>
   </table>
@@ -807,6 +878,13 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${
     entities.length
       ? `<table>
+    <colgroup>
+      <col style="width:32%">
+      <col style="width:17%">
+      <col style="width:17%">
+      <col style="width:17%">
+      <col style="width:17%">
+    </colgroup>
     <thead><tr><th>Target / entity</th><th>Posts</th><th>Positive</th><th>Neutral</th><th>Negative</th></tr></thead>
     <tbody>${entityRows}</tbody>
   </table>`
@@ -829,6 +907,13 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   <p class="sm">Accounts ranked by how often they post in this set and by likes, comments, shares, and views stored on those posts.</p>
   ${(analysis?.amplifiers || []).length ? `<ul class="bul">${analysis.amplifiers.map((a) => `<li><b>${esc(a.account)}</b> — ${esc(a.why || '')}${a.posts?.length ? ` <span class="sm">${esc(a.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : ''}
   <table>
+    <colgroup>
+      <col style="width:13%">
+      <col style="width:22%">
+      <col style="width:12%">
+      <col style="width:15%">
+      <col style="width:38%">
+    </colgroup>
     <thead><tr><th>Platform</th><th>Account</th><th>Posts</th><th>Eng. score</th><th>Sample</th></tr></thead>
     <tbody>${promoterRows || '<tr><td colspan="5">No amplifier data in cited evidence.</td></tr>'}</tbody>
   </table>
@@ -842,6 +927,16 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   </div>
   <p class="sm">All ${fmt(ev.length)} posts used for this brief. Post numbers match the citations above.</p>
   <table>
+    <colgroup>
+      <col style="width:10%">
+      <col style="width:13%">
+      <col style="width:15%">
+      <col style="width:9%">
+      <col style="width:14%">
+      <col style="width:9%">
+      <col style="width:7%">
+      <col style="width:23%">
+    </colgroup>
     <thead><tr><th>Post</th><th>When</th><th>Place</th><th>Platform</th><th>Account</th><th>Tone</th><th>Eng.</th><th>Text</th></tr></thead>
     <tbody>${evidenceRows || '<tr><td colspan="8">No posts in this evidence set.</td></tr>'}</tbody>
   </table>
