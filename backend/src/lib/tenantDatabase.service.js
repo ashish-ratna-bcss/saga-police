@@ -179,31 +179,6 @@ async function provisionAdminDatabase(adminId, meta = {}) {
 
 async function ensureTenantSchema(prisma) {
   await ensureOpsSchema(prisma);
-  try {
-    const path = require('path');
-    const fs = require('fs');
-    const seedPath = path.join(__dirname, '../../prisma/default_policies_seed.json');
-    if (fs.existsSync(seedPath)) {
-      const policies = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
-      for (const p of policies) {
-        await prisma.policy_mappings.upsert({
-          where: { category_id: p.category_id },
-          create: {
-            category_id: p.category_id,
-            definition: p.definition,
-            severity_level: p.severity_level || 'Medium',
-            keywords: Array.isArray(p.keywords) ? p.keywords : [],
-            legal_sections: p.legal_sections || [],
-            platform_policies: p.platform_policies || {},
-            is_active: true,
-          },
-          update: {},
-        });
-      }
-    }
-  } catch (err) {
-    console.warn(`[multi-tenant] policy_mappings auto-seed warning:`, err.message);
-  }
 }
 
 /**
