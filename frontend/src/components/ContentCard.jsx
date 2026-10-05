@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { ExternalLink, Youtube, Facebook, Instagram, Download, Repeat, Heart, MessageSquare, UserPlus, Play, ThumbsUp, Share2, Eye, Copy, Check, MapPin, Globe, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 import ReactPlayer from 'react-player';
 import { VideoPlayer } from './AlertCards';
 import { TelegramBrandLogo, RedditBrandLogo } from './PlatformBrandIcon';
@@ -419,13 +420,23 @@ const URLCard = ({ card, platformTheme }) => {
 /* ══════════════════════════════════════════════════════════
    ContentCard — Platform-themed content display
    ══════════════════════════════════════════════════════════ */
-const ContentCard = ({ item, index, onDownload, onAddSource }) => {
+const ContentCard = ({ item, index, onDownload, onAddSource, monitoredHandles = [], isMonitored = false }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isTranslated, setIsTranslated] = useState(false);
   const [translatedText, setTranslatedText] = useState('');
   const [isTranslating, setIsTranslating] = useState(false);
   const theme = PLATFORM_THEMES[String(item.platform || '').toLowerCase()] || DEFAULT_THEME;
+
+  const isAlreadyMonitored = Boolean(
+    isMonitored ||
+    item.is_monitored ||
+    (Array.isArray(monitoredHandles) && monitoredHandles.length && (
+      (item.author_handle && monitoredHandles.some(h => String(h).replace(/^@/, '').toLowerCase().trim() === String(item.author_handle).replace(/^@/, '').toLowerCase().trim())) ||
+      (item.author && monitoredHandles.some(h => String(h).replace(/^@/, '').toLowerCase().trim() === String(item.author).replace(/^@/, '').toLowerCase().trim())) ||
+      (item.account_handle && monitoredHandles.some(h => String(h).replace(/^@/, '').toLowerCase().trim() === String(item.account_handle).replace(/^@/, '').toLowerCase().trim()))
+    ))
+  );
 
   const cleanText = (t) => (t || '').replace(/\n*\[Image text\][\s\S]*$/i, '').replace(/\*\*Intent Detected:\*\*.*?(?:\n\n|\n|$)/g, '').trim();
   const rawText = item?.text || '';
@@ -595,11 +606,18 @@ const ContentCard = ({ item, index, onDownload, onAddSource }) => {
             </div>
           </div>
           {onAddSource && (
-            <Button variant="outline" size="sm" onClick={() => onAddSource(item)}
-              className="h-8 px-3 gap-1.5 text-xs font-semibold shrink-0 hover:bg-primary/5 hover:border-primary/30 transition-all">
-              <UserPlus className="h-3.5 w-3.5" />
-              Add to Monitor
-            </Button>
+            isAlreadyMonitored ? (
+              <Badge variant="outline" className="h-7 px-2.5 gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 shrink-0">
+                <Check className="h-3 w-3 text-emerald-600" />
+                Monitored
+              </Badge>
+            ) : (
+              <Button variant="outline" size="sm" onClick={() => onAddSource(item)}
+                className="h-8 px-3 gap-1.5 text-xs font-semibold shrink-0 hover:bg-primary/5 hover:border-primary/30 transition-all">
+                <UserPlus className="h-3.5 w-3.5" />
+                Add to Monitor
+              </Button>
+            )
           )}
         </div>
 

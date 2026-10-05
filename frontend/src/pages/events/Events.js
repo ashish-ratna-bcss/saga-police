@@ -117,7 +117,6 @@ const formatCountdown = (ms) => {
  */
 const getMonitoringPhase = (event, now = Date.now(), options = {}) => {
   const isFetching = Boolean(options.isFetching);
-  const sessionStartedAt = options.sessionStartedAt || null;
   if (!isMonitoringStarted(event)) {
     return { phase: 'stopped', remainingMs: null, nextAt: null };
   }
@@ -128,19 +127,18 @@ const getMonitoringPhase = (event, now = Date.now(), options = {}) => {
   if (!Number.isFinite(last)) {
     return { phase: 'fetching', remainingMs: null, nextAt: null };
   }
-  if (sessionStartedAt) {
-    const startMs = new Date(sessionStartedAt).getTime();
-    if (Number.isFinite(startMs) && last < startMs - 1500) {
-      return { phase: 'fetching', remainingMs: null, nextAt: null };
-    }
-  }
-  const intervalMs = Math.max(1, Number(event.polling_interval_minutes) || 60) * 60_000;
+  const intervalMinutes = Math.max(1, Number(event.polling_interval_minutes) || 60);
+  const intervalMs = intervalMinutes * 60_000;
   const nextAt = last + intervalMs;
   const remainingMs = nextAt - now;
-  if (remainingMs <= 0) {
-    return { phase: 'due', remainingMs: 0, nextAt };
+
+  if (remainingMs > 0) {
+    return { phase: 'waiting', remainingMs, nextAt };
   }
-  return { phase: 'waiting', remainingMs, nextAt };
+  // When nextAt has arrived/passed and no fetch is actively in-flight,
+  // cycle the countdown to the next scheduled interval
+  const cycleRemaining = intervalMs - (Math.abs(remainingMs) % intervalMs);
+  return { phase: 'waiting', remainingMs: cycleRemaining, nextAt: now + cycleRemaining };
 };
 
 /** Pair start→stop into readable history rows (newest first). Profiles pattern. */
@@ -976,10 +974,35 @@ const Events = () => {
   const [platformOptions, setPlatformOptions] = useState([]);
   const [platformsLoading, setPlatformsLoading] = useState(true);
   const [selectedPlatforms, setSelectedPlatforms] = useState([]);
+  const [monitoredHandles, setMonitoredHandles] = useState([]);
   const dbPlatformSlugs = useMemo(
     () => platformOptions.map((p) => p.value).filter(Boolean),
     [platformOptions]
   );
+
+  const fetchMonitoredHandles = useCallback(async () => {
+    try {
+      const res = await socialProfilesApi.list({});
+      const profiles = Array.isArray(res.data?.profiles) ? res.data.profiles : [];
+      const handles = [];
+      for (const p of profiles) {
+        if (p.handle) handles.push(p.handle);
+        if (p.display_name) handles.push(p.display_name);
+        if (Array.isArray(p.accounts)) {
+          for (const a of p.accounts) {
+            if (a.handle) handles.push(a.handle);
+          }
+        }
+      }
+      setMonitoredHandles(handles);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchMonitoredHandles();
+  }, [fetchMonitoredHandles]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1408,12 +1431,10 @@ const Events = () => {
   }, [selectedEvent?.id, selectedEvent?.monitoring_status, selectedEvent?.last_fetched_at]);
 
   const selectedMonitorPhase = useMemo(() => {
-    const openSession = selectedMonitoringHistory.find((s) => s.state === 'running');
     return getMonitoringPhase(selectedEvent, monitorNow, {
       isFetching: String(fetchingKickoffId) === String(selectedEvent?.id) || runningScan,
-      sessionStartedAt: openSession?.startedAt || null,
     });
-  }, [selectedEvent, monitorNow, fetchingKickoffId, runningScan, selectedMonitoringHistory]);
+  }, [selectedEvent, monitorNow, fetchingKickoffId, runningScan]);
 
 
   // Compute events for the selected year (for month counts)
@@ -2466,7 +2487,7 @@ const Events = () => {
                     <Badge variant="outline" className="text-[10px] px-2 py-0.5 border font-semibold gap-1.5 border-amber-400 bg-amber-50 text-amber-900 shrink-0">
                       Waiting · <span className="tabular-nums">{formatCountdown(selectedMonitorPhase.remainingMs)}</span>
                     </Badge>
-                  ) : selectedMonitorPhase.phase === 'fetching' || selectedMonitorPhase.phase === 'due' ? (
+                  ) : selectedMonitorPhase.phase === 'fetching' ? (
                     <Badge variant="outline" className="text-[10px] px-2 py-0.5 border font-semibold gap-1.5 border-sky-400 bg-sky-50 text-sky-900 shrink-0">
                       <Loader2 className="h-3 w-3 animate-spin" />
                       Fetching
@@ -2538,7 +2559,7 @@ const Events = () => {
                       : <Square className="h-3.5 w-3.5" />}
                   {isMonitoringStarted(selectedEvent) ? 'Stop' : 'Start'}
                 </Button>
-                {String(fetchingKickoffId) === String(selectedEvent.id) || selectedMonitorPhase.phase === 'fetching' || selectedMonitorPhase.phase === 'due' ? (
+                {String(fetchingKickoffId) === String(selectedEvent.id) || runningScan || selectedMonitorPhase.phase === 'fetching' ? (
                   <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
                     <Loader2 className="h-3 w-3 animate-spin" />
                     Fetching…
@@ -2980,7 +3001,7 @@ const Events = () => {
                               .filter((_, idx) => idx % 2 === col)
                               .map((c, idx) => (
                                 <div key={c.id || `${col}-${idx}`} className="min-w-0">
-                                  <ContentCard item={c} index={idx} onAddSource={handleOpenAddSource} />
+                                  <ContentCard item={c} index={idx} onAddSource={handleOpenAddSource} monitoredHandles={monitoredHandles} />
                                 </div>
                               ))}
                           </div>
@@ -3438,7 +3459,10 @@ const Events = () => {
         prefill={addProfilePrefill}
         title="Add to Monitor"
         description="Add this account to Social Profiles monitoring."
-        onSuccess={() => toast.success('Profile added to monitoring list')}
+        onSuccess={() => {
+          toast.success('Profile added to monitoring list');
+          fetchMonitoredHandles();
+        }}
       />
     </div>
   );
