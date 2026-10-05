@@ -872,7 +872,14 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
               size="sm"
               className="h-7 text-xs shrink-0"
               onPointerDown={(e) => e.preventDefault()}
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); fetchSummary(true); }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setTempTimeframe(timeframe);
+                setTempFromDate(fromDate);
+                setTempToDate(toDate);
+                setScopeModalOpen(true);
+              }}
             >
               Regenerate
             </Button>
@@ -894,7 +901,14 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
               size="sm"
               className="h-7 text-xs shrink-0"
               onPointerDown={(e) => e.preventDefault()}
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); fetchSummary(true); }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setTempTimeframe(timeframe);
+                setTempFromDate(fromDate);
+                setTempToDate(toDate);
+                setScopeModalOpen(true);
+              }}
             >
               Regenerate
             </Button>
