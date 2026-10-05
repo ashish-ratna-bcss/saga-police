@@ -2624,7 +2624,7 @@ const Events = () => {
                       <BarChart3 className="h-3.5 w-3.5" /> Stats
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent align="start" className="w-80 p-0">
+                  <PopoverContent align="start" className="w-88 p-0">
                     <div className="border-b px-3 py-2">
                       <p className="text-sm font-medium">Fetch stats</p>
                       <p className="text-[11px] text-muted-foreground">Lifetime totals · survive Stop</p>
@@ -2647,7 +2647,7 @@ const Events = () => {
                         <p className="font-medium tabular-nums">{formatDuration(selectedFetchStats.totalRunningMs)}</p>
                       </div>
                     </div>
-                    <div className="border-t max-h-48 overflow-y-auto">
+                    <div className="border-t max-h-56 overflow-y-auto">
                       {selectedFetchStats.runsNewestFirst.length === 0 ? (
                         <p className="px-3 py-4 text-center text-xs text-muted-foreground">No fetches yet</p>
                       ) : (
@@ -2655,7 +2655,7 @@ const Events = () => {
                           {selectedFetchStats.runsNewestFirst.slice(0, 20).map((run, idx) => (
                             <li key={`${run.at}-${idx}`} className="px-3 py-2 text-[11px]">
                               <div className="flex items-center justify-between gap-2">
-                                <span className={run.ok === false ? 'text-red-600' : 'text-emerald-700'}>
+                                <span className={run.ok === false ? 'text-red-600 font-medium' : 'text-emerald-700 font-medium'}>
                                   {run.ok === false ? 'Failed' : 'OK'}
                                 </span>
                                 <span className="text-muted-foreground tabular-nums">{formatWhen(run.at)}</span>
@@ -2664,6 +2664,27 @@ const Events = () => {
                                 {Number(run.api_hits) || 0} hits · {Number(run.posts_returned ?? run.items_returned) || 0} returned · {Number(run.posts_new ?? run.items_new) || 0} new
                                 {run.source ? ` · ${run.source}` : ''}
                               </p>
+                              {run.by_platform && typeof run.by_platform === 'object' && Object.keys(run.by_platform).length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {Object.entries(run.by_platform)
+                                    .filter(([, c]) => Number(c?.scanned) > 0 || Number(c?.ingested) > 0)
+                                    .map(([plat, counts]) => {
+                                      const isNew = Number(counts?.ingested) > 0;
+                                      return (
+                                        <span
+                                          key={plat}
+                                          className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium capitalize ${
+                                            isNew
+                                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                              : 'bg-muted text-muted-foreground'
+                                          }`}
+                                        >
+                                          {plat}: {Number(counts?.ingested) || 0} new ({Number(counts?.scanned) || 0} fetched)
+                                        </span>
+                                      );
+                                    })}
+                                </div>
+                              )}
                               {run.message && <p className="text-muted-foreground/80 mt-0.5 truncate">{run.message}</p>}
                             </li>
                           ))}
