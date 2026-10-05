@@ -1142,8 +1142,9 @@ const Events = () => {
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
 
-  const fetchEvents = useCallback(async () => {
-    setLoadingEvents(true);
+  const fetchEvents = useCallback(async (options = {}) => {
+    const silent = options?.silent ?? false;
+    if (!silent) setLoadingEvents(true);
     try {
       const res = await api.get('/events', { params: { status: 'all' } });
       setEvents(res.data || []);
@@ -1151,21 +1152,22 @@ const Events = () => {
     } catch {
       toast.error('Failed to load events');
     } finally {
-      setLoadingEvents(false);
+      if (!silent) setLoadingEvents(false);
     }
   }, []);
 
 
-  const fetchDashboard = useCallback(async (id) => {
+  const fetchDashboard = useCallback(async (id, options = {}) => {
     if (!id) return;
-    setLoadingDashboard(true);
+    const silent = options?.silent ?? false;
+    if (!silent) setLoadingDashboard(true);
     try {
       const res = await api.get(`/events/${id}/dashboard`);
       setDashboard(res.data);
     } catch {
       toast.error('Failed to load dashboard');
     } finally {
-      setLoadingDashboard(false);
+      if (!silent) setLoadingDashboard(false);
     }
   }, []);
 
@@ -1670,9 +1672,9 @@ const Events = () => {
     try {
       await api.post(`/events/${selectedId}/run`);
       toast.success('Scan completed — new content ingested');
-      await fetchDashboard(selectedId);
+      await fetchDashboard(selectedId, { silent: true });
       await fetchEventContent(selectedId, 1, contentPlatform);
-      await fetchEvents();
+      await fetchEvents({ silent: true });
     } catch (e) {
       toast.error(e?.response?.data?.message || 'Scan failed');
     } finally {
@@ -1699,9 +1701,9 @@ const Events = () => {
           ? 'Monitoring started — fetching in background'
           : 'Monitoring stopped'
       );
-      await fetchEvents();
+      await fetchEvents({ silent: true });
       if (String(id) === String(selectedIdRef.current)) {
-        await fetchDashboard(id);
+        await fetchDashboard(id, { silent: true });
       }
 
       // Background first fetch: poll this event until last_fetched_at updates
@@ -1723,7 +1725,7 @@ const Events = () => {
               kickoffPollRef.current = null;
               setFetchingKickoffId(null);
               if (String(id) === String(selectedIdRef.current)) {
-                await fetchDashboard(id);
+                await fetchDashboard(id, { silent: true });
                 await fetchEventContent(id, 1, contentPlatform);
               }
               if (fetchedAt >= startedAt - 2000) {
@@ -2558,7 +2560,7 @@ const Events = () => {
                 </Button>
 
                 <Popover onOpenChange={(open) => {
-                  if (open && selectedId) fetchEvents();
+                  if (open && selectedId) fetchEvents({ silent: true });
                 }}>
                   <PopoverTrigger asChild>
                     <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs">
@@ -2627,8 +2629,8 @@ const Events = () => {
 
                 <Popover onOpenChange={(open) => {
                   if (open && selectedId) {
-                    fetchEvents();
-                    fetchDashboard(selectedId);
+                    fetchEvents({ silent: true });
+                    fetchDashboard(selectedId, { silent: true });
                   }
                 }}>
                   <PopoverTrigger asChild>
@@ -3119,7 +3121,7 @@ const Events = () => {
         eventName={selectedEvent?.name}
         event={selectedEvent}
         onGeneratingChange={setSummaryGenerating}
-        onReady={() => { if (selectedId) fetchDashboard(selectedId); }}
+        onReady={() => { if (selectedId) fetchDashboard(selectedId, { silent: true }); }}
       />
 
       {/* Occasion Calendar Dialog */}
