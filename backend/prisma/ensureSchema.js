@@ -1248,6 +1248,12 @@ async function main() {
     } catch (e) {
       console.warn(`[postgres] default_policies seed file missing: ${e.message}`);
     }
+    if (policySeed.length) {
+      const validCategories = policySeed.map((p) => p.category_id);
+      await prisma.default_policies.deleteMany({
+        where: { category_id: { notIn: validCategories } },
+      });
+    }
     for (const p of policySeed) {
       await prisma.default_policies.upsert({
         where: { category_id: p.category_id },

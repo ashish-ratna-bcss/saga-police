@@ -94,6 +94,8 @@ const PolicyManager = () => {
     meta_policies: [],
     x_policies: [],
     youtube_policies: [],
+    telegram_policies: [],
+    reddit_policies: [],
   });
 
   const handleOpenPanel = (policy = null) => {
@@ -119,6 +121,12 @@ const PolicyManager = () => {
           : [],
         youtube_policies: policy.platform_policies?.youtube
           ? JSON.parse(JSON.stringify(policy.platform_policies.youtube))
+          : [],
+        telegram_policies: policy.platform_policies?.telegram
+          ? JSON.parse(JSON.stringify(policy.platform_policies.telegram))
+          : [],
+        reddit_policies: policy.platform_policies?.reddit
+          ? JSON.parse(JSON.stringify(policy.platform_policies.reddit))
           : [],
       };
       setFormData(initialData);
@@ -223,6 +231,26 @@ const PolicyManager = () => {
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [policies]);
 
+  const existingTelegramPolicies = useMemo(() => {
+    const map = new Map();
+    policies.forEach((p) => {
+      p.platform_policies?.telegram?.forEach((rule) => {
+        if (rule.name && !map.has(rule.name)) map.set(rule.name, rule);
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [policies]);
+
+  const existingRedditPolicies = useMemo(() => {
+    const map = new Map();
+    policies.forEach((p) => {
+      p.platform_policies?.reddit?.forEach((rule) => {
+        if (rule.name && !map.has(rule.name)) map.set(rule.name, rule);
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [policies]);
+
   const handleQuickAddLegal = (e) => {
     const code = e.target.value;
     if (!code) return;
@@ -301,6 +329,8 @@ const PolicyManager = () => {
           youtube: formData.youtube_policies,
           facebook: formData.meta_policies,
           instagram: formData.meta_policies,
+          telegram: formData.telegram_policies,
+          reddit: formData.reddit_policies,
         },
       };
 
@@ -332,7 +362,10 @@ const PolicyManager = () => {
   const ruleCount = (policy) =>
     (policy.platform_policies?.x?.length || 0) +
     (policy.platform_policies?.youtube?.length || 0) +
-    (policy.platform_policies?.facebook?.length || 0);
+    (policy.platform_policies?.facebook?.length || 0) +
+    (policy.platform_policies?.instagram?.length || 0) +
+    (policy.platform_policies?.telegram?.length || 0) +
+    (policy.platform_policies?.reddit?.length || 0);
 
   return (
     <div className="space-y-3 relative">
@@ -649,6 +682,8 @@ const PolicyManager = () => {
                       { label: 'Meta (Facebook & Instagram)', field: 'meta_policies', list: existingMetaPolicies },
                       { label: 'X (Twitter)', field: 'x_policies', list: existingXPolicies },
                       { label: 'YouTube', field: 'youtube_policies', list: existingYoutubePolicies },
+                      { label: 'Telegram', field: 'telegram_policies', list: existingTelegramPolicies },
+                      { label: 'Reddit', field: 'reddit_policies', list: existingRedditPolicies },
                     ].map((platform, pIdx) => (
                       <div
                         key={platform.field}
