@@ -350,6 +350,15 @@ const timelineChart = (days) => {
   <div class="legend"><span>Daily posts by publication date. Peak ${fmt(max)}. ${rows.length} day${rows.length === 1 ? '' : 's'}.</span></div>`;
 };
 
+const parseDateMs = (d) => {
+  if (!d) return 0;
+  const t = new Date(d).getTime();
+  return Number.isFinite(t) ? t : 0;
+};
+
+const sortByLatest = (list = []) =>
+  [...list].sort((a, b) => parseDateMs(b.posted_at) - parseDateMs(a.posted_at));
+
 const metric = (n, label, action) => `<div><div class="n">${esc(String(n))}</div><div class="l">${esc(label)}</div>${action ? `<div class="a">${esc(action)}</div>` : ''}</div>`;
 
 const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquarters }) => {
@@ -376,7 +385,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const hqHtml = hq
     ? `<div class="addr">
         <div class="l">ADDRESSED TO THE STATE HEADQUARTERS</div>
-        <div class="who">The ${esc(hq.head)}, ${esc(hq.force)}</div>
+        <div class="who">${esc(hq.head)}, ${esc(hq.force)}</div>
         <div>${esc(hq.addressLine)}</div>
         ${hq.phone ? `<div class="sm">${esc(hq.phone)}</div>` : ''}
         <p class="sm">${esc(hq.note)} ${hq.official ? 'Taken from the official police page.' : 'The official home page did not print this street, so the agency record is cited.'} ${hq.sources.map((s) => `${esc(s.label)}: ${esc(s.url)}`).join(' · ')}</p>
@@ -425,7 +434,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   // Geographic penetration: places named inside posts. The state name is kept, but it does not hide a city or site.
   const placeMap = {};
-  ev.forEach((e) => {
+  sortByLatest(ev).forEach((e) => {
     const named = e.specific.length ? e.specific : e.places;
     named.forEach((d) => {
       placeMap[d] = placeMap[d] || { count: 0, sample: null };
@@ -437,13 +446,11 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     .map(([name, info]) => ({ name, count: info.count, sample: info.sample }))
     .sort((a, b) => b.count - a.count);
 
-  const visits = ev
-    .filter((e) => e.specific.length || e.isVisit)
-    .sort((a, b) => String(b.posted_at || '').localeCompare(String(a.posted_at || '')));
+  const visits = sortByLatest(ev.filter((e) => e.specific.length || e.isVisit));
 
   const critical = ev
     .filter((e) => e.sentK === 'negative' || ['critical', 'high'].includes(String(e.risk_level || '').toLowerCase()))
-    .sort((a, b) => b.eng - a.eng);
+    .sort((a, b) => b.eng - a.eng || parseDateMs(b.posted_at) - parseDateMs(a.posted_at));
 
   // Amplifiers / authors
   const authors = {};
@@ -477,8 +484,9 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const placeLabel = (e) => (e.specific.length ? e.specific.join(', ') : e.places.length ? e.places.join(', ') : 'Not named in the post');
   const postRef = (e) => (e.citationTag ? e.citationTag : `Post #${e.n}`);
 
-  const activityPosts = ev.filter((e) => e.isVisit);
-  const activityRows = (activityPosts.length ? activityPosts : ev)
+  const activityPosts = sortByLatest(ev.filter((e) => e.isVisit));
+  const activityList = activityPosts.length ? activityPosts : sortByLatest(ev);
+  const activityRows = activityList
     .map(
       (e) => `<tr>
 <td>${esc(postRef(e))}</td>
@@ -558,6 +566,21 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 <td>${fmt(e.praise)}</td>
 <td>${fmt(e.news)}</td>
 <td>${fmt(e.crit)}</td>
+</tr>`
+    )
+    .join('');
+
+  const evidenceRows = sortByLatest(ev)
+    .map(
+      (e) => `<tr>
+<td>${esc(postRef(e))}</td>
+<td>${esc(e.when)}</td>
+<td>${esc(placeLabel(e))}</td>
+<td>${esc(platLabel(e.plat))}</td>
+<td>${esc(e.author)}</td>
+<td class="tone-${e.sentK || 'neu'}">${esc(toneLabel(e.sentK))}</td>
+<td>${fmt(e.eng)}</td>
+<td>${esc(clip(e.text, 160))}</td>
 </tr>`
     )
     .join('');
@@ -818,16 +841,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   <p class="sm">All ${fmt(ev.length)} posts used for this brief. Post numbers match the citations above.</p>
   <table>
     <thead><tr><th>Post</th><th>When</th><th>Place</th><th>Platform</th><th>Account</th><th>Tone</th><th>Eng.</th><th>Text</th></tr></thead>
-    <tbody>${ev.map((e) => `<tr>
-<td>${esc(postRef(e))}</td>
-<td>${esc(e.when)}</td>
-<td>${esc(placeLabel(e))}</td>
-<td>${esc(platLabel(e.plat))}</td>
-<td>${esc(e.author)}</td>
-<td class="tone-${e.sentK || 'neu'}">${esc(toneLabel(e.sentK))}</td>
-<td>${fmt(e.eng)}</td>
-<td>${esc(clip(e.text, 160))}</td>
-</tr>`).join('') || '<tr><td colspan="8">No posts in this evidence set.</td></tr>'}</tbody>
+    <tbody>${evidenceRows || '<tr><td colspan="8">No posts in this evidence set.</td></tr>'}</tbody>
   </table>
 
   ${actionsHtml ? `<div class="sec"><span class="no">09.</span><span class="nm">Recommended actions</span></div>${actionsHtml}` : ''}
