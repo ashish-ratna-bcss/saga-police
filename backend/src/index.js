@@ -1,5 +1,11 @@
+const pm2Port = process.env.PORT;
+const pm2Host = process.env.HOST;
+const pm2Cors = process.env.CORS_ORIGINS;
 // override: true so backend/.env always wins over stale PM2-frozen env
 require('dotenv').config({ override: true });
+if (pm2Port) process.env.PORT = pm2Port;
+if (pm2Host) process.env.HOST = pm2Host;
+if (pm2Cors) process.env.CORS_ORIGINS = pm2Cors;
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
