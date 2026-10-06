@@ -24,8 +24,9 @@ import {
   Search, ScanLine, UserPlus, Pencil, FileSpreadsheet,
   FileText, BarChart3, Activity, Zap, Timer, ChevronRight,
   ChevronDown, X, AlertTriangle, Globe, ArrowUpRight, History, Square,
-  TrendingUp, Sparkles, CheckCircle2
+  TrendingUp, Sparkles, CheckCircle2, Check, RotateCcw, ListPlus
 } from 'lucide-react';
+import eventsApi from '../../api/events.api';
 import socialProfilesApi from '../../api/socialProfiles.api';
 import ContentCard from '../../components/ContentCard';
 import AddSocialProfileDialog from '../../components/AddSocialProfileDialog';
@@ -565,23 +566,218 @@ const EventPlatformPicker = ({ value = [], onChange, options = [], loading = fal
   );
 };
 
-const EventKeywordsFields = ({ value, onChange }) => (
-  <div className="space-y-2">
-    <div>
-      <Label className="text-xs font-semibold">Keywords</Label>
-      <p className="text-[11px] text-muted-foreground mt-0.5">
-        One box for every word you want to search — any language or script. Separate with commas.
-      </p>
+const EventKeywordsFields = ({ value, onChange, eventName = '', location = '', description = '' }) => {
+  const [generating, setGenerating] = useState(false);
+  const [suggestions, setSuggestions] = useState(null); // { hashtags: string[], keywords: string[] } | null
+  const [error, setError] = useState('');
+
+  const canGenerate = Boolean(
+    String(eventName || '').trim() &&
+      String(location || '').trim() &&
+      String(description || '').trim()
+  );
+
+  const suggestionList = suggestions
+    ? [...(suggestions.hashtags || []), ...(suggestions.keywords || [])]
+    : [];
+
+  const runGenerate = async () => {
+    if (!canGenerate) {
+      toast.error('Fill Event Name, Location, and Description first');
+      return;
+    }
+    setGenerating(true);
+    setError('');
+    const toastId = toast.loading('Fetching keywords & hashtags…');
+    try {
+      const res = await eventsApi.generateHashtags({
+        event: String(eventName).trim(),
+        location: String(location).trim(),
+        description: String(description).trim(),
+      });
+      const hashtags = Array.isArray(res?.data?.hashtags)
+        ? res.data.hashtags.map((t) => String(t || '').trim()).filter(Boolean)
+        : [];
+      const keywords = Array.isArray(res?.data?.keywords)
+        ? res.data.keywords.map((t) => String(t || '').trim()).filter(Boolean)
+        : [];
+      if (!hashtags.length && !keywords.length) {
+        setSuggestions({ hashtags: [], keywords: [] });
+        setError('Nothing returned. Try again or adjust the description.');
+        toast.dismiss(toastId);
+        toast.message('No keywords or hashtags found');
+        return;
+      }
+      setSuggestions({ hashtags, keywords });
+      toast.dismiss(toastId);
+      toast.success(
+        `${hashtags.length} hashtag${hashtags.length === 1 ? '' : 's'}, ${keywords.length} keyword${keywords.length === 1 ? '' : 's'} — accept or decline`
+      );
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.detail ||
+        err?.message ||
+        'Fetch failed';
+      setError(String(msg));
+      toast.dismiss(toastId);
+      toast.error(String(msg));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleAccept = () => {
+    if (!suggestionList.length) {
+      setSuggestions(null);
+      return;
+    }
+    const existing = splitKeywords(value);
+    const seen = new Set(existing.map((k) => k.toLowerCase()));
+    const merged = [...existing];
+    for (const term of suggestionList) {
+      const key = term.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(term);
+    }
+    onChange(merged.join(', '));
+    setSuggestions(null);
+    setError('');
+    toast.success('Keywords and hashtags added');
+  };
+
+  const handleDecline = () => {
+    setSuggestions(null);
+    setError('');
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <Label className="text-xs font-semibold">Keywords</Label>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Separate with commas. Any language or script.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={!canGenerate || generating}
+          onClick={runGenerate}
+          title={
+            canGenerate
+              ? 'Fetch keywords and hashtags from event details'
+              : 'Fill Event Name, Location, and Description to enable'
+          }
+          className={cn(
+            'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors',
+            canGenerate && !generating
+              ? 'border-border bg-background text-foreground hover:bg-muted'
+              : 'cursor-not-allowed border-border/60 bg-muted/40 text-muted-foreground opacity-60'
+          )}
+        >
+          {generating ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <ListPlus className="h-3.5 w-3.5" />
+          )}
+          {generating ? 'Fetching…' : 'Add keywords'}
+        </button>
+      </div>
+      {!canGenerate && (
+        <p className="text-[11px] text-muted-foreground -mt-1">
+          Fill Event Name, Location, and Description to enable Add keywords.
+        </p>
+      )}
+
+      {suggestions && (
+        <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2.5">
+          <p className="text-xs font-medium text-foreground">
+            Suggestions
+            <span className="ml-1.5 text-muted-foreground font-normal">
+              ({suggestionList.length}) — accept to add, decline to discard, or fetch again
+            </span>
+          </p>
+          {suggestions.hashtags?.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[11px] text-muted-foreground">Hashtags</p>
+              <div className="flex flex-wrap gap-1.5">
+                {suggestions.hashtags.map((tag) => (
+                  <Badge key={`h-${tag}`} variant="secondary" className="text-[11px] font-normal">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          {suggestions.keywords?.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[11px] text-muted-foreground">Keywords</p>
+              <div className="flex flex-wrap gap-1.5">
+                {suggestions.keywords.map((kw) => (
+                  <Badge key={`k-${kw}`} variant="outline" className="text-[11px] font-normal">
+                    {kw}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          {!suggestionList.length && (
+            <p className="text-xs text-muted-foreground">No keywords or hashtags in this result.</p>
+          )}
+          {error && <p className="text-[11px] text-destructive">{error}</p>}
+          <div className="flex flex-wrap items-center gap-2 pt-0.5">
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 gap-1 text-xs"
+              disabled={!suggestionList.length || generating}
+              onClick={handleAccept}
+            >
+              <Check className="h-3 w-3" />
+              Accept
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1 text-xs"
+              disabled={generating}
+              onClick={handleDecline}
+            >
+              <X className="h-3 w-3" />
+              Decline
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 gap-1 text-xs"
+              disabled={generating}
+              onClick={runGenerate}
+            >
+              {generating ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <RotateCcw className="h-3 w-3" />
+              )}
+              Fetch again
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <textarea
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="keyword, #hashtag, another keyword"
+        rows={3}
+        className="flex min-h-[72px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+      />
     </div>
-    <textarea
-      value={value || ''}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder="Type any keywords here, e.g. election, ନିର୍ବାଚନ, vote, #Odisha"
-      rows={3}
-      className="flex min-h-[72px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-    />
-  </div>
-);
+  );
+};
 
 const ymdToDate = (value) => {
   if (!value) return undefined;
@@ -3044,11 +3240,11 @@ const Events = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Event Name *</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. LPG Supply Disruption" className="h-9" />
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name of the event to monitor" className="h-9" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Location</Label>
-                <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Hyderabad" className="h-9" />
+                <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="City, district, or state" className="h-9" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Start Date</Label>
@@ -3063,7 +3259,7 @@ const Events = () => {
                 <Textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Brief description or context about this event..."
+                  placeholder="Short summary of the event"
                   className="min-h-[64px] resize-none text-sm"
                 />
               </div>
@@ -3093,6 +3289,9 @@ const Events = () => {
             <EventKeywordsFields
               value={keywords}
               onChange={setKeywords}
+              eventName={name}
+              location={location}
+              description={description}
             />
 
 
@@ -3385,11 +3584,11 @@ const Events = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Event Name *</Label>
-                <Input value={nrForm.name} onChange={(e) => setNrForm({ ...nrForm, name: e.target.value })} placeholder="e.g. Ganesh Immersion Rally" className="h-9" />
+                <Input value={nrForm.name} onChange={(e) => setNrForm({ ...nrForm, name: e.target.value })} placeholder="Name of the event to monitor" className="h-9" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Location</Label>
-                <Input value={nrForm.location} onChange={(e) => setNrForm({ ...nrForm, location: e.target.value })} placeholder="e.g. Hyderabad" className="h-9" />
+                <Input value={nrForm.location} onChange={(e) => setNrForm({ ...nrForm, location: e.target.value })} placeholder="City, district, or state" className="h-9" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Start Date</Label>
@@ -3412,7 +3611,7 @@ const Events = () => {
                 <Textarea
                   value={nrForm.description || ''}
                   onChange={(e) => setNrForm({ ...nrForm, description: e.target.value })}
-                  placeholder="Brief description or context about this event..."
+                  placeholder="Short summary of the event"
                   className="min-h-[64px] resize-none text-sm"
                 />
               </div>
@@ -3436,6 +3635,9 @@ const Events = () => {
             <EventKeywordsFields
               value={nrForm.keywords}
               onChange={(keywords) => setNrForm({ ...nrForm, keywords })}
+              eventName={nrForm.name}
+              location={nrForm.location}
+              description={nrForm.description}
             />
             <DialogFooter className="gap-2 sm:gap-0">
               <Button type="button" variant="outline" onClick={() => setNrFormOpen(false)}>Cancel</Button>

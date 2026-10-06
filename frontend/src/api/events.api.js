@@ -10,6 +10,9 @@ export const eventsApi = {
   getContent: (id, params) => apiHandler.get(`/events/${id}/content`, { params }),
   getReport: () => apiHandler.get('/events/report'),
   generateKeywords: (body, config) => apiHandler.post('/events/generate-keywords', body, config),
+  /** Proxies Event-Hashtag-Generator POST /event-hashtags */
+  generateHashtags: (body, config) =>
+    apiHandler.post('/events/generate-hashtags', body, { timeout: 120000, ...config }),
   getOccasionCalendar: (params) => apiHandler.get('/occasion-calendar', { params }),
   getDailyProgrammes: (params) => apiHandler.get('/daily-programmes', { params }),
   createDailyProgrammesBulk: (body) => apiHandler.post('/daily-programmes/bulk', body),

@@ -2,6 +2,7 @@ const eventService = require('./event.service');
 const { scanEventOnce } = require('./event.scan.service');
 const { normalizeEventPlatformSlug } = require('./event.utils');
 const dbOf = require('../../lib/dbOf');
+const eventHashtagClient = require('../../services/eventHashtag/eventHashtag.client');
 
 /**
  * Manually-triggered scans (Start's kickoff, Fetch Now) should only touch
@@ -362,6 +363,15 @@ const getEventIntelligenceReportPdf = async (req, res) => {
   }
 };
 
+const generateHashtags = async (req, res) => {
+  try {
+    const data = await eventHashtagClient.generateHashtags(req.body || {});
+    return res.status(200).json(data);
+  } catch (error) {
+    return res.status(error.status || 500).json({ message: error.message || 'Hashtag generation failed' });
+  }
+};
+
 module.exports = {
   listEvents,
   getEvent,
@@ -380,5 +390,6 @@ module.exports = {
   getEventIntelligenceReportPdf,
   runEventScan,
   getEventsReport,
+  generateHashtags,
 };
 
