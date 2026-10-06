@@ -18,7 +18,7 @@ const {
   getEventIntelligenceReportPdf,
   runEventScan,
   getEventsReport,
-  generateHashtags,
+  generateEventTerms,
 } = require('./event.controller');
 
 const router = express.Router();
@@ -27,7 +27,7 @@ router.use(authorize({ pages: ['/events'] }));
 
 router.get('/', listEvents);
 router.get('/report', getEventsReport);
-router.post('/generate-hashtags', generateHashtags);
+router.post('/generate-event-terms', generateEventTerms);
 router.get('/:id', getEvent);
 router.get('/:id/dashboard', getEventDashboard);
 router.get('/:id/content', getEventContent);

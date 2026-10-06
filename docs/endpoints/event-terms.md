@@ -1,4 +1,4 @@
-# Event hashtag endpoints (used by Blurasaga)
+# Event terms endpoints (used by Blurasaga)
 
 Upstream: **Event Keyword & Hashtag Generator**  
 Base URL: `http://127.0.0.1:2001` (env: `EVENT_HASHTAG_GENERATOR_URL`)
@@ -8,9 +8,9 @@ Blurasaga uses **only these two** upstream APIs:
 | Upstream | Purpose |
 |----------|---------|
 | `GET /health` | Liveness |
-| `POST /event-hashtags` | Generate **hashtags + keywords** |
+| `POST /event-terms` | Generate **hashtags + keywords** |
 
-App proxy: `POST /api/events/generate-hashtags` → upstream `POST /event-hashtags`.
+App proxy: `POST /api/events/generate-event-terms` → upstream `POST /event-terms`.
 
 ---
 
@@ -30,7 +30,7 @@ curl -s http://127.0.0.1:2001/health
 
 ---
 
-## 2. `POST /event-hashtags`
+## 2. `POST /event-terms`
 
 ### Request
 
@@ -76,7 +76,7 @@ curl -s http://127.0.0.1:2001/health
 ### App proxy (Create Event → Add keywords)
 
 ```bash
-curl -s -X POST https://odisha.blurasaga.com/api/events/generate-hashtags \
+curl -s -X POST https://odisha.blurasaga.com/api/events/generate-event-terms \
   -H "Content-Type: application/json" \
   -H "Cookie: <session>" \
   -d '{"event":"Technology Conference","location":"Hyderabad","description":"AI conference"}'
@@ -88,7 +88,7 @@ curl -s -X POST https://odisha.blurasaga.com/api/events/generate-hashtags \
 
 1. Fill **Event Name**, **Location**, **Description**.
 2. Click **Add keywords**.
-3. App → `POST /api/events/generate-hashtags` → upstream `POST /event-hashtags`.
+3. App → `POST /api/events/generate-event-terms` → upstream `POST /event-terms`.
 4. Preview hashtags + keywords → **Accept** / **Decline** / **Fetch again**.
 
 Expect **20–90 seconds** per generate call.

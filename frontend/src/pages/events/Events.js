@@ -24,7 +24,7 @@ import {
   Search, ScanLine, UserPlus, Pencil, FileSpreadsheet,
   FileText, BarChart3, Activity, Zap, Timer, ChevronRight,
   ChevronDown, X, AlertTriangle, Globe, ArrowUpRight, History, Square,
-  TrendingUp, Sparkles, CheckCircle2, Check, RotateCcw, ListPlus
+  TrendingUp, Sparkles, CheckCircle2
 } from 'lucide-react';
 import eventsApi from '../../api/events.api';
 import socialProfilesApi from '../../api/socialProfiles.api';
@@ -70,6 +70,49 @@ const parseKeywordsField = (value) =>
     language: 'all',
   }));
 
+const isHashtagTerm = (term) => String(term || '').trim().startsWith('#');
+
+/** Split stored keywords into plain-keyword and #hashtag boxes. */
+const splitKeywordsIntoBoxes = (keywords = []) => {
+  const plain = [];
+  const tags = [];
+  const seenPlain = new Set();
+  const seenTags = new Set();
+  const push = (text, into, seen) => {
+    const t = String(text || '').trim();
+    if (!t) return;
+    const key = t.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    into.push(t);
+  };
+  for (const entry of keywords || []) {
+    const raw = typeof entry === 'string' ? entry : entry?.keyword;
+    for (const text of splitKeywords(raw)) {
+      if (isHashtagTerm(text)) push(text, tags, seenTags);
+      else push(text, plain, seenPlain);
+    }
+  }
+  return { keywords: plain.join(', '), hashtags: tags.join(', ') };
+};
+
+const mergeKeywordBoxes = (keywordsValue, hashtagsValue) =>
+  parseKeywordsField([keywordsValue, hashtagsValue].filter(Boolean).join(', '));
+
+const mergeFieldLists = (existingValue, additions = []) => {
+  const existing = splitKeywords(existingValue);
+  const seen = new Set(existing.map((k) => k.toLowerCase()));
+  const merged = [...existing];
+  for (const term of additions) {
+    const t = String(term || '').trim();
+    if (!t) continue;
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(t);
+  }
+  return merged.join(', ');
+};
 const formatWhen = (iso) => {
   if (!iso) return '—';
   try {
@@ -566,7 +609,15 @@ const EventPlatformPicker = ({ value = [], onChange, options = [], loading = fal
   );
 };
 
-const EventKeywordsFields = ({ value, onChange, eventName = '', location = '', description = '' }) => {
+const EventKeywordsFields = ({
+  keywordsValue = '',
+  hashtagsValue = '',
+  onKeywordsChange,
+  onHashtagsChange,
+  eventName = '',
+  location = '',
+  description = '',
+}) => {
   const [generating, setGenerating] = useState(false);
   const [suggestions, setSuggestions] = useState(null); // { hashtags: string[], keywords: string[] } | null
   const [error, setError] = useState('');
@@ -577,9 +628,8 @@ const EventKeywordsFields = ({ value, onChange, eventName = '', location = '', d
       String(description || '').trim()
   );
 
-  const suggestionList = suggestions
-    ? [...(suggestions.hashtags || []), ...(suggestions.keywords || [])]
-    : [];
+  const suggestionCount =
+    (suggestions?.hashtags?.length || 0) + (suggestions?.keywords?.length || 0);
 
   const runGenerate = async () => {
     if (!canGenerate) {
@@ -590,7 +640,7 @@ const EventKeywordsFields = ({ value, onChange, eventName = '', location = '', d
     setError('');
     const toastId = toast.loading('Fetching keywords & hashtags…');
     try {
-      const res = await eventsApi.generateHashtags({
+      const res = await eventsApi.generateEventTerms({
         event: String(eventName).trim(),
         location: String(location).trim(),
         description: String(description).trim(),
@@ -628,23 +678,15 @@ const EventKeywordsFields = ({ value, onChange, eventName = '', location = '', d
   };
 
   const handleAccept = () => {
-    if (!suggestionList.length) {
+    if (!suggestionCount) {
       setSuggestions(null);
       return;
     }
-    const existing = splitKeywords(value);
-    const seen = new Set(existing.map((k) => k.toLowerCase()));
-    const merged = [...existing];
-    for (const term of suggestionList) {
-      const key = term.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      merged.push(term);
-    }
-    onChange(merged.join(', '));
+    onKeywordsChange?.(mergeFieldLists(keywordsValue, suggestions?.keywords || []));
+    onHashtagsChange?.(mergeFieldLists(hashtagsValue, suggestions?.hashtags || []));
     setSuggestions(null);
     setError('');
-    toast.success('Keywords and hashtags added');
+    toast.success('Added to Keywords and Hashtags');
   };
 
   const handleDecline = () => {
@@ -652,129 +694,115 @@ const EventKeywordsFields = ({ value, onChange, eventName = '', location = '', d
     setError('');
   };
 
+  const fieldClass =
+    'flex min-h-[64px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none';
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <Label className="text-xs font-semibold">Keywords</Label>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            Separate with commas. Any language or script.
-          </p>
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-xs font-semibold">Keywords</Label>
+            <button
+              type="button"
+              disabled={!canGenerate || generating}
+              onClick={runGenerate}
+              title={
+                canGenerate
+                  ? 'Suggest from event name, location, and description'
+                  : 'Fill Event Name, Location, and Description first'
+              }
+              className={cn(
+                'inline-flex items-center gap-1 text-[11px] font-medium transition-colors shrink-0',
+                canGenerate && !generating
+                  ? 'text-primary hover:underline'
+                  : 'text-muted-foreground/50 cursor-not-allowed'
+              )}
+            >
+              {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              {generating ? 'Fetching…' : 'Suggest'}
+            </button>
+          </div>
+          <textarea
+            value={keywordsValue || ''}
+            onChange={(e) => onKeywordsChange?.(e.target.value)}
+            placeholder="Words or phrases to search"
+            rows={3}
+            className={fieldClass}
+          />
         </div>
-        <button
-          type="button"
-          disabled={!canGenerate || generating}
-          onClick={runGenerate}
-          title={
-            canGenerate
-              ? 'Fetch keywords and hashtags from event details'
-              : 'Fill Event Name, Location, and Description to enable'
-          }
-          className={cn(
-            'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors',
-            canGenerate && !generating
-              ? 'border-border bg-background text-foreground hover:bg-muted'
-              : 'cursor-not-allowed border-border/60 bg-muted/40 text-muted-foreground opacity-60'
-          )}
-        >
-          {generating ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <ListPlus className="h-3.5 w-3.5" />
-          )}
-          {generating ? 'Fetching…' : 'Add keywords'}
-        </button>
+        <div className="space-y-1.5 min-w-0">
+          <Label className="text-xs font-semibold">Hashtags</Label>
+          <textarea
+            value={hashtagsValue || ''}
+            onChange={(e) => onHashtagsChange?.(e.target.value)}
+            placeholder="#TagOne, #TagTwo"
+            rows={3}
+            className={fieldClass}
+          />
+        </div>
       </div>
-      {!canGenerate && (
-        <p className="text-[11px] text-muted-foreground -mt-1">
-          Fill Event Name, Location, and Description to enable Add keywords.
-        </p>
-      )}
 
       {suggestions && (
-        <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2.5">
-          <p className="text-xs font-medium text-foreground">
-            Suggestions
-            <span className="ml-1.5 text-muted-foreground font-normal">
-              ({suggestionList.length}) — accept to add, decline to discard, or fetch again
-            </span>
+        <div className="rounded-md border border-border px-3 py-2.5 space-y-2">
+          <p className="text-[11px] text-muted-foreground">
+            Review suggestions, then accept or decline.
           </p>
-          {suggestions.hashtags?.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-[11px] text-muted-foreground">Hashtags</p>
-              <div className="flex flex-wrap gap-1.5">
-                {suggestions.hashtags.map((tag) => (
-                  <Badge key={`h-${tag}`} variant="secondary" className="text-[11px] font-normal">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
           {suggestions.keywords?.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-[11px] text-muted-foreground">Keywords</p>
-              <div className="flex flex-wrap gap-1.5">
-                {suggestions.keywords.map((kw) => (
-                  <Badge key={`k-${kw}`} variant="outline" className="text-[11px] font-normal">
-                    {kw}
-                  </Badge>
-                ))}
-              </div>
+            <div className="flex flex-wrap gap-1">
+              {suggestions.keywords.map((kw) => (
+                <Badge key={`k-${kw}`} variant="outline" className="text-[11px] font-normal">
+                  {kw}
+                </Badge>
+              ))}
             </div>
           )}
-          {!suggestionList.length && (
-            <p className="text-xs text-muted-foreground">No keywords or hashtags in this result.</p>
+          {suggestions.hashtags?.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {suggestions.hashtags.map((tag) => (
+                <Badge key={`h-${tag}`} variant="secondary" className="text-[11px] font-normal">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          )}
+          {!suggestionCount && (
+            <p className="text-xs text-muted-foreground">No results.</p>
           )}
           {error && <p className="text-[11px] text-destructive">{error}</p>}
-          <div className="flex flex-wrap items-center gap-2 pt-0.5">
+          <div className="flex items-center gap-2 pt-0.5">
             <Button
               type="button"
               size="sm"
-              className="h-7 gap-1 text-xs"
-              disabled={!suggestionList.length || generating}
+              className="h-7 text-xs"
+              disabled={!suggestionCount || generating}
               onClick={handleAccept}
             >
-              <Check className="h-3 w-3" />
               Accept
             </Button>
             <Button
               type="button"
               size="sm"
-              variant="outline"
-              className="h-7 gap-1 text-xs"
+              variant="ghost"
+              className="h-7 text-xs"
               disabled={generating}
               onClick={handleDecline}
             >
-              <X className="h-3 w-3" />
               Decline
             </Button>
             <Button
               type="button"
               size="sm"
               variant="ghost"
-              className="h-7 gap-1 text-xs"
+              className="h-7 text-xs text-muted-foreground"
               disabled={generating}
               onClick={runGenerate}
             >
-              {generating ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <RotateCcw className="h-3 w-3" />
-              )}
               Fetch again
             </Button>
           </div>
         </div>
       )}
-
-      <textarea
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="keyword, #hashtag, another keyword"
-        rows={3}
-        className="flex min-h-[72px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-      />
     </div>
   );
 };
@@ -1145,7 +1173,7 @@ const Events = () => {
   const [nrSaving, setNrSaving] = useState(false);
   const [nrForm, setNrForm] = useState({
     name: '', location: '', description: '', start_date: '', end_date: '',
-    keywords: '',
+    keywords: '', hashtags: '',
     polling_interval_minutes: 60, poll_preset: '60',
     platforms: [],
   });
@@ -1165,6 +1193,7 @@ const Events = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [keywords, setKeywords] = useState('');
+  const [hashtags, setHashtags] = useState('');
   const [eventPollMinutes, setEventPollMinutes] = useState(60);
   const [eventPollPreset, setEventPollPreset] = useState('60');
   const [platformOptions, setPlatformOptions] = useState([]);
@@ -1284,7 +1313,7 @@ const Events = () => {
     setNrEditId(null);
     setNrForm({
       name: '', location: '', description: '', start_date: '', end_date: '',
-      keywords: '',
+      keywords: '', hashtags: '',
       polling_interval_minutes: 60, poll_preset: '60',
       platforms: dbPlatformSlugs,
     });
@@ -1294,13 +1323,15 @@ const Events = () => {
     setNrEditId(evt.id);
     const plats = Array.isArray(evt.platforms) ? evt.platforms.filter(Boolean) : [];
     const minutes = Number(evt.polling_interval_minutes) || 60;
+    const boxes = splitKeywordsIntoBoxes(evt.keywords || []);
     setNrForm({
       name: evt.name || '',
       location: evt.location || '',
       description: evt.description || '',
       start_date: evt.start_date ? new Date(evt.start_date).toISOString().split('T')[0] : '',
       end_date: evt.end_date ? new Date(evt.end_date).toISOString().split('T')[0] : '',
-      keywords: keywordsToSingleField(evt.keywords || []),
+      keywords: boxes.keywords,
+      hashtags: boxes.hashtags,
       polling_interval_minutes: minutes,
       poll_preset: resolvePollPreset(minutes),
       platforms: plats.length ? plats : dbPlatformSlugs,
@@ -1321,7 +1352,7 @@ const Events = () => {
     }
     setNrSaving(true);
     try {
-      const kw = parseKeywordsField(nrForm.keywords);
+      const kw = mergeKeywordBoxes(nrForm.keywords, nrForm.hashtags);
       const payload = {
         name: nrForm.name, location: nrForm.location,
         description: nrForm.description || '',
@@ -1582,12 +1613,17 @@ const Events = () => {
       setDescription(prefill.description || '');
       setStartDate(prefill.start_date || '');
       setEndDate(prefill.end_date || '');
-      setKeywords(
-        prefill.keywords ||
-          [prefill.keywords_te, prefill.keywords_hi, prefill.keywords_en]
-            .filter(Boolean)
-            .join(', ')
+      const boxes = splitKeywordsIntoBoxes(
+        splitKeywords(
+          prefill.keywords ||
+            [prefill.keywords_te, prefill.keywords_hi, prefill.keywords_en]
+              .filter(Boolean)
+              .join(', ')
+        ).map((keyword) => ({ keyword }))
       );
+      // If prefill already separated hashtags, prefer that; else split mixed string.
+      setKeywords(prefill.keywords_plain != null ? prefill.keywords_plain : boxes.keywords);
+      setHashtags(prefill.hashtags || boxes.hashtags);
       setEditingEvent(null);
       closeActionOverlays();
       setEventFormOpen(true);
@@ -1813,7 +1849,7 @@ const Events = () => {
       name,
       location,
       description: description || '',
-      keywords: parseKeywordsField(keywords),
+      keywords: mergeKeywordBoxes(keywords, hashtags),
       platforms: selectedPlatforms,
       polling_interval_minutes: Number(eventPollMinutes) || 60,
     };
@@ -1826,6 +1862,7 @@ const Events = () => {
   const resetForm = () => {
     setName(''); setLocation(''); setDescription(''); setStartDate(''); setEndDate('');
     setKeywords('');
+    setHashtags('');
     setEventPollMinutes(60); setEventPollPreset('60');
     setSelectedPlatforms(dbPlatformSlugs);
   };
@@ -1839,7 +1876,9 @@ const Events = () => {
     setDescription(selectedEvent.description || '');
     setStartDate(selectedEvent.start_date ? new Date(selectedEvent.start_date).toISOString().split('T')[0] : '');
     setEndDate(selectedEvent.end_date ? new Date(selectedEvent.end_date).toISOString().split('T')[0] : '');
-    setKeywords(keywordsToSingleField(selectedEvent.keywords || []));
+    const boxes = splitKeywordsIntoBoxes(selectedEvent.keywords || []);
+    setKeywords(boxes.keywords);
+    setHashtags(boxes.hashtags);
     const minutes = Number(selectedEvent.polling_interval_minutes) || 60;
     setEventPollMinutes(minutes);
     setEventPollPreset(resolvePollPreset(minutes));
@@ -3224,7 +3263,7 @@ const Events = () => {
 
       {/* Create/Edit Event */}
       <Dialog open={eventFormOpen} onOpenChange={(open) => { setEventFormOpen(open); if (!open) { setEditingEvent(null); resetForm(); } }}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {editingEvent ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
@@ -3287,8 +3326,10 @@ const Events = () => {
 
 
             <EventKeywordsFields
-              value={keywords}
-              onChange={setKeywords}
+              keywordsValue={keywords}
+              hashtagsValue={hashtags}
+              onKeywordsChange={setKeywords}
+              onHashtagsChange={setHashtags}
               eventName={name}
               location={location}
               description={description}
@@ -3570,7 +3611,7 @@ const Events = () => {
 
       {/* Non-Recurring Event Create/Edit Sub-Dialog (full Event model fields) */}
       <Dialog open={nrFormOpen} onOpenChange={setNrFormOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {nrEditId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
@@ -3633,8 +3674,10 @@ const Events = () => {
               />
             </div>
             <EventKeywordsFields
-              value={nrForm.keywords}
-              onChange={(keywords) => setNrForm({ ...nrForm, keywords })}
+              keywordsValue={nrForm.keywords}
+              hashtagsValue={nrForm.hashtags || ''}
+              onKeywordsChange={(keywords) => setNrForm({ ...nrForm, keywords })}
+              onHashtagsChange={(hashtags) => setNrForm({ ...nrForm, hashtags })}
               eventName={nrForm.name}
               location={nrForm.location}
               description={nrForm.description}
