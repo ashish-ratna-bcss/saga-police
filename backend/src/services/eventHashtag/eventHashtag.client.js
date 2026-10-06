@@ -64,9 +64,9 @@ const health = async () => {
 };
 
 /**
- * POST /event-hashtags — hashtags + keywords for event Keywords field.
+ * POST /event-terms — hashtags + keywords for event Keywords field.
  */
-const generateHashtags = async (payload) => {
+const generateEventTerms = async (payload) => {
   const body = pickBody(payload);
   const validation = assertRequired(body);
   if (validation) {
@@ -76,9 +76,9 @@ const generateHashtags = async (payload) => {
   }
   let res;
   try {
-    res = await client.post('/event-hashtags', body);
+    res = await client.post('/event-terms', body);
   } catch (e) {
-    const err = new Error(e.message || 'Hashtag generator unreachable');
+    const err = new Error(e.message || 'Event terms generator unreachable');
     err.status = 502;
     throw err;
   }
@@ -92,5 +92,7 @@ const generateHashtags = async (payload) => {
 module.exports = {
   BASE_URL,
   health,
-  generateHashtags,
+  generateEventTerms,
+  /** @deprecated alias — use generateEventTerms */
+  generateHashtags: generateEventTerms,
 };

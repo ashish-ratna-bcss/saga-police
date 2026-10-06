@@ -363,12 +363,12 @@ const getEventIntelligenceReportPdf = async (req, res) => {
   }
 };
 
-const generateHashtags = async (req, res) => {
+const generateEventTerms = async (req, res) => {
   try {
-    const data = await eventHashtagClient.generateHashtags(req.body || {});
+    const data = await eventHashtagClient.generateEventTerms(req.body || {});
     return res.status(200).json(data);
   } catch (error) {
-    return res.status(error.status || 500).json({ message: error.message || 'Hashtag generation failed' });
+    return res.status(error.status || 500).json({ message: error.message || 'Event terms fetch failed' });
   }
 };
 
@@ -390,6 +390,6 @@ module.exports = {
   getEventIntelligenceReportPdf,
   runEventScan,
   getEventsReport,
-  generateHashtags,
+  generateEventTerms,
 };
 

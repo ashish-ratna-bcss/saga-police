@@ -6,7 +6,7 @@
   "envVar": "EVENT_HASHTAG_GENERATOR_URL",
   "usedBy": [
     "backend/src/services/eventHashtag/eventHashtag.client.js",
-    "backend/src/modules/events/event.controller.js (generateHashtags)",
+    "backend/src/modules/events/event.controller.js (generateEventTerms)",
     "frontend Create Event → Add keywords button"
   ],
   "pm2": "event-hashtag-generator (uvicorn keyword_generator_main.app:app --port 2001)",
@@ -24,7 +24,7 @@
     },
     {
       "method": "POST",
-      "path": "/event-hashtags",
+      "path": "/event-terms",
       "purpose": "Generate hashtags AND keywords from event + location + description. Used by Create Event → Add keywords.",
       "headers": { "Content-Type": "application/json" },
       "body": {
@@ -46,12 +46,12 @@
         "500": "text processing failed"
       },
       "timeoutHintSec": "20–90",
-      "appProxy": "POST /api/events/generate-hashtags"
+      "appProxy": "POST /api/events/generate-event-terms"
     }
   ],
   "notes": [
-    "Only these two upstream endpoints are used by Blurasaga: GET /health and POST /event-hashtags.",
-    "POST /event-hashtags returns both hashtags and keywords (same pipeline as /generate).",
+    "Only these two upstream endpoints are used by Blurasaga: GET /health and POST /event-terms.",
+    "POST /event-terms returns both hashtags and keywords (same pipeline as /generate).",
     "Hashtags are deterministic Python extraction over search snippets — not LLM text.",
     "On saga the service listens on :2001.",
     "Browser calls the app proxy; backend talks to :2001."
