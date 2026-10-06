@@ -1,0 +1,59 @@
+{
+  "name": "Event Keyword & Hashtag Generator",
+  "baseUrl": "http://127.0.0.1:2001",
+  "externalFacing": false,
+  "auth": "none",
+  "envVar": "EVENT_HASHTAG_GENERATOR_URL",
+  "usedBy": [
+    "backend/src/services/eventHashtag/eventHashtag.client.js",
+    "backend/src/modules/events/event.controller.js (generateHashtags)",
+    "frontend Create Event → Add keywords button"
+  ],
+  "pm2": "event-hashtag-generator (uvicorn keyword_generator_main.app:app --port 2001)",
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "purpose": "Liveness check — confirm generator process is up",
+      "response": {
+        "status": "ok",
+        "service": "event-keyword-hashtag-search",
+        "version": "1.0.0"
+      },
+      "verified": 200
+    },
+    {
+      "method": "POST",
+      "path": "/event-hashtags",
+      "purpose": "Generate hashtags AND keywords from event + location + description. Used by Create Event → Add keywords.",
+      "headers": { "Content-Type": "application/json" },
+      "body": {
+        "required": ["event", "location", "description"],
+        "optional": {
+          "include_social": "boolean, default false",
+          "search_engine": "all | bing | duckduckgo | wikipedia | marginalia",
+          "max_hashtags": "integer | null",
+          "max_keywords": "integer | null"
+        }
+      },
+      "response": {
+        "hashtags": "string[]",
+        "keywords": "string[]"
+      },
+      "errors": {
+        "400": "missing/blank event, location, or description",
+        "502": "Wigolo web search failed",
+        "500": "text processing failed"
+      },
+      "timeoutHintSec": "20–90",
+      "appProxy": "POST /api/events/generate-hashtags"
+    }
+  ],
+  "notes": [
+    "Only these two upstream endpoints are used by Blurasaga: GET /health and POST /event-hashtags.",
+    "POST /event-hashtags returns both hashtags and keywords (same pipeline as /generate).",
+    "Hashtags are deterministic Python extraction over search snippets — not LLM text.",
+    "On saga the service listens on :2001.",
+    "Browser calls the app proxy; backend talks to :2001."
+  ]
+}
