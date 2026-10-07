@@ -46,9 +46,19 @@ const generateEventIntelligencePdf = async (
     headquarters: resolveHeadquarters(tenantName),
     includeEvidence,
   });
+  const cleanTenant = (t) => {
+    if (!t) return 'DIGITAL INTELLIGENCE PLATFORM';
+    const s = String(t).replace(/[_]+/g, ' ').replace(/\bblurasaga\b/gi, '').replace(/\bblura\s+saga\b/gi, '').trim();
+    if (/odisha/i.test(s)) return 'ODISHA POLICE';
+    if (/delhi/i.test(s)) return 'DELHI POLICE';
+    if (/jharkhand/i.test(s)) return 'JHARKHAND POLICE';
+    if (/andhra|ap/i.test(s)) return 'ANDHRA PRADESH POLICE';
+    if (/uttarakhand/i.test(s)) return 'UTTARAKHAND POLICE';
+    return s.toUpperCase() || 'DIGITAL INTELLIGENCE PLATFORM';
+  };
   const name = summary?.event?.name || 'Event';
   const pdf = await renderHtmlToPdf(html, {
-    footerLabel: `${(tenantName || 'DIGITAL INTELLIGENCE PLATFORM').toUpperCase()} · ${name}${includeEvidence ? '' : ' (Executive)'}`,
+    footerLabel: `${cleanTenant(tenantName)} · ${name}${includeEvidence ? '' : ' (Executive)'}`,
   });
   return { pdf, eventName: name };
 };
