@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
-import { Badge } from '../../../components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../../../components/ui/command';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
@@ -9,7 +8,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/table';
 import {
   Newspaper, Search, Loader2, Trash2, Globe, Languages, MapPin, Rss, Check, ChevronDown,
-  ChevronLeft, ChevronRight, ExternalLink, X, Clock, RefreshCw, Zap, Archive, History
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowRight, ExternalLink, X, Clock, RefreshCw, Zap, Archive, History
 } from 'lucide-react';
 import { newsApi } from '../../../api';
 import { toast } from 'sonner';
@@ -237,55 +236,139 @@ const QuickLoading = () => (
   <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Loading from your workspace…</p>
 );
 
-const ArticleCard = ({ article: a, onOpen }) => (
-  <button type="button" onClick={() => onOpen(a)}
-    className="w-full text-left flex gap-3 rounded-lg border border-border bg-background p-3 hover:border-primary/40 hover:bg-accent/30 transition-colors">
-    {a.image_url && (
-      <img src={a.image_url} alt="" loading="lazy" referrerPolicy="no-referrer"
-        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-        className="h-16 w-24 shrink-0 rounded-md object-cover bg-muted" />
-    )}
-    <div className="min-w-0 flex-1">
-      <p className="text-sm font-semibold leading-snug line-clamp-2">{a.title || 'Untitled'}</p>
-      {a.summary && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{a.summary}</p>}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[10px] text-muted-foreground">
-        <span className="font-semibold text-foreground">{a.source}</span>
-        {a.language && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">{a.language}</Badge>}
-        {placeOf(a) && <span className="inline-flex items-center gap-0.5"><MapPin className="h-3 w-3" />{placeOf(a)}</span>}
-        {publishedLabel(a.published_at) && <span className="inline-flex items-center gap-0.5"><Clock className="h-3 w-3" />{publishedLabel(a.published_at)}</span>}
-        {a.seen_count > 1 && <span title="Times this article came up in your workspace's searches">seen {a.seen_count}×</span>}
-      </div>
-    </div>
-  </button>
+const wordsOf = (a) => a.word_count ?? (a.content ? a.content.trim().split(/\s+/).filter(Boolean).length : 0);
+const fullDate = (iso) => {
+  const t = new Date(iso).getTime();
+  return !iso || Number.isNaN(t) ? '' : new Date(t).toLocaleString();
+};
+const Tag = ({ children, tone }) => (
+  <span className={`inline-flex max-w-full items-center gap-0.5 truncate rounded-full px-2 py-0.5 text-[10px] font-medium ${tone === 'primary' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+    {children}
+  </span>
 );
 
-/** Article list with header, paging and page size; shared by live, stored and saved views. */
-const ResultsPanel = ({ heading, subheading, actions, result, loading, loadingNote, error, notice, pageSize, onPage, onPageSize, onOpen, emptyText, className = '' }) => {
+const ArticleCard = ({ article: a, onOpen }) => {
+  const [imageOk, setImageOk] = useState(Boolean(a.image_url));
+  const words = wordsOf(a);
+  // Some feeds repeat the summary inside the title; showing it twice is noise.
+  const summary = a.summary && !(a.title || '').includes(a.summary) ? a.summary : '';
+  const place = [a.district, a.state].filter(Boolean).join(', ');
+
+  return (
+    <article className="group flex flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
+      <button type="button" onClick={() => onOpen(a)} className="flex flex-1 flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50">
+        <div className="relative aspect-[16/9] w-full overflow-hidden bg-muted">
+          {imageOk ? (
+            <img src={a.image_url} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setImageOk(false)}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-gradient-to-br from-primary/10 via-muted to-muted text-primary/50">
+              <Newspaper className="h-8 w-8" />
+              <span className="text-[11px] font-medium text-muted-foreground">{a.source}</span>
+            </div>
+          )}
+          {a.language && (
+            <span className="absolute left-2 top-2 rounded-md bg-background/90 px-1.5 py-0.5 text-[10px] font-semibold text-foreground shadow-sm backdrop-blur">
+              {a.language}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-1 flex-col gap-1.5 p-3">
+          <h3 className="text-sm font-semibold leading-snug line-clamp-3">{a.title || 'Untitled'}</h3>
+          {summary && <p className="text-xs leading-relaxed text-muted-foreground line-clamp-3">{summary}</p>}
+          <span className="mt-auto inline-flex items-center gap-1 pt-1 text-[11px] font-medium text-primary">
+            Read full article{words ? ` · ${words.toLocaleString()} words` : ''}
+            <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </div>
+      </button>
+      <div className="flex flex-wrap gap-1 px-3 pb-2.5">
+        <Tag tone="primary">{a.source}</Tag>
+        {a.country && <Tag>{a.country}</Tag>}
+        {place && <Tag><MapPin className="h-2.5 w-2.5 shrink-0" />{place}</Tag>}
+      </div>
+      <div className="flex items-center gap-2 border-t border-border px-3 py-2 text-[10px] text-muted-foreground">
+        {publishedLabel(a.published_at) && (
+          <span className="inline-flex items-center gap-1" title={fullDate(a.published_at)}>
+            <Clock className="h-3 w-3" />{publishedLabel(a.published_at)}
+          </span>
+        )}
+        {a.seen_count > 1 && <span title="Times this article came up in your workspace's searches">· seen {a.seen_count}×</span>}
+        {a.source_url && (
+          <a href={a.source_url} target="_blank" rel="noreferrer" title="Open the original article"
+            className="ml-auto inline-flex min-w-0 items-center gap-1 hover:text-primary">
+            <span className="truncate">{hostOf(a.source_url)}</span><ExternalLink className="h-3 w-3 shrink-0" />
+          </a>
+        )}
+      </div>
+    </article>
+  );
+};
+
+const CardSkeleton = () => (
+  <div className="overflow-hidden rounded-xl border border-border bg-background animate-pulse">
+    <div className="aspect-[16/9] bg-muted" />
+    <div className="space-y-2 p-3">
+      <div className="h-3.5 w-11/12 rounded bg-muted" />
+      <div className="h-3.5 w-3/4 rounded bg-muted" />
+      <div className="h-3 w-full rounded bg-muted/70" />
+      <div className="h-3 w-5/6 rounded bg-muted/70" />
+    </div>
+  </div>
+);
+
+const PageButton = ({ label, icon: Icon, disabled, onClick }) => (
+  <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label={label} title={label} disabled={disabled} onClick={onClick}>
+    <Icon className="h-4 w-4" />
+  </Button>
+);
+
+/** Card grid with header, paging and page size; shared by live, stored and saved views. */
+const ResultsPanel = ({
+  heading, meta, subheading, actions, result, loading, loadingNote, error, notice,
+  pageSize, onPage, onPageSize, onOpen, emptyText, className = '',
+  gridClassName = 'grid-cols-1 md:grid-cols-2 2xl:grid-cols-3',
+}) => {
   const articles = result?.articles || [];
   const total = result?.count ?? 0;
   const offset = result?.offset ?? 0;
   const size = result?.limit || pageSize;
   const from = total ? offset + 1 : 0;
   const to = offset + articles.length;
+  const page = Math.floor(offset / size) + 1;
+  const pages = Math.max(1, Math.ceil(total / size));
+  const scrollRef = useRef(null);
+
+  // A new page starts at its top, not where the previous page was scrolled to.
+  useEffect(() => { scrollRef.current?.scrollTo?.({ top: 0 }); }, [result]);
 
   return (
     <div className={`rounded-xl border border-border bg-card overflow-hidden min-h-[420px] flex flex-col ${className}`}>
       <div className="px-4 py-3 border-b border-border">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-heading font-bold tracking-tight">{heading}</h2>
-          {result && total > 0 && <span className="text-[11px] text-muted-foreground tabular-nums">showing {from}–{to}</span>}
           {actions && <div className="ml-auto flex items-center gap-1.5">{actions}</div>}
         </div>
+        {result && total > 0 && (
+          <p className="text-[11px] text-muted-foreground mt-0.5 tabular-nums">
+            Showing <span className="font-semibold text-foreground">{from}–{to}</span> of{' '}
+            <span className="font-semibold text-foreground">{total.toLocaleString()}</span> articles{meta ? ` · ${meta}` : ''}
+          </p>
+        )}
         {subheading && <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{subheading}</p>}
       </div>
-      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto bg-muted/20 p-4 space-y-3">
         {loading && loadingNote}
         {error && !loading && <p className="text-xs text-red-600 rounded-lg border border-red-500/30 bg-red-500/5 p-3">{error}</p>}
         {notice && !loading && notice}
         {result && !articles.length && !loading && <Empty>{emptyText}</Empty>}
-        <div className={`space-y-2 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
-          {articles.map((a) => <ArticleCard key={a.id} article={a} onOpen={onOpen} />)}
-        </div>
+        {!result && loading ? (
+          <div className={`grid gap-3 ${gridClassName}`}>{Array.from({ length: 6 }, (_, i) => <CardSkeleton key={i} />)}</div>
+        ) : (
+          <div className={`grid gap-3 ${gridClassName} ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
+            {articles.map((a) => <ArticleCard key={a.id} article={a} onOpen={onOpen} />)}
+          </div>
+        )}
       </div>
       {result && total > 0 && (
         <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-t border-border">
@@ -295,15 +378,15 @@ const ResultsPanel = ({ heading, subheading, actions, result, loading, loadingNo
               {PAGE_SIZES.map((n) => <SelectItem key={n} value={String(n)} className="text-xs">{n} per page</SelectItem>)}
             </SelectContent>
           </Select>
-          <span className="text-[11px] text-muted-foreground tabular-nums ml-auto">{from}–{to} of {total.toLocaleString()}</span>
-          <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Previous page"
-            disabled={loading || offset === 0} onClick={() => onPage(Math.max(0, offset - size), size)}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Next page"
-            disabled={loading || to >= total} onClick={() => onPage(offset + size, size)}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+          <div className="ml-auto flex items-center gap-1">
+            <PageButton label="First page" icon={ChevronsLeft} disabled={loading || offset === 0} onClick={() => onPage(0, size)} />
+            <PageButton label="Previous page" icon={ChevronLeft} disabled={loading || offset === 0} onClick={() => onPage(Math.max(0, offset - size), size)} />
+            <span className="px-2 text-[11px] text-muted-foreground tabular-nums">
+              Page <span className="font-semibold text-foreground">{page}</span> of {pages.toLocaleString()}
+            </span>
+            <PageButton label="Next page" icon={ChevronRight} disabled={loading || to >= total} onClick={() => onPage(offset + size, size)} />
+            <PageButton label="Last page" icon={ChevronsRight} disabled={loading || page >= pages} onClick={() => onPage((pages - 1) * size, size)} />
+          </div>
         </div>
       )}
     </div>
@@ -412,7 +495,6 @@ const SavedExplorer = ({ sources, sourcesStatus, byId, onOpen }) => {
 
   useEffect(() => { load({ filters: EMPTY_FILTERS, range: EMPTY_RANGE }, 0, 20); }, [load]);
 
-  const total = result?.count ?? 0;
   const narrowed = hasFilters(submitted.filters) || submitted.range.from || submitted.range.to;
   const rangeLabel = [submitted.range.from && `from ${submitted.range.from}`, submitted.range.to && `to ${submitted.range.to}`].filter(Boolean).join(' ');
 
@@ -433,7 +515,9 @@ const SavedExplorer = ({ sources, sourcesStatus, byId, onOpen }) => {
 
       <ResultsPanel
         className="lg:h-[calc(100dvh-22rem)]"
-        heading={result ? `${total.toLocaleString()} saved article${total === 1 ? '' : 's'}` : 'Saved articles'}
+        gridClassName="grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+        heading="Saved articles"
+        meta="from your workspace"
         subheading={narrowed
           ? [submitted.filters.keyword.trim() && `“${submitted.filters.keyword.trim()}”`, describeFilters(submitted.filters, nameOf), rangeLabel].filter(Boolean).join(' · ')
           : 'Everything your workspace’s searches have collected, newest first'}
@@ -610,8 +694,9 @@ const NewsWorkspace = () => {
   /** Live search. searchId continues an existing search (paging); omit it to start a new one. */
   const runLive = useCallback(async (f, offset, pageSize, searchId = null) => {
     const id = ++reqRef.current;
+    const started = Date.now();
     setLoading('live');
-    setStartedAt(Date.now());
+    setStartedAt(started);
     setError('');
     try {
       const params = { ...toParams(f), limit: pageSize, offset };
@@ -619,7 +704,7 @@ const NewsWorkspace = () => {
       const data = await newsApi.getArticles(params);
       if (id !== reqRef.current) return;
       setResult(data);
-      setActive({ mode: 'live', filters: f, searchId: data?.saved?.search_id || searchId });
+      setActive({ mode: 'live', filters: f, searchId: data?.saved?.search_id || searchId, took: (Date.now() - started) / 1000 });
       if (data?.saved?.error) toast.warning(data.saved.error);
       // A new search, or page 1 re-run (load the rest / page size) that can raise its count.
       if (data?.saved?.search_id && offset === 0) loadSearches();
@@ -680,7 +765,6 @@ const NewsWorkspace = () => {
     }
   };
 
-  const total = result?.count ?? 0;
   const countries = useMemo(() => new Set(sources.map((s) => s.country).filter(Boolean)).size, [sources]);
   const languages = useMemo(() => new Set(sources.map((s) => s.language).filter(Boolean)).size, [sources]);
   const H = HEALTH[health.status];
@@ -791,8 +875,9 @@ const NewsWorkspace = () => {
           <ResultsPanel
             className="lg:h-[calc(100dvh-20rem)]"
             heading={result
-              ? `${total.toLocaleString()} ${stored ? 'saved ' : ''}article${total === 1 ? '' : 's'}`
+              ? (stored ? 'Saved search' : 'Live results')
               : loading === 'stored' ? 'Opening…' : 'Searching…'}
+            meta={stored ? 'from your workspace' : active?.took != null ? `${active.took.toFixed(1)}s` : ''}
             subheading={active && [
               active.filters.keyword?.trim() && `“${active.filters.keyword.trim()}”`,
               describeFilters(active.filters, nameOf),

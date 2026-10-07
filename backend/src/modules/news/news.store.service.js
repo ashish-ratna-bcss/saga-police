@@ -192,10 +192,13 @@ const recordSearchPage = async (db, { user, query, data }) => {
 
 /* ---------- read ---------- */
 
+// Lists leave out the full text (it can be 15 KB+ per article) but keep its length,
+// so cards can say "Read full article · N words".
 const LIST_COLUMNS = Prisma.sql`
   a.article_id AS id, a.title, a.summary, a.source, a.source_id, a.source_url, a.language,
   a.country, a.state, a.district, a.location, a.image_url, a.published_at,
-  a.first_seen_at, a.last_seen_at, a.seen_count`;
+  a.first_seen_at, a.last_seen_at, a.seen_count,
+  COALESCE(array_length(regexp_split_to_array(NULLIF(btrim(a.content), ''), '\\s+'), 1), 0) AS word_count`;
 
 const iLike = (column, values) =>
   Prisma.sql`(${Prisma.join(values.map((v) => Prisma.sql`${Prisma.raw(column)} ILIKE ${`%${v}%`}`), ' OR ')})`;
