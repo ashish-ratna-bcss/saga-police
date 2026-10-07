@@ -143,11 +143,6 @@ const classifyEventRelevance = (text, eventInput, keywordsList = [], eventLocati
   const profile = getEventAnchorProfile(eventInput, keywordsList, eventLocation, eventDescription);
   const { cleanTitle, titleTokens, locationTokens, descTokens, anchoredKeywords, unanchoredKeywords } = profile;
 
-  // 1. Direct Title Match (post contains exact event name)
-  if (cleanTitle.length >= 6 && cleanText.includes(cleanTitle)) {
-    return { isRelevant: true, score: 100, reason: 'direct_title_match' };
-  }
-
   const postTokens = new Set(tokenize(cleanText));
 
   // Check whole-word token overlaps against dynamic event profile
@@ -156,6 +151,26 @@ const classifyEventRelevance = (text, eventInput, keywordsList = [], eventLocati
   const matchedDescs = descTokens.filter((d) => postTokens.has(d));
   const matchedCoreAnchors = [...matchedLocs, ...matchedTitles, ...matchedDescs];
   const hasCoreAnchor = matchedCoreAnchors.length > 0;
+
+  const FOREIGN_OUT_OF_SCOPE_RE = /\b(france|paris|french|gaza|israel|palestine|ukraine|russia|bangladesh|pakistan|nepal|australia|sydney|melbourne|london|britain|uk|united kingdom|usa|america|washington|california|new york|texas|florida|germany|berlin|spain|madrid|italy|rome|canada|toronto|ottawa)\b/i;
+
+  const hasExplicitEventFigure = /\b(nityananda gond|school thik karo|cockroach janta party|nycs|navnirman yuva|textbook error|textbook printing)\b/i.test(cleanText);
+
+  // If event is localized, strictly reject foreign / out-of-scope country discussions unless explicitly tied to event figure
+  if (locationTokens.length > 0 && FOREIGN_OUT_OF_SCOPE_RE.test(cleanText) && !hasExplicitEventFigure && matchedLocs.length === 0) {
+    return { isRelevant: false, score: 0, reason: 'foreign_out_of_scope_location' };
+  }
+
+  // If event has designated location, check for conflicting domestic landmarks (e.g. Jantar Mantar / Delhi for an Odisha event)
+  const isDifferentDomesticLandmark = /\b(jantar mantar|delhi police|bengaluru police|mumbai police|hyderabad police)\b/i.test(cleanText);
+  if (locationTokens.length > 0 && matchedLocs.length === 0 && isDifferentDomesticLandmark && !hasExplicitEventFigure) {
+    return { isRelevant: false, score: 10, reason: 'out_of_state_domestic_landmark' };
+  }
+
+  // 1. Direct Title Match (post contains exact event name)
+  if (cleanTitle.length >= 6 && cleanText.includes(cleanTitle)) {
+    return { isRelevant: true, score: 100, reason: 'direct_title_match' };
+  }
 
   // 2. Inherently Anchored Keyword Match (e.g. #OdishaEducationProtest, CJP School Thik Karo)
   const matchedAnchored = anchoredKeywords.filter((ak) => {
@@ -167,12 +182,15 @@ const classifyEventRelevance = (text, eventInput, keywordsList = [], eventLocati
   });
 
   if (matchedAnchored.length > 0) {
-    return {
-      isRelevant: true,
-      score: 95,
-      reason: 'anchored_keyword_match',
-      matched: matchedAnchored.map((a) => a.raw),
-    };
+    // If event has location, require either location match, figure match, or multi-word anchored keyword
+    if (locationTokens.length === 0 || matchedLocs.length > 0 || hasExplicitEventFigure || matchedAnchored.some((a) => a.lower.length > 12)) {
+      return {
+        isRelevant: true,
+        score: 95,
+        reason: 'anchored_keyword_match',
+        matched: matchedAnchored.map((a) => a.raw),
+      };
+    }
   }
 
   // 3. Unanchored Keyword Match (e.g. #Developers, #TechCommunity, #FutureTech, demanding)
@@ -186,7 +204,7 @@ const classifyEventRelevance = (text, eventInput, keywordsList = [], eventLocati
   });
 
   if (matchedUnanchored.length > 0) {
-    if (hasCoreAnchor) {
+    if (hasCoreAnchor && (locationTokens.length === 0 || matchedLocs.length > 0 || hasExplicitEventFigure)) {
       return {
         isRelevant: true,
         score: 75,
@@ -214,7 +232,7 @@ const classifyEventRelevance = (text, eventInput, keywordsList = [], eventLocati
   }
 
   // 5. Multi-token Title Match (>= 2 distinct core title tokens present in post)
-  if (matchedTitles.length >= 2) {
+  if (matchedTitles.length >= 2 && (locationTokens.length === 0 || matchedLocs.length > 0 || hasExplicitEventFigure)) {
     return {
       isRelevant: true,
       score: 80,

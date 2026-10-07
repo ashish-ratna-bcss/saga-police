@@ -147,15 +147,23 @@ const VISIT_RE =
   /(?:visit(?:ed|ing)?|participat(?:ed|ing)|tour|press\s*conference|rally|protest|bandh|blockade|blocked|gherao|hunger\s*strike|inspected|inspection|meeting|yatra|padayatra|morcha|highway)/i;
 
 const SKIP_PLACE = new Set([
-  'the', 'this', 'that', 'today', 'yesterday', 'watch', 'students', 'student', 'protest',
-  'massive', 'national', 'public', 'people', 'letter', 'state', 'india', 'news', 'post',
-  'call', 'called', 'bandh', 'rally', 'meeting', 'campaign', 'minister', 'government',
-  'police', 'education', 'school', 'assembly', 'wednesday', 'tomorrow', 'september',
-  'october', 'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august',
-  'november', 'december', 'love', 'books', 'classes', 'corruption', 'easy', 'solution',
-  'farmer', 'farmers', 'drought', 'water', 'washroom', 'washroomthikkaro', 'schoolthikkaro',
-  'vaishnavism', 'fakebjp', 'kyaboltipublic', 'bjd', 'bjp', 'congress', 'techcommunity',
-  'innovation', 'developers', 'futuretech', 'updates', 'live', 'breaking', 'report',
+  'the', 'this', 'that', 'today', 'yesterday', 'tomorrow', 'tonight', 'morning', 'afternoon', 'evening', 'night',
+  'watch', 'students', 'student', 'protest', 'protests', 'protesting', 'massive', 'national', 'public', 'people',
+  'letter', 'state', 'india', 'news', 'post', 'posts', 'call', 'called', 'bandh', 'rally', 'meeting', 'campaign',
+  'minister', 'ministers', 'government', 'police', 'education', 'school', 'schools', 'assembly',
+  // Days of week
+  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+  'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun',
+  // Months
+  'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december',
+  'jan', 'feb', 'mar', 'apr', 'jun', 'jul', 'aug', 'sep', 'sept', 'oct', 'nov', 'dec',
+  // Foreign countries & out-of-scope non-places
+  'france', 'paris', 'french', 'usa', 'uk', 'gaza', 'israel', 'palestine', 'australia', 'canada', 'germany', 'spain', 'italy',
+  'russia', 'ukraine', 'china', 'pakistan', 'bangladesh', 'nepal', 'sri lanka', 'london', 'washington',
+  'love', 'books', 'classes', 'corruption', 'easy', 'solution', 'farmer', 'farmers', 'drought', 'water',
+  'washroom', 'washroomthikkaro', 'schoolthikkaro', 'vaishnavism', 'fakebjp', 'kyaboltipublic', 'bjd', 'bjp', 'congress',
+  'techcommunity', 'innovation', 'developers', 'futuretech', 'updates', 'live', 'breaking', 'report',
+  'central university', 'supreme court', 'high court', 'election commission', 'delhi police'
 ]);
 
 /** Places written in the post: datelines, institutions, highways, and specific place names. */
@@ -571,8 +579,10 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   // Geographic penetration
   const placeMap = {};
   sortByLatest(ev).forEach((e) => {
+    if (e.is_relevant === false) return;
     const named = e.specific.length ? e.specific : e.places;
     named.forEach((d) => {
+      if (!d || SKIP_PLACE.has(d.toLowerCase())) return;
       placeMap[d] = placeMap[d] || { count: 0, sample: null };
       placeMap[d].count += 1;
       if (!placeMap[d].sample) placeMap[d].sample = e;
