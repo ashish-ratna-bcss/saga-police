@@ -1,18 +1,18 @@
 /**
- * Per-tenant storage for Tools → News.
- *
- * The news API only caches articles in memory for ~10 minutes, so every article a
- * tenant's search returns is kept in that tenant's own database (req.tenantPrisma),
- * together with who searched what. Tenants never share rows: each has its own DB.
+ * Per-tenant storage for Tools → News. The tenant's own database (req.tenantPrisma) is
+ * what the News page shows: every search reads news_articles with its filters, and a
+ * live fetch from the news API only adds to it (saveCollected). So past coverage stays
+ * searchable after it has dropped off the news sites. Tenants never share rows.
  *
  * Tables are created on first use (like search_history), so they only exist in tenant
  * DBs where someone with Analysis Tools access has used News. To create them up front
  * for every tenant with that access, run: node scripts/ensure-news-tables.js
  *
- *   news_articles         one row per article (article_id = upstream sha256(url)[:16],
- *                         stable across scrapes, so re-seeing an article updates it)
- *   news_searches         one row per search: user, filters, upstream total
- *   news_search_articles  which articles each search returned, in result order
+ *   news_articles  every collected article (article_id = upstream sha256(url)[:16],
+ *                  stable across scrapes, so re-seeing an article updates its row)
+ *   news_searches  search history: who searched what, with which filters, when
+ *
+ * (Older installs also have news_search_articles; it is no longer read or written.)
  */
 
 const { Prisma } = require('../../generated/tenant-client');
@@ -72,13 +72,7 @@ const ensureNewsTables = async (prisma) => {
     )`,
     `CREATE INDEX IF NOT EXISTS idx_news_searches_created ON news_searches (created_at DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_news_searches_user ON news_searches (user_id, created_at DESC)`,
-    `CREATE TABLE IF NOT EXISTS news_search_articles (
-      search_id BIGINT NOT NULL REFERENCES news_searches(id) ON DELETE CASCADE,
-      article_id TEXT NOT NULL REFERENCES news_articles(article_id) ON DELETE CASCADE,
-      position INTEGER NOT NULL,
-      PRIMARY KEY (search_id, article_id)
-    )`,
-    `CREATE INDEX IF NOT EXISTS idx_news_search_articles_article ON news_search_articles (article_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_news_articles_first_seen ON news_articles (first_seen_at DESC)`,
   ];
   for (const sql of statements) {
     await prisma.$executeRawUnsafe(sql);
@@ -127,6 +121,7 @@ const pickSearchFilters = (query = {}) => {
 
 /* ---------- write ---------- */
 
+/** Upserts articles; returns how many were new to this tenant. */
 const upsertArticles = async (tx, articles) => {
   const rows = articles
     .filter((a) => a && a.id)
@@ -137,9 +132,10 @@ const upsertArticles = async (tx, articles) => {
   if (!rows.length) return 0;
 
   // A re-scrape can come back thinner (e.g. no body extracted this time), so never
-  // overwrite stored text with an empty value.
+  // overwrite stored text with an empty value. xmax = 0 marks rows that were
+  // inserted rather than updated.
   const keep = (f) => Prisma.raw(`${f} = COALESCE(NULLIF(EXCLUDED.${f}, ''), news_articles.${f})`);
-  await tx.$executeRaw`
+  const written = await tx.$queryRaw`
     INSERT INTO news_articles (article_id, ${Prisma.raw(ARTICLE_TEXT_FIELDS.join(', '))}, published_at)
     VALUES ${Prisma.join(rows)}
     ON CONFLICT (article_id) DO UPDATE SET
@@ -147,61 +143,52 @@ const upsertArticles = async (tx, articles) => {
       published_at = COALESCE(EXCLUDED.published_at, news_articles.published_at),
       last_seen_at = NOW(),
       seen_count = news_articles.seen_count + 1
+    RETURNING (xmax = 0) AS inserted
   `;
-  return rows.length;
+  return written.filter((r) => r.inserted).length;
 };
 
 /**
- * Store one page of a live search for the caller's tenant.
- * A request without a (known) search_id starts a new news_searches row; paging or
- * re-paging that search passes the search_id back so its articles join the same row.
+ * Save what a live fetch returned for the caller's tenant and log the search.
+ * A known search_id (re-fetching the same search, e.g. "fetch the rest") updates that
+ * history row instead of adding another.
  *
- * @returns {Promise<{ search_id: string, stored: number }>}
+ * collected_at is the transaction's NOW() — the exact first_seen_at of every article
+ * this fetch added — so the page can tag them "New" using database time only.
+ *
+ * @param {{ user, query, articles: object[], liveCount: number }} collected
+ * @returns {Promise<{ search_id: string, fetched: number, new: number, collected_at: Date }>}
  */
-const recordSearchPage = async (db, { user, query, data }) => {
+const saveCollected = async (db, { user, query = {}, articles = [], liveCount = 0 }) => {
   const prisma = dbOf(db);
   await ensureNewsTables(prisma);
 
-  // The upstream API dedupes by id, but guard anyway: ON CONFLICT can't touch one row twice.
+  // Pages can overlap if sources finish between calls; ON CONFLICT can't touch a row twice.
   const seen = new Set();
-  const articles = (Array.isArray(data?.articles) ? data.articles : [])
-    .filter((a) => a?.id && !seen.has(a.id) && seen.add(a.id));
-  const offset = toInt(data?.offset ?? query.offset, 0);
+  const unique = articles.filter((a) => a?.id && !seen.has(a.id) && seen.add(a.id));
   const requestedSearchId = /^\d+$/.test(String(query.search_id || '')) ? String(query.search_id) : null;
 
   return prisma.$transaction(async (tx) => {
-    const stored = await upsertArticles(tx, articles);
+    const [{ now: collectedAt }] = await tx.$queryRaw`SELECT NOW() AS now`;
+    const inserted = await upsertArticles(tx, unique);
 
     let searchId = null;
     if (requestedSearchId) {
-      // Re-running a search can find more than the first run (sources that were
-      // still loading upstream have finished), so keep the larger total.
       const found = await tx.$queryRaw`
-        UPDATE news_searches SET result_count = GREATEST(result_count, ${toInt(data?.count, 0)})
+        UPDATE news_searches SET result_count = GREATEST(result_count, ${toInt(liveCount, 0)})
         WHERE id = ${BigInt(requestedSearchId)}
         RETURNING id`;
       if (found.length) searchId = String(found[0].id);
     }
     if (!searchId) {
-      const filters = pickSearchFilters(query);
       const created = await tx.$queryRaw`
         INSERT INTO news_searches (user_id, user_name, filters, result_count)
         VALUES (${user?.id != null ? Number(user.id) : null}, ${user?.name || user?.username || null},
-                ${JSON.stringify(filters)}::jsonb, ${toInt(data?.count, articles.length)})
-        RETURNING id
-      `;
+                ${JSON.stringify(pickSearchFilters(query))}::jsonb, ${toInt(liveCount, unique.length)})
+        RETURNING id`;
       searchId = String(created[0].id);
     }
-
-    if (articles.length) {
-      const links = articles.map((a, i) => Prisma.sql`(${BigInt(searchId)}, ${String(a.id)}, ${offset + i})`);
-      await tx.$executeRaw`
-        INSERT INTO news_search_articles (search_id, article_id, position)
-        VALUES ${Prisma.join(links)}
-        ON CONFLICT (search_id, article_id) DO NOTHING
-      `;
-    }
-    return { search_id: searchId, stored };
+    return { search_id: searchId, fetched: unique.length, new: inserted, collected_at: collectedAt };
   });
 };
 
@@ -254,10 +241,6 @@ const page = (query) => ({
   offset: toInt(query.offset, 0),
 });
 
-// The per-word flag columns (kt0, kh0, kr0, kp) keywordSql adds are internal.
-const FLAG_COLUMN = /^k[thrp]\d*$/;
-const withoutFlags = (row) => Object.fromEntries(Object.entries(row).filter(([k]) => !FLAG_COLUMN.test(k)));
-
 /** Raw-text column for Indian-script words, only computed when a keyword has them. */
 const hayColumns = (keyword) => (keyword.needsHay ? Prisma.sql`, ${HAY_COLUMNS}` : Prisma.empty);
 
@@ -275,11 +258,12 @@ const scoringColumns = (keyword) => {
 };
 
 /**
- * Every article this tenant has collected. Same shape as the live search: with a
- * keyword (one phrase or a comma-separated list), best matches first — see
- * news.keywords.js; otherwise newest first.
+ * What the News page shows: this tenant's collected articles, filtered (keyword or
+ * keyword list with min_match, country, language, state, district, source, location,
+ * from/to) and paged. With a keyword, best matches first (news.keywords.js);
+ * otherwise newest first.
  */
-const listSavedArticles = async (db, query = {}) => {
+const listArticles = async (db, query = {}) => {
   const prisma = dbOf(db);
   await ensureNewsTables(prisma);
   const { limit, offset } = page(query);
@@ -347,8 +331,7 @@ const listSearches = async (db, query = {}, user = null) => {
   const [countRows, rows] = await Promise.all([
     prisma.$queryRaw`SELECT COUNT(*)::int AS count FROM news_searches`,
     prisma.$queryRaw`
-      SELECT s.id, s.user_id, s.user_name, s.filters, s.result_count, s.created_at,
-             (SELECT COUNT(*)::int FROM news_search_articles l WHERE l.search_id = s.id) AS stored_count
+      SELECT s.id, s.user_id, s.user_name, s.filters, s.result_count, s.created_at
       FROM news_searches s
       ORDER BY s.created_at DESC, s.id DESC
       LIMIT ${limit} OFFSET ${offset}`,
@@ -362,52 +345,7 @@ const listSearches = async (db, query = {}, user = null) => {
   return { count: countRows[0]?.count || 0, limit, offset, items };
 };
 
-/** Articles a stored search returned, in their original order. */
-const listSearchArticles = async (db, searchId, query = {}) => {
-  if (!/^\d+$/.test(String(searchId))) throw httpError(404, 'Search not found');
-  const prisma = dbOf(db);
-  await ensureNewsTables(prisma);
-  const { limit, offset } = page(query);
-  const id = BigInt(searchId);
-
-  const search = await prisma.$queryRaw`
-    SELECT id, user_id, user_name, filters, result_count, created_at FROM news_searches WHERE id = ${id}`;
-  if (!search.length) throw httpError(404, 'Search not found');
-  // Recompute which of the search's words/phrases each article matched, for the
-  // card badges; the order stays as the live search ranked it.
-  const keyword = keywordSql(search[0].filters?.keyword, search[0].filters?.min_match);
-
-  // Page first (stored order needs no scoring), then flag only that page's rows.
-  // OFFSET 0 fences: see listSavedArticles.
-  const [countRows, articles] = await Promise.all([
-    prisma.$queryRaw`SELECT COUNT(*)::int AS count FROM news_search_articles WHERE search_id = ${id}`,
-    prisma.$queryRaw`
-      WITH page AS (
-        SELECT l.article_id, l.position FROM news_search_articles l
-        WHERE l.search_id = ${id}
-        ORDER BY l.position
-        LIMIT ${limit} OFFSET ${offset}
-      )
-      SELECT s.*, ${keyword.select}
-      FROM (
-        SELECT ${LIST_COLUMNS}, a.position ${keyword.flags}
-        FROM (SELECT a.*, p.position ${hayColumns(keyword)} FROM page p JOIN news_articles a ON a.article_id = p.article_id OFFSET 0) a
-        OFFSET 0
-      ) s
-      ORDER BY s.position`,
-  ]);
-  return {
-    search: { ...search[0], id: String(search[0].id) },
-    count: countRows[0]?.count || 0,
-    limit,
-    offset,
-    articles: articles.map(({ position, ...a }) => withoutFlags(a)),
-    query_terms: keyword.terms,
-    query_phrases: keyword.phrases,
-  };
-};
-
-/** Delete a search the caller ran. Its articles stay in the tenant archive. */
+/** Delete a search the caller ran from the history. Its articles stay saved. */
 const deleteSearch = async (db, searchId, user) => {
   if (!/^\d+$/.test(String(searchId))) throw httpError(404, 'Search not found');
   const prisma = dbOf(db);
@@ -421,10 +359,9 @@ const deleteSearch = async (db, searchId, user) => {
 module.exports = {
   ensureNewsTables,
   pickSearchFilters,
-  recordSearchPage,
-  listSavedArticles,
+  saveCollected,
+  listArticles,
   getSavedArticle,
   listSearches,
-  listSearchArticles,
   deleteSearch,
 };

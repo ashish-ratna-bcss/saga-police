@@ -5,6 +5,7 @@ jest.mock('./apiHandler', () => ({
   __esModule: true,
   default: {
     get: jest.fn(),
+    post: jest.fn(),
     delete: jest.fn(),
   },
 }));
@@ -13,6 +14,7 @@ describe('newsApi', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     apiHandler.get.mockResolvedValue({ data: { ok: true } });
+    apiHandler.post.mockResolvedValue({ data: { ok: true } });
   });
 
   test('health hits /news/health', async () => {
@@ -27,11 +29,15 @@ describe('newsApi', () => {
     });
   });
 
-  test('getArticles forwards filters and paging', async () => {
-    await newsApi.getArticles({ state: 'Telangana', limit: 20, offset: 40 });
-    expect(apiHandler.get).toHaveBeenCalledWith('/news/articles', {
-      params: { state: 'Telangana', limit: 20, offset: 40 },
-    });
+  test('getArticles reads saved articles with every filter', async () => {
+    const params = { keyword: 'textbook errors, NYCS', min_match: 2, state: 'Odisha', from: '2026-10-01', limit: 20, offset: 40 };
+    await newsApi.getArticles(params);
+    expect(apiHandler.get).toHaveBeenCalledWith('/news/articles', { params });
+  });
+
+  test('collect posts the search filters', async () => {
+    await newsApi.collect({ keyword: 'NYCS', state: 'Odisha', search_id: '7' });
+    expect(apiHandler.post).toHaveBeenCalledWith('/news/collect', { keyword: 'NYCS', state: 'Odisha', search_id: '7' });
   });
 
   test('getArticle encodes the id into the path', async () => {
@@ -39,18 +45,9 @@ describe('newsApi', () => {
     expect(apiHandler.get).toHaveBeenCalledWith('/news/articles/a%2Fb%20c');
   });
 
-  test('getSaved forwards filters and date range', async () => {
-    await newsApi.getSaved({ language: 'Telugu', from: '2026-10-01', limit: 20, offset: 0 });
-    expect(apiHandler.get).toHaveBeenCalledWith('/news/saved', {
-      params: { language: 'Telugu', from: '2026-10-01', limit: 20, offset: 0 },
-    });
-  });
-
-  test('searches: list, open and delete', async () => {
+  test('searches: list and delete', async () => {
     await newsApi.getSearches({ limit: 30 });
     expect(apiHandler.get).toHaveBeenCalledWith('/news/searches', { params: { limit: 30 } });
-    await newsApi.getSearchArticles('42', { limit: 20, offset: 20 });
-    expect(apiHandler.get).toHaveBeenCalledWith('/news/searches/42/articles', { params: { limit: 20, offset: 20 } });
     await newsApi.deleteSearch('42');
     expect(apiHandler.delete).toHaveBeenCalledWith('/news/searches/42');
   });

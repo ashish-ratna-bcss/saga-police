@@ -1,7 +1,9 @@
 import apiHandler from './apiHandler';
 
-// Blura News API via BluGate (backend /api/news → gateway news-api).
-// Multi-select filters are comma-separated strings: values within one filter are ORed,
+// Tools → News. The page shows the tenant's own saved articles (database); a live
+// fetch from the news API (via BluGate) only adds to them.
+// Keyword: one phrase, or a list of phrases separated by commas / new lines.
+// Facet filters are comma-separated strings: values within one filter are ORed,
 // different filters are ANDed.
 export const newsApi = {
   health: async () => {
@@ -9,43 +11,37 @@ export const newsApi = {
     return response.data;
   },
 
-  // params = { country?, state?, language?, source? } → Source[]
+  // params = { country?, state?, language?, source? } → Source[] (live registry)
   getSources: async (params = {}) => {
     const response = await apiHandler.get('/news/sources', { params });
     return response.data;
   },
 
-  // params = { keyword?, country?, language?, location?, state?, district?, source?, limit?, offset?, search_id? }
-  // → { count, limit, offset, articles[], saved: { search_id, stored } | null }.
-  // A cold search can take 60–90 s (live scraping). Results are also stored in the
-  // tenant's own DB; pass search_id back when paging so pages join the same search.
+  // Saved articles with filters — what the page shows.
+  // params = { keyword?, min_match?, country?, language?, state?, source?, location?, from?, to?, limit?, offset? }
+  // → { count, limit, offset, articles[], query_terms, query_phrases }
   getArticles: async (params = {}) => {
     const response = await apiHandler.get('/news/articles', { params });
     return response.data;
   },
 
-  // Live copy while upstream still caches it (~10 min), else the tenant's stored copy.
+  // Fetch the latest matching articles from news sites and save them (up to ~30 s).
+  // body = the search's filters (+ search_id to update that history entry)
+  // → { search_id, fetched, new, live_count, pending_sources }
+  collect: async (body = {}) => {
+    const response = await apiHandler.post('/news/collect', body);
+    return response.data;
+  },
+
+  // One article with full text (saved copy, else live).
   getArticle: async (articleId) => {
     const response = await apiHandler.get(`/news/articles/${encodeURIComponent(articleId)}`);
     return response.data;
   },
 
-  // Tenant archive: params = article filters + { from?, to? (YYYY-MM-DD), limit?, offset? }
-  // → { count, limit, offset, articles[] } (without full text).
-  getSaved: async (params = {}) => {
-    const response = await apiHandler.get('/news/saved', { params });
-    return response.data;
-  },
-
-  // Searches run in this tenant → { count, limit, offset, items[] }
+  // Searches run in this workspace → { count, limit, offset, items[] }
   getSearches: async (params = {}) => {
     const response = await apiHandler.get('/news/searches', { params });
-    return response.data;
-  },
-
-  // Articles a stored search returned → { search, count, limit, offset, articles[] }
-  getSearchArticles: async (searchId, params = {}) => {
-    const response = await apiHandler.get(`/news/searches/${encodeURIComponent(searchId)}/articles`, { params });
     return response.data;
   },
 
