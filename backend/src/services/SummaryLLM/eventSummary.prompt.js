@@ -58,6 +58,7 @@ const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only (no conversational text, n
  "geography": [{"place": "specific place, not only the state", "note": "what the posts say happened there", "posts": [1]}],
  "leaders": [{"name": "person named in a post", "role": "how the post describes them", "posts": [1]}],
  "amplifiers": [{"account": "page or handle", "why": "how they amplify", "posts": [1]}],
+ "high_monitoring_profiles": [{"platform": "x / youtube / facebook / telegram / reddit", "account": "channel or handle name", "priority": "High Watch or Active Monitor", "why_monitor": "concrete surveillance rationale: reach, critical narrative, repeat broadcast, or mobilization role", "posts": [1]}],
  "source_types": {"1": "media", "2": "creator", "3": "individual"}   // EVERY post number; media = outlet/agency/think tank/official, creator = channel/page/blog, individual = personal account
 }
 claims: 0-8 factual assertions (not opinions). VERIFY = checkable against an official source; MONITOR = theme to watch. changes: only if a post itself states a before/after. Finish every field; shorten paragraphs rather than dropping fields. Output valid complete JSON.`;
@@ -380,6 +381,19 @@ const parseLLMReport = (raw, evidence) => {
     };
   });
 
+  const highMonitoringProfiles = briefRows(obj.high_monitoring_profiles, (p) => {
+    const posts = ids(p.posts);
+    const account = str(p.account, 80);
+    if (!account) return null;
+    return {
+      platform: str(p.platform, 30),
+      account,
+      priority: str(p.priority, 40) || 'High Watch',
+      whyMonitor: str(p.why_monitor || p.whyMonitor || p.why, 280),
+      posts,
+    };
+  });
+
   const report = {
     threatLevel: str(obj.threat_level, 80),
     threatDesc: str(obj.threat_desc, 300),
@@ -401,6 +415,7 @@ const parseLLMReport = (raw, evidence) => {
     geography,
     leaders,
     amplifiers,
+    highMonitoringProfiles,
     sourceTypes,
     postNarrative,
   };

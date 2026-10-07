@@ -282,6 +282,12 @@ tr{break-inside:avoid}thead{display:table-header-group}
 .watch-box h4{margin:0 0 1.2mm;font-size:7.8pt;color:#92400e;text-transform:uppercase;letter-spacing:.04em}
 .watch-box ul{margin:0;padding:0;list-style:none}
 .watch-box li{font-size:7.6pt;color:#78350f;margin-bottom:1mm;line-height:1.3}
+.plat-badge{display:inline-block;padding:.8mm 2mm;border-radius:2px;font-size:6.3pt;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.prio-pill{display:inline-block;padding:.8mm 1.8mm;border-radius:2px;font-size:6.2pt;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.prio-high{background:#fef2f2;color:#991b1b;border:.5px solid #fecaca}
+.prio-med{background:#f0fdf4;color:#166534;border:.5px solid #bbf7d0}
+.author-handle{font-weight:700;color:${INK}}
+.reason-text{font-size:7.2pt;color:#334155;line-height:1.3}
 `;
 
 const POS = '#10b981';
@@ -514,17 +520,67 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     ev.filter((e) => e.sentK === 'negative' || ['critical', 'high'].includes(String(e.risk_level || '').toLowerCase()))
   );
 
-  // Amplifiers / authors
+  // Amplifiers / high monitoring profiles
   const authors = {};
   ev.forEach((e) => {
     const key = `${e.plat}|${e.author}`;
-    authors[key] = authors[key] || { author: e.author, platform: e.plat, count: 0, eng: 0, sample: e.text };
+    authors[key] = authors[key] || {
+      author: e.author,
+      platform: e.plat,
+      count: 0,
+      eng: 0,
+      criticalCount: 0,
+      posts: [],
+      sample: e.text,
+    };
     authors[key].count += 1;
-    authors[key].eng += e.eng;
+    authors[key].eng += (e.eng || 0);
+    if (e.sentK === 'negative' || ['critical', 'high'].includes(String(e.risk_level || '').toLowerCase())) {
+      authors[key].criticalCount += 1;
+    }
+    if (e.n) authors[key].posts.push(e.n);
   });
-  const promoters = Object.values(authors)
+
+  const highWatchList = Object.values(authors)
     .sort((a, b) => b.eng - a.eng || b.count - a.count)
-    .slice(0, 20);
+    .slice(0, 18)
+    .map((a) => {
+      const matchHmp = (analysis?.highMonitoringProfiles || []).find(
+        (hmp) => hmp.account && (
+          hmp.account.toLowerCase().includes(a.author.toLowerCase()) ||
+          a.author.toLowerCase().includes(hmp.account.toLowerCase())
+        )
+      );
+      const matchAmp = (analysis?.amplifiers || []).find(
+        (amp) => amp.account && (
+          amp.account.toLowerCase().includes(a.author.toLowerCase()) ||
+          a.author.toLowerCase().includes(amp.account.toLowerCase())
+        )
+      );
+
+      let why = matchHmp?.whyMonitor || matchAmp?.why || '';
+      if (!why) {
+        if (a.eng >= 40000) {
+          why = `Primary digital amplifier with viral traction (${fmt(a.eng)} views/reach); driving major public reach.`;
+        } else if (a.criticalCount > 0) {
+          why = `Broadcaster of critical / adverse claims (${fmt(a.criticalCount)} negative posts); surveillance needed for unrest triggers.`;
+        } else if (a.count >= 3) {
+          why = `High-cadence repeat broadcaster (${fmt(a.count)} posts); tracks and amplifies campaign narratives across network.`;
+        } else {
+          why = `Active platform voice regularly circulating event-related posts and commentary.`;
+        }
+      }
+
+      const isHighPriority = a.eng >= 20000 || a.criticalCount >= 2 || (matchHmp?.priority && /high/i.test(matchHmp.priority));
+      return {
+        ...a,
+        why,
+        priority: isHighPriority ? 'High Watch' : 'Active Monitor',
+        priorityClass: isHighPriority ? 'prio-high' : 'prio-med',
+      };
+    });
+
+  const promoters = highWatchList;
 
   // Targets from entity classification (tenant/event data — not hardcoded orgs)
   const entities = Object.entries(stats.target_classification || {})
@@ -1013,34 +1069,50 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${(analysis?.leaders || []).length ? `<ul class="bul">${analysis.leaders.map((l) => `<li><b>${esc(l.name)}</b>${l.role ? ` — ${esc(l.role)}` : ''}${l.posts?.length ? ` <span class="sm">${esc(l.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : ''}
   ${analysis?.platformsCommentary ? `<p>${esc(analysis.platformsCommentary)}</p>` : ''}
 
-  <div class="sec"><span class="no">08.</span><span class="nm">Influencer ecosystem</span></div>
+  <div class="sec"><span class="no">08.</span><span class="nm">Platform-wise high monitoring profiles</span></div>
   <div class="metrics">
-    ${metric(fmt(promoters.length), 'Accounts listed', 'Ranked by stored engagement')}
-    ${metric(topVoice ? fmt(topVoice.count) : '0', topVoice ? topVoice.author : 'Top account', topVoice ? platLabel(topVoice.platform) : '—')}
-    ${metric(topVoice ? fmt(topVoice.eng) : '0', 'Top engagement score', 'Likes + 2×comments + 3×shares + views/10')}
-    ${metric(fmt(eng.likes || 0), 'Likes', `${fmt(eng.shares || 0)} shares · ${fmt(eng.comments || 0)} comments`)}
+    ${metric(fmt(highWatchList.length), 'Profiles tracked', 'Monitored accounts categorized by platform')}
+    ${metric(fmt(highWatchList.filter((p) => p.priority === 'High Watch').length), 'High watch tier', 'Priority surveillance & escalation targets')}
+    ${metric(topVoice ? fmt(topVoice.count) : '0', topVoice ? clip(topVoice.author, 16) : 'Top account', topVoice ? platLabel(topVoice.platform) : '—')}
+    ${metric(fmt(engTotal), 'Total engagement', 'Combined reach of monitored accounts')}
   </div>
   <div class="chartbox">
-    <h4>Amplifying accounts</h4>
+    <h4>Top amplifying accounts by reach</h4>
     ${promoters.slice(0, 8).map((a) => hbar(a.author, a.eng, promoters[0]?.eng || 1, '#6366f1', `${a.count} posts`)).join('') || '<p class="sm">No accounts in this set.</p>'}
   </div>
-  ${includeEvidence ? `<p class="sm">Accounts ranked by how often they post in this set and by likes, comments, shares, and views stored on those posts.</p>
+  <p class="sm">Platform-wise profile register for active surveillance, threat triage, and counter-messaging. Each profile includes platform origin, threat priority, reach, and reason for monitoring.</p>
   <table>
     <colgroup>
       <col style="width:13%">
-      <col style="width:22%">
-      <col style="width:12%">
-      <col style="width:15%">
-      <col style="width:38%">
+      <col style="width:20%">
+      <col style="width:14%">
+      <col style="width:13%">
+      <col style="width:40%">
     </colgroup>
-    <thead><tr><th>Platform</th><th>Account</th><th>Posts</th><th>Eng. score</th><th>Sample</th></tr></thead>
-    <tbody>${promoterRows || '<tr><td colspan="5">No amplifier data in cited evidence.</td></tr>'}</tbody>
-  </table>` : ''}
+    <thead>
+      <tr>
+        <th>Platform</th>
+        <th>Profile / Channel</th>
+        <th>Priority</th>
+        <th>Posts & Reach</th>
+        <th>Why to Monitor (Surveillance Rationale)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${highWatchList.length ? highWatchList.slice(0, 12).map((p) => `
+        <tr>
+          <td><span class="plat-badge" style="background:${platColor(p.platform)}">${esc(platLabel(p.platform))}</span></td>
+          <td><span class="author-handle">${esc(p.author)}</span></td>
+          <td><span class="prio-pill ${p.priorityClass}">${esc(p.priority)}</span></td>
+          <td><b>${fmt(p.count)}</b> posts<br><span class="sm">${fmt(p.eng)} reach</span></td>
+          <td class="reason-text">${esc(p.why)}${p.posts?.length ? ` <span class="sm">${esc(p.posts.slice(0, 3).map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</td>
+        </tr>
+      `).join('') : '<tr><td colspan="5">No high monitoring profiles identified in this dataset.</td></tr>'}
+    </tbody>
+  </table>
   ${(analysis?.amplifiers || []).length
     ? `<ul class="bul">${analysis.amplifiers.map((a) => `<li><b>${esc(a.account)}</b> — ${esc(a.why || '')}${a.posts?.length ? ` <span class="sm">${esc(a.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>`
-    : promoters.length > 0
-      ? `<p class="sm">Top voices by engagement: ${promoters.slice(0, 5).map((p) => `<b>${esc(p.author)}</b> (${esc(platLabel(p.platform))})`).join(', ')}.</p>`
-      : `<p class="sm">No significant amplifying accounts or high-engagement voices detected in this dataset.</p>`}
+    : ''}
 
   ${evidenceSecHtml}
 
