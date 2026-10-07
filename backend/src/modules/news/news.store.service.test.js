@@ -154,6 +154,95 @@ async function runTests() {
     assert.strictEqual((await store.listSavedArticles(tenantA, {})).count, 3);
     console.log('✅ delete enforced and archive kept.');
 
+    console.log('Testing multi-word keyword ranking on saved articles...');
+    const kw = 'CJP School Thik Karo';
+    const ranked = await store.recordSearchPage(tenantA, {
+      user: asha,
+      query: { keyword: kw },
+      data: {
+        count: 5,
+        offset: 0,
+        articles: [
+          article('k_one', { title: 'New school building opened', content: 'Classes begin.', published_at: '2026-10-06T12:00:00Z' }),
+          article('k_all', { title: 'CJP school thik karo campaign', content: 'Workers asked to thik karo.', published_at: '2026-10-01T00:00:00Z' }),
+          article('k_two', { title: 'Leaders visit', content: 'CJP leaders at a school.', published_at: '2026-10-03T00:00:00Z' }),
+          article('k_skill', { title: "Bowler's skill praised", content: 'Cricket.', published_at: '2026-10-06T00:00:00Z' }),
+        ],
+      },
+    });
+    const byKw = await store.listSavedArticles(tenantA, { keyword: kw });
+    assert.deepStrictEqual(byKw.query_terms, ['cjp', 'school', 'thik', 'karo']);
+    assert.deepStrictEqual(byKw.articles.map((a) => a.id), ['k_all', 'k_two', 'k_one'],
+      'more matched terms first, partial matches still shown, non-matches excluded');
+    assert.strictEqual(byKw.count, 3);
+    assert.deepStrictEqual(byKw.articles[0].matched_terms, ['cjp', 'school', 'thik', 'karo']);
+    assert.deepStrictEqual(byKw.articles[1].matched_terms, ['cjp', 'school']);
+    assert.ok(byKw.articles[0].match_score > byKw.articles[1].match_score);
+    assert.strictEqual((await store.listSavedArticles(tenantA, { keyword: 'kill' })).count, 0, "'kill' must not match 'skill'");
+    assert.deepStrictEqual(
+      (await store.listSavedArticles(tenantA, { keyword: '"thik karo"' })).articles.map((a) => a.id), ['k_all'],
+      'quoted phrase is required');
+    const plain = await store.listSavedArticles(tenantA, {});
+    assert.strictEqual(plain.articles[0].match_score, 0, 'no keyword → no score, newest first');
+    assert.deepStrictEqual(plain.query_terms, []);
+    const reopenedKw = await store.listSearchArticles(tenantA, ranked.search_id, {});
+    assert.deepStrictEqual(reopenedKw.articles.map((a) => a.id), ['k_one', 'k_all', 'k_two', 'k_skill'], 'stored order kept');
+    assert.deepStrictEqual(reopenedKw.articles[1].matched_terms, ['cjp', 'school', 'thik', 'karo']);
+    assert.deepStrictEqual(reopenedKw.articles[3].matched_terms, []);
+    const stored = (await store.listSearches(tenantA, {}, asha)).items.find((x) => x.id === ranked.search_id);
+    assert.deepStrictEqual(stored.filters, { keyword: kw }, 'keyword stored as typed, not split on commas');
+    console.log('✅ keyword ranking, phrases and badges match the live API rules.');
+
+    console.log('Testing keyword lists (comma-separated phrases) and min_match...');
+    const list = 'textbook errors, NYCS, Sourav Das, cockroach janata party, education minister resignation, '
+      + 'odisha government, initiated';
+    const listSearch = await store.recordSearchPage(tenantA, {
+      user: asha,
+      query: { keyword: list, min_match: '2' },
+      data: {
+        count: 2,
+        offset: 0,
+        articles: [
+          article('l_story', {
+            title: 'Cockroach Janata Party backs NYCS over textbook errors',
+            summary: 'Students demand the education minister resignation.',
+            content: 'Co-convenor Sourav Das said errors in the textbook must be fixed.',
+            published_at: '2026-09-21T10:00:00Z',
+          }),
+          article('l_generic', {
+            title: 'Odisha government routes', summary: '', content: 'New routes initiated today.',
+            published_at: '2026-10-06T10:00:00Z',
+          }),
+          article('l_partial', {
+            title: 'Textbook prices rise', summary: '', content: 'Only the word textbook.',
+            published_at: '2026-10-07T10:00:00Z',
+          }),
+        ],
+      },
+    });
+    const listed = await store.listSavedArticles(tenantA, { keyword: list });
+    assert.deepStrictEqual(listed.query_phrases,
+      ['textbook errors', 'nycs', 'sourav das', 'cockroach janata party', 'education minister resignation', 'odisha government', 'initiated']);
+    assert.deepStrictEqual(listed.articles.map((a) => a.id), ['l_story', 'l_generic'],
+      'story (5 phrases) above the generic article (2) despite being older; "textbook" alone matches no phrase');
+    assert.deepStrictEqual(listed.articles[0].matched_phrases,
+      ['textbook errors', 'nycs', 'sourav das', 'cockroach janata party', 'education minister resignation']);
+    assert.deepStrictEqual(listed.articles[1].matched_phrases, ['odisha government', 'initiated']);
+    assert.ok(listed.articles[0].match_score > listed.articles[1].match_score);
+    assert.ok(!Object.keys(listed.articles[0]).some((k) => /^k[thrp]\d*$/.test(k)), 'internal flag columns are stripped');
+    const strict = await store.listSavedArticles(tenantA, { keyword: list, min_match: '3' });
+    assert.deepStrictEqual(strict.articles.map((a) => a.id), ['l_story']);
+    assert.strictEqual(strict.count, 1, 'count respects min_match too');
+    const reopenedList = await store.listSearchArticles(tenantA, listSearch.search_id, {});
+    assert.deepStrictEqual(reopenedList.query_phrases, listed.query_phrases);
+    assert.deepStrictEqual(reopenedList.articles.map((a) => a.id), ['l_story', 'l_generic', 'l_partial'], 'stored order kept');
+    assert.strictEqual(reopenedList.articles[0].matched_phrases.length, 5);
+    assert.deepStrictEqual(reopenedList.articles[2].matched_phrases, []);
+    assert.strictEqual(reopenedList.articles[0].position, undefined, 'position is internal');
+    const storedList = (await store.listSearches(tenantA, {}, asha)).items.find((x) => x.id === listSearch.search_id);
+    assert.deepStrictEqual(storedList.filters, { keyword: list, min_match: '2' }, 'list and min_match stored as typed');
+    console.log('✅ keyword lists rank by phrases matched; min_match filters; badges on reopen.');
+
     console.log('Testing accounts without a tenant DB are refused...');
     await assert.rejects(store.listSavedArticles(null, {}), { code: 'NO_TENANT_DB' });
     console.log('✅ no fallback to a shared DB.');

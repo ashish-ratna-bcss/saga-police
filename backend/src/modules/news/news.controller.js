@@ -2,6 +2,18 @@ const logger = require('../../lib/logger');
 const { callNewsApi } = require('../../services/blugate/news/blugate.news.api_client');
 const { resolveGlobalAuth } = require('../../services/blugate/global/blugate.global.api_client');
 const store = require('./news.store.service');
+const { MAX_KEYWORD_LENGTH } = require('./news.keywords');
+
+/** Long keyword lists travel in the URL; refuse ones proxies would reject anyway. */
+const keywordTooLong = (req, res) => {
+  if (String(req.query.keyword || '').length <= MAX_KEYWORD_LENGTH) return false;
+  res.status(400).json({
+    ok: false,
+    code: 'KEYWORD_TOO_LONG',
+    message: `Keyword list is too long — keep it under ${MAX_KEYWORD_LENGTH.toLocaleString()} characters.`,
+  });
+  return true;
+};
 
 const NOT_CONFIGURED_MESSAGE =
   'No platform has a BluGate API key & client key set yet — add one under Settings → Platforms.';
@@ -45,6 +57,7 @@ const forward = (endpointKey, paramsOf) => async (req, res) => {
  * Accounts without a tenant DB (superadmin) get live results only (`saved: null`).
  */
 const getArticles = async (req, res) => {
+  if (keywordTooLong(req, res)) return undefined;
   let data;
   try {
     data = await callUpstream(req, 'ARTICLES', req.query);
@@ -102,7 +115,9 @@ module.exports = {
   getSources: forward('SOURCES', (req) => req.query),
   getArticles,
   getArticle,
-  getSavedArticles: fromStore((req) => store.listSavedArticles(req.tenantPrisma, req.query)),
+  getSavedArticles: (req, res) => (keywordTooLong(req, res)
+    ? undefined
+    : fromStore((r) => store.listSavedArticles(r.tenantPrisma, r.query))(req, res)),
   getSearches: fromStore((req) => store.listSearches(req.tenantPrisma, req.query, req.user)),
   getSearchArticles: fromStore((req) => store.listSearchArticles(req.tenantPrisma, req.params.searchId, req.query)),
   deleteSearch: fromStore((req) => store.deleteSearch(req.tenantPrisma, req.params.searchId, req.user)),
