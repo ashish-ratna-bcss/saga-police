@@ -288,6 +288,14 @@ tr{break-inside:avoid}thead{display:table-header-group}
 .prio-med{background:#f0fdf4;color:#166534;border:.5px solid #bbf7d0}
 .author-handle{font-weight:700;color:${INK}}
 .reason-text{font-size:7.2pt;color:#334155;line-height:1.3}
+.plat-group-box{margin:0 0 3.2mm;border:.6px solid ${LINE};border-radius:3px;background:#fff;break-inside:avoid;page-break-inside:avoid;overflow:hidden}
+.plat-group-header{display:flex;align-items:center;gap:2.5mm;padding:2mm 2.8mm;background:#f8fafc;border-bottom:.6px solid ${LINE};border-left:3.5px solid ${NAVY}}
+.plat-group-title{font-size:8pt;font-weight:700;color:${INK};flex:1}
+.plat-group-count{font-size:6.8pt;color:${MUT};text-transform:uppercase;letter-spacing:.04em}
+.plat-group-box table{margin:0;border:none}
+.plat-group-box th{background:#26304A;font-size:6.2pt}
+.plat-group-box td{border-bottom:.35px solid ${LINE}}
+.plat-group-box tr:last-child td{border-bottom:none}
 `;
 
 const POS = '#10b981';
@@ -853,6 +861,57 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     <tbody>${evidenceRows || '<tr><td colspan="8">No posts in this evidence set.</td></tr>'}</tbody>
   </table>` : '';
 
+  // Group highWatchList by platform
+  const platformGroups = {};
+  highWatchList.forEach((p) => {
+    const platKey = String(p.platform || 'other').toLowerCase();
+    platformGroups[platKey] = platformGroups[platKey] || [];
+    platformGroups[platKey].push(p);
+  });
+
+  const platformBoxesHtml = Object.entries(platformGroups).length
+    ? Object.entries(platformGroups)
+        .sort((a, b) => b[1].length - a[1].length)
+        .map(([platKey, list]) => {
+          const pColor = platColor(platKey);
+          return `
+      <div class="plat-group-box">
+        <div class="plat-group-header" style="border-left-color:${pColor}">
+          <span class="plat-badge" style="background:${pColor}">${esc(platLabel(platKey))}</span>
+          <span class="plat-group-title">${esc(platLabel(platKey))} Priority Profiles</span>
+          <span class="plat-group-count">${list.length} monitored profile${list.length === 1 ? '' : 's'}</span>
+        </div>
+        <table>
+          <colgroup>
+            <col style="width:23%">
+            <col style="width:16%">
+            <col style="width:16%">
+            <col style="width:45%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Profile / Channel</th>
+              <th>Priority</th>
+              <th>Posts & Reach</th>
+              <th>Why to Monitor (Surveillance Rationale)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${list.map((p) => `
+              <tr>
+                <td><span class="author-handle">${esc(p.author)}</span></td>
+                <td><span class="prio-pill ${p.priorityClass}">${esc(p.priority)}</span></td>
+                <td><b>${fmt(p.count)}</b> posts<br><span class="sm">${fmt(p.eng)} reach</span></td>
+                <td class="reason-text">${esc(p.why)}${p.posts?.length ? ` <span class="sm">${esc(p.posts.slice(0, 3).map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+        })
+        .join('')
+    : '<p class="sm">No high monitoring profiles identified in this dataset.</p>';
+
   const body = `
 <section class="pg">
   <div class="hero">
@@ -1080,36 +1139,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     <h4>Top amplifying accounts by reach</h4>
     ${promoters.slice(0, 8).map((a) => hbar(a.author, a.eng, promoters[0]?.eng || 1, '#6366f1', `${a.count} posts`)).join('') || '<p class="sm">No accounts in this set.</p>'}
   </div>
-  <p class="sm">Platform-wise profile register for active surveillance, threat triage, and counter-messaging. Each profile includes platform origin, threat priority, reach, and reason for monitoring.</p>
-  <table>
-    <colgroup>
-      <col style="width:13%">
-      <col style="width:20%">
-      <col style="width:14%">
-      <col style="width:13%">
-      <col style="width:40%">
-    </colgroup>
-    <thead>
-      <tr>
-        <th>Platform</th>
-        <th>Profile / Channel</th>
-        <th>Priority</th>
-        <th>Posts & Reach</th>
-        <th>Why to Monitor (Surveillance Rationale)</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${highWatchList.length ? highWatchList.slice(0, 12).map((p) => `
-        <tr>
-          <td><span class="plat-badge" style="background:${platColor(p.platform)}">${esc(platLabel(p.platform))}</span></td>
-          <td><span class="author-handle">${esc(p.author)}</span></td>
-          <td><span class="prio-pill ${p.priorityClass}">${esc(p.priority)}</span></td>
-          <td><b>${fmt(p.count)}</b> posts<br><span class="sm">${fmt(p.eng)} reach</span></td>
-          <td class="reason-text">${esc(p.why)}${p.posts?.length ? ` <span class="sm">${esc(p.posts.slice(0, 3).map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</td>
-        </tr>
-      `).join('') : '<tr><td colspan="5">No high monitoring profiles identified in this dataset.</td></tr>'}
-    </tbody>
-  </table>
+  <p class="sm">Platform-wise surveillance register categorized by digital channel. Lists priority channels/handles, reach, and tactical reason for active monitoring.</p>
+  ${platformBoxesHtml}
   ${(analysis?.amplifiers || []).length
     ? `<ul class="bul">${analysis.amplifiers.map((a) => `<li><b>${esc(a.account)}</b> — ${esc(a.why || '')}${a.posts?.length ? ` <span class="sm">${esc(a.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>`
     : ''}
