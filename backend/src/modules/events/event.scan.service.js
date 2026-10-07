@@ -105,13 +105,86 @@ const keywordMatchesText = (keyword, text) => {
   return false;
 };
 
+const FRENCH_STOPWORDS = new Set([
+  'le', 'la', 'les', 'des', 'du', 'une', 'un', 'pour', 'avec', 'dans', 'sur', 'par', 'est', 'sont', 'cette', 'ce', 'ces', 'qui', 'que', 'quoi', 'dont', 'nous', 'vous', 'ils', 'elles', 'leur', 'leurs', 'mais', 'ou', 'et', 'donc', 'or', 'ni', 'car', 'été', 'ont', 'fait', 'faire'
+]);
+
+const isIrrelevantForeignPost = (text, targetRegion = '') => {
+  if (!text) return false;
+  const words = String(text).toLowerCase().split(/[^a-z\u00C0-\u017F]+/i).filter((w) => w.length >= 2);
+  if (words.length < 4) return false;
+  let frenchCount = 0;
+  for (const w of words) {
+    if (FRENCH_STOPWORDS.has(w)) frenchCount++;
+  }
+  if (frenchCount >= 3 && (frenchCount / words.length) > 0.18) {
+    if (targetRegion && String(text).toLowerCase().includes(String(targetRegion).toLowerCase())) {
+      return false;
+    }
+    return true;
+  }
+  return false;
+};
+
+const evaluateBooleanQuery = (query, text) => {
+  const normText = normalizeForKeywordMatch(text);
+  if (!normText) return false;
+  const q = String(query || '').trim();
+  if (!q) return false;
+
+  const hasOperators = /\b(AND|OR|NOT|&&|\|\|)\b|[&|!()]/.test(q);
+  if (!hasOperators) {
+    return keywordMatchesText(q, normText);
+  }
+
+  try {
+    let expr = q
+      .replace(/\s+AND\s+/gi, ' && ')
+      .replace(/\s+OR\s+/gi, ' || ')
+      .replace(/\s+NOT\s+/gi, ' ! ')
+      .replace(/\s*&\s*/g, ' && ')
+      .replace(/\s*\|\s*/g, ' || ');
+
+    const termMap = new Map();
+    let termIndex = 0;
+
+    expr = expr.replace(/"([^"]+)"|'([^']+)'/g, (match, p1, p2) => {
+      const term = p1 || p2;
+      const key = `__T${termIndex++}__`;
+      termMap.set(key, keywordMatchesText(term, normText));
+      return key;
+    });
+
+    expr = expr.replace(/([#@\p{L}\p{N}_-]+)/gu, (match) => {
+      if (['true', 'false', '&&', '||', '!'].includes(match)) return match;
+      if (termMap.has(match)) return match;
+      const key = `__T${termIndex++}__`;
+      termMap.set(key, keywordMatchesText(match, normText));
+      return key;
+    });
+
+    for (const [key, val] of termMap.entries()) {
+      expr = expr.replaceAll(key, val ? 'true' : 'false');
+    }
+
+    const sanitized = expr.replace(/[^truefals&|!()\s]/g, '');
+    const fn = new Function(`return Boolean(${sanitized});`);
+    return Boolean(fn());
+  } catch (err) {
+    return keywordMatchesText(q, normText);
+  }
+};
+
 const filterByKeywords = (items, event, getText) => {
   const keywords = normalizeEventKeywords(event);
+  const location = event?.location || '';
   if (!keywords.length) return items || [];
   return (items || []).filter((item) => {
-    const text = normalizeForKeywordMatch(getText(item));
+    const text = getText(item);
     if (!text) return false;
-    return keywords.some((keyword) => keywordMatchesText(keyword, text));
+    if (isIrrelevantForeignPost(text, location)) return false;
+    const normText = normalizeForKeywordMatch(text);
+    return keywords.some((keyword) => evaluateBooleanQuery(keyword, normText));
   });
 };
 
