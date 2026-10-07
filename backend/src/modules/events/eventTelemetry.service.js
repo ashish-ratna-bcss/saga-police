@@ -84,26 +84,29 @@ const getEventAnchorProfile = (eventInput, keywordsListInput = [], locationInput
   const titleTokens = tokenize(name);
   const locationTokens = tokenize(location);
   const descTokens = tokenize(description);
+  const coreAnchors = Array.from(new Set([...titleTokens, ...locationTokens, ...descTokens]));
 
   const normalizedKeywords = (Array.isArray(rawKeywords) ? rawKeywords : [])
     .map((k) => (typeof k === 'string' ? k : k?.keyword || ''))
     .map((k) => String(k).trim())
     .filter(Boolean);
 
-  const compoundKeywords = [];
-  const singleKeywords = [];
+  const anchoredKeywords = [];
+  const unanchoredKeywords = [];
 
   for (const kw of normalizedKeywords) {
     const lower = kw.toLowerCase();
-    const words = lower.split(/\s+/).filter(Boolean);
+    const kwTokens = tokenize(kw);
+    // A keyword is inherently anchored if it contains at least one core anchor from the event
+    const isInherentlyAnchored = kwTokens.some((kt) => coreAnchors.includes(kt));
     const isHashtag = kw.startsWith('#') && kw.length >= 4;
     const isAcronym = kw.length >= 2 && kw === kw.toUpperCase() && !GRAMMAR_STOPWORDS.has(lower);
-    const isMultiWord = words.length >= 2;
+    const isMultiWord = kwTokens.length >= 2;
 
-    if (isMultiWord || isHashtag || isAcronym) {
-      compoundKeywords.push({ raw: kw, lower, isHashtag });
-    } else if (words.length === 1 && lower.length >= 3) {
-      singleKeywords.push({ raw: kw, lower });
+    if (isInherentlyAnchored && (isMultiWord || isHashtag || isAcronym || titleTokens.includes(lower))) {
+      anchoredKeywords.push({ raw: kw, lower, isHashtag });
+    } else {
+      unanchoredKeywords.push({ raw: kw, lower, isHashtag });
     }
   }
 
@@ -115,8 +118,9 @@ const getEventAnchorProfile = (eventInput, keywordsListInput = [], locationInput
     locationTokens,
     description,
     descTokens,
-    compoundKeywords,
-    singleKeywords,
+    coreAnchors,
+    anchoredKeywords,
+    unanchoredKeywords,
     allKeywords: normalizedKeywords,
   };
 };
@@ -137,7 +141,7 @@ const classifyEventRelevance = (text, eventInput, keywordsList = [], eventLocati
   }
 
   const profile = getEventAnchorProfile(eventInput, keywordsList, eventLocation, eventDescription);
-  const { cleanTitle, titleTokens, locationTokens, descTokens, compoundKeywords, singleKeywords } = profile;
+  const { cleanTitle, titleTokens, locationTokens, descTokens, anchoredKeywords, unanchoredKeywords } = profile;
 
   // 1. Direct Title Match (post contains exact event name)
   if (cleanTitle.length >= 6 && cleanText.includes(cleanTitle)) {
@@ -146,55 +150,56 @@ const classifyEventRelevance = (text, eventInput, keywordsList = [], eventLocati
 
   const postTokens = new Set(tokenize(cleanText));
 
-  // 2. Compound / Specific Keyword Match (Multi-word phrase, Hashtag, Acronym)
-  const matchedCompound = compoundKeywords.filter((ck) => {
-    if (ck.isHashtag) {
-      const bare = ck.lower.slice(1);
-      return cleanText.includes(ck.lower) || (bare.length >= 3 && postTokens.has(bare));
-    }
-    return cleanText.includes(ck.lower);
-  });
-
-  if (matchedCompound.length > 0) {
-    return {
-      isRelevant: true,
-      score: 90,
-      reason: 'compound_keyword_match',
-      matched: matchedCompound.map((c) => c.raw),
-    };
-  }
-
   // Check whole-word token overlaps against dynamic event profile
   const matchedLocs = locationTokens.filter((loc) => postTokens.has(loc));
   const matchedTitles = titleTokens.filter((t) => postTokens.has(t));
   const matchedDescs = descTokens.filter((d) => postTokens.has(d));
+  const matchedCoreAnchors = [...matchedLocs, ...matchedTitles, ...matchedDescs];
+  const hasCoreAnchor = matchedCoreAnchors.length > 0;
 
-  // 3. Single-Word Keyword Match
-  // A single-word keyword MUST co-occur with at least one other dynamic event anchor
-  // (location token or title/desc token) to prevent unanchored peripheral noise.
-  const matchedSingle = singleKeywords.filter((sk) => postTokens.has(sk.lower));
-  if (matchedSingle.length > 0) {
-    const matchedOtherAnchors = [
-      ...matchedLocs,
-      ...matchedTitles.filter((t) => !matchedSingle.some((sk) => sk.lower === t)),
-      ...matchedDescs.filter((d) => !matchedSingle.some((sk) => sk.lower === d)),
-    ];
+  // 2. Inherently Anchored Keyword Match (e.g. #OdishaEducationProtest, CJP School Thik Karo)
+  const matchedAnchored = anchoredKeywords.filter((ak) => {
+    if (ak.isHashtag) {
+      const bare = ak.lower.slice(1);
+      return cleanText.includes(ak.lower) || (bare.length >= 3 && postTokens.has(bare));
+    }
+    return cleanText.includes(ak.lower);
+  });
 
-    if (matchedOtherAnchors.length > 0) {
+  if (matchedAnchored.length > 0) {
+    return {
+      isRelevant: true,
+      score: 95,
+      reason: 'anchored_keyword_match',
+      matched: matchedAnchored.map((a) => a.raw),
+    };
+  }
+
+  // 3. Unanchored Keyword Match (e.g. #Developers, #TechCommunity, #FutureTech, demanding)
+  // MUST have at least 1 core event anchor in the post itself
+  const matchedUnanchored = unanchoredKeywords.filter((uk) => {
+    if (uk.isHashtag) {
+      const bare = uk.lower.slice(1);
+      return cleanText.includes(uk.lower) || (bare.length >= 3 && postTokens.has(bare));
+    }
+    return cleanText.includes(uk.lower);
+  });
+
+  if (matchedUnanchored.length > 0) {
+    if (hasCoreAnchor) {
       return {
         isRelevant: true,
         score: 75,
-        reason: 'anchored_single_keyword_match',
-        matched: matchedSingle.map((s) => s.raw),
-        anchors: matchedOtherAnchors,
+        reason: 'unanchored_keyword_with_post_anchor',
+        matched: matchedUnanchored.map((u) => u.raw),
+        anchors: matchedCoreAnchors,
       };
     }
-
     return {
       isRelevant: false,
       score: 15,
-      reason: 'unanchored_single_keyword_noise',
-      matched: matchedSingle.map((s) => s.raw),
+      reason: 'unanchored_peripheral_noise',
+      matched: matchedUnanchored.map((u) => u.raw),
     };
   }
 
@@ -204,7 +209,7 @@ const classifyEventRelevance = (text, eventInput, keywordsList = [], eventLocati
       isRelevant: true,
       score: 85,
       reason: 'location_and_subject_match',
-      anchors: [...matchedLocs, ...matchedTitles, ...matchedDescs],
+      anchors: matchedCoreAnchors,
     };
   }
 
