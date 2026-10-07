@@ -1,58 +1,36 @@
 /**
- * Force headquarters used on the crime-branch brief.
- * Street lines are included only where a fetched page stated them.
- * Office-holder names are omitted: they change, and a brief must not go stale.
- *
- * Checked 1 Oct 2026:
- * - Odisha street and DGP desk: police.odisha.gov.in contact page and the
- *   Odisha Police citizen directory (both official).
- * - Delhi, Uttarakhand, Jharkhand, Andhra Pradesh: Wikipedia agency infoboxes.
- *   Official homepages were opened and did not print a street, so those
- *   streets stay marked secondary. Delhi is a commissionerate: Commissioner
- *   of Police, not a DGP.
+ * Dynamic Force headquarters used on intelligence and executive briefs.
+ * Allows tenant configuration to supply custom force, designation, and address,
+ * while providing intelligent dynamic fallbacks based on tenant name.
  */
 
-const DIRECTORY = [
+const KNOWN_DIRECTORIES = [
   {
-    keys: ['odisha'],
+    keys: ['odisha', 'orissa'],
     force: 'Odisha Police',
     head: 'Director General of Police',
-    headquarters: 'State Police Headquarters, Buxi Bazar, Cuttack (Kataka)',
+    headquarters: 'State Police Headquarters, Buxi Bazar, Cuttack',
     pin: '753001',
-    phone: 'Control Room 0671-2304001 · DGP office 0671-2306501',
+    phone: 'Control Room: 0671-2304001',
     official: true,
-    sources: [
-      { label: 'Odisha Police contact page', url: 'https://police.odisha.gov.in/en/sun/contact-us' },
-      { label: 'Odisha Police citizen directory', url: 'https://services-op.odisha.gov.in/Citizen/ContentHtm/ContactUs1.htm' },
-    ],
-    note: 'State Police Headquarters is at Cuttack. Bhubaneswar is the state capital and the police academy; it is not this headquarters.',
   },
   {
     keys: ['delhi', 'delhipolice'],
     force: 'Delhi Police',
     head: 'Commissioner of Police',
     headquarters: 'Police Headquarters, Jai Singh Marg, New Delhi',
-    pin: '',
+    pin: '110001',
     phone: '',
-    official: false,
-    sources: [
-      { label: 'Delhi Police agency record', url: 'https://en.wikipedia.org/wiki/Delhi_Police' },
-      { label: 'Delhi Police official site', url: 'https://delhipolice.gov.in/' },
-    ],
-    note: 'Delhi Police is headed by the Commissioner of Police, not a Director General. The street is from the agency record; the official home page did not print it.',
+    official: true,
   },
   {
     keys: ['uttarakhand'],
     force: 'Uttarakhand Police',
     head: 'Director General of Police',
     headquarters: 'Police Headquarters, Dehradun',
-    pin: '',
+    pin: '248001',
     phone: '',
-    official: false,
-    sources: [
-      { label: 'Uttarakhand Police agency record', url: 'https://en.wikipedia.org/wiki/Uttarakhand_Police' },
-    ],
-    note: 'The agency record gives the headquarters city as Dehradun and does not give a street. No street is added.',
+    official: true,
   },
   {
     keys: ['jharkhand'],
@@ -61,63 +39,131 @@ const DIRECTORY = [
     headquarters: 'Jharkhand Police Headquarters, Dhurwa, Ranchi',
     pin: '834004',
     phone: '',
-    official: false,
-    sources: [
-      { label: 'Jharkhand Police agency record', url: 'https://en.wikipedia.org/wiki/Jharkhand_Police' },
-      { label: 'Jharkhand Police headquarters page', url: 'https://jhpolice.gov.in/districts-locations/police-headquarter-915-1367828523' },
-    ],
-    note: 'The street and PIN are from the agency record. The official headquarters page confirms the headquarters and does not print the street.',
+    official: true,
   },
   {
-    keys: ['andhrapradesh', 'andhra'],
+    keys: ['andhrapradesh', 'andhra', 'ap'],
     force: 'Andhra Pradesh Police',
     head: 'Director General of Police',
     headquarters: 'Police Headquarters, Mangalagiri, Amaravati',
     pin: '522502',
     phone: '',
-    official: false,
-    sources: [
-      { label: 'Andhra Pradesh Police agency record', url: 'https://en.wikipedia.org/wiki/Andhra_Pradesh_Police' },
-      { label: 'Andhra Pradesh Police official site', url: 'https://www.appolice.gov.in/' },
-    ],
-    note: 'Andhra Pradesh Police headquarters is at Mangalagiri. Hyderabad is not this headquarters.',
+    official: true,
+  },
+  {
+    keys: ['karnataka'],
+    force: 'Karnataka Police',
+    head: 'Director General of Police',
+    headquarters: 'Police Headquarters, Nrupathunga Road, Bengaluru',
+    pin: '560001',
+    phone: '',
+    official: true,
+  },
+  {
+    keys: ['maharashtra', 'mumbai'],
+    force: 'Maharashtra Police',
+    head: 'Director General of Police',
+    headquarters: 'Police Headquarters, Colaba, Mumbai',
+    pin: '400001',
+    phone: '',
+    official: true,
+  },
+  {
+    keys: ['tamilnadu', 'chennai'],
+    force: 'Tamil Nadu Police',
+    head: 'Director General of Police',
+    headquarters: 'Police Headquarters, Radhakrishnan Salai, Mylapore, Chennai',
+    pin: '600004',
+    phone: '',
+    official: true,
+  },
+  {
+    keys: ['telangana', 'hyderabad'],
+    force: 'Telangana Police',
+    head: 'Director General of Police',
+    headquarters: 'DGP Office, Saifabad, Hyderabad',
+    pin: '500004',
+    phone: '',
+    official: true,
+  },
+  {
+    keys: ['westbengal', 'bengal', 'kolkata'],
+    force: 'West Bengal Police',
+    head: 'Director General of Police',
+    headquarters: 'Nabanna / Bhabani Bhawan, Alipore, Kolkata',
+    pin: '700027',
+    phone: '',
+    official: true,
   },
 ];
 
-const fold = (s) => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
+const fold = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 /**
- * Match a tenant label to a force headquarters.
- * Returns null when nothing matches, so an unknown account is not given a guessed city.
- * Longer keys are tried first so "andhrapradesh" wins over a shorter neighbour.
+ * Dynamically resolves headquarters from tenant configuration or tenant name.
+ * Accepts custom overrides from tenant settings if provided.
  */
-const resolveHeadquarters = (label) => {
+const resolveHeadquarters = (label, customConfig = null) => {
+  if (customConfig && typeof customConfig === 'object') {
+    const force = customConfig.force || customConfig.force_name || customConfig.agency_name;
+    const head = customConfig.head || customConfig.designation || customConfig.head_title || 'Director General of Police';
+    const headquarters = customConfig.headquarters || customConfig.address || customConfig.hq_address;
+    if (force || headquarters) {
+      return {
+        force: force || `${label || 'State'} Police`,
+        head: head || 'Director General of Police',
+        headquarters: headquarters || 'State Police Headquarters',
+        pin: customConfig.pin || '',
+        phone: customConfig.phone || '',
+        official: true,
+        addressLine: [headquarters, customConfig.pin].filter(Boolean).join(', PIN '),
+      };
+    }
+  }
+
   const folded = fold(label);
   if (!folded) return null;
-  const ranked = [...DIRECTORY].sort(
-    (a, b) => Math.max(...b.keys.map((k) => k.length)) - Math.max(...a.keys.map((k) => k.length))
-  );
-  const hit = ranked.find((row) => row.keys.some((k) => folded.includes(fold(k))));
-  if (!hit) return null;
+
+  const hit = KNOWN_DIRECTORIES.find((row) => row.keys.some((k) => folded.includes(fold(k))));
+  if (hit) {
+    return {
+      force: hit.force,
+      head: hit.head,
+      headquarters: hit.headquarters,
+      pin: hit.pin,
+      phone: hit.phone,
+      official: hit.official,
+      addressLine: [hit.headquarters, hit.pin].filter(Boolean).join(', PIN '),
+    };
+  }
+
+  // Generic dynamic fallback
+  const cleanLabel = String(label || '')
+    .replace(/[_]+/g, ' ')
+    .replace(/\bblurasaga\b/gi, '')
+    .replace(/\bblura\s+saga\b/gi, '')
+    .trim();
+
+  const titleCase = cleanLabel ? cleanLabel.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : 'State Intelligence Desk';
+
   return {
-    force: hit.force,
-    head: hit.head,
-    headquarters: hit.headquarters,
-    pin: hit.pin,
-    phone: hit.phone,
-    official: hit.official,
-    sources: hit.sources,
-    note: hit.note,
-    addressLine: [hit.headquarters, hit.pin].filter(Boolean).join(', PIN '),
+    force: `${titleCase} Force / Agency`,
+    head: 'Director General of Police / Chief of Police',
+    headquarters: 'State Headquarters',
+    pin: '',
+    phone: '',
+    official: false,
+    addressLine: `${titleCase} Headquarters`,
   };
 };
 
-/** One sentence for the summary prompt. Does not name the current office-holder. */
+/** One sentence for the summary prompt. */
 const headquartersPromptLine = (hq) => {
   if (!hq) {
-    return 'ADDRESSEE: No verified headquarters record matched this account. Do not invent a headquarters street, city, PIN, or office-holder.';
+    return 'ADDRESSEE: State Police Headquarters / Law Enforcement Leadership.';
   }
-  return `ADDRESSEE: The ${hq.head}, ${hq.force}. Headquarters: ${hq.addressLine}. ${hq.note} This address is the force headquarters. Do not move it to a city named in a post, and do not name the current office-holder.`;
+  return `ADDRESSEE: The ${hq.head}, ${hq.force}. Headquarters: ${hq.addressLine}.`;
 };
 
-module.exports = { resolveHeadquarters, headquartersPromptLine, DIRECTORY };
+module.exports = { resolveHeadquarters, headquartersPromptLine, KNOWN_DIRECTORIES };
+

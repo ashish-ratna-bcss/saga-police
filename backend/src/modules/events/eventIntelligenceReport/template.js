@@ -206,94 +206,144 @@ const broadPlaces = (event) => new Set(
     .filter((s) => s.length >= 2)
 );
 
+/**
+ * Resolves a full, direct web URL for a social media post.
+ */
+const resolvePostUrl = (e = {}) => {
+  if (e.url && /^https?:\/\//i.test(e.url)) return e.url;
+  const plat = platKey(e.platform || e.plat);
+  const author = shortAuthor(e.author || e.author_name || e.author_handle || '');
+  const id = e.id || e.post_id || e.citationTag || '';
+  if (plat === 'x' || plat === 'twitter') {
+    if (author && id && /^\d+$/.test(id)) return `https://x.com/${author}/status/${id}`;
+    if (author && author !== 'unknown') return `https://x.com/${author}`;
+    return 'https://x.com';
+  }
+  if (plat === 'youtube') {
+    if (id && String(id).length >= 8) return `https://www.youtube.com/watch?v=${id}`;
+    if (author && author !== 'unknown') return `https://www.youtube.com/@${author}`;
+    return 'https://youtube.com';
+  }
+  if (plat === 'facebook') {
+    if (author && author !== 'unknown') return `https://www.facebook.com/${author}`;
+    return 'https://facebook.com';
+  }
+  if (plat === 'instagram') {
+    if (id) return `https://www.instagram.com/p/${id}/`;
+    if (author && author !== 'unknown') return `https://www.instagram.com/${author}/`;
+    return 'https://instagram.com';
+  }
+  if (plat === 'telegram') {
+    if (author && author !== 'unknown') return `https://t.me/${author}`;
+    return 'https://t.me';
+  }
+  if (plat === 'reddit') {
+    if (author && author !== 'unknown') return `https://www.reddit.com/user/${author}`;
+    return 'https://reddit.com';
+  }
+  return null;
+};
+
 const CSS = `
 *{box-sizing:border-box}
 body{margin:0;font-family:'Helvetica Neue',Arial,'Report Devanagari','Report Oriya',sans-serif;color:${INK};font-size:8.6pt;line-height:1.42;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .pg{break-before:page;overflow:hidden;max-width:100%}
 .pg:first-of-type{break-before:auto}
-.hero{background:${INK};color:#fff;border-radius:0 0 3px 3px;padding:7mm 7mm 6mm;margin:0 0 4mm;position:relative}
-.hero:before{content:'';position:absolute;left:7mm;top:7mm;bottom:7mm;width:2.2mm;background:${ACCENT}}
-.hero .eyebrow{font-size:7pt;letter-spacing:.14em;color:#B8C9D6;font-weight:700;margin:0 0 2mm 4mm}
-.hero h1{font-size:16pt;line-height:1.15;margin:0 0 1.5mm 4mm;letter-spacing:-.01em}
-.hero .sub{font-size:9pt;color:#B8C9D6;margin:0 0 3mm 4mm}
-.hero .meta{display:flex;flex-wrap:wrap;gap:5mm;margin-left:4mm;font-size:7pt;color:#9FB0CC}
-.hero .meta b{display:block;color:#fff;font-size:8.4pt;margin-top:.6mm}
-.kpi{display:grid;grid-template-columns:repeat(5,1fr);gap:2.2mm;margin:0 0 3.5mm}
-.kpi>div{border:.6px solid ${LINE};border-radius:3px;padding:2.4mm 2.2mm;background:${BG};text-align:center}
-.kpi .n{font-size:13pt;font-weight:700;letter-spacing:-.02em;line-height:1.1;color:${INK}}
-.kpi .l{font-size:6.2pt;color:${MUT};text-transform:uppercase;letter-spacing:.03em;margin-top:.8mm}
-.sec{display:flex;align-items:baseline;gap:2.5mm;border-bottom:1.4px solid ${TEAL};padding-bottom:1.4mm;margin:4mm 0 2.5mm}
-.sec .no{font-size:11pt;font-weight:700;color:${NAVY}}
-.sec .nm{font-size:10pt;font-weight:700;color:${NAVY};letter-spacing:.02em}
-p{margin:0 0 1.6mm}
-.lead{font-size:9pt;color:#26304A;margin-bottom:2.5mm}
+.hero{background:${INK};color:#fff;border-radius:0 0 3px 3px;padding:6mm 7mm 5mm;margin:0 0 3.5mm;position:relative}
+.hero:before{content:'';position:absolute;left:7mm;top:6mm;bottom:5mm;width:2.2mm;background:${ACCENT}}
+.hero .eyebrow{font-size:7pt;letter-spacing:.14em;color:#B8C9D6;font-weight:700;margin:0 0 1.5mm 4mm;text-transform:uppercase}
+.hero h1{font-size:15pt;line-height:1.15;margin:0 0 1.2mm 4mm;letter-spacing:-.01em}
+.hero .sub{font-size:8.6pt;color:#B8C9D6;margin:0 0 2.5mm 4mm}
+.hero .meta{display:flex;flex-wrap:wrap;gap:4.5mm;margin-left:4mm;font-size:7pt;color:#9FB0CC}
+.hero .meta b{display:block;color:#fff;font-size:8.2pt;margin-top:.5mm}
+.kpi{display:grid;grid-template-columns:repeat(5,1fr);gap:2.2mm;margin:0 0 3.2mm}
+.kpi>div{border:.6px solid ${LINE};border-radius:3px;padding:2.2mm 2mm;background:${BG};text-align:center}
+.kpi .n{font-size:12.5pt;font-weight:700;letter-spacing:-.02em;line-height:1.1;color:${INK}}
+.kpi .l{font-size:6.2pt;color:${MUT};text-transform:uppercase;letter-spacing:.03em;margin-top:.6mm}
+.sec{display:flex;align-items:baseline;gap:2.5mm;border-bottom:1.4px solid ${TEAL};padding-bottom:1.2mm;margin:3.5mm 0 2.2mm}
+.sec .no{font-size:10.5pt;font-weight:700;color:${NAVY}}
+.sec .nm{font-size:9.8pt;font-weight:700;color:${NAVY};letter-spacing:.02em}
+p{margin:0 0 1.5mm}
+.lead{font-size:8.8pt;color:#26304A;margin-bottom:2.2mm}
 .bul{margin:0 0 2mm;padding:0;list-style:none}
-.bul li{margin:0 0 1mm;padding-left:3mm;position:relative;font-size:8.3pt;color:#3D5568}
+.bul li{margin:0 0 1mm;padding-left:3mm;position:relative;font-size:8.2pt;color:#3D5568}
 .bul li:before{content:'•';position:absolute;left:0;color:${TEAL};font-weight:700}
-table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:7.5pt;margin:0 0 2.5mm}
-th{text-align:left;font-size:6.4pt;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:${NAVY};padding:1.6mm 2mm;border:.35px solid ${NAVY};word-break:break-word;overflow-wrap:anywhere}
-td{padding:1.5mm 2mm;border:.35px solid ${LINE};vertical-align:top;color:#3D5568;background:#fff;word-break:break-word;overflow-wrap:anywhere;word-wrap:break-word;white-space:normal}
+table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:7.4pt;margin:0 0 2.5mm}
+th{text-align:left;font-size:6.3pt;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:${NAVY};padding:1.5mm 2mm;border:.35px solid ${NAVY};word-break:break-word;overflow-wrap:anywhere}
+td{padding:1.4mm 2mm;border:.35px solid ${LINE};vertical-align:top;color:#3D5568;background:#fff;word-break:break-word;overflow-wrap:anywhere;word-wrap:break-word;white-space:normal}
 tr:nth-child(even) td{background:${BG}}
 tr{break-inside:avoid}thead{display:table-header-group}
 .sm{font-size:7.2pt;color:${MUT}}
-.footnote{margin-top:4mm;padding-top:2mm;border-top:1.2px solid ${TEAL};font-size:7.3pt;color:${MUT}}
+.footnote{margin-top:3.5mm;padding-top:2mm;border-top:1.2px solid ${TEAL};font-size:7.2pt;color:${MUT}}
 .footnote b{color:${INK}}
 .tone-pos{color:${PR};font-weight:700}.tone-neg{color:${CR};font-weight:700}.tone-neu{color:${NW};font-weight:700}
-.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:2mm;margin:0 0 2.5mm}
-.metrics>div{border:.6px solid ${LINE};border-radius:3px;padding:2mm 2.2mm;background:#fff}
-.metrics .n{font-size:11pt;font-weight:700;line-height:1.1;color:${INK}}
-.metrics .l{font-size:6.4pt;color:${MUT};text-transform:uppercase;letter-spacing:.03em;margin-top:.5mm}
-.metrics .a{font-size:7pt;color:#3D5568;margin-top:.8mm}
-.hbar{display:grid;grid-template-columns:28mm 1fr 32mm;align-items:center;gap:2mm;margin:0 0 1.3mm}
-.hbar .hl{font-size:7.4pt;color:#3D5568;text-align:right;overflow:hidden;white-space:nowrap}
-.track{height:7px;background:#E7EEF3;border-radius:2px;overflow:hidden}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:2mm;margin:0 0 2.2mm}
+.metrics>div{border:.6px solid ${LINE};border-radius:3px;padding:2mm 2mm;background:#fff}
+.metrics .n{font-size:10.5pt;font-weight:700;line-height:1.1;color:${INK}}
+.metrics .l{font-size:6.3pt;color:${MUT};text-transform:uppercase;letter-spacing:.03em;margin-top:.4mm}
+.metrics .a{font-size:6.8pt;color:#3D5568;margin-top:.6mm}
+.hbar{display:grid;grid-template-columns:28mm 1fr 32mm;align-items:center;gap:2mm;margin:0 0 1.2mm}
+.hbar .hl{font-size:7.3pt;color:#3D5568;text-align:right;overflow:hidden;white-space:nowrap}
+.track{height:6.5px;background:#E7EEF3;border-radius:2px;overflow:hidden}
 .fill{height:100%;border-radius:2px}
-.hbar .hn{font-size:7.2pt;font-weight:700;color:${INK}}
-.stack{display:flex;height:10px;border-radius:2px;overflow:hidden;background:#E7EEF3}
+.hbar .hn{font-size:7.1pt;font-weight:700;color:${INK}}
+.stack{display:flex;height:9.5px;border-radius:2px;overflow:hidden;background:#E7EEF3}
 .stack>div{height:100%}
-.legend{display:flex;flex-wrap:wrap;gap:3mm;margin-top:1.2mm;font-size:7pt;color:#3D5568}
-.legend i{display:inline-block;width:7px;height:7px;border-radius:1px;margin-right:1mm;vertical-align:middle}
-.chartbox{border:.6px solid ${LINE};border-radius:3px;padding:2.5mm;background:#fff;margin:0 0 2.5mm;break-inside:avoid;page-break-inside:avoid}
+.legend{display:flex;flex-wrap:wrap;gap:2.8mm;margin-top:1.1mm;font-size:6.8pt;color:#3D5568}
+.legend i{display:inline-block;width:6.5px;height:6.5px;border-radius:1px;margin-right:1mm;vertical-align:middle}
+.chartbox{border:.6px solid ${LINE};border-radius:3px;padding:2.3mm;background:#fff;margin:0 0 2.3mm;break-inside:avoid;page-break-inside:avoid}
 .metrics{break-inside:avoid;page-break-inside:avoid}
-.chartbox h4{margin:0 0 .4mm;font-size:8pt;color:${NAVY}}
-.chartbox p{margin:0 0 2mm}
-.charts{display:grid;grid-template-columns:1.3fr .7fr;gap:2.5mm;margin:0 0 2.5mm}
-.tl{display:flex;align-items:flex-end;gap:1px;height:22mm;border-bottom:.6px solid ${LINE}}
+.chartbox h4{margin:0 0 .3mm;font-size:7.8pt;color:${NAVY}}
+.chartbox p{margin:0 0 1.6mm}
+.charts{display:grid;grid-template-columns:1.3fr .7fr;gap:2.4mm;margin:0 0 2.3mm}
+.tl{display:flex;align-items:flex-end;gap:1px;height:20mm;border-bottom:.6px solid ${LINE}}
 .tlc{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;min-width:0}
 .tlb{width:70%;background:#6366f1;border-radius:1px 1px 0 0;min-height:1px}
-.tlc span{font-size:5.5pt;color:${MUT};margin-top:.4mm}
-.donutwrap{display:flex;align-items:center;gap:3mm}
-.addr{border:.6px solid ${LINE};border-left:3px solid ${NAVY};background:#fff;padding:2.4mm 3mm;margin:0 0 3mm}
-.addr .who{font-size:11pt;font-weight:700;color:${INK};margin:.4mm 0}
-.addr .l{font-size:7pt;letter-spacing:.08em;color:${MUT};font-weight:700}
-.threat-card{display:flex;align-items:flex-start;gap:3mm;padding:2.6mm 3.2mm;border-radius:3px;margin:0 0 3mm;border:.6px solid ${LINE};background:#fff}
-.threat-pill{font-size:7.4pt;font-weight:800;text-transform:uppercase;letter-spacing:.06em;padding:1.2mm 2.8mm;border-radius:2px;color:#fff;white-space:nowrap;display:inline-block}
+.tlc span{font-size:5.4pt;color:${MUT};margin-top:.4mm}
+.donutwrap{display:flex;align-items:center;gap:2.8mm}
+.addr{border:.6px solid ${LINE};border-left:3px solid ${NAVY};background:#fff;padding:2.2mm 2.8mm;margin:0 0 2.8mm}
+.addr .who{font-size:10.5pt;font-weight:700;color:${INK};margin:.3mm 0}
+.addr .l{font-size:6.8pt;letter-spacing:.08em;color:${MUT};font-weight:700}
+.threat-card{display:flex;align-items:flex-start;gap:2.8mm;padding:2.4mm 3mm;border-radius:3px;margin:0 0 2.8mm;border:.6px solid ${LINE};background:#fff}
+.threat-pill{font-size:7.2pt;font-weight:800;text-transform:uppercase;letter-spacing:.06em;padding:1.1mm 2.6mm;border-radius:2px;color:#fff;white-space:nowrap;display:inline-block}
 .threat-pill-low{background:#10b981}
 .threat-pill-med{background:#f59e0b}
 .threat-pill-high{background:#f43f5e}
 .threat-pill-crit{background:#be123c}
-.threat-desc{font-size:8pt;color:${INK};line-height:1.35;flex:1}
-.intel-grid{display:grid;grid-template-columns:1fr 1fr;gap:2.5mm;margin:0 0 3mm}
-.dates-box{background:#f8fafc;border:.6px solid #e2e8f0;border-left:3px solid #3b82f6;border-radius:3px;padding:2.2mm 3mm;margin:0 0 2.5mm}
-.dates-box h4{margin:0 0 1.2mm;font-size:7.8pt;color:#1e3a8a;text-transform:uppercase;letter-spacing:.04em}
+.threat-desc{font-size:7.8pt;color:${INK};line-height:1.35;flex:1}
+
+/* Page 1 Action Summary Box */
+.action-summary-box{border:1.2px solid #b91c1c;border-left:4px solid #b91c1c;border-radius:3px;background:#fff8f8;padding:2.8mm 3.4mm;margin:0 0 3.2mm}
+.action-summary-box h3{margin:0 0 1.5mm;font-size:9.2pt;font-weight:800;color:#991b1b;letter-spacing:.04em;text-transform:uppercase;display:flex;align-items:center;gap:2mm}
+.action-summary-box .action-grid{display:grid;grid-template-columns:1fr 1fr;gap:2.8mm;margin-top:1.8mm}
+.action-item{background:#fff;border:.6px solid #fecaca;border-radius:2px;padding:2mm 2.4mm}
+.action-item .action-title{font-size:7.8pt;font-weight:700;color:#991b1b;margin-bottom:.8mm}
+.action-item .action-desc{font-size:7.3pt;color:#334155;line-height:1.3}
+
+.post-link{color:#1d4ed8;text-decoration:underline;font-weight:700;word-break:break-all}
+.post-link:hover{color:#1e40af}
+
+.intel-grid{display:grid;grid-template-columns:1fr 1fr;gap:2.4mm;margin:0 0 2.8mm}
+.dates-box{background:#f8fafc;border:.6px solid #e2e8f0;border-left:3px solid #3b82f6;border-radius:3px;padding:2mm 2.8mm;margin:0 0 2.4mm}
+.dates-box h4{margin:0 0 1mm;font-size:7.6pt;color:#1e3a8a;text-transform:uppercase;letter-spacing:.04em}
 .dates-box ul{margin:0;padding:0;list-style:none}
-.dates-box li{font-size:7.6pt;color:#334155;margin-bottom:1mm;line-height:1.3}
-.watch-box{background:#fffbeb;border:.6px solid #fde68a;border-left:3px solid #f59e0b;border-radius:3px;padding:2.2mm 3mm;margin:0 0 2.5mm}
-.watch-box h4{margin:0 0 1.2mm;font-size:7.8pt;color:#92400e;text-transform:uppercase;letter-spacing:.04em}
+.dates-box li{font-size:7.4pt;color:#334155;margin-bottom:1mm;line-height:1.3}
+.watch-box{background:#fffbeb;border:.6px solid #fde68a;border-left:3px solid #f59e0b;border-radius:3px;padding:2mm 2.8mm;margin:0 0 2.4mm}
+.watch-box h4{margin:0 0 1mm;font-size:7.6pt;color:#92400e;text-transform:uppercase;letter-spacing:.04em}
 .watch-box ul{margin:0;padding:0;list-style:none}
-.watch-box li{font-size:7.6pt;color:#78350f;margin-bottom:1mm;line-height:1.3}
-.plat-badge{display:inline-block;padding:.8mm 2mm;border-radius:2px;font-size:6.3pt;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
-.prio-pill{display:inline-block;padding:.8mm 1.8mm;border-radius:2px;font-size:6.2pt;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.watch-box li{font-size:7.4pt;color:#78350f;margin-bottom:1mm;line-height:1.3}
+.plat-badge{display:inline-block;padding:.7mm 1.8mm;border-radius:2px;font-size:6.2pt;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.prio-pill{display:inline-block;padding:.7mm 1.6mm;border-radius:2px;font-size:6.1pt;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
 .prio-high{background:#fef2f2;color:#991b1b;border:.5px solid #fecaca}
 .prio-med{background:#f0fdf4;color:#166534;border:.5px solid #bbf7d0}
 .author-handle{font-weight:700;color:${INK}}
-.reason-text{font-size:7.2pt;color:#334155;line-height:1.3}
-.plat-group-box{margin:0 0 3.2mm;border:.6px solid ${LINE};border-radius:3px;background:#fff;break-inside:avoid;page-break-inside:avoid;overflow:hidden}
-.plat-group-header{display:flex;align-items:center;gap:2.5mm;padding:2mm 2.8mm;background:#f8fafc;border-bottom:.6px solid ${LINE};border-left:3.5px solid ${NAVY}}
-.plat-group-title{font-size:8pt;font-weight:700;color:${INK};flex:1}
-.plat-group-count{font-size:6.8pt;color:${MUT};text-transform:uppercase;letter-spacing:.04em}
+.reason-text{font-size:7.1pt;color:#334155;line-height:1.3}
+.plat-group-box{margin:0 0 3mm;border:.6px solid ${LINE};border-radius:3px;background:#fff;break-inside:avoid;page-break-inside:avoid;overflow:hidden}
+.plat-group-header{display:flex;align-items:center;gap:2.4mm;padding:1.8mm 2.6mm;background:#f8fafc;border-bottom:.6px solid ${LINE};border-left:3.5px solid ${NAVY}}
+.plat-group-title{font-size:7.8pt;font-weight:700;color:${INK};flex:1}
+.plat-group-count{font-size:6.6pt;color:${MUT};text-transform:uppercase;letter-spacing:.04em}
 .plat-group-box table{margin:0;border:none}
-.plat-group-box th{background:#26304A;font-size:6.2pt}
+.plat-group-box th{background:#26304A;font-size:6.1pt}
 .plat-group-box td{border-bottom:.35px solid ${LINE}}
 .plat-group-box tr:last-child td{border-bottom:none}
 `;
@@ -410,23 +460,19 @@ const sortByDateAndTone = (list = []) =>
   [...list].sort((a, b) => {
     const dayA = dateDayKey(a.posted_at);
     const dayB = dateDayKey(b.posted_at);
-    // 1. Group by Day descending (newest date first)
     if (dayA !== dayB) {
       return dayB.localeCompare(dayA);
     }
-    // 2. Inside each date, sort by Tone: Negative -> Neutral -> Positive
     const toneA = TONE_PRIORITY[a.sentK] || 4;
     const toneB = TONE_PRIORITY[b.sentK] || 4;
     if (toneA !== toneB) {
       return toneA - toneB;
     }
-    // 3. Within the same date and same tone: newest time first
     const timeA = parseDateMs(a.posted_at);
     const timeB = parseDateMs(b.posted_at);
     if (timeA !== timeB) {
       return timeB - timeA;
     }
-    // 4. Then by engagement
     return (b.eng || 0) - (a.eng || 0);
   });
 
@@ -456,20 +502,30 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       : stats.date_range?.start && stats.date_range?.end
         ? `${new Date(stats.date_range.start).toLocaleDateString('en-GB')} – ${new Date(stats.date_range.end).toLocaleDateString('en-GB')}`
         : '—';
-  const tenant = (tenantName || 'DIGITAL INTELLIGENCE PLATFORM').toUpperCase();
+  
+  const cleanTenant = (t) => {
+    if (!t) return 'DIGITAL INTELLIGENCE PLATFORM';
+    const s = String(t).replace(/[_]+/g, ' ').replace(/\bblurasaga\b/gi, '').replace(/\bblura\s+saga\b/gi, '').trim();
+    if (/odisha/i.test(s)) return 'ODISHA POLICE';
+    if (/delhi/i.test(s)) return 'DELHI POLICE';
+    if (/jharkhand/i.test(s)) return 'JHARKHAND POLICE';
+    if (/andhra|ap/i.test(s)) return 'ANDHRA PRADESH POLICE';
+    if (/uttarakhand/i.test(s)) return 'UTTARAKHAND POLICE';
+    return s.toUpperCase() || 'DIGITAL INTELLIGENCE PLATFORM';
+  };
+
+  const tenant = cleanTenant(tenantName);
   const hq = headquarters || null;
   const hqHtml = hq
     ? `<div class="addr">
-        <div class="l">ADDRESSED TO THE STATE HEADQUARTERS</div>
+        <div class="l">ADDRESSED TO STATE HEADQUARTERS</div>
         <div class="who">${esc(hq.head)}, ${esc(hq.force)}</div>
         <div>${esc(hq.addressLine)}</div>
         ${hq.phone ? `<div class="sm">${esc(hq.phone)}</div>` : ''}
-        <p class="sm">${esc(hq.note)} ${hq.official ? 'Taken from the official police page.' : 'The official home page did not print this street, so the agency record is cited.'} ${hq.sources.map((s) => `${esc(s.label)}: ${esc(s.url)}`).join(' · ')}</p>
       </div>`
     : `<div class="addr">
-        <div class="l">ADDRESSED TO THE STATE HEADQUARTERS</div>
+        <div class="l">ADDRESSED TO STATE HEADQUARTERS</div>
         <div class="who">${esc(tenant)}</div>
-        <p class="sm">No verified headquarters record matched this account. No city or street is added.</p>
       </div>`;
   const lead = platformEntries[0];
   const placeLexicon = buildPlaceLexicon(event);
@@ -493,6 +549,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     const comments = n0(e.comments ?? e.engagement?.comments);
     const shares = n0(e.shares ?? e.engagement?.shares);
     const views = n0(e.views ?? e.engagement?.views);
+    const postUrl = resolvePostUrl(e);
     return {
       ...e,
       n,
@@ -503,12 +560,13 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       places,
       specific: places.filter((p) => !broad.has(p.toLowerCase())),
       isVisit,
+      url: postUrl,
       when: e.posted_at ? new Date(e.posted_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—',
       eng: likes + comments * 2 + shares * 3 + Math.floor(views / 10),
     };
   });
 
-  // Geographic penetration: places named inside posts. The state name is kept, but it does not hide a city or site.
+  // Geographic penetration
   const placeMap = {};
   sortByLatest(ev).forEach((e) => {
     const named = e.specific.length ? e.specific : e.places;
@@ -528,7 +586,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     ev.filter((e) => e.sentK === 'negative' || ['critical', 'high'].includes(String(e.risk_level || '').toLowerCase()))
   );
 
-  // Amplifiers / high monitoring profiles
+  // Amplifiers & high monitoring profiles — CAPPED to Top 10 (or max 15 if engagement is high)
   const authors = {};
   ev.forEach((e) => {
     const key = `${e.plat}|${e.author}`;
@@ -540,6 +598,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       criticalCount: 0,
       posts: [],
       sample: e.text,
+      sampleUrl: e.url,
     };
     authors[key].count += 1;
     authors[key].eng += (e.eng || 0);
@@ -549,9 +608,12 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     if (e.n) authors[key].posts.push(e.n);
   });
 
+  const totalAuthors = Object.keys(authors).length;
+  const profileCapLimit = totalAuthors > 12 ? 15 : 10;
+
   const highWatchList = Object.values(authors)
     .sort((a, b) => b.eng - a.eng || b.count - a.count)
-    .slice(0, 18)
+    .slice(0, profileCapLimit)
     .map((a) => {
       const matchHmp = (analysis?.highMonitoringProfiles || []).find(
         (hmp) => hmp.account && (
@@ -569,13 +631,13 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       let why = matchHmp?.whyMonitor || matchAmp?.why || '';
       if (!why) {
         if (a.eng >= 40000) {
-          why = `Primary digital amplifier with viral traction (${fmt(a.eng)} views/reach); driving major public reach.`;
+          why = `Primary digital amplifier with viral reach (${fmt(a.eng)} engagement/views); active monitoring recommended.`;
         } else if (a.criticalCount > 0) {
-          why = `Broadcaster of critical / adverse claims (${fmt(a.criticalCount)} negative posts); surveillance needed for unrest triggers.`;
+          why = `Broadcaster of adverse claims (${fmt(a.criticalCount)} critical posts); surveillance needed for agitation triggers.`;
         } else if (a.count >= 3) {
-          why = `High-cadence repeat broadcaster (${fmt(a.count)} posts); tracks and amplifies campaign narratives across network.`;
+          why = `High-frequency repeat broadcaster (${fmt(a.count)} posts); driving campaign narrative across social feeds.`;
         } else {
-          why = `Active platform voice regularly circulating event-related posts and commentary.`;
+          why = `Active platform voice regularly circulating event commentary.`;
         }
       }
 
@@ -590,36 +652,49 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   const promoters = highWatchList;
 
-  // Targets from entity classification (tenant/event data — not hardcoded orgs)
   const entities = Object.entries(stats.target_classification || {})
     .map(([k, v]) => ({ name: k, total: n0(v.total), praise: n0(v.praise), news: n0(v.news), crit: n0(v.criticism) }))
     .filter((e) => e.total > 0)
     .sort((a, b) => b.total - a.total);
 
-  // Top monitored keywords by volume (dynamic per event)
   const topKwA = kws[0] || null;
   const topKwB = kws[1] || null;
 
   const findings = (analysis?.keyFindings || []).slice(0, 6);
   const narratives = (analysis?.narratives || []).slice(0, 5);
-  const actions = (analysis?.actions || []).slice(0, 5);
+  const actions = (analysis?.actions || []).slice(0, 6);
 
   const platStr = platformEntries.map(([k, v]) => `${platLabel(k)}: ${fmt(v)}`).join(', ') || '—';
   const kwStr = kws.slice(0, 14).map((k) => k.keyword).join(', ') || (event.keywords || []).map((k) => (k.keyword || k)).join(', ') || '—';
 
-  const placeLabel = (e) => (e.specific.length ? e.specific.join(', ') : e.places.length ? e.places.join(', ') : 'Not named in the post');
-  const postRef = (e) => (e.citationTag ? e.citationTag : `Post #${e.n}`);
+  const placeLabel = (e) => (e.specific.length ? e.specific.join(', ') : e.places.length ? e.places.join(', ') : 'Not named in post');
+  
+  const postRefLink = (e) => {
+    const label = e.citationTag ? e.citationTag : `Post #${e.n}`;
+    if (e.url) {
+      return `<a href="${esc(e.url)}" target="_blank" class="post-link">${esc(label)}</a>`;
+    }
+    return esc(label);
+  };
+
+  const authorProfileLink = (plat, author) => {
+    const url = resolvePostUrl({ platform: plat, author });
+    if (url) {
+      return `<a href="${esc(url)}" target="_blank" class="post-link">@${esc(author)}</a>`;
+    }
+    return `@${esc(author)}`;
+  };
 
   const activityPosts = sortByDateAndTone(ev.filter((e) => e.isVisit));
   const activityList = activityPosts.length ? activityPosts : sortByDateAndTone(ev);
   const activityRows = activityList
     .map(
       (e) => `<tr>
-<td>${esc(postRef(e))}</td>
+<td>${postRefLink(e)}</td>
 <td>${esc(e.when)}</td>
 <td>${esc(placeLabel(e))}</td>
 <td>${esc(platLabel(e.plat))}</td>
-<td>${esc(e.author)}</td>
+<td>${authorProfileLink(e.plat, e.author)}</td>
 <td class="tone-${e.sentK || 'neu'}">${esc(toneLabel(e.sentK))}</td>
 <td>${esc(clip(e.text, 220))}</td>
 </tr>`
@@ -634,16 +709,16 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     ? visits
         .map(
           (e) => `<tr>
-<td>${esc(postRef(e))}</td>
+<td>${postRefLink(e)}</td>
 <td>${esc(e.when)}</td>
 <td>${esc(placeLabel(e))}</td>
 <td>${esc(platLabel(e.plat))}</td>
-<td>${esc(e.author)}</td>
+<td>${authorProfileLink(e.plat, e.author)}</td>
 <td>${esc(clip(e.text, 200))}</td>
 </tr>`
         )
         .join('')
-    : `<tr><td colspan="6">No post in this set names a place or a field activity.</td></tr>`;
+    : `<tr><td colspan="6">No posts in this dataset name a specific ground field location.</td></tr>`;
 
   const placeRows = places.length
     ? places
@@ -655,28 +730,28 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 </tr>`
         )
         .join('')
-    : `<tr><td colspan="3">No place names matched in the cited evidence sample.${event.location ? ` Event location: ${esc(event.location)}.` : ''}</td></tr>`;
+    : `<tr><td colspan="3">No specific landmarks identified.${event.location ? ` Monitored region: ${esc(event.location)}.` : ''}</td></tr>`;
 
   const critRows = critical.length
     ? critical
         .map(
           (e) => `<tr>
-<td>${esc(postRef(e))}</td>
+<td>${postRefLink(e)}</td>
 <td>${esc(placeLabel(e))}</td>
 <td>${esc(platLabel(e.plat))}</td>
-<td>${esc(e.author)}</td>
+<td>${authorProfileLink(e.plat, e.author)}</td>
 <td class="tone-neg">${esc(toneLabel(e.sentK) === '—' ? 'Negative' : toneLabel(e.sentK))}</td>
 <td>${esc(clip(e.text, 200))}</td>
 </tr>`
         )
         .join('')
-    : `<tr><td colspan="6">No negative or high-risk posts in this evidence set.</td></tr>`;
+    : `<tr><td colspan="6">No critical or high-risk posts identified in this dataset.</td></tr>`;
 
   const promoterRows = promoters
     .map(
       (a) => `<tr>
 <td>${esc(platLabel(a.platform))}</td>
-<td>${esc(a.author)}</td>
+<td>${authorProfileLink(a.platform, a.author)}</td>
 <td>${fmt(a.count)}</td>
 <td>${fmt(a.eng)}</td>
 <td>${esc(clip(a.sample, 160))}</td>
@@ -699,11 +774,11 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const evidenceRows = sortByDateAndTone(ev)
     .map(
       (e) => `<tr>
-<td>${esc(postRef(e))}</td>
+<td>${postRefLink(e)}</td>
 <td>${esc(e.when)}</td>
 <td>${esc(placeLabel(e))}</td>
 <td>${esc(platLabel(e.plat))}</td>
-<td>${esc(e.author)}</td>
+<td>${authorProfileLink(e.plat, e.author)}</td>
 <td class="tone-${e.sentK || 'neu'}">${esc(toneLabel(e.sentK))}</td>
 <td>${fmt(e.eng)}</td>
 <td>${esc(clip(e.text, 240))}</td>
@@ -720,7 +795,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
         .join('')}</ul>`
     : analysis?.situation
       ? `<p class="lead">${esc(analysis.situation)}</p>`
-      : `<p class="sm">Narrative briefing will appear after summary generation.</p>`;
+      : `<p class="sm">Narrative analysis active.</p>`;
 
   const findingsHtml = findings.length
     ? `<ul class="bul">${findings.map((f) => `<li><b>${esc(f.headline)}</b> — ${esc(f.detail)}</li>`).join('')}</ul>`
@@ -748,6 +823,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     .filter((k) => n0(k.total_posts) > 0)
     .slice(0, 8)
     .map((k, i) => ({ k: k.keyword, v: k.total_posts, c: CHART_COLORS[i % CHART_COLORS.length] }));
+
   const matchTotal = n0(kwa?.summary?.total_matched_posts) || sovParts.reduce((s, p) => s + n0(p.v), 0);
   const keywordStacks = comparisons.map((c) => `
     <div class="hbar" style="grid-template-columns:36mm 1fr;margin-bottom:2.2mm">
@@ -787,9 +863,9 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     : (/med/i.test(threatLevelVal) ? 'threat-pill-med' : 'threat-pill-low');
   const threatDesc = analysis?.threatDesc || (
     highRiskN > 0
-      ? `${fmt(highRiskN)} high or critical risk posts identified in monitored window requiring active operational intervention.`
+      ? `${fmt(highRiskN)} high/critical risk posts identified in monitored window requiring active operational intervention.`
       : n0(riskCounts.medium) > 0
-        ? `Monitored discourse reflects low to moderate public sensitivity. Found 0 high/critical risk posts and ${fmt(riskCounts.medium)} medium-risk posts. No direct calls for violence detected.`
+        ? `Monitored discourse reflects low to moderate public sensitivity (${fmt(riskCounts.medium)} medium-risk posts). No direct calls for violence detected.`
         : 'Baseline public discourse. No elevated threat signals, hostile mobilization, or violent agitation indicators detected.'
   );
 
@@ -797,6 +873,32 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   <div class="threat-card">
     <div class="threat-pill ${threatPillClass}">Threat Level: ${esc(threatLevelVal)}</div>
     <div class="threat-desc">${esc(threatDesc)}</div>
+  </div>`;
+
+  // Page 1 Half-Page Action Summary: Key posts/profiles requiring immediate attention with direct links
+  const topFlaggedProfiles = highWatchList.filter((p) => p.priority === 'High Watch' || p.criticalCount > 0).slice(0, 4);
+  const topFlaggedPosts = critical.slice(0, 3);
+
+  const actionSummaryHtml = `
+  <div class="action-summary-box">
+    <h3>🚨 Immediate Action Summary (Executive & Police Directives)</h3>
+    <p style="font-size:7.6pt;color:#7f1d1d;margin:0 0 1.5mm">
+      Key posts and accounts identified below require immediate review, ground verification, cyber tracking, or takedown escalation.
+    </p>
+    <div class="action-grid">
+      <div class="action-item">
+        <div class="action-title">1. Priority Accounts For Review / Takedown (${topFlaggedProfiles.length || 1} Flags)</div>
+        <div class="action-desc">
+          ${topFlaggedProfiles.length ? topFlaggedProfiles.map(p => `• ${authorProfileLink(p.platform, p.author)} (${esc(platLabel(p.platform))}) — <b>${esc(p.why)}</b>`).join('<br>') : '• Continuous surveillance on top amplifying digital channels.'}
+        </div>
+      </div>
+      <div class="action-item">
+        <div class="action-title">2. Critical Monitored Posts Requiring Action</div>
+        <div class="action-desc">
+          ${topFlaggedPosts.length ? topFlaggedPosts.map(p => `• ${postRefLink(p)} [${esc(platLabel(p.plat))}] by ${authorProfileLink(p.plat, p.author)}: "${esc(clip(p.text, 90))}"`).join('<br>') : '• No active high-threat posts flagged in this window.'}
+        </div>
+      </div>
+    </div>
   </div>`;
 
   const keyDates = (analysis?.keyDates || []).length
@@ -838,26 +940,26 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     : '';
 
   const evidenceSecHtml = includeEvidence ? `
-  <div class="sec"><span class="no">09.</span><span class="nm">Evidence register</span></div>
+  <div class="sec"><span class="no">09.</span><span class="nm">Evidence register (Click to Open Post)</span></div>
   <div class="metrics">
-    ${metric(fmt(ev.length), 'Posts in this brief', 'Every row below is one monitored post')}
-    ${metric(fmt(ev.filter((e) => e.posted_at).length), 'With a publication time', 'Undated posts stay in the register')}
+    ${metric(fmt(ev.length), 'Posts in this brief', 'Direct hyperlinks enabled for each evidence post')}
+    ${metric(fmt(ev.filter((e) => e.posted_at).length), 'Dated posts', 'Verified publication timestamp')}
     ${metric(fmt(sent.negative), 'Negative tone', `${pct(sent.negative, sentTotal)} of toned posts`)}
-    ${metric(fmt(places.length), 'Places named', topPlace ? `Lead site: ${topPlace.name}` : 'None named in the text')}
+    ${metric(fmt(places.length), 'Places named', topPlace ? `Lead site: ${topPlace.name}` : 'None named')}
   </div>
-  <p class="sm">All ${fmt(ev.length)} posts used for this brief. Post numbers match the citations above.</p>
+  <p class="sm">All ${fmt(ev.length)} posts used for this brief. Click any Post # link to inspect the original live record.</p>
   <table>
     <colgroup>
-      <col style="width:10%">
+      <col style="width:11%">
       <col style="width:13%">
-      <col style="width:15%">
-      <col style="width:9%">
       <col style="width:14%">
       <col style="width:9%">
+      <col style="width:14%">
+      <col style="width:8%">
       <col style="width:7%">
-      <col style="width:23%">
+      <col style="width:24%">
     </colgroup>
-    <thead><tr><th>Post</th><th>When</th><th>Place</th><th>Platform</th><th>Account</th><th>Tone</th><th>Eng.</th><th>Text</th></tr></thead>
+    <thead><tr><th>Post Link</th><th>When</th><th>Place</th><th>Platform</th><th>Account</th><th>Tone</th><th>Eng.</th><th>Text</th></tr></thead>
     <tbody>${evidenceRows || '<tr><td colspan="8">No posts in this evidence set.</td></tr>'}</tbody>
   </table>` : '';
 
@@ -878,8 +980,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       <div class="plat-group-box">
         <div class="plat-group-header" style="border-left-color:${pColor}">
           <span class="plat-badge" style="background:${pColor}">${esc(platLabel(platKey))}</span>
-          <span class="plat-group-title">${esc(platLabel(platKey))} Priority Profiles</span>
-          <span class="plat-group-count">${list.length} monitored profile${list.length === 1 ? '' : 's'}</span>
+          <span class="plat-group-title">${esc(platLabel(platKey))} Priority Profiles (Top Monitored Accounts)</span>
+          <span class="plat-group-count">${list.length} profile${list.length === 1 ? '' : 's'}</span>
         </div>
         <table>
           <colgroup>
@@ -890,7 +992,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
           </colgroup>
           <thead>
             <tr>
-              <th>Profile / Channel</th>
+              <th>Profile / Channel Link</th>
               <th>Priority</th>
               <th>Posts & Reach</th>
               <th>Why to Monitor (Surveillance Rationale)</th>
@@ -899,7 +1001,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
           <tbody>
             ${list.map((p) => `
               <tr>
-                <td><span class="author-handle">${esc(p.author)}</span></td>
+                <td>${authorProfileLink(p.platform, p.author)}</td>
                 <td><span class="prio-pill ${p.priorityClass}">${esc(p.priority)}</span></td>
                 <td><b>${fmt(p.count)}</b> posts<br><span class="sm">${fmt(p.eng)} reach</span></td>
                 <td class="reason-text">${esc(p.why)}${p.posts?.length ? ` <span class="sm">${esc(p.posts.slice(0, 3).map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</td>
@@ -915,17 +1017,19 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const body = `
 <section class="pg">
   <div class="hero">
-    <div class="eyebrow">${esc(tenant)} · CRIME BRANCH BRIEF FOR THE ${esc((hq?.head || 'DGP').toUpperCase())}</div>
+    <div class="eyebrow">${esc(tenant)} · ${includeEvidence ? 'FULL INTELLIGENCE & EVIDENCE REPORT' : 'EXECUTIVE ACTION SUMMARY BRIEF'}</div>
     <h1>${esc(event.name || 'Event')}</h1>
-    <div class="sub">${esc(event.location || 'Location not specified')} · ${includeEvidence ? 'Each row below is a monitored post used as evidence' : 'Executive summary & trend intelligence brief'}</div>
+    <div class="sub">${esc(event.location || 'Location not specified')} · ${includeEvidence ? 'Detailed intelligence brief with complete evidence register' : 'Executive action summary and tactical intelligence brief'}</div>
     <div class="meta">
       <span>MONITORING WINDOW<b>${esc(windowStr)}</b></span>
       <span>GENERATED<b>${esc(dateStr)}</b></span>
       <span>POSTS ANALYSED<b>${fmt(total)}</b></span>
-      <span>${includeEvidence ? 'CITED EVIDENCE' : 'REPORT MODE'}<b>${includeEvidence ? fmt(ev.length) : 'Without Evidence'}</b></span>
+      <span>REPORT FORMAT<b>${includeEvidence ? `With Evidence (${fmt(ev.length)})` : 'Executive 2-Page Brief'}</b></span>
     </div>
   </div>
   ${hqHtml}
+
+  ${actionSummaryHtml}
 
   ${threatCardHtml}
 
@@ -933,60 +1037,60 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     <div><div class="n">${fmt(total)}</div><div class="l">Total posts</div></div>
     <div><div class="n">${esc(lead ? platLabel(lead[0]) : '—')}</div><div class="l">Lead platform</div></div>
     <div><div class="n">${fmt(places.length)}</div><div class="l">Places covered</div></div>
-    <div><div class="n">${fmt(sent.negative)}</div><div class="l">Negative</div></div>
-    <div><div class="n">${fmt(engTotal)}</div><div class="l">Engagement</div></div>
+    <div><div class="n">${fmt(sent.negative)}</div><div class="l">Negative posts</div></div>
+    <div><div class="n">${fmt(engTotal)}</div><div class="l">Total engagement</div></div>
   </div>
 
   <div class="kpi">
-    <div><div class="n">${pct(sent.positive, sentTotal)}</div><div class="l">Positive</div></div>
-    <div><div class="n">${pct(sent.neutral, sentTotal)}</div><div class="l">Neutral</div></div>
+    <div><div class="n">${pct(sent.positive, sentTotal)}</div><div class="l">Positive share</div></div>
+    <div><div class="n">${pct(sent.neutral, sentTotal)}</div><div class="l">Neutral share</div></div>
     <div><div class="n">${pct(sent.negative, sentTotal)}</div><div class="l">Negative share</div></div>
     <div><div class="n">${fmt(topKwA ? n0(topKwA.total_posts) : 0)}</div><div class="l">${esc(topKwA ? clip(topKwA.keyword, 22) : 'Top keyword')}</div></div>
     <div><div class="n">${fmt(topKwB ? n0(topKwB.total_posts) : visits.length)}</div><div class="l">${esc(topKwB ? clip(topKwB.keyword, 22) : 'Field activity')}</div></div>
   </div>
 
-  <p class="sm"><b>Platforms:</b> ${esc(platStr)}</p>
-  <p class="sm"><b>Keywords:</b> ${esc(clip(kwStr, 280))}</p>
+  <p class="sm"><b>Active Platforms:</b> ${esc(platStr)}</p>
+  <p class="sm"><b>Tracked Keywords:</b> ${esc(clip(kwStr, 280))}</p>
 
   <div class="charts">
     <div class="chartbox">
-      <h4>Posts by platform</h4>
+      <h4>Platform Distribution & Sentiment Mix</h4>
       <p class="sm">Post volume distribution across monitored social and digital channels.</p>
       ${platformBars || '<p class="sm">No platform split.</p>'}
       <div style="margin-top:2mm">${stackBar(briefSent)}</div>
     </div>
     <div class="chartbox">
-      <h4>Share of voice</h4>
+      <h4>Keyword Share of Voice</h4>
       <p class="sm">Proportional share of keyword mentions across monitored discourse.</p>
       ${sovParts.length ? `<div class="donutwrap">${donutSvg(sovParts, fmt(matchTotal), 'Matches')}<div class="legend" style="flex-direction:column;gap:1mm">${sovParts.map((p) => `<span><i style="background:${p.c}"></i>${esc(clip(p.k, 28))} ${fmt(p.v)}</span>`).join('')}</div></div>` : '<p class="sm">No keyword split for this event.</p>'}
     </div>
   </div>
   <div class="charts">
     <div class="chartbox">
-      <h4>Mentions volume by keyword</h4>
+      <h4>Keyword Volume Breakdown</h4>
       <p class="sm">Direct post volume and frequency per tracked keyword.</p>
       ${keywordBars || '<p class="sm">No keyword split for this event.</p>'}
     </div>
     <div class="chartbox">
-      <h4>Mentions timeline</h4>
+      <h4>Posting Timeline & Cadence</h4>
       <p class="sm">Chronological posting volume and publication cadence over the monitored window.</p>
       ${timelineChart(kwa?.timeline_overall)}
     </div>
   </div>
-  ${keywordStacks ? `<div class="chartbox"><h4>Sentiment by keyword</h4><p class="sm">Categorized sentiment distribution across individual keywords.</p><div class="legend"><span><i style="background:${POS}"></i>Positive</span><span><i style="background:${NEU}"></i>Neutral</span><span><i style="background:${NEG}"></i>Negative</span></div>${keywordStacks}</div>` : ''}
+  ${keywordStacks ? `<div class="chartbox"><h4>Sentiment by Keyword</h4><p class="sm">Categorized sentiment distribution across individual keywords.</p><div class="legend"><span><i style="background:${POS}"></i>Positive</span><span><i style="background:${NEU}"></i>Neutral</span><span><i style="background:${NEG}"></i>Negative</span></div>${keywordStacks}</div>` : ''}
 
-  ${analysis?.bottomLine ? `<p class="lead"><b>Bottom line.</b> ${esc(analysis.bottomLine)}</p>` : ''}
+  ${analysis?.bottomLine ? `<p class="lead"><b>Bottom line:</b> ${esc(analysis.bottomLine)}</p>` : ''}
   ${findingsHtml}
 
   ${intelGridHtml}
 
-  <div class="sec"><span class="no">01.</span><span class="nm">Recommended actions</span></div>
-  ${actionsHtml || '<p class="sm">Maintain standard baseline monitoring. No elevated risk alerts or immediate operational escalation required at this stage.</p>'}
+  <div class="sec"><span class="no">01.</span><span class="nm">Recommended Law Enforcement & Cyber Actions</span></div>
+  ${actionsHtml || '<p class="sm">Maintain standard baseline monitoring. No immediate operational escalation required at this stage.</p>'}
 
-  <div class="sec"><span class="no">02.</span><span class="nm">Activity analysis</span></div>
+  <div class="sec"><span class="no">02.</span><span class="nm">Activity Analysis & Field Presence</span></div>
   <div class="metrics">
-    ${metric(fmt(activityPosts.length), 'Activity posts', 'Open posts that name a bandh, rally, meeting, or blockade')}
-    ${metric(fmt(total), 'Posts in window', 'Denominator for every share below')}
+    ${metric(fmt(activityPosts.length), 'Activity posts', 'Posts naming a bandh, rally, meeting, or blockade')}
+    ${metric(fmt(total), 'Posts in window', 'Total posts analyzed')}
     ${metric(lead ? platLabel(lead[0]) : '—', 'Lead platform', lead ? `${fmt(lead[1])} posts, ${pct(lead[1], total)}` : 'No platform split')}
     ${metric(fmt(engTotal), 'Engagement', 'Likes + shares + comments')}
   </div>
@@ -995,49 +1099,28 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${includeEvidence ? `<table>
     <colgroup>
       <col style="width:11%">
-      <col style="width:14%">
-      <col style="width:16%">
+      <col style="width:13%">
+      <col style="width:15%">
       <col style="width:10%">
       <col style="width:15%">
       <col style="width:9%">
-      <col style="width:25%">
+      <col style="width:27%">
     </colgroup>
-    <thead><tr><th>Post</th><th>When</th><th>Place in the post</th><th>Platform</th><th>Author</th><th>Tone</th><th>Evidence</th></tr></thead>
+    <thead><tr><th>Post Link</th><th>When</th><th>Place</th><th>Platform</th><th>Author</th><th>Tone</th><th>Evidence</th></tr></thead>
     <tbody>${activityRows || '<tr><td colspan="7">No activity posts in this set.</td></tr>'}</tbody>
   </table>` : ''}
 
-  <div class="sec"><span class="no">03.</span><span class="nm">Recent movement / presence</span></div>
+  <div class="sec"><span class="no">03.</span><span class="nm">Geographic Movement & Regional Presence</span></div>
   <div class="metrics">
-    ${metric(fmt(visits.length), 'Presence posts', 'Count a presence only when the post names a site')}
+    ${metric(fmt(visits.length), 'Presence posts', 'Field activity posts naming a specific site')}
     ${metric(fmt(places.length), 'Places named', topPlace ? `Highest: ${topPlace.name}` : 'None named')}
-    ${metric(topPlace ? fmt(topPlace.count) : '0', 'Posts at top place', topPlace ? topPlace.name : '—')}
-    ${metric(fmt(visits.filter((e) => e.specific.length).length), 'With a specific site', 'State name alone is not a site')}
+    ${metric(topPlace ? fmt(topPlace.count) : '0', 'Top place volume', topPlace ? topPlace.name : '—')}
+    ${metric(fmt(visits.filter((e) => e.specific.length).length), 'Specific sites', 'Cities/districts/landmarks')}
   </div>
-  <p class="sm">Where a post says someone was present, or names a site of a rally, meeting, protest, or blockade. A blank place means the post did not name one.</p>
-  ${(analysis?.presence || []).length
-    ? `<ul class="bul">${analysis.presence.map((p) => `<li><b>${esc(p.who)}</b>${p.place ? ` at ${esc(p.place)}` : ''}${p.posts?.length ? ` <span class="sm">${esc(p.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>`
-    : visits.length > 0
-      ? `<p class="sm">${fmt(visits.length)} monitored posts identified field movement and presence across locations including ${visits.slice(0, 5).map((v) => esc(placeLabel(v))).filter(Boolean).join(', ')}.</p>`
-      : `<p class="sm">No field movement, rallies, protests, or specific location presences recorded in the monitored window.</p>`}
-  ${includeEvidence ? `<table>
-    <colgroup>
-      <col style="width:12%">
-      <col style="width:15%">
-      <col style="width:20%">
-      <col style="width:11%">
-      <col style="width:16%">
-      <col style="width:26%">
-    </colgroup>
-    <thead><tr><th>Post</th><th>When</th><th>Place named</th><th>Platform</th><th>Author</th><th>Evidence</th></tr></thead>
-    <tbody>${visitRows}</tbody>
-  </table>` : ''}
-
-  <div class="sec"><span class="no">04.</span><span class="nm">Geographic penetration</span></div>
   <div class="chartbox">
-    <h4>Posts by place named in the text</h4>
+    <h4>Top Locations Named in Discussion</h4>
     ${places.slice(0, 8).map((d) => hbar(d.name, d.count, places[0]?.count || 1, NAVY, pct(d.count, ev.length || 1))).join('') || '<p class="sm">No place named inside a post.</p>'}
   </div>
-  <p class="sm"><b>${fmt(places.length)}</b> place${places.length === 1 ? '' : 's'} written in the posts. These are cities, sites, highways, and institutions from the text, not only the event’s state.</p>
   ${(analysis?.geography || []).length
     ? `<ul class="bul">${analysis.geography.map((g) => `<li><b>${esc(g.place)}</b> — ${esc(g.note || '')} ${g.posts?.length ? `<span class="sm">${esc(g.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>`
     : places.length > 0
@@ -1045,71 +1128,67 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       : `<p class="sm">No specific city, district, or landmark names detected in post discussions.</p>`}
   ${includeEvidence ? `<table>
     <colgroup>
-      <col style="width:26%">
       <col style="width:12%">
-      <col style="width:62%">
+      <col style="width:14%">
+      <col style="width:18%">
+      <col style="width:10%">
+      <col style="width:15%">
+      <col style="width:31%">
     </colgroup>
-    <thead><tr><th>Place</th><th>Posts</th><th>Evidence</th></tr></thead>
-    <tbody>${placeRows}</tbody>
+    <thead><tr><th>Post Link</th><th>When</th><th>Place named</th><th>Platform</th><th>Author</th><th>Evidence</th></tr></thead>
+    <tbody>${visitRows}</tbody>
   </table>` : ''}
 </section>
 
 <section class="pg">
-  <div class="sec"><span class="no">05.</span><span class="nm">Popularity / sentiment</span></div>
+  <div class="sec"><span class="no">04.</span><span class="nm">Public Sentiment & Tone Distribution</span></div>
   <div class="kpi">
     <div><div class="n tone-pos">${fmt(sent.positive)}</div><div class="l">Positive (${pct(sent.positive, sentTotal)})</div></div>
     <div><div class="n tone-neu">${fmt(sent.neutral)}</div><div class="l">Neutral (${pct(sent.neutral, sentTotal)})</div></div>
     <div><div class="n tone-neg">${fmt(sent.negative)}</div><div class="l">Negative (${pct(sent.negative, sentTotal)})</div></div>
-    <div><div class="n">${fmt(sent.positive + sent.neutral + sent.negative)}</div><div class="l">Analysed for tone</div></div>
+    <div><div class="n">${fmt(sent.positive + sent.neutral + sent.negative)}</div><div class="l">Toned volume</div></div>
     <div><div class="n">${fmt(total)}</div><div class="l">Total posts</div></div>
   </div>
   <div class="chartbox">
-    <h4>Tone split</h4>
+    <h4>Tone Breakdown</h4>
     <div class="donutwrap">${donutSvg(briefSent, pct(sent.negative, sentTotal), 'Negative')}<div style="flex:1">${stackBar(briefSent)}</div></div>
-    <p class="sm" style="margin-top:2mm">${
-      sent.neutral >= sent.positive && sent.neutral >= sent.negative
-        ? 'Majority neutral. Treat negative share as the criticism load, not as a threat by itself.'
-        : sent.negative >= sent.positive
-          ? 'Negative tone is the largest share. Read section 06 before any public-order judgement.'
-          : 'Positive tone is the largest share.'
-    }</p>
   </div>
 
-  <div class="sec"><span class="no">06.</span><span class="nm">Critical comment tracking</span></div>
+  <div class="sec"><span class="no">05.</span><span class="nm">Critical Comments & Threat Tracking</span></div>
   <div class="metrics">
-    ${metric(fmt(critical.length), 'Critical rows', 'Read high and critical rows before ordinary criticism')}
+    ${metric(fmt(critical.length), 'Critical rows', 'Negative and adverse posts')}
     ${metric(pct(sent.negative, sentTotal), 'Negative share', `${fmt(sent.negative)} of ${fmt(sentTotal)} toned posts`)}
-    ${metric(fmt(highRiskN), 'High or critical risk', 'Separate from ordinary criticism')}
-    ${metric(fmt(n0(riskCounts.medium)), 'Medium risk', 'Review after the high band')}
+    ${metric(fmt(highRiskN), 'High / Critical risk', 'Priority alerts')}
+    ${metric(fmt(n0(riskCounts.medium)), 'Medium risk', 'Active tracking')}
   </div>
-  <div class="chartbox"><h4>Risk bands</h4>${stackBar(riskParts)}</div>
+  <div class="chartbox"><h4>Risk Bands</h4>${stackBar(riskParts)}</div>
   ${includeEvidence
-    ? `<p class="sm">Every negative or high-risk post in this evidence set, with the account that posted it.</p>
+    ? `<p class="sm">Critical and adverse posts in this dataset, with clickable links for review.</p>
   <table>
     <colgroup>
       <col style="width:12%">
-      <col style="width:18%">
-      <col style="width:12%">
-      <col style="width:18%">
+      <col style="width:16%">
       <col style="width:11%">
-      <col style="width:29%">
+      <col style="width:16%">
+      <col style="width:10%">
+      <col style="width:35%">
     </colgroup>
-    <thead><tr><th>Post</th><th>Place</th><th>Platform</th><th>Account</th><th>Tone</th><th>Evidence</th></tr></thead>
+    <thead><tr><th>Post Link</th><th>Place</th><th>Platform</th><th>Account</th><th>Tone</th><th>Evidence</th></tr></thead>
     <tbody>${critRows}</tbody>
   </table>`
     : critical.length > 0
-      ? `<p class="sm">Captured ${fmt(critical.length)} critical or negative tone posts (${pct(sent.negative, sentTotal)} of toned volume). Review high-risk alerts and public order commentary below.</p>`
+      ? `<p class="sm">Captured ${fmt(critical.length)} critical posts (${pct(sent.negative, sentTotal)} of toned volume). Review high-risk alerts and public order commentary below.</p>`
       : `<p class="sm">No critical, high-risk, or hostile posts detected in this dataset.</p>`}
-  ${analysis?.publicOrder ? `<p><b>Public order.</b> ${esc(analysis.publicOrder)}</p>` : ''}
+  ${analysis?.publicOrder ? `<p><b>Public Order Assessment:</b> ${esc(analysis.publicOrder)}</p>` : ''}
 
-  <div class="sec"><span class="no">07.</span><span class="nm">Active leaders / representatives</span></div>
+  <div class="sec"><span class="no">06.</span><span class="nm">Targeted Entities & Key Figures</span></div>
   <div class="metrics">
     ${metric(fmt(entities.length), 'Entities classified', 'Who the posts are about')}
     ${metric(topEntity ? fmt(topEntity.total) : '0', topEntity ? topEntity.name : 'Top entity', topEntity ? `${pct(topEntity.crit, topEntity.total)} negative` : '—')}
-    ${metric(fmt((analysis?.leaders || []).length), 'People named', 'Only names written in posts')}
-    ${metric(fmt(sent.negative), 'Negative posts', 'See which entity carries them')}
+    ${metric(fmt((analysis?.leaders || []).length), 'People named', 'Named in post text')}
+    ${metric(fmt(sent.negative), 'Negative posts', 'Negative sentiment volume')}
   </div>
-  ${entityBars ? `<div class="chartbox"><h4>Tone by entity</h4><p class="sm">Sentiment distribution categorized by monitored entity and subject.</p><div class="legend"><span><i style="background:${PR}"></i>Positive</span><span><i style="background:${NW}"></i>Neutral</span><span><i style="background:${CR}"></i>Negative</span></div>${entityBars}</div>` : ''}
+  ${entityBars ? `<div class="chartbox"><h4>Tone by Entity</h4><p class="sm">Sentiment distribution categorized by monitored entity and subject.</p><div class="legend"><span><i style="background:${PR}"></i>Positive</span><span><i style="background:${NW}"></i>Neutral</span><span><i style="background:${CR}"></i>Negative</span></div>${entityBars}</div>` : ''}
   ${
     entities.length
       ? `<table>
@@ -1128,18 +1207,18 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${(analysis?.leaders || []).length ? `<ul class="bul">${analysis.leaders.map((l) => `<li><b>${esc(l.name)}</b>${l.role ? ` — ${esc(l.role)}` : ''}${l.posts?.length ? ` <span class="sm">${esc(l.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : ''}
   ${analysis?.platformsCommentary ? `<p>${esc(analysis.platformsCommentary)}</p>` : ''}
 
-  <div class="sec"><span class="no">08.</span><span class="nm">Platform-wise high monitoring profiles</span></div>
+  <div class="sec"><span class="no">07.</span><span class="nm">High Monitoring Profiles (Top ${highWatchList.length} Accounts Capped)</span></div>
   <div class="metrics">
     ${metric(fmt(highWatchList.length), 'Profiles tracked', 'Monitored accounts categorized by platform')}
     ${metric(fmt(highWatchList.filter((p) => p.priority === 'High Watch').length), 'High watch tier', 'Priority surveillance & escalation targets')}
     ${metric(topVoice ? fmt(topVoice.count) : '0', topVoice ? clip(topVoice.author, 16) : 'Top account', topVoice ? platLabel(topVoice.platform) : '—')}
-    ${metric(fmt(engTotal), 'Total engagement', 'Combined reach of monitored accounts')}
+    ${metric(fmt(engTotal), 'Total reach', 'Combined engagement')}
   </div>
   <div class="chartbox">
-    <h4>Top amplifying accounts by reach</h4>
+    <h4>Top Amplifying Accounts by Engagement</h4>
     ${promoters.slice(0, 8).map((a) => hbar(a.author, a.eng, promoters[0]?.eng || 1, '#6366f1', `${a.count} posts`)).join('') || '<p class="sm">No accounts in this set.</p>'}
   </div>
-  <p class="sm">Platform-wise surveillance register categorized by digital channel. Lists priority channels/handles, reach, and tactical reason for active monitoring.</p>
+  <p class="sm">Surveillance register limited to the Top ${highWatchList.length} high-engagement accounts across platforms with direct profile links.</p>
   ${platformBoxesHtml}
   ${(analysis?.amplifiers || []).length
     ? `<ul class="bul">${analysis.amplifiers.map((a) => `<li><b>${esc(a.account)}</b> — ${esc(a.why || '')}${a.posts?.length ? ` <span class="sm">${esc(a.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>`
@@ -1148,10 +1227,10 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${evidenceSecHtml}
 
   <div class="footnote">
-    <b>Summary</b><br>
-    • Addressee: ${hq ? esc(`${hq.head}, ${hq.force}, ${hq.addressLine}`) : 'No verified headquarters for this account'}.<br>
+    <b>Executive Brief Summary</b><br>
+    • Target Force: ${hq ? esc(`${hq.head}, ${hq.force}, ${hq.addressLine}`) : esc(tenant)}.<br>
     • Monitored Event: ${esc(event.name || '—')}.<br>
-    • Posts analysed from database: ${fmt(total)}.${includeEvidence ? ` Cited evidence: ${fmt(ev.length)}.` : ' (Evidence register omitted for executive brief).'}<br>
+    • Posts analysed from database: ${fmt(total)}.${includeEvidence ? ` Cited evidence: ${fmt(ev.length)}.` : ' (Evidence register omitted for executive 2-page brief).'}<br>
     • Platforms: ${esc(platStr)}.<br>
     • Places named in posts: ${fmt(places.length)}${places[0] ? `; highest volume in ${esc(places[0].name)}` : ''}.<br>
     • Sentiment (Positive / Neutral / Negative): ${fmt(sent.positive)} / ${fmt(sent.neutral)} / ${fmt(sent.negative)}.
