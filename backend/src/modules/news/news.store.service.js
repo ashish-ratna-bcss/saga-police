@@ -159,7 +159,12 @@ const recordSearchPage = async (db, { user, query, data }) => {
 
     let searchId = null;
     if (requestedSearchId) {
-      const found = await tx.$queryRaw`SELECT id FROM news_searches WHERE id = ${BigInt(requestedSearchId)}`;
+      // Re-running a search can find more than the first run (sources that were
+      // still loading upstream have finished), so keep the larger total.
+      const found = await tx.$queryRaw`
+        UPDATE news_searches SET result_count = GREATEST(result_count, ${toInt(data?.count, 0)})
+        WHERE id = ${BigInt(requestedSearchId)}
+        RETURNING id`;
       if (found.length) searchId = String(found[0].id);
     }
     if (!searchId) {
