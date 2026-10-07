@@ -63,8 +63,11 @@ const health = async () => {
   return res.data;
 };
 
+const { curateEventTermsWithLLM } = require('./eventHashtag.curator');
+
 /**
  * POST /event-terms — hashtags + keywords for event Keywords field.
+ * Candidate terms are automatically curated and verified via LLM.
  */
 const generateEventTerms = async (payload) => {
   const body = pickBody(payload);
@@ -83,10 +86,15 @@ const generateEventTerms = async (payload) => {
     throw err;
   }
   if (res.status >= 400) forwardError(res);
-  return {
+  
+  const rawTerms = {
     hashtags: Array.isArray(res.data?.hashtags) ? res.data.hashtags : [],
     keywords: Array.isArray(res.data?.keywords) ? res.data.keywords : [],
   };
+
+  // Pass candidate terms and event details to LLM for expert verification & sanitization
+  const curated = await curateEventTermsWithLLM(body, rawTerms);
+  return curated;
 };
 
 module.exports = {
