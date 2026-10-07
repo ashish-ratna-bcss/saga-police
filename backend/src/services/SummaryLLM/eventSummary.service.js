@@ -538,7 +538,7 @@ const generateEventSummary = async (
     else riskCounts.low++;
 
     // Event Relevance Classification
-    const relevance = classifyEventRelevance(m.text || '', event.name, keywordsList);
+    const relevance = classifyEventRelevance(m.text || '', event.name, keywordsList, event.location);
     const targetEntity = classifyTargetEntity(m.text || '', m.author_name || m.author_handle || '', analysis);
     const targetSemantics = getSentimentTargetSemantics(sent);
 
@@ -608,7 +608,8 @@ const generateEventSummary = async (
     }
   }
 
-  // 4. Collect ALL posts in prioritized order (Critical/Threat -> Viral -> Criticism -> Other Relevant -> Peripheral)
+  // 4. Collect ALL posts in prioritized order (Critical/Threat -> Viral -> Criticism -> Other Relevant)
+  // Drop peripheral/foreign noise unless total relevant posts is zero
   highViralPosts.sort((a, b) => b.engagementScore - a.engagementScore);
   const allSnippets = [];
   const seenIds = new Set();
@@ -623,7 +624,9 @@ const generateEventSummary = async (
   highViralPosts.forEach(addSnippet);
   criticismNegativePosts.forEach(addSnippet);
   relevantPosts.forEach(addSnippet);
-  peripheralPosts.forEach(addSnippet);
+  if (allSnippets.length === 0) {
+    peripheralPosts.forEach(addSnippet);
+  }
 
   // Index all posts with clear reference tags: [Post #1], [Post #2], ...
   const indexedSnippets = allSnippets.map((s, idx) => ({

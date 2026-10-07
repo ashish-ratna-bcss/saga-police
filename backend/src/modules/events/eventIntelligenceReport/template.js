@@ -333,9 +333,11 @@ tr{break-inside:avoid}thead{display:table-header-group}
 .watch-box ul{margin:0;padding:0;list-style:none}
 .watch-box li{font-size:7.4pt;color:#78350f;margin-bottom:1mm;line-height:1.3}
 .plat-badge{display:inline-block;padding:.7mm 1.8mm;border-radius:2px;font-size:6.2pt;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
-.prio-pill{display:inline-block;padding:.7mm 1.6mm;border-radius:2px;font-size:6.1pt;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
-.prio-high{background:#fef2f2;color:#991b1b;border:.5px solid #fecaca}
-.prio-med{background:#f0fdf4;color:#166534;border:.5px solid #bbf7d0}
+.prio-pill{display:inline-block;padding:.7mm 1.8mm;border-radius:2px;font-size:6.1pt;font-weight:700;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+.prio-crit{background:#fef2f2;color:#991b1b;border:.6px solid #f87171;font-weight:800}
+.prio-high{background:#fff1f2;color:#be123c;border:.6px solid #fecdd3;font-weight:700}
+.prio-med{background:#fffbeb;color:#92400e;border:.6px solid #fde68a}
+.prio-low{background:#f0fdf4;color:#166534;border:.6px solid #bbf7d0}
 .author-handle{font-weight:700;color:${INK}}
 .reason-text{font-size:7.1pt;color:#334155;line-height:1.3}
 .plat-group-box{margin:0 0 3mm;border:.6px solid ${LINE};border-radius:3px;background:#fff;break-inside:avoid;page-break-inside:avoid;overflow:hidden}
@@ -596,13 +598,20 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       count: 0,
       eng: 0,
       criticalCount: 0,
+      negativeCount: 0,
+      positiveCount: 0,
+      neutralCount: 0,
       posts: [],
       sample: e.text,
       sampleUrl: e.url,
     };
     authors[key].count += 1;
     authors[key].eng += (e.eng || 0);
-    if (e.sentK === 'negative' || ['critical', 'high'].includes(String(e.risk_level || '').toLowerCase())) {
+    if (e.sentK === 'negative') authors[key].negativeCount += 1;
+    else if (e.sentK === 'positive') authors[key].positiveCount += 1;
+    else authors[key].neutralCount += 1;
+
+    if (['critical', 'high'].includes(String(e.risk_level || '').toLowerCase()) || e.has_threat_vector) {
       authors[key].criticalCount += 1;
     }
     if (e.n) authors[key].posts.push(e.n);
@@ -612,8 +621,6 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const profileCapLimit = totalAuthors > 12 ? 15 : 10;
 
   const highWatchList = Object.values(authors)
-    .sort((a, b) => b.eng - a.eng || b.count - a.count)
-    .slice(0, profileCapLimit)
     .map((a) => {
       const matchHmp = (analysis?.highMonitoringProfiles || []).find(
         (hmp) => hmp.account && (
@@ -628,27 +635,58 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
         )
       );
 
+      // Compute precise risk percentage and classification
+      let riskScore = 0;
+      if (a.criticalCount > 0) {
+        riskScore = Math.min(98, 75 + a.criticalCount * 10 + Math.round((a.negativeCount / a.count) * 15));
+      } else if (a.negativeCount > 0) {
+        riskScore = Math.min(88, 55 + Math.round((a.negativeCount / a.count) * 30));
+      } else if (a.neutralCount > 0) {
+        riskScore = Math.max(10, Math.min(35, 15 + Math.round((a.count / 5) * 10)));
+      } else {
+        riskScore = 8;
+      }
+
+      let riskLabel = '';
+      let priorityClass = 'prio-low';
+      if (riskScore >= 85) {
+        riskLabel = `Critical (${riskScore}% Risk)`;
+        priorityClass = 'prio-crit';
+      } else if (riskScore >= 60) {
+        riskLabel = `High (${riskScore}% Risk)`;
+        priorityClass = 'prio-high';
+      } else if (riskScore >= 35) {
+        riskLabel = `Medium (${riskScore}% Risk)`;
+        priorityClass = 'prio-med';
+      } else {
+        riskLabel = `Low (${riskScore}% Risk)`;
+        priorityClass = 'prio-low';
+      }
+
       let why = matchHmp?.whyMonitor || matchAmp?.why || '';
       if (!why) {
-        if (a.eng >= 40000) {
-          why = `Primary digital amplifier with viral reach (${fmt(a.eng)} engagement/views); active monitoring recommended.`;
-        } else if (a.criticalCount > 0) {
-          why = `Broadcaster of adverse claims (${fmt(a.criticalCount)} critical posts); surveillance needed for agitation triggers.`;
+        if (a.criticalCount > 0 || a.negativeCount > 0) {
+          why = `Broadcaster of adverse/critical claims (${fmt(a.negativeCount || a.criticalCount)} posts); surveillance required for agitation triggers.`;
+        } else if (a.eng >= 30000) {
+          why = `Primary digital amplifier with viral reach (${fmt(a.eng)} impressions/engagement); active surveillance recommended.`;
         } else if (a.count >= 3) {
-          why = `High-frequency repeat broadcaster (${fmt(a.count)} posts); driving campaign narrative across social feeds.`;
+          why = `High-frequency repeat broadcaster (${fmt(a.count)} posts); tracking campaign cadence across social feeds.`;
         } else {
-          why = `Active platform voice regularly circulating event commentary.`;
+          why = `Regional account broadcasting ground updates and event commentary.`;
         }
       }
 
-      const isHighPriority = a.eng >= 20000 || a.criticalCount >= 2 || (matchHmp?.priority && /high/i.test(matchHmp.priority));
       return {
         ...a,
         why,
-        priority: isHighPriority ? 'High Watch' : 'Active Monitor',
-        priorityClass: isHighPriority ? 'prio-high' : 'prio-med',
+        riskScore,
+        riskLabel,
+        priority: riskLabel,
+        priorityClass,
       };
-    });
+    })
+    .sort((a, b) => b.riskScore - a.riskScore || b.negativeCount - a.negativeCount || b.eng - a.eng || b.count - a.count)
+    .slice(0, profileCapLimit);
 
   const promoters = highWatchList;
 
@@ -858,26 +896,71 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const threatLevelVal = analysis?.threatLevel || (
     highRiskN > 0 ? 'High' : (n0(riskCounts.medium) > 0 ? 'Low to Medium' : 'Low')
   );
-  const threatPillClass = /high|crit/i.test(threatLevelVal)
-    ? 'threat-pill-high'
-    : (/med/i.test(threatLevelVal) ? 'threat-pill-med' : 'threat-pill-low');
-  const threatDesc = analysis?.threatDesc || (
-    highRiskN > 0
-      ? `${fmt(highRiskN)} high/critical risk posts identified in monitored window requiring active operational intervention.`
-      : n0(riskCounts.medium) > 0
-        ? `Monitored discourse reflects low to moderate public sensitivity (${fmt(riskCounts.medium)} medium-risk posts). No direct calls for violence detected.`
-        : 'Baseline public discourse. No elevated threat signals, hostile mobilization, or violent agitation indicators detected.'
-  );
+  const threatPillClass = /crit/i.test(threatLevelVal)
+    ? 'threat-pill-crit'
+    : (/high/i.test(threatLevelVal) ? 'threat-pill-high' : (/med/i.test(threatLevelVal) ? 'threat-pill-med' : 'threat-pill-low'));
 
-  const threatCardHtml = `
-  <div class="threat-card">
-    <div class="threat-pill ${threatPillClass}">Threat Level: ${esc(threatLevelVal)}</div>
-    <div class="threat-desc">${esc(threatDesc)}</div>
-  </div>`;
+  const threatBorderColor = /crit/i.test(threatLevelVal)
+    ? '#b91c1c'
+    : (/high/i.test(threatLevelVal) ? '#dc2626' : (/med/i.test(threatLevelVal) ? '#d97706' : '#16a34a'));
+
+  // Calculate detailed threat dimensions & clear rationale
+  const negativePostCount = n0(sent.negative);
+  const negativeSharePct = sentTotal > 0 ? Math.round((negativePostCount / sentTotal) * 100) : 0;
+  const highRiskCount = highRiskN;
+
+  let computedRationale = '';
+  if (highRiskCount > 0) {
+    computedRationale = `${fmt(highRiskCount)} high/critical risk post(s) identified with direct calls for agitation, public confrontation, or aggressive demands targeting administrative leadership. Active operational tracking is warranted.`;
+  } else if (negativeSharePct >= 25) {
+    computedRationale = `Elevated critical discourse (${negativeSharePct}% adverse tone, ${fmt(negativePostCount)} posts) actively circulating across platform feeds. Ground mobilization risk requires continuous monitoring.`;
+  } else if (visits.length > 0) {
+    computedRationale = `Field activity and regional presence recorded across ${fmt(places.length)} location(s). Current public discourse remains predominantly peaceful without violent escalation indicators.`;
+  } else {
+    computedRationale = `Standard baseline public discourse. No elevated threat signals, violent mobilization calls, or public order disturbances detected in this monitoring window.`;
+  }
+
+  const threatDesc = analysis?.threatDesc || computedRationale;
 
   // Page 1 Half-Page Action Summary: Key posts/profiles requiring immediate attention with direct links
-  const topFlaggedProfiles = highWatchList.filter((p) => p.priority === 'High Watch' || p.criticalCount > 0).slice(0, 4);
+  const topFlaggedProfiles = highWatchList.filter((p) => p.riskScore >= 60 || p.criticalCount > 0 || p.negativeCount > 0).slice(0, 4);
   const topFlaggedPosts = critical.slice(0, 3);
+
+  const threatCardHtml = `
+  <div class="threat-card" style="display:block;border-left:4px solid ${threatBorderColor};padding:2.6mm 3.2mm;margin-bottom:3.2mm">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:2.5mm;margin-bottom:1.5mm">
+      <div style="display:flex;align-items:center;gap:2mm">
+        <span class="threat-pill ${threatPillClass}">Threat Level: ${esc(threatLevelVal)}</span>
+        <span style="font-size:8.2pt;font-weight:700;color:${INK}">Operational Threat Assessment & Risk Rationale</span>
+      </div>
+      <span style="font-size:6.8pt;color:${MUT};font-weight:700">${fmt(highRiskCount)} Critical Posts · ${negativeSharePct}% Adverse Sentiment</span>
+    </div>
+    
+    <div class="threat-desc" style="font-size:7.4pt;color:#334155;line-height:1.4;margin-bottom:2mm">
+      <b>Why this Risk Level:</b> ${esc(threatDesc)}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:2mm">
+      <div style="background:#f8fafc;border:.6px solid #e2e8f0;padding:1.4mm 2mm;border-radius:2px">
+        <div style="font-size:6.1pt;color:#64748b;font-weight:700;text-transform:uppercase">Mobilization & Agitation</div>
+        <div style="font-size:7.2pt;font-weight:700;color:${highRiskCount > 0 ? '#b91c1c' : INK}">
+          ${visits.length > 0 ? `${fmt(visits.length)} field presence posts` : 'No violent strike calls'}
+        </div>
+      </div>
+      <div style="background:#f8fafc;border:.6px solid #e2e8f0;padding:1.4mm 2mm;border-radius:2px">
+        <div style="font-size:6.1pt;color:#64748b;font-weight:700;text-transform:uppercase">Adverse Narrative Share</div>
+        <div style="font-size:7.2pt;font-weight:700;color:${negativeSharePct >= 20 ? '#b91c1c' : INK}">
+          ${negativeSharePct}% (${fmt(negativePostCount)} critical posts)
+        </div>
+      </div>
+      <div style="background:#f8fafc;border:.6px solid #e2e8f0;padding:1.4mm 2mm;border-radius:2px">
+        <div style="font-size:6.1pt;color:#64748b;font-weight:700;text-transform:uppercase">Surveillance Priority</div>
+        <div style="font-size:7.2pt;font-weight:700;color:${threatBorderColor}">
+          ${topFlaggedProfiles.length > 0 ? `${topFlaggedProfiles.length} High-Risk Account(s) Flagged` : 'Baseline Monitoring'}
+        </div>
+      </div>
+    </div>
+  </div>`;
 
   const actionSummaryHtml = `
   <div class="action-summary-box">
@@ -993,7 +1076,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
           <thead>
             <tr>
               <th>Profile / Channel Link</th>
-              <th>Priority</th>
+              <th>Risk Level</th>
               <th>Posts & Reach</th>
               <th>Why to Monitor (Surveillance Rationale)</th>
             </tr>

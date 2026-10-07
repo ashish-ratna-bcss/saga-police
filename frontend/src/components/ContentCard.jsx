@@ -6,6 +6,7 @@ import ReactPlayer from 'react-player';
 import { VideoPlayer } from './AlertCards';
 import { TelegramBrandLogo, RedditBrandLogo } from './PlatformBrandIcon';
 import { AlertService } from '../api';
+import ReasonModal from './ReasonModal';
 
 /* ──────────────────────────────────────────────
    X (𝕏) Logo SVG — official glyph
@@ -426,6 +427,7 @@ const ContentCard = ({ item, index, onDownload, onAddSource, monitoredHandles = 
   const [isTranslated, setIsTranslated] = useState(false);
   const [translatedText, setTranslatedText] = useState('');
   const [isTranslating, setIsTranslating] = useState(false);
+  const [showReasonModal, setShowReasonModal] = useState(false);
   const theme = PLATFORM_THEMES[String(item.platform || '').toLowerCase()] || DEFAULT_THEME;
 
   const isAlreadyMonitored = Boolean(
@@ -554,6 +556,19 @@ const ContentCard = ({ item, index, onDownload, onAddSource, monitoredHandles = 
             ) : null}
           </div>
           <div className="flex items-center gap-1 shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowReasonModal(true);
+              }}
+              title="View Post & Analysis Details"
+              className={`h-7 px-2 text-[11px] ${theme.muted} hover:text-foreground hover:bg-accent gap-1`}
+            >
+              <Eye className="h-3.5 w-3.5" />
+            </Button>
             {onDownload && (
               <Button variant="ghost" size="sm" onClick={() => onDownload(item)}
                 className={`h-7 px-2 text-[11px] ${theme.muted} hover:opacity-80 gap-1`}>
@@ -690,6 +705,14 @@ const ContentCard = ({ item, index, onDownload, onAddSource, monitoredHandles = 
           })}
         </div>
       </div>
+
+      <ReasonModal
+        open={showReasonModal}
+        onClose={() => setShowReasonModal(false)}
+        alert={item}
+        content={item}
+        analysis={item?.analysis_result || item?.llm_analysis || item?.analysis || null}
+      />
     </div>
   );
 };

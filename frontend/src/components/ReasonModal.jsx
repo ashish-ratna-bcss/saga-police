@@ -90,21 +90,33 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
         content?.original_author_name ||
         'Unknown User';
 
-    const authorHandleRaw = String(
+    let rawHandle = String(
         alert?.source_meta?.handle ||
         alert?.author_handle ||
         content?.author_handle ||
         alert?.account?.handle ||
         ''
-    ).replace(/^@+/, '');
+    ).trim();
 
-    const authorHandle = authorHandleRaw ? `@${authorHandleRaw}` : '';
+    if (/^https?:\/\//i.test(rawHandle)) {
+        try {
+            const urlObj = new URL(rawHandle);
+            const pathParts = urlObj.pathname.split('/').filter(Boolean);
+            rawHandle = pathParts[pathParts.length - 1] || rawHandle;
+        } catch {
+            rawHandle = rawHandle.replace(/^https?:\/\/[^/]+\/?/i, '');
+        }
+    }
+    const cleanHandle = rawHandle.replace(/^@+/, '');
+    const authorHandle = cleanHandle ? `@${cleanHandle}` : '';
 
     const authorAvatar =
         alert?.source_meta?.profile_image_url ||
         alert?.author_avatar ||
         content?.author_avatar ||
         content?.original_author_avatar ||
+        content?.author_avatar_url ||
+        content?.profile_image_url ||
         alert?.account?.preview_data?.profile_image_url ||
         null;
 
@@ -138,8 +150,10 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
     const mediaItems = extractMediaItems(alert, content);
 
     // --- Analysis Data Extraction ---
-    const isExpert = !!alert?.llm_analysis;
-    const llmIntent = alert?.llm_analysis?.intent || '';
+    const analysisStatus = alert?.analysis_status || content?.analysis_status || null;
+    const isPendingAnalysis = analysisStatus === 'pending' || analysisStatus === 'processing';
+    const isExpert = !!alert?.llm_analysis || !!alert?.analysis_result || !!content?.analysis_result || !!analysis?.llm_analysis || !!analysis?.reasoning;
+    const llmIntent = alert?.llm_analysis?.intent || alert?.analysis_result?.intent || content?.analysis_result?.intent || analysis?.intent || '';
 
     // Extract OCR / Image Analysis data
     const imageAnalysis =
@@ -155,6 +169,8 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
         analysis?.image_analysis ||
         analysis?.ocr ||
         content?.raw_data?.ocr ||
+        content?.analysis_result?.image_analysis ||
+        content?.analysis_result?.ocr ||
         null;
 
     const ocrText = alert?.ocr_text || content?.ocr_text || (typeof imageAnalysis === 'string'
@@ -182,29 +198,128 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
         : [];
 
     // Expert Logic or Reasons
-    const reasons = alert?.llm_analysis?.reasoning ? [alert.llm_analysis.reasoning] : (alert?.threat_details?.reasons || analysis?.reasons || []);
+    const rawReasons = alert?.llm_analysis?.reasoning
+        ? [alert.llm_analysis.reasoning]
+        : alert?.analysis_result?.reasoning
+            ? [alert.analysis_result.reasoning]
+            : content?.analysis_result?.reasoning
+                ? [content.analysis_result.reasoning]
+                : analysis?.reasoning
+                    ? [analysis.reasoning]
+                    : alert?.analysis_result?.summary
+                        ? [alert.analysis_result.summary]
+                        : content?.analysis_result?.summary
+                            ? [content.analysis_result.summary]
+                            : (alert?.threat_details?.reasons || analysis?.reasons || []);
 
-    const highlights = alert?.threat_details?.highlights || alert?.triggered_keywords || analysis?.triggered_keywords || alert?.highlights || [];
-    const detectedKeywords = alert?.matched_keywords_normalized || highlights || [];
-    const riskScore = Math.max(alert?.llm_analysis?.score || 0, alert?.threat_details?.risk_score || 0, alert?.risk_score || 0);
+    const safeReasons = Array.isArray(rawReasons)
+        ? rawReasons.filter(r => r && typeof r === 'string' && r.trim().length > 0)
+        : [];
+
+    // Auto-extract hashtags from post text if none populated in database yet
+    const textHashtags = (postText.match(/#[^\s#.,!?:;()[\]{}]+/g) || []).map(h => ({ keyword: h, type: 'hashtag' }));
+
+    const rawKeywords = [
+        ...(Array.isArray(alert?.matched_keywords_normalized) ? alert.matched_keywords_normalized : []),
+        ...(Array.isArray(alert?.threat_details?.highlights) ? alert.threat_details.highlights : []),
+        ...(Array.isArray(alert?.triggered_keywords) ? alert.triggered_keywords : []),
+        ...(Array.isArray(alert?.analysis_result?.matched_keywords) ? alert.analysis_result.matched_keywords : []),
+        ...(Array.isArray(content?.analysis_result?.matched_keywords) ? content.analysis_result.matched_keywords : []),
+        ...(Array.isArray(alert?.analysis_result?.keywords) ? alert.analysis_result.keywords : []),
+        ...(Array.isArray(content?.analysis_result?.keywords) ? content.analysis_result.keywords : []),
+        ...(Array.isArray(content?.matched_keywords) ? content.matched_keywords : []),
+        ...(Array.isArray(analysis?.triggered_keywords) ? analysis.triggered_keywords : []),
+        ...(Array.isArray(alert?.highlights) ? alert.highlights : []),
+        ...textHashtags,
+    ];
+
+    const detectedKeywords = [];
+    const seenKeywords = new Set();
+    rawKeywords.forEach(kw => {
+        const str = typeof kw === 'string' ? kw.trim() : (kw?.keyword || kw?.name || String(kw || '')).trim();
+        if (str && !seenKeywords.has(str.toLowerCase())) {
+            seenKeywords.add(str.toLowerCase());
+            detectedKeywords.push(typeof kw === 'object' ? kw : { keyword: str });
+        }
+    });
+
+    const riskScore = Math.max(
+        alert?.llm_analysis?.score || 0,
+        alert?.threat_details?.risk_score || 0,
+        alert?.risk_score || 0,
+        alert?.analysis_result?.risk_score || 0,
+        content?.analysis_result?.risk_score || 0,
+        content?.risk_score || 0,
+        analysis?.risk_score || 0,
+        analysis?.score || 0
+    );
 
     // Policies & Laws
-    const violatedPolicies = alert?.violated_policies || alert?.threat_details?.violated_policies || (isExpert && alert?.llm_analysis?.platform_policies_violated) || [];
-    const legalSections = alert?.legal_sections || alert?.threat_details?.legal_sections || (isExpert && alert?.llm_analysis?.bns_sections_violated) || [];
+    const violatedPolicies =
+        alert?.violated_policies ||
+        alert?.analysis_result?.violated_policies ||
+        alert?.analysis_result?.platform_policies_violated ||
+        content?.analysis_result?.platform_policies_violated ||
+        alert?.threat_details?.violated_policies ||
+        (isExpert && alert?.llm_analysis?.platform_policies_violated) ||
+        [];
+    const legalSections =
+        alert?.legal_sections ||
+        alert?.analysis_result?.legal_sections ||
+        alert?.analysis_result?.bns_sections_violated ||
+        content?.analysis_result?.bns_sections_violated ||
+        alert?.threat_details?.legal_sections ||
+        (isExpert && alert?.llm_analysis?.bns_sections_violated) ||
+        [];
 
-    const riskLevel = alert?.risk_level || analysis?.risk_level || 'low';
-    const explanationText = alert?.classification_explanation || alert?.llm_analysis?.reasoning || alert?.threat_details?.explanation || '';
+    const riskLevel =
+        alert?.risk_level ||
+        alert?.analysis_result?.risk_level ||
+        content?.analysis_result?.risk_level ||
+        content?.risk_level ||
+        analysis?.risk_level ||
+        'low';
+    const explanationText =
+        alert?.classification_explanation ||
+        alert?.llm_analysis?.reasoning ||
+        alert?.analysis_result?.reasoning ||
+        content?.analysis_result?.reasoning ||
+        alert?.threat_details?.explanation ||
+        analysis?.reasoning ||
+        analysis?.explanation ||
+        '';
 
-    const safeReasons = Array.isArray(reasons)
-        ? reasons.filter(r => r && typeof r === 'string' && r.trim().length > 0)
-        : [];
+    const resolvedCategory =
+        alert?.llm_analysis?.category ||
+        alert?.analysis_result?.category ||
+        content?.analysis_result?.category ||
+        analysis?.category ||
+        alert?.category ||
+        content?.category ||
+        null;
+
+    const sentiment =
+        alert?.sentiment ||
+        alert?.analysis_result?.sentiment ||
+        content?.sentiment ||
+        content?.analysis_result?.sentiment ||
+        analysis?.sentiment ||
+        null;
+
+    const stance =
+        alert?.stance ||
+        alert?.analysis_result?.stance ||
+        content?.stance ||
+        content?.analysis_result?.stance ||
+        analysis?.stance ||
+        null;
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-6">
                 <DialogHeader className="border-b pb-3">
                     <DialogTitle className="text-lg font-semibold text-foreground">
-                        Alert Analysis Details
+                        Post & Analysis Details
                     </DialogTitle>
                 </DialogHeader>
 
@@ -328,22 +443,49 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
                                                 {riskScore}%
                                             </span>
 
-                                            <span className="text-gray-400">|</span>
-
-                                            <span className="text-gray-500 dark:text-gray-400">Category:</span>
-                                            {alert?.llm_analysis?.category ? (
-                                                <Badge variant="outline" className="text-indigo-700 dark:text-indigo-400 border-indigo-200 bg-indigo-50 dark:bg-indigo-900/10">
-                                                    {alert.llm_analysis.category}
-                                                </Badge>
-                                            ) : (
-                                                <span className="text-gray-400 italic">Uncategorized</span>
+                                            {resolvedCategory && (
+                                                <>
+                                                    <span className="text-gray-400">|</span>
+                                                    <span className="text-gray-500 dark:text-gray-400">Category:</span>
+                                                    <Badge variant="outline" className="text-indigo-700 dark:text-indigo-400 border-indigo-200 bg-indigo-50 dark:bg-indigo-900/10">
+                                                        {resolvedCategory}
+                                                    </Badge>
+                                                </>
                                             )}
 
-                                            {llmIntent && llmIntent !== alert?.llm_analysis?.category && (
+                                            {llmIntent && llmIntent !== resolvedCategory && (
                                                 <>
                                                     <span className="text-gray-400">|</span>
                                                     <span className="text-gray-500 dark:text-gray-400">Intent:</span>
                                                     <span className="font-medium text-gray-700 dark:text-gray-300">{llmIntent}</span>
+                                                </>
+                                            )}
+
+                                            {sentiment && (
+                                                <>
+                                                    <span className="text-gray-400">|</span>
+                                                    <span className="text-gray-500 dark:text-gray-400">Sentiment:</span>
+                                                    <Badge variant="outline" className={`capitalize ${
+                                                        String(sentiment).toLowerCase() === 'negative' ? 'text-rose-700 border-rose-200 bg-rose-50 dark:text-rose-300 dark:bg-rose-950/30' :
+                                                        String(sentiment).toLowerCase() === 'positive' ? 'text-emerald-700 border-emerald-200 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/30' :
+                                                        'text-slate-700 border-slate-200 bg-slate-50 dark:text-slate-300 dark:bg-slate-900/30'
+                                                    }`}>
+                                                        {sentiment}
+                                                    </Badge>
+                                                </>
+                                            )}
+
+                                            {stance && (
+                                                <>
+                                                    <span className="text-gray-400">|</span>
+                                                    <span className="text-gray-500 dark:text-gray-400">Stance:</span>
+                                                    <Badge variant="outline" className={`capitalize ${
+                                                        String(stance).toLowerCase() === 'oppose' ? 'text-rose-700 border-rose-200 bg-rose-50 dark:text-rose-300 dark:bg-rose-950/30' :
+                                                        String(stance).toLowerCase() === 'support' ? 'text-emerald-700 border-emerald-200 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/30' :
+                                                        'text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:bg-amber-900/30'
+                                                    }`}>
+                                                        {stance}
+                                                    </Badge>
                                                 </>
                                             )}
                                         </div>
@@ -368,7 +510,7 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
                                     </td>
                                 </tr>
 
-                                {/* Indian Laws Violated */}
+                                 {/* Indian Laws Violated */}
                                 <tr className="border-b">
                                     <td className="py-3 pr-4 font-medium text-gray-600 dark:text-gray-400 align-top">Indian Laws Violated</td>
                                     <td className="py-3">
@@ -382,7 +524,9 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
                                                 ))}
                                             </div>
                                         ) : (
-                                            <span className="text-gray-400 italic">None detected</span>
+                                            <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                                                ✓ Compliant · No legal violations
+                                            </span>
                                         )}
                                     </td>
                                 </tr>
@@ -445,7 +589,9 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
                                                 )}
                                             </div>
                                         ) : (
-                                            <span className="text-gray-400 italic">None detected</span>
+                                            <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                                                ✓ Compliant · No policy violations
+                                            </span>
                                         )}
                                     </td>
                                 </tr>
@@ -457,14 +603,16 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
                                         <div className="space-y-2 text-gray-700 dark:text-gray-300">
                                             {alert?.llm_analysis?.reasoning ? (
                                                 <div className="leading-relaxed">{alert.llm_analysis.reasoning}</div>
-                                            ) : (
+                                            ) : safeReasons.length > 0 ? (
                                                 <ul className="list-disc pl-4 space-y-1">
-                                                    {safeReasons.length > 0 ? safeReasons.map((r, i) => (
+                                                    {safeReasons.map((r, i) => (
                                                         <li key={i}>{r}</li>
-                                                    )) : (
-                                                        <li>{explanationText || "Potential risk detected by internal analysis."}</li>
-                                                    )}
+                                                    ))}
                                                 </ul>
+                                            ) : isPendingAnalysis ? (
+                                                <span className="text-amber-600 dark:text-amber-400 italic">AI intelligence analysis is currently in progress…</span>
+                                            ) : (
+                                                <span className="text-gray-500 dark:text-gray-400">Standard event post collected during keyword & hashtag monitoring. No high-priority threat indicators flagged.</span>
                                             )}
                                         </div>
                                     </td>
@@ -475,9 +623,13 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
                                     <td className="py-3 pr-4 font-medium text-gray-600 dark:text-gray-400 align-top">AI Analysis</td>
                                     <td className="py-3">
                                         <div className={`whitespace-pre-wrap leading-relaxed text-foreground ${isContentExpanded ? '' : 'line-clamp-3'}`}>
-                                            {alert?.description || 'No AI analysis available'}
+                                            {alert?.description || content?.description || alert?.analysis_result?.summary || content?.analysis_result?.summary || alert?.llm_analysis?.summary || (
+                                                isPendingAnalysis
+                                                    ? 'AI Intelligence analysis is currently processing for this post.'
+                                                    : 'Monitored and categorized under event stream.'
+                                            )}
                                         </div>
-                                        {(alert?.description?.length > 100 || (alert?.description?.match(/\n/g) || []).length >= 2) && (
+                                        {((alert?.description || content?.description || alert?.analysis_result?.summary || content?.analysis_result?.summary || '')?.length > 100) && (
                                             <button
                                                 type="button"
                                                 onClick={() => setIsContentExpanded(!isContentExpanded)}

@@ -1,5 +1,6 @@
 const dbOf = require('../../lib/dbOf');
 const { hydrateEvent, hydrateEventMedia, normalizeEventPayload, asJson, resolveEventPlatforms, postedAtRangeWhere } = require('./event.utils');
+const { classifyEventRelevance } = require('./eventTelemetry.service');
 
 const withPublicationRange = (where, event) => {
   const postedAt = postedAtRangeWhere(event);
@@ -251,22 +252,31 @@ const listEventContent = async (id, { page = 1, limit = 50, platform = 'all', db
     where.platform = String(platform).toLowerCase();
   }
 
+  const rawRows = await prisma.social_media_event_media.findMany({
+    where,
+    orderBy: [{ posted_at: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
+    take: 3000,
+  });
+
+  const keywordsList = (asJson(event.keywords, []) || [])
+    .map((k) => (typeof k === 'string' ? k : k?.keyword))
+    .filter(Boolean);
+
+  // Filter out irrelevant foreign noise and unanchored global posts
+  const filtered = rawRows.filter((r) => {
+    const relevance = classifyEventRelevance(r.text || '', event.name, keywordsList, event.location);
+    return relevance.isRelevant;
+  });
+
+  const finalRows = filtered.length > 0 ? filtered : rawRows;
+  const total = finalRows.length;
   const skip = (Math.max(1, page) - 1) * Math.min(200, Math.max(1, limit));
   const take = Math.min(200, Math.max(1, limit));
+  const pagedRows = finalRows.slice(skip, skip + take);
 
-  const [rows, total] = await Promise.all([
-    prisma.social_media_event_media.findMany({
-      where,
-      orderBy: [{ posted_at: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
-      skip,
-      take,
-    }),
-    prisma.social_media_event_media.count({ where }),
-  ]);
-
-  const hasMore = skip + rows.length < total;
+  const hasMore = skip + pagedRows.length < total;
   return {
-    content: rows.map(hydrateEventMedia),
+    content: pagedRows.map(hydrateEventMedia),
     has_more: hasMore,
     pagination: {
       total,

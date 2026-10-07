@@ -24,35 +24,50 @@ const parseSentiment = (raw) => {
   return 'neutral';
 };
 
+const UNRELATED_FOREIGN_REGEX = /\b(brussels|gaza|israel|palestine|australian|australia|france|french|nigeria|nigerian|ghana|fwsc|ukraine|russia|kharkiv|avdiivka|white house|pentagon|senate|donald trump|kamala harris|keir starmer|macron)\b/i;
+
 /**
  * Classify whether a post is relevant to the given event or unrelated peripheral noise.
- * E.g., for "BRICS Summit", unrelated posts like "Mumbai Police traffic update" or
- * unrelated Russia-Ukraine frontline news that don't mention BRICS/summit should be flagged as unrelated.
+ * E.g., for "Odisha Education Minister", unrelated posts about Brussels, Gaza, Nigeria, or Mumbai traffic
+ * that do not mention the core event/location should be flagged as unrelated.
  */
-const classifyEventRelevance = (text, eventName, keywordsList = []) => {
+const classifyEventRelevance = (text, eventName, keywordsList = [], eventLocation = '') => {
   if (!text || typeof text !== 'string') {
     return { isRelevant: false, reason: 'empty_text' };
   }
 
   const cleanText = text.toLowerCase();
   const cleanEvent = (eventName || '').toLowerCase().trim();
+  const cleanLoc = (eventLocation || '').toLowerCase().trim();
   const eventTerms = cleanEvent.split(/[\s,–—\-_/]+/).filter((t) => t.length > 2);
 
-  // 1. Direct event name match
+  // 1. Check for unrelated foreign / global noise when the event is local/regional (India / State)
+  const isIndianOrRegional = cleanLoc.length > 0 || /\b(odisha|delhi|andhra|uttarakhand|jharkhand|india|bharat|bhubaneswar|cuttack|puri)\b/i.test(cleanEvent);
+  if (isIndianOrRegional) {
+    const mentionsEventDirectly = cleanEvent.length > 4 && cleanText.includes(cleanEvent);
+    const mentionsLocation = cleanLoc.length > 2 && cleanText.includes(cleanLoc);
+    
+    // If post contains foreign politics/regions and does NOT mention the event or location, drop as foreign noise
+    if (UNRELATED_FOREIGN_REGEX.test(cleanText) && !mentionsEventDirectly && !mentionsLocation) {
+      return { isRelevant: false, reason: 'unrelated_foreign_noise' };
+    }
+  }
+
+  // 2. Direct event name match
   if (cleanEvent && cleanText.includes(cleanEvent)) {
     return { isRelevant: true, reason: 'direct_event_match' };
   }
 
-  // 2. High-specificity keyword matching
+  // 3. High-specificity keyword matching
   const matchedEventKeywords = keywordsList.filter((k) => {
     const kw = (typeof k === 'string' ? k : k?.keyword || '').toLowerCase().trim();
     return kw.length > 2 && cleanText.includes(kw);
   });
 
-  // 3. Detect known off-topic noise vectors if they do not match any core event term
-  // E.g., unrelated local police traffic alerts or generic international conflict when event is not about that
+  // 4. Detect known off-topic noise vectors if they do not match any core event term
   const hasCoreEventTerm = eventTerms.some((term) => cleanText.includes(term));
   const hasEventKeyword = matchedEventKeywords.length > 0;
+  const hasLocationMatch = cleanLoc.length > 2 && cleanText.includes(cleanLoc);
 
   // Check for unrelated local police alerts when the event is not a police event
   const isPoliceEvent = cleanEvent.includes('police') || eventTerms.some((t) => t === 'police');
@@ -62,11 +77,11 @@ const classifyEventRelevance = (text, eventName, keywordsList = []) => {
     return { isRelevant: false, reason: 'unrelated_local_police_noise' };
   }
 
-  // Check for unrelated foreign conflict noise if the event is a summit / governance event
-  const isWarEvent = cleanEvent.includes('war') || cleanEvent.includes('conflict') || cleanEvent.includes('ukraine');
-  const isForeignWarNoise = !isWarEvent && /\b(russia-ukraine war|frontline clash|kharkiv artillery|avdiivka)\b/i.test(cleanText);
-  if (isForeignWarNoise && !hasCoreEventTerm) {
-    return { isRelevant: false, reason: 'unrelated_foreign_war_noise' };
+  // If location is provided (e.g. Odisha), posts that have keywords AND location or core event terms are highest relevance
+  if (cleanLoc.length > 2) {
+    if (hasLocationMatch && (hasEventKeyword || hasCoreEventTerm)) {
+      return { isRelevant: true, reason: 'location_and_keyword_match' };
+    }
   }
 
   // Default: if it matched event keywords or core event terms, it is relevant
@@ -75,7 +90,7 @@ const classifyEventRelevance = (text, eventName, keywordsList = []) => {
   }
 
   // If no keywords were passed or event name is generic, treat as peripheral
-  return { isRelevant: true, reason: 'default_inclusion' };
+  return { isRelevant: false, reason: 'insufficient_match' };
 };
 
 /**

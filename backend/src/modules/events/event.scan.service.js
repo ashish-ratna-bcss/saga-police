@@ -109,16 +109,31 @@ const FRENCH_STOPWORDS = new Set([
   'le', 'la', 'les', 'des', 'du', 'une', 'un', 'pour', 'avec', 'dans', 'sur', 'par', 'est', 'sont', 'cette', 'ce', 'ces', 'qui', 'que', 'quoi', 'dont', 'nous', 'vous', 'ils', 'elles', 'leur', 'leurs', 'mais', 'ou', 'et', 'donc', 'or', 'ni', 'car', 'été', 'ont', 'fait', 'faire'
 ]);
 
+const UNRELATED_FOREIGN_REGEX = /\b(brussels|gaza|israel|palestine|australian|australia|france|french|nigeria|nigerian|ghana|fwsc|ukraine|russia|kharkiv|avdiivka|white house|pentagon|senate|donald trump|kamala harris|keir starmer|macron)\b/i;
+
 const isIrrelevantForeignPost = (text, targetRegion = '') => {
   if (!text) return false;
-  const words = String(text).toLowerCase().split(/[^a-z\u00C0-\u017F]+/i).filter((w) => w.length >= 2);
+  const lower = String(text).toLowerCase();
+  const regionLower = String(targetRegion || '').toLowerCase().trim();
+
+  // If the event is regional (e.g. Odisha / India) and the post mentions foreign conflict/entities without mentioning the target region
+  if (regionLower || /\b(odisha|delhi|andhra|uttarakhand|jharkhand|india|bharat)\b/i.test(regionLower)) {
+    if (UNRELATED_FOREIGN_REGEX.test(lower)) {
+      if (regionLower && lower.includes(regionLower)) {
+        return false;
+      }
+      return true;
+    }
+  }
+
+  const words = lower.split(/[^a-z\u00C0-\u017F]+/i).filter((w) => w.length >= 2);
   if (words.length < 4) return false;
   let frenchCount = 0;
   for (const w of words) {
     if (FRENCH_STOPWORDS.has(w)) frenchCount++;
   }
   if (frenchCount >= 3 && (frenchCount / words.length) > 0.18) {
-    if (targetRegion && String(text).toLowerCase().includes(String(targetRegion).toLowerCase())) {
+    if (regionLower && lower.includes(regionLower)) {
       return false;
     }
     return true;
