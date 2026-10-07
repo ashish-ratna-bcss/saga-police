@@ -1,3 +1,4 @@
+require('dotenv').config();
 const axios = require('axios');
 const logger = require('../../lib/logger');
 const { getEventAnchorProfile } = require('../../modules/events/eventTelemetry.service');
@@ -20,10 +21,13 @@ const getLLMConfig = () => {
 const deterministicSanitize = (eventObj, rawHashtags = [], rawKeywords = []) => {
   const NOISE_SET = new Set([
     '#developers', '#techcommunity', '#innovation', '#futuretech', '#tech', '#ai', '#software',
+    '#storiesin', '#educationfirst', '#futureleaders', '#studentsupport',
     'demanding', 'initiated', 'started', 'meeting', 'update', 'status', 'shown support',
     'monday extended', 'cjp co', 'officially backed', 'agitation calling', 'textbooks according',
     'monday september 21', 'sep 21 pti', 'theprint bhubaneswar sep', 'bhubaneswar sep 21',
-    'students theprint bhubaneswar', 'odisha students theprint'
+    'students theprint bhubaneswar', 'odisha students theprint', 'supports', 'commission',
+    'infrastructure', 'strengthen', 'students', 'stories in', 'distant ally', 'rebuilding communities',
+    'jewish federation', 'families in crisis', 'moments of crisis', 'moments of hope'
   ]);
 
   const cleanHashtags = (Array.isArray(rawHashtags) ? rawHashtags : [])
@@ -72,9 +76,9 @@ const curateEventTermsWithLLM = async (eventObj, candidateTerms = {}) => {
   const eventDescription = String(eventObj.description || '').trim();
 
   const prompt = `You are an Expert Law Enforcement OSINT / Cyber Intelligence Analyst.
-Review, verify, and curate candidate keywords and hashtags for an intelligence monitoring event.
+Review, verify, and curate candidate keywords and hashtags for intelligence monitoring of an event.
 
-EVENT DETAILS:
+TARGET EVENT:
 - Event Name: ${eventName}
 - Location: ${eventLocation}
 - Description: ${eventDescription}
@@ -85,16 +89,16 @@ ${JSON.stringify(rawHashtags)}
 CANDIDATE KEYWORDS:
 ${JSON.stringify(rawKeywords)}
 
-INSTRUCTIONS & FILTERING RULES:
-1. REMOVE all generic technology/industry buzzwords (e.g. #Developers, #TechCommunity, #Innovation, #FutureTech, #AI).
-2. REMOVE all single generic dictionary verbs or adjectives (e.g. "demanding", "initiated", "started", "meeting").
-3. REMOVE all broken fragments, date stamps, or news wire bylines (e.g. "sep 21 pti", "monday extended", "theprint bhubaneswar").
-4. REMOVE any hashtags or terms belonging to unrelated geographic regions or topics.
-5. KEEP and EXPAND only high-precision, event-specific terms directly anchored to the event figures, campaign slogans, organizations, and location.
-6. Output strictly valid JSON without markdown formatting or code blocks:
+STRICT CURATION RULES:
+1. DISAMBIGUATE ACRONYMS & ENTITIES: Any candidate term referring to an unrelated foreign organization, different city/state/country, or different domain (e.g., Jewish Federation, foreign courts, unrelated companies) MUST BE COMPLETELY DISCARDED.
+2. REMOVE GENERIC BUZZWORDS: Discard all generic tech buzzwords (#Developers, #TechCommunity, #Innovation, #FutureTech, #AI, #StoriesIn, #EducationFirst, #FutureLeaders).
+3. REMOVE MEANINGLESS / SINGLE-WORD FILLER: Discard single generic words (e.g., "demanding", "initiated", "started", "meeting", "supports", "commission", "infrastructure", "strengthen", "students").
+4. REMOVE WIRE BYLINES & FRAGMENTS: Discard date stamps, news wire bylines, and incomplete sentence fragments (e.g., "sep 21 pti", "monday extended", "theprint bhubaneswar", "error row cjp").
+5. KEEP ONLY HIGH-PRECISION RELEVANT TERMS: Retain only terms that specifically name the actual individuals, organizations, slogans, government bodies, or specific protest issues directly mentioned in or relevant to "${eventName}" in "${eventLocation}".
+6. Output MUST BE strictly valid JSON without markdown formatting or backticks:
 {
-  "hashtags": ["#Tag1", "#Tag2", ...],
-  "keywords": ["Keyword 1", "Keyword 2", ...]
+  "hashtags": ["#Tag1", "#Tag2"],
+  "keywords": ["Keyword 1", "Keyword 2"]
 }`;
 
   try {
