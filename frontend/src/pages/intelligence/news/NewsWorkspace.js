@@ -14,10 +14,11 @@ import {
 import { newsApi } from '../../../api';
 import { toast } from 'sonner';
 
-const PAGE_SIZES = [10, 20, 50, 100];
+// No 100: a page of full article bodies can pass BluGate's 2 MB response cap.
+const PAGE_SIZES = [10, 20, 50];
 const SEARCH_HISTORY_SIZE = 30;
-// Typical worst case for a cold search upstream; only drives the progress bar.
-const COLD_SEARCH_SECONDS = 90;
+// The news API answers within ~25 s (BluGate cuts off at 30 s); only drives the progress bar.
+const LIVE_SEARCH_SECONDS = 30;
 
 const errMsg = (err, fallback) => {
   if (err.response?.data?.code === 'NO_TENANT_DB') return 'This account has no tenant workspace, so nothing is saved for it.';
@@ -225,10 +226,10 @@ const LoadingNote = ({ elapsed }) => (
       <span className="tabular-nums font-semibold">{elapsed}s</span>
     </div>
     <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-      <div className="h-full bg-primary transition-all duration-1000" style={{ width: `${Math.min(95, Math.max(4, (elapsed / COLD_SEARCH_SECONDS) * 100))}%` }} />
+      <div className="h-full bg-primary transition-all duration-1000" style={{ width: `${Math.min(95, Math.max(4, (elapsed / LIVE_SEARCH_SECONDS) * 100))}%` }} />
     </div>
     <p className="text-[10px] text-muted-foreground mt-1.5">
-      The first search for a set of sources can take 1–2 minutes. Repeat searches return instantly for the next 10 minutes.
+      A new search takes up to 30 seconds. Sources that need longer keep loading in the background; repeat searches return instantly for the next 10 minutes.
     </p>
   </div>
 );
@@ -259,7 +260,7 @@ const ArticleCard = ({ article: a, onOpen }) => (
 );
 
 /** Article list with header, paging and page size; shared by live, stored and saved views. */
-const ResultsPanel = ({ heading, subheading, actions, result, loading, loadingNote, error, pageSize, onPage, onPageSize, onOpen, emptyText, className = '' }) => {
+const ResultsPanel = ({ heading, subheading, actions, result, loading, loadingNote, error, notice, pageSize, onPage, onPageSize, onOpen, emptyText, className = '' }) => {
   const articles = result?.articles || [];
   const total = result?.count ?? 0;
   const offset = result?.offset ?? 0;
@@ -280,6 +281,7 @@ const ResultsPanel = ({ heading, subheading, actions, result, loading, loadingNo
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
         {loading && loadingNote}
         {error && !loading && <p className="text-xs text-red-600 rounded-lg border border-red-500/30 bg-red-500/5 p-3">{error}</p>}
+        {notice && !loading && notice}
         {result && !articles.length && !loading && <Empty>{emptyText}</Empty>}
         <div className={`space-y-2 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
           {articles.map((a) => <ArticleCard key={a.id} article={a} onOpen={onOpen} />)}
@@ -619,7 +621,8 @@ const NewsWorkspace = () => {
       setResult(data);
       setActive({ mode: 'live', filters: f, searchId: data?.saved?.search_id || searchId });
       if (data?.saved?.error) toast.warning(data.saved.error);
-      if (data?.saved?.search_id && !searchId) loadSearches();
+      // A new search, or page 1 re-run (load the rest / page size) that can raise its count.
+      if (data?.saved?.search_id && offset === 0) loadSearches();
     } catch (err) {
       if (id !== reqRef.current) return;
       const msg = errMsg(err, 'News search failed');
@@ -684,6 +687,9 @@ const NewsWorkspace = () => {
   const stored = active?.mode === 'stored' ? active.search : null;
   const whoRan = (s) => (s.mine ? 'you' : s.user_name || 'someone');
   const savedNote = active?.mode === 'live' && result?.saved?.search_id ? ' · saved to your workspace' : '';
+  const pending = active?.mode === 'live' ? result?.pending_sources || 0 : 0;
+  // Re-runs page 1 as the same stored search, so the late sources join it instead of a duplicate.
+  const loadRest = () => runLive(active.filters, 0, result?.limit || limit, active.searchId);
 
   return (
     <div className="p-4 space-y-3 max-w-[1600px] mx-auto">
@@ -801,6 +807,17 @@ const NewsWorkspace = () => {
             loading={!!loading}
             loadingNote={loading === 'live' ? <LoadingNote elapsed={elapsed} /> : <QuickLoading />}
             error={error}
+            notice={pending > 0 && (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700">
+                <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                <span className="flex-1 min-w-[200px]">
+                  {pending} source{pending === 1 ? ' is' : 's are'} still loading in the background. Load them in a minute to see more articles.
+                </span>
+                <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={loadRest}>
+                  <RefreshCw className="h-3 w-3" /> Load the rest
+                </Button>
+              </div>
+            )}
             pageSize={limit}
             onPage={goToPage}
             onPageSize={changePageSize}

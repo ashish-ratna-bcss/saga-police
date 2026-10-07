@@ -68,6 +68,13 @@ async function runTests() {
       data: { count: 3, limit: 50, offset: 0, articles: [article('a1'), article('a2')] },
     });
     assert.strictEqual(resized.search_id, page1.search_id, 'page-size change is the same search');
+    await store.recordSearchPage(tenantA, {
+      user: asha,
+      query: { state: 'Telangana', offset: '0', search_id: page1.search_id },
+      data: { count: 2, offset: 0, articles: [] },
+    });
+    const kept = (await store.listSearches(tenantA, {}, asha)).items.find((x) => x.id === page1.search_id);
+    assert.strictEqual(kept.result_count, 3, 're-run keeps the larger total, never shrinks it');
     const bogus = await store.recordSearchPage(tenantA, {
       user: asha,
       query: { state: 'Telangana', search_id: '999999' },
@@ -88,6 +95,13 @@ async function runTests() {
     assert.strictEqual(s.mine, true);
     assert.strictEqual((await store.listSearches(tenantA, {}, ravi)).items[0].mine, false);
     JSON.stringify(searches); // BIGSERIAL ids must not leak out as BigInt
+    await store.recordSearchPage(tenantA, {
+      user: asha,
+      query: { state: 'Telangana', offset: '0', search_id: page1.search_id },
+      data: { count: 4, offset: 0, articles: [] },
+    });
+    const raised = (await store.listSearches(tenantA, {}, asha)).items.find((x) => x.id === page1.search_id);
+    assert.strictEqual(raised.result_count, 4, '"load the rest" raises the total when late sources add matches');
     console.log('✅ history correct.');
 
     console.log('Testing a stored search reopens in original order...');
