@@ -1208,13 +1208,13 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       <div class="action-item">
         <div class="action-title">1. Priority Accounts For Review / Takedown (${topFlaggedProfiles.length || 1} Flags)</div>
         <div class="action-desc">
-          ${topFlaggedProfiles.length ? topFlaggedProfiles.map(p => `• ${authorProfileLink(p.platform, p.author)} (${esc(platLabel(p.platform))}) — <b>${esc(p.why)}</b>`).join('<br>') : '• Continuous surveillance on top amplifying digital channels.'}
+          ${topFlaggedProfiles.length ? topFlaggedProfiles.map(p => `• ${authorProfileLink(p)} (${esc(platLabel(p.platform))}) — <b>${esc(p.why)}</b>`).join('<br>') : '• Continuous surveillance on top amplifying digital channels.'}
         </div>
       </div>
       <div class="action-item">
         <div class="action-title">2. Critical Monitored Posts Requiring Action</div>
         <div class="action-desc">
-          ${topFlaggedPosts.length ? topFlaggedPosts.map(p => `• ${postRefLink(p)} [${esc(platLabel(p.plat))}] by ${authorProfileLink(p.plat, p.author)}: "${esc(clip(p.text, 90))}"`).join('<br>') : '• No active high-threat posts flagged in this window.'}
+          ${topFlaggedPosts.length ? topFlaggedPosts.map(p => `• ${postRefLink(p)} [${esc(platLabel(p.plat))}] by ${authorProfileLink(p.plat, p.author, p.url)}: "${esc(clip(p.text, 90))}"`).join('<br>') : '• No active high-threat posts flagged in this window.'}
         </div>
       </div>
     </div>
