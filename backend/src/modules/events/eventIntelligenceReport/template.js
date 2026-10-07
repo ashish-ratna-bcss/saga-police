@@ -726,6 +726,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     };
     authors[key].count += 1;
     authors[key].eng += (e.eng || 0);
+    if (!authors[key].sampleUrl && e.url) authors[key].sampleUrl = e.url;
+    if (!authors[key].sample && e.text) authors[key].sample = e.text;
     if (e.sentK === 'negative') authors[key].negativeCount += 1;
     else if (e.sentK === 'positive') authors[key].positiveCount += 1;
     else authors[key].neutralCount += 1;
