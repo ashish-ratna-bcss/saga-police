@@ -32,12 +32,17 @@ RULES:
 11. Recommended Actions: Provide 3-6 actionable, operationally specific directives tailored for executive and law enforcement units (e.g., District Police / SHO, Cyber Crime Cell / OSINT Desk, Public Relations & Fact-Check Unit, Traffic Unit, Platform Escalation Desk). Never write vague generic advice like "Monitor Protests" or "Engage with criticism". Each action MUST specify:
     - Tactical Mandate & Lead Unit (e.g., "Ground Security & Precautionary Bandobast (Local Police / SHO)", "Cyber & Digital Surveillance (Cyber Cell)", "Counter-Disinformation & Fact-Check (Media / PRO Cell)", "Traffic & Route Regulation (Traffic Police)", "Platform Escalation & Nodal Coordination (Cyber Desk)");
     - Concrete operational details: name the specific location/venue/route (e.g., Jantar Mantar, specific district/chowk), named leaders/accounts, viral hashtags, specific rumors/claims to verify or rebut, and concrete tactical steps;
-    - Evidence citations [Post #n].`;
+    - Evidence citations [Post #n].
+12. Relevance & Storylines: Filter out completely unrelated commercial/personal spam (e.g. food recipes, chef ads, vehicle bookings, unrelated exam queries) from narrative summaries. If the event discourse blends distinct storylines (e.g., local student union textbook protests vs national party campaigns), clearly distinguish genuine local ground presence from external social amplification.`;
 
 /* ---------------------------------------------------------------- 2. OUTPUT CONTRACT ---------------------- */
 const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only (no conversational text, no markdown code fences) with exactly these fields:
 {
+ "threat_level": "Low / Low to medium / Medium / High / Critical",
+ "threat_desc": "1-2 sentences: threat rating rationale, high/medium risk post count, violence call check",
  "bottom_line": "2-3 sentences: core situation, tone breakdown, and priority items requiring attention",
+ "key_dates": [{"date": "exact date or timing (e.g., '30 Sept (past)' or '8 Oct (upcoming)')", "type": "past or upcoming", "event": "concise description of bandh, rally, or event", "posts": [1]}],
+ "narratives_to_watch": [{"narrative": "viral rumor, claim, or sensitive angle to monitor/debunk", "source_accounts": "key accounts or platforms pushing this", "risk_note": "operational risk or recommended counter-action", "posts": [1]}],
  "key_findings": [{"headline": "short concise headline", "detail": "1-2 sentences with exact figures"}],
  "situation": "paragraph: event background, scope of posts analyzed, date range, active platforms",
  "sentiment_commentary": "paragraph: praise/news/criticism toward government, police, leaders, orgs with [Post #n] citations",
@@ -355,8 +360,32 @@ const parseLLMReport = (raw, evidence) => {
     return { account, why: str(a.why, 200), posts };
   });
 
+  const keyDates = briefRows(obj.key_dates, (k) => {
+    const posts = ids(k.posts);
+    const date = str(k.date, 80);
+    const event = str(k.event || k.what, 300);
+    if (!date && !event) return null;
+    return { date, type: str(k.type, 20), event, posts };
+  });
+
+  const narrativesToWatch = briefRows(obj.narratives_to_watch, (n) => {
+    const posts = ids(n.posts);
+    const narrative = str(n.narrative, 220);
+    if (!narrative) return null;
+    return {
+      narrative,
+      sourceAccounts: str(n.source_accounts || n.sourceAccounts, 160),
+      riskNote: str(n.risk_note || n.riskNote, 320),
+      posts,
+    };
+  });
+
   const report = {
+    threatLevel: str(obj.threat_level, 80),
+    threatDesc: str(obj.threat_desc, 300),
     bottomLine: para(obj.bottom_line),
+    keyDates,
+    narrativesToWatch,
     keyFindings,
     situation: para(obj.situation),
     sentimentCommentary: para(obj.sentiment_commentary),
