@@ -289,34 +289,44 @@ const getSentimentTargetSemantics = (sentiment) => {
   return { label: 'News/Updates', code: 'neutral' };
 };
 
+const CRITICAL_THREAT_KEYWORDS = /\b(riot|riots|rioting|violence|violent|burn|burning|arson|weapon|weapons|bomb|explosive|clash|clashes|assault|murder|kill|attack|attacks|lynch|bloodshed)\b/i;
+const HIGH_THREAT_KEYWORDS = /\b(bandh|strike|strikes|rail roko|rasta roko|chakka jam|blockade|siege|gherao|hartal|disruption|mass protest|shut down|shutdown|vandalism|vandalize)\b/i;
+const MEDIUM_THREAT_KEYWORDS = /\b(protest|protests|protesting|agitation|morcha|rally|boycott|satyagraha|demonstration|dharna|memorandum|ultimatum)\b/i;
+
 /**
  * Evaluate Risk Level strictly separated from sentiment.
- * Negative sentiment (criticism, disagreement) is NOT a threat signal.
+ * Strict 4-tier threat taxonomy:
+ * - Critical: Physical violence, riots, arson, attacks, weapon threats (Score: >= 85)
+ * - High: On-ground disruptions, bandh, strikes, rail/rasta roko, chakka jam (Score: >= 65)
+ * - Medium: Peaceful protests, rallies, dharna, satyagraha, boycotts (Score: 35-60)
+ * - Low: Digital criticism, opinions, debates, updates without disruption vectors (Score: <= 25)
  */
 const evaluateThreatRisk = (analysisResult = {}, text = '') => {
   let riskScore = Number(analysisResult.risk_score || 0);
-  let riskLevel = String(analysisResult.risk_level || '').toLowerCase();
+  let riskLevel = String(analysisResult.risk_level || '').toLowerCase().trim();
+  const textLower = String(text || '').toLowerCase();
 
-  const threatKeywords = /\b(protest|bandh|strike|rail roko|rasta roko|chakka jam|riot|violence|burn|clash|vandalism|giti|assault|attack|threat|disruption|blockade|siege|boycott)\b/i;
-  const hasThreatVector = threatKeywords.test(text || '');
+  const hasCriticalVector = CRITICAL_THREAT_KEYWORDS.test(textLower);
+  const hasHighVector = HIGH_THREAT_KEYWORDS.test(textLower);
+  const hasMediumVector = MEDIUM_THREAT_KEYWORDS.test(textLower);
+  const hasThreatVector = hasCriticalVector || hasHighVector || hasMediumVector;
 
-  // If flagged high risk solely because of negative sentiment without threat vectors, demote to low/medium
-  if (!hasThreatVector && riskScore < 60) {
+  if (hasCriticalVector) {
+    riskLevel = 'critical';
+    riskScore = Math.max(riskScore, 85);
+  } else if (hasHighVector) {
+    riskLevel = 'high';
+    riskScore = Math.max(riskScore, 65);
+  } else if (hasMediumVector) {
+    if (riskLevel === 'critical') riskLevel = 'high';
+    else if (!['high', 'critical'].includes(riskLevel)) riskLevel = 'medium';
+    riskScore = Math.max(35, Math.min(riskScore || 45, 60));
+  } else {
     riskLevel = 'low';
-    riskScore = Math.min(riskScore, 25);
-  } else if (!riskLevel) {
-    if (riskScore >= 85) riskLevel = 'critical';
-    else if (riskScore >= 65) riskLevel = 'high';
-    else if (riskScore >= 35) riskLevel = 'medium';
-    else riskLevel = 'low';
+    riskScore = Math.min(riskScore || 15, 25);
   }
 
-  if (riskLevel === 'safe') riskLevel = 'low';
-  if (!['low', 'medium', 'high', 'critical'].includes(riskLevel)) {
-    riskLevel = 'low';
-  }
-
-  return { riskLevel, riskScore, hasThreatVector };
+  return { riskLevel, riskScore, hasThreatVector, hasCriticalVector, hasHighVector, hasMediumVector };
 };
 
 /**
