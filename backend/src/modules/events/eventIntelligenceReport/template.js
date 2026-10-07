@@ -274,28 +274,29 @@ const resolveAuthorProfileUrl = ({ platform, author, sampleUrl } = {}) => {
   // 1. Facebook
   if (plat === 'facebook') {
     if (sampleUrl && typeof sampleUrl === 'string' && /^https?:\/\//i.test(sampleUrl)) {
-      // e.g. https://www.facebook.com/username/posts/12345
-      const pageMatch = sampleUrl.match(/^https?:\/\/(?:www\.|m\.)?facebook\.com\/([A-Za-z0-9._-]+)\/(?:posts|videos|photos|reels)/i);
+      // 1. Direct page post: facebook.com/pagename/posts/... or /photos/... or /videos/...
+      const pageMatch = sampleUrl.match(/^https?:\/\/(?:www\.|m\.)?facebook\.com\/([A-Za-z0-9._-]+)\/(?:posts|videos|photos)/i);
       if (pageMatch && !['groups', 'events', 'watch', 'share', 'reel', 'reels', 'permalink.php', 'profile.php', 'story.php'].includes(pageMatch[1].toLowerCase())) {
         return `https://www.facebook.com/${pageMatch[1]}`;
       }
-      // e.g. https://www.facebook.com/profile.php?id=1000123456
+      // 2. Profile ID: id=12345
       const idMatch = sampleUrl.match(/[?&]id=(\d+)/i);
       if (idMatch) {
         return `https://www.facebook.com/profile.php?id=${idMatch[1]}`;
       }
-      // e.g. https://www.facebook.com/pagename?substory_index=...
+      // 3. User slug root URL: facebook.com/pagename
       const directUserMatch = sampleUrl.match(/^https?:\/\/(?:www\.|m\.)?facebook\.com\/([A-Za-z0-9._-]+)(?:[/?#]|$)/i);
       if (directUserMatch && !['groups', 'events', 'watch', 'share', 'reel', 'reels', 'search', 'photo', 'photos', 'permalink.php', 'profile.php', 'story.php'].includes(directUserMatch[1].toLowerCase())) {
         return `https://www.facebook.com/${directUserMatch[1]}`;
       }
+      // 4. For reels, videos, or group posts without extracted page slug, link directly to the live post/reel!
+      return sampleUrl;
     }
 
-    // If author has spaces or non-slug characters, link to Facebook search for this exact name/page
-    if (/\s/.test(cleanAuthor) || /[^A-Za-z0-9._-]/.test(cleanAuthor)) {
-      return `https://www.facebook.com/search/top?q=${encodeURIComponent(cleanAuthor)}`;
+    if (!/\s/.test(cleanAuthor) && /^[A-Za-z0-9._-]+$/.test(cleanAuthor)) {
+      return `https://www.facebook.com/${encodeURIComponent(cleanAuthor)}`;
     }
-    return `https://www.facebook.com/${encodeURIComponent(cleanAuthor)}`;
+    return `https://www.facebook.com/public/${encodeURIComponent(cleanAuthor)}`;
   }
 
   // 2. YouTube
