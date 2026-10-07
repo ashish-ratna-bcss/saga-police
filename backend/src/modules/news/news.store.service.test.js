@@ -121,7 +121,7 @@ async function runTests() {
     assert.strictEqual((await list()).count, 3, 'articles stay saved');
     console.log('✅ delete enforced and articles kept.');
 
-    console.log('Testing one-phrase keyword ranking from the DB...');
+    console.log('Testing a keyword is matched as a whole phrase from the DB...');
     const kw = 'CJP School Thik Karo';
     await store.saveCollected(tenantA, {
       user: asha,
@@ -129,22 +129,24 @@ async function runTests() {
       articles: [
         article('k_one', { title: 'New school building opened', content: 'Classes begin.', published_at: '2026-10-06T12:00:00Z' }),
         article('k_all', { title: 'CJP school thik karo campaign', content: 'Workers asked to thik karo.', published_at: '2026-10-01T00:00:00Z' }),
+        article('k_body', { title: 'Campaign launched', content: "The CJP 'School-Thik Karo' team met.", published_at: '2026-10-05T00:00:00Z' }),
         article('k_two', { title: 'Leaders visit', content: 'CJP leaders at a school.', published_at: '2026-10-03T00:00:00Z' }),
         article('k_skill', { title: "Bowler's skill praised", content: 'Cricket.', published_at: '2026-10-06T00:00:00Z' }),
       ],
-      liveCount: 4,
+      liveCount: 5,
     });
     const byKw = await list({ keyword: kw });
-    assert.deepStrictEqual(byKw.query_terms, ['cjp', 'school', 'thik', 'karo']);
-    assert.deepStrictEqual(byKw.articles.map((a) => a.id), ['k_all', 'k_two', 'k_one'], 'more words first; non-matches excluded');
+    assert.deepStrictEqual(byKw.query_phrases, ['cjp school thik karo']);
+    assert.deepStrictEqual(byKw.articles.map((a) => a.id), ['k_all', 'k_body'],
+      'only the whole phrase matches (title hit first; punctuation between words ignored); "school" alone does not');
+    assert.deepStrictEqual(byKw.articles[0].matched_phrases, ['cjp school thik karo']);
     assert.deepStrictEqual(byKw.articles[0].matched_terms, ['cjp', 'school', 'thik', 'karo']);
     assert.ok(byKw.articles[0].match_score > byKw.articles[1].match_score);
     assert.strictEqual((await list({ keyword: 'kill' })).count, 0, "'kill' must not match 'skill'");
-    assert.deepStrictEqual((await list({ keyword: '"thik karo"' })).articles.map((a) => a.id), ['k_all'], 'quoted phrase required');
-    assert.deepStrictEqual((await list({ keyword: kw, min_match: 2 })).articles.map((a) => a.id), ['k_all', 'k_two']);
+    assert.deepStrictEqual((await list({ keyword: 'leaders visit, school building' })).articles.map((a) => a.id), ['k_one', 'k_two']);
     const stored = (await store.listSearches(tenantA, {}, asha)).items.find((x) => x.filters.keyword === kw);
     assert.ok(stored, 'keyword stored as typed');
-    console.log('✅ one-phrase ranking matches the live API rules.');
+    console.log('✅ whole-phrase keywords match the live API rules.');
 
     console.log('Testing keyword lists and min_match from the DB...');
     const kwList = 'textbook errors, NYCS, Sourav Das, cockroach janata party, education minister resignation, odisha government, initiated';

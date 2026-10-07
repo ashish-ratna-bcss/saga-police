@@ -1,105 +1,92 @@
 /**
- * Keyword search over the tenant's stored news articles, matching the news API's
- * rules (Blura-Engine processing/keywords.py) so the Saved tab ranks results the
- * same way a live search does. news.keywords.test.js checks the parsing matches.
+ * Keyword search over the tenant's saved news articles, with the news API's rules
+ * (Blura-Engine processing/keywords.py) so saved and live results agree.
+ * news.keywords.test.js checks the parsing matches.
  *
- * One phrase ("CJP School Thik Karo"): its words match independently and results
- * rank by words matched, then the whole phrase appearing, then words in the title.
+ * Each keyword is matched as a whole phrase, exactly as written: "CJP School Thik
+ * Karo" matches only articles containing that phrase. Several keywords are separated
+ * by commas, semicolons or new lines: an article matches when it contains any of them,
+ * and articles containing more of them rank higher (then keywords in the title).
+ * min_match = the minimum number of keywords an article must contain. Double quotes
+ * only group text that itself contains a comma.
  *
- * A list of phrases separated by commas, semicolons or new lines: an article
- * matches a phrase when it contains ALL of that phrase's words, and results rank
- * by phrases matched, then words, then title hits.
- *
- * min_match: minimum words (one phrase) or phrases (a list) an article must match.
- * "Double quoted" text is an exact phrase every result must contain. Common
- * English / romanized-Hindi words are ignored. Latin-script words match at the
- * start of a word ('kill' ≠ 'skill'); Indian scripts match anywhere.
+ * Matching ignores case and punctuation between words; a Latin-script keyword starts
+ * at a word boundary ('kill' finds 'killed', not 'skill').
  */
 
 const { Prisma } = require('../../generated/tenant-client');
 
-const STOP_WORDS = new Set(`
-a an the of in on at to for and or is are was were be been by with from as
-it its this that these those into about over after before than then there
-their his her he she they we you i our your not no
-ka ki ke ko se me mein hai hain tha thi aur ya par bhi ek
-`.split(/\s+/).filter(Boolean));
-
-const MAX_TERMS = 8;
 const MAX_PHRASES = 150;
 const MAX_KEYWORD_LENGTH = 6000;
-const QUOTED = /["“”]([^"“”]+)["“”]/g;
+const QUOTED = /["“”]([^"“”]*)["“”]/g;
 const ITEM_SEPARATORS = /[,;\n\r]+/;
-// Whitespace and punctuation only — never \W, which would split Indian-script words.
-const SEPARATORS = /[\s,;:!?()[\]{}|/\\<>“”"‘’]+/;
-const EDGE_PUNCTUATION = /^[.'\-_*#@&]+|[.'\-_*#@&]+$/g;
+const EDGE_PUNCTUATION = /^[ .,;:!?\-_*#@&'"“”‘’()[\]{}]+|[ .,;:!?\-_*#@&'"“”‘’()[\]{}]+$/g;
+const NON_WORD = /[^a-z0-9]+/g;
 
 const normalize = (text) => String(text || '').normalize('NFKC').toLowerCase();
-const isLatin = (term) => /^[a-z0-9]/.test(term);
+/** Plain ASCII keywords use the word index; anything with non-ASCII letters, substring search. */
+const isLatin = (phrase) => /^[\x00-\x7F]*$/.test(phrase);
+const latinWords = (text) => text.replace(NON_WORD, ' ').trim().split(' ').filter(Boolean);
 
-const tokensOf = (text) => {
-  const out = [];
-  for (const raw of text.split(SEPARATORS)) {
-    const token = raw.replace(EDGE_PUNCTUATION, '').replace(/'s$/, '').replace(EDGE_PUNCTUATION, '');
-    if (token && !out.includes(token)) out.push(token);
+/** Split on commas / semicolons / new lines, except inside double quotes. */
+const splitItems = (text) => {
+  const items = [];
+  let last = 0;
+  for (const m of text.matchAll(QUOTED)) {
+    items.push(...text.slice(last, m.index).split(ITEM_SEPARATORS), m[1]);
+    last = m.index + m[0].length;
   }
-  return out;
+  items.push(...text.slice(last).split(ITEM_SEPARATORS));
+  return items;
 };
 
-/** @returns {{ phrases: {text: string, terms: string[]}[], required: string[], terms: string[], isList: boolean }} */
+/** @returns {{ phrases: {text: string, words: string[]}[], terms: string[], isList: boolean }} */
 const parseKeyword = (keyword) => {
-  const text = normalize(keyword).trim();
-  const empty = { phrases: [], required: [], terms: [], isList: false };
-  if (!text) return empty;
-
-  const required = [...text.matchAll(QUOTED)].map((m) => m[1].trim()).filter(Boolean);
-  const items = text.replace(QUOTED, ' ').split(ITEM_SEPARATORS).filter((i) => i.trim());
-
   const phrases = [];
   const seen = new Set();
-  for (const item of items) {
-    const tokens = tokensOf(item);
-    let terms = tokens.filter((t) => t.length > 1 && !STOP_WORDS.has(t));
-    if (!terms.length && items.length === 1 && !required.length) terms = tokens;
-    terms = terms.slice(0, MAX_TERMS);
-    const key = [...terms].sort().join('\u0000');
-    if (!terms.length || seen.has(key)) continue;
+  for (const raw of splitItems(normalize(keyword))) {
+    const text = raw.replace(/\s+/g, ' ').replace(EDGE_PUNCTUATION, '');
+    if (!text) continue;
+    const latin = isLatin(text);
+    const words = latin ? latinWords(text) : text.split(' ').filter(Boolean);
+    const key = latin ? ` ${words.join(' ')}` : text;
+    if (!words.length || seen.has(key)) continue; // punctuation only, or a duplicate
     seen.add(key);
-    phrases.push({ text: tokens.join(' '), terms });
+    phrases.push({ text, words });
     if (phrases.length === MAX_PHRASES) break;
   }
-  const terms = [...new Set(phrases.flatMap((p) => p.terms))];
-  return { phrases, required, terms, isList: phrases.length > 1 };
+  const terms = [...new Set(phrases.flatMap((p) => p.words))];
+  return { phrases, terms, isList: phrases.length > 1 };
 };
 
 /*
- * Latin-script terms are matched through news_articles.search_tsv — a GIN-indexed
- * tsvector of the article's [a-z0-9] words (title weighted 'A'), kept up to date by
- * Postgres. "Starts a word" becomes a prefix query on the last word, so no article
- * text is scanned at search time:
- *   'kill' → kill:*                (killed, killing; not skill)
- *   'hit-and-run' → hit <-> and <-> run:*
- * Same rule as the API's ascii_words() test. Indian-script terms (rare in lists)
- * fall back to substring search on the lower-cased text.
+ * Latin keywords are matched through news_articles.search_tsv — a GIN-indexed
+ * tsvector of the article's [a-z0-9] words (title weighted 'A'), kept current by
+ * Postgres — as a phrase query whose last word may continue, so no article text is
+ * scanned at search time:
+ *   'CJP School Thik Karo' → cjp <-> school <-> thik <-> karo:*
+ *   'kill'                 → kill:*            (killed; not skill)
+ * Same rule as the API's ascii_words() test. Other keywords are matched as a phrase
+ * in the NFKC-normalized, lower-cased, whitespace-collapsed text.
  */
-const NON_WORD = /[^a-z0-9]+/g;
-const tsQuery = (term, weight = '') => {
-  const words = term.replace(NON_WORD, ' ').trim().split(' ').filter(Boolean);
-  return words.map((w, i) => (i === words.length - 1 ? `${w}:*${weight}` : weight ? `${w}:${weight}` : w)).join(' <-> ');
-};
+const tsQuery = (words, weight = '') =>
+  words.map((w, i) => (i === words.length - 1 ? `${w}:*${weight}` : weight ? `${w}:${weight}` : w)).join(' <-> ');
 
-/** SQL boolean: does the article row `a` contain `term` (anywhere, or in its title)? */
-const contains = (term, { title = false } = {}) => {
-  if (isLatin(term)) return Prisma.sql`(a.search_tsv @@ ${tsQuery(term, title ? 'A' : '')}::tsquery)`;
+const TEXT_SQL = "regexp_replace(normalize(lower(a.title || ' ' || a.summary || ' ' || a.content), NFKC), '\\s+', ' ', 'g')";
+const TITLE_SQL = "regexp_replace(normalize(lower(a.title), NFKC), '\\s+', ' ', 'g')";
+
+/** SQL boolean: does article row `a` contain the keyword (anywhere, or in its title)? */
+const contains = (phrase, { title = false } = {}) => {
+  if (isLatin(phrase.text)) return Prisma.sql`(a.search_tsv @@ ${tsQuery(phrase.words, title ? 'A' : '')}::tsquery)`;
   return title
-    ? Prisma.sql`(strpos(lower(a.title), ${term}) > 0)`
-    : Prisma.sql`(strpos(a.hay, ${term}) > 0)`;
+    ? Prisma.sql`(strpos(${Prisma.raw(TITLE_SQL)}, ${phrase.text}) > 0)`
+    : Prisma.sql`(strpos(a.hay, ${phrase.text}) > 0)`;
 };
 const asInt = (condition) => Prisma.sql`(CASE WHEN ${condition} THEN 1 ELSE 0 END)`;
 const flag = (name) => Prisma.raw(`s.${name}`);
 
 /**
- * SQL for a keyword search, in layers so each word is tested once per row:
+ * SQL for a keyword search, in layers so each keyword is tested once per row:
  *
  *   SELECT s.*, <select> FROM (
  *     SELECT <list columns> <flags>
@@ -107,22 +94,19 @@ const flag = (name) => Prisma.raw(`s.${name}`);
  *     OFFSET 0
  *   ) s WHERE <where> ORDER BY <rank> ...
  *
- * prefilter → cheap index-backed test (any searched word / required phrase present)
- *             to AND into the innermost WHERE, or null
- * needsHay  → whether the inner row needs the lower-cased text column (HAY_COLUMNS)
- *             — only for Indian-script words
- * flags     → ", <word test> AS kt0, ..." columns computed on the inner row (or empty)
- * select    → matched_terms, matched_phrases, match_score (always present)
+ * prefilter → index-backed test (contains any keyword) to AND into the innermost WHERE
+ * needsHay  → whether the inner row needs the normalized text column (HAY_COLUMNS)
+ * flags     → ", <keyword test> AS kp0, <in title> AS kh0, ..." (or empty)
+ * select    → matched_phrases, match_score (always present)
  * where     → condition on s.* (or null for no keyword)
  * ranked    → whether ORDER BY should lead with match_score
+ * wordsOf   → keyword text → its words, to derive matched_terms from matched_phrases
  */
 const keywordSql = (keyword, minMatch = 1) => {
-  const query = parseKeyword(keyword);
-  const { phrases, required, terms, isList } = query;
-  const need = Math.max(1, Number.parseInt(minMatch, 10) || 1);
-  const base = { terms, phrases: isList ? phrases.map((p) => p.text) : [] };
+  const { phrases, terms } = parseKeyword(keyword);
+  const base = { terms, phrases: phrases.map((p) => p.text), wordsOf: new Map(phrases.map((p) => [p.text, p.words])) };
 
-  if (!phrases.length && !required.length) {
+  if (!phrases.length) {
     return {
       ...base,
       prefilter: null,
@@ -130,64 +114,42 @@ const keywordSql = (keyword, minMatch = 1) => {
       flags: Prisma.empty,
       where: null,
       ranked: false,
-      select: Prisma.sql`ARRAY[]::text[] AS matched_terms, ARRAY[]::text[] AS matched_phrases, 0 AS match_score`,
+      select: Prisma.sql`ARRAY[]::text[] AS matched_phrases, 0 AS match_score`,
     };
   }
 
-  const termIndex = new Map(terms.map((t, i) => [t, i]));
-  const single = !isList ? phrases[0] : null;
+  const need = Math.min(Math.max(1, Number.parseInt(minMatch, 10) || 1), phrases.length);
   const flagCols = [
-    ...terms.map((t, i) => Prisma.sql`${contains(t)} AS kt${Prisma.raw(String(i))}`),
-    ...terms.map((t, i) => Prisma.sql`${contains(t, { title: true })} AS kh${Prisma.raw(String(i))}`),
-    ...required.map((p, i) => Prisma.sql`${contains(p)} AS kr${Prisma.raw(String(i))}`),
+    ...phrases.map((p, i) => Prisma.sql`${contains(p)} AS kp${Prisma.raw(String(i))}`),
+    ...phrases.map((p, i) => Prisma.sql`${contains(p, { title: true })} AS kh${Prisma.raw(String(i))}`),
   ];
-  if (single && single.terms.length > 1) flagCols.push(Prisma.sql`${contains(single.text)} AS kp`);
+  const sum = (parts) => Prisma.join(parts, ' + ');
+  const matched = sum(phrases.map((_, i) => asInt(flag(`kp${i}`))));
+  const titleHits = sum(phrases.map((_, i) => asInt(flag(`kh${i}`))));
+  const matchedPhrases = Prisma.sql`ARRAY_REMOVE(ARRAY[${Prisma.join(
+    phrases.map((p, i) => Prisma.sql`CASE WHEN ${flag(`kp${i}`)} THEN ${p.text}::text END`),
+  )}], NULL)`;
 
-  // Every match needs at least one searched word (and all required phrases), so
-  // this narrows rows through the GIN index before any per-word flag is computed.
-  const latin = terms.filter(isLatin);
-  const indic = [...terms, ...required, ...(single ? [single.text] : [])].filter((t) => !isLatin(t));
-  const anyWord = [
-    ...(latin.length ? [Prisma.sql`a.search_tsv @@ ${latin.map((t) => `(${tsQuery(t)})`).join(' | ')}::tsquery`] : []),
-    ...terms.filter((t) => !isLatin(t)).map((t) => Prisma.sql`strpos(lower(a.title || ' ' || a.summary || ' ' || a.content), ${t}) > 0`),
+  // Every match contains at least one keyword, so this narrows rows through the GIN
+  // index before any per-keyword flag is computed.
+  const latin = phrases.filter((p) => isLatin(p.text));
+  const anyKeyword = [
+    ...(latin.length ? [Prisma.sql`a.search_tsv @@ ${latin.map((p) => `(${tsQuery(p.words)})`).join(' | ')}::tsquery`] : []),
+    ...phrases.filter((p) => !isLatin(p.text)).map((p) => Prisma.sql`strpos(${Prisma.raw(TEXT_SQL)}, ${p.text}) > 0`),
   ];
-  const requiredRaw = required.map((p) => (isLatin(p)
-    ? Prisma.sql`a.search_tsv @@ ${tsQuery(p)}::tsquery`
-    : Prisma.sql`strpos(lower(a.title || ' ' || a.summary || ' ' || a.content), ${p}) > 0`));
-  const prefilterParts = [...requiredRaw, ...(anyWord.length ? [Prisma.sql`(${Prisma.join(anyWord, ' OR ')})`] : [])];
-
-  const sum = (parts) => (parts.length ? Prisma.join(parts, ' + ') : Prisma.sql`0`);
-  const words = sum(terms.map((_, i) => asInt(flag(`kt${i}`))));
-  const titleHits = sum(terms.map((_, i) => asInt(flag(`kh${i}`))));
-  const fullMatch = (p) => Prisma.join(p.terms.map((t) => flag(`kt${termIndex.get(t)}`)), ' AND ');
-  const phraseCount = sum(phrases.map((p) => asInt(fullMatch(p))));
-  const label = (cond, text) => Prisma.sql`CASE WHEN ${cond} THEN ${text}::text END`;
-  const matchedTerms = terms.length
-    ? Prisma.sql`ARRAY_REMOVE(ARRAY[${Prisma.join(terms.map((t, i) => label(flag(`kt${i}`), t)))}], NULL)`
-    : Prisma.sql`ARRAY[]::text[]`;
-  const matchedPhrases = isList
-    ? Prisma.sql`ARRAY_REMOVE(ARRAY[${Prisma.join(phrases.map((p) => label(fullMatch(p), p.text)))}], NULL)`
-    : Prisma.sql`ARRAY[]::text[]`;
-  const score = isList
-    ? Prisma.sql`((${phraseCount}) * 10000000 + (${words}) * 1000 + LEAST(${titleHits}, 999))`
-    : Prisma.sql`((${words}) * 1000 + ${single && single.terms.length > 1 ? asInt(flag('kp')) : Prisma.sql`0`} * 100 + LEAST(${titleHits}, 9) * 10)`;
-
-  const conditions = required.map((_, i) => flag(`kr${i}`));
-  if (isList) conditions.push(Prisma.sql`(${phraseCount}) >= ${need}`);
-  else if (terms.length) conditions.push(Prisma.sql`(${words}) >= ${Math.min(need, terms.length)}`);
 
   return {
     ...base,
-    prefilter: prefilterParts.length ? Prisma.join(prefilterParts, ' AND ') : null,
-    needsHay: indic.length > 0,
+    prefilter: Prisma.sql`(${Prisma.join(anyKeyword, ' OR ')})`,
+    needsHay: phrases.some((p) => !isLatin(p.text)),
     flags: Prisma.sql`, ${Prisma.join(flagCols)}`,
-    where: conditions.length ? Prisma.join(conditions, ' AND ') : null,
+    where: Prisma.sql`(${matched}) >= ${need}`,
     ranked: true,
-    select: Prisma.sql`${matchedTerms} AS matched_terms, ${matchedPhrases} AS matched_phrases, ${score} AS match_score`,
+    select: Prisma.sql`${matchedPhrases} AS matched_phrases, ((${matched}) * 1000 + LEAST(${titleHits}, 999)) AS match_score`,
   };
 };
 
-/** Lower-cased full text for Indian-script words, added to the inner row when needed. */
-const HAY_COLUMNS = Prisma.sql`lower(a.title || ' ' || a.summary || ' ' || a.content) AS hay`;
+/** Normalized full text for non-Latin keywords, added to the inner row when needed. */
+const HAY_COLUMNS = Prisma.sql`${Prisma.raw(TEXT_SQL)} AS hay`;
 
-module.exports = { parseKeyword, keywordSql, HAY_COLUMNS, STOP_WORDS, MAX_TERMS, MAX_PHRASES, MAX_KEYWORD_LENGTH };
+module.exports = { parseKeyword, keywordSql, HAY_COLUMNS, MAX_PHRASES, MAX_KEYWORD_LENGTH };

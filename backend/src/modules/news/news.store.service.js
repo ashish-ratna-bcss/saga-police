@@ -241,7 +241,7 @@ const page = (query) => ({
   offset: toInt(query.offset, 0),
 });
 
-/** Raw-text column for Indian-script words, only computed when a keyword has them. */
+/** Normalized text column for non-Latin keywords, only computed when a keyword has them. */
 const hayColumns = (keyword) => (keyword.needsHay ? Prisma.sql`, ${HAY_COLUMNS}` : Prisma.empty);
 
 // search_tsv is stored compressed (TOAST); every flag that reads it would decompress
@@ -249,7 +249,7 @@ const hayColumns = (keyword) => (keyword.needsHay ? Prisma.sql`, ${HAY_COLUMNS}`
 // tsvector materializes one decompressed copy per row for all the flags to share.
 const SEARCH_TSV = Prisma.sql`(a.search_tsv || ''::tsvector) AS search_tsv`;
 
-/** What the keyword flags read: the word index, plus title/raw text only for Indian-script words. */
+/** What the keyword flags read: the word index, plus title/text only for non-Latin keywords. */
 const scoringColumns = (keyword) => {
   if (!keyword.ranked) return Prisma.empty;
   return keyword.needsHay
@@ -294,7 +294,7 @@ const listArticles = async (db, query = {}) => {
       ORDER BY ${rank("")} s.published_at DESC NULLS LAST, s.last_seen_at DESC, s.id
       LIMIT ${limit} OFFSET ${offset}
     )
-    SELECT ${LIST_COLUMNS}, p.matched_terms, p.matched_phrases, p.match_score, p.total_count
+    SELECT ${LIST_COLUMNS}, p.matched_phrases, p.match_score, p.total_count
     FROM page p JOIN news_articles a ON a.article_id = p.id
     ORDER BY ${rank('p')} p.published_at DESC NULLS LAST, p.last_seen_at DESC, p.id`;
   // Past the last page there are no rows to carry the total; only then count separately.
@@ -307,7 +307,11 @@ const listArticles = async (db, query = {}) => {
     count,
     limit,
     offset,
-    articles: pageRows.map(({ total_count, ...a }) => a),
+    // matched_terms (the matched keywords' words) drive highlighting on the page.
+    articles: pageRows.map(({ total_count, ...a }) => ({
+      ...a,
+      matched_terms: [...new Set((a.matched_phrases || []).flatMap((p) => keyword.wordsOf.get(p) || []))],
+    })),
     query_terms: keyword.terms,
     query_phrases: keyword.phrases,
   };

@@ -45,12 +45,20 @@ const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, '
 
 const EMPTY_FILTERS = { keyword: '', minMatch: 1, country: [], language: [], state: [], source: [], location: '' };
 
-// The keyword may be one phrase or a list of phrases split by commas, semicolons or
-// new lines (the API ranks articles by how many phrases they match). This is only a
-// preview count — the API's parse (query_phrases) is authoritative.
+// Each keyword is matched as a whole phrase; several keywords are separated by
+// commas, semicolons or new lines (double quotes group text containing a comma).
+// This is only a preview count — the API's parse (query_phrases) is authoritative.
 const listItems = (keyword) => {
+  const text = String(keyword || '');
+  const parts = [];
+  let last = 0;
+  for (const m of text.matchAll(/["“”]([^"“”]*)["“”]/g)) {
+    parts.push(...text.slice(last, m.index).split(/[,;\n\r]+/), m[1]);
+    last = m.index + m[0].length;
+  }
+  parts.push(...text.slice(last).split(/[,;\n\r]+/));
   const seen = new Set();
-  return String(keyword || '').split(/[,;\n\r]+/).map((s) => s.trim()).filter((s) => {
+  return parts.map((s) => s.replace(/\s+/g, ' ').trim()).filter((s) => {
     const key = s.toLowerCase();
     if (!s || seen.has(key)) return false;
     seen.add(key);
@@ -102,7 +110,7 @@ const describeFilters = (f, nameOf) => {
   const parts = FACETS.filter(({ key }) => f[key].length)
     .map(({ key }) => (key === 'source' ? f[key].map(nameOf) : f[key]).join(', '));
   if (f.location.trim()) parts.push(f.location.trim());
-  if (f.minMatch > 1 && listItems(f.keyword).length > 1) parts.push(`at least ${f.minMatch} phrases`);
+  if (f.minMatch > 1 && listItems(f.keyword).length > 1) parts.push(`at least ${f.minMatch} keywords`);
   return parts.join(' · ') || 'All sources';
 };
 const searchTitle = (f) => {
@@ -248,26 +256,26 @@ const FilterBar = ({ filters, setFilters, options, facetsDisabled, loading, subm
         {isList ? (
           <>
             <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 font-semibold text-primary">
-              <Layers className="h-3 w-3" /> {items.length} phrases
+              <Layers className="h-3 w-3" /> {items.length} keywords
             </span>
             <label className="inline-flex items-center gap-1.5">
               Show articles matching at least
               <Select value={String(filters.minMatch)} onValueChange={(v) => setFilters((x) => ({ ...x, minMatch: Number(v) }))}>
-                <SelectTrigger className="h-6 w-16 text-[11px]" aria-label="Minimum phrases matched"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-6 w-16 text-[11px]" aria-label="Minimum keywords matched"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {MIN_MATCH_OPTIONS.filter((n) => n <= items.length).map((n) => (
                     <SelectItem key={n} value={String(n)} className="text-xs">{n}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              phrase{filters.minMatch === 1 ? '' : 's'}
+              keyword{filters.minMatch === 1 ? '' : 's'}
             </label>
-            <span>An article matches a phrase when it has all of that phrase’s words. More phrases matched = higher.</span>
+            <span>Each keyword is matched as a whole phrase. Articles containing more of them come first.</span>
           </>
         ) : (
           <span>
-            Each word is searched separately and articles containing more of them come first. Paste several phrases separated by
-            commas to search them all at once. Use &quot;quotes&quot; for an exact phrase. For Telugu, Hindi or Odia sources, type in that script.
+            The keyword is matched as a whole phrase (e.g. CJP School Thik Karo). Separate several keywords with commas to search
+            them all at once. For Telugu, Hindi or Odia sources, type in that script.
           </span>
         )}
         {tooLong && (
@@ -357,7 +365,6 @@ const ArticleCard = ({ article: a, terms = [], phrases = [], isNew = false, onOp
   const summary = a.summary && !(a.title || '').includes(a.summary) ? a.summary : '';
   const place = [a.district, a.state].filter(Boolean).join(', ');
   const matched = a.matched_terms || [];
-  const allMatched = matched.length === terms.length;
   const matchedPhrases = a.matched_phrases || [];
   const isList = phrases.length > 1;
 
@@ -388,13 +395,8 @@ const ArticleCard = ({ article: a, terms = [], phrases = [], isNew = false, onOp
         <div className="flex flex-1 flex-col gap-1.5 p-3">
           {isList && matchedPhrases.length > 0 && (
             <MatchBadge strong={matchedPhrases.length >= Math.min(3, phrases.length)} title={`Matches: ${matchedPhrases.join(', ')}`}>
-              {matchedPhrases.length} of {phrases.length} phrases: {matchedPhrases.slice(0, 3).join(' · ')}
+              {matchedPhrases.length} of {phrases.length} keywords: {matchedPhrases.slice(0, 3).join(' · ')}
               {matchedPhrases.length > 3 ? ` +${matchedPhrases.length - 3}` : ''}
-            </MatchBadge>
-          )}
-          {!isList && terms.length > 1 && matched.length > 0 && (
-            <MatchBadge strong={allMatched} title={`Contains: ${matched.join(', ')}`}>
-              {allMatched ? 'All words' : `Matches ${matched.length}/${terms.length} words`}: {matched.join(' · ')}
             </MatchBadge>
           )}
           <h3 className="text-sm font-semibold leading-snug line-clamp-3"><Highlight text={a.title || 'Untitled'} terms={matched} /></h3>
@@ -476,7 +478,7 @@ const ResultsPanel = ({
           <p className="text-[11px] text-muted-foreground mt-0.5 tabular-nums">
             Showing <span className="font-semibold text-foreground">{from}–{to}</span> of{' '}
             <span className="font-semibold text-foreground">{total.toLocaleString()}</span> articles
-            {(result.query_phrases?.length || 0) > 1 && ` · ranked by ${result.query_phrases.length} phrases`}
+            {(result.query_phrases?.length || 0) > 1 && ` · ranked by ${result.query_phrases.length} keywords`}
             {meta ? ` · ${meta}` : ''}
           </p>
         )}
@@ -935,7 +937,7 @@ const NewsWorkspace = () => {
       {view === 'articles' && (
       <>
       <FilterBar filters={filters} setFilters={setFilters} options={options} facetsDisabled={sourcesStatus !== 'ready'}
-        loading={loading} submitLabel="Search news" placeholder="Keyword, or several separated by commas (optional)"
+        loading={loading} submitLabel="Search news" placeholder="Keyword (matched as a whole phrase), or several separated by commas — optional"
         onSubmit={() => search(filters, range)}
         canClear={hasFilters(filters) || !!range.from || !!range.to}
         onClear={() => { setFilters(EMPTY_FILTERS); setRange(EMPTY_RANGE); }}>
