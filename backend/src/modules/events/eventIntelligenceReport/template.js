@@ -75,7 +75,7 @@ const toneLabel = (k) => (k === 'positive' ? 'Positive' : k === 'negative' ? 'Ne
 
 const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const { resolveStatePlaces } = require('./indiaGeography.service');
+const { resolveStatePlaces } = require('../indiaGeography.service');
 
 /**
  * Build a place lexicon from this event's location field + all state districts and cities.
