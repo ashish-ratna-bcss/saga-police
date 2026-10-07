@@ -15,6 +15,7 @@ const {
   postedAtInEventWindow,
   postedAtRangeWhere,
 } = require('./event.utils');
+const { classifyEventRelevance } = require('./eventTelemetry.service');
 const { recordFetch } = require('./event.service');
 const logger = require('../../lib/logger');
 
@@ -105,42 +106,6 @@ const keywordMatchesText = (keyword, text) => {
   return false;
 };
 
-const FRENCH_STOPWORDS = new Set([
-  'le', 'la', 'les', 'des', 'du', 'une', 'un', 'pour', 'avec', 'dans', 'sur', 'par', 'est', 'sont', 'cette', 'ce', 'ces', 'qui', 'que', 'quoi', 'dont', 'nous', 'vous', 'ils', 'elles', 'leur', 'leurs', 'mais', 'ou', 'et', 'donc', 'or', 'ni', 'car', 'été', 'ont', 'fait', 'faire'
-]);
-
-const UNRELATED_FOREIGN_REGEX = /\b(brussels|gaza|israel|palestine|australian|australia|france|french|nigeria|nigerian|ghana|fwsc|ukraine|russia|kharkiv|avdiivka|white house|pentagon|senate|donald trump|kamala harris|keir starmer|macron)\b/i;
-
-const isIrrelevantForeignPost = (text, targetRegion = '') => {
-  if (!text) return false;
-  const lower = String(text).toLowerCase();
-  const regionLower = String(targetRegion || '').toLowerCase().trim();
-
-  // If the event is regional (e.g. Odisha / India) and the post mentions foreign conflict/entities without mentioning the target region
-  if (regionLower || /\b(odisha|delhi|andhra|uttarakhand|jharkhand|india|bharat)\b/i.test(regionLower)) {
-    if (UNRELATED_FOREIGN_REGEX.test(lower)) {
-      if (regionLower && lower.includes(regionLower)) {
-        return false;
-      }
-      return true;
-    }
-  }
-
-  const words = lower.split(/[^a-z\u00C0-\u017F]+/i).filter((w) => w.length >= 2);
-  if (words.length < 4) return false;
-  let frenchCount = 0;
-  for (const w of words) {
-    if (FRENCH_STOPWORDS.has(w)) frenchCount++;
-  }
-  if (frenchCount >= 3 && (frenchCount / words.length) > 0.18) {
-    if (regionLower && lower.includes(regionLower)) {
-      return false;
-    }
-    return true;
-  }
-  return false;
-};
-
 const evaluateBooleanQuery = (query, text) => {
   const normText = normalizeForKeywordMatch(text);
   if (!normText) return false;
@@ -190,16 +155,17 @@ const evaluateBooleanQuery = (query, text) => {
   }
 };
 
+/**
+ * Filter items using dynamic event relevance classification.
+ * Evaluates the dynamic event anchor profile (title, location, description, keywords).
+ */
 const filterByKeywords = (items, event, getText) => {
-  const keywords = normalizeEventKeywords(event);
-  const location = event?.location || '';
-  if (!keywords.length) return items || [];
-  return (items || []).filter((item) => {
+  if (!Array.isArray(items) || !items.length) return [];
+  return items.filter((item) => {
     const text = getText(item);
     if (!text) return false;
-    if (isIrrelevantForeignPost(text, location)) return false;
-    const normText = normalizeForKeywordMatch(text);
-    return keywords.some((keyword) => evaluateBooleanQuery(keyword, normText));
+    const relevance = classifyEventRelevance(text, event);
+    return relevance.isRelevant;
   });
 };
 
@@ -269,7 +235,7 @@ const resolveCatalogMatchEvent = (event, queries = []) => {
   const fallback = (queries || [])
     .map((q) => String(q || '').replace(/^"|"$/g, '').trim())
     .filter(Boolean);
-  return fallback.length ? { keywords: fallback } : event;
+  return fallback.length ? { ...event, keywords: fallback } : event;
 };
 
 const buildCatalogPostsWhere = (event, platform) => {

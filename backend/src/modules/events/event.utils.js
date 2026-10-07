@@ -110,9 +110,9 @@ const normalizeKeywords = (body = {}) => {
     const items = Array.isArray(value)
       ? value
       : String(value)
-          .split(/\n|,|;/g)
-          .map((s) => s.trim())
-          .filter(Boolean);
+        .split(/\n|,|;/g)
+        .map((s) => s.trim())
+        .filter(Boolean);
     return items
       .map((k) => {
         if (typeof k === 'string') return { keyword: k.trim(), language: fallbackLanguage };

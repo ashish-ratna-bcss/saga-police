@@ -262,9 +262,9 @@ const listEventContent = async (id, { page = 1, limit = 50, platform = 'all', db
     .map((k) => (typeof k === 'string' ? k : k?.keyword))
     .filter(Boolean);
 
-  // Filter out irrelevant foreign noise and unanchored global posts
+  // Filter out irrelevant noise and unanchored posts using dynamic event profile
   const filtered = rawRows.filter((r) => {
-    const relevance = classifyEventRelevance(r.text || '', event.name, keywordsList, event.location);
+    const relevance = classifyEventRelevance(r.text || '', event);
     return relevance.isRelevant;
   });
 
@@ -427,7 +427,7 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
       : null;
 
     const matchedKws = Array.isArray(ar.matched_keywords) ? ar.matched_keywords.map((k) => String(k?.keyword || k).toLowerCase().trim()) : [];
-    const relevance = classifyEventRelevance(row.text || '', event.name, keywordsList);
+    const relevance = classifyEventRelevance(row.text || '', event);
     const targetEntity = classifyTargetEntity(row.text || '', row.author_name || row.author_handle || '', ar);
     const targetSemantics = getSentimentTargetSemantics(sentiment);
 

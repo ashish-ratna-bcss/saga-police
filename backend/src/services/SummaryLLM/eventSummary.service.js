@@ -538,7 +538,7 @@ const generateEventSummary = async (
     else riskCounts.low++;
 
     // Event Relevance Classification
-    const relevance = classifyEventRelevance(m.text || '', event.name, keywordsList, event.location);
+    const relevance = classifyEventRelevance(m.text || '', event);
     const targetEntity = classifyTargetEntity(m.text || '', m.author_name || m.author_handle || '', analysis);
     const targetSemantics = getSentimentTargetSemantics(sent);
 
