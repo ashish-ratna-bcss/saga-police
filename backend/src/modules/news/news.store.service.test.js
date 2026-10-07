@@ -136,6 +136,7 @@ async function runTests() {
     const paged = await saved({ limit: 1, offset: 1 });
     assert.strictEqual(paged.articles.length, 1);
     assert.strictEqual(paged.articles[0].content, undefined, 'list omits full text');
+    assert.strictEqual(paged.articles[0].word_count, 5, 'but reports its word count ("Body of aN about narcotics")');
     console.log('✅ filters, dates and paging work.');
 
     console.log('Testing tenant isolation...');
