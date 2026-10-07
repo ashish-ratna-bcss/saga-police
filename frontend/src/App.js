@@ -44,6 +44,7 @@ const UsersManagement = lazy(() => import('./pages/admin/UsersManagement'));
 const AnalysisTools = lazy(() => import('./pages/intelligence/AnalysisTools'));
 const ScrapeWorkspace = lazy(() => import('./pages/intelligence/scrape/ScrapeWorkspace'));
 const OsintWorkspace = lazy(() => import('./pages/intelligence/osint/OsintWorkspace'));
+const NewsWorkspace = lazy(() => import('./pages/intelligence/news/NewsWorkspace'));
 
 
 const EventsReport = lazy(() => import('./pages/events/EventsReport'));
@@ -116,6 +117,7 @@ function App() {
                 <Route index element={<Navigate to="scrape" replace />} />
                 <Route path="scrape" element={<ScrapeWorkspace />} />
                 <Route path="osint" element={<OsintWorkspace />} />
+                <Route path="news" element={<NewsWorkspace />} />
               </Route>
 
               <Route path="system-health" element={<SystemHealth />} />
