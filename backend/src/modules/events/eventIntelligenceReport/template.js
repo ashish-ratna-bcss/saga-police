@@ -236,22 +236,126 @@ const resolvePostUrl = (e = {}) => {
     return 'https://youtube.com';
   }
   if (plat === 'facebook') {
-    if (author && author !== 'unknown') return `https://www.facebook.com/${author}`;
+    if (author && author !== 'unknown') {
+      if (/\s/.test(author) || /[^A-Za-z0-9._-]/.test(author)) {
+        return `https://www.facebook.com/search/top?q=${encodeURIComponent(author)}`;
+      }
+      return `https://www.facebook.com/${encodeURIComponent(author)}`;
+    }
     return 'https://facebook.com';
   }
   if (plat === 'instagram') {
     if (id) return `https://www.instagram.com/p/${id}/`;
-    if (author && author !== 'unknown') return `https://www.instagram.com/${author}/`;
+    if (author && author !== 'unknown') return `https://www.instagram.com/${encodeURIComponent(author)}/`;
     return 'https://instagram.com';
   }
   if (plat === 'telegram') {
-    if (author && author !== 'unknown') return `https://t.me/${author}`;
+    if (author && author !== 'unknown') return `https://t.me/${encodeURIComponent(author)}`;
     return 'https://t.me';
   }
   if (plat === 'reddit') {
-    if (author && author !== 'unknown') return `https://www.reddit.com/user/${author}`;
+    if (author && author !== 'unknown') return `https://www.reddit.com/user/${encodeURIComponent(author)}`;
     return 'https://reddit.com';
   }
+  return null;
+};
+
+/**
+ * Resolves a valid direct profile/channel/search URL for an author across platforms.
+ */
+const resolveAuthorProfileUrl = ({ platform, author, sampleUrl } = {}) => {
+  const plat = platKey(platform);
+  const rawAuthor = String(author || '').trim();
+  const cleanAuthor = rawAuthor.replace(/^@+/, '').trim();
+  if (!cleanAuthor || cleanAuthor.toLowerCase() === 'unknown') {
+    return null;
+  }
+
+  // 1. Facebook
+  if (plat === 'facebook') {
+    if (sampleUrl && typeof sampleUrl === 'string' && /^https?:\/\//i.test(sampleUrl)) {
+      // e.g. https://www.facebook.com/username/posts/12345
+      const pageMatch = sampleUrl.match(/^https?:\/\/(?:www\.|m\.)?facebook\.com\/([A-Za-z0-9._-]+)\/(?:posts|videos|photos|reels)/i);
+      if (pageMatch && !['groups', 'events', 'watch', 'share', 'reel', 'reels', 'permalink.php', 'profile.php', 'story.php'].includes(pageMatch[1].toLowerCase())) {
+        return `https://www.facebook.com/${pageMatch[1]}`;
+      }
+      // e.g. https://www.facebook.com/profile.php?id=1000123456
+      const idMatch = sampleUrl.match(/[?&]id=(\d+)/i);
+      if (idMatch) {
+        return `https://www.facebook.com/profile.php?id=${idMatch[1]}`;
+      }
+      // e.g. https://www.facebook.com/pagename?substory_index=...
+      const directUserMatch = sampleUrl.match(/^https?:\/\/(?:www\.|m\.)?facebook\.com\/([A-Za-z0-9._-]+)(?:[/?#]|$)/i);
+      if (directUserMatch && !['groups', 'events', 'watch', 'share', 'reel', 'reels', 'search', 'photo', 'photos', 'permalink.php', 'profile.php', 'story.php'].includes(directUserMatch[1].toLowerCase())) {
+        return `https://www.facebook.com/${directUserMatch[1]}`;
+      }
+    }
+
+    // If author has spaces or non-slug characters, link to Facebook search for this exact name/page
+    if (/\s/.test(cleanAuthor) || /[^A-Za-z0-9._-]/.test(cleanAuthor)) {
+      return `https://www.facebook.com/search/top?q=${encodeURIComponent(cleanAuthor)}`;
+    }
+    return `https://www.facebook.com/${encodeURIComponent(cleanAuthor)}`;
+  }
+
+  // 2. YouTube
+  if (plat === 'youtube') {
+    if (sampleUrl && typeof sampleUrl === 'string' && /youtube\.com\/channel\//i.test(sampleUrl)) {
+      const chMatch = sampleUrl.match(/^https?:\/\/(?:www\.)?youtube\.com\/channel\/([A-Za-z0-9_-]+)/i);
+      if (chMatch) return `https://www.youtube.com/channel/${chMatch[1]}`;
+    }
+    if (/\s/.test(cleanAuthor) || /[^A-Za-z0-9._-]/.test(cleanAuthor)) {
+      return `https://www.youtube.com/results?search_query=${encodeURIComponent(cleanAuthor)}`;
+    }
+    if (cleanAuthor.startsWith('@')) {
+      return `https://www.youtube.com/${encodeURIComponent(cleanAuthor)}`;
+    }
+    return `https://www.youtube.com/@${encodeURIComponent(cleanAuthor)}`;
+  }
+
+  // 3. Twitter / X
+  if (plat === 'x' || plat === 'twitter') {
+    if (/\s/.test(cleanAuthor) || /[^A-Za-z0-9_]/.test(cleanAuthor)) {
+      return `https://x.com/search?q=${encodeURIComponent(cleanAuthor)}`;
+    }
+    return `https://x.com/${encodeURIComponent(cleanAuthor)}`;
+  }
+
+  // 4. Instagram
+  if (plat === 'instagram') {
+    if (sampleUrl && typeof sampleUrl === 'string') {
+      const igMatch = sampleUrl.match(/^https?:\/\/(?:www\.)?instagram\.com\/([A-Za-z0-9._]+)\/(?:p|reel)/i);
+      if (igMatch && !['p', 'reel', 'stories', 'explore'].includes(igMatch[1].toLowerCase())) {
+        return `https://www.instagram.com/${igMatch[1]}/`;
+      }
+    }
+    if (/\s/.test(cleanAuthor) || /[^A-Za-z0-9._]/.test(cleanAuthor)) {
+      const handle = cleanAuthor.replace(/[^A-Za-z0-9._]/g, '').toLowerCase();
+      if (handle) return `https://www.instagram.com/${handle}/`;
+      return `https://www.instagram.com/explore/tags/${encodeURIComponent(cleanAuthor.replace(/\s+/g, ''))}/`;
+    }
+    return `https://www.instagram.com/${encodeURIComponent(cleanAuthor)}/`;
+  }
+
+  // 5. Telegram
+  if (plat === 'telegram') {
+    if (/\s/.test(cleanAuthor) || /[^A-Za-z0-9_]/.test(cleanAuthor)) {
+      return `https://t.me/s/${encodeURIComponent(cleanAuthor.replace(/[^A-Za-z0-9_]/g, ''))}`;
+    }
+    return `https://t.me/${encodeURIComponent(cleanAuthor)}`;
+  }
+
+  // 6. Reddit
+  if (plat === 'reddit') {
+    if (cleanAuthor.startsWith('r/')) {
+      return `https://www.reddit.com/${cleanAuthor}`;
+    }
+    if (/\s/.test(cleanAuthor)) {
+      return `https://www.reddit.com/search/?q=${encodeURIComponent(cleanAuthor)}`;
+    }
+    return `https://www.reddit.com/user/${encodeURIComponent(cleanAuthor.replace(/^u\//, ''))}`;
+  }
+
   return null;
 };
 
@@ -834,8 +938,20 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     return esc(label);
   };
 
-  const authorProfileLink = (plat, author) => {
-    const url = resolvePostUrl({ platform: plat, author });
+  const authorProfileLink = (platOrObj, maybeAuthor, maybeSampleUrl) => {
+    let plat = '';
+    let author = '';
+    let sampleUrl = '';
+    if (typeof platOrObj === 'object' && platOrObj !== null) {
+      plat = platOrObj.platform || platOrObj.plat;
+      author = platOrObj.author || platOrObj.author_name || '';
+      sampleUrl = platOrObj.sampleUrl || platOrObj.url || (platOrObj.samples && platOrObj.samples[0]?.url) || '';
+    } else {
+      plat = platOrObj;
+      author = maybeAuthor;
+      sampleUrl = maybeSampleUrl || '';
+    }
+    const url = resolveAuthorProfileUrl({ platform: plat, author, sampleUrl }) || resolvePostUrl({ platform: plat, author, url: sampleUrl });
     if (url) {
       return `<a href="${esc(url)}" target="_blank" class="post-link">@${esc(author)}</a>`;
     }
@@ -851,7 +967,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 <td>${esc(e.when)}</td>
 <td>${esc(placeLabel(e))}</td>
 <td>${esc(platLabel(e.plat))}</td>
-<td>${authorProfileLink(e.plat, e.author)}</td>
+<td>${authorProfileLink(e.plat, e.author, e.url)}</td>
 <td class="tone-${e.sentK || 'neu'}">${esc(toneLabel(e.sentK))}</td>
 <td>${esc(clip(e.text, 220))}</td>
 </tr>`
@@ -870,7 +986,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 <td>${esc(e.when)}</td>
 <td>${esc(placeLabel(e))}</td>
 <td>${esc(platLabel(e.plat))}</td>
-<td>${authorProfileLink(e.plat, e.author)}</td>
+<td>${authorProfileLink(e.plat, e.author, e.url)}</td>
 <td>${esc(clip(e.text, 200))}</td>
 </tr>`
         )
@@ -896,7 +1012,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 <td>${postRefLink(e)}</td>
 <td>${esc(placeLabel(e))}</td>
 <td>${esc(platLabel(e.plat))}</td>
-<td>${authorProfileLink(e.plat, e.author)}</td>
+<td>${authorProfileLink(e.plat, e.author, e.url)}</td>
 <td class="tone-neg">${esc(toneLabel(e.sentK) === '—' ? 'Negative' : toneLabel(e.sentK))}</td>
 <td>${esc(clip(e.text, 200))}</td>
 </tr>`
@@ -908,7 +1024,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     .map(
       (a) => `<tr>
 <td>${esc(platLabel(a.platform))}</td>
-<td>${authorProfileLink(a.platform, a.author)}</td>
+<td>${authorProfileLink(a)}</td>
 <td>${fmt(a.count)}</td>
 <td>${fmt(a.eng)}</td>
 <td>${esc(clip(a.sample, 160))}</td>
@@ -935,7 +1051,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 <td>${esc(e.when)}</td>
 <td>${esc(placeLabel(e))}</td>
 <td>${esc(platLabel(e.plat))}</td>
-<td>${authorProfileLink(e.plat, e.author)}</td>
+<td>${authorProfileLink(e.plat, e.author, e.url)}</td>
 <td class="tone-${e.sentK || 'neu'}">${esc(toneLabel(e.sentK))}</td>
 <td>${fmt(e.eng)}</td>
 <td>${esc(clip(e.text, 240))}</td>
@@ -1203,7 +1319,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
           <tbody>
             ${list.map((p) => `
               <tr>
-                <td>${authorProfileLink(p.platform, p.author)}</td>
+                <td>${authorProfileLink(p)}</td>
                 <td><span class="prio-pill ${p.priorityClass}">${esc(p.priority)}</span></td>
                 <td><b>${fmt(p.count)}</b> posts<br><span class="sm">${fmt(p.eng)} reach</span></td>
                 <td class="reason-text">${esc(p.why)}${p.posts?.length ? ` <span class="sm">${esc(p.posts.slice(0, 3).map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</td>
