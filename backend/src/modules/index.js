@@ -31,6 +31,7 @@ const periscopeRoutes = require('./periscope/periscope.routes');
 const { uploadRoutes } = require('./uploads');
 
 const { scrapeRoutes } = require('./scrape');
+const { newsRoutes } = require('./news');
 const { searchRoutes } = require('./search');
 const { mediaRoutes } = require('./media');
 const { brandingRoutes } = require('./branding/branding.routes');
@@ -93,6 +94,7 @@ router.use('/templates', templatesRoutes);
 
 router.use('/osint', osintRoutes);
 router.use('/scrape', scrapeRoutes);
+router.use('/news', newsRoutes);
 router.use('/search', searchRoutes);
 
 module.exports = {

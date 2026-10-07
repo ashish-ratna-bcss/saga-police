@@ -11,6 +11,7 @@ export { default as periscopeApi } from './periscope.api';
 export { default as eventsApi } from './events.api';
 export { scrapeApi } from './scrape.api';
 export { osintApi } from './osint.api';
+export { newsApi } from './news.api';
 
 
 export { default } from './apiHandler';
