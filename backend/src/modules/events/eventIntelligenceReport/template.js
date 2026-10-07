@@ -75,10 +75,10 @@ const toneLabel = (k) => (k === 'positive' ? 'Positive' : k === 'negative' ? 'Ne
 
 const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const { resolveStatePlaces } = require('./indiaGeography.service');
+
 /**
- * Build a place lexicon from this event's location field only.
- * No fixed state/district lists — works for any tenant / geography.
- * Keywords are themes, not places, so they are not included here.
+ * Build a place lexicon from this event's location field + all state districts and cities.
  */
 const buildPlaceLexicon = (event) => {
   const seen = new Map();
@@ -106,6 +106,9 @@ const buildPlaceLexicon = (event) => {
       });
   };
   add(event?.location);
+  const statePlaces = resolveStatePlaces(event?.location);
+  statePlaces.forEach(add);
+
   // Longest first so multi-word places match before shorter parts
   return [...seen.values()].sort((a, b) => b.length - a.length);
 };

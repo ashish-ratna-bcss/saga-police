@@ -1,0 +1,532 @@
+{
+  "states": {
+    "Odisha": {
+      "capital": "Bhubaneswar",
+      "districts": [
+        "Angul", "Balangir", "Balasore", "Baleswar", "Bargarh", "Bhadrak", "Boudh", "Cuttack", "Deogarh", "Debagarh",
+        "Dhenkanal", "Gajapati", "Ganjam", "Jagatsinghpur", "Jajpur", "Jharsuguda", "Kalahandi", "Kandhamal", "Kendrapara",
+        "Kendujhar", "Keonjhar", "Khordha", "Khurda", "Koraput", "Malkangiri", "Mayurbhanj", "Nabarangpur", "Nayagarh",
+        "Nuapada", "Puri", "Rayagada", "Sambalpur", "Subarnapur", "Sonepur", "Sundargarh"
+      ],
+      "major_cities_and_towns": [
+        "Bhubaneswar", "Cuttack", "Rourkela", "Berhampur", "Brahmapur", "Sambalpur", "Puri", "Balasore", "Bhadrak",
+        "Baripada", "Jharsuguda", "Jeypore", "Angul", "Dhenkanal", "Bargarh", "Paradip", "Paradeep", "Rayagada",
+        "Bhawanipatna", "Talcher", "Chhatrapur", "Jatni", "Khurda Road", "Sunabeda", "Titilagarh", "Gopalpur",
+        "Chandipur", "Konark", "Pipili", "Chowdwar", "Hirakud", "Burla", "Kalinganagar"
+      ],
+      "key_landmarks_and_institutions": [
+        "Odisha Legislative Assembly", "Odisha Assembly", "Lok Seva Bhavan", "Kharavela Bhavan", "Krushi Bhavan",
+        "Odisha High Court", "State Secretariat", "Master Canteen", "Master Canteen Chowk", "Vani Vihar", "Utkal University",
+        "Ravenshaw University", "SCB Medical College", "AIIMS Bhubaneswar", "KIMS", "SOA University", "Naveen Niwas",
+        "Jayadev Vihar", "Acharya Vihar", "Khandagiri", "Udayagiri", "Patia", "Infocity", "Chandrasekharpur", "Saheed Nagar",
+        "Rasulgarh", "Kalpana Square", "Baramunda", "Lingaraj Temple", "Jagannath Temple Puri", "Janpath", "Rajmahal Square",
+        "Biju Patnaik Airport", "Kalinga Stadium", "Barabati Stadium"
+      ]
+    },
+    "Delhi": {
+      "capital": "New Delhi",
+      "districts": [
+        "Central Delhi", "East Delhi", "New Delhi", "North Delhi", "North East Delhi", "North West Delhi",
+        "Shahdara", "South Delhi", "South East Delhi", "South West Delhi", "West Delhi"
+      ],
+      "major_cities_and_towns": [
+        "New Delhi", "Old Delhi", "Dwarka", "Rohini", "Saket", "Vasant Kunj", "Hauz Khas", "Connaught Place",
+        "Karol Bagh", "Laxmi Nagar", "Mayur Vihar", "Janakpuri", "Pitampura", "Chandni Chowk", "Lajpat Nagar",
+        "South Extension", "Mukherjee Nagar", "Model Town", "Narela", "Najafgarh", "Shahdara", "Seelampur",
+        "Mehrauli", "Greater Kailash", "Defence Colony", "Civil Lines", "Okhla", "Jasola", "Badarpur", "Uttam Nagar",
+        "Paschim Vihar", "Rajouri Garden", "Punjabi Bagh", "Kashmere Gate", "Dhaula Kuan"
+      ],
+      "key_landmarks_and_institutions": [
+        "Jantar Mantar", "India Gate", "Red Fort", "Parliament House", "Samvidhan Sadan", "Rashtrapati Bhavan",
+        "Supreme Court", "Delhi High Court", "Tis Hazari", "Patiala House", "Rouse Avenue Court", "Karkardooma Court",
+        "Saket Court", "Dwarka Court", "Rohini Court", "Delhi Police HQ", "Police Headquarters", "PHQ", "ITO",
+        "Delhi Secretariat", "Vidhan Sabha", "Rajghat", "Vijay Chowk", "Kartavya Path", "Boat Club", "Vishwa Yuvak Kendra",
+        "North Campus", "South Campus", "Delhi University", "JNU", "Jawaharlal Nehru University", "Jamia Millia Islamia",
+        "IIT Delhi", "AIIMS Delhi", "Safdarjung Hospital", "Ram Manohar Lohia Hospital", "RML Hospital", "LNJP Hospital",
+        "Central Secretariat", "Barakhamba", "Mandi House", "Pragati Maidan", "Bharat Mandapam", "Yashobhoomi",
+        "Connaught Circus", "Shastri Bhavan", "Krishi Bhavan", "Udyog Bhavan", "Sena Bhavan", "Panchsheel Marg"
+      ]
+    },
+    "Andhra Pradesh": {
+      "capital": "Amaravati",
+      "districts": [
+        "Alluri Sitharama Raju", "Anakapalli", "Ananthapuramu", "Anantapur", "Annamayya", "Bapatla", "Chittoor",
+        "Dr. B.R. Ambedkar Konaseema", "Konaseema", "East Godavari", "Eluru", "Guntur", "Kakinada", "Krishna",
+        "Kurnool", "Nandyal", "NTR", "Palnadu", "Parvathipuram Manyam", "Prakasam", "Sri Potti Sriramulu Nellore",
+        "Nellore", "Sri Sathya Sai", "Srikakulam", "Tirupati", "Visakhapatnam", "Vizianagaram", "West Godavari", "YSR Kadapa", "Kadapa"
+      ],
+      "major_cities_and_towns": [
+        "Visakhapatnam", "Vizag", "Vijayawada", "Guntur", "Nellore", "Kurnool", "Rajahmundry", "Rajamahendravaram",
+        "Tirupati", "Kakinada", "Kadapa", "Anantapur", "Eluru", "Vizianagaram", "Ongole", "Nandyal", "Machilipatnam",
+        "Adoni", "Tenali", "Proddatur", "Chittoor", "Hindupur", "Bhimavaram", "Madanapalle", "Guntakal", "Srikakulam",
+        "Dharmavaram", "Gudivada", "Narasaraopet", "Tadipatri", "Mangalagiri", "Amaravati", "Tadepalligudem", "Chilakaluripet"
+      ],
+      "key_landmarks_and_institutions": [
+        "AP Secretariat", "Velagapudi", "AP High Court", "Andhra Pradesh Assembly", "Tirumala", "Tirupati Temple",
+        "RK Beach", "Rushikonda", "Dolphin Nose", "Simhachalam", "Kanaka Durga Temple", "Prakasam Barrage",
+        "Indrakeeladri", "Pandurangaswamy Temple", "Guntur Mirchi Yard", "Ahobilam", "Lepakshi", "Horsley Hills"
+      ]
+    },
+    "Jharkhand": {
+      "capital": "Ranchi",
+      "districts": [
+        "Bokaro", "Chatra", "Deoghar", "Dhanbad", "Dumka", "East Singhbhum", "Garhwa", "Giridih", "Godda", "Gumla",
+        "Hazaribagh", "Jamtara", "Khunti", "Koderma", "Latehar", "Lohardaga", "Pakur", "Palamu", "Ramgarh", "Ranchi",
+        "Sahibganj", "Saraikela Kharsawan", "Simdega", "West Singhbhum"
+      ],
+      "major_cities_and_towns": [
+        "Ranchi", "Jamshedpur", "Dhanbad", "Bokaro Steel City", "Deoghar", "Phusro", "Hazaribagh", "Giridih",
+        "Ramgarh", "Medininagar", "Daltonganj", "Chirkunda", "Jhumri Telaiya", "Sahibganj", "Chaibasa", "Gumia",
+        "Dumka", "Madhupur", "Ghatshila", "Chakradharpur", "Simdega", "Pakur", "Lohardaga", "Bermo"
+      ],
+      "key_landmarks_and_institutions": [
+        "Project Building", "Dhurwa", "Jharkhand High Court", "Jharkhand Assembly", "Birsa Munda Airport",
+        "Morabadi Ground", "Albert Ekka Chowk", "Hatia", "Kanke", "Ranchi University", "BIT Mesra", "IIM Ranchi",
+        "XLRI Jamshedpur", "Jubilee Park", "Baidyanath Temple", "Parasnath", "Shikharji", "Bokaro Steel Plant",
+        "ISM Dhanbad", "IIT Dhanbad", "Coal Capital"
+      ]
+    },
+    "Uttarakhand": {
+      "capital": "Dehradun",
+      "districts": [
+        "Almora", "Bageshwar", "Chamoli", "Champawat", "Dehradun", "Haridwar", "Nainital", "Pauri Garhwal",
+        "Pithoragarh", "Rudraprayag", "Tehri Garhwal", "Udham Singh Nagar", "Uttarkashi"
+      ],
+      "major_cities_and_towns": [
+        "Dehradun", "Haridwar", "Roorkee", "Haldwani", "Rudrapur", "Kashipur", "Rishikesh", "Nainital", "Mussoorie",
+        "Pithoragarh", "Ramnagar", "Manglaur", "Jaspur", "Kichha", "Almora", "Kotdwar", "Tehri", "New Tehri",
+        "Pauri", "Srinagar Garhwal", "Uttarkashi", "Chamba", "Gopeshwar", "Bhowali", "Joshimath", "Ranikhet", "Vikasnagar"
+      ],
+      "key_landmarks_and_institutions": [
+        "Vidhan Sabha Dehradun", "Gairsain", "Uttarakhand High Court", "Nainital", "Police Headquarters Dehradun",
+        "Har Ki Pauri", "Clock Tower Dehradun", "Paltan Bazar", "Rajpur Road", "Gandhi Park", "Parade Ground Dehradun",
+        "LBSNAA Mussoorie", "IMA Dehradun", "Forest Research Institute", "FRI", "IIT Roorkee", "AIIMS Rishikesh",
+        "Triveni Ghat", "Laxman Jhula", "Ram Jhula", "Kedarnath", "Badrinath", "Gangotri", "Yamunotri", "Hemkund Sahib"
+      ]
+    },
+    "Maharashtra": {
+      "capital": "Mumbai",
+      "districts": [
+        "Ahmednagar", "Akola", "Amravati", "Aurangabad", "Chhatrapati Sambhajinagar", "Beed", "Bhandara", "Buldhana",
+        "Chandrapur", "Dhule", "Gadchiroli", "Gondia", "Hingoli", "Jalgaon", "Jalna", "Kolhapur", "Latur", "Mumbai City",
+        "Mumbai Suburban", "Nagpur", "Nanded", "Nandurbar", "Nashik", "Osmanabad", "Dharashiv", "Palghar", "Parbhani",
+        "Pune", "Raigad", "Ratnagiri", "Sangli", "Satara", "Sindhudurg", "Solapur", "Thane", "Wardha", "Washim", "Yavatmal"
+      ],
+      "major_cities_and_towns": [
+        "Mumbai", "Pune", "Nagpur", "Thane", "Pimpri-Chinchwad", "Nashik", "Kalyan-Dombivli", "Vasai-Virar",
+        "Chhatrapati Sambhajinagar", "Aurangabad", "Navi Mumbai", "Solapur", "Mira-Bhayandar", "Bhiwandi", "Amravati",
+        "Nanded", "Kolhapur", "Akola", "Ulhasnagar", "Sangli", "Malegaon", "Jalgaon", "Latur", "Dhule", "Ahmednagar",
+        "Chandrapur", "Parbhani", "Ichalkaranji", "Jalna", "Ambarnath", "Bhusawal", "Panvel", "Badlapur", "Beed", "Gondia", "Satara", "Baramati"
+      ],
+      "key_landmarks_and_institutions": [
+        "Mantralaya", "Vidhan Bhavan", "Bombay High Court", "Maharashtra Police HQ", "Mumbai Police Commissionerate",
+        "Gateway of India", "Marine Drive", "Nariman Point", "Azad Maidan", "Shivaji Park", "Chhatrapati Shivaji Maharaj Terminus",
+        "CSMT", "BKC", "Bandra Kurla Complex", "Dadar", "Andheri", "Bandra", "Colaba", "Juhu", "CST", "Shaniwar Wada Pune",
+        "Deekshabhoomi Nagpur", "Trimbakeshwar", "Shirdi", "Siddhi Vinayak", "Haji Ali"
+      ]
+    },
+    "Karnataka": {
+      "capital": "Bengaluru",
+      "districts": [
+        "Bagalkot", "Ballari", "Belagavi", "Bengaluru Rural", "Bengaluru Urban", "Bidar", "Chamarajanagar", "Chikkaballapur",
+        "Chikkamagaluru", "Chitradurga", "Dakshina Kannada", "Davanagere", "Dharwad", "Gadag", "Hassan", "Haveri",
+        "Kalaburagi", "Kodagu", "Kolar", "Koppal", "Mandya", "Mysuru", "Raichur", "Ramanagara", "Shivamogga", "Tumakuru",
+        "Udupi", "Uttara Kannada", "Vijayanagara", "Vijayapura", "Yadgir"
+      ],
+      "major_cities_and_towns": [
+        "Bengaluru", "Bangalore", "Mysuru", "Mysore", "Hubballi", "Hubli", "Dharwad", "Mangaluru", "Mangalore", "Belagavi",
+        "Belgaum", "Kalaburagi", "Gulbarga", "Davanagere", "Ballari", "Bellary", "Vijayapura", "Bijapur", "Shivamogga",
+        "Shimoga", "Tumakuru", "Tumkur", "Raichur", "Bidar", "Hosapete", "Hospet", "Gadag", "Hassan", "Udupi", "Robertsonpet",
+        "KGF", "Bhadravati", "Chitradurga", "Kolar", "Mandya", "Chikkamagaluru", "Gangavati", "Bagalkot", "Ranebennur", "Karwar"
+      ],
+      "key_landmarks_and_institutions": [
+        "Vidhana Soudha", "Vikasa Soudha", "High Court of Karnataka", "Attara Kacheri", "DG-IGP Office", "Infantry Road",
+        "Cubbon Park", "Lalbagh", "Freedom Park Bengaluru", "MG Road Bengaluru", "Brigade Road", "Majestic", "Kempegowda Bus Station",
+        "Krantivira Sangolli Rayanna Station", "Indiranagar", "Koramangala", "Whitefield", "Electronic City", "Jayanagar",
+        "Mysore Palace", "Chamundi Hills", "Hampi", "Gokarna", "Jog Falls"
+      ]
+    },
+    "Uttar Pradesh": {
+      "capital": "Lucknow",
+      "districts": [
+        "Agra", "Aligarh", "Ambedkar Nagar", "Amethi", "Amroha", "Auraiya", "Ayodhya", "Azamgarh", "Baghpat", "Bahraich",
+        "Ballia", "Balrampur", "Banda", "Barabanki", "Bareilly", "Basti", "Bhadohi", "Bijnor", "Budaun", "Bulandshahr",
+        "Chandauli", "Chitrakoot", "Deoria", "Etah", "Etawah", "Farrukhabad", "Fatehpur", "Firozabad", "Gautam Buddha Nagar",
+        "Ghaziabad", "Ghazipur", "Gonda", "Gorakhpur", "Hamirpur", "Hapur", "Hardoi", "Hathras", "Jalaun", "Jaunpur",
+        "Jhansi", "Kannauj", "Kanpur Dehat", "Kanpur Nagar", "Kasganj", "Kaushambi", "Kheri", "Lakhimpur Kheri", "Kushinagar",
+        "Lalitpur", "Lucknow", "Maharajganj", "Mahoba", "Mainpuri", "Mathura", "Mau", "Meerut", "Mirzapur", "Moradabad",
+        "Muzaffarnagar", "Pilibhit", "Pratapgarh", "Prayagraj", "Allahabad", "Raebareli", "Rampur", "Saharanpur", "Sambhal",
+        "Sant Kabir Nagar", "Shahjahanpur", "Shamli", "Shravasti", "Siddharthnagar", "Sitapur", "Sonbhadra", "Sultanpur", "Unnao", "Varanasi"
+      ],
+      "major_cities_and_towns": [
+        "Lucknow", "Kanpur", "Ghaziabad", "Agra", "Meerut", "Varanasi", "Prayagraj", "Allahabad", "Bareilly", "Aligarh",
+        "Moradabad", "Saharanpur", "Gorakhpur", "Noida", "Greater Noida", "Firozabad", "Jhansi", "Muzaffarnagar", "Mathura",
+        "Budaun", "Rampur", "Shahjahanpur", "Farrukhabad", "Ayodhya", "Faizabad", "Maunath Bhanjan", "Hapur", "Etawah",
+        "Mirzapur", "Bulandshahr", "Sambhal", "Amroha", "Hardoi", "Fatehpur", "Raebareli", "Orai", "Sitapur", "Bahraich",
+        "Modinagar", "Unnao", "Jaunpur", "Lakhimpur", "Hathras", "Banda", "Pilibhit", "Mughalsarai", "Barabanki", "Khurja", "Gonda"
+      ],
+      "key_landmarks_and_institutions": [
+        "Vidhan Bhavan Lucknow", "Lok Bhavan", "UP Police Headquarters", "Signature Building Gomti Nagar", "Allahabad High Court",
+        "Lucknow Bench", "Kashi Vishwanath", "Ghats of Varanasi", "Assi Ghat", "Dashashwamedh Ghat", "Ram Mandir Ayodhya",
+        "Taj Mahal", "Agra Fort", "Sangam Prayagraj", "Hazratganj", "Gomti Nagar", "Charbagh", "AMU Aligarh", "BHU Varanasi"
+      ]
+    },
+    "Tamil Nadu": {
+      "capital": "Chennai",
+      "districts": [
+        "Ariyalur", "Chengalpattu", "Chennai", "Coimbatore", "Cuddalore", "Dharmapuri", "Dindigul", "Erode", "Kallakurichi",
+        "Kancheepuram", "Kanchipuram", "Karur", "Krishnagiri", "Madurai", "Mayiladuthurai", "Nagapattinam", "Namakkal",
+        "Nilgiris", "Perambalur", "Pudukkottai", "Ramanathapuram", "Ranipet", "Salem", "Sivaganga", "Tenkasi", "Thanjavur",
+        "Theni", "Thoothukudi", "Tuticorin", "Tiruchirappalli", "Trichy", "Tirunelveli", "Tirupathur", "Tiruppur", "Tiruvallur",
+        "Tiruvannamalai", "Tiruvarur", "Vellore", "Viluppuram", "Virudhunagar"
+      ],
+      "major_cities_and_towns": [
+        "Chennai", "Madras", "Coimbatore", "Madurai", "Tiruchirappalli", "Trichy", "Salem", "Tiruppur", "Erode", "Tirunelveli",
+        "Vellore", "Thoothukudi", "Tuticorin", "Dindigul", "Thanjavur", "Ranipet", "Sivakasi", "Karur", "Udhagamandalam",
+        "Ooty", "Hosur", "Nagercoil", "Kanchipuram", "Kumarakonam", "Karaikudi", "Neyveli", "Cuddalore", "Kumbakonam", "Tiruvannamalai", "Pollachi", "Rajapalayam", "Gudiyatham", "Pudukkottai", "Vaniyambadi", "Ambur", "Nagapattinam"
+      ],
+      "key_landmarks_and_institutions": [
+        "Fort St. George", "Tamil Nadu Assembly", "Madras High Court", "DGP Office Beach Road", "Marina Beach",
+        "Kamarajar Salai", "Valluvar Kottam", "Anna Salai", "Mount Road", "T. Nagar", "Guindy", "Raja Annamalai Mandram",
+        "Meenakshi Amman Temple", "Brihadeeswarar Temple", "Rameswaram", "Kanyakumari", "IIT Madras", "Anna University"
+      ]
+    },
+    "West Bengal": {
+      "capital": "Kolkata",
+      "districts": [
+        "Alipurduar", "Bankura", "Birbhum", "Cooch Behar", "Dakshin Dinajpur", "Darjeeling", "Hooghly", "Howrah", "Jalpaiguri",
+        "Jhargram", "Kalimpong", "Kolkata", "Malda", "Murshidabad", "Nadia", "North 24 Parganas", "Paschim Bardhaman",
+        "Paschim Medinipur", "Purba Bardhaman", "Purba Medinipur", "Purulia", "South 24 Parganas", "Uttar Dinajpur"
+      ],
+      "major_cities_and_towns": [
+        "Kolkata", "Calcutta", "Howrah", "Asansol", "Siliguri", "Durgapur", "Bardhaman", "Burdwan", "Malda", "English Bazar",
+        "Baharampur", "Habra", "Kharagpur", "Shantipur", "Dankuni", "Dhulian", "Ranaghat", "Haldia", "Raiganj", "Krishnanagar",
+        "Nabadwip", "Medinipur", "Midnapore", "Jalpaiguri", "Balurghat", "Basirhat", "Bankura", "Chakdaha", "Darjeeling", "Alipurduar", "Purulia", "Kalyani", "Cooch Behar"
+      ],
+      "key_landmarks_and_institutions": [
+        "Nabanna", "Writers Building", "West Bengal Assembly", "Calcutta High Court", "Bhabani Bhavan", "Lalbazar",
+        "Victoria Memorial", "Howrah Bridge", "Vidyasagar Setu", "Esplanade", "Dharmatala", "College Street", "Park Street",
+        "Salt Lake", "Bidhannagar", "New Town", "Eden Gardens", "Kalighat", "Dakshineswar", "Belur Math", "Jadavpur University", "Calcutta University"
+      ]
+    },
+    "Gujarat": {
+      "capital": "Gandhinagar",
+      "districts": [
+        "Ahmedabad", "Amreli", "Anand", "Aravalli", "Banaskantha", "Bharuch", "Bhavnagar", "Botad", "Chhota Udaipur",
+        "Dahod", "Dang", "Devbhumi Dwarka", "Gandhinagar", "Gir Somnath", "Jamnagar", "Junagadh", "Kheda", "Kutch",
+        "Mahisagar", "Mehsana", "Morbi", "Narmada", "Navsari", "Panchmahal", "Patan", "Porbandar", "Rajkot", "Sabarkantha",
+        "Surat", "Surendranagar", "Tapi", "Vadodara", "Valsad"
+      ],
+      "major_cities_and_towns": [
+        "Ahmedabad", "Surat", "Vadodara", "Baroda", "Rajkot", "Bhavnagar", "Jamnagar", "Junagadh", "Gandhinagar",
+        "Gandhidham", "Anand", "Navsari", "Morbi", "Nadiad", "Surendranagar", "Bharuch", "Mehsana", "Bhuj", "Porbandar",
+        "Palanpur", "Valsad", "Vapi", "Gondal", "Veraval", "Godhra", "Patan", "Kalol", "Dahod", "Botad", "Amreli", "Deesa", "Jetpur"
+      ],
+      "key_landmarks_and_institutions": [
+        "Swarnim Sankul", "Gujarat Vidhan Sabha", "Gujarat High Court", "Police Bhavan Gandhinagar", "Sabarmati Ashram",
+        "Sabarmati Riverfront", "Statue of Unity", "Kevadia", "Gift City", "Manek Chowk", "SG Highway", "Somnath Temple",
+        "Dwarkadhish Temple", "Rann of Kutch", "IIM Ahmedabad"
+      ]
+    },
+    "Rajasthan": {
+      "capital": "Jaipur",
+      "districts": [
+        "Ajmer", "Alwar", "Anupgarh", "Balotra", "Banswara", "Baran", "Barmer", "Beawar", "Bharatpur", "Bhilwara",
+        "Bikaner", "Bundi", "Chittorgarh", "Churu", "Dausa", "Deeg", "Didwana-Kuchaman", "Dholpur", "Dudu", "Dungarpur",
+        "Gangapur City", "Hanumangarh", "Jaipur", "Jaipur Rural", "Jaisalmer", "Jalore", "Jhalawar", "Jhunjhunu", "Jodhpur",
+        "Jodhpur Rural", "Karauli", "Kekri", "Khairthal-Tijara", "Kota", "Kotputli-Behror", "Nagaur", "Neem Ka Thana",
+        "Pali", "Phalodi", "Pratapgarh", "Rajsamand", "Salumbar", "Sanchore", "Sawai Madhopur", "Shahpura", "Sikar",
+        "Sirohi", "Sri Ganganagar", "Tonk", "Udaipur"
+      ],
+      "major_cities_and_towns": [
+        "Jaipur", "Jodhpur", "Kota", "Bikaner", "Ajmer", "Udaipur", "Bhilwara", "Alwar", "Bharatpur", "Sri Ganganagar",
+        "Sikar", "Pali", "Chittorgarh", "Fatehpur", "Beawar", "Tonk", "Kishangarh", "Hanumangarh", "Dholpur", "Gangapur City",
+        "Sawai Madhopur", "Churu", "Jhunjhunu", "Baran", "Hindaun", "Bhiwadi", "Nagaur", "Makrana", "Sujangarh", "Sardarshahar", "Jaisalmer"
+      ],
+      "key_landmarks_and_institutions": [
+        "Rajasthan Vidhan Sabha", "Government Secretariat Jaipur", "Rajasthan High Court", "Jodhpur Bench", "Jaipur Bench",
+        "Police Headquarters Lal Kothi", "Hawa Mahal", "City Palace", "Amer Fort", "Statue Circle", "Badi Chaupar", "Chhoti Chaupar",
+        "Albert Hall", "Jantar Mantar Jaipur", "Mehrangarh Fort", "Lake Palace Udaipur", "Karni Mata Temple", "Dargah Sharif Ajmer"
+      ]
+    },
+    "Madhya Pradesh": {
+      "capital": "Bhopal",
+      "districts": [
+        "Agar Malwa", "Alirajpur", "Anuppur", "Ashoknagar", "Balaghat", "Barwani", "Betul", "Bhind", "Bhopal", "Burhanpur",
+        "Chhatarpur", "Chhindwara", "Damoh", "Datia", "Dewas", "Dhar", "Dindori", "Guna", "Gwalior", "Harda", "Hoshangabad",
+        "Narmadapuram", "Indore", "Jabalpur", "Jhabua", "Katni", "Khandwa", "Khargone", "Maihar", "Mandla", "Mandsaur",
+        "Mauganj", "Morena", "Narsinghpur", "Neemuch", "Niwari", "Panna", "Pandhurna", "Raisen", "Rajgarh", "Ratlam", "Rewa",
+        "Sagar", "Satna", "Sehore", "Seoni", "Shahdol", "Shajapur", "Sheopur", "Shivpuri", "Sidhi", "Singrauli", "Tikamgarh", "Ujjain", "Umaria", "Vidisha"
+      ],
+      "major_cities_and_towns": [
+        "Indore", "Bhopal", "Jabalpur", "Gwalior", "Ujjain", "Sagar", "Dewas", "Satna", "Ratlam", "Rewa", "Murwara", "Katni",
+        "Singrauli", "Burhanpur", "Khandwa", "Bhind", "Chhindwara", "Guna", "Shivpuri", "Vidisha", "Chhatarpur", "Damoh",
+        "Mandsaur", "Khargone", "Neemuch", "Pithampur", "Hoshangabad", "Itarsi", "Sehore", "Betul", "Seoni", "Datia", "Nagda"
+      ],
+      "key_landmarks_and_institutions": [
+        "Vallabh Bhavan", "MP Vidhan Sabha", "Madhya Pradesh High Court Jabalpur", "Indore Bench", "Gwalior Bench",
+        "MP Police HQ Jahangirabad", "Upper Lake Bhopal", "VIP Road", "Rajwada Indore", "56 Dukan", "Gwalior Fort",
+        "Mahakaleshwar Ujjain", "Khajuraho", "Sanchi Stupa", "Bhedaghat", "Dhuandhar Falls", "IIT Indore", "IIM Indore"
+      ]
+    },
+    "Bihar": {
+      "capital": "Patna",
+      "districts": [
+        "Araria", "Arwal", "Aurangabad", "Banka", "Begusarai", "Bhagalpur", "Bhojpur", "Buxar", "Darbhanga", "East Champaran",
+        "Motihari", "Gaya", "Gopalganj", "Jamui", "Jehanabad", "Kaimur", "Bhabua", "Katihar", "Khagaria", "Kishanganj",
+        "Lakhisarai", "Madhepura", "Madhubani", "Munger", "Muzaffarpur", "Nalanda", "Bihar Sharif", "Nawada", "Patna",
+        "Purnia", "Rohtas", "Sasaram", "Saharsa", "Samastipur", "Saran", "Chhapra", "Sheikhpura", "Sheohar", "Sitamarhi",
+        "Siwan", "Supaul", "Vaishali", "Hajipur", "West Champaran", "Bettiah"
+      ],
+      "major_cities_and_towns": [
+        "Patna", "Gaya", "Bhagalpur", "Muzaffarpur", "Purnia", "Darbhanga", "Bihar Sharif", "Arrah", "Begusarai", "Katihar",
+        "Munger", "Chhapra", "Danapur", "Bettiah", "Saharsa", "Sasaram", "Hajipur", "Dehri", "Siwan", "Motihari", "Nawada",
+        "Bagaha", "Buxar", "Kishanganj", "Sitamarhi", "Jamalpur", "Jehanabad", "Aurangabad", "Lakhisarai", "Bodh Gaya", "Rajgir"
+      ],
+      "key_landmarks_and_institutions": [
+        "Old Secretariat Patna", "Vikas Bhavan", "Bihar Vidhan Sabha", "Patna High Court", "Bihar Police HQ Sardar Patel Bhavan",
+        "Gandhi Maidan Patna", "Dak Bungalow Chowk", "Boring Road", "Bailey Road", "Mahavir Mandir", "Golghar",
+        "Mahabodhi Temple", "Nalanda Ruins", "Vishwa Shanti Stupa", "Takht Sri Patna Sahib", "AIIMS Patna", "IIT Patna"
+      ]
+    },
+    "Punjab": {
+      "capital": "Chandigarh",
+      "districts": [
+        "Amritsar", "Barnala", "Bathinda", "Faridkot", "Fatehgarh Sahib", "Fazilka", "Ferozepur", "Gurdaspur", "Hoshiarpur",
+        "Jalandhar", "Kapurthala", "Ludhiana", "Malerkotla", "Mansa", "Moga", "Muktsar", "Pathankot", "Patiala", "Rupnagar",
+        "Ropar", "Sahibzada Ajit Singh Nagar", "Mohali", "Sangrur", "Shahid Bhagat Singh Nagar", "Nawanshahr", "Tarn Taran"
+      ],
+      "major_cities_and_towns": [
+        "Ludhiana", "Amritsar", "Jalandhar", "Patiala", "Bathinda", "Hoshiarpur", "Mohali", "SAS Nagar", "Batala", "Pathankot",
+        "Moga", "Abohar", "Malerkotla", "Khanna", "Phagwara", "Muktsar", "Barnala", "Rajpura", "Firozpur", "Kapurthala",
+        "Sunam", "Fazilka", "Faridkot", "Nabha", "Kotkapura", "Mansa", "Gurdaspur", "Sangrur", "Jagraon", "Nakodar", "Zirakpur"
+      ],
+      "key_landmarks_and_institutions": [
+        "Punjab Civil Secretariat", "Punjab Vidhan Sabha", "Punjab and Haryana High Court", "Punjab Police HQ Sector 9",
+        "Golden Temple", "Harmandir Sahib", "Jallianwala Bagh", "Wagah Border", "Attari Border", "Durgiana Temple",
+        "Devidaspura", "Jandiala Guru", "Shambhu Border", "Khanauri Border", "Heritage Street Amritsar", "Qila Mubarak Patiala"
+      ]
+    },
+    "Haryana": {
+      "capital": "Chandigarh",
+      "districts": [
+        "Ambala", "Bhiwani", "Charkhi Dadri", "Faridabad", "Fatehabad", "Gurugram", "Gurgaon", "Hisar", "Jhajjar",
+        "Jind", "Kaithal", "Karnal", "Kurukshetra", "Mahendragarh", "Nuh", "Palwal", "Panchkula", "Panipat", "Rewari",
+        "Rohtak", "Sirsa", "Sonipat", "Yamunanagar"
+      ],
+      "major_cities_and_towns": [
+        "Faridabad", "Gurugram", "Gurgaon", "Panipat", "Ambala", "Yamunanagar", "Rohtak", "Hisar", "Karnal", "Sonipat",
+        "Panchkula", "Sirsa", "Bhiwani", "Bahadurgarh", "Jind", "Thanesar", "Kurukshetra", "Kaithal", "Rewari", "Palwal",
+        "Hansi", "Narnaul", "Fatehabad", "Gohana", "Tohana", "Narwana", "Mandi Dabwali", "Charkhi Dadri", "Shahbad", "Kalka", "Manesar"
+      ],
+      "key_landmarks_and_institutions": [
+        "Haryana Civil Secretariat", "Haryana Vidhan Sabha", "Police Headquarters Sector 6 Panchkula", "Cyber City Gurugram",
+        "Cyber Hub", "Golf Course Road", "Manesar Industrial Area", "Brahma Sarovar Kurukshetra", "Karna Lake", "Kundli Border",
+        "Singhu Border", "Tikri Border", "KMP Expressway"
+      ]
+    },
+    "Kerala": {
+      "capital": "Thiruvananthapuram",
+      "districts": [
+        "Alappuzha", "Ernakulam", "Idukki", "Kannur", "Kasaragod", "Kollam", "Kottayam", "Kozhikode", "Malappuram",
+        "Palakkad", "Pathanamthitta", "Thiruvananthapuram", "Thrissur", "Wayanad"
+      ],
+      "major_cities_and_towns": [
+        "Thiruvananthapuram", "Trivandrum", "Kochi", "Cochin", "Kozhikode", "Calicut", "Kollam", "Quilon", "Thrissur",
+        "Trichur", "Kannur", "Alappuzha", "Alleppey", "Kottayam", "Palakkad", "Manjeri", "Thalassery", "Thrikkakara",
+        "Kasaragod", "Kayamkulam", "Malappuram", "Guruvayur", "Nedumangad", "Kanhangad", "Payyanur", "Tirur", "Changanassery", "Varkala", "Munnar"
+      ],
+      "key_landmarks_and_institutions": [
+        "Government Secretariat Thiruvananthapuram", "Kerala Legislative Assembly", "Niyamasabha", "Kerala High Court Ernakulam",
+        "Kerala Police HQ Vazhuthacaud", "Padmanabhaswamy Temple", "Kowdiar Palace", "Statue Junction", "MG Road Trivandrum",
+        "Marine Drive Kochi", "Infopark Kochi", "Technopark Trivandrum", "Sabarimala", "Guruvayur Temple", "Calicut Beach"
+      ]
+    },
+    "Telangana": {
+      "capital": "Hyderabad",
+      "districts": [
+        "Adilabad", "Bhadradri Kothagudem", "Hanamkonda", "Hyderabad", "Jagtial", "Jangaon", "Jayashankar Bhupalpally",
+        "Jogulamba Gadwal", "Kamareddy", "Karimnagar", "Khammam", "Kumuram Bheem Asifabad", "Mahabubabad", "Mahbubnagar",
+        "Mancherial", "Medak", "Medchal-Malkajgiri", "Mulugu", "Nagarkurnool", "Nalgonda", "Narayanpet", "Nirmal", "Nizamabad",
+        "Peddapalli", "Rajanna Sircilla", "Ranga Reddy", "Sangareddy", "Siddipet", "Suryapet", "Vikarabad", "Wanaparthy", "Warangal", "Yadadri Bhuvanagiri"
+      ],
+      "major_cities_and_towns": [
+        "Hyderabad", "Warangal", "Nizamabad", "Khammam", "Karimnagar", "Ramagundam", "Mahbubnagar", "Nalgonda", "Adilabad",
+        "Suryapet", "Miryalaguda", "Siddipet", "Jagtial", "Mancherial", "Nirmal", "Kamareddy", "Kothagudem", "Bodhan",
+        "Palwancha", "Mandamarri", "Koratla", "Sircilla", "Tandur", "Secunderabad", "Cyberabad", "Gachibowli", "Hitec City"
+      ],
+      "key_landmarks_and_institutions": [
+        "Dr. B.R. Ambedkar Telangana State Secretariat", "Telangana Assembly", "Telangana High Court", "Telangana Police Command and Control Centre",
+        "DGP Office Lakdikapul", "Charminar", "Golconda Fort", "Hussain Sagar", "Tank Bund", "Gun Park", "Assembly Chowk",
+        "Hitec City", "Gachibowli", "Madhapur", "Jubilee Hills", "Banjara Hills", "Durgam Cheruvu", "Ramappa Temple", "Thousand Pillar Temple"
+      ]
+    },
+    "Assam": {
+      "capital": "Dispur",
+      "districts": [
+        "Baksa", "Barpeta", "Biswanath", "Bongaigaon", "Cachar", "Charaideo", "Chirang", "Darrang", "Dhemaji", "Dhubri",
+        "Dibrugarh", "Dima Hasao", "Goalpara", "Golaghat", "Hailakandi", "Hojai", "Jorhat", "Kamrup", "Kamrup Metropolitan",
+        "Karbi Anglong", "Karimganj", "Kokrajhar", "Lakhimpur", "Majuli", "Morigaon", "Nagaon", "Nalbari", "Sivasagar",
+        "Sonitpur", "South Salmara-Mankachar", "Tinsukia", "Udalguri", "West Karbi Anglong"
+      ],
+      "major_cities_and_towns": [
+        "Guwahati", "Silchar", "Dibrugarh", "Jorhat", "Nagaon", "Tinsukia", "Tezpur", "Bongaigaon", "Dhubri", "Diphu",
+        "North Lakhimpur", "Karimganj", "Sivasagar", "Goalpara", "Barpeta", "Haflong", "Lanka", "Hojai", "Mangaldoi",
+        "Morigaon", "Nalbari", "Rangia", "Duliajan", "Digboi", "Kokrajhar", "Dispur"
+      ],
+      "key_landmarks_and_institutions": [
+        "Janata Bhawan Dispur", "Assam Legislative Assembly", "Gauhati High Court", "Assam Police HQ Ulubari", "Kamakhya Temple",
+        "Brahmaputra Riverfront", "Lachit Ghat", "Paltan Bazar Guwahati", "Fancy Bazar", "Khanapara Ground", "Sarupathar",
+        "Kaziranga", "Majuli Island", "IIT Guwahati", "Gauhati University"
+      ]
+    },
+    "Chhattisgarh": {
+      "capital": "Raipur",
+      "districts": [
+        "Balod", "Baloda Bazar", "Balrampur", "Bastar", "Bemetara", "Bijapur", "Bilaspur", "Dantewada", "Dhamtari",
+        "Durg", "Gariaband", "Gaurela-Pendra-Marwahi", "Janjgir-Champa", "Jashpur", "Kabirdham", "Kanker", "Khairagarh-Chhuikhadan-Gandai",
+        "Kondagaon", "Korba", "Koriya", "Mahasamund", "Manendragarh-Chirmiri-Bharatpur", "Mohla-Manpur-Ambagarh Chowki",
+        "Mungeli", "Narayanpur", "Raigarh", "Raipur", "Rajnandgaon", "Sakti", "Sarangarh-Bilaigarh", "Sukma", "Surajpur", "Surguja"
+      ],
+      "major_cities_and_towns": [
+        "Raipur", "Bhilai", "Durg", "Bilaspur", "Korba", "Rajnandgaon", "Raigarh", "Jagdalpur", "Ambikapur", "Chirmiri",
+        "Dhamtari", "Mahasamund", "Bhatapara", "Kawardha", "Dalli-Rajhara", "Kanker", "Naila Janjgir", "Tilda Newra",
+        "Mungeli", "Manendragarh", "Sakti", "Dongargarh", "Nava Raipur", "Atal Nagar"
+      ],
+      "key_landmarks_and_institutions": [
+        "Mahanadi Bhavan", "Indravati Bhavan", "Chhattisgarh Vidhan Sabha", "Chhattisgarh High Court Bilaspur", "Police Headquarters Nava Raipur",
+        "Jaistambh Chowk Raipur", "Telibandha Lake", "Marine Drive Raipur", "Bhilai Steel Plant", "Chitrakote Falls", "Danteshwari Temple"
+      ]
+    },
+    "Himachal Pradesh": {
+      "capital": "Shimla",
+      "districts": [
+        "Bilaspur", "Chamba", "Hamirpur", "Kangra", "Kinnaur", "Kullu", "Lahaul and Spiti", "Mandi", "Shimla", "Sirmaur", "Solan", "Una"
+      ],
+      "major_cities_and_towns": [
+        "Shimla", "Dharamshala", "Solan", "Mandi", "Palampur", "Baddi", "Nahan", "Paonta Sahib", "Sundarnagar", "Chamba",
+        "Kullu", "Manali", "Una", "Hamirpur", "Kangra", "Bilaspur", "Nurpur", "Nalagarh", "Kasauli", "Dalhousie", "Keylong", "Kaza"
+      ],
+      "key_landmarks_and_institutions": [
+        "Himachal Pradesh Secretariat", "HP Vidhan Sabha", "Tapovan Dharamshala", "High Court of Himachal Pradesh",
+        "Police Headquarters Shimla", "The Ridge Shimla", "Mall Road Shimla", "Scandal Point", "Christ Church",
+        "HPCA Stadium Dharamshala", "Dalai Lama Temple Mcleodganj", "Atal Tunnel", "Rohtang Pass", "IIT Mandi"
+      ]
+    },
+    "Goa": {
+      "capital": "Panaji",
+      "districts": ["North Goa", "South Goa"],
+      "major_cities_and_towns": [
+        "Panaji", "Panjim", "Margao", "Madgaon", "Vasco da Gama", "Mapusa", "Ponda", "Bicholim", "Curchorem", "Cuncolim",
+        "Valpoi", "Sanquelim", "Canacona", "Pernem", "Calangute", "Candolim", "Baga", "Anjuna", "Colva", "Porvorim"
+      ],
+      "key_landmarks_and_institutions": [
+        "Secretariat Porvorim", "Goa Legislative Assembly", "Bombay High Court at Goa", "Police Headquarters Panaji",
+        "Church Square Panaji", "Fontainhas", "Miramar Beach", "Basilica of Bom Jesus", "Dona Paula", "Vasco Port"
+      ]
+    },
+    "Jammu and Kashmir": {
+      "capital": "Srinagar (Summer) / Jammu (Winter)",
+      "districts": [
+        "Anantnag", "Bandipora", "Baramulla", "Budgam", "Doda", "Ganderbal", "Jammu", "Kathua", "Kishtwar", "Kulgam",
+        "Kupwara", "Poonch", "Pulwama", "Rajouri", "Ramban", "Reasi", "Samba", "Shopian", "Srinagar", "Udhampur"
+      ],
+      "major_cities_and_towns": [
+        "Srinagar", "Jammu", "Anantnag", "Baramulla", "Kathua", "Sopore", "Udhampur", "Punch", "Poonch", "Rajouri",
+        "Ganderbal", "Pulwama", "Kupwara", "Doda", "Kulgam", "Bijbehara", "Handwara", "Pattan", "Kishtwar", "Bhaderwah",
+        "Reasi", "Katra", "Gulmarg", "Pahalgam", "Sonamarg", "Banihal", "Qazigund"
+      ],
+      "key_landmarks_and_institutions": [
+        "Civil Secretariat Srinagar", "Civil Secretariat Jammu", "High Court of J&K and Ladakh", "J&K Police HQ Peerbagh",
+        "Lal Chowk Srinagar", "Ghanta Ghar Lal Chowk", "Dal Lake", "Boulevard Road", "TRC Ground", "Hari Parbat",
+        "Vaishno Devi Katra", "Raghunath Temple Jammu", "Bahu Fort", "Hazratbal Shrine", "Shankaracharya Temple"
+      ]
+    },
+    "Ladakh": {
+      "capital": "Leh",
+      "districts": ["Leh", "Kargil"],
+      "major_cities_and_towns": ["Leh", "Kargil", "Diskit", "Nubra", "Drass", "Padum", "Zanskar", "Nyoma", "Khaltsi", "Chushul"],
+      "key_landmarks_and_institutions": [
+        "Ladakh Secretariat", "Leh Palace", "Shanti Stupa", "Pangong Tso", "Khardung La", "Nubra Valley", "Drass War Memorial"
+      ]
+    },
+    "Chandigarh": {
+      "capital": "Chandigarh",
+      "districts": ["Chandigarh"],
+      "major_cities_and_towns": ["Chandigarh", "Sector 17", "Sector 22", "Sector 35", "Sector 43", "Manimajra"],
+      "key_landmarks_and_institutions": [
+        "Capitol Complex", "Punjab and Haryana High Court", "Secretariat", "Police HQ Sector 9", "Sukhna Lake", "Rock Garden",
+        "Sector 17 Plaza", "Rose Garden", "PGIMER", "Panjab University", "Elante Mall"
+      ]
+    },
+    "Puducherry": {
+      "capital": "Puducherry",
+      "districts": ["Karaikal", "Mahe", "Puducherry", "Yanam"],
+      "major_cities_and_towns": ["Puducherry", "Pondicherry", "Karaikal", "Mahe", "Yanam", "Ozhukarai", "Villianur"],
+      "key_landmarks_and_institutions": [
+        "Chief Secretariat", "Legislative Assembly Puducherry", "Promenade Beach", "Rock Beach", "Goubert Avenue",
+        "Auroville", "Sri Aurobindo Ashram", "French Quarter", "White Town"
+      ]
+    },
+    "Tripura": {
+      "capital": "Agartala",
+      "districts": ["Dhalai", "Gomati", "Khowai", "North Tripura", "Sepahijala", "South Tripura", "Unakoti", "West Tripura"],
+      "major_cities_and_towns": ["Agartala", "Dharmanagar", "Udaipur", "Kailashahar", "Belonia", "Teliamura", "Khowai", "Melaghar", "Ambassa", "Santirbazar"],
+      "key_landmarks_and_institutions": ["Civil Secretariat Agartala", "Tripura Assembly", "High Court of Tripura", "Ujjayanta Palace", "Neermahal", "Tripurasundari Temple"]
+    },
+    "Meghalaya": {
+      "capital": "Shillong",
+      "districts": ["East Garo Hills", "East Jaintia Hills", "East Khasi Hills", "Eastern West Khasi Hills", "North Garo Hills", "Ri-Bhoi", "South Garo Hills", "South West Garo Hills", "South West Khasi Hills", "West Garo Hills", "West Jaintia Hills", "West Khasi Hills"],
+      "major_cities_and_towns": ["Shillong", "Tura", "Nongstoin", "Jowai", "Baghmara", "Williamnagar", "Nongpoh", "Resubelpara", "Cherrapunji", "Sohra", "Mawlynnong", "Dawki"],
+      "key_landmarks_and_institutions": ["Meghalaya Secretariat", "Meghalaya Assembly", "High Court of Meghalaya", "Police Bazaar Shillong", "Ward's Lake", "Elephant Falls", "NEHU"]
+    },
+    "Manipur": {
+      "capital": "Imphal",
+      "districts": ["Bishnupur", "Chandel", "Churachandpur", "Imphal East", "Imphal West", "Jiribam", "Kakching", "Kamjong", "Kangpokpi", "Noney", "Pherzawl", "Senapati", "Tamenglong", "Tengnoupal", "Thoubal", "Ukhrul"],
+      "major_cities_and_towns": ["Imphal", "Thoubal", "Kakching", "Ukhrul", "Churachandpur", "Lamka", "Bishnupur", "Senapati", "Moirang", "Moreh", "Kangpokpi"],
+      "key_landmarks_and_institutions": ["Manipur Secretariat", "Manipur Assembly", "High Court of Manipur", "Kangla Fort", "Ima Keithel", "Mother's Market", "Loktak Lake", "Sendra Island"]
+    },
+    "Nagaland": {
+      "capital": "Kohima",
+      "districts": ["Chümoukedima", "Dimapur", "Kiphire", "Kohima", "Longleng", "Mokokchung", "Mon", "Niuland", "Noklak", "Peren", "Phek", "Shamator", "Tseminyü", "Tuensang", "Wokha", "Zünheboto"],
+      "major_cities_and_towns": ["Dimapur", "Kohima", "Mokokchung", "Tuensang", "Wokha", "Zunheboto", "Chumoukedima", "Mon", "Phek"],
+      "key_landmarks_and_institutions": ["Nagaland Civil Secretariat", "Nagaland Assembly", "Gauhati High Court Kohima Bench", "Kohima War Cemetery", "Kisama Heritage Village", "Dzukou Valley"]
+    },
+    "Mizoram": {
+      "capital": "Aizawl",
+      "districts": ["Aizawl", "Champhai", "Hnahthial", "Khawzawl", "Kolasib", "Lawngtlai", "Lunglei", "Mamit", "Saitual", "Serchhip", "Siaha"],
+      "major_cities_and_towns": ["Aizawl", "Lunglei", "Champhai", "Serchhip", "Kolasib", "Siaha", "Lawngtlai", "Saitual"],
+      "key_landmarks_and_institutions": ["Mizoram Secretariat", "Mizoram Assembly", "Gauhati High Court Aizawl Bench", "Solomon's Temple", "Durtlang Hills", "Zarkawt"]
+    },
+    "Arunachal Pradesh": {
+      "capital": "Itanagar",
+      "districts": ["Anjaw", "Changlang", "Dibang Valley", "East Kameng", "East Siang", "Kamle", "Kra Daadi", "Kurung Kumey", "Leparada", "Lohit", "Longding", "Lower Dibang Valley", "Lower Siang", "Lower Subansiri", "Namsai", "Pakke Kessang", "Papum Pare", "Shi Yomi", "Siang", "Tawang", "Tirap", "Upper Siang", "Upper Subansiri", "West Kameng", "West Siang"],
+      "major_cities_and_towns": ["Itanagar", "Naharlagun", "Pasighat", "Namsai", "Tawang", "Ziro", "Along", "Aalo", "Tezu", "Bomdila", "Roing", "Khonsa"],
+      "key_landmarks_and_institutions": ["Civil Secretariat Itanagar", "Arunachal Pradesh Assembly", "Gauhati High Court Itanagar Bench", "Ita Fort", "Ganga Lake", "Tawang Monastery"]
+    },
+    "Sikkim": {
+      "capital": "Gangtok",
+      "districts": ["Gangtok", "Gyalshing", "Pakyong", "Namchi", "Mangan", "Soreng"],
+      "major_cities_and_towns": ["Gangtok", "Namchi", "Geyzing", "Gyalshing", "Mangan", "Singtam", "Rangpo", "Jorethang", "Ravangla", "Pelling", "Lachung", "Lachen"],
+      "key_landmarks_and_institutions": ["Tashiling Secretariat", "Sikkim Legislative Assembly", "High Court of Sikkim", "MG Marg Gangtok", "Rumtek Monastery", "Nathula Pass", "Tsomgo Lake"]
+    },
+    "Andaman and Nicobar Islands": {
+      "capital": "Port Blair",
+      "districts": ["Nicobar", "North and Middle Andaman", "South Andaman"],
+      "major_cities_and_towns": ["Port Blair", "Garacharma", "Bambooflat", "Diglipur", "Mayabunder", "Rangat", "Car Nicobar", "Havelock Island", "Swaraj Dweep", "Neil Island"],
+      "key_landmarks_and_institutions": ["Secretariat Port Blair", "Cellular Jail", "Corbyn's Cove", "Ross Island", "Radhanagar Beach"]
+    },
+    "Dadra and Nagar Haveli and Daman and Diu": {
+      "capital": "Daman",
+      "districts": ["Dadra and Nagar Haveli", "Daman", "Diu"],
+      "major_cities_and_towns": ["Silvassa", "Daman", "Diu", "Amli", "Bhimpore", "Kachigam"],
+      "key_landmarks_and_institutions": ["Secretariat Daman", "Moti Daman Fort", "Nani Daman", "Jampore Beach", "Devka Beach", "Diu Fort", "Nagoa Beach"]
+    },
+    "Lakshadweep": {
+      "capital": "Kavaratti",
+      "districts": ["Lakshadweep"],
+      "major_cities_and_towns": ["Kavaratti", "Agatti", "Andrott", "Amini", "Minicoy", "Kalpeni", "Kadmat", "Kiltan", "Chetlat", "Bitra"],
+      "key_landmarks_and_institutions": ["Secretariat Kavaratti", "Agatti Airport", "Kavaratti Marine Aquarium"]
+    }
+  }
+}

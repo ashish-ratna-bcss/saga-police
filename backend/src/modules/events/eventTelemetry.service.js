@@ -5,6 +5,8 @@
  * Keyword Analytics and Event Summary LLM.
  */
 
+const { resolveStatePlaces, normalizeStateName } = require('./indiaGeography.service');
+
 const TARGET_ENTITIES = {
   GOVERNMENT: 'Government',
   POLICE: 'Police',
@@ -82,9 +84,13 @@ const getEventAnchorProfile = (eventInput, keywordsListInput = [], locationInput
 
   const cleanTitle = name.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
   const titleTokens = tokenize(name);
-  const locationTokens = tokenize(location);
+  const baseLocTokens = tokenize(location);
+  const statePlaces = resolveStatePlaces(location);
+  const statePlaceTokens = statePlaces.flatMap((p) => tokenize(p));
+  const locationTokens = Array.from(new Set([...baseLocTokens, ...statePlaceTokens]));
+
   const descTokens = tokenize(description);
-  const coreAnchors = Array.from(new Set([...titleTokens, ...locationTokens, ...descTokens]));
+  const coreAnchors = Array.from(new Set([...titleTokens, ...baseLocTokens, ...descTokens]));
 
   const normalizedKeywords = (Array.isArray(rawKeywords) ? rawKeywords : [])
     .map((k) => (typeof k === 'string' ? k : k?.keyword || ''))
