@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
+import { Textarea } from '../../../components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../../../components/ui/command';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
@@ -8,7 +9,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/table';
 import {
   Newspaper, Search, Loader2, Trash2, Globe, Languages, MapPin, Rss, Check, ChevronDown,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowRight, ExternalLink, X, Clock, RefreshCw, Zap, Archive, History
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowRight, ExternalLink, X, Clock, RefreshCw, Zap, Archive, History,
+  Layers
 } from 'lucide-react';
 import { newsApi } from '../../../api';
 import { toast } from 'sonner';
@@ -41,7 +43,23 @@ const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, '
 
 /* ---------- filters ---------- */
 
-const EMPTY_FILTERS = { keyword: '', country: [], language: [], state: [], source: [], location: '' };
+const EMPTY_FILTERS = { keyword: '', minMatch: 1, country: [], language: [], state: [], source: [], location: '' };
+
+// The keyword may be one phrase or a list of phrases split by commas, semicolons or
+// new lines (the API ranks articles by how many phrases they match). This is only a
+// preview count — the API's parse (query_phrases) is authoritative.
+const listItems = (keyword) => {
+  const seen = new Set();
+  return String(keyword || '').split(/[,;\n\r]+/).map((s) => s.trim()).filter((s) => {
+    const key = s.toLowerCase();
+    if (!s || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+const MIN_MATCH_OPTIONS = [1, 2, 3, 5, 10];
+// The keyword travels in the URL; the backend refuses longer than this.
+const MAX_KEYWORD_LENGTH = 6000;
 const EMPTY_RANGE = { from: '', to: '' };
 
 // Mirrors the API's matching: substring within a filter (so 'Telangana' also matches
@@ -65,6 +83,8 @@ const matchesFacet = (facet, s, values) => {
 const toParams = (f) => {
   const p = {};
   if (f.keyword.trim()) p.keyword = f.keyword.trim();
+  // The selector only shows for lists; never let a leftover value narrow a single phrase.
+  if (f.minMatch > 1 && listItems(p.keyword).length > 1) p.min_match = f.minMatch;
   FACETS.forEach(({ key }) => { if (f[key].length) p[key] = f[key].join(','); });
   if (f.location.trim()) p.location = f.location.trim();
   return p;
@@ -73,6 +93,7 @@ const toParams = (f) => {
 const fromParams = (p = {}) => ({
   ...EMPTY_FILTERS,
   keyword: p.keyword || '',
+  minMatch: Math.max(1, Number.parseInt(p.min_match, 10) || 1),
   location: p.location || '',
   ...Object.fromEntries(FACETS.map(({ key }) => [key, String(p[key] || '').split(',').map((v) => v.trim()).filter(Boolean)])),
 });
@@ -81,9 +102,14 @@ const describeFilters = (f, nameOf) => {
   const parts = FACETS.filter(({ key }) => f[key].length)
     .map(({ key }) => (key === 'source' ? f[key].map(nameOf) : f[key]).join(', '));
   if (f.location.trim()) parts.push(f.location.trim());
+  if (f.minMatch > 1 && listItems(f.keyword).length > 1) parts.push(`at least ${f.minMatch} phrases`);
   return parts.join(' · ') || 'All sources';
 };
-const searchTitle = (f) => f.keyword?.trim() || 'Latest news';
+const searchTitle = (f) => {
+  const items = listItems(f.keyword);
+  if (items.length > 1) return `${items[0]} +${items.length - 1} more`;
+  return f.keyword?.trim() || 'Latest news';
+};
 
 /** Options for one facet, narrowed by the other selected facets, with source counts. */
 const facetOptions = (sources, filters, facet, byId) => {
@@ -187,20 +213,70 @@ const MultiSelect = ({ label, icon: Icon, options, value, onChange, disabled }) 
 };
 
 /** Keyword + facet filters, shared by the live and saved views. */
-const FilterBar = ({ filters, setFilters, options, facetsDisabled, loading, submitLabel, placeholder, onSubmit, canClear, onClear, children }) => (
-  <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }} className="rounded-xl border border-border bg-card p-2.5 space-y-2.5">
-    <div className="flex flex-col md:flex-row gap-2">
-      <div className="relative flex-1">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input value={filters.keyword} onChange={(e) => setFilters({ ...filters, keyword: e.target.value })}
-          placeholder={placeholder} className="h-10 pl-9 text-sm" />
+const FilterBar = ({ filters, setFilters, options, facetsDisabled, loading, submitLabel, placeholder, onSubmit, canClear, onClear, children }) => {
+  const items = listItems(filters.keyword);
+  const isList = items.length > 1;
+  const tooLong = filters.keyword.length > MAX_KEYWORD_LENGTH;
+  const lines = filters.keyword.split('\n').length;
+  // One phrase stays a one-line box; a pasted list grows to show itself (up to 6 lines).
+  const rows = isList || lines > 1 ? Math.min(6, Math.max(3, lines, Math.ceil(filters.keyword.length / 120))) : 1;
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); if (!tooLong) onSubmit(); }} className="rounded-xl border border-border bg-card p-2.5 space-y-2.5">
+      <div className="flex flex-col md:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <Textarea value={filters.keyword} rows={rows} aria-label="Keyword or keyword list"
+            onChange={(e) => setFilters({ ...filters, keyword: e.target.value })}
+            onKeyDown={(e) => {
+              // Enter searches; Shift+Enter adds a line (one phrase per line also works).
+              if (e.key !== 'Enter' || e.shiftKey) return;
+              e.preventDefault();
+              const { form } = e.currentTarget;
+              if (form?.requestSubmit) form.requestSubmit();
+              else form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            }}
+            placeholder={placeholder}
+            className={`pl-9 text-sm leading-6 ${rows === 1 ? 'min-h-0 h-10 resize-none overflow-hidden py-[7px]' : 'min-h-0 resize-y'} ${tooLong ? 'border-red-500 focus-visible:ring-red-500' : ''}`} />
+        </div>
+        <Button type="submit" disabled={loading || tooLong} className="h-10 px-5 gap-1.5 text-sm">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+          {submitLabel}
+        </Button>
       </div>
-      <Button type="submit" disabled={loading} className="h-10 px-5 gap-1.5 text-sm">
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-        {submitLabel}
-      </Button>
-    </div>
-    <div className="flex flex-wrap items-center gap-1.5 px-0.5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-0.5 text-[10px] text-muted-foreground">
+        {isList ? (
+          <>
+            <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 font-semibold text-primary">
+              <Layers className="h-3 w-3" /> {items.length} phrases
+            </span>
+            <label className="inline-flex items-center gap-1.5">
+              Show articles matching at least
+              <Select value={String(filters.minMatch)} onValueChange={(v) => setFilters((x) => ({ ...x, minMatch: Number(v) }))}>
+                <SelectTrigger className="h-6 w-16 text-[11px]" aria-label="Minimum phrases matched"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MIN_MATCH_OPTIONS.filter((n) => n <= items.length).map((n) => (
+                    <SelectItem key={n} value={String(n)} className="text-xs">{n}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              phrase{filters.minMatch === 1 ? '' : 's'}
+            </label>
+            <span>An article matches a phrase when it has all of that phrase’s words. More phrases matched = higher.</span>
+          </>
+        ) : (
+          <span>
+            Each word is searched separately and articles containing more of them come first. Paste several phrases separated by
+            commas to search them all at once. Use &quot;quotes&quot; for an exact phrase. For Telugu, Hindi or Odia sources, type in that script.
+          </span>
+        )}
+        {tooLong && (
+          <span className="font-semibold text-red-600">
+            Too long: {filters.keyword.length.toLocaleString()} / {MAX_KEYWORD_LENGTH.toLocaleString()} characters.
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5 px-0.5">
       {FACETS.map((f) => (
         <MultiSelect key={f.key} label={f.label} icon={f.icon} value={filters[f.key]} options={options[f.key]}
           disabled={facetsDisabled} onChange={(v) => setFilters((x) => ({ ...x, [f.key]: v }))} />
@@ -214,9 +290,10 @@ const FilterBar = ({ filters, setFilters, options, facetsDisabled, loading, subm
           <X className="h-3.5 w-3.5" /> Clear
         </Button>
       )}
-    </div>
-  </form>
-);
+      </div>
+    </form>
+  );
+};
 
 const LoadingNote = ({ elapsed }) => (
   <div className="rounded-lg border border-border bg-background p-3">
@@ -241,22 +318,52 @@ const fullDate = (iso) => {
   const t = new Date(iso).getTime();
   return !iso || Number.isNaN(t) ? '' : new Date(t).toLocaleString();
 };
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** Highlights search terms with the API's rule: Latin-script terms from the start
+ *  of a word ('kill' not inside 'skill'), Indian scripts anywhere. */
+const termRegex = (terms) => {
+  const parts = [...(terms || [])].filter(Boolean).sort((x, y) => y.length - x.length)
+    .map((t) => (/^[a-z0-9]/i.test(t) ? `(?<![\\p{L}\\p{N}_])${escapeRegex(t)}` : escapeRegex(t)));
+  return parts.length ? new RegExp(`(${parts.join('|')})`, 'giu') : null;
+};
+const Highlight = ({ text, terms }) => {
+  const re = useMemo(() => termRegex(terms), [terms]);
+  if (!text) return null;
+  if (!re) return text;
+  // split() with one capture group puts the matches at the odd indexes.
+  return String(text).split(re).map((part, i) => (i % 2
+    ? <mark key={i} className="rounded-sm bg-amber-200/70 px-0.5 text-inherit dark:bg-amber-500/30">{part}</mark>
+    : part));
+};
+
 const Tag = ({ children, tone }) => (
   <span className={`inline-flex max-w-full items-center gap-0.5 truncate rounded-full px-2 py-0.5 text-[10px] font-medium ${tone === 'primary' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
     {children}
   </span>
 );
 
-const ArticleCard = ({ article: a, onOpen }) => {
+const MatchBadge = ({ strong, title, children }) => (
+  <span title={title}
+    className={`inline-flex w-fit max-w-full items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${strong ? 'bg-emerald-500/10 text-emerald-700' : 'bg-amber-500/10 text-amber-700'}`}>
+    <Check className="h-3 w-3 shrink-0" />
+    {children}
+  </span>
+);
+
+const ArticleCard = ({ article: a, terms = [], phrases = [], onOpen }) => {
   const [imageOk, setImageOk] = useState(Boolean(a.image_url));
   const words = wordsOf(a);
   // Some feeds repeat the summary inside the title; showing it twice is noise.
   const summary = a.summary && !(a.title || '').includes(a.summary) ? a.summary : '';
   const place = [a.district, a.state].filter(Boolean).join(', ');
+  const matched = a.matched_terms || [];
+  const allMatched = matched.length === terms.length;
+  const matchedPhrases = a.matched_phrases || [];
+  const isList = phrases.length > 1;
 
   return (
     <article className="group flex flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
-      <button type="button" onClick={() => onOpen(a)} className="flex flex-1 flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50">
+      <button type="button" onClick={() => onOpen(a, terms)} className="flex flex-1 flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50">
         <div className="relative aspect-[16/9] w-full overflow-hidden bg-muted">
           {imageOk ? (
             <img src={a.image_url} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setImageOk(false)}
@@ -274,8 +381,19 @@ const ArticleCard = ({ article: a, onOpen }) => {
           )}
         </div>
         <div className="flex flex-1 flex-col gap-1.5 p-3">
-          <h3 className="text-sm font-semibold leading-snug line-clamp-3">{a.title || 'Untitled'}</h3>
-          {summary && <p className="text-xs leading-relaxed text-muted-foreground line-clamp-3">{summary}</p>}
+          {isList && matchedPhrases.length > 0 && (
+            <MatchBadge strong={matchedPhrases.length >= Math.min(3, phrases.length)} title={`Matches: ${matchedPhrases.join(', ')}`}>
+              {matchedPhrases.length} of {phrases.length} phrases: {matchedPhrases.slice(0, 3).join(' · ')}
+              {matchedPhrases.length > 3 ? ` +${matchedPhrases.length - 3}` : ''}
+            </MatchBadge>
+          )}
+          {!isList && terms.length > 1 && matched.length > 0 && (
+            <MatchBadge strong={allMatched} title={`Contains: ${matched.join(', ')}`}>
+              {allMatched ? 'All words' : `Matches ${matched.length}/${terms.length} words`}: {matched.join(' · ')}
+            </MatchBadge>
+          )}
+          <h3 className="text-sm font-semibold leading-snug line-clamp-3"><Highlight text={a.title || 'Untitled'} terms={matched} /></h3>
+          {summary && <p className="text-xs leading-relaxed text-muted-foreground line-clamp-3"><Highlight text={summary} terms={matched} /></p>}
           <span className="mt-auto inline-flex items-center gap-1 pt-1 text-[11px] font-medium text-primary">
             Read full article{words ? ` · ${words.toLocaleString()} words` : ''}
             <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
@@ -352,7 +470,9 @@ const ResultsPanel = ({
         {result && total > 0 && (
           <p className="text-[11px] text-muted-foreground mt-0.5 tabular-nums">
             Showing <span className="font-semibold text-foreground">{from}–{to}</span> of{' '}
-            <span className="font-semibold text-foreground">{total.toLocaleString()}</span> articles{meta ? ` · ${meta}` : ''}
+            <span className="font-semibold text-foreground">{total.toLocaleString()}</span> articles
+            {(result.query_phrases?.length || 0) > 1 && ` · ranked by ${result.query_phrases.length} phrases`}
+            {meta ? ` · ${meta}` : ''}
           </p>
         )}
         {subheading && <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{subheading}</p>}
@@ -366,7 +486,9 @@ const ResultsPanel = ({
           <div className={`grid gap-3 ${gridClassName}`}>{Array.from({ length: 6 }, (_, i) => <CardSkeleton key={i} />)}</div>
         ) : (
           <div className={`grid gap-3 ${gridClassName} ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
-            {articles.map((a) => <ArticleCard key={a.id} article={a} onOpen={onOpen} />)}
+            {articles.map((a) => (
+              <ArticleCard key={a.id} article={a} terms={result?.query_terms || []} phrases={result?.query_phrases || []} onOpen={onOpen} />
+            ))}
           </div>
         )}
       </div>
@@ -395,7 +517,7 @@ const ResultsPanel = ({
 
 /* ---------- article detail ---------- */
 
-const ArticleSheet = ({ article, onClose }) => {
+const ArticleSheet = ({ article, terms = [], onClose }) => {
   const [full, setFull] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -420,7 +542,7 @@ const ArticleSheet = ({ article, onClose }) => {
         {a && (
           <>
             <SheetHeader className="px-4 py-3 border-b border-border space-y-1 text-left">
-              <SheetTitle className="text-base leading-snug pr-6">{a.title || 'Untitled'}</SheetTitle>
+              <SheetTitle className="text-base leading-snug pr-6"><Highlight text={a.title || 'Untitled'} terms={terms} /></SheetTitle>
               <SheetDescription className="text-[11px] flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="font-semibold text-foreground">{a.source}</span>
                 {a.language && <span>{a.language}</span>}
@@ -441,9 +563,9 @@ const ArticleSheet = ({ article, onClose }) => {
                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   className="w-full max-h-72 rounded-lg object-cover bg-muted" />
               )}
-              {a.summary && <p className="text-xs rounded-lg bg-primary/5 border border-primary/20 p-3">{a.summary}</p>}
+              {a.summary && <p className="text-xs rounded-lg bg-primary/5 border border-primary/20 p-3"><Highlight text={a.summary} terms={terms} /></p>}
               {a.content
-                ? <div className="text-sm leading-relaxed whitespace-pre-line">{a.content}</div>
+                ? <div className="text-sm leading-relaxed whitespace-pre-line"><Highlight text={a.content} terms={terms} /></div>
                 : refreshing
                   ? <QuickLoading />
                   : <Empty>No article text was extracted. Open the original to read it.</Empty>}
@@ -519,7 +641,7 @@ const SavedExplorer = ({ sources, sourcesStatus, byId, onOpen }) => {
         heading="Saved articles"
         meta="from your workspace"
         subheading={narrowed
-          ? [submitted.filters.keyword.trim() && `“${submitted.filters.keyword.trim()}”`, describeFilters(submitted.filters, nameOf), rangeLabel].filter(Boolean).join(' · ')
+          ? [submitted.filters.keyword.trim() && `“${searchTitle(submitted.filters)}”`, describeFilters(submitted.filters, nameOf), rangeLabel].filter(Boolean).join(' · ')
           : 'Everything your workspace’s searches have collected, newest first'}
         actions={(
           <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={loading}
@@ -641,7 +763,8 @@ const NewsWorkspace = () => {
   const [startedAt, setStartedAt] = useState(null);
   const [elapsed, setElapsed] = useState(0);
   const [searches, setSearches] = useState({ status: 'loading', items: [], count: 0, message: '' });
-  const [openArticle, setOpenArticle] = useState(null);
+  const [opened, setOpened] = useState(null); // { article, terms } shown in the detail sheet
+  const openArticle = useCallback((article, terms = []) => setOpened({ article, terms }), []);
   const reqRef = useRef(0);
 
   const checkHealth = useCallback(async () => {
@@ -825,7 +948,7 @@ const NewsWorkspace = () => {
       )}
 
       {view === 'saved' && (
-        <SavedExplorer sources={sources} sourcesStatus={sourcesStatus} byId={byId} onOpen={setOpenArticle} />
+        <SavedExplorer sources={sources} sourcesStatus={sourcesStatus} byId={byId} onOpen={openArticle} />
       )}
 
       {view === 'articles' && (
@@ -879,7 +1002,7 @@ const NewsWorkspace = () => {
               : loading === 'stored' ? 'Opening…' : 'Searching…'}
             meta={stored ? 'from your workspace' : active?.took != null ? `${active.took.toFixed(1)}s` : ''}
             subheading={active && [
-              active.filters.keyword?.trim() && `“${active.filters.keyword.trim()}”`,
+              active.filters.keyword?.trim() && `“${searchTitle(active.filters)}”`,
               describeFilters(active.filters, nameOf),
               stored && `searched by ${whoRan(stored)} ${timeAgo(new Date(stored.created_at).getTime())}, ${stored.result_count} found then`,
             ].filter(Boolean).join(' · ') + savedNote}
@@ -906,7 +1029,7 @@ const NewsWorkspace = () => {
             pageSize={limit}
             onPage={goToPage}
             onPageSize={changePageSize}
-            onOpen={setOpenArticle}
+            onOpen={openArticle}
             emptyText="No articles match these filters. Try fewer filters or a broader keyword."
           />
         ) : (
@@ -930,7 +1053,7 @@ const NewsWorkspace = () => {
       </>
       )}
 
-      <ArticleSheet article={openArticle} onClose={() => setOpenArticle(null)} />
+      <ArticleSheet article={opened?.article} terms={opened?.terms} onClose={() => setOpened(null)} />
     </div>
   );
 };

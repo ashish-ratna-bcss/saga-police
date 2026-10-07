@@ -75,6 +75,20 @@ async function runTests() {
     assert.strictEqual(res.data.saved, null, 'no tenant DB → live results only');
     console.log('✅ articles query normalised.');
 
+    console.log('Testing keyword lists and min_match are forwarded upstream...');
+    res = await client.get('/api/news/articles', { params: { keyword: 'textbook errors, NYCS', min_match: 2 } });
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(lastRequest.query, { keyword: 'textbook errors, NYCS', min_match: '2' });
+    console.log('✅ list keyword and min_match forwarded.');
+
+    console.log('Testing an over-long keyword list is refused before the gateway...');
+    const before = lastRequest;
+    res = await client.get('/api/news/articles', { params: { keyword: 'x'.repeat(6001) } });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.data.code, 'KEYWORD_TOO_LONG');
+    assert.strictEqual(lastRequest, before, 'gateway not called');
+    console.log('✅ too-long keyword → 400 KEYWORD_TOO_LONG.');
+
     console.log('Testing GET /api/news/articles/:id substitutes the path param...');
     res = await client.get('/api/news/articles/abc123');
     assert.strictEqual(res.status, 200);

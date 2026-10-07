@@ -74,7 +74,7 @@
       "gatewayPath": "/api/gateway/news-api/news/articles",
       "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/news-api/news/articles",
       "name": "Search articles",
-      "description": "Filtered, paginated news articles. Returns {count, limit, offset, articles[]}; count is the total before pagination. Each article has id, title, content, summary, source, source_id, source_url, language, country, state, district, location, published_at and image_url. All filters are optional: different filters are ANDed, comma-separated values inside one filter are ORed. Sources are scraped live on first use and then cached for 10 minutes, so a cold request can take 60-90 seconds while a cached one returns in under a second. Set the gateway timeout for this route to at least 120 seconds. No match returns 200 with count 0, not 404.",
+      "description": "Filtered, paginated news articles. Returns {count, limit, offset, articles[]}; count is the total before pagination. Each article has id, title, content, summary, source, source_id, source_url, language, country, state, district, location, published_at and image_url. All filters are optional: different filters are ANDed, comma-separated values inside one filter are ORed. Sources are scraped live on first use and then cached for 10 minutes, Each request answers within about 25 seconds with the sources that are ready (pending_sources counts the rest, which finish in the background; repeat the request to include them); cached requests return in under a second. No match returns 200 with count 0, not 404. Keyword searches also return per article: matched_terms, matched_phrases (lists) and match_score (results are ordered by it), and per response: query_terms and query_phrases (the parsed list).",
       "groupName": "Articles",
       "params": [
         {
@@ -82,7 +82,14 @@
           "in": "query",
           "required": false,
           "type": "string",
-          "description": "Keyword to match in the article, e.g. 'drugs', 'corruption', 'accident'."
+          "description": "One phrase (e.g. 'school protest Bhubaneswar': words matched separately, ranked by how many appear) or a list of phrases separated by commas (e.g. 'textbook errors, NYCS, Sourav Das': an article matches a phrase when it has all of that phrase's words; ranked by phrases matched). Common words are ignored; \"double quotes\" mark an exact phrase every result must contain. Max 6000 characters."
+        },
+        {
+          "name": "min_match",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Minimum phrases (keyword list) or words (single phrase) an article must match. Default 1. Raise it (e.g. 3) to drop weak matches from long lists."
         },
         {
           "name": "country",

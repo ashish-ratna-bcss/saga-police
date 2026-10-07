@@ -17,13 +17,14 @@
 
 const { Prisma } = require('../../generated/tenant-client');
 const dbOf = require('../../lib/dbOf');
+const { keywordSql, HAY_COLUMNS } = require('./news.keywords');
 
 const ARTICLE_TEXT_FIELDS = [
   'title', 'summary', 'content', 'source', 'source_id', 'source_url',
   'language', 'country', 'state', 'district', 'location', 'image_url',
 ];
 // Filters worth remembering on a search (paging params are not part of "what was searched").
-const SEARCH_FILTER_KEYS = ['keyword', 'country', 'language', 'location', 'state', 'district', 'source'];
+const SEARCH_FILTER_KEYS = ['keyword', 'min_match', 'country', 'language', 'location', 'state', 'district', 'source'];
 const MAX_PAGE_SIZE = 100;
 
 const ensuredClients = new WeakSet();
@@ -53,6 +54,14 @@ const ensureNewsTables = async (prisma) => {
     `CREATE INDEX IF NOT EXISTS idx_news_articles_published ON news_articles (published_at DESC NULLS LAST)`,
     `CREATE INDEX IF NOT EXISTS idx_news_articles_last_seen ON news_articles (last_seen_at DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_news_articles_source_id ON news_articles (source_id)`,
+    // Word index for keyword search (news.keywords.js): the article's [a-z0-9] words,
+    // title weighted 'A'. Generated, so Postgres keeps it current on every upsert;
+    // adding it to an existing table backfills the rows already there.
+    `ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS search_tsv tsvector GENERATED ALWAYS AS (
+      setweight(to_tsvector('simple', regexp_replace(lower(title), '[^a-z0-9]+', ' ', 'g')), 'A') ||
+      to_tsvector('simple', regexp_replace(lower(summary || ' ' || content), '[^a-z0-9]+', ' ', 'g'))
+    ) STORED`,
+    `CREATE INDEX IF NOT EXISTS idx_news_articles_search ON news_articles USING GIN (search_tsv)`,
     `CREATE TABLE IF NOT EXISTS news_searches (
       id BIGSERIAL PRIMARY KEY,
       user_id INTEGER NULL,
@@ -104,6 +113,12 @@ const parseMulti = (value) => {
 const pickSearchFilters = (query = {}) => {
   const filters = {};
   for (const key of SEARCH_FILTER_KEYS) {
+    // The keyword is free text (commas, quotes and all); the rest are comma lists.
+    if (key === 'keyword') {
+      const keyword = String(query.keyword ?? '').trim();
+      if (keyword) filters.keyword = keyword;
+      continue;
+    }
     const values = parseMulti(query[key]);
     if (values.length) filters[key] = values.join(',');
   }
@@ -203,14 +218,13 @@ const LIST_COLUMNS = Prisma.sql`
 const iLike = (column, values) =>
   Prisma.sql`(${Prisma.join(values.map((v) => Prisma.sql`${Prisma.raw(column)} ILIKE ${`%${v}%`}`), ' OR ')})`;
 
-/** Same semantics as the live API: OR within a filter, AND across filters, substring match. */
-const buildArticleWhere = (query) => {
+/**
+ * Same semantics as the live API: OR within a filter, AND across filters, substring
+ * match. `extra` conditions (the keyword prefilter) are ANDed in, so the GIN word
+ * index can narrow the rows in the same scan.
+ */
+const buildArticleWhere = (query, extra = null) => {
   const where = [];
-  const keyword = String(query.keyword || '').trim();
-  if (keyword) {
-    const like = `%${keyword}%`;
-    where.push(Prisma.sql`(a.title ILIKE ${like} OR a.summary ILIKE ${like} OR a.content ILIKE ${like})`);
-  }
   for (const key of ['country', 'language', 'state', 'district']) {
     const values = parseMulti(query[key]);
     if (values.length) where.push(iLike(`a.${key}`, values));
@@ -231,6 +245,7 @@ const buildArticleWhere = (query) => {
     if (/^\d{4}-\d{2}-\d{2}$/.test(String(query.to))) to.setUTCHours(23, 59, 59, 999);
     where.push(Prisma.sql`COALESCE(a.published_at, a.first_seen_at) <= ${to}`);
   }
+  if (extra) where.push(extra);
   return where.length ? Prisma.sql`WHERE ${Prisma.join(where, ' AND ')}` : Prisma.empty;
 };
 
@@ -239,21 +254,79 @@ const page = (query) => ({
   offset: toInt(query.offset, 0),
 });
 
-/** Every article this tenant has collected, newest first. Same shape as the live search. */
+// The per-word flag columns (kt0, kh0, kr0, kp) keywordSql adds are internal.
+const FLAG_COLUMN = /^k[thrp]\d*$/;
+const withoutFlags = (row) => Object.fromEntries(Object.entries(row).filter(([k]) => !FLAG_COLUMN.test(k)));
+
+/** Raw-text column for Indian-script words, only computed when a keyword has them. */
+const hayColumns = (keyword) => (keyword.needsHay ? Prisma.sql`, ${HAY_COLUMNS}` : Prisma.empty);
+
+// search_tsv is stored compressed (TOAST); every flag that reads it would decompress
+// it again — ~150 times per row for a long list. Concatenating with an empty
+// tsvector materializes one decompressed copy per row for all the flags to share.
+const SEARCH_TSV = Prisma.sql`(a.search_tsv || ''::tsvector) AS search_tsv`;
+
+/** What the keyword flags read: the word index, plus title/raw text only for Indian-script words. */
+const scoringColumns = (keyword) => {
+  if (!keyword.ranked) return Prisma.empty;
+  return keyword.needsHay
+    ? Prisma.sql`, ${SEARCH_TSV}, a.title ${hayColumns(keyword)}`
+    : Prisma.sql`, ${SEARCH_TSV}`;
+};
+
+/**
+ * Every article this tenant has collected. Same shape as the live search: with a
+ * keyword (one phrase or a comma-separated list), best matches first — see
+ * news.keywords.js; otherwise newest first.
+ */
 const listSavedArticles = async (db, query = {}) => {
   const prisma = dbOf(db);
   await ensureNewsTables(prisma);
   const { limit, offset } = page(query);
-  const where = buildArticleWhere(query);
+  const keyword = keywordSql(query.keyword, query.min_match);
+  const where = keyword.where ? Prisma.sql`WHERE ${keyword.where}` : Prisma.empty;
+  // In the ranking step match_score is an output column (no table prefix); outside it, p.match_score.
+  const rank = (alias) => (keyword.ranked ? Prisma.raw(`${alias ? `${alias}.` : ""}match_score DESC,`) : Prisma.empty);
 
-  const [countRows, articles] = await Promise.all([
-    prisma.$queryRaw`SELECT COUNT(*)::int AS count FROM news_articles a ${where}`,
-    prisma.$queryRaw`
-      SELECT ${LIST_COLUMNS} FROM news_articles a ${where}
-      ORDER BY a.published_at DESC NULLS LAST, a.last_seen_at DESC
-      LIMIT ${limit} OFFSET ${offset}`,
-  ]);
-  return { count: countRows[0]?.count || 0, limit, offset, articles };
+  // Rank on light columns only — id, dates and the index-backed word flags — so no
+  // article text is read for rows that won't be on this page. OFFSET 0 fences stop
+  // Postgres inlining the subqueries, which would re-evaluate every flag at each
+  // place the outer query uses it.
+  const scored = Prisma.sql`
+    SELECT a.article_id AS id, a.published_at, a.last_seen_at ${keyword.flags}
+    FROM (
+      SELECT a.article_id, a.published_at, a.last_seen_at ${scoringColumns(keyword)}
+      FROM news_articles a ${buildArticleWhere(query, keyword.prefilter)}
+      OFFSET 0
+    ) a
+    OFFSET 0`;
+
+  // The window count is the total before LIMIT, so ranking runs once, not again for COUNT.
+  // Full columns (text, word counts) are then read for just the page's rows.
+  const pageRows = await prisma.$queryRaw`
+    WITH page AS (
+      SELECT s.id, s.published_at, s.last_seen_at, ${keyword.select}, COUNT(*) OVER ()::int AS total_count
+      FROM (${scored}) s ${where}
+      ORDER BY ${rank("")} s.published_at DESC NULLS LAST, s.last_seen_at DESC, s.id
+      LIMIT ${limit} OFFSET ${offset}
+    )
+    SELECT ${LIST_COLUMNS}, p.matched_terms, p.matched_phrases, p.match_score, p.total_count
+    FROM page p JOIN news_articles a ON a.article_id = p.id
+    ORDER BY ${rank('p')} p.published_at DESC NULLS LAST, p.last_seen_at DESC, p.id`;
+  // Past the last page there are no rows to carry the total; only then count separately.
+  const count = pageRows.length
+    ? pageRows[0].total_count
+    : (offset > 0
+      ? (await prisma.$queryRaw`SELECT COUNT(*)::int AS count FROM (${scored}) s ${where}`)[0]?.count || 0
+      : 0);
+  return {
+    count,
+    limit,
+    offset,
+    articles: pageRows.map(({ total_count, ...a }) => a),
+    query_terms: keyword.terms,
+    query_phrases: keyword.phrases,
+  };
 };
 
 /** One stored article with its full text, or null. */
@@ -300,22 +373,37 @@ const listSearchArticles = async (db, searchId, query = {}) => {
   const search = await prisma.$queryRaw`
     SELECT id, user_id, user_name, filters, result_count, created_at FROM news_searches WHERE id = ${id}`;
   if (!search.length) throw httpError(404, 'Search not found');
+  // Recompute which of the search's words/phrases each article matched, for the
+  // card badges; the order stays as the live search ranked it.
+  const keyword = keywordSql(search[0].filters?.keyword, search[0].filters?.min_match);
 
+  // Page first (stored order needs no scoring), then flag only that page's rows.
+  // OFFSET 0 fences: see listSavedArticles.
   const [countRows, articles] = await Promise.all([
     prisma.$queryRaw`SELECT COUNT(*)::int AS count FROM news_search_articles WHERE search_id = ${id}`,
     prisma.$queryRaw`
-      SELECT ${LIST_COLUMNS} FROM news_search_articles l
-      JOIN news_articles a ON a.article_id = l.article_id
-      WHERE l.search_id = ${id}
-      ORDER BY l.position
-      LIMIT ${limit} OFFSET ${offset}`,
+      WITH page AS (
+        SELECT l.article_id, l.position FROM news_search_articles l
+        WHERE l.search_id = ${id}
+        ORDER BY l.position
+        LIMIT ${limit} OFFSET ${offset}
+      )
+      SELECT s.*, ${keyword.select}
+      FROM (
+        SELECT ${LIST_COLUMNS}, a.position ${keyword.flags}
+        FROM (SELECT a.*, p.position ${hayColumns(keyword)} FROM page p JOIN news_articles a ON a.article_id = p.article_id OFFSET 0) a
+        OFFSET 0
+      ) s
+      ORDER BY s.position`,
   ]);
   return {
     search: { ...search[0], id: String(search[0].id) },
     count: countRows[0]?.count || 0,
     limit,
     offset,
-    articles,
+    articles: articles.map(({ position, ...a }) => withoutFlags(a)),
+    query_terms: keyword.terms,
+    query_phrases: keyword.phrases,
   };
 };
 
