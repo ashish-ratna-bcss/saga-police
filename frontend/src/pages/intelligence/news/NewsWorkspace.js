@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/table';
 import {
   Newspaper, Search, Loader2, Trash2, Globe, Languages, MapPin, Rss, Check, ChevronDown,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowRight, ExternalLink, X, Clock, RefreshCw, Zap, Archive, History,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowRight, ExternalLink, X, Clock, RefreshCw, Zap, History,
   Layers
 } from 'lucide-react';
 import { newsApi } from '../../../api';
@@ -298,14 +298,14 @@ const FilterBar = ({ filters, setFilters, options, facetsDisabled, loading, subm
 const LoadingNote = ({ elapsed }) => (
   <div className="rounded-lg border border-border bg-background p-3">
     <div className="flex justify-between text-[11px] mb-1.5">
-      <span className="flex items-center gap-1.5 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Fetching live from news sites…</span>
+      <span className="flex items-center gap-1.5 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Fetching the latest from news sites…</span>
       <span className="tabular-nums font-semibold">{elapsed}s</span>
     </div>
     <div className="h-1.5 rounded-full bg-muted overflow-hidden">
       <div className="h-full bg-primary transition-all duration-1000" style={{ width: `${Math.min(95, Math.max(4, (elapsed / LIVE_SEARCH_SECONDS) * 100))}%` }} />
     </div>
     <p className="text-[10px] text-muted-foreground mt-1.5">
-      A new search takes up to 30 seconds. Sources that need longer keep loading in the background; repeat searches return instantly for the next 10 minutes.
+      Up to 30 seconds. The articles below are already saved in your workspace; new ones are added when this finishes.
     </p>
   </div>
 );
@@ -350,7 +350,7 @@ const MatchBadge = ({ strong, title, children }) => (
   </span>
 );
 
-const ArticleCard = ({ article: a, terms = [], phrases = [], onOpen }) => {
+const ArticleCard = ({ article: a, terms = [], phrases = [], isNew = false, onOpen }) => {
   const [imageOk, setImageOk] = useState(Boolean(a.image_url));
   const words = wordsOf(a);
   // Some feeds repeat the summary inside the title; showing it twice is noise.
@@ -377,6 +377,11 @@ const ArticleCard = ({ article: a, terms = [], phrases = [], onOpen }) => {
           {a.language && (
             <span className="absolute left-2 top-2 rounded-md bg-background/90 px-1.5 py-0.5 text-[10px] font-semibold text-foreground shadow-sm backdrop-blur">
               {a.language}
+            </span>
+          )}
+          {isNew && (
+            <span className="absolute right-2 top-2 rounded-md bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+              New
             </span>
           )}
         </div>
@@ -444,7 +449,7 @@ const PageButton = ({ label, icon: Icon, disabled, onClick }) => (
 /** Card grid with header, paging and page size; shared by live, stored and saved views. */
 const ResultsPanel = ({
   heading, meta, subheading, actions, result, loading, loadingNote, error, notice,
-  pageSize, onPage, onPageSize, onOpen, emptyText, className = '',
+  pageSize, onPage, onPageSize, onOpen, emptyText, className = '', isNew,
   gridClassName = 'grid-cols-1 md:grid-cols-2 2xl:grid-cols-3',
 }) => {
   const articles = result?.articles || [];
@@ -478,16 +483,17 @@ const ResultsPanel = ({
         {subheading && <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{subheading}</p>}
       </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto bg-muted/20 p-4 space-y-3">
+        {notice}
         {loading && loadingNote}
         {error && !loading && <p className="text-xs text-red-600 rounded-lg border border-red-500/30 bg-red-500/5 p-3">{error}</p>}
-        {notice && !loading && notice}
         {result && !articles.length && !loading && <Empty>{emptyText}</Empty>}
         {!result && loading ? (
           <div className={`grid gap-3 ${gridClassName}`}>{Array.from({ length: 6 }, (_, i) => <CardSkeleton key={i} />)}</div>
         ) : (
           <div className={`grid gap-3 ${gridClassName} ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
             {articles.map((a) => (
-              <ArticleCard key={a.id} article={a} terms={result?.query_terms || []} phrases={result?.query_phrases || []} onOpen={onOpen} />
+              <ArticleCard key={a.id} article={a} terms={result?.query_terms || []} phrases={result?.query_phrases || []}
+                isNew={Boolean(isNew?.(a))} onOpen={onOpen} />
             ))}
           </div>
         )}
@@ -581,87 +587,6 @@ const ArticleSheet = ({ article, terms = [], onClose }) => {
   );
 };
 
-/* ---------- saved (tenant archive) ---------- */
-
-const SavedExplorer = ({ sources, sourcesStatus, byId, onOpen }) => {
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [range, setRange] = useState(EMPTY_RANGE);
-  const [limit, setLimit] = useState(20);
-  const [submitted, setSubmitted] = useState({ filters: EMPTY_FILTERS, range: EMPTY_RANGE });
-  const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const reqRef = useRef(0);
-  const options = useFacetOptions(sources, filters, byId);
-  const nameOf = useCallback((id) => byId.get(id)?.name || id, [byId]);
-
-  const load = useCallback(async (q, offset, pageSize) => {
-    const id = ++reqRef.current;
-    setLoading(true);
-    setError('');
-    try {
-      const params = { ...toParams(q.filters), limit: pageSize, offset };
-      if (q.range.from) params.from = q.range.from;
-      if (q.range.to) params.to = q.range.to;
-      const data = await newsApi.getSaved(params);
-      if (id !== reqRef.current) return;
-      setResult(data);
-      setSubmitted(q);
-    } catch (err) {
-      if (id !== reqRef.current) return;
-      setError(errMsg(err, 'Could not load saved articles'));
-    } finally {
-      if (id === reqRef.current) setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load({ filters: EMPTY_FILTERS, range: EMPTY_RANGE }, 0, 20); }, [load]);
-
-  const narrowed = hasFilters(submitted.filters) || submitted.range.from || submitted.range.to;
-  const rangeLabel = [submitted.range.from && `from ${submitted.range.from}`, submitted.range.to && `to ${submitted.range.to}`].filter(Boolean).join(' ');
-
-  return (
-    <div className="space-y-3">
-      <FilterBar filters={filters} setFilters={setFilters} options={options} facetsDisabled={sourcesStatus !== 'ready'}
-        loading={loading} submitLabel="Search saved" placeholder="Keyword in saved articles (optional)"
-        onSubmit={() => load({ filters, range }, 0, limit)}
-        canClear={hasFilters(filters) || !!range.from || !!range.to}
-        onClear={() => { setFilters(EMPTY_FILTERS); setRange(EMPTY_RANGE); }}>
-        <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          From <Input type="date" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} className="h-8 w-36 text-xs" />
-        </label>
-        <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          To <Input type="date" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} className="h-8 w-36 text-xs" />
-        </label>
-      </FilterBar>
-
-      <ResultsPanel
-        className="lg:h-[calc(100dvh-22rem)]"
-        gridClassName="grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
-        heading="Saved articles"
-        meta="from your workspace"
-        subheading={narrowed
-          ? [submitted.filters.keyword.trim() && `“${searchTitle(submitted.filters)}”`, describeFilters(submitted.filters, nameOf), rangeLabel].filter(Boolean).join(' · ')
-          : 'Everything your workspace’s searches have collected, newest first'}
-        actions={(
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={loading}
-            onClick={() => load(submitted, result?.offset || 0, result?.limit || limit)}>
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
-          </Button>
-        )}
-        result={result} loading={loading} loadingNote={<QuickLoading />} error={error}
-        pageSize={limit}
-        onPage={(offset, size) => load(submitted, offset, size)}
-        onPageSize={(n) => { setLimit(n); load(submitted, 0, n); }}
-        onOpen={onOpen}
-        emptyText={narrowed
-          ? 'No saved articles match these filters.'
-          : 'Nothing saved yet. Articles are saved here automatically whenever someone in your workspace searches News.'}
-      />
-    </div>
-  );
-};
-
 /* ---------- sources explorer ---------- */
 
 const SourcesExplorer = ({ sources, status, onReload, onSearchSource }) => {
@@ -747,25 +672,45 @@ const SourcesExplorer = ({ sources, status, onReload, onSearchSource }) => {
 
 /* ---------- page ---------- */
 
+const EMPTY_QUERY = { filters: EMPTY_FILTERS, range: EMPTY_RANGE };
+const isEmptyQuery = (q) => !hasFilters(q.filters) && !q.range.from && !q.range.to;
+const rangeLabel = (r) => [r.from && `from ${r.from}`, r.to && `to ${r.to}`].filter(Boolean).join(' ');
+const dbParams = (q, offset, size) => {
+  const params = { ...toParams(q.filters), limit: size, offset };
+  if (q.range.from) params.from = q.range.from;
+  if (q.range.to) params.to = q.range.to;
+  return params;
+};
+
+/**
+ * Tools → News. Everything shown comes from the workspace's own database (newsApi
+ * .getArticles), with all filters applied there. Searching also fetches the latest
+ * matching articles from the news sites (newsApi.collect), which saves them; the list
+ * then reloads from the database with the new ones tagged "New".
+ */
 const NewsWorkspace = () => {
   const [view, setView] = useState('articles');
   const [sources, setSources] = useState([]);
   const [sourcesStatus, setSourcesStatus] = useState('loading');
   const [health, setHealth] = useState({ status: 'checking', message: '' });
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [range, setRange] = useState(EMPTY_RANGE);
   const [limit, setLimit] = useState(20);
-  // What the results panel shows: a live search, or a stored search reopened from the DB.
-  // { mode: 'live'|'stored', filters, searchId, search? }
-  const [active, setActive] = useState(null);
+  const [query, setQuery] = useState(EMPTY_QUERY); // the submitted search the list shows
   const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(null); // null | 'live' | 'stored'
-  const [startedAt, setStartedAt] = useState(null);
+  // The live fetch for the current search: { running, startedAt } then
+  // { running: false, new, fetched, pending, searchId, collectedAt } or { error }.
+  const [collect, setCollect] = useState(null);
   const [elapsed, setElapsed] = useState(0);
   const [searches, setSearches] = useState({ status: 'loading', items: [], count: 0, message: '' });
   const [opened, setOpened] = useState(null); // { article, terms } shown in the detail sheet
   const openArticle = useCallback((article, terms = []) => setOpened({ article, terms }), []);
-  const reqRef = useRef(0);
+  const dbReq = useRef(0);
+  const collectReq = useRef(0);
+  const queryRef = useRef(query);
+  queryRef.current = query;
 
   const checkHealth = useCallback(async () => {
     setHealth({ status: 'checking', message: '' });
@@ -801,116 +746,156 @@ const NewsWorkspace = () => {
     }
   }, []);
 
-  useEffect(() => { checkHealth(); loadSources(); loadSearches(); }, [checkHealth, loadSources, loadSearches]);
+  /** Read one page of the search from the database — the only source of what's shown. */
+  const loadDb = useCallback(async (q, offset, size) => {
+    const id = ++dbReq.current;
+    setLoading(true);
+    setError('');
+    try {
+      const data = await newsApi.getArticles(dbParams(q, offset, size));
+      if (id !== dbReq.current) return;
+      setResult(data);
+    } catch (err) {
+      if (id !== dbReq.current) return;
+      setError(errMsg(err, 'Could not load articles'));
+    } finally {
+      if (id === dbReq.current) setLoading(false);
+    }
+  }, []);
+
+  /** Fetch the latest matching articles from the news sites into the database, then re-read page 1. */
+  const fetchLatest = useCallback(async (q, size, searchId = null) => {
+    const id = ++collectReq.current;
+    const startedAt = Date.now();
+    setCollect({ running: true, startedAt });
+    try {
+      const body = toParams(q.filters);
+      if (searchId) body.search_id = searchId;
+      const res = await newsApi.collect(body);
+      if (id !== collectReq.current) return;
+      setCollect({
+        running: false,
+        new: res.new || 0,
+        fetched: res.fetched || 0,
+        pending: res.pending_sources || 0,
+        searchId: res.search_id,
+        collectedAt: res.collected_at ? new Date(res.collected_at).getTime() : null,
+      });
+      loadSearches();
+      if (queryRef.current === q) loadDb(q, 0, size);
+    } catch (err) {
+      if (id !== collectReq.current) return;
+      setCollect({ running: false, error: errMsg(err, 'Could not fetch the latest news') });
+    }
+  }, [loadDb, loadSearches]);
 
   useEffect(() => {
-    if (loading !== 'live' || !startedAt) return undefined;
+    checkHealth();
+    loadSources();
+    loadSearches();
+    loadDb(EMPTY_QUERY, 0, 20);
+  }, [checkHealth, loadSources, loadSearches, loadDb]);
+
+  useEffect(() => {
+    if (!collect?.running) return undefined;
     setElapsed(0);
-    const t = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    const t = setInterval(() => setElapsed(Math.floor((Date.now() - collect.startedAt) / 1000)), 1000);
     return () => clearInterval(t);
-  }, [loading, startedAt]);
+  }, [collect?.running, collect?.startedAt]);
 
   const byId = useMemo(() => new Map(sources.map((s) => [s.id, s])), [sources]);
   const nameOf = useCallback((id) => byId.get(id)?.name || id, [byId]);
   const options = useFacetOptions(sources, filters, byId);
 
-  /** Live search. searchId continues an existing search (paging); omit it to start a new one. */
-  const runLive = useCallback(async (f, offset, pageSize, searchId = null) => {
-    const id = ++reqRef.current;
-    const started = Date.now();
-    setLoading('live');
-    setStartedAt(started);
-    setError('');
-    try {
-      const params = { ...toParams(f), limit: pageSize, offset };
-      if (searchId) params.search_id = searchId;
-      const data = await newsApi.getArticles(params);
-      if (id !== reqRef.current) return;
-      setResult(data);
-      setActive({ mode: 'live', filters: f, searchId: data?.saved?.search_id || searchId, took: (Date.now() - started) / 1000 });
-      if (data?.saved?.error) toast.warning(data.saved.error);
-      // A new search, or page 1 re-run (load the rest / page size) that can raise its count.
-      if (data?.saved?.search_id && offset === 0) loadSearches();
-    } catch (err) {
-      if (id !== reqRef.current) return;
-      const msg = errMsg(err, 'News search failed');
-      setError(msg);
-      toast.error(msg);
-    } finally {
-      if (id === reqRef.current) setLoading(null);
-    }
-  }, [loadSearches]);
-
-  /** Reopen a stored search from this workspace's DB — instant, no re-scrape. */
-  const openStored = useCallback(async (search, offset, pageSize) => {
-    const id = ++reqRef.current;
-    setLoading('stored');
-    setError('');
-    try {
-      const data = await newsApi.getSearchArticles(search.id, { limit: pageSize, offset });
-      if (id !== reqRef.current) return;
-      setResult(data);
-      setActive({ mode: 'stored', filters: fromParams(search.filters), searchId: search.id, search: { ...search, ...data?.search } });
-    } catch (err) {
-      if (id !== reqRef.current) return;
-      setError(errMsg(err, 'Could not open this search'));
-    } finally {
-      if (id === reqRef.current) setLoading(null);
-    }
-  }, []);
-
-  const search = (f) => {
+  /** Show saved matches now; fetch the latest alongside unless the search is empty. */
+  const search = (f, r = range) => {
+    const q = { filters: f, range: r };
     setFilters(f);
+    setRange(r);
     setView('articles');
-    runLive(f, 0, limit);
+    setQuery(q);
+    loadDb(q, 0, limit);
+    if (isEmptyQuery(q)) {
+      collectReq.current += 1; // nothing to fetch for "everything"; drop any fetch in flight
+      setCollect(null);
+    } else {
+      fetchLatest(q, limit);
+    }
   };
+  /** A past search: show what's saved for it (no live fetch until asked). */
   const reopen = (s) => {
-    setFilters(fromParams(s.filters));
+    const q = { filters: fromParams(s.filters), range: EMPTY_RANGE, historyId: s.id };
+    setFilters(q.filters);
+    setRange(EMPTY_RANGE);
     setView('articles');
-    openStored(s, 0, limit);
+    setQuery(q);
+    collectReq.current += 1;
+    setCollect(null);
+    loadDb(q, 0, limit);
   };
-  const goToPage = (offset, size) => {
-    if (!active) return;
-    if (active.mode === 'live') runLive(active.filters, offset, size, active.searchId);
-    else openStored(active.search, offset, size);
-  };
+  const fetchAgain = () => fetchLatest(query, limit, collect?.searchId || query.historyId);
+  const goToPage = (offset, size) => loadDb(query, offset, size);
   const changePageSize = (n) => {
     setLimit(n);
-    goToPage(0, n);
+    loadDb(query, 0, n);
   };
   const removeSearch = async (s) => {
     try {
       await newsApi.deleteSearch(s.id);
       setSearches((x) => ({ ...x, items: x.items.filter((i) => i.id !== s.id), count: Math.max(0, x.count - 1) }));
-      if (active?.searchId === s.id && active.mode === 'stored') { setActive(null); setResult(null); }
     } catch (err) {
       toast.error(errMsg(err, 'Could not delete this search'));
     }
   };
+  const isNew = useCallback(
+    (a) => Boolean(collect?.collectedAt && a.first_seen_at && new Date(a.first_seen_at).getTime() >= collect.collectedAt),
+    [collect?.collectedAt]
+  );
 
   const countries = useMemo(() => new Set(sources.map((s) => s.country).filter(Boolean)).size, [sources]);
   const languages = useMemo(() => new Set(sources.map((s) => s.language).filter(Boolean)).size, [sources]);
   const H = HEALTH[health.status];
-  const stored = active?.mode === 'stored' ? active.search : null;
   const whoRan = (s) => (s.mine ? 'you' : s.user_name || 'someone');
-  const savedNote = active?.mode === 'live' && result?.saved?.search_id ? ' · saved to your workspace' : '';
-  const pending = active?.mode === 'live' ? result?.pending_sources || 0 : 0;
-  // Re-runs page 1 as the same stored search, so the late sources join it instead of a duplicate.
-  const loadRest = () => runLive(active.filters, 0, result?.limit || limit, active.searchId);
+  const emptyWorkspace = result && result.count === 0 && isEmptyQuery(query) && !collect;
+
+  const collectNotice = collect && (
+    collect.running ? <LoadingNote elapsed={elapsed} />
+      : collect.error ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700">
+          <span className="flex-1 min-w-[200px]">Couldn’t fetch the latest news: {collect.error} Showing what’s already saved.</span>
+          <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={fetchAgain}>
+            <RefreshCw className="h-3 w-3" /> Try again
+          </Button>
+        </div>
+      ) : (
+        <div className={`flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-xs ${collect.new ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-700' : 'border-border bg-background text-muted-foreground'}`}>
+          <Check className="h-3.5 w-3.5 shrink-0" />
+          <span className="flex-1 min-w-[200px]">
+            {collect.new
+              ? `${collect.new} new article${collect.new === 1 ? '' : 's'} added from news sites (${collect.fetched} checked).`
+              : `No new articles — your workspace already has the latest ${collect.fetched} match${collect.fetched === 1 ? '' : 'es'}.`}
+            {collect.pending > 0 && ` ${collect.pending} source${collect.pending === 1 ? ' is' : 's are'} still loading.`}
+          </span>
+          {collect.pending > 0 && (
+            <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={fetchAgain}>
+              <RefreshCw className="h-3 w-3" /> Fetch the rest
+            </Button>
+          )}
+        </div>
+      )
+  );
 
   return (
     <div className="p-4 space-y-3 max-w-[1600px] mx-auto">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="min-w-0">
           <h2 className="text-xl font-heading font-bold tracking-tight leading-none">
-            News · {{ articles: 'Articles', saved: 'Saved', sources: 'Sources' }[view]}
+            News · {view === 'sources' ? 'Sources' : 'Articles'}
           </h2>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            {{
-              articles: 'Search live articles from Indian and international news sources',
-              saved: 'Articles collected by your workspace’s searches, kept in your workspace database',
-              sources: 'News websites, TV channels and agencies being monitored',
-            }[view]}
+            {view === 'sources'
+              ? 'News websites, TV channels and agencies being monitored'
+              : 'Articles saved in your workspace — each search also fetches the latest from news sites'}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-1 flex-wrap">
@@ -926,7 +911,7 @@ const NewsWorkspace = () => {
 
       {(health.status === 'offline' || health.status === 'unconfigured') && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-600">
-          <span className="flex-1 min-w-[200px]">{health.message}</span>
+          <span className="flex-1 min-w-[200px]">{health.message} Saved articles are still shown; fetching the latest won’t work until this is fixed.</span>
           <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => { checkHealth(); loadSources(); }}>
             <RefreshCw className="h-3 w-3" /> Retry
           </Button>
@@ -934,7 +919,7 @@ const NewsWorkspace = () => {
       )}
 
       <div className="flex items-center gap-1 border-b border-border overflow-x-auto no-scrollbar">
-        {[['articles', 'Articles', Newspaper], ['saved', 'Saved', Archive], ['sources', 'Sources', Rss]].map(([k, l, I]) => (
+        {[['articles', 'Articles', Newspaper], ['sources', 'Sources', Rss]].map(([k, l, I]) => (
           <button key={k} onClick={() => setView(k)}
             className={`flex items-center gap-1.5 px-3 py-2 text-xs whitespace-nowrap border-b-2 -mb-px transition-colors ${view === k ? 'border-primary text-foreground font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
             <I className="h-3.5 w-3.5" />{l}
@@ -944,18 +929,23 @@ const NewsWorkspace = () => {
 
       {view === 'sources' && (
         <SourcesExplorer sources={sources} status={sourcesStatus} onReload={loadSources}
-          onSearchSource={(id) => search({ ...EMPTY_FILTERS, source: [id] })} />
-      )}
-
-      {view === 'saved' && (
-        <SavedExplorer sources={sources} sourcesStatus={sourcesStatus} byId={byId} onOpen={openArticle} />
+          onSearchSource={(id) => search({ ...EMPTY_FILTERS, source: [id] }, EMPTY_RANGE)} />
       )}
 
       {view === 'articles' && (
       <>
       <FilterBar filters={filters} setFilters={setFilters} options={options} facetsDisabled={sourcesStatus !== 'ready'}
-        loading={loading === 'live'} submitLabel="Search news" placeholder="Keyword, e.g. drugs, accident, protest (optional)"
-        onSubmit={() => search(filters)} canClear={hasFilters(filters)} onClear={() => setFilters(EMPTY_FILTERS)} />
+        loading={loading} submitLabel="Search news" placeholder="Keyword, or several separated by commas (optional)"
+        onSubmit={() => search(filters, range)}
+        canClear={hasFilters(filters) || !!range.from || !!range.to}
+        onClear={() => { setFilters(EMPTY_FILTERS); setRange(EMPTY_RANGE); }}>
+        <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          From <Input type="date" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} className="h-8 w-36 text-xs" />
+        </label>
+        <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          To <Input type="date" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} className="h-8 w-36 text-xs" />
+        </label>
+      </FilterBar>
 
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-3 items-start">
         <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -969,17 +959,17 @@ const NewsWorkspace = () => {
             {searches.status === 'loading' && <p className="p-6 text-xs text-muted-foreground text-center"><Loader2 className="h-3.5 w-3.5 animate-spin inline mr-1.5" />Loading…</p>}
             {searches.status === 'failed' && <p className="p-6 text-xs text-muted-foreground text-center">{searches.message}</p>}
             {searches.status === 'ready' && !searches.items.length && (
-              <p className="p-6 text-xs text-muted-foreground text-center">No searches yet. Searches and their articles are saved here for everyone in your workspace.</p>
+              <p className="p-6 text-xs text-muted-foreground text-center">No searches yet. Every search is listed here for everyone in your workspace.</p>
             )}
             {searches.items.map((s) => {
               const f = fromParams(s.filters);
               return (
                 <div key={s.id} onClick={() => reopen(s)}
-                  className={`group px-3 py-2 cursor-pointer border-b border-border last:border-0 ${active?.searchId === s.id ? 'bg-primary/10' : 'hover:bg-accent/50'}`}>
+                  className={`group px-3 py-2 cursor-pointer border-b border-border last:border-0 ${query.historyId === s.id || collect?.searchId === s.id ? 'bg-primary/10' : 'hover:bg-accent/50'}`}>
                   <div className="flex items-center gap-2">
                     <History className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <p className="text-xs font-medium truncate flex-1">{searchTitle(f)}</p>
-                    <span className="text-[10px] tabular-nums text-muted-foreground" title="Articles found">{s.result_count}</span>
+                    <span className="text-[10px] tabular-nums text-muted-foreground" title="Live matches when searched">{s.result_count}</span>
                     {s.mine && (
                       <button onClick={(e) => { e.stopPropagation(); removeSearch(s); }} aria-label="Delete search"
                         className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500"><Trash2 className="h-3 w-3" /></button>
@@ -994,60 +984,53 @@ const NewsWorkspace = () => {
           </div>
         </div>
 
-        {result || loading || error ? (
-          <ResultsPanel
-            className="lg:h-[calc(100dvh-20rem)]"
-            heading={result
-              ? (stored ? 'Saved search' : 'Live results')
-              : loading === 'stored' ? 'Opening…' : 'Searching…'}
-            meta={stored ? 'from your workspace' : active?.took != null ? `${active.took.toFixed(1)}s` : ''}
-            subheading={active && [
-              active.filters.keyword?.trim() && `“${searchTitle(active.filters)}”`,
-              describeFilters(active.filters, nameOf),
-              stored && `searched by ${whoRan(stored)} ${timeAgo(new Date(stored.created_at).getTime())}, ${stored.result_count} found then`,
-            ].filter(Boolean).join(' · ') + savedNote}
-            actions={stored && (
-              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={!!loading} onClick={() => search(active.filters)}>
-                <Zap className="h-3.5 w-3.5" /> Refresh live
-              </Button>
-            )}
-            result={result}
-            loading={!!loading}
-            loadingNote={loading === 'live' ? <LoadingNote elapsed={elapsed} /> : <QuickLoading />}
-            error={error}
-            notice={pending > 0 && (
-              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700">
-                <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
-                <span className="flex-1 min-w-[200px]">
-                  {pending} source{pending === 1 ? ' is' : 's are'} still loading in the background. Load them in a minute to see more articles.
-                </span>
-                <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={loadRest}>
-                  <RefreshCw className="h-3 w-3" /> Load the rest
-                </Button>
-              </div>
-            )}
-            pageSize={limit}
-            onPage={goToPage}
-            onPageSize={changePageSize}
-            onOpen={openArticle}
-            emptyText="No articles match these filters. Try fewer filters or a broader keyword."
-          />
-        ) : (
-          <div className="rounded-xl border border-border bg-card min-h-[420px] lg:h-[calc(100dvh-20rem)] flex flex-col items-center justify-center text-center gap-2 p-8">
+        {emptyWorkspace ? (
+          <div className="rounded-xl border border-border bg-card min-h-[420px] lg:h-[calc(100dvh-22rem)] flex flex-col items-center justify-center text-center gap-2 p-8">
             <Newspaper className="h-7 w-7 text-primary/60" />
-            <p className="text-sm font-semibold">Your articles appear here</p>
+            <p className="text-sm font-semibold">Nothing saved in this workspace yet</p>
             <p className="text-xs text-muted-foreground max-w-sm">
-              Search by keyword and narrow by country, language, state or source. Results are saved to your workspace. Or start with:
+              Search to fetch articles from the news sites. Everything found is saved here, so past coverage stays searchable. Or start with:
             </p>
             <div className="flex flex-wrap justify-center gap-1.5 mt-1">
               {PRESETS.map((p) => (
                 <Button key={p.label} type="button" variant="outline" size="sm" className="h-7 text-xs"
-                  onClick={() => search({ ...EMPTY_FILTERS, ...p.filters })}>
+                  onClick={() => search({ ...EMPTY_FILTERS, ...p.filters }, EMPTY_RANGE)}>
                   {p.label}
                 </Button>
               ))}
             </div>
           </div>
+        ) : (
+          <ResultsPanel
+            className="lg:h-[calc(100dvh-22rem)]"
+            heading={isEmptyQuery(query) ? 'All saved articles' : 'Articles'}
+            meta="from your workspace"
+            subheading={isEmptyQuery(query)
+              ? 'Everything your workspace has collected, newest first'
+              : [
+                query.filters.keyword?.trim() && `“${searchTitle(query.filters)}”`,
+                describeFilters(query.filters, nameOf),
+                rangeLabel(query.range),
+              ].filter(Boolean).join(' · ')}
+            actions={!isEmptyQuery(query) && (
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={Boolean(collect?.running)} onClick={fetchAgain}>
+                {collect?.running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />} Fetch latest
+              </Button>
+            )}
+            result={result}
+            loading={loading}
+            loadingNote={<QuickLoading />}
+            error={error}
+            notice={collectNotice}
+            pageSize={limit}
+            onPage={goToPage}
+            onPageSize={changePageSize}
+            onOpen={openArticle}
+            isNew={isNew}
+            emptyText={collect?.running
+              ? 'Nothing saved for this search yet — fetching from the news sites…'
+              : 'No saved articles match these filters. Try fewer filters, a broader keyword or a wider date range.'}
+          />
         )}
       </div>
       </>
