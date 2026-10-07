@@ -402,7 +402,7 @@ const sortByLatest = (list = []) =>
 
 const metric = (n, label, action) => `<div><div class="n">${esc(String(n))}</div><div class="l">${esc(label)}</div>${action ? `<div class="a">${esc(action)}</div>` : ''}</div>`;
 
-const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquarters }) => {
+const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquarters, includeEvidence = true }) => {
   const stats = summary?.stats || {};
   const event = summary?.event || {};
   const kwa = keywordData || null;
@@ -696,17 +696,41 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const topEntity = entities[0];
   const highRiskN = n0(riskCounts.critical) + n0(riskCounts.high);
 
+  const evidenceSecHtml = includeEvidence ? `
+  <div class="sec"><span class="no">09.</span><span class="nm">Evidence register</span></div>
+  <div class="metrics">
+    ${metric(fmt(ev.length), 'Posts in this brief', 'Every row below is one monitored post')}
+    ${metric(fmt(ev.filter((e) => e.posted_at).length), 'With a publication time', 'Undated posts stay in the register')}
+    ${metric(fmt(sent.negative), 'Negative tone', `${pct(sent.negative, sentTotal)} of toned posts`)}
+    ${metric(fmt(places.length), 'Places named', topPlace ? `Lead site: ${topPlace.name}` : 'None named in the text')}
+  </div>
+  <p class="sm">All ${fmt(ev.length)} posts used for this brief. Post numbers match the citations above.</p>
+  <table>
+    <colgroup>
+      <col style="width:10%">
+      <col style="width:13%">
+      <col style="width:15%">
+      <col style="width:9%">
+      <col style="width:14%">
+      <col style="width:9%">
+      <col style="width:7%">
+      <col style="width:23%">
+    </colgroup>
+    <thead><tr><th>Post</th><th>When</th><th>Place</th><th>Platform</th><th>Account</th><th>Tone</th><th>Eng.</th><th>Text</th></tr></thead>
+    <tbody>${evidenceRows || '<tr><td colspan="8">No posts in this evidence set.</td></tr>'}</tbody>
+  </table>` : '';
+
   const body = `
 <section class="pg">
   <div class="hero">
     <div class="eyebrow">${esc(tenant)} · CRIME BRANCH BRIEF FOR THE ${esc((hq?.head || 'DGP').toUpperCase())}</div>
     <h1>${esc(event.name || 'Event')}</h1>
-    <div class="sub">${esc(event.location || 'Location not specified')} · Each row below is a monitored post used as evidence</div>
+    <div class="sub">${esc(event.location || 'Location not specified')} · ${includeEvidence ? 'Each row below is a monitored post used as evidence' : 'Executive summary & trend intelligence brief'}</div>
     <div class="meta">
       <span>MONITORING WINDOW<b>${esc(windowStr)}</b></span>
       <span>GENERATED<b>${esc(dateStr)}</b></span>
       <span>POSTS ANALYSED<b>${fmt(total)}</b></span>
-      <span>CITED EVIDENCE<b>${fmt(ev.length)}</b></span>
+      <span>${includeEvidence ? 'CITED EVIDENCE' : 'REPORT MODE'}<b>${includeEvidence ? fmt(ev.length) : 'Without Evidence'}</b></span>
     </div>
   </div>
   ${hqHtml}
@@ -760,7 +784,10 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${analysis?.bottomLine ? `<p class="lead"><b>Bottom line.</b> ${esc(analysis.bottomLine)}</p>` : ''}
   ${findingsHtml}
 
-  <div class="sec"><span class="no">01.</span><span class="nm">Activity analysis</span></div>
+  <div class="sec"><span class="no">01.</span><span class="nm">Recommended actions</span></div>
+  ${actionsHtml || '<p class="sm">Maintain standard baseline monitoring. No elevated risk alerts or immediate operational escalation required at this stage.</p>'}
+
+  <div class="sec"><span class="no">02.</span><span class="nm">Activity analysis</span></div>
   <div class="metrics">
     ${metric(fmt(activityPosts.length), 'Activity posts', 'Open posts that name a bandh, rally, meeting, or blockade')}
     ${metric(fmt(total), 'Posts in window', 'Denominator for every share below')}
@@ -769,7 +796,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   </div>
   <p class="sm">Campaigns, meetings, protests, bandhs, rallies, and programmes named in the posts.</p>
   ${activityBrief ? `<ul class="bul">${activityBrief}</ul>` : narrHtml}
-  <table>
+  ${includeEvidence ? `<table>
     <colgroup>
       <col style="width:11%">
       <col style="width:14%">
@@ -781,9 +808,9 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     </colgroup>
     <thead><tr><th>Post</th><th>When</th><th>Place in the post</th><th>Platform</th><th>Author</th><th>Tone</th><th>Evidence</th></tr></thead>
     <tbody>${activityRows || '<tr><td colspan="7">No activity posts in this set.</td></tr>'}</tbody>
-  </table>
+  </table>` : ''}
 
-  <div class="sec"><span class="no">02.</span><span class="nm">Recent movement / presence</span></div>
+  <div class="sec"><span class="no">03.</span><span class="nm">Recent movement / presence</span></div>
   <div class="metrics">
     ${metric(fmt(visits.length), 'Presence posts', 'Count a presence only when the post names a site')}
     ${metric(fmt(places.length), 'Places named', topPlace ? `Highest: ${topPlace.name}` : 'None named')}
@@ -791,8 +818,12 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     ${metric(fmt(visits.filter((e) => e.specific.length).length), 'With a specific site', 'State name alone is not a site')}
   </div>
   <p class="sm">Where a post says someone was present, or names a site of a rally, meeting, protest, or blockade. A blank place means the post did not name one.</p>
-  ${(analysis?.presence || []).length ? `<ul class="bul">${analysis.presence.map((p) => `<li><b>${esc(p.who)}</b>${p.place ? ` at ${esc(p.place)}` : ''}${p.posts?.length ? ` <span class="sm">${esc(p.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : ''}
-  <table>
+  ${(analysis?.presence || []).length
+    ? `<ul class="bul">${analysis.presence.map((p) => `<li><b>${esc(p.who)}</b>${p.place ? ` at ${esc(p.place)}` : ''}${p.posts?.length ? ` <span class="sm">${esc(p.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>`
+    : visits.length > 0
+      ? `<p class="sm">${fmt(visits.length)} monitored posts identified field movement and presence across locations including ${visits.slice(0, 5).map((v) => esc(placeLabel(v))).filter(Boolean).join(', ')}.</p>`
+      : `<p class="sm">No field movement, rallies, protests, or specific location presences recorded in the monitored window.</p>`}
+  ${includeEvidence ? `<table>
     <colgroup>
       <col style="width:12%">
       <col style="width:15%">
@@ -803,16 +834,20 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     </colgroup>
     <thead><tr><th>Post</th><th>When</th><th>Place named</th><th>Platform</th><th>Author</th><th>Evidence</th></tr></thead>
     <tbody>${visitRows}</tbody>
-  </table>
+  </table>` : ''}
 
-  <div class="sec"><span class="no">03.</span><span class="nm">Geographic penetration</span></div>
+  <div class="sec"><span class="no">04.</span><span class="nm">Geographic penetration</span></div>
   <div class="chartbox">
     <h4>Posts by place named in the text</h4>
     ${places.slice(0, 8).map((d) => hbar(d.name, d.count, places[0]?.count || 1, NAVY, pct(d.count, ev.length || 1))).join('') || '<p class="sm">No place named inside a post.</p>'}
   </div>
   <p class="sm"><b>${fmt(places.length)}</b> place${places.length === 1 ? '' : 's'} written in the posts. These are cities, sites, highways, and institutions from the text, not only the event’s state.</p>
-  ${(analysis?.geography || []).length ? `<ul class="bul">${analysis.geography.map((g) => `<li><b>${esc(g.place)}</b> — ${esc(g.note || '')} ${g.posts?.length ? `<span class="sm">${esc(g.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : ''}
-  <table>
+  ${(analysis?.geography || []).length
+    ? `<ul class="bul">${analysis.geography.map((g) => `<li><b>${esc(g.place)}</b> — ${esc(g.note || '')} ${g.posts?.length ? `<span class="sm">${esc(g.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>`
+    : places.length > 0
+      ? `<p class="sm">Top locations identified in discussions: ${places.slice(0, 6).map((p) => `<b>${esc(p.name)}</b> (${fmt(p.count)})`).join(', ')}.</p>`
+      : `<p class="sm">No specific city, district, or landmark names detected in post discussions.</p>`}
+  ${includeEvidence ? `<table>
     <colgroup>
       <col style="width:26%">
       <col style="width:12%">
@@ -820,11 +855,11 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     </colgroup>
     <thead><tr><th>Place</th><th>Posts</th><th>Evidence</th></tr></thead>
     <tbody>${placeRows}</tbody>
-  </table>
+  </table>` : ''}
 </section>
 
 <section class="pg">
-  <div class="sec"><span class="no">04.</span><span class="nm">Popularity / sentiment</span></div>
+  <div class="sec"><span class="no">05.</span><span class="nm">Popularity / sentiment</span></div>
   <div class="kpi">
     <div><div class="n tone-pos">${fmt(sent.positive)}</div><div class="l">Positive (${pct(sent.positive, sentTotal)})</div></div>
     <div><div class="n tone-neu">${fmt(sent.neutral)}</div><div class="l">Neutral (${pct(sent.neutral, sentTotal)})</div></div>
@@ -839,12 +874,12 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       sent.neutral >= sent.positive && sent.neutral >= sent.negative
         ? 'Majority neutral. Treat negative share as the criticism load, not as a threat by itself.'
         : sent.negative >= sent.positive
-          ? 'Negative tone is the largest share. Read section 05 before any public-order judgement.'
+          ? 'Negative tone is the largest share. Read section 06 before any public-order judgement.'
           : 'Positive tone is the largest share.'
     } Action: quote these percentages, do not recompute them.</p>
   </div>
 
-  <div class="sec"><span class="no">05.</span><span class="nm">Critical comment tracking</span></div>
+  <div class="sec"><span class="no">06.</span><span class="nm">Critical comment tracking</span></div>
   <div class="metrics">
     ${metric(fmt(critical.length), 'Critical rows', 'Read high and critical rows before ordinary criticism')}
     ${metric(pct(sent.negative, sentTotal), 'Negative share', `${fmt(sent.negative)} of ${fmt(sentTotal)} toned posts`)}
@@ -852,7 +887,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     ${metric(fmt(n0(riskCounts.medium)), 'Medium risk', 'Review after the high band')}
   </div>
   <div class="chartbox"><h4>Risk bands</h4>${stackBar(riskParts)}</div>
-  <p class="sm">Every negative or high-risk post in this evidence set, with the account that posted it.</p>
+  ${includeEvidence
+    ? `<p class="sm">Every negative or high-risk post in this evidence set, with the account that posted it.</p>
   <table>
     <colgroup>
       <col style="width:12%">
@@ -864,10 +900,13 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     </colgroup>
     <thead><tr><th>Post</th><th>Place</th><th>Platform</th><th>Account</th><th>Tone</th><th>Evidence</th></tr></thead>
     <tbody>${critRows}</tbody>
-  </table>
+  </table>`
+    : critical.length > 0
+      ? `<p class="sm">Captured ${fmt(critical.length)} critical or negative tone posts (${pct(sent.negative, sentTotal)} of toned volume). Review high-risk alerts and public order commentary below.</p>`
+      : `<p class="sm">No critical, high-risk, or hostile posts detected in this dataset.</p>`}
   ${analysis?.publicOrder ? `<p><b>Public order.</b> ${esc(analysis.publicOrder)}</p>` : ''}
 
-  <div class="sec"><span class="no">06.</span><span class="nm">Active leaders / representatives</span></div>
+  <div class="sec"><span class="no">07.</span><span class="nm">Active leaders / representatives</span></div>
   <div class="metrics">
     ${metric(fmt(entities.length), 'Entities classified', 'Who the posts are about')}
     ${metric(topEntity ? fmt(topEntity.total) : '0', topEntity ? topEntity.name : 'Top entity', topEntity ? `${pct(topEntity.crit, topEntity.total)} negative` : '—')}
@@ -893,7 +932,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${(analysis?.leaders || []).length ? `<ul class="bul">${analysis.leaders.map((l) => `<li><b>${esc(l.name)}</b>${l.role ? ` — ${esc(l.role)}` : ''}${l.posts?.length ? ` <span class="sm">${esc(l.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : ''}
   ${analysis?.platformsCommentary ? `<p>${esc(analysis.platformsCommentary)}</p>` : ''}
 
-  <div class="sec"><span class="no">07.</span><span class="nm">Influencer ecosystem</span></div>
+  <div class="sec"><span class="no">08.</span><span class="nm">Influencer ecosystem</span></div>
   <div class="metrics">
     ${metric(fmt(promoters.length), 'Accounts listed', 'Ranked by stored engagement')}
     ${metric(topVoice ? fmt(topVoice.count) : '0', topVoice ? topVoice.author : 'Top account', topVoice ? platLabel(topVoice.platform) : '—')}
@@ -904,8 +943,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     <h4>Amplifying accounts</h4>
     ${promoters.slice(0, 8).map((a) => hbar(a.author, a.eng, promoters[0]?.eng || 1, '#6366f1', `${a.count} posts`)).join('') || '<p class="sm">No accounts in this set.</p>'}
   </div>
-  <p class="sm">Accounts ranked by how often they post in this set and by likes, comments, shares, and views stored on those posts.</p>
-  ${(analysis?.amplifiers || []).length ? `<ul class="bul">${analysis.amplifiers.map((a) => `<li><b>${esc(a.account)}</b> — ${esc(a.why || '')}${a.posts?.length ? ` <span class="sm">${esc(a.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : ''}
+  ${includeEvidence ? `<p class="sm">Accounts ranked by how often they post in this set and by likes, comments, shares, and views stored on those posts.</p>
   <table>
     <colgroup>
       <col style="width:13%">
@@ -916,38 +954,20 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     </colgroup>
     <thead><tr><th>Platform</th><th>Account</th><th>Posts</th><th>Eng. score</th><th>Sample</th></tr></thead>
     <tbody>${promoterRows || '<tr><td colspan="5">No amplifier data in cited evidence.</td></tr>'}</tbody>
-  </table>
+  </table>` : ''}
+  ${(analysis?.amplifiers || []).length
+    ? `<ul class="bul">${analysis.amplifiers.map((a) => `<li><b>${esc(a.account)}</b> — ${esc(a.why || '')}${a.posts?.length ? ` <span class="sm">${esc(a.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>`
+    : promoters.length > 0
+      ? `<p class="sm">Top voices by engagement: ${promoters.slice(0, 5).map((p) => `<b>${esc(p.author)}</b> (${esc(platLabel(p.platform))})`).join(', ')}.</p>`
+      : `<p class="sm">No significant amplifying accounts or high-engagement voices detected in this dataset.</p>`}
 
-  <div class="sec"><span class="no">08.</span><span class="nm">Evidence register</span></div>
-  <div class="metrics">
-    ${metric(fmt(ev.length), 'Posts in this brief', 'Every row below is one monitored post')}
-    ${metric(fmt(ev.filter((e) => e.posted_at).length), 'With a publication time', 'Undated posts stay in the register')}
-    ${metric(fmt(sent.negative), 'Negative tone', `${pct(sent.negative, sentTotal)} of toned posts`)}
-    ${metric(fmt(places.length), 'Places named', topPlace ? `Lead site: ${topPlace.name}` : 'None named in the text')}
-  </div>
-  <p class="sm">All ${fmt(ev.length)} posts used for this brief. Post numbers match the citations above.</p>
-  <table>
-    <colgroup>
-      <col style="width:10%">
-      <col style="width:13%">
-      <col style="width:15%">
-      <col style="width:9%">
-      <col style="width:14%">
-      <col style="width:9%">
-      <col style="width:7%">
-      <col style="width:23%">
-    </colgroup>
-    <thead><tr><th>Post</th><th>When</th><th>Place</th><th>Platform</th><th>Account</th><th>Tone</th><th>Eng.</th><th>Text</th></tr></thead>
-    <tbody>${evidenceRows || '<tr><td colspan="8">No posts in this evidence set.</td></tr>'}</tbody>
-  </table>
-
-  ${actionsHtml ? `<div class="sec"><span class="no">09.</span><span class="nm">Recommended actions</span></div>${actionsHtml}` : ''}
+  ${evidenceSecHtml}
 
   <div class="footnote">
     <b>Summary</b><br>
     • Addressee: ${hq ? esc(`${hq.head}, ${hq.force}, ${hq.addressLine}`) : 'No verified headquarters for this account'}.<br>
     • Tenant: ${esc(tenant)}. Event: ${esc(event.name || '—')}.<br>
-    • Posts analysed from database: ${fmt(total)}. Cited evidence: ${fmt(ev.length)}.<br>
+    • Posts analysed from database: ${fmt(total)}.${includeEvidence ? ` Cited evidence: ${fmt(ev.length)}.` : ' (Evidence register omitted for executive brief).'}<br>
     • Platforms: ${esc(platStr)}.<br>
     • Places named in posts: ${fmt(places.length)}${places[0] ? `; highest volume in ${esc(places[0].name)}` : ''}.<br>
     • Sentiment (Positive / Neutral / Negative): ${fmt(sent.positive)} / ${fmt(sent.neutral)} / ${fmt(sent.negative)}.

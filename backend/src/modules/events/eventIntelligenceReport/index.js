@@ -11,7 +11,7 @@ const { renderHtmlToPdf } = require('./render');
  */
 const generateEventIntelligencePdf = async (
   eventId,
-  { db, dbName, tenantName, user, timeframe = 'full', fromDate = null, toDate = null } = {}
+  { db, dbName, tenantName, user, timeframe = 'full', fromDate = null, toDate = null, includeEvidence = true } = {}
 ) => {
   let summary = await getCachedEventSummary(eventId, { db });
   if (!summary || (timeframe && timeframe !== 'full' && summary.stats?.timeframe !== timeframe)) {
@@ -44,10 +44,11 @@ const generateEventIntelligencePdf = async (
     tenantName,
     analysis,
     headquarters: resolveHeadquarters(tenantName),
+    includeEvidence,
   });
   const name = summary?.event?.name || 'Event';
   const pdf = await renderHtmlToPdf(html, {
-    footerLabel: `${(tenantName || 'DIGITAL INTELLIGENCE PLATFORM').toUpperCase()} · ${name}`,
+    footerLabel: `${(tenantName || 'DIGITAL INTELLIGENCE PLATFORM').toUpperCase()} · ${name}${includeEvidence ? '' : ' (Executive)'}`,
   });
   return { pdf, eventName: name };
 };
