@@ -1,0 +1,164 @@
+{
+  "format": "blugate-client-documentation-v1",
+  "gatewayBaseUrl": "https://blugate.blurasaga.com/api/gateway/news-api",
+  "auth": {
+    "note": "Authenticate with your BluGate client API key and client code. BluGate handles upstream credentials for you.",
+    "headers": [
+      {
+        "name": "Authorization",
+        "value": "Bearer <BLUGATE_API_KEY>",
+        "required": true,
+        "description": "BluGate client API key"
+      },
+      {
+        "name": "x-client-id",
+        "value": "<CLIENT_CODE>",
+        "required": true,
+        "description": "Your BluGate client code (e.g. SOC-EYE-001)"
+      }
+    ]
+  },
+  "endpoints": [
+    {
+      "method": "GET",
+      "route": "/health",
+      "gatewayPath": "/api/gateway/news-api/health",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/news-api/health",
+      "name": "Health check",
+      "description": "Liveness probe. Returns {\"status\": \"ok\"} immediately when the API is up. Does no scraping, so it is the right endpoint for gateway health checks.",
+      "groupName": "Health",
+      "params": []
+    },
+    {
+      "method": "GET",
+      "route": "/news/sources",
+      "gatewayPath": "/api/gateway/news-api/news/sources",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/news-api/news/sources",
+      "name": "List news sources",
+      "description": "Lists the active news sources (newspapers, TV news, agencies) the API can scrape. Each item has id, name, region, country, state, language, type, base_url and active. Use it to build Country / Language / State / Website filter lists; the id values are what the source filter on /news/articles expects. Returns a plain JSON array. Fast: reads the registry, no scraping. Filters are ANDed with each other; comma-separated values inside one filter are ORed.",
+      "groupName": "Sources",
+      "params": [
+        {
+          "name": "country",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Country name(s), e.g. 'India' or 'India,United States'. Comma-separated for multi-select; values are ORed together."
+        },
+        {
+          "name": "state",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Indian state(s), e.g. 'Telangana' or 'Telangana,Tamil Nadu'. Comma-separated for multi-select; values are ORed together."
+        },
+        {
+          "name": "language",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Language(s), e.g. 'English' or 'English,Telugu'. Comma-separated for multi-select; values are ORed together."
+        },
+        {
+          "name": "source",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Source registry id(s) or name substrings, e.g. 'eenadu' or 'cnn,bbc_news'. Comma-separated for multi-select; values are ORed together."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/news/articles",
+      "gatewayPath": "/api/gateway/news-api/news/articles",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/news-api/news/articles",
+      "name": "Search articles",
+      "description": "Filtered, paginated news articles. Returns {count, limit, offset, articles[]}; count is the total before pagination. Each article has id, title, content, summary, source, source_id, source_url, language, country, state, district, location, published_at and image_url. All filters are optional: different filters are ANDed, comma-separated values inside one filter are ORed. Sources are scraped live on first use and then cached for 10 minutes, so a cold request can take 60-90 seconds while a cached one returns in under a second. Set the gateway timeout for this route to at least 120 seconds. No match returns 200 with count 0, not 404.",
+      "groupName": "Articles",
+      "params": [
+        {
+          "name": "keyword",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Keyword to match in the article, e.g. 'drugs', 'corruption', 'accident'."
+        },
+        {
+          "name": "country",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Country name(s), e.g. 'India' or 'India,United States'. Comma-separated for multi-select; values are ORed together."
+        },
+        {
+          "name": "language",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Language(s), e.g. 'English' or 'English,Telugu'. Comma-separated for multi-select; values are ORed together."
+        },
+        {
+          "name": "location",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Place name(s) matched against the article's district, location or state, e.g. 'Hyderabad'. Comma-separated for multi-select; values are ORed together."
+        },
+        {
+          "name": "state",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Indian state(s), e.g. 'Telangana' or 'Telangana,Andhra Pradesh'. Comma-separated for multi-select; values are ORed together."
+        },
+        {
+          "name": "district",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "District(s), e.g. 'Hyderabad' or 'Hyderabad,Karimnagar'. Comma-separated for multi-select; values are ORed together."
+        },
+        {
+          "name": "source",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Source registry id(s) from /news/sources (preferred) or name substrings, e.g. 'eenadu' or 'cnn,bbc_news'. Comma-separated for multi-select; values are ORed together."
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Number of articles per page. Default 20, minimum 1, maximum 100. Article bodies are large, so prefer small pages."
+        },
+        {
+          "name": "offset",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Number of articles to skip, for pagination. Default 0, minimum 0."
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/news/articles/{article_id}",
+      "gatewayPath": "/api/gateway/news-api/news/articles/{article_id}",
+      "gatewayUrl": "https://blugate.blurasaga.com/api/gateway/news-api/news/articles/{article_id}",
+      "name": "Get article by id",
+      "description": "Returns one full article by its id. Only finds articles that are currently cached (articles are cached for 10 minutes after a /news/articles request scrapes their source; there is no database). Returns 404 if the id is not in the cache; call /news/articles again with matching filters, then retry.",
+      "groupName": "Articles",
+      "params": [
+        {
+          "name": "article_id",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "Article id, taken from the id field of a /news/articles result."
+        }
+      ]
+    }
+  ]
+}
