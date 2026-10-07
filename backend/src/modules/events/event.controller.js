@@ -342,6 +342,10 @@ const getEventIntelligenceReportPdf = async (req, res) => {
     const timeframe = req.query?.timeframe || 'full';
     const fromDate = req.query?.from_date || req.query?.fromDate || null;
     const toDate = req.query?.to_date || req.query?.toDate || null;
+    const includeEvidence =
+      req.query?.include_evidence !== 'false' &&
+      req.query?.with_evidence !== 'false' &&
+      req.query?.evidence !== 'false';
     const { pdf, eventName } = await generateEventIntelligencePdf(req.params.id, {
       db: req.tenantPrisma,
       dbName: req.tenantDbName,
@@ -350,12 +354,16 @@ const getEventIntelligenceReportPdf = async (req, res) => {
       timeframe,
       fromDate,
       toDate,
+      includeEvidence,
     });
     // Keep the "PDF saved" flag on the cached summary in sync; failure here must not block the download.
-    saveEventSummaryPdf(req.params.id, pdf.toString('base64'), { db: req.tenantPrisma }).catch(() => {});
+    if (includeEvidence) {
+      saveEventSummaryPdf(req.params.id, pdf.toString('base64'), { db: req.tenantPrisma }).catch(() => {});
+    }
+    const evTag = includeEvidence ? 'With_Evidence' : 'Without_Evidence';
     const safe = `${tenantName || 'Report'}_${eventName}`.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${safe}_Summary_Report.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${safe}_Summary_Report_${evTag}.pdf"`);
     res.setHeader('Content-Length', pdf.length);
     return res.status(200).send(pdf);
   } catch (error) {
