@@ -615,6 +615,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       positiveCount: 0,
       neutralCount: 0,
       posts: [],
+      samples: [],
       sample: e.text,
       sampleUrl: e.url,
     };
@@ -628,26 +629,142 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       authors[key].criticalCount += 1;
     }
     if (e.n) authors[key].posts.push(e.n);
+    if (e.text && authors[key].samples.length < 6) {
+      authors[key].samples.push({
+        text: e.text,
+        n: e.n,
+        sentK: e.sentK,
+        risk: e.risk_level,
+        eng: e.eng || 0,
+        url: e.url,
+      });
+    }
   });
 
   const totalAuthors = Object.keys(authors).length;
   const profileCapLimit = totalAuthors > 12 ? 15 : 10;
 
+  // Helper to extract punchy, clean quote snippets from post texts
+  const extractCleanQuote = (text, maxLen = 80) => {
+    if (!text) return '';
+    let cleaned = String(text)
+      .replace(/https?:\/\/\S+/gi, '')
+      .replace(/#[\w\u0900-\u097F\u0B00-\u0B7F]+/gi, '')
+      .replace(/@\w+/gi, '')
+      .replace(/[\r\n\t]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const sentences = cleaned.split(/(?<=[.!?।])\s+/).filter((s) => s.trim().length > 12);
+    if (sentences.length > 0) {
+      const best = sentences.find((s) =>
+        /resign|protest|scam|error|book|minister|mantri|demand|arrest|strike|bandh|rally|action|govt|police|corrupt|syllabus/i.test(s)
+      ) || sentences[0];
+      cleaned = best.trim();
+    }
+
+    if (!cleaned) return '';
+    if (cleaned.length <= maxLen) return `"${cleaned}"`;
+    return `"${cleaned.slice(0, maxLen).trim()}…"`;
+  };
+
+  const usedRationales = new Set();
+
+  const buildSurveillanceRationale = (a) => {
+    const authorName = (a.author || '').toLowerCase();
+
+    // Check if high monitoring profile from LLM analysis has a non-generic reason
+    const matchHmp = (analysis?.highMonitoringProfiles || []).find(
+      (hmp) => hmp.account && (
+        hmp.account.toLowerCase().includes(authorName) ||
+        authorName.includes(hmp.account.toLowerCase())
+      ) && hmp.whyMonitor && hmp.whyMonitor.length > 20 && !hmp.whyMonitor.toLowerCase().includes('broadcaster of adverse')
+    );
+    if (matchHmp?.whyMonitor && !usedRationales.has(matchHmp.whyMonitor)) {
+      usedRationales.add(matchHmp.whyMonitor);
+      return matchHmp.whyMonitor;
+    }
+
+    const matchAmp = (analysis?.amplifiers || []).find(
+      (amp) => amp.account && (
+        amp.account.toLowerCase().includes(authorName) ||
+        authorName.includes(amp.account.toLowerCase())
+      ) && amp.why && amp.why.length > 20 && !amp.why.toLowerCase().includes('broadcaster of adverse')
+    );
+    if (matchAmp?.why && !usedRationales.has(matchAmp.why)) {
+      usedRationales.add(matchAmp.why);
+      return matchAmp.why;
+    }
+
+    // Inspect author samples to determine exact stance and quote
+    const samples = a.samples || [];
+    const allTexts = samples.map((s) => s.text).join(' ');
+    const textLower = allTexts.toLowerCase();
+
+    const primarySample = samples.find(
+      (s) => s.sentK === 'negative' || ['critical', 'high'].includes(String(s.risk || '').toLowerCase())
+    ) || samples.slice().sort((x, y) => (y.eng || 0) - (x.eng || 0))[0] || { text: a.sample || '' };
+
+    const quote = extractCleanQuote(primarySample.text, 80);
+
+    let narrativeFocus = '';
+    if (/resign|resignation|step down|sack|dismiss|mantri|minister/i.test(textLower)) {
+      narrativeFocus = 'Demanding ministerial accountability and immediate resignation';
+    } else if (/protest|dharna|agitation|march|strike|bandh|rally|chalo|gherao|demonstrat|gather/i.test(textLower)) {
+      narrativeFocus = 'Mobilizing ground agitation, protest calls, and demonstration logistics';
+    } else if (/textbook|syllabus|curriculum|class\s*\d|school|education|student|mistake|error|print/i.test(textLower)) {
+      narrativeFocus = 'Circulating textbook printing error claims and curriculum lapses';
+    } else if (/scam|corrupt|fraud|bribe|irregularit|money|fund|cbi|probe|investigat|rigged/i.test(textLower)) {
+      narrativeFocus = 'Amplifying financial irregularities and corruption allegations';
+    } else if (/fir|police|arrest|custody|lathi|assault|clash|riot|attack|violence|weapon/i.test(textLower)) {
+      narrativeFocus = 'Tracking law-and-order confrontation and demanding police/FIR action';
+    } else if (/threat|warning|ultimatum|shutdown|rail roko|rasta roko|blockade/i.test(textLower)) {
+      narrativeFocus = 'Issuing administrative ultimatums and disruption threats';
+    } else if (/neglect|lapse|betrayal|unacceptable|shame|apology|justice|condemn|failure|outrage/i.test(textLower)) {
+      narrativeFocus = 'Broadcasting strong public outrage and administrative criticism';
+    } else if (a.eng >= 15000) {
+      narrativeFocus = 'Key digital amplifier driving viral discourse across feeds';
+    } else if (a.count >= 3) {
+      narrativeFocus = `High-cadence repeat broadcaster (${a.count} posts tracked)`;
+    } else if (a.criticalCount > 0) {
+      narrativeFocus = 'Flagged critical account publishing hostile escalation claims';
+    } else if (a.negativeCount > 0) {
+      narrativeFocus = 'Active critic challenging official state handling';
+    } else if (a.positiveCount > 0) {
+      narrativeFocus = 'Regional account providing supportive counter-narrative updates';
+    } else {
+      narrativeFocus = 'Regional broadcaster sharing ground situation updates';
+    }
+
+    let rationale = '';
+    if (quote && quote.length > 8) {
+      if (a.eng >= 10000) {
+        rationale = `${narrativeFocus}: ${quote} (${fmt(a.eng)} impressions)`;
+      } else if (a.count > 1) {
+        rationale = `${narrativeFocus}: ${quote} (${fmt(a.count)} posts)`;
+      } else {
+        rationale = `${narrativeFocus}: ${quote}`;
+      }
+    } else {
+      if (a.eng > 5000) {
+        rationale = `${narrativeFocus} with high reach (${fmt(a.eng)} engagements across ${fmt(a.count)} posts).`;
+      } else {
+        rationale = `${narrativeFocus} (${fmt(a.count)} post${a.count === 1 ? '' : 's'} recorded in monitoring window).`;
+      }
+    }
+
+    let candidate = rationale;
+    let counter = 1;
+    while (usedRationales.has(candidate)) {
+      candidate = `${rationale} [Track #${counter}]`;
+      counter++;
+    }
+    usedRationales.add(candidate);
+    return candidate;
+  };
+
   const highWatchList = Object.values(authors)
     .map((a) => {
-      const matchHmp = (analysis?.highMonitoringProfiles || []).find(
-        (hmp) => hmp.account && (
-          hmp.account.toLowerCase().includes(a.author.toLowerCase()) ||
-          a.author.toLowerCase().includes(hmp.account.toLowerCase())
-        )
-      );
-      const matchAmp = (analysis?.amplifiers || []).find(
-        (amp) => amp.account && (
-          amp.account.toLowerCase().includes(a.author.toLowerCase()) ||
-          a.author.toLowerCase().includes(amp.account.toLowerCase())
-        )
-      );
-
       // Compute precise risk percentage and classification
       let riskScore = 0;
       if (a.criticalCount > 0) {
@@ -676,18 +793,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
         priorityClass = 'prio-low';
       }
 
-      let why = matchHmp?.whyMonitor || matchAmp?.why || '';
-      if (!why) {
-        if (a.criticalCount > 0 || a.negativeCount > 0) {
-          why = `Broadcaster of adverse/critical claims (${fmt(a.negativeCount || a.criticalCount)} posts); surveillance required for agitation triggers.`;
-        } else if (a.eng >= 30000) {
-          why = `Primary digital amplifier with viral reach (${fmt(a.eng)} impressions/engagement); active surveillance recommended.`;
-        } else if (a.count >= 3) {
-          why = `High-frequency repeat broadcaster (${fmt(a.count)} posts); tracking campaign cadence across social feeds.`;
-        } else {
-          why = `Regional account broadcasting ground updates and event commentary.`;
-        }
-      }
+      const why = buildSurveillanceRationale(a);
 
       return {
         ...a,
