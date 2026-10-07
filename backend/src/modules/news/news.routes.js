@@ -5,10 +5,9 @@ const {
   getHealth,
   getSources,
   getArticles,
+  collect,
   getArticle,
-  getSavedArticles,
   getSearches,
-  getSearchArticles,
   deleteSearch,
 } = require('./news.controller');
 
@@ -20,19 +19,20 @@ router.use(authorize({ pages: ['/analysis-tools'] }));
 router.get('/health', getHealth);
 // GET /api/news/sources?country=&state=&language=&source=
 router.get('/sources', getSources);
-// GET /api/news/articles?keyword=&country=&language=&location=&state=&district=&source=&limit=&offset=&search_id=
-//   → live results, also stored in the caller's tenant DB (response.saved = { search_id, stored })
+
+// The caller's tenant DB — the News page only ever shows these
+// GET /api/news/articles?keyword=&min_match=&country=&language=&location=&state=&district=&source=&from=&to=&limit=&offset=
 router.get('/articles', getArticles);
-// GET /api/news/articles/:articleId — live copy, else the tenant's stored copy
+// GET /api/news/articles/:articleId — saved copy (live fallback)
 router.get('/articles/:articleId', getArticle);
 
-// Stored in the caller's tenant DB
-// GET /api/news/saved?keyword=&country=&language=&location=&state=&district=&source=&from=&to=&limit=&offset=
-router.get('/saved', getSavedArticles);
+// POST /api/news/collect  { keyword, country, language, state, district, source, location, min_match, search_id }
+//   → fetch the latest matching articles live and save them: { search_id, fetched, new, live_count, pending_sources }
+router.post('/collect', collect);
+
+// Search history
 // GET /api/news/searches?limit=&offset=
 router.get('/searches', getSearches);
-// GET /api/news/searches/:searchId/articles?limit=&offset=
-router.get('/searches/:searchId/articles', getSearchArticles);
 // DELETE /api/news/searches/:searchId — own searches only; articles stay saved
 router.delete('/searches/:searchId', deleteSearch);
 

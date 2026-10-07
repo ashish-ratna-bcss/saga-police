@@ -2,9 +2,30 @@ const logger = require('../../lib/logger');
 const { callNewsApi } = require('../../services/blugate/news/blugate.news.api_client');
 const { resolveGlobalAuth } = require('../../services/blugate/global/blugate.global.api_client');
 const store = require('./news.store.service');
+const { MAX_KEYWORD_LENGTH } = require('./news.keywords');
 
 const NOT_CONFIGURED_MESSAGE =
   'No platform has a BluGate API key & client key set yet — add one under Settings → Platforms.';
+const NO_TENANT_DB_MESSAGE = 'This account has no tenant workspace, so news can’t be saved or shown for it.';
+
+// A live fetch saves up to COLLECT_MAX articles, in pages small enough that full
+// article bodies stay under BluGate's 2 MB response cap.
+const COLLECT_PAGE_SIZE = 50;
+const COLLECT_MAX = 150;
+// What a live fetch forwards. Not min_match: every keyword match is saved, so a
+// later, stricter search still finds them in the database.
+const LIVE_FILTER_KEYS = ['keyword', 'country', 'language', 'state', 'district', 'source', 'location'];
+
+/** Long keyword lists travel in the URL; refuse ones proxies would reject anyway. */
+const keywordTooLong = (keyword, res) => {
+  if (String(keyword || '').length <= MAX_KEYWORD_LENGTH) return false;
+  res.status(400).json({
+    ok: false,
+    code: 'KEYWORD_TOO_LONG',
+    message: `Keyword list is too long — keep it under ${MAX_KEYWORD_LENGTH.toLocaleString()} characters.`,
+  });
+  return true;
+};
 
 /**
  * Status to send the browser for a failed gateway call. A gateway 401/403 means our
@@ -39,54 +60,6 @@ const forward = (endpointKey, paramsOf) => async (req, res) => {
   }
 };
 
-/**
- * Live search, then keep the page in the caller's tenant DB. Storage failing never
- * fails the search — the user still gets live results, with `saved.error` set.
- * Accounts without a tenant DB (superadmin) get live results only (`saved: null`).
- */
-const getArticles = async (req, res) => {
-  let data;
-  try {
-    data = await callUpstream(req, 'ARTICLES', req.query);
-  } catch (error) {
-    return sendError(res, error);
-  }
-
-  let saved = null;
-  if (req.tenantPrisma) {
-    try {
-      saved = await store.recordSearchPage(req.tenantPrisma, { user: req.user, query: req.query, data });
-    } catch (error) {
-      logger.error(`[News] could not store articles for ${req.tenantDbName}: ${error.message}`);
-      saved = { error: 'Results could not be saved to your workspace.' };
-    }
-  }
-  return res.status(200).json({ ...data, saved });
-};
-
-/**
- * Upstream only holds an article for ~10 min; after that the tenant's stored copy
- * answers. Tries upstream first so a fresh copy wins while it exists.
- */
-const getArticle = async (req, res) => {
-  const { articleId } = req.params;
-  let upstreamError;
-  try {
-    return res.status(200).json(await callUpstream(req, 'ARTICLE', { article_id: articleId }));
-  } catch (error) {
-    upstreamError = error;
-  }
-  if (req.tenantPrisma) {
-    try {
-      const stored = await store.getSavedArticle(req.tenantPrisma, articleId);
-      if (stored) return res.status(200).json(stored);
-    } catch (error) {
-      logger.error(`[News] stored article lookup failed for ${req.tenantDbName}: ${error.message}`);
-    }
-  }
-  return sendError(res, upstreamError);
-};
-
 const fromStore = (fn) => async (req, res) => {
   try {
     const result = await fn(req);
@@ -97,13 +70,75 @@ const fromStore = (fn) => async (req, res) => {
   }
 };
 
+/** What the News page shows: the tenant's saved articles with every filter applied. */
+const getArticles = (req, res) => (keywordTooLong(req.query.keyword, res)
+  ? undefined
+  : fromStore((r) => store.listArticles(r.tenantPrisma, r.query))(req, res));
+
+/**
+ * Fetch the latest matching articles from the news API (via BluGate) and save them in
+ * the caller's tenant DB. The page then re-reads the DB, so it shows these plus older
+ * coverage. Body: the search's filters (+ optional search_id to update that history row).
+ */
+const collect = async (req, res) => {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  if (keywordTooLong(body.keyword, res)) return undefined;
+  if (!req.tenantPrisma) {
+    return res.status(400).json({ ok: false, code: 'NO_TENANT_DB', message: NO_TENANT_DB_MESSAGE });
+  }
+
+  const live = Object.fromEntries(LIVE_FILTER_KEYS.filter((k) => body[k] != null && body[k] !== '').map((k) => [k, body[k]]));
+  const articles = [];
+  let liveCount = 0;
+  let pending = 0;
+  try {
+    for (let offset = 0; offset < COLLECT_MAX; offset += COLLECT_PAGE_SIZE) {
+      const data = await callUpstream(req, 'ARTICLES', { ...live, limit: COLLECT_PAGE_SIZE, offset });
+      // Later pages answer from the upstream cache and see sources that finished
+      // since the first call, so the latest count/pending wins.
+      liveCount = Number(data?.count) || 0;
+      pending = Number(data?.pending_sources) || 0;
+      articles.push(...(Array.isArray(data?.articles) ? data.articles : []));
+      if (offset + COLLECT_PAGE_SIZE >= liveCount) break;
+    }
+  } catch (error) {
+    if (!articles.length) return sendError(res, error);
+    logger.warn(`[News] live fetch stopped early for ${req.tenantDbName}: ${error.message}`);
+  }
+
+  try {
+    const saved = await store.saveCollected(req.tenantPrisma, { user: req.user, query: body, articles, liveCount });
+    return res.status(200).json({ ok: true, ...saved, live_count: liveCount, pending_sources: pending });
+  } catch (error) {
+    logger.error(`[News] could not save articles for ${req.tenantDbName}: ${error.message}`);
+    return res.status(error.status || 500).json({ ok: false, code: error.code, message: 'Fetched news could not be saved to your workspace.' });
+  }
+};
+
+/** One article with its full text: the tenant's saved copy, else (no workspace / not saved) live. */
+const getArticle = async (req, res) => {
+  const { articleId } = req.params;
+  if (req.tenantPrisma) {
+    try {
+      const stored = await store.getSavedArticle(req.tenantPrisma, articleId);
+      if (stored) return res.status(200).json(stored);
+    } catch (error) {
+      logger.error(`[News] stored article lookup failed for ${req.tenantDbName}: ${error.message}`);
+    }
+  }
+  try {
+    return res.status(200).json(await callUpstream(req, 'ARTICLE', { article_id: articleId }));
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
 module.exports = {
   getHealth: forward('HEALTH', () => ({})),
   getSources: forward('SOURCES', (req) => req.query),
   getArticles,
+  collect,
   getArticle,
-  getSavedArticles: fromStore((req) => store.listSavedArticles(req.tenantPrisma, req.query)),
   getSearches: fromStore((req) => store.listSearches(req.tenantPrisma, req.query, req.user)),
-  getSearchArticles: fromStore((req) => store.listSearchArticles(req.tenantPrisma, req.params.searchId, req.query)),
   deleteSearch: fromStore((req) => store.deleteSearch(req.tenantPrisma, req.params.searchId, req.user)),
 };

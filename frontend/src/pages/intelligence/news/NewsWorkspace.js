@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
-import { Badge } from '../../../components/ui/badge';
+import { Textarea } from '../../../components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../../../components/ui/command';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
@@ -9,15 +9,17 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/table';
 import {
   Newspaper, Search, Loader2, Trash2, Globe, Languages, MapPin, Rss, Check, ChevronDown,
-  ChevronLeft, ChevronRight, ExternalLink, X, Clock, RefreshCw, Zap, Archive, History
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowRight, ExternalLink, X, Clock, RefreshCw, Zap, History,
+  Layers
 } from 'lucide-react';
 import { newsApi } from '../../../api';
 import { toast } from 'sonner';
 
-const PAGE_SIZES = [10, 20, 50, 100];
+// No 100: a page of full article bodies can pass BluGate's 2 MB response cap.
+const PAGE_SIZES = [10, 20, 50];
 const SEARCH_HISTORY_SIZE = 30;
-// Typical worst case for a cold search upstream; only drives the progress bar.
-const COLD_SEARCH_SECONDS = 90;
+// The news API answers within ~25 s (BluGate cuts off at 30 s); only drives the progress bar.
+const LIVE_SEARCH_SECONDS = 30;
 
 const errMsg = (err, fallback) => {
   if (err.response?.data?.code === 'NO_TENANT_DB') return 'This account has no tenant workspace, so nothing is saved for it.';
@@ -41,7 +43,23 @@ const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, '
 
 /* ---------- filters ---------- */
 
-const EMPTY_FILTERS = { keyword: '', country: [], language: [], state: [], source: [], location: '' };
+const EMPTY_FILTERS = { keyword: '', minMatch: 1, country: [], language: [], state: [], source: [], location: '' };
+
+// The keyword may be one phrase or a list of phrases split by commas, semicolons or
+// new lines (the API ranks articles by how many phrases they match). This is only a
+// preview count — the API's parse (query_phrases) is authoritative.
+const listItems = (keyword) => {
+  const seen = new Set();
+  return String(keyword || '').split(/[,;\n\r]+/).map((s) => s.trim()).filter((s) => {
+    const key = s.toLowerCase();
+    if (!s || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+const MIN_MATCH_OPTIONS = [1, 2, 3, 5, 10];
+// The keyword travels in the URL; the backend refuses longer than this.
+const MAX_KEYWORD_LENGTH = 6000;
 const EMPTY_RANGE = { from: '', to: '' };
 
 // Mirrors the API's matching: substring within a filter (so 'Telangana' also matches
@@ -65,6 +83,8 @@ const matchesFacet = (facet, s, values) => {
 const toParams = (f) => {
   const p = {};
   if (f.keyword.trim()) p.keyword = f.keyword.trim();
+  // The selector only shows for lists; never let a leftover value narrow a single phrase.
+  if (f.minMatch > 1 && listItems(p.keyword).length > 1) p.min_match = f.minMatch;
   FACETS.forEach(({ key }) => { if (f[key].length) p[key] = f[key].join(','); });
   if (f.location.trim()) p.location = f.location.trim();
   return p;
@@ -73,6 +93,7 @@ const toParams = (f) => {
 const fromParams = (p = {}) => ({
   ...EMPTY_FILTERS,
   keyword: p.keyword || '',
+  minMatch: Math.max(1, Number.parseInt(p.min_match, 10) || 1),
   location: p.location || '',
   ...Object.fromEntries(FACETS.map(({ key }) => [key, String(p[key] || '').split(',').map((v) => v.trim()).filter(Boolean)])),
 });
@@ -81,9 +102,14 @@ const describeFilters = (f, nameOf) => {
   const parts = FACETS.filter(({ key }) => f[key].length)
     .map(({ key }) => (key === 'source' ? f[key].map(nameOf) : f[key]).join(', '));
   if (f.location.trim()) parts.push(f.location.trim());
+  if (f.minMatch > 1 && listItems(f.keyword).length > 1) parts.push(`at least ${f.minMatch} phrases`);
   return parts.join(' · ') || 'All sources';
 };
-const searchTitle = (f) => f.keyword?.trim() || 'Latest news';
+const searchTitle = (f) => {
+  const items = listItems(f.keyword);
+  if (items.length > 1) return `${items[0]} +${items.length - 1} more`;
+  return f.keyword?.trim() || 'Latest news';
+};
 
 /** Options for one facet, narrowed by the other selected facets, with source counts. */
 const facetOptions = (sources, filters, facet, byId) => {
@@ -187,20 +213,70 @@ const MultiSelect = ({ label, icon: Icon, options, value, onChange, disabled }) 
 };
 
 /** Keyword + facet filters, shared by the live and saved views. */
-const FilterBar = ({ filters, setFilters, options, facetsDisabled, loading, submitLabel, placeholder, onSubmit, canClear, onClear, children }) => (
-  <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }} className="rounded-xl border border-border bg-card p-2.5 space-y-2.5">
-    <div className="flex flex-col md:flex-row gap-2">
-      <div className="relative flex-1">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input value={filters.keyword} onChange={(e) => setFilters({ ...filters, keyword: e.target.value })}
-          placeholder={placeholder} className="h-10 pl-9 text-sm" />
+const FilterBar = ({ filters, setFilters, options, facetsDisabled, loading, submitLabel, placeholder, onSubmit, canClear, onClear, children }) => {
+  const items = listItems(filters.keyword);
+  const isList = items.length > 1;
+  const tooLong = filters.keyword.length > MAX_KEYWORD_LENGTH;
+  const lines = filters.keyword.split('\n').length;
+  // One phrase stays a one-line box; a pasted list grows to show itself (up to 6 lines).
+  const rows = isList || lines > 1 ? Math.min(6, Math.max(3, lines, Math.ceil(filters.keyword.length / 120))) : 1;
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); if (!tooLong) onSubmit(); }} className="rounded-xl border border-border bg-card p-2.5 space-y-2.5">
+      <div className="flex flex-col md:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <Textarea value={filters.keyword} rows={rows} aria-label="Keyword or keyword list"
+            onChange={(e) => setFilters({ ...filters, keyword: e.target.value })}
+            onKeyDown={(e) => {
+              // Enter searches; Shift+Enter adds a line (one phrase per line also works).
+              if (e.key !== 'Enter' || e.shiftKey) return;
+              e.preventDefault();
+              const { form } = e.currentTarget;
+              if (form?.requestSubmit) form.requestSubmit();
+              else form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            }}
+            placeholder={placeholder}
+            className={`pl-9 text-sm leading-6 ${rows === 1 ? 'min-h-0 h-10 resize-none overflow-hidden py-[7px]' : 'min-h-0 resize-y'} ${tooLong ? 'border-red-500 focus-visible:ring-red-500' : ''}`} />
+        </div>
+        <Button type="submit" disabled={loading || tooLong} className="h-10 px-5 gap-1.5 text-sm">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+          {submitLabel}
+        </Button>
       </div>
-      <Button type="submit" disabled={loading} className="h-10 px-5 gap-1.5 text-sm">
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-        {submitLabel}
-      </Button>
-    </div>
-    <div className="flex flex-wrap items-center gap-1.5 px-0.5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-0.5 text-[10px] text-muted-foreground">
+        {isList ? (
+          <>
+            <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 font-semibold text-primary">
+              <Layers className="h-3 w-3" /> {items.length} phrases
+            </span>
+            <label className="inline-flex items-center gap-1.5">
+              Show articles matching at least
+              <Select value={String(filters.minMatch)} onValueChange={(v) => setFilters((x) => ({ ...x, minMatch: Number(v) }))}>
+                <SelectTrigger className="h-6 w-16 text-[11px]" aria-label="Minimum phrases matched"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MIN_MATCH_OPTIONS.filter((n) => n <= items.length).map((n) => (
+                    <SelectItem key={n} value={String(n)} className="text-xs">{n}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              phrase{filters.minMatch === 1 ? '' : 's'}
+            </label>
+            <span>An article matches a phrase when it has all of that phrase’s words. More phrases matched = higher.</span>
+          </>
+        ) : (
+          <span>
+            Each word is searched separately and articles containing more of them come first. Paste several phrases separated by
+            commas to search them all at once. Use &quot;quotes&quot; for an exact phrase. For Telugu, Hindi or Odia sources, type in that script.
+          </span>
+        )}
+        {tooLong && (
+          <span className="font-semibold text-red-600">
+            Too long: {filters.keyword.length.toLocaleString()} / {MAX_KEYWORD_LENGTH.toLocaleString()} characters.
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5 px-0.5">
       {FACETS.map((f) => (
         <MultiSelect key={f.key} label={f.label} icon={f.icon} value={filters[f.key]} options={options[f.key]}
           disabled={facetsDisabled} onChange={(v) => setFilters((x) => ({ ...x, [f.key]: v }))} />
@@ -214,21 +290,22 @@ const FilterBar = ({ filters, setFilters, options, facetsDisabled, loading, subm
           <X className="h-3.5 w-3.5" /> Clear
         </Button>
       )}
-    </div>
-  </form>
-);
+      </div>
+    </form>
+  );
+};
 
 const LoadingNote = ({ elapsed }) => (
   <div className="rounded-lg border border-border bg-background p-3">
     <div className="flex justify-between text-[11px] mb-1.5">
-      <span className="flex items-center gap-1.5 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Fetching live from news sites…</span>
+      <span className="flex items-center gap-1.5 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Fetching the latest from news sites…</span>
       <span className="tabular-nums font-semibold">{elapsed}s</span>
     </div>
     <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-      <div className="h-full bg-primary transition-all duration-1000" style={{ width: `${Math.min(95, Math.max(4, (elapsed / COLD_SEARCH_SECONDS) * 100))}%` }} />
+      <div className="h-full bg-primary transition-all duration-1000" style={{ width: `${Math.min(95, Math.max(4, (elapsed / LIVE_SEARCH_SECONDS) * 100))}%` }} />
     </div>
     <p className="text-[10px] text-muted-foreground mt-1.5">
-      The first search for a set of sources can take 1–2 minutes. Repeat searches return instantly for the next 10 minutes.
+      Up to 30 seconds. The articles below are already saved in your workspace; new ones are added when this finishes.
     </p>
   </div>
 );
@@ -236,54 +313,190 @@ const QuickLoading = () => (
   <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Loading from your workspace…</p>
 );
 
-const ArticleCard = ({ article: a, onOpen }) => (
-  <button type="button" onClick={() => onOpen(a)}
-    className="w-full text-left flex gap-3 rounded-lg border border-border bg-background p-3 hover:border-primary/40 hover:bg-accent/30 transition-colors">
-    {a.image_url && (
-      <img src={a.image_url} alt="" loading="lazy" referrerPolicy="no-referrer"
-        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-        className="h-16 w-24 shrink-0 rounded-md object-cover bg-muted" />
-    )}
-    <div className="min-w-0 flex-1">
-      <p className="text-sm font-semibold leading-snug line-clamp-2">{a.title || 'Untitled'}</p>
-      {a.summary && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{a.summary}</p>}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[10px] text-muted-foreground">
-        <span className="font-semibold text-foreground">{a.source}</span>
-        {a.language && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">{a.language}</Badge>}
-        {placeOf(a) && <span className="inline-flex items-center gap-0.5"><MapPin className="h-3 w-3" />{placeOf(a)}</span>}
-        {publishedLabel(a.published_at) && <span className="inline-flex items-center gap-0.5"><Clock className="h-3 w-3" />{publishedLabel(a.published_at)}</span>}
-        {a.seen_count > 1 && <span title="Times this article came up in your workspace's searches">seen {a.seen_count}×</span>}
-      </div>
-    </div>
-  </button>
+const wordsOf = (a) => a.word_count ?? (a.content ? a.content.trim().split(/\s+/).filter(Boolean).length : 0);
+const fullDate = (iso) => {
+  const t = new Date(iso).getTime();
+  return !iso || Number.isNaN(t) ? '' : new Date(t).toLocaleString();
+};
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** Highlights search terms with the API's rule: Latin-script terms from the start
+ *  of a word ('kill' not inside 'skill'), Indian scripts anywhere. */
+const termRegex = (terms) => {
+  const parts = [...(terms || [])].filter(Boolean).sort((x, y) => y.length - x.length)
+    .map((t) => (/^[a-z0-9]/i.test(t) ? `(?<![\\p{L}\\p{N}_])${escapeRegex(t)}` : escapeRegex(t)));
+  return parts.length ? new RegExp(`(${parts.join('|')})`, 'giu') : null;
+};
+const Highlight = ({ text, terms }) => {
+  const re = useMemo(() => termRegex(terms), [terms]);
+  if (!text) return null;
+  if (!re) return text;
+  // split() with one capture group puts the matches at the odd indexes.
+  return String(text).split(re).map((part, i) => (i % 2
+    ? <mark key={i} className="rounded-sm bg-amber-200/70 px-0.5 text-inherit dark:bg-amber-500/30">{part}</mark>
+    : part));
+};
+
+const Tag = ({ children, tone }) => (
+  <span className={`inline-flex max-w-full items-center gap-0.5 truncate rounded-full px-2 py-0.5 text-[10px] font-medium ${tone === 'primary' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+    {children}
+  </span>
 );
 
-/** Article list with header, paging and page size; shared by live, stored and saved views. */
-const ResultsPanel = ({ heading, subheading, actions, result, loading, loadingNote, error, pageSize, onPage, onPageSize, onOpen, emptyText, className = '' }) => {
+const MatchBadge = ({ strong, title, children }) => (
+  <span title={title}
+    className={`inline-flex w-fit max-w-full items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${strong ? 'bg-emerald-500/10 text-emerald-700' : 'bg-amber-500/10 text-amber-700'}`}>
+    <Check className="h-3 w-3 shrink-0" />
+    {children}
+  </span>
+);
+
+const ArticleCard = ({ article: a, terms = [], phrases = [], isNew = false, onOpen }) => {
+  const [imageOk, setImageOk] = useState(Boolean(a.image_url));
+  const words = wordsOf(a);
+  // Some feeds repeat the summary inside the title; showing it twice is noise.
+  const summary = a.summary && !(a.title || '').includes(a.summary) ? a.summary : '';
+  const place = [a.district, a.state].filter(Boolean).join(', ');
+  const matched = a.matched_terms || [];
+  const allMatched = matched.length === terms.length;
+  const matchedPhrases = a.matched_phrases || [];
+  const isList = phrases.length > 1;
+
+  return (
+    <article className="group flex flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
+      <button type="button" onClick={() => onOpen(a, terms)} className="flex flex-1 flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50">
+        <div className="relative aspect-[16/9] w-full overflow-hidden bg-muted">
+          {imageOk ? (
+            <img src={a.image_url} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setImageOk(false)}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-gradient-to-br from-primary/10 via-muted to-muted text-primary/50">
+              <Newspaper className="h-8 w-8" />
+              <span className="text-[11px] font-medium text-muted-foreground">{a.source}</span>
+            </div>
+          )}
+          {a.language && (
+            <span className="absolute left-2 top-2 rounded-md bg-background/90 px-1.5 py-0.5 text-[10px] font-semibold text-foreground shadow-sm backdrop-blur">
+              {a.language}
+            </span>
+          )}
+          {isNew && (
+            <span className="absolute right-2 top-2 rounded-md bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+              New
+            </span>
+          )}
+        </div>
+        <div className="flex flex-1 flex-col gap-1.5 p-3">
+          {isList && matchedPhrases.length > 0 && (
+            <MatchBadge strong={matchedPhrases.length >= Math.min(3, phrases.length)} title={`Matches: ${matchedPhrases.join(', ')}`}>
+              {matchedPhrases.length} of {phrases.length} phrases: {matchedPhrases.slice(0, 3).join(' · ')}
+              {matchedPhrases.length > 3 ? ` +${matchedPhrases.length - 3}` : ''}
+            </MatchBadge>
+          )}
+          {!isList && terms.length > 1 && matched.length > 0 && (
+            <MatchBadge strong={allMatched} title={`Contains: ${matched.join(', ')}`}>
+              {allMatched ? 'All words' : `Matches ${matched.length}/${terms.length} words`}: {matched.join(' · ')}
+            </MatchBadge>
+          )}
+          <h3 className="text-sm font-semibold leading-snug line-clamp-3"><Highlight text={a.title || 'Untitled'} terms={matched} /></h3>
+          {summary && <p className="text-xs leading-relaxed text-muted-foreground line-clamp-3"><Highlight text={summary} terms={matched} /></p>}
+          <span className="mt-auto inline-flex items-center gap-1 pt-1 text-[11px] font-medium text-primary">
+            Read full article{words ? ` · ${words.toLocaleString()} words` : ''}
+            <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </div>
+      </button>
+      <div className="flex flex-wrap gap-1 px-3 pb-2.5">
+        <Tag tone="primary">{a.source}</Tag>
+        {a.country && <Tag>{a.country}</Tag>}
+        {place && <Tag><MapPin className="h-2.5 w-2.5 shrink-0" />{place}</Tag>}
+      </div>
+      <div className="flex items-center gap-2 border-t border-border px-3 py-2 text-[10px] text-muted-foreground">
+        {publishedLabel(a.published_at) && (
+          <span className="inline-flex items-center gap-1" title={fullDate(a.published_at)}>
+            <Clock className="h-3 w-3" />{publishedLabel(a.published_at)}
+          </span>
+        )}
+        {a.seen_count > 1 && <span title="Times this article came up in your workspace's searches">· seen {a.seen_count}×</span>}
+        {a.source_url && (
+          <a href={a.source_url} target="_blank" rel="noreferrer" title="Open the original article"
+            className="ml-auto inline-flex min-w-0 items-center gap-1 hover:text-primary">
+            <span className="truncate">{hostOf(a.source_url)}</span><ExternalLink className="h-3 w-3 shrink-0" />
+          </a>
+        )}
+      </div>
+    </article>
+  );
+};
+
+const CardSkeleton = () => (
+  <div className="overflow-hidden rounded-xl border border-border bg-background animate-pulse">
+    <div className="aspect-[16/9] bg-muted" />
+    <div className="space-y-2 p-3">
+      <div className="h-3.5 w-11/12 rounded bg-muted" />
+      <div className="h-3.5 w-3/4 rounded bg-muted" />
+      <div className="h-3 w-full rounded bg-muted/70" />
+      <div className="h-3 w-5/6 rounded bg-muted/70" />
+    </div>
+  </div>
+);
+
+const PageButton = ({ label, icon: Icon, disabled, onClick }) => (
+  <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label={label} title={label} disabled={disabled} onClick={onClick}>
+    <Icon className="h-4 w-4" />
+  </Button>
+);
+
+/** Card grid with header, paging and page size; shared by live, stored and saved views. */
+const ResultsPanel = ({
+  heading, meta, subheading, actions, result, loading, loadingNote, error, notice,
+  pageSize, onPage, onPageSize, onOpen, emptyText, className = '', isNew,
+  gridClassName = 'grid-cols-1 md:grid-cols-2 2xl:grid-cols-3',
+}) => {
   const articles = result?.articles || [];
   const total = result?.count ?? 0;
   const offset = result?.offset ?? 0;
   const size = result?.limit || pageSize;
   const from = total ? offset + 1 : 0;
   const to = offset + articles.length;
+  const page = Math.floor(offset / size) + 1;
+  const pages = Math.max(1, Math.ceil(total / size));
+  const scrollRef = useRef(null);
+
+  // A new page starts at its top, not where the previous page was scrolled to.
+  useEffect(() => { scrollRef.current?.scrollTo?.({ top: 0 }); }, [result]);
 
   return (
     <div className={`rounded-xl border border-border bg-card overflow-hidden min-h-[420px] flex flex-col ${className}`}>
       <div className="px-4 py-3 border-b border-border">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-heading font-bold tracking-tight">{heading}</h2>
-          {result && total > 0 && <span className="text-[11px] text-muted-foreground tabular-nums">showing {from}–{to}</span>}
           {actions && <div className="ml-auto flex items-center gap-1.5">{actions}</div>}
         </div>
+        {result && total > 0 && (
+          <p className="text-[11px] text-muted-foreground mt-0.5 tabular-nums">
+            Showing <span className="font-semibold text-foreground">{from}–{to}</span> of{' '}
+            <span className="font-semibold text-foreground">{total.toLocaleString()}</span> articles
+            {(result.query_phrases?.length || 0) > 1 && ` · ranked by ${result.query_phrases.length} phrases`}
+            {meta ? ` · ${meta}` : ''}
+          </p>
+        )}
         {subheading && <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{subheading}</p>}
       </div>
-      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto bg-muted/20 p-4 space-y-3">
+        {notice}
         {loading && loadingNote}
         {error && !loading && <p className="text-xs text-red-600 rounded-lg border border-red-500/30 bg-red-500/5 p-3">{error}</p>}
         {result && !articles.length && !loading && <Empty>{emptyText}</Empty>}
-        <div className={`space-y-2 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
-          {articles.map((a) => <ArticleCard key={a.id} article={a} onOpen={onOpen} />)}
-        </div>
+        {!result && loading ? (
+          <div className={`grid gap-3 ${gridClassName}`}>{Array.from({ length: 6 }, (_, i) => <CardSkeleton key={i} />)}</div>
+        ) : (
+          <div className={`grid gap-3 ${gridClassName} ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
+            {articles.map((a) => (
+              <ArticleCard key={a.id} article={a} terms={result?.query_terms || []} phrases={result?.query_phrases || []}
+                isNew={Boolean(isNew?.(a))} onOpen={onOpen} />
+            ))}
+          </div>
+        )}
       </div>
       {result && total > 0 && (
         <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-t border-border">
@@ -293,15 +506,15 @@ const ResultsPanel = ({ heading, subheading, actions, result, loading, loadingNo
               {PAGE_SIZES.map((n) => <SelectItem key={n} value={String(n)} className="text-xs">{n} per page</SelectItem>)}
             </SelectContent>
           </Select>
-          <span className="text-[11px] text-muted-foreground tabular-nums ml-auto">{from}–{to} of {total.toLocaleString()}</span>
-          <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Previous page"
-            disabled={loading || offset === 0} onClick={() => onPage(Math.max(0, offset - size), size)}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Next page"
-            disabled={loading || to >= total} onClick={() => onPage(offset + size, size)}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+          <div className="ml-auto flex items-center gap-1">
+            <PageButton label="First page" icon={ChevronsLeft} disabled={loading || offset === 0} onClick={() => onPage(0, size)} />
+            <PageButton label="Previous page" icon={ChevronLeft} disabled={loading || offset === 0} onClick={() => onPage(Math.max(0, offset - size), size)} />
+            <span className="px-2 text-[11px] text-muted-foreground tabular-nums">
+              Page <span className="font-semibold text-foreground">{page}</span> of {pages.toLocaleString()}
+            </span>
+            <PageButton label="Next page" icon={ChevronRight} disabled={loading || to >= total} onClick={() => onPage(offset + size, size)} />
+            <PageButton label="Last page" icon={ChevronsRight} disabled={loading || page >= pages} onClick={() => onPage((pages - 1) * size, size)} />
+          </div>
         </div>
       )}
     </div>
@@ -310,7 +523,7 @@ const ResultsPanel = ({ heading, subheading, actions, result, loading, loadingNo
 
 /* ---------- article detail ---------- */
 
-const ArticleSheet = ({ article, onClose }) => {
+const ArticleSheet = ({ article, terms = [], onClose }) => {
   const [full, setFull] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -335,7 +548,7 @@ const ArticleSheet = ({ article, onClose }) => {
         {a && (
           <>
             <SheetHeader className="px-4 py-3 border-b border-border space-y-1 text-left">
-              <SheetTitle className="text-base leading-snug pr-6">{a.title || 'Untitled'}</SheetTitle>
+              <SheetTitle className="text-base leading-snug pr-6"><Highlight text={a.title || 'Untitled'} terms={terms} /></SheetTitle>
               <SheetDescription className="text-[11px] flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="font-semibold text-foreground">{a.source}</span>
                 {a.language && <span>{a.language}</span>}
@@ -356,9 +569,9 @@ const ArticleSheet = ({ article, onClose }) => {
                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   className="w-full max-h-72 rounded-lg object-cover bg-muted" />
               )}
-              {a.summary && <p className="text-xs rounded-lg bg-primary/5 border border-primary/20 p-3">{a.summary}</p>}
+              {a.summary && <p className="text-xs rounded-lg bg-primary/5 border border-primary/20 p-3"><Highlight text={a.summary} terms={terms} /></p>}
               {a.content
-                ? <div className="text-sm leading-relaxed whitespace-pre-line">{a.content}</div>
+                ? <div className="text-sm leading-relaxed whitespace-pre-line"><Highlight text={a.content} terms={terms} /></div>
                 : refreshing
                   ? <QuickLoading />
                   : <Empty>No article text was extracted. Open the original to read it.</Empty>}
@@ -371,86 +584,6 @@ const ArticleSheet = ({ article, onClose }) => {
         )}
       </SheetContent>
     </Sheet>
-  );
-};
-
-/* ---------- saved (tenant archive) ---------- */
-
-const SavedExplorer = ({ sources, sourcesStatus, byId, onOpen }) => {
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [range, setRange] = useState(EMPTY_RANGE);
-  const [limit, setLimit] = useState(20);
-  const [submitted, setSubmitted] = useState({ filters: EMPTY_FILTERS, range: EMPTY_RANGE });
-  const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const reqRef = useRef(0);
-  const options = useFacetOptions(sources, filters, byId);
-  const nameOf = useCallback((id) => byId.get(id)?.name || id, [byId]);
-
-  const load = useCallback(async (q, offset, pageSize) => {
-    const id = ++reqRef.current;
-    setLoading(true);
-    setError('');
-    try {
-      const params = { ...toParams(q.filters), limit: pageSize, offset };
-      if (q.range.from) params.from = q.range.from;
-      if (q.range.to) params.to = q.range.to;
-      const data = await newsApi.getSaved(params);
-      if (id !== reqRef.current) return;
-      setResult(data);
-      setSubmitted(q);
-    } catch (err) {
-      if (id !== reqRef.current) return;
-      setError(errMsg(err, 'Could not load saved articles'));
-    } finally {
-      if (id === reqRef.current) setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load({ filters: EMPTY_FILTERS, range: EMPTY_RANGE }, 0, 20); }, [load]);
-
-  const total = result?.count ?? 0;
-  const narrowed = hasFilters(submitted.filters) || submitted.range.from || submitted.range.to;
-  const rangeLabel = [submitted.range.from && `from ${submitted.range.from}`, submitted.range.to && `to ${submitted.range.to}`].filter(Boolean).join(' ');
-
-  return (
-    <div className="space-y-3">
-      <FilterBar filters={filters} setFilters={setFilters} options={options} facetsDisabled={sourcesStatus !== 'ready'}
-        loading={loading} submitLabel="Search saved" placeholder="Keyword in saved articles (optional)"
-        onSubmit={() => load({ filters, range }, 0, limit)}
-        canClear={hasFilters(filters) || !!range.from || !!range.to}
-        onClear={() => { setFilters(EMPTY_FILTERS); setRange(EMPTY_RANGE); }}>
-        <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          From <Input type="date" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} className="h-8 w-36 text-xs" />
-        </label>
-        <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          To <Input type="date" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} className="h-8 w-36 text-xs" />
-        </label>
-      </FilterBar>
-
-      <ResultsPanel
-        className="lg:h-[calc(100dvh-22rem)]"
-        heading={result ? `${total.toLocaleString()} saved article${total === 1 ? '' : 's'}` : 'Saved articles'}
-        subheading={narrowed
-          ? [submitted.filters.keyword.trim() && `“${submitted.filters.keyword.trim()}”`, describeFilters(submitted.filters, nameOf), rangeLabel].filter(Boolean).join(' · ')
-          : 'Everything your workspace’s searches have collected, newest first'}
-        actions={(
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={loading}
-            onClick={() => load(submitted, result?.offset || 0, result?.limit || limit)}>
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
-          </Button>
-        )}
-        result={result} loading={loading} loadingNote={<QuickLoading />} error={error}
-        pageSize={limit}
-        onPage={(offset, size) => load(submitted, offset, size)}
-        onPageSize={(n) => { setLimit(n); load(submitted, 0, n); }}
-        onOpen={onOpen}
-        emptyText={narrowed
-          ? 'No saved articles match these filters.'
-          : 'Nothing saved yet. Articles are saved here automatically whenever someone in your workspace searches News.'}
-      />
-    </div>
   );
 };
 
@@ -539,24 +672,45 @@ const SourcesExplorer = ({ sources, status, onReload, onSearchSource }) => {
 
 /* ---------- page ---------- */
 
+const EMPTY_QUERY = { filters: EMPTY_FILTERS, range: EMPTY_RANGE };
+const isEmptyQuery = (q) => !hasFilters(q.filters) && !q.range.from && !q.range.to;
+const rangeLabel = (r) => [r.from && `from ${r.from}`, r.to && `to ${r.to}`].filter(Boolean).join(' ');
+const dbParams = (q, offset, size) => {
+  const params = { ...toParams(q.filters), limit: size, offset };
+  if (q.range.from) params.from = q.range.from;
+  if (q.range.to) params.to = q.range.to;
+  return params;
+};
+
+/**
+ * Tools → News. Everything shown comes from the workspace's own database (newsApi
+ * .getArticles), with all filters applied there. Searching also fetches the latest
+ * matching articles from the news sites (newsApi.collect), which saves them; the list
+ * then reloads from the database with the new ones tagged "New".
+ */
 const NewsWorkspace = () => {
   const [view, setView] = useState('articles');
   const [sources, setSources] = useState([]);
   const [sourcesStatus, setSourcesStatus] = useState('loading');
   const [health, setHealth] = useState({ status: 'checking', message: '' });
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [range, setRange] = useState(EMPTY_RANGE);
   const [limit, setLimit] = useState(20);
-  // What the results panel shows: a live search, or a stored search reopened from the DB.
-  // { mode: 'live'|'stored', filters, searchId, search? }
-  const [active, setActive] = useState(null);
+  const [query, setQuery] = useState(EMPTY_QUERY); // the submitted search the list shows
   const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(null); // null | 'live' | 'stored'
-  const [startedAt, setStartedAt] = useState(null);
+  // The live fetch for the current search: { running, startedAt } then
+  // { running: false, new, fetched, pending, searchId, collectedAt } or { error }.
+  const [collect, setCollect] = useState(null);
   const [elapsed, setElapsed] = useState(0);
   const [searches, setSearches] = useState({ status: 'loading', items: [], count: 0, message: '' });
-  const [openArticle, setOpenArticle] = useState(null);
-  const reqRef = useRef(0);
+  const [opened, setOpened] = useState(null); // { article, terms } shown in the detail sheet
+  const openArticle = useCallback((article, terms = []) => setOpened({ article, terms }), []);
+  const dbReq = useRef(0);
+  const collectReq = useRef(0);
+  const queryRef = useRef(query);
+  queryRef.current = query;
 
   const checkHealth = useCallback(async () => {
     setHealth({ status: 'checking', message: '' });
@@ -592,112 +746,156 @@ const NewsWorkspace = () => {
     }
   }, []);
 
-  useEffect(() => { checkHealth(); loadSources(); loadSearches(); }, [checkHealth, loadSources, loadSearches]);
+  /** Read one page of the search from the database — the only source of what's shown. */
+  const loadDb = useCallback(async (q, offset, size) => {
+    const id = ++dbReq.current;
+    setLoading(true);
+    setError('');
+    try {
+      const data = await newsApi.getArticles(dbParams(q, offset, size));
+      if (id !== dbReq.current) return;
+      setResult(data);
+    } catch (err) {
+      if (id !== dbReq.current) return;
+      setError(errMsg(err, 'Could not load articles'));
+    } finally {
+      if (id === dbReq.current) setLoading(false);
+    }
+  }, []);
+
+  /** Fetch the latest matching articles from the news sites into the database, then re-read page 1. */
+  const fetchLatest = useCallback(async (q, size, searchId = null) => {
+    const id = ++collectReq.current;
+    const startedAt = Date.now();
+    setCollect({ running: true, startedAt });
+    try {
+      const body = toParams(q.filters);
+      if (searchId) body.search_id = searchId;
+      const res = await newsApi.collect(body);
+      if (id !== collectReq.current) return;
+      setCollect({
+        running: false,
+        new: res.new || 0,
+        fetched: res.fetched || 0,
+        pending: res.pending_sources || 0,
+        searchId: res.search_id,
+        collectedAt: res.collected_at ? new Date(res.collected_at).getTime() : null,
+      });
+      loadSearches();
+      if (queryRef.current === q) loadDb(q, 0, size);
+    } catch (err) {
+      if (id !== collectReq.current) return;
+      setCollect({ running: false, error: errMsg(err, 'Could not fetch the latest news') });
+    }
+  }, [loadDb, loadSearches]);
 
   useEffect(() => {
-    if (loading !== 'live' || !startedAt) return undefined;
+    checkHealth();
+    loadSources();
+    loadSearches();
+    loadDb(EMPTY_QUERY, 0, 20);
+  }, [checkHealth, loadSources, loadSearches, loadDb]);
+
+  useEffect(() => {
+    if (!collect?.running) return undefined;
     setElapsed(0);
-    const t = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    const t = setInterval(() => setElapsed(Math.floor((Date.now() - collect.startedAt) / 1000)), 1000);
     return () => clearInterval(t);
-  }, [loading, startedAt]);
+  }, [collect?.running, collect?.startedAt]);
 
   const byId = useMemo(() => new Map(sources.map((s) => [s.id, s])), [sources]);
   const nameOf = useCallback((id) => byId.get(id)?.name || id, [byId]);
   const options = useFacetOptions(sources, filters, byId);
 
-  /** Live search. searchId continues an existing search (paging); omit it to start a new one. */
-  const runLive = useCallback(async (f, offset, pageSize, searchId = null) => {
-    const id = ++reqRef.current;
-    setLoading('live');
-    setStartedAt(Date.now());
-    setError('');
-    try {
-      const params = { ...toParams(f), limit: pageSize, offset };
-      if (searchId) params.search_id = searchId;
-      const data = await newsApi.getArticles(params);
-      if (id !== reqRef.current) return;
-      setResult(data);
-      setActive({ mode: 'live', filters: f, searchId: data?.saved?.search_id || searchId });
-      if (data?.saved?.error) toast.warning(data.saved.error);
-      if (data?.saved?.search_id && !searchId) loadSearches();
-    } catch (err) {
-      if (id !== reqRef.current) return;
-      const msg = errMsg(err, 'News search failed');
-      setError(msg);
-      toast.error(msg);
-    } finally {
-      if (id === reqRef.current) setLoading(null);
-    }
-  }, [loadSearches]);
-
-  /** Reopen a stored search from this workspace's DB — instant, no re-scrape. */
-  const openStored = useCallback(async (search, offset, pageSize) => {
-    const id = ++reqRef.current;
-    setLoading('stored');
-    setError('');
-    try {
-      const data = await newsApi.getSearchArticles(search.id, { limit: pageSize, offset });
-      if (id !== reqRef.current) return;
-      setResult(data);
-      setActive({ mode: 'stored', filters: fromParams(search.filters), searchId: search.id, search: { ...search, ...data?.search } });
-    } catch (err) {
-      if (id !== reqRef.current) return;
-      setError(errMsg(err, 'Could not open this search'));
-    } finally {
-      if (id === reqRef.current) setLoading(null);
-    }
-  }, []);
-
-  const search = (f) => {
+  /** Show saved matches now; fetch the latest alongside unless the search is empty. */
+  const search = (f, r = range) => {
+    const q = { filters: f, range: r };
     setFilters(f);
+    setRange(r);
     setView('articles');
-    runLive(f, 0, limit);
+    setQuery(q);
+    loadDb(q, 0, limit);
+    if (isEmptyQuery(q)) {
+      collectReq.current += 1; // nothing to fetch for "everything"; drop any fetch in flight
+      setCollect(null);
+    } else {
+      fetchLatest(q, limit);
+    }
   };
+  /** A past search: show what's saved for it (no live fetch until asked). */
   const reopen = (s) => {
-    setFilters(fromParams(s.filters));
+    const q = { filters: fromParams(s.filters), range: EMPTY_RANGE, historyId: s.id };
+    setFilters(q.filters);
+    setRange(EMPTY_RANGE);
     setView('articles');
-    openStored(s, 0, limit);
+    setQuery(q);
+    collectReq.current += 1;
+    setCollect(null);
+    loadDb(q, 0, limit);
   };
-  const goToPage = (offset, size) => {
-    if (!active) return;
-    if (active.mode === 'live') runLive(active.filters, offset, size, active.searchId);
-    else openStored(active.search, offset, size);
-  };
+  const fetchAgain = () => fetchLatest(query, limit, collect?.searchId || query.historyId);
+  const goToPage = (offset, size) => loadDb(query, offset, size);
   const changePageSize = (n) => {
     setLimit(n);
-    goToPage(0, n);
+    loadDb(query, 0, n);
   };
   const removeSearch = async (s) => {
     try {
       await newsApi.deleteSearch(s.id);
       setSearches((x) => ({ ...x, items: x.items.filter((i) => i.id !== s.id), count: Math.max(0, x.count - 1) }));
-      if (active?.searchId === s.id && active.mode === 'stored') { setActive(null); setResult(null); }
     } catch (err) {
       toast.error(errMsg(err, 'Could not delete this search'));
     }
   };
+  const isNew = useCallback(
+    (a) => Boolean(collect?.collectedAt && a.first_seen_at && new Date(a.first_seen_at).getTime() >= collect.collectedAt),
+    [collect?.collectedAt]
+  );
 
-  const total = result?.count ?? 0;
   const countries = useMemo(() => new Set(sources.map((s) => s.country).filter(Boolean)).size, [sources]);
   const languages = useMemo(() => new Set(sources.map((s) => s.language).filter(Boolean)).size, [sources]);
   const H = HEALTH[health.status];
-  const stored = active?.mode === 'stored' ? active.search : null;
   const whoRan = (s) => (s.mine ? 'you' : s.user_name || 'someone');
-  const savedNote = active?.mode === 'live' && result?.saved?.search_id ? ' · saved to your workspace' : '';
+  const emptyWorkspace = result && result.count === 0 && isEmptyQuery(query) && !collect;
+
+  const collectNotice = collect && (
+    collect.running ? <LoadingNote elapsed={elapsed} />
+      : collect.error ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700">
+          <span className="flex-1 min-w-[200px]">Couldn’t fetch the latest news: {collect.error} Showing what’s already saved.</span>
+          <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={fetchAgain}>
+            <RefreshCw className="h-3 w-3" /> Try again
+          </Button>
+        </div>
+      ) : (
+        <div className={`flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-xs ${collect.new ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-700' : 'border-border bg-background text-muted-foreground'}`}>
+          <Check className="h-3.5 w-3.5 shrink-0" />
+          <span className="flex-1 min-w-[200px]">
+            {collect.new
+              ? `${collect.new} new article${collect.new === 1 ? '' : 's'} added from news sites (${collect.fetched} checked).`
+              : `No new articles — your workspace already has the latest ${collect.fetched} match${collect.fetched === 1 ? '' : 'es'}.`}
+            {collect.pending > 0 && ` ${collect.pending} source${collect.pending === 1 ? ' is' : 's are'} still loading.`}
+          </span>
+          {collect.pending > 0 && (
+            <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={fetchAgain}>
+              <RefreshCw className="h-3 w-3" /> Fetch the rest
+            </Button>
+          )}
+        </div>
+      )
+  );
 
   return (
     <div className="p-4 space-y-3 max-w-[1600px] mx-auto">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="min-w-0">
           <h2 className="text-xl font-heading font-bold tracking-tight leading-none">
-            News · {{ articles: 'Articles', saved: 'Saved', sources: 'Sources' }[view]}
+            News · {view === 'sources' ? 'Sources' : 'Articles'}
           </h2>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            {{
-              articles: 'Search live articles from Indian and international news sources',
-              saved: 'Articles collected by your workspace’s searches, kept in your workspace database',
-              sources: 'News websites, TV channels and agencies being monitored',
-            }[view]}
+            {view === 'sources'
+              ? 'News websites, TV channels and agencies being monitored'
+              : 'Articles saved in your workspace — each search also fetches the latest from news sites'}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-1 flex-wrap">
@@ -713,7 +911,7 @@ const NewsWorkspace = () => {
 
       {(health.status === 'offline' || health.status === 'unconfigured') && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-600">
-          <span className="flex-1 min-w-[200px]">{health.message}</span>
+          <span className="flex-1 min-w-[200px]">{health.message} Saved articles are still shown; fetching the latest won’t work until this is fixed.</span>
           <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => { checkHealth(); loadSources(); }}>
             <RefreshCw className="h-3 w-3" /> Retry
           </Button>
@@ -721,7 +919,7 @@ const NewsWorkspace = () => {
       )}
 
       <div className="flex items-center gap-1 border-b border-border overflow-x-auto no-scrollbar">
-        {[['articles', 'Articles', Newspaper], ['saved', 'Saved', Archive], ['sources', 'Sources', Rss]].map(([k, l, I]) => (
+        {[['articles', 'Articles', Newspaper], ['sources', 'Sources', Rss]].map(([k, l, I]) => (
           <button key={k} onClick={() => setView(k)}
             className={`flex items-center gap-1.5 px-3 py-2 text-xs whitespace-nowrap border-b-2 -mb-px transition-colors ${view === k ? 'border-primary text-foreground font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
             <I className="h-3.5 w-3.5" />{l}
@@ -731,18 +929,23 @@ const NewsWorkspace = () => {
 
       {view === 'sources' && (
         <SourcesExplorer sources={sources} status={sourcesStatus} onReload={loadSources}
-          onSearchSource={(id) => search({ ...EMPTY_FILTERS, source: [id] })} />
-      )}
-
-      {view === 'saved' && (
-        <SavedExplorer sources={sources} sourcesStatus={sourcesStatus} byId={byId} onOpen={setOpenArticle} />
+          onSearchSource={(id) => search({ ...EMPTY_FILTERS, source: [id] }, EMPTY_RANGE)} />
       )}
 
       {view === 'articles' && (
       <>
       <FilterBar filters={filters} setFilters={setFilters} options={options} facetsDisabled={sourcesStatus !== 'ready'}
-        loading={loading === 'live'} submitLabel="Search news" placeholder="Keyword, e.g. drugs, accident, protest (optional)"
-        onSubmit={() => search(filters)} canClear={hasFilters(filters)} onClear={() => setFilters(EMPTY_FILTERS)} />
+        loading={loading} submitLabel="Search news" placeholder="Keyword, or several separated by commas (optional)"
+        onSubmit={() => search(filters, range)}
+        canClear={hasFilters(filters) || !!range.from || !!range.to}
+        onClear={() => { setFilters(EMPTY_FILTERS); setRange(EMPTY_RANGE); }}>
+        <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          From <Input type="date" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} className="h-8 w-36 text-xs" />
+        </label>
+        <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          To <Input type="date" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} className="h-8 w-36 text-xs" />
+        </label>
+      </FilterBar>
 
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-3 items-start">
         <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -756,17 +959,17 @@ const NewsWorkspace = () => {
             {searches.status === 'loading' && <p className="p-6 text-xs text-muted-foreground text-center"><Loader2 className="h-3.5 w-3.5 animate-spin inline mr-1.5" />Loading…</p>}
             {searches.status === 'failed' && <p className="p-6 text-xs text-muted-foreground text-center">{searches.message}</p>}
             {searches.status === 'ready' && !searches.items.length && (
-              <p className="p-6 text-xs text-muted-foreground text-center">No searches yet. Searches and their articles are saved here for everyone in your workspace.</p>
+              <p className="p-6 text-xs text-muted-foreground text-center">No searches yet. Every search is listed here for everyone in your workspace.</p>
             )}
             {searches.items.map((s) => {
               const f = fromParams(s.filters);
               return (
                 <div key={s.id} onClick={() => reopen(s)}
-                  className={`group px-3 py-2 cursor-pointer border-b border-border last:border-0 ${active?.searchId === s.id ? 'bg-primary/10' : 'hover:bg-accent/50'}`}>
+                  className={`group px-3 py-2 cursor-pointer border-b border-border last:border-0 ${query.historyId === s.id || collect?.searchId === s.id ? 'bg-primary/10' : 'hover:bg-accent/50'}`}>
                   <div className="flex items-center gap-2">
                     <History className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <p className="text-xs font-medium truncate flex-1">{searchTitle(f)}</p>
-                    <span className="text-[10px] tabular-nums text-muted-foreground" title="Articles found">{s.result_count}</span>
+                    <span className="text-[10px] tabular-nums text-muted-foreground" title="Live matches when searched">{s.result_count}</span>
                     {s.mine && (
                       <button onClick={(e) => { e.stopPropagation(); removeSearch(s); }} aria-label="Delete search"
                         className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500"><Trash2 className="h-3 w-3" /></button>
@@ -781,54 +984,59 @@ const NewsWorkspace = () => {
           </div>
         </div>
 
-        {result || loading || error ? (
-          <ResultsPanel
-            className="lg:h-[calc(100dvh-20rem)]"
-            heading={result
-              ? `${total.toLocaleString()} ${stored ? 'saved ' : ''}article${total === 1 ? '' : 's'}`
-              : loading === 'stored' ? 'Opening…' : 'Searching…'}
-            subheading={active && [
-              active.filters.keyword?.trim() && `“${active.filters.keyword.trim()}”`,
-              describeFilters(active.filters, nameOf),
-              stored && `searched by ${whoRan(stored)} ${timeAgo(new Date(stored.created_at).getTime())}, ${stored.result_count} found then`,
-            ].filter(Boolean).join(' · ') + savedNote}
-            actions={stored && (
-              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={!!loading} onClick={() => search(active.filters)}>
-                <Zap className="h-3.5 w-3.5" /> Refresh live
-              </Button>
-            )}
-            result={result}
-            loading={!!loading}
-            loadingNote={loading === 'live' ? <LoadingNote elapsed={elapsed} /> : <QuickLoading />}
-            error={error}
-            pageSize={limit}
-            onPage={goToPage}
-            onPageSize={changePageSize}
-            onOpen={setOpenArticle}
-            emptyText="No articles match these filters. Try fewer filters or a broader keyword."
-          />
-        ) : (
-          <div className="rounded-xl border border-border bg-card min-h-[420px] lg:h-[calc(100dvh-20rem)] flex flex-col items-center justify-center text-center gap-2 p-8">
+        {emptyWorkspace ? (
+          <div className="rounded-xl border border-border bg-card min-h-[420px] lg:h-[calc(100dvh-22rem)] flex flex-col items-center justify-center text-center gap-2 p-8">
             <Newspaper className="h-7 w-7 text-primary/60" />
-            <p className="text-sm font-semibold">Your articles appear here</p>
+            <p className="text-sm font-semibold">Nothing saved in this workspace yet</p>
             <p className="text-xs text-muted-foreground max-w-sm">
-              Search by keyword and narrow by country, language, state or source. Results are saved to your workspace. Or start with:
+              Search to fetch articles from the news sites. Everything found is saved here, so past coverage stays searchable. Or start with:
             </p>
             <div className="flex flex-wrap justify-center gap-1.5 mt-1">
               {PRESETS.map((p) => (
                 <Button key={p.label} type="button" variant="outline" size="sm" className="h-7 text-xs"
-                  onClick={() => search({ ...EMPTY_FILTERS, ...p.filters })}>
+                  onClick={() => search({ ...EMPTY_FILTERS, ...p.filters }, EMPTY_RANGE)}>
                   {p.label}
                 </Button>
               ))}
             </div>
           </div>
+        ) : (
+          <ResultsPanel
+            className="lg:h-[calc(100dvh-22rem)]"
+            heading={isEmptyQuery(query) ? 'All saved articles' : 'Articles'}
+            meta="from your workspace"
+            subheading={isEmptyQuery(query)
+              ? 'Everything your workspace has collected, newest first'
+              : [
+                query.filters.keyword?.trim() && `“${searchTitle(query.filters)}”`,
+                describeFilters(query.filters, nameOf),
+                rangeLabel(query.range),
+              ].filter(Boolean).join(' · ')}
+            actions={!isEmptyQuery(query) && (
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={Boolean(collect?.running)} onClick={fetchAgain}>
+                {collect?.running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />} Fetch latest
+              </Button>
+            )}
+            result={result}
+            loading={loading}
+            loadingNote={<QuickLoading />}
+            error={error}
+            notice={collectNotice}
+            pageSize={limit}
+            onPage={goToPage}
+            onPageSize={changePageSize}
+            onOpen={openArticle}
+            isNew={isNew}
+            emptyText={collect?.running
+              ? 'Nothing saved for this search yet — fetching from the news sites…'
+              : 'No saved articles match these filters. Try fewer filters, a broader keyword or a wider date range.'}
+          />
         )}
       </div>
       </>
       )}
 
-      <ArticleSheet article={openArticle} onClose={() => setOpenArticle(null)} />
+      <ArticleSheet article={opened?.article} terms={opened?.terms} onClose={() => setOpened(null)} />
     </div>
   );
 };

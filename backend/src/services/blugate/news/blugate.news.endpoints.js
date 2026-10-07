@@ -33,7 +33,8 @@ const NEWS_ENDPOINTS = {
     // request, then cached ~10 min. Leave headroom over that for the gateway hop.
     timeout: 150000,
     params: [
-      { name: 'keyword', in: 'query', required: false, description: "e.g. 'drugs', 'corruption'" },
+      { name: 'keyword', in: 'query', required: false, description: "One phrase, or a comma-separated list of phrases ranked by how many each article matches" },
+      { name: 'min_match', in: 'query', required: false, description: 'Minimum phrases (list) or words (one phrase) an article must match (default 1)' },
       { name: 'country', in: 'query', required: false, description: `e.g. 'India,United States'. ${MULTI}` },
       { name: 'language', in: 'query', required: false, description: `e.g. 'English,Telugu'. ${MULTI}` },
       { name: 'location', in: 'query', required: false, description: `Matched against district/location/state. ${MULTI}` },
