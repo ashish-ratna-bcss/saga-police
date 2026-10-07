@@ -877,24 +877,11 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                   <ChevronDown className="h-3 w-3 opacity-60 ml-0.5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuContent align="end" className="w-72">
                 <DropdownMenuLabel className="text-[11px] font-semibold text-muted-foreground tracking-wide uppercase">
-                  Download Report Option
+                  Select Report Format
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => handleDownload(true)}
-                  disabled={pdfGenerating}
-                  className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
-                >
-                  <FileCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-xs font-semibold text-foreground">With Evidence</span>
-                    <span className="text-[11px] text-muted-foreground leading-tight">
-                      Includes full evidence register & all cited post records
-                    </span>
-                  </div>
-                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => handleDownload(false)}
                   disabled={pdfGenerating}
@@ -902,9 +889,22 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                 >
                   <FileText className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-xs font-semibold text-foreground">Without Evidence</span>
+                    <span className="text-xs font-semibold text-foreground">Executive Action Summary (2–3 Pages)</span>
                     <span className="text-[11px] text-muted-foreground leading-tight">
-                      Executive brief summary only (no raw post tables)
+                      Page 1 Action Directives, Key Findings, Charts & Priority Takedowns
+                    </span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleDownload(true)}
+                  disabled={pdfGenerating}
+                  className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
+                >
+                  <FileCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs font-semibold text-foreground">Full Intelligence & Evidence Report</span>
+                    <span className="text-[11px] text-muted-foreground leading-tight">
+                      Complete report with Top Profiles & Clickable Evidence Post Register
                     </span>
                   </div>
                 </DropdownMenuItem>
