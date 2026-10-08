@@ -894,7 +894,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       if (tier === 'media') reasons.push(`News or official channel: ${fmt(a.count)} post${a.count === 1 ? '' : 's'}; it reports the event, it does not organise it.`);
       if (calls > 0) reasons.push(`${fmt(calls)} post${calls === 1 ? ' calls' : 's call'} people to join or act.`);
       if (violence > 0) reasons.push(`${fmt(violence)} post${violence === 1 ? ' mentions' : 's mention'} violence or damage.`);
-      if (tier === 'amplifier') reasons.push(`Reach of ${fmt(a.eng)} engagements over ${fmt(a.count)} posts.`);
+      if (tier === 'amplifier') reasons.push(`${fmt(a.inter)} interactions${a.vw ? ` and ${fmt(a.vw)} views` : ''} over ${fmt(a.count)} posts.`);
       if (a.criticalCount > 0) reasons.push(`${fmt(a.criticalCount)} post${a.criticalCount === 1 ? '' : 's'} rated high risk by the post analysis (this does not make the account itself a priority).`);
       if (!reasons.length) reasons.push(`${fmt(a.count)} post${a.count === 1 ? '' : 's'} on the event; no call to act or violence found.`);
       const quote = extractCleanQuote((a.samples.find((x) => x.sentK === 'negative') || a.samples[0] || { text: a.sample }).text, 90);
@@ -1530,7 +1530,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     .replace(/\s*\[Post #\d+\]/g, '')
     .replace(/\.\s+(?:and|&)\s*\./g, '.')
     .replace(/\s+(?:and|&)\s*\./g, '.')
-    .replace(/\bPosts?\s+(?:and\s+)?(mention|show|say|report|confirm)/gi, 'Posts $1'), labels);
+    .replace(/\bPosts\s+and\s+(mention|show|say|report|confirm)/g, 'Posts $1'), labels);
   // Emoji have no glyph in the report fonts and print as empty boxes, so they are left out of the printed text.
   const printable = finalBody.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, '');
   return `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>${fontFacesFor(printable)}${CSS}</style></head><body>${printable}</body></html>`;

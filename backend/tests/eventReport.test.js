@@ -208,3 +208,10 @@ test('accounts whose platform gives no view counts say so instead of showing 0 v
   assert.ok(/views not reported/.test(html));
   assert.ok(!/ 0 views/.test(html));
 });
+
+test('executive cleanup does not damage normal sentences that start with "post"', () => {
+  const a = { facts: { places: [], calls: { count: 0, posts: [] }, violence: { count: 0, posts: [] }, accounts: [], activities: [] } };
+  const html = buildReportHtml({ summary: { event: { name: 'E', location: 'Odisha' }, stats: {} }, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false });
+  assert.ok(/No post reports violence/.test(html));
+  assert.ok(!/No Posts reports/.test(html));
+});
