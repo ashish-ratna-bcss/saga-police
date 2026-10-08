@@ -201,3 +201,10 @@ test('executive brief still carries no post links after the citation change', ()
   assert.ok(!/Post #\d/.test(html));
   assert.ok(!/href="#e\d/.test(html));
 });
+
+test('accounts whose platform gives no view counts say so instead of showing 0 views', () => {
+  const posts = [1].map((n) => ({ id: n, platform: 'facebook', author: 'Page A', text: 'bandh', sentiment: 'neutral', risk_level: 'low', posted_at: '2026-10-07T10:00:00Z', likes: 10, shares: 1, comments: 1, views: 0, url: 'u', is_relevant: true, citationTag: '[Post #1]' }));
+  const html = buildReportHtml({ summary: { event: { name: 'E', location: 'Odisha' }, stats: {}, evidence_traceability: posts }, keywordData: null, tenantName: 'odisha', analysis: { facts: { places: [], calls: { count: 0, posts: [] }, violence: { count: 0, posts: [] }, accounts: [], activities: [] } }, headquarters: null, includeEvidence: true });
+  assert.ok(/views not reported/.test(html));
+  assert.ok(!/ 0 views/.test(html));
+});
