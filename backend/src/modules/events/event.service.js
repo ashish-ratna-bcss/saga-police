@@ -311,11 +311,10 @@ const listEventContent = async (id, { page = 1, limit = 50, platform = 'all', db
     take: cfg.maxRowsScanned,
   });
 
-  // Filter out irrelevant noise using the dynamic event profile + tenant-learned vocabulary
-  const filtered = await filterRelevantRows(prisma, event, rawRows);
-
-  // Never fall back to unfiltered rows: showing everything surfaces unrelated posts.
-  const finalRows = filtered;
+  // The same dataset the report uses: only posts about the event, reposts merged into one row (with a repost count),
+  // so this list, the dashboard and the report all show the same number of posts.
+  const dataset = await require('./event.report.data').buildEventDataset(prisma, event, rawRows);
+  const finalRows = dataset.posts.map((p) => ({ ...p, _repost_count: p._repost_count || 1 }));
   const total = finalRows.length;
   const skip = (Math.max(1, page) - 1) * Math.min(200, Math.max(1, limit));
   const take = Math.min(200, Math.max(1, limit));
@@ -323,7 +322,7 @@ const listEventContent = async (id, { page = 1, limit = 50, platform = 'all', db
 
   const hasMore = skip + pagedRows.length < total;
   return {
-    content: pagedRows.map(hydrateEventMedia),
+    content: pagedRows.map((r) => ({ ...hydrateEventMedia(r), repost_count: r._repost_count || 1 })),
     has_more: hasMore,
     pagination: {
       total,
@@ -383,7 +382,7 @@ const recordFetch = async (id, historyEntry = null, { db } = {}) => {
 /** @deprecated use recordFetch */
 const markPolled = async (id, historyEntry = null, { db } = {}) => recordFetch(id, historyEntry, { db });
 
-const getKeywordAnalytics = async (id, { db } = {}) => {
+const getKeywordAnalytics = async (id, { db, from = null, to = null } = {}) => {
   const prisma = dbOf(db);
   const event = await prisma.social_media_events.findUnique({
     where: { id: Number(id) },
@@ -417,11 +416,17 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
   }
 
   // 2. Fetch event media across all monitored platforms (no artificial exclusions)
-  const allRows = await prisma.social_media_event_media.findMany({
+  let allRows = await prisma.social_media_event_media.findMany({
     where: withPublicationRange({ event_id: Number(id) }, event),
     orderBy: [{ posted_at: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
     take: 5000,
   });
+  // A daily / weekly report counts only the posts of its own window, so its keyword numbers match its post count.
+  if (from || to) {
+    const lo = from ? new Date(from).getTime() : -Infinity;
+    const hi = to ? new Date(to).getTime() : Infinity;
+    allRows = allRows.filter((r) => { const t = r.posted_at ? new Date(r.posted_at).getTime() : NaN; return !Number.isNaN(t) && t >= lo && t <= hi; });
+  }
   // Keyword counts only make sense over posts that are actually about the event, with reposts merged
   // (same dataset the report uses, so both show the same numbers).
   const dataset = await require('./event.report.data').buildEventDataset(prisma, event, allRows);
@@ -483,10 +488,11 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
 
   const matchesKeyword = (item, kwObj) => {
     const kwText = kwObj.keyword;
-    const kwLower = kwText.toLowerCase().trim();
-    if (item.matched_keywords.includes(kwLower)) return true;
+    // Decided from the post text (and its English version) against the event's CURRENT keywords every time, so a keyword
+    // change in any tenant is reflected at once; the keyword list stored on the post at analysis time is not trusted.
     if (keywordMatchesText(kwText, item.text)) return true;
-    return false;
+    const en = item.raw_analysis && typeof item.raw_analysis.english_text === 'string' ? item.raw_analysis.english_text : '';
+    return Boolean(en && keywordMatchesText(kwText, en));
   };
 
   const overallTimelineMap = new Map();

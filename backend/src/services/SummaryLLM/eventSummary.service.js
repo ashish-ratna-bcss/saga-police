@@ -5,8 +5,13 @@ const logger = require('../../lib/logger');
 const {
   buildSystemPrompt, buildUserContext, RETRY_MESSAGE, parseLLMReport, reportToMarkdown,
   BATCH_SYSTEM, buildBatchUserContext, parseBatchNotes, buildReducerSystemPrompt, buildReducerUserContext,
-  estimateTokens, truncateToTokens, makeBatches, reducerToReport,
+  estimateTokens, truncateToTokens, makeBatches, reducerToReport, extractJson,
 } = require('./eventSummary.prompt');
+const eventConfig = require('../../modules/events/event.config');
+const { cleanText } = require('./styleLint');
+const { getTenantProfile } = require('../../modules/events/eventIntelligenceReport/tenantProfile');
+const { resolvePlace } = require('./geo.service');
+const { FACTS_SYSTEM, buildFactsUserContext, parseFacts, aggregateFacts, factsPackText } = require('./eventFacts');
 const {
   TARGET_ENTITIES,
   parseSentiment,
@@ -17,7 +22,7 @@ const {
   calculateReconciledPercentages,
 } = require('../../modules/events/eventTelemetry.service');
 const { postedAtRangeWhere, eventPublicationWindow } = require('../../modules/events/event.utils');
-const { headquartersPromptLine, resolveHeadquarters } = require('../../modules/events/eventIntelligenceReport/headquarters');
+const { headquartersPromptLine, resolveHeadquarters, reportLanguageFor } = require('../../modules/events/eventIntelligenceReport/headquarters');
 
 const getLLMConfig = () => {
   let baseUrl = (process.env.LLM_BASE_URL || '').trim().replace(/\/$/, '');
@@ -410,7 +415,7 @@ function computeEffectiveDateWindow(event, timeframe = 'full', fromDate = null, 
  */
 const generateEventSummary = async (
   eventId,
-  { db, generatedBy, tenantName, timeframe = 'full', fromDate = null, toDate = null } = {}
+  { db, dbName = null, generatedBy, tenantName, timeframe = 'full', fromDate = null, toDate = null } = {}
 ) => {
   const prisma = dbOf(db);
   const numericId = Number(eventId);
@@ -460,7 +465,7 @@ const generateEventSummary = async (
       analysis_result: true,
     },
     orderBy: [{ posted_at: 'desc' }, { id: 'desc' }],
-    take: 5000,
+    take: eventConfig.maxRowsScanned,   // same cap as the post list and dashboard, so all three show the same numbers
   });
 
   // One shared dataset: only posts about the event (own text or English translation), reposts merged.
@@ -583,6 +588,7 @@ const generateEventSummary = async (
         platform: cleanSafeUtf8(p, 20),
         author: cleanSafeUtf8(m.author_name || m.author_handle || 'Unknown', 40),
         text: cleanText,
+        englishText: cleanSafeUtf8(String(analysis.english_text || ''), 220),
         sentiment: sent,
         target_entity: targetEntity,
         target_semantic: targetSemantics.label,
@@ -651,13 +657,15 @@ const generateEventSummary = async (
 
   // 5. Prompt + answer contract live in ONE file: eventSummary.prompt.js
   const { baseUrl, apiKey, model, timeoutMs, maxTokens, contextWindow, maxInputTokens } = getLLMConfig();
-  const headquarters = resolveHeadquarters(tenantName);
+  const tenantProfile = await getTenantProfile(dbName);
+  const headquarters = resolveHeadquarters(tenantName, tenantProfile);
   const promptCtx = {
     event, keywordsList, totalMediaCount, relevantPostsCount, unrelatedPostsCount, totalKeywordMentionsCount,
     earliestPost, latestPost, platformCounts, platformPercentages, activeSentiment, sentimentPercentages,
     targetBreakdown, riskCounts, totalEngagement, indexedSnippets,
     addresseeLine: headquartersPromptLine(headquarters),
     headquarters,
+    reportLanguage: reportLanguageFor(tenantName, tenantProfile),
   };
 
   // ---- Which posts the AI reads. Relevant posts only (unrelated noise stays in the statistics, not in the analysis),
@@ -722,6 +730,65 @@ const generateEventSummary = async (
       }
     };
 
+    // ---- FACTS PASS: real activity dates, organisers, places, calls to act and violence, read per post and checked in code.
+    let facts = null;
+    const factsMap = {};
+    const byNoFacts = new Map(analysed.map((x) => [postNo(x), x]));
+    const foldW = (t) => String(t || '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
+    const eventWords = foldW(event.location).split(' ').filter((w) => w.length > 2);
+    const eventCountry = (() => {
+      for (const part of String(event.location || '').split(/[,(]/).map((x) => x.replace(/[)]/g, '').trim()).filter(Boolean)) {
+        const g = resolvePlace(part, '', '');
+        if (g) return g.country;
+      }
+      return '';
+    })();
+    const insideRegion = (pl) => !eventWords.length || eventWords.some((w) => ` ${foldW(`${pl.name} ${pl.region}`)} `.includes(` ${w} `));
+    const regionOf = (n) => {
+      const pls = (factsMap[n]?.places || []);
+      if (!pls.length) return 'unknown';
+      return pls.some(insideRegion) ? 'in' : 'out';
+    };
+    // Builds the report facts from the per-post readings. `mediaNos` = posts the earlier per-post pass judged to come from news outlets.
+    const finalizeFacts = (mediaNos = new Set()) => {
+      if (!Object.keys(factsMap).length) return null;
+      Object.entries(factsMap).forEach(([n, f]) => {
+        if (mediaNos.has(Number(n))) f.role = 'media';
+        // Real place data decides the region and country of each place; the model's label is only a hint for names GeoNames does not know.
+        (f.places || []).forEach((pl) => {
+          if (pl.verified) return;
+          const g = resolvePlace(pl.name, pl.region, event.location);
+          if (g) { pl.region = [g.kind === 'city' ? g.region : '', g.kind === 'country' ? g.name : g.country].filter(Boolean).join(', ') || g.label; pl.verified = true; pl.country = g.country; }
+        });
+      });
+      const out = aggregateFacts(factsMap, byNoFacts, regionOf);
+      out.read = Object.keys(factsMap).length;
+      out.eventCountry = eventCountry;
+      return out;
+    };
+    try {
+      const factPosts = analysed.slice(0, Math.max(30, Number(process.env.LLM_MAX_FACT_POSTS || 200))).map((x) => ({ n: postNo(x), author: x.author, text: x.text, englishText: x.englishText, postedAt: x.postedAt }));
+      const FACT_BATCH = 20;
+      for (let i = 0; i < factPosts.length; i += FACT_BATCH) {
+        const batch = factPosts.slice(i, i + FACT_BATCH);
+        try {
+          const res = await callLLM([{ role: 'system', content: FACTS_SYSTEM }, { role: 'user', content: buildFactsUserContext(batch) }], NOTES_OUTPUT_TOKENS);
+          const parsed = parseFacts(res.data?.choices?.[0]?.message?.content || '', byNoFacts, extractJson);
+          if (parsed) Object.assign(factsMap, parsed);
+          else logger.warn(`[SummaryLLM] Facts reply unusable (${batch.length} posts, finish=${res.data?.choices?.[0]?.finish_reason})`);
+        } catch (e) { logger.warn(`[SummaryLLM] Facts batch failed (${batch.length} posts): ${e.message}`); }
+      }
+      facts = finalizeFacts();
+      if (facts) logger.info(`[SummaryLLM] Facts read for ${facts.read}/${factPosts.length} posts`);
+      else logger.warn('[SummaryLLM] Facts pass produced nothing; the report will not list organisers, dates or places from the posts');
+    } catch (e) { logger.warn(`[SummaryLLM] Facts pass skipped: ${e.message}`); }
+    let factsPack = factsPackText(facts, new Date());
+    let withFacts = (content) => (factsPack ? `${content}\n\nCONFIRMED FACTS (computed from the posts; use these dates, organisers and places exactly, do not contradict them):\n${factsPack}` : content);
+    const refreshFacts = (mediaNos) => {   // once the per-post source types are known, news outlets stop counting as organisers or callers
+      facts = finalizeFacts(mediaNos);
+      factsPack = factsPackText(facts, new Date());
+    };
+
     if (!fitsOneCall) {
       // ---- BIG EVENT: every analysed post is read, in token-sized batches, ONE AT A TIME (the GPU is small), then ONE final call.
       const numbered = analysed.map((x) => ({ n: postNo(x), platform: x.platform, author: x.author, sentiment: x.sentiment, text: x.text }));
@@ -755,10 +822,11 @@ const generateEventSummary = async (
       if (!Object.keys(notesMap).length) throw new Error('No batch of posts could be analysed by the language model.');
       coverage = { analysed: analysed.length, noted: Object.keys(notesMap).length, mode: 'batched', batches: batches.length };
 
+      refreshFacts(new Set(Object.entries(notesMap).filter(([, nt]) => nt.type === 'media').map(([n]) => Number(n))));
       const digest = buildBatchDigest(notesMap, analysed);
       const reducerMessages = [
         { role: 'system', content: buildReducerSystemPrompt(promptCtx) },
-        { role: 'user', content: buildReducerUserContext(promptCtx, digest) },
+        { role: 'user', content: withFacts(buildReducerUserContext(promptCtx, digest)) },
       ];
       for (let attempt = 0; attempt < 2 && !structuredReport; attempt += 1) {
         const finalRes = await callLLM(reducerMessages, REPORT_OUTPUT_TOKENS);
@@ -789,7 +857,7 @@ const generateEventSummary = async (
       // ---- SMALL EVENT: every analysed post fits in one prompt.
       const messages = [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: llmUserContext },
+        { role: 'user', content: withFacts(llmUserContext) },
       ];
       for (let attempt = 0; attempt < 2 && !structuredReport; attempt += 1) {
         const llmRes = await callLLM(messages, REPORT_OUTPUT_TOKENS);
@@ -803,7 +871,61 @@ const generateEventSummary = async (
         }
       }
     }
-    if (structuredReport) structuredReport.coverage = coverage;
+    if (structuredReport) {
+      // ---- PLAIN-LANGUAGE PASS: strip filler openers in code; ask the model once to rewrite what still reads stiffly.
+      try {
+        const slots = [];
+        const grab = (obj, key) => { if (obj && typeof obj[key] === 'string' && obj[key]) slots.push([obj, key]); };
+        ['bottomLine', 'situation', 'sentimentCommentary', 'publicOrder', 'platformsCommentary'].forEach((k) => grab(structuredReport, k));
+        (structuredReport.keyFindings || []).forEach((x) => grab(x, 'detail'));
+        (structuredReport.narratives || []).forEach((x) => { grab(x, 'discussed'); grab(x, 'tone'); grab(x, 'risk'); });
+        (structuredReport.actions || []).forEach((x) => grab(x, 'detail'));
+        const stiff = [];
+        const english = /^english$/i.test(promptCtx.reportLanguage || 'English');
+        if (english) slots.forEach(([o, k]) => { const r = cleanText(o[k]); o[k] = r.text; if (r.needsRewrite) stiff.push([o, k]); });
+        if (stiff.length) {
+          const payload = {}; stiff.forEach(([o, k], i) => { payload[i] = o[k]; });
+          const res = await callLLM([
+            { role: 'system', content: `Rewrite each text in plain, direct ${promptCtx.reportLanguage || 'English'} as a careful officer would say it aloud. Short sentences (under 25 words). Keep every fact, number, name and [Post #n] tag exactly. Do not add anything. Return ONLY a JSON object with the same keys.` },
+            { role: 'user', content: JSON.stringify(payload) },
+          ], REPORT_OUTPUT_TOKENS);
+          const out = extractJson(res.data?.choices?.[0]?.message?.content || '');
+          stiff.forEach(([o, k], i) => {
+            const t = out && typeof out[i] === 'string' ? out[i].trim() : '';
+            const tags = (x) => (String(x).match(/\[Post #\d+\]/g) || []).sort().join();
+            if (t && tags(t) === tags(o[k])) o[k] = t;   // accept only if no citation was lost or added
+          });
+        }
+      } catch (e) { logger.warn(`[SummaryLLM] Plain-language pass skipped: ${e.message}`); }
+      structuredReport.coverage = coverage;
+      // The model's own per-post source types (news outlet or not) correct who counts as a caller or organiser.
+      try {
+        const mediaNos = new Set(Object.entries(structuredReport.sourceTypes || {}).filter(([, t]) => t === 'media').map(([n]) => Number(n)));
+        if (mediaNos.size) refreshFacts(mediaNos);
+      } catch (e) { /* keep the facts as they were */ }
+      if (facts) {
+        structuredReport.facts = facts;
+        // Dates and organisers come from the posts' own content, checked in code: they replace the model's guesses.
+        const today = new Date().toISOString().slice(0, 10);
+        const cap = (t) => `${t.charAt(0).toUpperCase()}${t.slice(1)}`;
+        const sameCountry = (a) => {
+          if (!a.place || !facts.eventCountry) return true;
+          const g = resolvePlace(a.place, '', '');
+          return !g || !g.country || g.country === facts.eventCountry;
+        };
+        const usable = facts.activities.filter(sameCountry);      // a gathering in another country is not this event's activity
+        const inRegion = usable.filter((a) => !a.outside).slice(0, 6);
+        const elsewhere = usable.filter((a) => a.outside).slice(0, 3);
+        if (inRegion.length || elsewhere.length) {
+          structuredReport.keyDates = [...inRegion, ...elsewhere].map((a) => ({
+            date: a.date, type: a.date < today ? 'past' : 'upcoming',
+            event: `${cap(a.kind)}${a.organiser ? ` called by ${a.organiser}` : ''}${a.place ? ` at ${a.place}` : ''}${a.outside ? ` (outside ${event.location || 'the event region'})` : ''}`,
+            posts: a.posts,
+            outside: Boolean(a.outside),
+          }));
+        }
+      }
+    }
 
     if (!structuredReport) throw new Error('The language model did not return the required JSON structure.');
     summaryMarkdown = reportToMarkdown(structuredReport, event.name);
@@ -959,7 +1081,7 @@ const startSummaryJob = ({ eventId, db, dbName, generatedBy, tenantName, timefra
     promise: null,
   };
   logger.info(`[SummaryLLM] regenerate started event=${eventId} timeframe=${timeframe} tenant=${tenantName || dbName || 'default'}`);
-  const promise = generateEventSummary(eventId, { db, generatedBy, tenantName, timeframe, fromDate, toDate })
+  const promise = generateEventSummary(eventId, { db, dbName, generatedBy, tenantName, timeframe, fromDate, toDate })
     .then((result) => {
       logger.info(`[SummaryLLM] regenerate finished event=${eventId} source=${result?.summary_source || 'unknown'}`);
       if (summaryJobs.get(key) === job) summaryJobs.delete(key);

@@ -123,7 +123,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
     () => [
       { label: '1. Loading event details & scope', description: 'Checking keywords, platforms & time window', threshold: 15 },
       { label: '2. Reading all social media posts', description: 'Gathering all relevant posts across platforms', threshold: 35 },
-      { label: '3. Analyzing sentiment & public tone', description: 'Measuring praise, neutral updates & criticism', threshold: 55 },
+      { label: '3. Analyzing sentiment & public tone', description: 'Measuring positive, neutral and negative tone', threshold: 55 },
       { label: '4. Clustering key discussion themes', description: 'Grouping posts by shared topics & claims', threshold: 75 },
       { label: '5. AI writing executive summary', description: 'Synthesizing bottom line, key findings & recommendations', threshold: 95 },
     ],
@@ -1038,34 +1038,42 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                 <div className="flex items-center gap-2.5 text-[11px]">
                   {sentiment.positive > 0 && (
                     <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                      Praise: {sentiment.positive}{sentimentPercentages.positive !== undefined ? ` (${sentimentPercentages.positive}%)` : ''}
+                      Positive: {sentiment.positive}{sentimentPercentages.positive !== undefined ? ` (${sentimentPercentages.positive}%)` : ''}
                     </span>
                   )}
                   {sentiment.neutral > 0 && (
                     <span className="text-sky-600 dark:text-sky-400 font-medium">
-                      News: {sentiment.neutral}{sentimentPercentages.neutral !== undefined ? ` (${sentimentPercentages.neutral}%)` : ''}
+                      Neutral: {sentiment.neutral}{sentimentPercentages.neutral !== undefined ? ` (${sentimentPercentages.neutral}%)` : ''}
                     </span>
                   )}
                   {sentiment.negative > 0 && (
                     <span className="text-red-600 dark:text-red-400 font-medium">
-                      Criticism: {sentiment.negative}{sentimentPercentages.negative !== undefined ? ` (${sentimentPercentages.negative}%)` : ''}
+                      Negative: {sentiment.negative}{sentimentPercentages.negative !== undefined ? ` (${sentimentPercentages.negative}%)` : ''}
                     </span>
                   )}
                 </div>
               )}
             </div>
 
-            {risk && (
-              <div className="text-[11px] flex items-center gap-2 ml-auto">
-                <span className="text-muted-foreground">Public Order Threat:</span>
-                <Badge
-                  variant="outline"
-                  className="text-[11px] px-1.5 py-0 border-amber-300 text-amber-700 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
-                >
-                  {(risk.critical || 0) + (risk.high || 0)}
-                </Badge>
-              </div>
-            )}
+            {risk && (() => {
+              const facts = stats?.structured_report?.facts;
+              const highRisk = (risk.critical || 0) + (risk.high || 0);
+              const level = facts?.violence?.count > 0 ? 'High' : (facts?.calls?.count > 0 || highRisk > 0) ? 'Medium' : 'Low';
+              const tone = level === 'High'
+                ? 'border-red-300 text-red-700 bg-red-50 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300'
+                : level === 'Medium'
+                  ? 'border-amber-300 text-amber-700 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+                  : 'border-emerald-300 text-emerald-700 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300';
+              const why = facts
+                ? `${facts.calls?.count || 0} post(s) call people to act · ${facts.violence?.count || 0} mention violence · ${highRisk} rated high risk. Negative tone alone does not raise this.`
+                : `${highRisk} post(s) rated high risk. Negative tone alone does not raise this.`;
+              return (
+                <div className="text-[11px] flex items-center gap-2 ml-auto" title={why}>
+                  <span className="text-muted-foreground">Public order risk:</span>
+                  <Badge variant="outline" className={`text-[11px] px-1.5 py-0 ${tone}`}>{level}</Badge>
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -1335,7 +1343,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
 
                       <div className="rounded-xl border border-border/70 p-4 bg-muted/20">
                         <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                          Criticism (Negative)
+                          Negative tone
                         </div>
                         <div className="text-2xl font-bold mt-1 text-red-600 dark:text-red-400">
                           {sentiment?.negative || 0}
@@ -1422,11 +1430,11 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                             </h4>
                           </div>
                           <div className="flex items-center gap-3 text-[11px]">
-                            <span className="text-emerald-600 font-medium">Positive = Praise</span>
+                            <span className="text-emerald-600 font-medium">Positive</span>
                             <span>•</span>
                             <span className="text-sky-600 font-medium">Neutral = News/Updates</span>
                             <span>•</span>
-                            <span className="text-red-600 font-medium">Negative = Criticism</span>
+                            <span className="text-red-600 font-medium">Negative</span>
                           </div>
                         </div>
 
@@ -1442,15 +1450,15 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                               </div>
                               <div className="pt-1 border-t space-y-0.5 text-[11px]">
                                 <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
-                                  <span>Praise:</span>
+                                  <span>Positive:</span>
                                   <span className="font-semibold">{stats.praise || 0}</span>
                                 </div>
                                 <div className="flex justify-between text-sky-600 dark:text-sky-400">
-                                  <span>News:</span>
+                                  <span>Neutral:</span>
                                   <span className="font-semibold">{stats.news || 0}</span>
                                 </div>
                                 <div className="flex justify-between text-rose-600 dark:text-rose-400">
-                                  <span>Criticism:</span>
+                                  <span>Negative:</span>
                                   <span className="font-semibold">{stats.criticism || 0}</span>
                                 </div>
                               </div>
@@ -1532,7 +1540,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                   <ScrollArea className="h-[calc(92vh-185px)] px-7 py-6">
                     <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
                       <div className="text-xs text-muted-foreground">
-                        Every post ingested for this event — not just the sampled citations used in the narrative.
+                        Every post about this event (copies of the same post are merged and shown with a repost count).
                         {allPostsTotal > 0 && (
                           <span className="ml-1">
                             Showing <strong className="text-foreground">{allPosts.length}</strong> of{' '}
@@ -1541,7 +1549,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        {['all', 'x', 'youtube', 'facebook', 'instagram', 'telegram', 'whatsapp'].map((p) => (
+                        {['all', ...((event?.platforms || []).map((x) => (String(x).toLowerCase() === 'twitter' ? 'x' : String(x).toLowerCase())).filter((x, i, a) => x && a.indexOf(x) === i))].map((p) => (
                           <button
                             key={p}
                             type="button"
@@ -1608,6 +1616,11 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                                 ) : (
                                   <Badge variant="outline" className="text-[10px] text-muted-foreground">
                                     Pending analysis
+                                  </Badge>
+                                )}
+                                {post.repost_count > 1 && (
+                                  <Badge variant="outline" className="text-[10px] text-muted-foreground" title="Copies of this post were merged into one row">
+                                    Reposted {post.repost_count}×
                                   </Badge>
                                 )}
                                 {post.risk_level && post.risk_level !== 'low' && (

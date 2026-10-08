@@ -22,18 +22,21 @@ RULES:
 1. Grounding: Use ONLY the provided statistics and evidence posts. Never invent people, events, dates, numbers, or sources. Quote statistics exactly; never recalculate.
 2. Sentiment & Risk: Use ONLY Positive / Neutral / Negative (map Praise→Positive, News/Updates→Neutral, Criticism→Negative). Never use the word "Unknown" as a tone. Criticism is NOT a threat unless explicitly calling for violence, strikes, blockades, or unrest. Keep sentiment and risk distinct.
 3. Citations: Cite evidence as [Post #n] using ONLY numbers present in the evidence list.
-4. Tone & Style: Official police intelligence / OSINT field reporting tone. Concise, operational, analytical sentences for executive and law enforcement leadership. Avoid generic boilerplate. Ground all claims in evidence.
+4. Voice: write the way a careful officer briefs a senior authority in person. Short, direct sentences in plain words. Say what happened first, then what it means. Examples of the voice: "Most posts are neutral." "Several accounts are calling for a bandh on 8 October." "Activity is mainly in Bhubaneswar." "The posts do not show any violence." Do NOT open sentences with "The analysis indicates", "The data suggests", "It is observed", "It appears that", "There appears to be", "discourse landscape", "digital ecosystem", "in conclusion". No stacked hedges ("may potentially indicate"). One idea per sentence, at most about 25 words.
+4a. Separate what is known from what is not: say plainly what is CONFIRMED by the posts, what is only CLAIMED by an account, what is your ASSESSMENT, and what is NOT KNOWN. If the posts do not say something (who organised it, how many people, whether there was violence), say "The posts do not say" instead of guessing. A news outlet reporting that someone else called a bandh is a report, not a call by the outlet.
+4b. The CONFIRMED FACTS list in the input (dates, organisers, places) is computed from the posts. Use those dates, organisers and places exactly. Never use the date a post was published as the date of an event.
 5. Never say something is absent when its count is above 0 (praise 7 means "7 praise posts", not "no praise"); if a count is 0, say none were recorded. The statistics are the truth even if a post's wording seems to disagree.
-6. Avoid the phrases: "public sentiment", "dominated conversations" (unless over 80%), "no organized dissent", "proceeded smoothly", "fostering public confidence", "not verified", "field verification", "keyword-matched related discourse", "may not be named", "caveat", "peripheral noise". Describe non-English posts in English.
+6. Describe non-English posts in English. Do not copy long phrases from posts; give the meaning. Do not repeat the same sentence shape in a row.
 7. This brief is for a State DGP, Crime Branch, and Cyber Cell. Answer, from the posts only: what activity is being organised; where people or representatives were present; which specific places are named; how the volume and tone sit; which accounts carry the criticism; which named leaders or representatives appear; and which accounts amplify it.
-8. Geographic Scoping & Locations: Adhere strictly to the event's designated location. Report districts, cities, towns, chowks, roads, highways, institutions, or buildings within the event region. Completely ignore unrelated international posts (e.g. Brussels, Gaza, Australia, France, Nigeria) or other states unless directly linked to the event. Never invent a place the post does not contain.
+8. Places: name a place only if a post names it. Say where an activity happens, and keep that apart from places that are only mentioned in talk. A place in another state or country is "outside the event region": mention it once, do not treat it as activity in the event region. Never invent a place.
 9. Public order: a bandh, blockade, highway block, gherao, rally, or protest named in a post is a fact. Do not write that there is no unrest or no blockade when the evidence says otherwise. Keep peaceful criticism separate from those calls.
 10. Leave out anything the posts do not support.
-11. Recommended Actions: Provide 3-6 actionable, operationally specific directives tailored for executive and law enforcement units (e.g., District Police / SHO, Cyber Crime Cell / OSINT Desk, Public Relations & Fact-Check Unit, Traffic Unit, Platform Escalation Desk). Never write vague generic advice like "Monitor Protests" or "Engage with criticism". Each action MUST specify:
-    - Tactical Mandate & Lead Unit (e.g., "Ground Security & Precautionary Bandobast (Local Police / SHO)", "Cyber & Digital Surveillance (Cyber Cell)", "Counter-Disinformation & Fact-Check (Media / PRO Cell)", "Traffic & Route Regulation (Traffic Police)", "Platform Escalation & Nodal Coordination (Cyber Desk)");
-    - Concrete operational details: name the specific location/venue/route (e.g., Jantar Mantar, specific district/chowk), named leaders/accounts, viral hashtags, specific rumors/claims to verify or rebut, and concrete tactical steps;
-    - Evidence citations [Post #n].
-12. Relevance & Storylines: Filter out completely unrelated commercial/personal spam (e.g. food recipes, chef ads, vehicle bookings, unrelated exam queries) from narrative summaries. If the event discourse blends distinct storylines (e.g., local student union textbook protests vs national party campaigns), clearly distinguish genuine local ground presence from external social amplification.`;
+11. Recommended Actions: 3-5 actions a police unit can carry out today. Each action names, in this order: WHO acts (a unit, e.g. District Police / SHO, Traffic Police, Cyber Cell, PRO / Fact-Check Cell), WHAT exactly they do, WHERE or on WHICH account, hashtag or claim, WHY (the fact from the posts that justifies it), and the TRIGGER that would require escalation ("Escalate if ..."). Never write "monitor the situation", "verify claims" or "monitor social media" alone. Do not add the same advice twice. Cite [Post #n].
+11a. Do not repeat the same conclusion in several sections. State a fact once where it belongs; other sections may point to it in a few words. The bottom line is 2-3 sentences: what is happening, where, who is behind it, how serious it is, and the one thing to do.
+11b. Tone is not risk. Negative or critical posts are criticism. Risk comes only from calls to act (bandh, blockade, rally), violence or damage, or threats. Never describe negative tone as "critical" or as a threat. A high-risk post does not make its author a priority account.
+11c. Name only the platforms listed in the statistics; never mention a platform that has no posts. Describe tone with the exact Positive / Neutral / Negative counts: if most posts are neutral, say so, and do not call the discussion "mostly critical" unless negative posts are more than half. Do not write sentences like "Posts [Post #1] and [Post #2] mention this"; write the point once and put the citations at the end of the sentence.
+11d. For every claim you list, say what the posts show for it and what is not established (for example "Posts 4 and 9 say it; no post confirms it").
+12. Relevance & Storylines: Leave out posts that are not about the event. If the posts mix different stories, keep them apart and say which one each fact belongs to; say whether people were on the ground or only posting about it.`;
 
 /* ---------------------------------------------------------------- 2. OUTPUT CONTRACT ---------------------- */
 const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only (no conversational text, no markdown code fences) with exactly these fields:
@@ -49,8 +52,8 @@ const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only (no conversational text, n
  "narratives": [{"title": "3-7 words", "discussed": "2-3 sentences: theme, kind of discussion (analysis, news, rumour, opinion, satire, notice), [Post #n] citations", "tone": "1-2 sentences on sentiment mix, using the posts' labels", "risk": "1-2 sentences or 'No risk signal.'", "posts": [1, 2]}],   // 3-7; EVERY evidence post in exactly ONE narrative
  "public_order": "paragraph: threat evaluation, agitation/protest indicators (strictly separate peaceful criticism from threats)",
  "platforms_commentary": "paragraph: platform distribution and key amplifying voices",
- "recommended_actions": [{"action": "Tactical Action & Lead Unit (e.g., 'Ground Bandobast at [Specific Location] — Local Police / SHO', 'Fact-Check & Rebuttal on [Claim] — Media / PRO Cell', 'Digital Surveillance of [Hashtag/Handle] — Cyber Cell')", "detail": "2-3 highly concrete, actionable sentences specifying exact venues, handles/hashtags, claims to verify/rebut, deployment steps, or digital tracking measures", "posts": [1]}],
- "claims": [{"claim": "short factual claim", "posts": [1], "triage": "VERIFY or MONITOR", "note": "verification path or monitoring reason"}],
+ "recommended_actions": [{"action": "Tactical Action & Lead Unit (e.g., 'Ground Bandobast at [Specific Location] — Local Police / SHO', 'Fact-Check & Rebuttal on [Claim] — Media / PRO Cell', 'Digital Surveillance of [Hashtag/Handle] — Cyber Cell')", "detail": "2-3 sentences: what exactly the unit does, where or on which account/hashtag/claim, why (the fact), and one sentence starting 'Escalate if' that names the trigger", "posts": [1]}],
+ "claims": [{"claim": "short factual claim", "posts": [1], "triage": "VERIFY or MONITOR", "note": "what the posts show for it and what is not established, then how to verify"}],
  "changes": [{"from": "earlier state", "to": "later state", "post": 1}],
  "emerging_keywords": [{"term": "#tag or phrase", "posts": [1], "why": "short reason"}],
  "activities": [{"what": "campaign, meeting, protest, bandh, rally, or programme named in posts", "where": "specific place in the post, or empty", "when": "date in the post, or empty", "posts": [1]}],
@@ -63,7 +66,11 @@ const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only (no conversational text, n
 }
 claims: 0-8 factual assertions (not opinions). VERIFY = checkable against an official source; MONITOR = theme to watch. changes: only if a post itself states a before/after. Finish every field; shorten paragraphs rather than dropping fields. Output valid complete JSON.`;
 
-const buildSystemPrompt = (ctx) => `${RULES}\n\n${ctx.addresseeLine || ''}\n\nEVENT: "${ctx.event.name}"\n\n${OUTPUT_CONTRACT}`;
+const languageLine = (ctx) => (ctx.reportLanguage && !/^english$/i.test(ctx.reportLanguage)
+  ? `LANGUAGE: Write every sentence of the report in ${ctx.reportLanguage}, in the same plain voice. Keep names, hashtags, handles and [Post #n] tags exactly as they are. JSON field names stay in English.`
+  : '');
+
+const buildSystemPrompt = (ctx) => `${RULES}\n\n${languageLine(ctx)}\n\n${ctx.addresseeLine || ''}\n\nEVENT: "${ctx.event.name}"\n\n${OUTPUT_CONTRACT}`;
 
 /* ----------------------------------------------------------------- 3. USER CONTEXT ---------------------- */
 const buildUserContext = (ctx = {}) => {
@@ -161,7 +168,7 @@ OUTPUT: ONE JSON object only (no text around it, no code fences) with exactly th
 }
 Cite only post numbers that appear in the notes. Finish every field; shorten paragraphs rather than dropping fields.`;
 
-const buildReducerSystemPrompt = (ctx) => `${RULES}\n\n${ctx.addresseeLine || ''}\n\nEVENT: "${ctx.event.name}"\n\n${REDUCER_CONTRACT}`;
+const buildReducerSystemPrompt = (ctx) => `${RULES}\n\n${languageLine(ctx)}\n\n${ctx.addresseeLine || ''}\n\nEVENT: "${ctx.event.name}"\n\n${REDUCER_CONTRACT}`;
 
 /** Statistics + batch-note digest. */
 const buildReducerUserContext = (ctx, digest) => {
@@ -443,5 +450,5 @@ const reportToMarkdown = (r, eventName) => {
 module.exports = {
   buildSystemPrompt, buildUserContext, RETRY_MESSAGE, parseLLMReport, reportToMarkdown,
   BATCH_SYSTEM, buildBatchUserContext, parseBatchNotes, buildReducerSystemPrompt, buildReducerUserContext,
-  estimateTokens, truncateToTokens, makeBatches, reducerToReport,
+  estimateTokens, truncateToTokens, makeBatches, reducerToReport, extractJson,
 };

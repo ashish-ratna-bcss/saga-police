@@ -359,7 +359,8 @@ const updateUserAccount = async (actor, userId, body) => {
       body.blurasagadescription !== undefined ||
       body.application_name !== undefined ||
       body.domains !== undefined ||
-      body.domain !== undefined;
+      body.domain !== undefined ||
+      body.force_profile !== undefined;
 
     if (brandingTouched) {
       data.application_details = buildApplicationDetails(

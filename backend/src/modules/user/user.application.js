@@ -25,6 +25,26 @@ const normalizeDomains = (raw) => {
   return [];
 };
 
+/** Force profile used on intelligence reports; only these text fields are kept. */
+const FORCE_FIELDS = ['force', 'display_name', 'head', 'headquarters', 'pin', 'phone', 'report_language'];
+const normalizeForceProfile = (raw) => {
+  const o = asObject(raw);
+  const out = {};
+  FORCE_FIELDS.forEach((k) => {
+    const v = o[k] == null ? '' : String(o[k]).trim().slice(0, 200);
+    if (v) out[k] = v;
+  });
+  return Object.keys(out).length ? out : null;
+};
+
+/** Starting profile for a new tenant, taken from the name the admin gave the application; admins can refine it later. */
+const defaultForceProfile = (title) => {
+  // The platform's own brand words are not part of the force name ("Odisha Blura Saga" -> "Odisha").
+  const t = String(title || '').replace(/blura\s*saga/gi, '').replace(/\s+/g, ' ').trim();
+  if (!t) return null;
+  return normalizeForceProfile({ force: t, display_name: t.toUpperCase(), report_language: 'English' });
+};
+
 const readApplicationDetails = (user) => {
   const ad = asObject(user?.application_details);
   const tc = asObject(user?.theme_color); // legacy fallback during migration
@@ -54,6 +74,7 @@ const readApplicationDetails = (user) => {
       DEFAULT_APP.application_name,
     domains: normalizeDomains(restAd.domains || restAd.domain),
     notice,
+    force_profile: normalizeForceProfile(restAd.force_profile),
   };
 };
 
@@ -83,6 +104,8 @@ const buildApplicationDetails = (existing, body = {}, fallback = {}) => {
         : null;
   }
 
+  if (body.force_profile !== undefined) next.force_profile = normalizeForceProfile(body.force_profile);
+
   const out = {
     title: String(next.title || DEFAULT_APP.title),
     description: String(next.description || DEFAULT_APP.description),
@@ -92,6 +115,8 @@ const buildApplicationDetails = (existing, body = {}, fallback = {}) => {
   if (next.notice && typeof next.notice === 'object') {
     out.notice = next.notice;
   }
+  const fp = normalizeForceProfile(next.force_profile) || defaultForceProfile(out.application_name);
+  if (fp) out.force_profile = fp;
   return out;
 };
 
@@ -120,6 +145,7 @@ module.exports = {
   DEFAULT_APP,
   readApplicationDetails,
   buildApplicationDetails,
+  defaultForceProfile,
   themeOnly,
   parsePort,
 };

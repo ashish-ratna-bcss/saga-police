@@ -1,0 +1,132 @@
+{
+  "profiles": [
+    {
+      "keys": [
+        "odisha",
+        "orissa"
+      ],
+      "force": "Odisha Police",
+      "display_name": "ODISHA POLICE",
+      "head": "Director General of Police",
+      "headquarters": "State Police Headquarters, Buxi Bazar, Cuttack",
+      "pin": "753001",
+      "phone": "Control Room: 0671-2304001",
+      "report_language": "English"
+    },
+    {
+      "keys": [
+        "delhi",
+        "delhipolice"
+      ],
+      "force": "Delhi Police",
+      "display_name": "DELHI POLICE",
+      "head": "Commissioner of Police",
+      "headquarters": "Police Headquarters, Jai Singh Marg, New Delhi",
+      "pin": "110001",
+      "phone": "",
+      "report_language": "English"
+    },
+    {
+      "keys": [
+        "uttarakhand"
+      ],
+      "force": "Uttarakhand Police",
+      "display_name": "UTTARAKHAND POLICE",
+      "head": "Director General of Police",
+      "headquarters": "Police Headquarters, Dehradun",
+      "pin": "248001",
+      "phone": "",
+      "report_language": "English"
+    },
+    {
+      "keys": [
+        "jharkhand"
+      ],
+      "force": "Jharkhand Police",
+      "display_name": "JHARKHAND POLICE",
+      "head": "Director General of Police",
+      "headquarters": "Jharkhand Police Headquarters, Dhurwa, Ranchi",
+      "pin": "834004",
+      "phone": "",
+      "report_language": "English"
+    },
+    {
+      "keys": [
+        "andhrapradesh",
+        "andhra"
+      ],
+      "force": "Andhra Pradesh Police",
+      "display_name": "ANDHRA PRADESH POLICE",
+      "head": "Director General of Police",
+      "headquarters": "Police Headquarters, Mangalagiri, Amaravati",
+      "pin": "522502",
+      "phone": "",
+      "report_language": "English"
+    },
+    {
+      "keys": [
+        "karnataka"
+      ],
+      "force": "Karnataka Police",
+      "display_name": "KARNATAKA POLICE",
+      "head": "Director General of Police",
+      "headquarters": "Police Headquarters, Nrupathunga Road, Bengaluru",
+      "pin": "560001",
+      "phone": "",
+      "report_language": "English"
+    },
+    {
+      "keys": [
+        "maharashtra",
+        "mumbai"
+      ],
+      "force": "Maharashtra Police",
+      "display_name": "MAHARASHTRA POLICE",
+      "head": "Director General of Police",
+      "headquarters": "Police Headquarters, Colaba, Mumbai",
+      "pin": "400001",
+      "phone": "",
+      "report_language": "English"
+    },
+    {
+      "keys": [
+        "tamilnadu",
+        "chennai"
+      ],
+      "force": "Tamil Nadu Police",
+      "display_name": "TAMIL NADU POLICE",
+      "head": "Director General of Police",
+      "headquarters": "Police Headquarters, Radhakrishnan Salai, Mylapore, Chennai",
+      "pin": "600004",
+      "phone": "",
+      "report_language": "English"
+    },
+    {
+      "keys": [
+        "telangana",
+        "hyderabad"
+      ],
+      "force": "Telangana Police",
+      "display_name": "TELANGANA POLICE",
+      "head": "Director General of Police",
+      "headquarters": "DGP Office, Saifabad, Hyderabad",
+      "pin": "500004",
+      "phone": "",
+      "report_language": "English"
+    },
+    {
+      "keys": [
+        "westbengal",
+        "bengal",
+        "kolkata"
+      ],
+      "force": "West Bengal Police",
+      "display_name": "WEST BENGAL POLICE",
+      "head": "Director General of Police",
+      "headquarters": "Nabanna / Bhabani Bhawan, Alipore, Kolkata",
+      "pin": "700027",
+      "phone": "",
+      "report_language": "English"
+    }
+  ]
+}

@@ -4,98 +4,21 @@
  * while providing intelligent dynamic fallbacks based on tenant name.
  */
 
-const KNOWN_DIRECTORIES = [
-  {
-    keys: ['odisha', 'orissa'],
-    force: 'Odisha Police',
-    head: 'Director General of Police',
-    headquarters: 'State Police Headquarters, Buxi Bazar, Cuttack',
-    pin: '753001',
-    phone: 'Control Room: 0671-2304001',
-    official: true,
-  },
-  {
-    keys: ['delhi', 'delhipolice'],
-    force: 'Delhi Police',
-    head: 'Commissioner of Police',
-    headquarters: 'Police Headquarters, Jai Singh Marg, New Delhi',
-    pin: '110001',
-    phone: '',
-    official: true,
-  },
-  {
-    keys: ['uttarakhand'],
-    force: 'Uttarakhand Police',
-    head: 'Director General of Police',
-    headquarters: 'Police Headquarters, Dehradun',
-    pin: '248001',
-    phone: '',
-    official: true,
-  },
-  {
-    keys: ['jharkhand'],
-    force: 'Jharkhand Police',
-    head: 'Director General of Police',
-    headquarters: 'Jharkhand Police Headquarters, Dhurwa, Ranchi',
-    pin: '834004',
-    phone: '',
-    official: true,
-  },
-  {
-    keys: ['andhrapradesh', 'andhra', 'ap'],
-    force: 'Andhra Pradesh Police',
-    head: 'Director General of Police',
-    headquarters: 'Police Headquarters, Mangalagiri, Amaravati',
-    pin: '522502',
-    phone: '',
-    official: true,
-  },
-  {
-    keys: ['karnataka'],
-    force: 'Karnataka Police',
-    head: 'Director General of Police',
-    headquarters: 'Police Headquarters, Nrupathunga Road, Bengaluru',
-    pin: '560001',
-    phone: '',
-    official: true,
-  },
-  {
-    keys: ['maharashtra', 'mumbai'],
-    force: 'Maharashtra Police',
-    head: 'Director General of Police',
-    headquarters: 'Police Headquarters, Colaba, Mumbai',
-    pin: '400001',
-    phone: '',
-    official: true,
-  },
-  {
-    keys: ['tamilnadu', 'chennai'],
-    force: 'Tamil Nadu Police',
-    head: 'Director General of Police',
-    headquarters: 'Police Headquarters, Radhakrishnan Salai, Mylapore, Chennai',
-    pin: '600004',
-    phone: '',
-    official: true,
-  },
-  {
-    keys: ['telangana', 'hyderabad'],
-    force: 'Telangana Police',
-    head: 'Director General of Police',
-    headquarters: 'DGP Office, Saifabad, Hyderabad',
-    pin: '500004',
-    phone: '',
-    official: true,
-  },
-  {
-    keys: ['westbengal', 'bengal', 'kolkata'],
-    force: 'West Bengal Police',
-    head: 'Director General of Police',
-    headquarters: 'Nabanna / Bhabani Bhawan, Alipore, Kolkata',
-    pin: '700027',
-    phone: '',
-    official: true,
-  },
-];
+// Per-tenant force details live in backend/config/tenant_profiles.json (or the file named by TENANT_PROFILES_FILE),
+// so adding or changing a tenant never needs a code change.
+const fs = require('fs');
+const path = require('path');
+
+const loadProfiles = () => {
+  try {
+    const file = process.env.TENANT_PROFILES_FILE || path.join(__dirname, '../../../../config/tenant_profiles.json');
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return Array.isArray(data.profiles) ? data.profiles.map((p) => ({ ...p, official: true })) : [];
+  } catch (e) {
+    return [];
+  }
+};
+const KNOWN_DIRECTORIES = loadProfiles();
 
 const fold = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -165,5 +88,23 @@ const headquartersPromptLine = (hq) => {
   return `ADDRESSEE: The ${hq.head}, ${hq.force}. Headquarters: ${hq.addressLine}.`;
 };
 
-module.exports = { resolveHeadquarters, headquartersPromptLine, KNOWN_DIRECTORIES };
+/** Display name for the page footer, from the tenant profile; generic fallback for unknown tenants. */
+const tenantDisplayName = (label, profile = null) => {
+  if (profile && (profile.display_name || profile.force)) return profile.display_name || String(profile.force).toUpperCase();
+  const folded = fold(label);
+  const hit = folded && KNOWN_DIRECTORIES.find((row) => row.keys.some((k) => folded.includes(fold(k))));
+  if (hit) return hit.display_name || String(hit.force || '').toUpperCase();
+  const s = String(label || '').replace(/[_]+/g, ' ').replace(/\bblura\s*saga\b/gi, '').trim();
+  return s ? s.toUpperCase() : 'DIGITAL INTELLIGENCE PLATFORM';
+};
+
+/** Language the tenant wants its reports written in (profile field report_language); English when not set. */
+const reportLanguageFor = (label, profile = null) => {
+  if (profile && profile.report_language) return profile.report_language;
+  const folded = fold(label);
+  const hit = folded && KNOWN_DIRECTORIES.find((row) => row.keys.some((k) => folded.includes(fold(k))));
+  return (hit && hit.report_language) || 'English';
+};
+
+module.exports = { reportLanguageFor, resolveHeadquarters, headquartersPromptLine, tenantDisplayName, KNOWN_DIRECTORIES };
 

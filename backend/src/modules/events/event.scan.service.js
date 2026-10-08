@@ -1,4 +1,5 @@
 const dbOf = require('../../lib/dbOf');
+const platformPause = new Map();   // platform label -> time until which it is left alone after a quota / rate-limit answer
 const callXApi = require('../../services/blugate/x/blugate.x.api_client');
 const callFacebookApi = require('../../services/blugate/facebook/blugate.facebook.api_client');
 const callYouTubeApi = require('../../services/blugate/youtube/blugate.youtube.api_client');
@@ -790,9 +791,18 @@ const runScanEventOnce = async (event, options = {}) => {
     }
   };
 
-  const fetchUniqueByQueriesCounted = async (qs, fetcher, concurrency = cfg.queryConcurrency) => {
+  // A platform that answers "quota exceeded" / "rate limit" is left alone for a while: every further query would fail the same way
+  // and only burn calls. The pause is shared by all events in this process.
+  const QUOTA_RE = /quota|rate limit|429/i;
+  const fetchUniqueByQueriesCounted = async (qs, fetcher, label = 'api', concurrency = cfg.queryConcurrency) => {
     const merged = [];
     const ranked = rankQueries(qs);
+    let quotaHit = false;
+    let quotaHitText = '';
+    if ((platformPause.get(label) || 0) > Date.now()) {
+      logger.warn(`[EventScan] ${label} paused until ${new Date(platformPause.get(label)).toISOString()} (quota or rate limit)`);
+      return merged;
+    }
     for (let i = 0; i < ranked.length; i += concurrency) {
       const chunk = ranked.slice(i, i + concurrency);
       const results = await Promise.allSettled(
@@ -806,8 +816,16 @@ const runScanEventOnce = async (event, options = {}) => {
         if (res.status === 'fulfilled' && Array.isArray(res.value) && res.value.length) {
           merged.push(...res.value);
         } else if (res.status === 'rejected') {
-          logger.warn(`[EventScan] Query "${chunk[j]}" skipped: ${res.reason?.message || res.reason}`);
+          const why = String(res.reason?.message || res.reason);
+          logger.warn(`[EventScan] Query "${chunk[j]}" skipped: ${why}`);
+          if (QUOTA_RE.test(why)) { quotaHit = true; quotaHitText = why; }
         }
+      }
+      if (quotaHit) {
+        const minutes = /per day|daily/i.test(quotaHitText) ? 60 : 15;
+        platformPause.set(label, Date.now() + minutes * 60000);
+        logger.warn(`[EventScan] ${label}: quota/rate limit reached; remaining queries skipped, paused ${minutes} min`);
+        break;
       }
       if (i + concurrency < ranked.length) await sleep(cfg.queryDelayMs);
     }
@@ -848,7 +866,8 @@ const runScanEventOnce = async (event, options = {}) => {
       const xAuth = await loadPlatformAuth(['x', 'twitter'], callXApi.authFromPlatformRow);
       const tweets = await fetchUniqueByQueriesCounted(queries, (q) =>
         searchXViaBlugate(q, xAuth)
-      );
+     
+      , 'x');
       const relevant = filterByKeywords(tweets, event, (t) => t?.text || '', relCtx);
       scanned += relevant.length;
       track('x', { scanned: relevant.length });
@@ -887,7 +906,8 @@ const runScanEventOnce = async (event, options = {}) => {
       const ytAuth = await loadPlatformAuth(['youtube'], callYouTubeApi.authFromPlatformRow);
       const videos = await fetchUniqueByQueriesCounted(queries, (q) =>
         searchYouTubeViaBlugate(q, ytAuth)
-      );
+     
+      , 'youtube');
       const relevant = filterByKeywords(
         videos,
         event,
@@ -942,7 +962,8 @@ const runScanEventOnce = async (event, options = {}) => {
       const fbAuth = await loadPlatformAuth(['facebook'], callFacebookApi.authFromPlatformRow);
       const posts = await fetchUniqueByQueriesCounted(queries, (q) =>
         searchFacebookViaBlugate(q, fbAuth)
-      );
+     
+      , 'facebook');
       const relevant = filterByKeywords(posts, event, (p) => p?.message || p?.text || '', relCtx);
       scanned += relevant.length;
       track('facebook', { scanned: relevant.length });
@@ -985,7 +1006,7 @@ const runScanEventOnce = async (event, options = {}) => {
   if (platforms.includes('telegram')) {
     try {
       const tgAuth = await loadPlatformAuth(['telegram'], callTelegramApi.authFromPlatformRow);
-      const posts = await fetchUniqueByQueriesCounted(queries, (q) => searchTelegramViaBlugate(q, tgAuth));
+      const posts = await fetchUniqueByQueriesCounted(queries, (q) => searchTelegramViaBlugate(q, tgAuth), 'telegram');
       const relevant = filterByKeywords(posts, event, (p) => p?.text || '', relCtx);
       scanned += relevant.length;
       track('telegram', { scanned: relevant.length });
@@ -1036,7 +1057,8 @@ const runScanEventOnce = async (event, options = {}) => {
       const redditRange = redditDateRange(event);
       const posts = await fetchUniqueByQueriesCounted(redditQueriesForEvent(event), (q) =>
         searchRedditViaBlugate(q, redditAuth, redditRange)
-      );
+     
+      , 'reddit');
       const relevant = filterByKeywords(
         posts,
         redditRelevanceEvent(event),
