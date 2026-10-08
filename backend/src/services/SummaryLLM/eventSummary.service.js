@@ -762,6 +762,10 @@ const generateEventSummary = async (
       if (!Object.keys(factsMap).length) return null;
       Object.entries(factsMap).forEach(([n, f]) => {
         if (mediaNos.has(Number(n))) f.role = 'media';
+        // The place named for the activity counts as one of the post's places, so "at mumbai" is placed too.
+        if (f.place && !(f.places || []).some((pl) => foldW(pl.name) === foldW(f.place))) {
+          f.places = [...(f.places || []), { name: f.place, region: '', active: false }];
+        }
         // Real place data decides the region and country of each place; the model's label is only a hint for names GeoNames does not know.
         (f.places || []).forEach((pl) => {
           if (pl.verified) return;

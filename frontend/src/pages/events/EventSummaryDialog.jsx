@@ -741,14 +741,14 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
         onFocusOutside={(e) => { if (generatingRef.current) e.preventDefault(); }}
       >
         {/* Header */}
-        <DialogHeader className="px-6 py-4 border-b bg-muted/20 flex flex-row items-center justify-between space-y-0">
-          <div className="flex items-center gap-3 min-w-0">
+        <DialogHeader className="px-6 py-4 border-b bg-muted/20 flex flex-row flex-wrap items-center justify-between gap-y-3 space-y-0">
+          <div className="flex items-center gap-3 min-w-0 flex-1 basis-[22rem]">
             <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-purple-500/20 shrink-0">
               <Sparkles className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <DialogTitle className="text-lg font-bold tracking-tight text-foreground truncate">
+              <div className="flex items-center gap-2 flex-wrap">
+                <DialogTitle className="text-lg font-bold tracking-tight text-foreground whitespace-nowrap">
                   Event Summary
                 </DialogTitle>
                 {totalPosts > 0 && (
@@ -793,7 +793,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
             </div>
           </div>
 
-          <div className="flex items-center gap-2 pr-6 shrink-0">
+          <div className="flex items-center gap-2 pr-6 flex-wrap">
             {/* Timeframe Scope Selector Trigger */}
             <Button
               type="button"
