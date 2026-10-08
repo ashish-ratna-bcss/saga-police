@@ -221,7 +221,7 @@ const MultiSelect = ({ label, icon: Icon, options, value, onChange, disabled }) 
 };
 
 /** Keyword + facet filters, shared by the live and saved views. */
-const FilterBar = ({ filters, setFilters, options, facetsDisabled, loading, submitLabel, placeholder, onSubmit, canClear, onClear, children }) => {
+const FilterBar = ({ filters, setFilters, onApply, options, facetsDisabled, loading, submitLabel, placeholder, onSubmit, canClear, onClear, children }) => {
   const items = listItems(filters.keyword);
   const isList = items.length > 1;
   const tooLong = filters.keyword.length > MAX_KEYWORD_LENGTH;
@@ -287,7 +287,7 @@ const FilterBar = ({ filters, setFilters, options, facetsDisabled, loading, subm
       <div className="flex flex-wrap items-center gap-1.5 px-0.5">
       {FACETS.map((f) => (
         <MultiSelect key={f.key} label={f.label} icon={f.icon} value={filters[f.key]} options={options[f.key]}
-          disabled={facetsDisabled} onChange={(v) => setFilters((x) => ({ ...x, [f.key]: v }))} />
+          disabled={facetsDisabled} onChange={(v) => onApply({ [f.key]: v })} />
       ))}
       <Input value={filters.location} onChange={(e) => setFilters({ ...filters, location: e.target.value })}
         placeholder="Location" title="Matched against the article's district, location or state. Comma-separate for several."
@@ -713,6 +713,8 @@ const NewsWorkspace = () => {
   const collectReq = useRef(0);
   const queryRef = useRef(query);
   queryRef.current = query;
+  const limitRef = useRef(limit);
+  limitRef.current = limit;
 
   const checkHealth = useCallback(async () => {
     setHealth({ status: 'checking', message: '' });
@@ -790,6 +792,38 @@ const NewsWorkspace = () => {
       setCollect({ running: false, error: errMsg(err, 'Could not fetch the latest news') });
     }
   }, [loadDb, loadSearches]);
+
+  /**
+   * A country / language / state / source / location / date filter changed: re-read the
+   * saved articles for the current search with it straight away, so the list never shows
+   * results for other filters than the ones selected. Database only — "Search news" and
+   * "Fetch latest" still fetch from the news sites. The keyword applies on "Search news".
+   */
+  const applyFilters = useCallback((patch = {}, rangePatch = null) => {
+    const prev = queryRef.current;
+    const q = {
+      filters: { ...prev.filters, ...patch },
+      range: rangePatch ? { ...prev.range, ...rangePatch } : prev.range,
+    };
+    queryRef.current = q;
+    setFilters((f) => ({ ...f, ...patch }));
+    if (rangePatch) setRange((r) => ({ ...r, ...rangePatch }));
+    collectReq.current += 1; // the last fetch notice was about the previous filters
+    setCollect(null);
+    setQuery(q);
+    loadDb(q, 0, limitRef.current);
+  }, [loadDb]);
+
+  // Location is typed, so wait for a pause instead of querying on every keystroke.
+  useEffect(() => {
+    const wanted = filters.location.trim();
+    if (wanted === queryRef.current.filters.location.trim()) return undefined;
+    const timer = setTimeout(() => {
+      // "Search news" pressed in the meantime already carries it.
+      if (wanted !== queryRef.current.filters.location.trim()) applyFilters({ location: filters.location });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [filters.location, applyFilters]);
 
   useEffect(() => {
     checkHealth();
@@ -936,16 +970,16 @@ const NewsWorkspace = () => {
 
       {view === 'articles' && (
       <>
-      <FilterBar filters={filters} setFilters={setFilters} options={options} facetsDisabled={sourcesStatus !== 'ready'}
+      <FilterBar filters={filters} setFilters={setFilters} onApply={applyFilters} options={options} facetsDisabled={sourcesStatus !== 'ready'}
         loading={loading} submitLabel="Search news" placeholder="Keyword (matched as a whole phrase), or several separated by commas — optional"
         onSubmit={() => search(filters, range)}
         canClear={hasFilters(filters) || !!range.from || !!range.to}
-        onClear={() => { setFilters(EMPTY_FILTERS); setRange(EMPTY_RANGE); }}>
+        onClear={() => search(EMPTY_FILTERS, EMPTY_RANGE)}>
         <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          From <Input type="date" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} className="h-8 w-36 text-xs" />
+          From <Input type="date" value={range.from} onChange={(e) => applyFilters({}, { from: e.target.value })} className="h-8 w-36 text-xs" />
         </label>
         <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          To <Input type="date" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} className="h-8 w-36 text-xs" />
+          To <Input type="date" value={range.to} onChange={(e) => applyFilters({}, { to: e.target.value })} className="h-8 w-36 text-xs" />
         </label>
       </FilterBar>
 
