@@ -7,7 +7,7 @@ One report per event: the full report with the evidence annex. It is written by 
 2. **Analysis (model).** Bottom line, issue strands (who is behind each story, what they ask, where it stands), what is known and not known, narratives to watch, actions. Post numbers the model invents are dropped.
 
 ## Tenant settings (force profile)
-Stored in the tenant's `users.application_details.force_profile`. Text fields: `force`, `display_name`, `head`, `headquarters`, `pin`, `phone`, `report_language`, `timezone` (default `Asia/Kolkata`), `classification` (printed top right, e.g. `RESTRICTED`), `units` (comma separated unit names the actions may name), `signoff` (up to three sign-off roles, comma separated).
+Stored in the tenant's `users.application_details.force_profile`. Text fields: `force`, `display_name`, `head`, `headquarters`, `pin`, `phone`, `report_language`, `timezone` (default `Asia/Kolkata`), `classification` (printed top right, e.g. `RESTRICTED`), `units` (comma separated unit names the actions may name).
 Existing tenants: `node scripts/seed-force-profiles.js --merge --apply` adds the settings they lack and never overwrites a saved value.
 
 ## API

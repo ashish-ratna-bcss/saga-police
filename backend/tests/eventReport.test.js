@@ -232,13 +232,13 @@ test('post times and days follow the tenant timezone, not the server clock', () 
   assert.ok(/07 Oct, 20:00/.test(utc));
 });
 
-test('classification marking and sign-off roles come from the profile; sign-off has sensible defaults', () => {
+test('classification marking comes from the profile; there are no sign-off boxes', () => {
   const hq = { ...resolveHeadquarters('odisha'), classification: 'RESTRICTED', signoff: ['Analyst', 'Superintendent', 'DIG'] };
   const html = buildReportHtml({ summary: evSummary, keywordData: null, tenantName: 'odisha', analysis: evAnalysis, headquarters: hq, includeEvidence: true });
   assert.ok(/class="classif">RESTRICTED</.test(html));
-  assert.ok(/<span>Superintendent<\/span>/.test(html));
+  assert.ok(!/class="sign"/.test(html));
   const plain = buildReportHtml({ summary: evSummary, keywordData: null, tenantName: 'odisha', analysis: evAnalysis, headquarters: null, includeEvidence: true });
-  assert.ok(/<span>Prepared by<\/span>/.test(plain) && /<span>Reviewed by<\/span>/.test(plain) && /<span>Approved by<\/span>/.test(plain));
+  assert.ok(!/Prepared by|Reviewed by|Approved by/.test(plain));
   assert.ok(!/class="classif"/.test(plain));
 });
 
@@ -316,12 +316,12 @@ test('the model reply is parsed into issue strands, known and not known, droppin
   assert.strictEqual(r.issueLink, 'l');
 });
 
-test('two tenants built one after the other keep their own name, timezone and sign-off', () => {
+test('two tenants built one after the other keep their own name and timezone', () => {
   const late = { ...mixed, evidence_traceability: [evRow(1, { posted_at: '2026-10-07T20:00:00Z' })] };
   const a = buildReportHtml({ summary: late, keywordData: null, tenantName: 'a', analysis: mixedAnalysis, headquarters: resolveHeadquarters('a', { force: 'A Police', display_name: 'A POLICE', head: 'DGP', headquarters: 'X', timezone: 'UTC', signoff: 'Analyst, SP, DIG' }), includeEvidence: true });
   const b = buildReportHtml({ summary: late, keywordData: null, tenantName: 'b', analysis: mixedAnalysis, headquarters: resolveHeadquarters('b', { force: 'B Police', display_name: 'B POLICE', head: 'CP', headquarters: 'Y', timezone: 'Asia/Kolkata' }), includeEvidence: true });
-  assert.ok(/A POLICE/.test(a) && !/B POLICE/.test(a) && /07 Oct, 20:00/.test(a) && /<span>SP<\/span>/.test(a));
-  assert.ok(/B POLICE/.test(b) && !/A POLICE/.test(b) && /08 Oct, 01:30/.test(b) && /<span>Prepared by<\/span>/.test(b));
+  assert.ok(/A POLICE/.test(a) && !/B POLICE/.test(a) && /07 Oct, 20:00/.test(a));
+  assert.ok(/B POLICE/.test(b) && !/A POLICE/.test(b) && /08 Oct, 01:30/.test(b));
 });
 
 test('other languages: Odia text gets its font, translated labels are used, and values in labels survive', () => {

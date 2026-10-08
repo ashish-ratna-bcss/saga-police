@@ -462,8 +462,6 @@ th{word-break:keep-all;overflow-wrap:normal;hyphens:none}tr{break-inside:avoid}t
 .action-item .action-desc{font-size:7.3pt;color:#334155;line-height:1.3}
 
 .classif{position:absolute;right:7mm;top:3.2mm;font-size:6.4pt;letter-spacing:.12em;font-weight:700;color:#F2C9B3;text-transform:uppercase}
-.sign{display:grid;grid-template-columns:repeat(3,1fr);gap:2.4mm;margin-top:4mm;break-inside:avoid}
-.sign>div{border:.6px solid ${LINE};border-radius:3px;padding:1.8mm 2.4mm;height:15mm;font-size:6.4pt;letter-spacing:.06em;color:${MUT};font-weight:700;text-transform:uppercase}
 .wm{position:fixed;top:42%;left:6%;font-size:120pt;font-weight:800;letter-spacing:.08em;color:rgba(180,35,24,.06);transform:rotate(-28deg);z-index:0;pointer-events:none}
 .kn{display:grid;grid-template-columns:1fr 1fr;gap:2.4mm;margin:0 0 2.8mm}
 .kn>div{border-radius:3px;padding:2mm 2.8mm;font-size:7.6pt;border:.6px solid ${LINE}}
@@ -471,7 +469,6 @@ th{word-break:keep-all;overflow-wrap:normal;hyphens:none}tr{break-inside:avoid}t
 .kn ul{margin:0;padding-left:3.4mm}.kn li{margin-bottom:.9mm;line-height:1.3}
 .kn .yes{background:#f1faf5;border-left:3px solid ${PR}}.kn .yes h4{color:#14532d}
 .kn .no{background:#fff8ed;border-left:3px solid #f59e0b}.kn .no h4{color:#92400e}
-.signname{display:block;margin-top:1mm;font-size:7.4pt;color:${INK};letter-spacing:0;text-transform:none}
 .post-link{color:#1d4ed8;text-decoration:underline;font-weight:700;word-break:break-all}
 .post-link:hover{color:#1e40af}
 .ref{color:#1d4ed8;text-decoration:none;font-weight:700;white-space:nowrap}
@@ -1426,10 +1423,6 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     <div class="no"><h4>What we do not know yet</h4><ul>${notKnownList.map((t) => `<li>${esc(t)}</li>`).join('') || '<li>—</li>'}</ul></div>
   </div>` : ''}` : '';
 
-  const signRoles = (hq?.signoff && hq.signoff.length) ? hq.signoff.slice(0, 3) : ['Prepared by', 'Reviewed by', 'Approved by'];
-  const signNames = [summary?.generated_by?.name || '', '', ''];
-  const signHtml = `<div class="sign">${signRoles.map((r, i) => `<div><span>${esc(r)}</span>${signNames[i] ? `<b class="signname">${esc(signNames[i])}</b>` : ''}</div>`).join('')}</div>`;
-
   const body = `
 <section class="pg">
   <div class="hero">
@@ -1592,7 +1585,6 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     • ${includeEvidence ? esc(L('Every post cited in this report is listed, with its live link, in the evidence annex.')) : esc(L('The post-by-post evidence is in the full report.'))}${outsideNs.size ? ` ${esc(L('Posts about places outside {region} are context only and are not counted as activity there.', { region: regionName }))}` : ''}<br>
     • ${esc(L('Tone and risk ratings are automated. Claims, locations and on-site reports are as posted and are not verified. Closed groups and private messaging are not covered.'))}
   </div>
-  ${signHtml}
 </section>
 `;
 
