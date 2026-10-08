@@ -140,7 +140,7 @@ export function EventBrief({ summaryData, platformList, displayName, tenantName,
   const plats = (platformList || []).filter((p) => p.count > 0).sort((a, b) => b.count - a.count);
   const lead = plats[0];
   const eventLoc = summaryData?.event?.location || '';
-  const tenant = (tenantName || '').trim();
+  const tenant = (tenantName || '').replace(/blura\s*saga/gi, '').replace(/\s+/g, ' ').trim();
   const risk = riskLevelOf(stats);
   const isFallback = summaryData?.summary_source && summaryData.summary_source !== 'llm';
   const N = report?.narratives || [];
@@ -203,10 +203,10 @@ export function EventBrief({ summaryData, platformList, displayName, tenantName,
         </div>
         <p className="text-[12.5px] leading-5 mt-1.5 m-0">
           {risk.hasFacts
-            ? `${risk.violence ? `${fmt(risk.violence)} post${risk.violence === 1 ? ' mentions' : 's mention'} violence or damage. ` : 'No post reports violence or damage. '}${risk.calls ? `${fmt(risk.calls)} post${risk.calls === 1 ? ' calls' : 's call'} people to join or act. ` : 'No post calls for a bandh, blockade or gathering. '}`
+            ? `${risk.violence ? `${fmt(risk.violence)} post${risk.violence === 1 ? ' mentions' : 's mention'} violence or damage. ` : 'No post reports violence or damage. '}${risk.calls ? `${fmt(risk.calls)} post${risk.calls === 1 ? ' calls' : 's call'} people to join or act. ` : (keyDates.some((k) => k.type === 'upcoming' && !k.outside) ? 'The posts report planned activity (see key dates); none of them is itself a call to join. ' : 'No post calls for a bandh, blockade or gathering. ')}`
             : ''}
           {risk.highRisk ? `${fmt(risk.highRisk)} post${risk.highRisk === 1 ? ' is' : 's are'} rated high risk. ` : ''}
-          {pct(sent.negative, sentTotal)} of posts are critical in tone; criticism alone is not a threat.
+          {pct(sent.negative, sentTotal)} of posts are negative in tone. Negative tone is criticism, not a risk signal.
         </p>
       </div>
 
@@ -236,8 +236,8 @@ export function EventBrief({ summaryData, platformList, displayName, tenantName,
           <div className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted-foreground mb-3">Key dates</div>
           <ul className="m-0 p-0 list-none space-y-2">
             {keyDates.map((k) => (
-              <li key={`${k.date}-${k.event}`} className="grid grid-cols-[6.5rem_1fr] gap-3 text-[13px]">
-                <span className="font-semibold tabular-nums">
+              <li key={`${k.date}-${k.event}`} className="grid grid-cols-[9rem_1fr] gap-3 text-[13px]">
+                <span className="font-semibold tabular-nums whitespace-nowrap">
                   {k.date}
                   <span className={`ml-1.5 text-[10px] font-medium ${k.type === 'upcoming' ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground'}`}>{k.type}</span>
                 </span>

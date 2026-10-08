@@ -759,14 +759,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                     {totalPosts} unique posts analyzed
                   </Badge>
                 )}
-                {timeframe && timeframe !== 'full' && (
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] px-2 py-0.5 font-medium border-indigo-300 text-indigo-700 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 shrink-0"
-                  >
-                    {timeframeLabel}
-                  </Badge>
-                )}
+                {/* The timeframe is shown once, on the selector button at the right. */}
               </div>
               <DialogDescription className="text-xs text-muted-foreground flex items-center gap-2 mt-1 truncate">
                 <span>Event: <strong className="text-foreground">{displayName}</strong></span>
