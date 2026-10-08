@@ -1086,17 +1086,6 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     )
     .join('');
 
-  const entityRows = entities.slice(0, 8)
-    .map(
-      (e) => `<tr>
-<td>${esc(e.name)}</td>
-<td>${fmt(e.total)}</td>
-<td>${fmt(e.praise)}</td>
-<td>${fmt(e.news)}</td>
-<td>${fmt(e.crit)}</td>
-</tr>`
-    )
-    .join('');
 
   const evidenceRowsFor = (list) => sortByDateAndTone(list)
     .map(
@@ -1183,9 +1172,12 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     { k: 'Medium', v: riskCounts.medium, c: '#C45C26' },
     { k: 'Low', v: riskCounts.low, c: '#1B7A4E' },
   ];
-  const entityBars = entities.slice(0, 6).map((e) => `
-    <div style="margin:0 0 2mm">
-      <div class="sm"><b>${esc(e.name)}</b> · ${fmt(e.total)} posts · ${pct(e.crit, e.total)} negative</div>
+  const entityBars = entities.slice(0, 8).map((e) => `
+    <div style="margin:0 0 2.2mm">
+      <div class="sm" style="display:flex;justify-content:space-between;gap:3mm;align-items:baseline">
+        <span><b>${esc(e.name)}</b> · ${fmt(e.total)} posts</span>
+        <span style="white-space:nowrap"><i style="display:inline-block;width:1.6mm;height:1.6mm;background:${PR};margin-right:.8mm"></i>${fmt(e.praise)} positive &nbsp;<i style="display:inline-block;width:1.6mm;height:1.6mm;background:${NW};margin-right:.8mm"></i>${fmt(e.news)} neutral &nbsp;<i style="display:inline-block;width:1.6mm;height:1.6mm;background:${CR};margin-right:.8mm"></i>${fmt(e.crit)} negative (${pct(e.crit, e.total)})</span>
+      </div>
       ${stackBar([
         { k: 'Positive', v: e.praise, c: PR },
         { k: 'Neutral', v: e.news, c: NW },
@@ -1528,22 +1520,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     ${metric(topEntity ? fmt(topEntity.total) : '0', topEntity ? topEntity.name : 'Top entity', topEntity ? `${pct(topEntity.crit, topEntity.total)} negative` : '—')}
     ${metric(fmt((analysis?.leaders || []).length), 'People named', 'Named in post text')}
   </div>
-  ${entityBars ? `<div class="chartbox"><h4>Tone by Entity</h4><p class="sm">Sentiment distribution categorized by monitored entity and subject.</p><div class="legend"><span><i style="background:${PR}"></i>Positive</span><span><i style="background:${NW}"></i>Neutral</span><span><i style="background:${CR}"></i>Negative</span></div>${entityBars}</div>` : ''}
-  ${
-    entities.length
-      ? `<table>
-    <colgroup>
-      <col style="width:32%">
-      <col style="width:17%">
-      <col style="width:17%">
-      <col style="width:17%">
-      <col style="width:17%">
-    </colgroup>
-    <thead><tr><th>Target / entity</th><th>Posts</th><th>Positive</th><th>Neutral</th><th>Negative</th></tr></thead>
-    <tbody>${entityRows}</tbody>
-  </table>`
-      : '<p class="sm">Entity classification not available for this event.</p>'
-  }
+  ${entityBars ? `<div class="chartbox"><h4>Tone by Entity</h4><p class="sm">Who the posts are about, split by tone, with the number of posts in each part.</p><div class="legend"><span><i style="background:${PR}"></i>Positive</span><span><i style="background:${NW}"></i>Neutral</span><span><i style="background:${CR}"></i>Negative</span></div>${entityBars}</div>` : ''}
+  ${entities.length ? '' : '<p class="sm">Entity classification not available for this event.</p>'}
   ${(analysis?.leaders || []).length ? `<ul class="bul">${analysis.leaders.map((l) => `<li><b>${esc(l.name)}</b>${l.role ? ` — ${esc(l.role)}` : ''}${l.posts?.length ? ` <span class="sm">${esc(l.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : ''}
   ${analysis?.platformsCommentary ? `<p>${esc(analysis.platformsCommentary)}</p>` : ''}
 
