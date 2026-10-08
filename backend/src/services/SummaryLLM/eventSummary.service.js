@@ -442,7 +442,7 @@ const generateEventSummary = async (
   const { start: effectiveStart, end: effectiveEnd, label: timeframeLabel, rangeWhere: publicationRange } =
     computeEffectiveDateWindow(event, timeframe, fromDate, toDate);
 
-  const mediaRows = await prisma.social_media_event_media.findMany({
+  const rawMediaRows = await prisma.social_media_event_media.findMany({
     where: {
       event_id: numericId,
       ...(publicationRange ? { posted_at: publicationRange } : {}),
@@ -463,6 +463,11 @@ const generateEventSummary = async (
     take: 5000,
   });
 
+  // One shared dataset: only posts about the event (own text or English translation), reposts merged.
+  // Every count, table and evidence row below is built from these, so numbers agree everywhere.
+  const dataset = await require('../../modules/events/event.report.data').buildEventDataset(prisma, event, rawMediaRows);
+  const mediaRows = dataset.posts.map((p) => ({ ...p, engagement: p._engagement_merged }));
+  const repostCountById = new Map(dataset.posts.map((p) => [String(p.id), p._repost_count]));
   const totalMediaCount = mediaRows.length;
 
   // 3. Compute telemetry aggregations across ALL N rows using unified logic
@@ -490,7 +495,7 @@ const generateEventSummary = async (
   let earliestPost = null;
   let latestPost = null;
   let relevantPostsCount = 0;
-  let unrelatedPostsCount = 0;
+  let unrelatedPostsCount = dataset.excluded.irrelevant;
   let totalKeywordMentionsCount = 0;
 
   // Categorized candidates for prioritized LLM context inclusion
@@ -540,7 +545,7 @@ const generateEventSummary = async (
     else riskCounts.low++;
 
     // Event Relevance Classification
-    const relevance = classifyEventRelevance(m.text || '', event, [], '', '', relCtx);
+    const relevance = { isRelevant: true, reason: 'event_dataset' }; // already filtered in buildEventDataset
     const targetEntity = classifyTargetEntity(m.text || '', m.author_name || m.author_handle || '', analysis);
     const targetSemantics = getSentimentTargetSemantics(sent);
 
@@ -592,6 +597,7 @@ const generateEventSummary = async (
         views: Number(eng.views || eng.view_count || 0) || 0,
         engagementScore: getEngagementTotal(m.engagement),
         postedAt: m.posted_at,
+        repostCount: repostCountById.get(String(m.id)) || 1,
       };
 
       if (relevance.isRelevant) {
@@ -816,7 +822,7 @@ const generateEventSummary = async (
     summaryMarkdown = `# 📋 Event Summary: ${event.name}
 
 ### 📌 1. Situation & Event Scope
-Monitoring analysis synthesized across **${totalMediaCount.toLocaleString('en-IN')} unique posts** for **${event.name}** (${event.location || 'General Region'}). Monitored channels include ${(event.platforms || []).join(', ') || 'social networks'}. Of the total posts, **${relevantPostsCount}** were classified as directly relevant to the event, while **${unrelatedPostsCount}** peripheral background posts were excluded from the event sentiment analysis.
+Monitoring covers **${totalMediaCount.toLocaleString('en-IN')} posts about ${event.name}** (${event.location || 'General Region'}). Monitored channels include ${(event.platforms || []).join(', ') || 'social networks'}. ${unrelatedPostsCount} stored posts that are not about the event and ${dataset.excluded.duplicates} repeated copies were left out of the counts.
 
 ### 🌐 2. Social Commentary & Target Sentiment
 Analyzed social commentary toward key targets reflects:
@@ -875,6 +881,7 @@ ${Object.entries(platformCounts).map(([p, count]) => `- **${p.toUpperCase()}**: 
       total_unique_posts: totalMediaCount,
       relevant_posts_count: relevantPostsCount,
       unrelated_posts_count: unrelatedPostsCount,
+      duplicate_posts_merged: dataset.excluded.duplicates,
       total_keyword_mentions: totalKeywordMentionsCount,
       analyzed_sample_count: analysed.length,
       platform_counts: platformCounts,

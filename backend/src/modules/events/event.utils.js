@@ -297,9 +297,11 @@ const hydrateOccasion = (row) => {
 };
 
 /** Whole-word / whole-phrase match (no substring hits inside other words). */
+const { normalizeText } = require('../../lib/textNormalize');
+
 const keywordMatchesText = (keyword, text) => {
-  const k = String(keyword || '').toLowerCase().replace(/\s+/g, ' ').trim();
-  const t = String(text || '').toLowerCase();
+  const k = normalizeText(keyword).toLowerCase();
+  const t = normalizeText(text).toLowerCase();
   if (!k || !t) return false;
   const esc = (v) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const test = (needle) =>

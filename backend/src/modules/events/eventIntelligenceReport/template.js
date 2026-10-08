@@ -6,17 +6,42 @@ const fs = require('fs');
 const path = require('path');
 const { esc } = require('./render');
 
+/**
+ * Bundled fonts (./fonts). Only the scripts that actually appear in a report are embedded,
+ * so a mostly-English PDF stays small while Odia / Malayalam / Tamil / Arabic ... still render.
+ * To support another script: drop a Noto Sans TTF in ./fonts and add one line here.
+ */
+const SCRIPT_FONTS = [
+  { family: 'Report Devanagari', file: 'NotoSansDevanagari-Regular.ttf', re: /[\u0900-\u097F]/ },
+  { family: 'Report Oriya', file: 'NotoSansOriya-Regular.ttf', re: /[\u0B00-\u0B7F]/ },
+  { family: 'Report Bengali', file: 'NotoSansBengali-Regular.ttf', re: /[\u0980-\u09FF]/ },
+  { family: 'Report Gurmukhi', file: 'NotoSansGurmukhi-Regular.ttf', re: /[\u0A00-\u0A7F]/ },
+  { family: 'Report Gujarati', file: 'NotoSansGujarati-Regular.ttf', re: /[\u0A80-\u0AFF]/ },
+  { family: 'Report Tamil', file: 'NotoSansTamil-Regular.ttf', re: /[\u0B80-\u0BFF]/ },
+  { family: 'Report Telugu', file: 'NotoSansTelugu-Regular.ttf', re: /[\u0C00-\u0C7F]/ },
+  { family: 'Report Kannada', file: 'NotoSansKannada-Regular.ttf', re: /[\u0C80-\u0CFF]/ },
+  { family: 'Report Malayalam', file: 'NotoSansMalayalam-Regular.ttf', re: /[\u0D00-\u0D7F]/ },
+  { family: 'Report Sinhala', file: 'NotoSansSinhala-Regular.ttf', re: /[\u0D80-\u0DFF]/ },
+  { family: 'Report Thai', file: 'NotoSansThai-Regular.ttf', re: /[\u0E00-\u0E7F]/ },
+  { family: 'Report Arabic', file: 'NotoSansArabic-Regular.ttf', re: /[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/ },
+  { family: 'Report Hebrew', file: 'NotoSansHebrew-Regular.ttf', re: /[\u0590-\u05FF]/ },
+];
+const FONT_STACK = SCRIPT_FONTS.map((f) => `'${f.family}'`).join(',');
+const fontCache = new Map();
 const fontFace = (family, file) => {
+  if (fontCache.has(file)) return fontCache.get(file);
+  let css = '';
   try {
     const b64 = fs.readFileSync(path.join(__dirname, 'fonts', file)).toString('base64');
-    return `@font-face{font-family:'${family}';src:url(data:font/ttf;base64,${b64}) format('truetype');font-weight:100 900;}`;
+    css = `@font-face{font-family:'${family}';src:url(data:font/ttf;base64,${b64}) format('truetype');font-weight:100 900;}`;
   } catch (e) {
-    return '';
+    css = '';
   }
+  fontCache.set(file, css);
+  return css;
 };
-const FONT_FACES =
-  fontFace('Report Devanagari', 'NotoSansDevanagari-Regular.ttf') +
-  fontFace('Report Oriya', 'NotoSansOriya-Regular.ttf');
+/** @font-face rules for the scripts present in `text`. */
+const fontFacesFor = (text) => SCRIPT_FONTS.filter((f) => f.re.test(text)).map((f) => fontFace(f.family, f.file)).join('');
 
 const PR = '#1B7A4E';
 const NW = '#5B6B78';
@@ -362,7 +387,7 @@ const resolveAuthorProfileUrl = ({ platform, author, sampleUrl } = {}) => {
 
 const CSS = `
 *{box-sizing:border-box}
-body{margin:0;font-family:'Helvetica Neue',Arial,'Report Devanagari','Report Oriya',sans-serif;color:${INK};font-size:8.6pt;line-height:1.42;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{margin:0;font-family:'Helvetica Neue',Arial,${FONT_STACK},sans-serif;color:${INK};font-size:8.6pt;line-height:1.42;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .pg{break-before:page;overflow:hidden;max-width:100%}
 .pg:first-of-type{break-before:auto}
 .hero{background:${INK};color:#fff;border-radius:0 0 3px 3px;padding:6mm 7mm 5mm;margin:0 0 3.5mm;position:relative}
@@ -1559,7 +1584,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 </section>
 `;
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>${FONT_FACES}${CSS}</style></head><body>${body}</body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>${fontFacesFor(body)}${CSS}</style></head><body>${body}</body></html>`;
 };
 
-module.exports = { buildReportHtml };
+module.exports = { buildReportHtml, fontFacesFor, FONT_STACK };

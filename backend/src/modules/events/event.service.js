@@ -9,7 +9,15 @@ const { sanitizeEventKeywords, findOverlappingEvents } = require('./event.keywor
 const filterRelevantRows = async (prisma, event, rows) => {
   const genericTokens = await getGenericTokens(prisma);
   const ctx = { genericTokens };
-  return rows.filter((r) => classifyEventRelevance(r.text || '', event, [], '', '', ctx).isRelevant);
+  return rows.filter((r) => isRelevantRow(r, event, ctx));
+};
+
+/** A post counts if its own text OR its stored English translation matches the event. */
+const isRelevantRow = (r, event, ctx) => {
+  if (classifyEventRelevance(r.text || '', event, [], '', '', ctx).isRelevant) return true;
+  const ar = asJson(r.analysis_result, null);
+  const en = ar && typeof ar.english_text === 'string' ? ar.english_text : '';
+  return Boolean(en && en.trim() && classifyEventRelevance(en, event, [], '', '', ctx).isRelevant);
 };
 
 const withPublicationRange = (where, event) => {
@@ -414,8 +422,10 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
     orderBy: [{ posted_at: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
     take: 5000,
   });
-  // Keyword counts only make sense over posts that are actually about the event.
-  const rows = await filterRelevantRows(prisma, event, allRows);
+  // Keyword counts only make sense over posts that are actually about the event, with reposts merged
+  // (same dataset the report uses, so both show the same numbers).
+  const dataset = await require('./event.report.data').buildEventDataset(prisma, event, allRows);
+  const rows = dataset.posts.map((p) => ({ ...p, engagement: p._engagement_merged }));
 
   const {
     parseSentiment,
@@ -827,6 +837,7 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
 };
 
 module.exports = {
+  isRelevantRow,
   listEvents,
   getEventById,
   createEvent,

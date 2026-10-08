@@ -6,6 +6,7 @@
  */
 
 const { resolveStatePlaces, normalizeStateName } = require('./indiaGeography.service');
+const { normalizeText } = require('../../lib/textNormalize');
 
 const TARGET_ENTITIES = {
   GOVERNMENT: 'Government',
@@ -176,7 +177,7 @@ const classifyEventRelevance = (text, eventInput, keywordsList = [], eventLocati
     return { isRelevant: false, score: 0, reason: 'empty_text' };
   }
 
-  const cleanText = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  const cleanText = normalizeText(text).toLowerCase();
   if (cleanText.length < 5) {
     return { isRelevant: false, score: 0, reason: 'too_short' };
   }
