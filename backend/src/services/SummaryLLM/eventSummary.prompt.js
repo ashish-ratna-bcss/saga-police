@@ -11,12 +11,18 @@
  * Larger events: EVERY post is read in small batches (BATCH_*), then ONE final call (REDUCER_*) writes the same JSON from the batch notes. Every sentence shown in the
  * on-screen summary and in the PDF report comes from that JSON. Numbers (counts, percentages, engagement) are
  * never taken from the model: they are computed from the database and only quoted in the text.
- * To change what the report says, edit RULES or OUTPUT_CONTRACT below. Nothing else needs to change,
+ * To change what the report says, edit rulesFor() or OUTPUT_CONTRACT below. Nothing else needs to change,
  * as long as the JSON field names stay the same (the UI and the PDF read those names).
  */
 
 /* ------------------------------------------------------------------ 1. RULES ------------------------------ */
-const RULES = `You are a senior Police Cyber Intelligence & OSINT Analyst writing an evidence-grounded Intelligence Brief for the State DGP, Cyber Cell, and Executive Leadership.
+// Who the brief is for and which units can act come from the force profile (headquarters); these are the defaults.
+const DEFAULT_UNITS = ['District Police / SHO', 'Traffic Police', 'Cyber Cell', 'PRO / Fact-Check Cell'];
+const audienceOf = (ctx) => (ctx && ctx.headquarters && ctx.headquarters.head
+  ? `the ${ctx.headquarters.head}, ${ctx.headquarters.force}, and senior leadership`
+  : 'senior police leadership');
+const unitsOf = (ctx) => ((ctx && ctx.headquarters && ctx.headquarters.units && ctx.headquarters.units.length) ? ctx.headquarters.units : DEFAULT_UNITS).join(', ');
+const rulesFor = (ctx) => `You are a senior Police Cyber Intelligence & OSINT Analyst writing an evidence-grounded Intelligence Brief for ${audienceOf(ctx)}.
 
 RULES:
 1. Grounding: Use ONLY the provided statistics and evidence posts. Never invent people, events, dates, numbers, or sources. Quote statistics exactly; never recalculate.
@@ -27,15 +33,16 @@ RULES:
 4b. The CONFIRMED FACTS list in the input (dates, organisers, places) is computed from the posts. Use those dates, organisers and places exactly. Never use the date a post was published as the date of an event.
 5. Never say something is absent when its count is above 0 (praise 7 means "7 praise posts", not "no praise"); if a count is 0, say none were recorded. The statistics are the truth even if a post's wording seems to disagree.
 6. Describe non-English posts in English. Do not copy long phrases from posts; give the meaning. Do not repeat the same sentence shape in a row.
-7. This brief is for a State DGP, Crime Branch, and Cyber Cell. Answer, from the posts only: what activity is being organised; where people or representatives were present; which specific places are named; how the volume and tone sit; which accounts carry the criticism; which named leaders or representatives appear; and which accounts amplify it.
+7. This brief is for ${audienceOf(ctx)}. Answer, from the posts only: what activity is being organised; where people or representatives were present; which specific places are named; how the volume and tone sit; which accounts carry the criticism; which named leaders or representatives appear; and which accounts amplify it.
 8. Places: name a place only if a post names it. Say where an activity happens, and keep that apart from places that are only mentioned in talk. A place in another state or country is "outside the event region": mention it once, do not treat it as activity in the event region. Never invent a place.
 9. Public order: a bandh, blockade, highway block, gherao, rally, or protest named in a post is a fact. Do not write that there is no unrest or no blockade when the evidence says otherwise. Keep peaceful criticism separate from those calls.
 10. Leave out anything the posts do not support.
-11. Recommended Actions: 3-5 actions a police unit can carry out today. Each action names, in this order: WHO acts (a unit, e.g. District Police / SHO, Traffic Police, Cyber Cell, PRO / Fact-Check Cell), WHAT exactly they do, WHERE or on WHICH account, hashtag or claim, WHY (the fact from the posts that justifies it), and the TRIGGER that would require escalation ("Escalate if ..."). Never write "monitor the situation", "verify claims" or "monitor social media" alone. Do not add the same advice twice. Cite [Post #n].
+11. Recommended Actions: 3-5 actions a police unit can carry out today. Each action names, in this order: WHO acts (a unit, e.g. ${unitsOf(ctx)}), WHAT exactly they do, WHERE or on WHICH account, hashtag or claim, WHY (the fact from the posts that justifies it), and the TRIGGER that would require escalation ("Escalate if ..."). Never write "monitor the situation", "verify claims" or "monitor social media" alone. Do not add the same advice twice. Cite [Post #n].
 11a. Do not repeat the same conclusion in several sections. State a fact once where it belongs; other sections may point to it in a few words. The bottom line is 2-3 sentences: what is happening, where, who is behind it, how serious it is, and the one thing to do.
 11b. Tone is not risk. Negative or critical posts are criticism. Risk comes only from calls to act (bandh, blockade, rally), violence or damage, or threats. Never describe negative tone as "critical" or as a threat. A high-risk post does not make its author a priority account.
 11c. Name only the platforms listed in the statistics; never mention a platform that has no posts. Describe tone with the exact Positive / Neutral / Negative counts: if most posts are neutral, say so, and do not call the discussion "mostly critical" unless negative posts are more than half. Do not write sentences like "Posts [Post #1] and [Post #2] mention this"; write the point once and put the citations at the end of the sentence.
 11d. For every claim you list, say what the posts show for it and what is not established (for example "Posts 4 and 9 say it; no post confirms it").
+13. What the issue is: if the posts carry several stories that overlap (for example a state-wide bandh, a student demand and a national movement), list each as a separate strand: who the posts say is behind it, what they ask for or do, and where it stands now. Say plainly which strand is not organised in the event region and only matters if it spills into it. One strand only: leave the list empty. "known" holds only what the posts confirm; "not_known" holds open questions the posts cannot answer (who is organising, how many people, whether anything happened on the ground). Never fill a gap with a guess.
 12. Relevance & Storylines: Leave out posts that are not about the event. If the posts mix different stories, keep them apart and say which one each fact belongs to; say whether people were on the ground or only posting about it.`;
 
 /* ---------------------------------------------------------------- 2. OUTPUT CONTRACT ---------------------- */
@@ -48,11 +55,15 @@ const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only (no conversational text, n
  "narratives_to_watch": [{"narrative": "viral rumor, claim, or sensitive angle to monitor/debunk", "source_accounts": "key accounts or platforms pushing this", "risk_note": "operational risk or recommended counter-action", "posts": [1]}],
  "key_findings": [{"headline": "short concise headline", "detail": "1-2 sentences with exact figures"}],
  "situation": "paragraph: event background, scope of posts analyzed, date range, active platforms",
+ "issue_strands": [{"title": "3-6 words", "who": "group or person the posts name as behind it", "demand": "what they ask for or do, as the posts say", "status": "where it stands now, e.g. under way today / planned for a date / small protests", "posts": [1]}],   // 0-4 separate stories that overlap in these posts; empty if there is one story
+ "issue_link": "one sentence on what connects the strands, or empty",
+ "known": [{"text": "one fact the posts confirm", "posts": [1]}],   // 3-5
+ "not_known": ["one open question the posts do not answer"],   // 2-4
  "sentiment_commentary": "paragraph: praise/news/criticism toward government, police, leaders, orgs with [Post #n] citations",
  "narratives": [{"title": "3-7 words", "discussed": "2-3 sentences: theme, kind of discussion (analysis, news, rumour, opinion, satire, notice), [Post #n] citations", "tone": "1-2 sentences on sentiment mix, using the posts' labels", "risk": "1-2 sentences or 'No risk signal.'", "posts": [1, 2]}],   // 3-7; EVERY evidence post in exactly ONE narrative
  "public_order": "paragraph: threat evaluation, agitation/protest indicators (strictly separate peaceful criticism from threats)",
  "platforms_commentary": "paragraph: platform distribution and key amplifying voices",
- "recommended_actions": [{"action": "Tactical Action & Lead Unit (e.g., 'Ground Bandobast at [Specific Location] — Local Police / SHO', 'Fact-Check & Rebuttal on [Claim] — Media / PRO Cell', 'Digital Surveillance of [Hashtag/Handle] — Cyber Cell')", "detail": "2-3 sentences: what exactly the unit does, where or on which account/hashtag/claim, why (the fact), and one sentence starting 'Escalate if' that names the trigger", "posts": [1]}],
+ "recommended_actions": [{"action": "Tactical Action & Lead Unit (e.g., 'Ground Bandobast at [Specific Location] — [Lead Unit]', 'Fact-Check & Rebuttal on [Claim] — [Lead Unit]', 'Digital Surveillance of [Hashtag/Handle] — [Lead Unit]')", "detail": "2-3 sentences: what exactly the unit does, where or on which account/hashtag/claim, why (the fact), and one sentence starting 'Escalate if' that names the trigger", "posts": [1]}],
  "claims": [{"claim": "short factual claim", "posts": [1], "triage": "VERIFY or MONITOR", "note": "what the posts show for it and what is not established, then how to verify"}],
  "changes": [{"from": "earlier state", "to": "later state", "post": 1}],
  "emerging_keywords": [{"term": "#tag or phrase", "posts": [1], "why": "short reason"}],
@@ -70,7 +81,7 @@ const languageLine = (ctx) => (ctx.reportLanguage && !/^english$/i.test(ctx.repo
   ? `LANGUAGE: Write every sentence of the report in ${ctx.reportLanguage}, in the same plain voice. Keep names, hashtags, handles and [Post #n] tags exactly as they are. JSON field names stay in English.`
   : '');
 
-const buildSystemPrompt = (ctx) => `${RULES}\n\n${languageLine(ctx)}\n\n${ctx.addresseeLine || ''}\n\nEVENT: "${ctx.event.name}"\n\n${OUTPUT_CONTRACT}`;
+const buildSystemPrompt = (ctx) => `${rulesFor(ctx)}\n\n${languageLine(ctx)}\n\n${ctx.addresseeLine || ''}\n\nEVENT: "${ctx.event.name}"\n\n${OUTPUT_CONTRACT}`;
 
 /* ----------------------------------------------------------------- 3. USER CONTEXT ---------------------- */
 const buildUserContext = (ctx = {}) => {
@@ -152,11 +163,15 @@ OUTPUT: ONE JSON object only (no text around it, no code fences) with exactly th
  "bottom_line": "2-3 sentences: core situation, tone breakdown, what needs attention",
  "key_findings": [{"headline": "short headline", "detail": "1-2 sentences with exact figures"}],   // 4-6
  "situation": "paragraph: event background, posts analysed, date range, platforms",
+ "issue_strands": [{"title": "3-6 words", "who": "group or person the notes name as behind it", "demand": "what they ask for or do", "status": "where it stands now", "posts": [5]}],   // 0-4 separate overlapping stories; empty if one story
+ "issue_link": "one sentence on what connects the strands, or empty",
+ "known": [{"text": "one fact the notes confirm", "posts": [5]}],   // 3-5
+ "not_known": ["one open question the notes do not answer"],   // 2-4
  "sentiment_commentary": "paragraph: praise / news / criticism toward government, police, leaders, organisations, citing example posts [Post #n]",
  "narratives": [{"title": "3-7 words", "clusters": ["C1", "C4"], "discussed": "2-3 sentences: theme, kind of discussion (analysis, news, rumour, opinion, satire, notice), example posts [Post #n]", "tone": "1-2 sentences using the sentiment mix of its clusters", "risk": "1-2 sentences or 'No risk signal.'"}],   // 3-7; EVERY cluster id in TOPIC CLUSTERS (C1, C2, ...) must appear in exactly ONE narrative's clusters (none left out); merge clusters about the same theme
  "public_order": "paragraph: threat evaluation; separate peaceful criticism from threat indicators",
  "platforms_commentary": "paragraph: platform distribution and key voices",
- "recommended_actions": [{"action": "Tactical Action & Lead Unit (e.g., 'Ground Bandobast at [Specific Venue] — Local Police', 'Fact-Check on [Claim] — PRO Cell', 'Digital Surveillance — Cyber Cell')", "detail": "2-3 concrete operational sentences naming exact locations, handles, hashtags, or claims from the notes with tactical steps", "posts": [5]}],   // 3-6
+ "recommended_actions": [{"action": "Tactical Action & Lead Unit (e.g., 'Ground Bandobast at [Specific Venue] — [Lead Unit]', 'Fact-Check on [Claim] — [Lead Unit]', 'Digital Surveillance — [Lead Unit]')", "detail": "2-3 concrete operational sentences naming exact locations, handles, hashtags, or claims from the notes with tactical steps", "posts": [5]}],   // 3-6
  "claims": [{"claim": "short", "posts": [5], "triage": "VERIFY or MONITOR", "note": "verification path or reason to monitor"}],   // 0-8, chosen from CLAIMS, post numbers as given
  "changes": [{"from": "earlier state", "to": "later state", "post": 8}],   // 0-6, from SHIFTS only
  "emerging_keywords": [{"term": "#tag or phrase from HASHTAGS or the notes", "why": "short reason"}],
@@ -168,7 +183,7 @@ OUTPUT: ONE JSON object only (no text around it, no code fences) with exactly th
 }
 Cite only post numbers that appear in the notes. Finish every field; shorten paragraphs rather than dropping fields.`;
 
-const buildReducerSystemPrompt = (ctx) => `${RULES}\n\n${languageLine(ctx)}\n\n${ctx.addresseeLine || ''}\n\nEVENT: "${ctx.event.name}"\n\n${REDUCER_CONTRACT}`;
+const buildReducerSystemPrompt = (ctx) => `${rulesFor(ctx)}\n\n${languageLine(ctx)}\n\n${ctx.addresseeLine || ''}\n\nEVENT: "${ctx.event.name}"\n\n${REDUCER_CONTRACT}`;
 
 /** Statistics + batch-note digest. */
 const buildReducerUserContext = (ctx, digest) => {
@@ -401,10 +416,27 @@ const parseLLMReport = (raw, evidence) => {
     };
   });
 
+  const issueStrands = briefRows(obj.issue_strands, (x) => {
+    const title = str(x.title, 80);
+    if (!title) return null;
+    return { title, who: str(x.who, 160), demand: str(x.demand, 300), status: str(x.status, 160), posts: ids(x.posts) };
+  }).slice(0, 4);
+  const known = briefRows(obj.known, (x) => {
+    const text = str(typeof x === 'string' ? x : x?.text, 260);
+    if (!text) return null;
+    return { text, posts: ids(x?.posts) };
+  }).slice(0, 6);
+  const notKnown = (Array.isArray(obj.not_known) ? obj.not_known : []).slice(0, 5)
+    .map((x) => str(typeof x === 'string' ? x : x?.text, 220)).filter(Boolean);
+
   const report = {
     threatLevel: str(obj.threat_level, 80),
     threatDesc: str(obj.threat_desc, 300),
     bottomLine: para(obj.bottom_line),
+    issueStrands,
+    issueLink: str(obj.issue_link, 300),
+    known,
+    notKnown,
     keyDates,
     narrativesToWatch,
     keyFindings,

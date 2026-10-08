@@ -193,7 +193,7 @@ test('annex lists posts about other regions apart, as context only', () => {
 test('each headline number appears once: no repeated tone or total tiles', () => {
   const html = buildReportHtml({ summary: evSummary, keywordData: null, tenantName: 'odisha', analysis: evAnalysis, headquarters: null, includeEvidence: true });
   assert.ok(!/Negative share|Positive share|Neutral share|Toned volume|Posts in window/.test(html));
-  assert.strictEqual((html.match(/Total posts/g) || []).length, 1);
+  assert.strictEqual((html.match(/Interactions \(likes, shares, comments\)/g) || []).length, 1);   // interactions are shown once
 });
 
 test('executive brief still carries no post links after the citation change', () => {
@@ -214,4 +214,187 @@ test('executive cleanup does not damage normal sentences that start with "post"'
   const html = buildReportHtml({ summary: { event: { name: 'E', location: 'Odisha' }, stats: {} }, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false });
   assert.ok(/No post reports violence/.test(html));
   assert.ok(!/No Posts reports/.test(html));
+});
+
+test('tenant name comes from the force profile; an unknown tenant is not mistaken for another force', () => {
+  const generic = buildReportHtml({ summary: evSummary, keywordData: null, tenantName: 'map_tenant_db', analysis: evAnalysis, headquarters: null, includeEvidence: false });
+  assert.ok(/MAP TENANT/.test(generic) && !/ANDHRA/.test(generic));      // used to match /andhra|ap/ and print another force's name
+  const hq = resolveHeadquarters('x', { force: 'Goa Police', display_name: 'GOA POLICE', head: 'Director General of Police', headquarters: 'Panaji' });
+  const own = buildReportHtml({ summary: evSummary, keywordData: null, tenantName: 'x', analysis: evAnalysis, headquarters: hq, includeEvidence: false });
+  assert.ok(/GOA POLICE/.test(own));
+});
+
+test('post times and days follow the tenant timezone, not the server clock', () => {
+  const late = { ...evSummary, evidence_traceability: [evRow(1, { posted_at: '2026-10-07T20:00:00Z' })] };   // 01:30 on 8 Oct in India
+  const ist = buildReportHtml({ summary: late, keywordData: null, tenantName: 'odisha', analysis: evAnalysis, headquarters: { ...resolveHeadquarters('odisha'), timezone: 'Asia/Kolkata' }, includeEvidence: true });
+  const utc = buildReportHtml({ summary: late, keywordData: null, tenantName: 'odisha', analysis: evAnalysis, headquarters: { ...resolveHeadquarters('odisha'), timezone: 'UTC' }, includeEvidence: true });
+  assert.ok(/08 Oct, 01:30/.test(ist));
+  assert.ok(/07 Oct, 20:00/.test(utc));
+});
+
+test('classification marking and sign-off roles come from the profile; sign-off has sensible defaults', () => {
+  const hq = { ...resolveHeadquarters('odisha'), classification: 'RESTRICTED', signoff: ['Analyst', 'Superintendent', 'DIG'] };
+  const html = buildReportHtml({ summary: evSummary, keywordData: null, tenantName: 'odisha', analysis: evAnalysis, headquarters: hq, includeEvidence: true });
+  assert.ok(/class="classif">RESTRICTED</.test(html));
+  assert.ok(/<span>Superintendent<\/span>/.test(html));
+  const plain = buildReportHtml({ summary: evSummary, keywordData: null, tenantName: 'odisha', analysis: evAnalysis, headquarters: null, includeEvidence: true });
+  assert.ok(/<span>Prepared by<\/span>/.test(plain) && /<span>Reviewed by<\/span>/.test(plain) && /<span>Approved by<\/span>/.test(plain));
+  assert.ok(!/class="classif"/.test(plain));
+});
+
+test('the analyst prompt names the tenant\'s own audience and units, with sensible defaults', () => {
+  const { buildSystemPrompt: bsp } = require('../src/services/SummaryLLM/eventSummary.prompt');
+  const own = bsp({ event: { name: 'E' }, headquarters: { head: 'Commissioner of Police', force: 'Delhi Police', units: ['Traffic Police', 'Cyber Cell'] }, addresseeLine: '' });
+  assert.ok(/for the Commissioner of Police, Delhi Police/.test(own) && /e\.g\. Traffic Police, Cyber Cell/.test(own));
+  const dflt = bsp({ event: { name: 'E' } });
+  assert.ok(/senior police leadership/.test(dflt) && /District Police \/ SHO/.test(dflt) && !/State DGP/.test(dflt));
+});
+
+// ---------------------------------------------------------------- scope, quality, review, issue section, multi-tenant
+const { classifyEvidence } = require('../src/modules/events/eventIntelligenceReport/scope');
+const { runQualityChecks } = require('../src/modules/events/eventIntelligenceReport/quality');
+const reviewMod = require('../src/modules/events/eventIntelligenceReport/review');
+const { freshReview, normalizeReview } = require('../src/services/SummaryLLM/reviewState');
+const { stockPhrases, genericAction } = require('../src/services/SummaryLLM/styleLint');
+const { parseLLMReport } = require('../src/services/SummaryLLM/eventSummary.prompt');
+
+const mixed = {
+  event: { name: 'Odisha bandh', location: 'Odisha' },
+  generated_at: '2026-10-08T09:00:00Z',
+  stats: { total_unique_posts: 100, relevant_posts_count: 4, sentiment_counts: { positive: 10, neutral: 80, negative: 10 }, platform_counts: { facebook: 90, x: 10 }, total_engagement: { likes: 5000 } },
+  evidence_traceability: [
+    evRow(1, { sentiment: 'neutral', likes: 10 }), evRow(2, { sentiment: 'negative', likes: 20 }),
+    evRow(3, { platform: 'x', sentiment: 'neutral', likes: 4000 }), evRow(4, { platform: 'x', sentiment: 'positive', likes: 900 }),
+  ],
+};
+const mixedAnalysis = {
+  bottomLine: 'A bandh is under way in Bhubaneswar. [Post #1]',
+  facts: {
+    places: [{ name: 'Bhubaneswar', region: 'Odisha, India', mentioned: 2, active: 1, posts: [1, 2] }, { name: 'Mumbai', region: 'Maharashtra, India', mentioned: 2, active: 1, posts: [3, 4] }],
+    byPost: { 1: { places: ['Bhubaneswar'] }, 2: { places: ['Bhubaneswar'] }, 3: { places: ['Mumbai'] }, 4: { places: ['Mumbai'] } },
+    calls: { count: 0, posts: [] }, violence: { count: 0, posts: [] }, accounts: [], activities: [],
+  },
+};
+
+test('scope: posts that name only places outside the region are split off; posts with no place stay in', () => {
+  const ev = [{ n: 1 }, { n: 2 }, { n: 3 }, { n: 5 }];
+  const a = { facts: { places: mixedAnalysis.facts.places, byPost: { 1: { places: ['Bhubaneswar'] }, 2: { places: ['Bhubaneswar', 'Mumbai'] }, 3: { places: ['Mumbai'] } } } };
+  const s = classifyEvidence(ev, a, { location: 'Odisha' });
+  assert.deepStrictEqual(s.outEv.map((e) => e.n), [3]);
+  assert.deepStrictEqual(s.inEv.map((e) => e.n), [1, 2, 5]);
+  assert.strictEqual(classifyEvidence(ev, null, { location: 'Odisha' }).outEv.length, 0);   // no place data: nothing is split off
+});
+
+test('headline numbers describe the event region, with the monitor-wide total kept apart', () => {
+  const html = buildReportHtml({ summary: mixed, keywordData: null, tenantName: 'odisha', analysis: mixedAnalysis, headquarters: null, includeEvidence: true });
+  assert.ok(/2 in Odisha of 100 monitored/.test(html));                       // 2 region posts out of 100 monitored
+  assert.ok(/<div class="n">30<\/div><div class="l">Interactions/.test(html)); // 10 + 20 likes, not the 5,000 monitor-wide
+  const tone = html.slice(html.indexOf('Tone Breakdown'));
+  assert.ok(/Neutral 1 \(50%\)/.test(tone) && /Negative 1 \(50%\)/.test(tone) && /Positive 0/.test(tone));
+});
+
+test('timeline days follow the tenant timezone, built from the region evidence', () => {
+  const s = { ...mixed, evidence_traceability: [evRow(1, { posted_at: '2026-10-07T20:00:00Z' }), evRow(2, { posted_at: '2026-10-08T10:00:00Z' })] };
+  const html = buildReportHtml({ summary: s, keywordData: null, tenantName: 'odisha', analysis: mixedAnalysis, headquarters: { ...resolveHeadquarters('odisha'), timezone: 'Asia/Kolkata' }, includeEvidence: false });
+  assert.ok(/>08\/10</.test(html) && /Peak 2/.test(html));                    // both posts fall on 8 Oct in India
+});
+
+test('issue strands, what is known and not known are printed, with citations linked', () => {
+  const a = { ...mixedAnalysis, issueStrands: [{ title: 'Odisha Bandh', who: 'INDIA bloc', demand: 'Repeal of a law', status: 'Under way today', posts: [1] }], issueLink: 'Both ask the CEC to resign.', known: [{ text: 'The bandh runs 6 AM to 6 PM.', posts: [1] }], notKnown: ['How many people took part.'] };
+  const html = buildReportHtml({ summary: mixed, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: true });
+  assert.ok(/What the Issue Is/.test(html) && /INDIA bloc/.test(html) && /What we know/.test(html) && /What we do not know yet/.test(html));
+  assert.ok(/<a href="#e1" class="ref">\[Post #1\]<\/a>/.test(html.slice(html.indexOf('What the Issue Is'))));
+  assert.ok(html.indexOf('Bottom line:') < html.indexOf('What the Issue Is') && html.indexOf('What the Issue Is') < html.indexOf('Immediate Action Summary'));   // answer first
+  const first = html.match(/class="no">(\d\d)\./g);
+  assert.strictEqual(first[0], 'class="no">01.');                              // sections are numbered in the order they print
+  const none = buildReportHtml({ summary: mixed, keywordData: null, tenantName: 'odisha', analysis: mixedAnalysis, headquarters: null, includeEvidence: true });
+  assert.ok(!/What the Issue Is/.test(none));                                  // no strands: no empty section
+});
+
+test('draft marking until approved; approval shows who and when; no review means no marking', () => {
+  const base = { summary: mixed, keywordData: null, tenantName: 'odisha', analysis: mixedAnalysis, headquarters: null, includeEvidence: true };
+  const draft = buildReportHtml({ ...base, review: { status: 'draft', version: 2, preparedBy: 'Analyst A' }, quality: { issues: [{ level: 'error', code: 'bad_citation', message: 'Cites [Post #9], which is not in the evidence.', where: 'Bottom line' }] } });
+  assert.ok(/class="wm">DRAFT</.test(draft) && /class="draftbar"/.test(draft) && /Review notes/.test(draft) && /v2/.test(draft) && /Analyst A/.test(draft));
+  const ok = buildReportHtml({ ...base, review: { status: 'approved', version: 2, preparedBy: 'Analyst A', approvedBy: 'SP Rao', approvedAt: '2026-10-08T10:00:00Z' }, quality: { issues: [] } });
+  assert.ok(!/class="wm"/.test(ok) && /APPROVED/.test(ok) && /SP Rao/.test(ok));
+  assert.ok(!/class="wm"/.test(buildReportHtml(base)));
+});
+
+test('quality check finds bad citations, boilerplate, generic actions and impossible counts', () => {
+  const ev = [{ n: 1 }, { n: 2 }];
+  const bad = runQualityChecks({ summary: { stats: { total_unique_posts: 5, relevant_posts_count: 9 } }, analysis: { bottomLine: 'Monitor the situation. [Post #7]', actions: [{ action: 'Watch', detail: 'short', posts: [] }] }, ev });
+  const codes = bad.issues.map((i) => i.code);
+  ['bad_citation', 'stock_phrase', 'generic_action', 'no_citation', 'count_mismatch'].forEach((c) => assert.ok(codes.includes(c), c));
+  assert.strictEqual(bad.ok, false);
+  const good = runQualityChecks({ summary: { stats: { total_unique_posts: 5, relevant_posts_count: 2 } }, analysis: { bottomLine: 'The bandh runs today. [Post #1]', actions: [{ action: 'Watch roads at Cuttack: Traffic Police', detail: 'Report hourly from the main junctions. Escalate if a road is blocked for more than an hour.', posts: [1] }] }, ev });
+  assert.strictEqual(good.ok, true);
+  assert.ok(stockPhrases('We should remain vigilant.').length && !stockPhrases('Traffic Police will report hourly.').length);
+  assert.ok(genericAction({ action: 'Watch', detail: 'x' }).length >= 2);
+});
+
+test('review: edits are validated and replace generated text; unknown post numbers are dropped', () => {
+  const edits = reviewMod.cleanEdits({ bottomLine: '  A  clearer   line.  ', actions: [{ action: 'Do X', detail: 'Y. Escalate if Z.', posts: [1, 99, 'a'] }, { action: '' }], hack: 'ignored', notKnown: ['One', ''] });
+  assert.deepStrictEqual(Object.keys(edits).sort(), ['actions', 'bottomLine', 'notKnown']);
+  assert.strictEqual(edits.bottomLine, 'A clearer line.');
+  const out = reviewMod.applyEdits({ bottomLine: 'old', actions: [{ action: 'old' }], x: 1 }, edits, new Set([1]));
+  assert.strictEqual(out.bottomLine, 'A clearer line.');
+  assert.deepStrictEqual(out.actions[0].posts, [1]);
+  assert.strictEqual(out.x, 1);
+  assert.strictEqual(reviewMod.applyEdits(null, edits), null);
+});
+
+test('review state: a new generation is a new draft and the history keeps what was replaced', () => {
+  const approved = normalizeReview({ status: 'approved', version: 3, approvedBy: 'SP Rao', edits: { bottomLine: 'x' } });
+  const next = freshReview(approved, { preparedBy: 'Analyst B', preparedAt: '2026-10-09T00:00:00Z' });
+  assert.strictEqual(next.status, 'draft');
+  assert.strictEqual(next.version, 4);
+  assert.deepStrictEqual(next.edits, {});
+  assert.ok(/Replaced approved version 3/.test(next.history[next.history.length - 1].note));
+  assert.strictEqual(freshReview(null, { preparedBy: 'A' }).version, 1);
+});
+
+test('the model reply is parsed into issue strands, known and not known, dropping invented posts', () => {
+  const r = parseLLMReport({ situation: 's', narratives: [{ title: 't', posts: [1] }], issue_strands: [{ title: 'A', who: 'B', demand: 'C', status: 'D', posts: [1, 50] }], known: [{ text: 'k', posts: [2] }, 'plain'], not_known: ['q'], issue_link: 'l' }, [{ citationTag: '[Post #1]' }, { citationTag: '[Post #2]' }]);
+  assert.deepStrictEqual(r.issueStrands[0].posts, [1]);
+  assert.strictEqual(r.known.length, 2);
+  assert.deepStrictEqual(r.notKnown, ['q']);
+  assert.strictEqual(r.issueLink, 'l');
+});
+
+test('two tenants built one after the other keep their own name, timezone and sign-off', () => {
+  const late = { ...mixed, evidence_traceability: [evRow(1, { posted_at: '2026-10-07T20:00:00Z' })] };
+  const a = buildReportHtml({ summary: late, keywordData: null, tenantName: 'a', analysis: mixedAnalysis, headquarters: resolveHeadquarters('a', { force: 'A Police', display_name: 'A POLICE', head: 'DGP', headquarters: 'X', timezone: 'UTC', signoff: 'Analyst, SP, DIG' }), includeEvidence: true });
+  const b = buildReportHtml({ summary: late, keywordData: null, tenantName: 'b', analysis: mixedAnalysis, headquarters: resolveHeadquarters('b', { force: 'B Police', display_name: 'B POLICE', head: 'CP', headquarters: 'Y', timezone: 'Asia/Kolkata' }), includeEvidence: true });
+  assert.ok(/A POLICE/.test(a) && !/B POLICE/.test(a) && /07 Oct, 20:00/.test(a) && /<span>SP<\/span>/.test(a));
+  assert.ok(/B POLICE/.test(b) && !/A POLICE/.test(b) && /08 Oct, 01:30/.test(b) && /<span>Prepared by<\/span>/.test(b));
+});
+
+test('other languages: Odia text gets its font, translated labels are used, and values in labels survive', () => {
+  const odia = { ...mixed, evidence_traceability: [evRow(1, { text: 'ଓଡ଼ିଶା ବନ୍ଦ ଆଜି' })] };
+  const html = buildReportHtml({ summary: odia, keywordData: null, tenantName: 'odisha', analysis: mixedAnalysis, headquarters: null, includeEvidence: true, labels: { 'Evidence Annex': 'प्रमाण संलग्नक', 'Posts in {region}': '{region} में पोस्ट' } });
+  assert.ok(/font-family:'Report Oriya'/.test(html));
+  assert.ok(/प्रमाण संलग्नक/.test(html));
+  const two = buildReportHtml({ summary: mixed, keywordData: null, tenantName: 'odisha', analysis: mixedAnalysis, headquarters: null, includeEvidence: true, labels: { 'Posts in {region}': '{region} में पोस्ट' } });
+  assert.ok(/Odisha में पोस्ट/.test(two));
+});
+
+test('label translation: a reply that loses a {placeholder} is not accepted', async () => {
+  const axios = require('axios');
+  const { __test } = require('../src/modules/events/eventIntelligenceReport/labels');
+  const orig = axios.post;
+  axios.post = async () => ({ data: { choices: [{ message: { content: JSON.stringify({ 0: 'पोस्ट {region}', 1: 'पोस्ट' }) } }] } });
+  try {
+    const m = await __test.translateWithModel('Hindi', () => ({ baseUrl: 'x', apiKey: 'k', model: 'm', timeoutMs: 1000 }), ['Posts in {region}', 'Outside {region} (context only)']);
+    assert.strictEqual(m['Posts in {region}'], 'पोस्ट {region}');
+    assert.strictEqual(m['Outside {region} (context only)'], undefined);
+  } finally { axios.post = orig; }
+});
+
+test('a 400-post event builds quickly, every post has an anchor, and long text is kept', () => {
+  const many = { ...mixed, stats: { ...mixed.stats, total_unique_posts: 400 }, evidence_traceability: Array.from({ length: 400 }, (_, i) => evRow(i + 1, { text: `Post ${i + 1} ${'long '.repeat(80)}` })) };
+  const t0 = Date.now();
+  const html = buildReportHtml({ summary: many, keywordData: null, tenantName: 'odisha', analysis: { ...mixedAnalysis, facts: { ...mixedAnalysis.facts, byPost: {} } }, headquarters: null, includeEvidence: true });
+  assert.ok(Date.now() - t0 < 3000);
+  assert.strictEqual((html.match(/<tr id="e\d+">/g) || []).length, 400);
+  assert.ok(/long long long long long long long long long long/.test(html.slice(html.indexOf('id="e400"'))));
 });

@@ -11,7 +11,8 @@
       "headquarters": "State Police Headquarters, Buxi Bazar, Cuttack",
       "pin": "753001",
       "phone": "Control Room: 0671-2304001",
-      "report_language": "English"
+      "report_language": "English",
+      "timezone": "Asia/Kolkata"
     },
     {
       "keys": [
@@ -24,7 +25,8 @@
       "headquarters": "Police Headquarters, Jai Singh Marg, New Delhi",
       "pin": "110001",
       "phone": "",
-      "report_language": "English"
+      "report_language": "English",
+      "timezone": "Asia/Kolkata"
     },
     {
       "keys": [
@@ -36,7 +38,8 @@
       "headquarters": "Police Headquarters, Dehradun",
       "pin": "248001",
       "phone": "",
-      "report_language": "English"
+      "report_language": "English",
+      "timezone": "Asia/Kolkata"
     },
     {
       "keys": [
@@ -48,7 +51,8 @@
       "headquarters": "Jharkhand Police Headquarters, Dhurwa, Ranchi",
       "pin": "834004",
       "phone": "",
-      "report_language": "English"
+      "report_language": "English",
+      "timezone": "Asia/Kolkata"
     },
     {
       "keys": [
@@ -61,7 +65,8 @@
       "headquarters": "Police Headquarters, Mangalagiri, Amaravati",
       "pin": "522502",
       "phone": "",
-      "report_language": "English"
+      "report_language": "English",
+      "timezone": "Asia/Kolkata"
     },
     {
       "keys": [
@@ -73,7 +78,8 @@
       "headquarters": "Police Headquarters, Nrupathunga Road, Bengaluru",
       "pin": "560001",
       "phone": "",
-      "report_language": "English"
+      "report_language": "English",
+      "timezone": "Asia/Kolkata"
     },
     {
       "keys": [
@@ -86,7 +92,8 @@
       "headquarters": "Police Headquarters, Colaba, Mumbai",
       "pin": "400001",
       "phone": "",
-      "report_language": "English"
+      "report_language": "English",
+      "timezone": "Asia/Kolkata"
     },
     {
       "keys": [
@@ -99,7 +106,8 @@
       "headquarters": "Police Headquarters, Radhakrishnan Salai, Mylapore, Chennai",
       "pin": "600004",
       "phone": "",
-      "report_language": "English"
+      "report_language": "English",
+      "timezone": "Asia/Kolkata"
     },
     {
       "keys": [
@@ -112,7 +120,8 @@
       "headquarters": "DGP Office, Saifabad, Hyderabad",
       "pin": "500004",
       "phone": "",
-      "report_language": "English"
+      "report_language": "English",
+      "timezone": "Asia/Kolkata"
     },
     {
       "keys": [
@@ -126,7 +135,8 @@
       "headquarters": "Nabanna / Bhabani Bhawan, Alipore, Kolkata",
       "pin": "700027",
       "phone": "",
-      "report_language": "English"
+      "report_language": "English",
+      "timezone": "Asia/Kolkata"
     }
   ]
 }

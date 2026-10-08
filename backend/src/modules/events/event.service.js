@@ -382,7 +382,13 @@ const recordFetch = async (id, historyEntry = null, { db } = {}) => {
 /** @deprecated use recordFetch */
 const markPolled = async (id, historyEntry = null, { db } = {}) => recordFetch(id, historyEntry, { db });
 
-const getKeywordAnalytics = async (id, { db, from = null, to = null } = {}) => {
+// Calendar day of a time in the tenant's timezone (default: the server's UTC day), so a post at 1 AM IST counts on its Indian date.
+const dayKeyIn = (date, timezone) => {
+  if (!timezone) return date.toISOString().slice(0, 10);
+  try { return new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date); } catch (e) { return date.toISOString().slice(0, 10); }
+};
+
+const getKeywordAnalytics = async (id, { db, from = null, to = null, timezone = null } = {}) => {
   const prisma = dbOf(db);
   const event = await prisma.social_media_events.findUnique({
     where: { id: Number(id) },
@@ -455,7 +461,7 @@ const getKeywordAnalytics = async (id, { db, from = null, to = null } = {}) => {
 
     const postedDate = row.posted_at ? new Date(row.posted_at) : null;
     const dateKey = postedDate && !Number.isNaN(postedDate.getTime())
-      ? postedDate.toISOString().slice(0, 10)
+      ? dayKeyIn(postedDate, timezone)
       : null;
 
     const matchedKws = Array.isArray(ar.matched_keywords) ? ar.matched_keywords.map((k) => String(k?.keyword || k).toLowerCase().trim()) : [];

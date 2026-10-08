@@ -1,6 +1,7 @@
 require('dotenv').config();
 const axios = require('axios');
 const dbOf = require('../../lib/dbOf');
+const { freshReview } = require('./reviewState');
 const logger = require('../../lib/logger');
 const {
   buildSystemPrompt, buildUserContext, RETRY_MESSAGE, parseLLMReport, reportToMarkdown,
@@ -185,6 +186,13 @@ const getCachedEventSummary = async (eventId, { db } = {}) => {
 
 /** Persist a freshly-generated summary result, upserted one-per-event. */
 const persistEventSummary = async (prisma, numericId, result, cursor) => {
+  // A new generation is a new draft; the previous version's approval history is kept.
+  try {
+    const prev = await prisma.social_media_event_summaries.findUnique({ where: { event_id: numericId }, select: { stats: true } });
+    result.stats = { ...(result.stats || {}), review: freshReview(prev?.stats?.review, { preparedBy: result.generated_by?.name || '', preparedAt: result.generated_at }) };
+  } catch (e) {
+    result.stats = { ...(result.stats || {}), review: freshReview(null, { preparedBy: result.generated_by?.name || '', preparedAt: result.generated_at }) };
+  }
   const data = sanitizeForPostgresJson({
     summary_markdown: result.summary,
     summary_source: result.summary_source,
@@ -880,6 +888,9 @@ const generateEventSummary = async (
         (structuredReport.keyFindings || []).forEach((x) => grab(x, 'detail'));
         (structuredReport.narratives || []).forEach((x) => { grab(x, 'discussed'); grab(x, 'tone'); grab(x, 'risk'); });
         (structuredReport.actions || []).forEach((x) => grab(x, 'detail'));
+        (structuredReport.known || []).forEach((x) => grab(x, 'text'));
+        (structuredReport.issueStrands || []).forEach((x) => { grab(x, 'demand'); grab(x, 'status'); });
+        grab(structuredReport, 'issueLink');
         const stiff = [];
         const english = /^english$/i.test(promptCtx.reportLanguage || 'English');
         if (english) slots.forEach(([o, k]) => { const r = cleanText(o[k]); o[k] = r.text; if (r.needsRewrite) stiff.push([o, k]); });
@@ -1029,6 +1040,7 @@ ${Object.entries(platformCounts).map(([p, count]) => `- **${p.toUpperCase()}**: 
       target_entity: s.target_entity,
       target_semantic: s.target_semantic,
       risk_level: s.risk_level,
+      is_relevant: s.is_relevant !== false,
       url: s.url,
       posted_at: s.postedAt || null,
       likes: s.likes || 0,

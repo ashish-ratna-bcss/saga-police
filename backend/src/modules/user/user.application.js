@@ -26,12 +26,12 @@ const normalizeDomains = (raw) => {
 };
 
 /** Force profile used on intelligence reports; only these text fields are kept. */
-const FORCE_FIELDS = ['force', 'display_name', 'head', 'headquarters', 'pin', 'phone', 'report_language'];
+const FORCE_FIELDS = ['force', 'display_name', 'head', 'headquarters', 'pin', 'phone', 'report_language', 'timezone', 'classification', 'units', 'signoff'];
 const normalizeForceProfile = (raw) => {
   const o = asObject(raw);
   const out = {};
   FORCE_FIELDS.forEach((k) => {
-    const v = o[k] == null ? '' : String(o[k]).trim().slice(0, 200);
+    const v = o[k] == null ? '' : String(o[k]).trim().slice(0, k === 'units' ? 400 : 200);
     if (v) out[k] = v;
   });
   return Object.keys(out).length ? out : null;
@@ -42,7 +42,7 @@ const defaultForceProfile = (title) => {
   // The platform's own brand words are not part of the force name ("Odisha Blura Saga" -> "Odisha").
   const t = String(title || '').replace(/blura\s*saga/gi, '').replace(/\s+/g, ' ').trim();
   if (!t) return null;
-  return normalizeForceProfile({ force: t, display_name: t.toUpperCase(), report_language: 'English' });
+  return normalizeForceProfile({ force: t, display_name: t.toUpperCase(), report_language: 'English', timezone: process.env.DEFAULT_REPORT_TIMEZONE || 'Asia/Kolkata' });
 };
 
 const readApplicationDetails = (user) => {

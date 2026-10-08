@@ -24,4 +24,31 @@ const cleanText = (raw) => {
   return { text: t, needsRewrite: STIFF.test(t) || longSentence(t) };
 };
 
-module.exports = { cleanText };
+// Stock phrases that make a brief read as machine-written. Used by the quality check, not to rewrite text.
+const STOCK_PHRASES = [
+  /\bmonitor (?:the )?(?:situation|developments)\b/i,
+  /\bmonitor (?:the )?social media\b/i,
+  /\bverify (?:the )?claims\b/i,
+  /\bcontinue (?:to )?(?:monitor|watch)\b/i,
+  /\bremain vigilant\b/i,
+  /\bensure (?:that )?law and order\b/i,
+  /\bit is important to (?:note|ensure|remember)\b/i,
+  /\bplays? a (?:crucial|key|vital) role\b/i,
+  /\bposts? (?:mention|discuss) (?:the )?(?:bandh|protest|issue|event)\b/i,
+];
+
+/** Returns the stock phrases found in the text (as matched strings). */
+const stockPhrases = (text) => STOCK_PHRASES.map((re) => (String(text || '').match(re) || [])[0]).filter(Boolean);
+
+/** An action is generic when it is very short or has no escalation trigger. */
+const genericAction = (a = {}) => {
+  const action = String(a.action || '').trim();
+  const detail = String(a.detail || '').trim();
+  const reasons = [];
+  if (action.split(/\s+/).filter(Boolean).length < 3) reasons.push('too short to say who does what');
+  if (!/escalat/i.test(detail)) reasons.push('no escalation trigger');
+  if (detail && detail.split(/\s+/).length < 8) reasons.push('no concrete detail');
+  return reasons;
+};
+
+module.exports = { cleanText, stockPhrases, genericAction };

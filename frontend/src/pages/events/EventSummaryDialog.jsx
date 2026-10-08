@@ -15,14 +15,6 @@ import { Progress } from '../../components/ui/progress';
 import { ScrollArea } from '../../components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from '../../components/ui/dropdown-menu';
-import {
   Sparkles,
   RefreshCw,
   Copy,
@@ -30,7 +22,7 @@ import {
   Download,
   AlertTriangle,
   FileText,
-  FileCheck,
+  ClipboardCheck,
   BarChart3,
   ShieldAlert,
   CheckCircle2,
@@ -58,6 +50,7 @@ import {
 } from '../../components/PlatformBrandIcon';
 import { toast } from 'sonner';
 import { EventBrief, RiskAlerts } from './EventSummaryBrief';
+import EventReportReview from './EventReportReview';
 
 /**
  * Extracts sections from the markdown text based on common section headers.
@@ -116,6 +109,10 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
   const [allPostsLoaded, setAllPostsLoaded] = useState(false);
   const [allPostsPlatform, setAllPostsPlatform] = useState('all');
   const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewState, setReviewState] = useState(null);   // set by the review screen; falls back to what the saved report carries
+  const reviewInfo = reviewState || summaryData?.stats?.review || null;
+  const reportApproved = reviewInfo?.status === 'approved';
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
@@ -699,7 +696,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
    * server (HTML → PDF) from the cached Summary AI result and keyword analytics, so charts
    * and multilingual post text render consistently.
    */
-  const handleDownload = async (withEvidence = true) => {
+  const handleDownload = async () => {
     if (!summaryData?.summary || !eventId) return;
     setPdfGenerating(true);
     try {
@@ -709,24 +706,24 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
           timeframe: timeframe || 'full',
           from_date: fromDate || undefined,
           to_date: toDate || undefined,
-          include_evidence: withEvidence ? 'true' : 'false',
+          include_evidence: 'true',
         },
         responseType: 'blob',
         timeout: 300000,
       });
       const blob = new Blob([res.data], { type: 'application/pdf' });
       const safe = (v) => String(v || '').replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
+      const isDraft = String(res.headers?.['x-report-status'] || (reportApproved ? 'approved' : 'draft')) !== 'approved';
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       const tfSuffix = timeframe && timeframe !== 'full' ? `_${safe(timeframe).toUpperCase()}` : '';
-      const evSuffix = withEvidence ? '_With_Evidence' : '_Without_Evidence';
-      link.download = `${safe(tenantName)}_${safe(displayName)}${tfSuffix}_Summary_Report${evSuffix}.pdf`;
+      link.download = `${safe(tenantName)}_${safe(displayName)}${tfSuffix}_Report${isDraft ? '_DRAFT' : ''}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      toast.success(`Event Intelligence report (${withEvidence ? 'With Evidence' : 'Without Evidence'}) exported successfully`);
+      toast.success(isDraft ? 'Report exported as a DRAFT. Approve it to remove the mark.' : 'Approved report exported');
     } catch (err) {
       console.error('Failed to generate PDF report:', err);
       toast.error('Failed to generate PDF report: ' + (err?.response?.statusText || err.message));
@@ -859,57 +856,31 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
               {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
               <span>{copied ? 'Copied' : 'Copy'}</span>
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={loading || pdfGenerating || !summaryData?.summary}
-                  className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground font-medium"
-                  title="Download executive PDF report"
-                >
-                  {pdfGenerating ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Download className="h-3.5 w-3.5" />
-                  )}
-                  <span>{pdfGenerating ? 'Preparing…' : 'Download Report'}</span>
-                  <ChevronDown className="h-3 w-3 opacity-60 ml-0.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72">
-                <DropdownMenuLabel className="text-[11px] font-semibold text-muted-foreground tracking-wide uppercase">
-                  Select Report Format
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => handleDownload(false)}
-                  disabled={pdfGenerating}
-                  className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
-                >
-                  <FileText className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-xs font-semibold text-foreground">Executive Action Summary (2–3 Pages)</span>
-                    <span className="text-[11px] text-muted-foreground leading-tight">
-                      Page 1 Action Directives, Key Findings, Charts & Priority Takedowns
-                    </span>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleDownload(true)}
-                  disabled={pdfGenerating}
-                  className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
-                >
-                  <FileCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-xs font-semibold text-foreground">Full Intelligence & Evidence Report</span>
-                    <span className="text-[11px] text-muted-foreground leading-tight">
-                      Complete report with Top Profiles & Clickable Evidence Post Register
-                    </span>
-                  </div>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setReviewOpen(true)}
+              disabled={loading || !summaryData?.summary}
+              className="h-8 gap-1.5 text-xs font-medium"
+              title="Edit the opening text and actions, then approve the report"
+            >
+              <ClipboardCheck className="h-3.5 w-3.5" />
+              <span>Review</span>
+              <span className={`ml-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold ${reportApproved ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'}`}>
+                {reportApproved ? 'Approved' : 'Draft'}
+              </span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleDownload()}
+              disabled={loading || pdfGenerating || !summaryData?.summary}
+              className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground font-medium"
+              title="Download the full report with the evidence annex"
+            >
+              {pdfGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              <span>{pdfGenerating ? 'Preparing…' : 'Download Report'}</span>
+            </Button>
           </div>
         </DialogHeader>
 
@@ -1836,6 +1807,13 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
           </div>
         </DialogContent>
       </Dialog>
+      <EventReportReview
+        open={reviewOpen}
+        onOpenChange={setReviewOpen}
+        eventId={eventId}
+        tenantName={tenantName}
+        onChange={setReviewState}
+      />
     </Dialog>
   );
 }

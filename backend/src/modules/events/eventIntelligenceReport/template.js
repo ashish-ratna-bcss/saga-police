@@ -5,6 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const { esc } = require('./render');
+const { classifyEvidence } = require('./scope');
 
 /**
  * Bundled fonts (./fonts). Only the scripts that actually appear in a report are embedded,
@@ -189,8 +190,7 @@ const SKIP_PLACE = new Set([
   'france', 'paris', 'french', 'usa', 'uk', 'gaza', 'israel', 'palestine', 'australia', 'canada', 'germany', 'spain', 'italy',
   'russia', 'ukraine', 'china', 'pakistan', 'bangladesh', 'nepal', 'sri lanka', 'london', 'washington',
   'love', 'books', 'classes', 'corruption', 'easy', 'solution', 'farmer', 'farmers', 'drought', 'water',
-  'washroom', 'washroomthikkaro', 'schoolthikkaro', 'vaishnavism', 'fakebjp', 'kyaboltipublic', 'bjd', 'bjp', 'congress',
-  'techcommunity', 'innovation', 'developers', 'futuretech', 'updates', 'live', 'breaking', 'report',
+  'bjd', 'bjp', 'congress', 'updates', 'live', 'breaking', 'report',
   'central university', 'supreme court', 'high court', 'election commission', 'delhi police'
 ]);
 
@@ -213,7 +213,7 @@ const specificPlaces = (text) => {
   while ((m = dateLine.exec(src))) add(m[1]);
   const title = (s) => String(s).toLowerCase().replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase());
   const placeTail = /(Sabha|Assembly|Chowk|Chhak|Nagar|Highway|District|Panchayat|University|College|Maidan|Road|Ghat|Bazar|Bazaar|Square|Junction|Pur|Garh)$/i;
-  const fixed = /\b(national highway(?:\s*\d+)?|nh[-\s]?\d+|vidhan sabha|legislative assembly|odisha assembly)\b/gi;
+  const fixed = /\b(national highway(?:\s*\d+)?|nh[-\s]?\d+|vidhan sabha|legislative assembly)\b/gi;
   while ((m = fixed.exec(src))) add(title(m[1]));
   const suffix = /\b([A-Z][\p{L}]+(?:\s+(?:of|the|[A-Z][\p{L}]+)){0,2}\s+(?:Sabha|Assembly|Chowk|Chhak|Nagar|Pur|Garh|Highway|District|Panchayat|University|College|Maidan|Square|Junction|Ghat|Bazar|Bazaar|Road))\b/gu;
   while ((m = suffix.exec(src))) add(m[1]);
@@ -461,6 +461,24 @@ th{word-break:keep-all;overflow-wrap:normal;hyphens:none}tr{break-inside:avoid}t
 .action-item .action-title{font-size:7.8pt;font-weight:700;color:#991b1b;margin-bottom:.8mm}
 .action-item .action-desc{font-size:7.3pt;color:#334155;line-height:1.3}
 
+.classif{position:absolute;right:7mm;top:3.2mm;font-size:6.4pt;letter-spacing:.12em;font-weight:700;color:#F2C9B3;text-transform:uppercase}
+.sign{display:grid;grid-template-columns:repeat(3,1fr);gap:2.4mm;margin-top:4mm;break-inside:avoid}
+.sign>div{border:.6px solid ${LINE};border-radius:3px;padding:1.8mm 2.4mm;height:15mm;font-size:6.4pt;letter-spacing:.06em;color:${MUT};font-weight:700;text-transform:uppercase}
+.wm{position:fixed;top:42%;left:6%;font-size:120pt;font-weight:800;letter-spacing:.08em;color:rgba(180,35,24,.06);transform:rotate(-28deg);z-index:0;pointer-events:none}
+.draftbar{display:flex;align-items:center;gap:3mm;border:.6px solid #f1b8b2;border-left:3.5px solid ${CR};background:#fff5f4;border-radius:3px;padding:1.8mm 3mm;margin:0 0 2.8mm;font-size:7.6pt;color:#7f1d1d}
+.draftbar b{background:${CR};color:#fff;font-size:6.8pt;letter-spacing:.1em;padding:.8mm 2.2mm;border-radius:2px}
+.draftbar em{margin-left:auto;font-style:normal;color:${MUT};font-weight:700}
+.draftbar.ok{border-color:#b7e0c8;border-left-color:${PR};background:#f1faf5;color:#14532d}.draftbar.ok b{background:${PR}}
+.reviewnotes{border:.6px solid #fde68a;border-left:3.5px solid #f59e0b;background:#fffbeb;border-radius:3px;padding:2mm 3mm;margin:0 0 2.8mm}
+.reviewnotes h4{margin:0 0 1mm;font-size:7.6pt;color:#92400e;text-transform:uppercase;letter-spacing:.05em}
+.reviewnotes ul{margin:0;padding:0;list-style:none}.reviewnotes li{font-size:7.3pt;color:#78350f;margin-bottom:.8mm}.reviewnotes li.error b{color:${CR}}
+.kn{display:grid;grid-template-columns:1fr 1fr;gap:2.4mm;margin:0 0 2.8mm}
+.kn>div{border-radius:3px;padding:2mm 2.8mm;font-size:7.6pt;border:.6px solid ${LINE}}
+.kn h4{margin:0 0 1mm;font-size:7.6pt;text-transform:uppercase;letter-spacing:.05em}
+.kn ul{margin:0;padding-left:3.4mm}.kn li{margin-bottom:.9mm;line-height:1.3}
+.kn .yes{background:#f1faf5;border-left:3px solid ${PR}}.kn .yes h4{color:#14532d}
+.kn .no{background:#fff8ed;border-left:3px solid #f59e0b}.kn .no h4{color:#92400e}
+.signname{display:block;margin-top:1mm;font-size:7.4pt;color:${INK};letter-spacing:0;text-transform:none}
 .post-link{color:#1d4ed8;text-decoration:underline;font-weight:700;word-break:break-all}
 .post-link:hover{color:#1e40af}
 .ref{color:#1d4ed8;text-decoration:none;font-weight:700;white-space:nowrap}
@@ -569,7 +587,8 @@ const timelineChart = (days) => {
     const raw = String(rows[i].date || '');
     const bits = raw.split('-');
     const text = bits.length === 3 ? `${bits[2]}/${bits[1]}` : raw.slice(5);
-    return `<text x="${pts[i][0]}" y="${h - 3}" text-anchor="middle" font-size="7" fill="#6B7C8A">${esc(text)}</text>`;
+    const anchor = i === 0 ? 'start' : i === rows.length - 1 ? 'end' : 'middle';   // the first and last labels stay inside the chart
+    return `<text x="${i === 0 ? pts[i][0] - 4 : i === rows.length - 1 ? pts[i][0] + 4 : pts[i][0]}" y="${h - 3}" text-anchor="${anchor}" font-size="7" fill="#6B7C8A">${esc(text)}</text>`;
   }).join('');
   return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="32mm" preserveAspectRatio="none">
     <defs><linearGradient id="tlfill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stop-color="#6366f1" stop-opacity="0.4"/><stop offset="95%" stop-color="#6366f1" stop-opacity="0"/></linearGradient></defs>
@@ -580,6 +599,11 @@ const timelineChart = (days) => {
   </svg>
   <div class="legend"><span>Daily posts by publication date. Peak ${fmt(max)}. ${rows.length} day${rows.length === 1 ? '' : 's'}.</span></div>`;
 };
+
+// Report timezone: from the force profile, else Asia/Kolkata. Day boundaries and printed times follow it, not the server's clock.
+let REPORT_TZ = 'Asia/Kolkata';
+const validTz = (tz) => { try { new Intl.DateTimeFormat('en-GB', { timeZone: tz }); return true; } catch (e) { return false; } };
+const setReportTz = (tz) => { REPORT_TZ = tz && validTz(tz) ? tz : 'Asia/Kolkata'; };
 
 const parseDateMs = (d) => {
   if (!d) return 0;
@@ -592,7 +616,7 @@ const dateDayKey = (d) => {
   try {
     const dt = new Date(d);
     if (isNaN(dt.getTime())) return '0000-00-00';
-    return dt.toISOString().slice(0, 10);
+    return new Intl.DateTimeFormat('en-CA', { timeZone: REPORT_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(dt);
   } catch {
     return '0000-00-00';
   }
@@ -640,39 +664,43 @@ const linkCitations = (html, validNs) => String(html)
   .map((seg, i) => (i % 2 ? seg : seg.replace(/\[Post #(\d+)\]/g, (m, n) => (validNs.has(Number(n)) ? `<a href="#e${n}" class="ref">[Post #${n}]</a>` : m))))
   .join('');
 
-const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquarters, includeEvidence = true, labels = null }) => {
+const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquarters, includeEvidence = true, labels = null, review = null, quality = null }) => {
+  setReportTz(headquarters?.timezone);
+  // Fixed wording that carries a value (a region, a count) goes through the label map here, because the post-build
+  // translation only replaces text that is exactly one label. {placeholders} are kept by the translator.
+  const L = (en, vars = {}) => String((labels && labels[en]) || en).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+  let sectionNo = 0;
+  const secNo = () => `${String(++sectionNo).padStart(2, '0')}.`;
   const stats = summary?.stats || {};
   const event = summary?.event || {};
   const kwa = keywordData || null;
   const kws = (kwa?.keywords || []).filter((k) => n0(k.total_posts) > 0);
-  const total = n0(stats.total_unique_posts || stats.total_media_count);
-  const sent = sentimentOf(stats.sentiment_counts);
-  const sentTotal = Math.max(sent.positive + sent.neutral + sent.negative, 1);
-  const platformEntries = Object.entries(stats.platform_counts || {})
+  let total = n0(stats.total_unique_posts || stats.total_media_count);
+  let sent = sentimentOf(stats.sentiment_counts);
+  let sentTotal = Math.max(sent.positive + sent.neutral + sent.negative, 1);
+  let platformEntries = Object.entries(stats.platform_counts || {})
     .filter(([, v]) => n0(v) > 0)
     .sort((a, b) => b[1] - a[1]);
   const eng = stats.total_engagement || kwa?.summary?.engagement || {};
   // Interactions only; views are a different measure and are shown separately, so one number never mixes the two.
-  const engTotal = n0(eng.likes) + n0(eng.shares) + n0(eng.comments);
-  const viewsTotal = n0(eng.views);
+  let engTotal = n0(eng.likes) + n0(eng.shares) + n0(eng.comments);
+  let viewsTotal = n0(eng.views);
+  const monitoredTotal = total;   // everything the monitor matched, before the event's relevance and region are applied
   const generated = summary?.generated_at ? new Date(summary.generated_at) : new Date();
-  const dateStr = generated.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const dateStr = generated.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: REPORT_TZ });
   const windowStr =
     stats.timeframe_label
-      ? `${stats.timeframe_label}${!/\d{2}\/\d{2}\/\d{4}/.test(stats.timeframe_label) && stats.date_range?.start && stats.date_range?.end ? ` (${new Date(stats.date_range.start).toLocaleDateString('en-GB')} – ${new Date(stats.date_range.end).toLocaleDateString('en-GB')})` : ''}`
+      ? `${stats.timeframe_label}${!/\d{2}\/\d{2}\/\d{4}/.test(stats.timeframe_label) && stats.date_range?.start && stats.date_range?.end ? ` (${new Date(stats.date_range.start).toLocaleDateString('en-GB', { timeZone: REPORT_TZ })} – ${new Date(stats.date_range.end).toLocaleDateString('en-GB', { timeZone: REPORT_TZ })})` : ''}`
       : stats.date_range?.start && stats.date_range?.end
-        ? `${new Date(stats.date_range.start).toLocaleDateString('en-GB')} – ${new Date(stats.date_range.end).toLocaleDateString('en-GB')}`
+        ? `${new Date(stats.date_range.start).toLocaleDateString('en-GB', { timeZone: REPORT_TZ })} – ${new Date(stats.date_range.end).toLocaleDateString('en-GB', { timeZone: REPORT_TZ })}`
         : '—';
   
+  // The display name comes from the force profile (or the generic fallback in headquarters.js); no tenant is named in this file.
   const cleanTenant = (t) => {
-    if (!t) return 'DIGITAL INTELLIGENCE PLATFORM';
-    const s = String(t).replace(/[_]+/g, ' ').replace(/\bblurasaga\b/gi, '').replace(/\bblura\s+saga\b/gi, '').trim();
-    if (/odisha/i.test(s)) return 'ODISHA POLICE';
-    if (/delhi/i.test(s)) return 'DELHI POLICE';
-    if (/jharkhand/i.test(s)) return 'JHARKHAND POLICE';
-    if (/andhra|ap/i.test(s)) return 'ANDHRA PRADESH POLICE';
-    if (/uttarakhand/i.test(s)) return 'UTTARAKHAND POLICE';
-    return s.toUpperCase() || 'DIGITAL INTELLIGENCE PLATFORM';
+    if (headquarters?.display_name) return headquarters.display_name;
+    if (headquarters?.force && headquarters.official) return String(headquarters.force).toUpperCase();
+    const label = String(t || '').replace(/[_]+/g, ' ').replace(/\bblura\s*saga\b/gi, '').trim();
+    return label ? label.toUpperCase() : 'DIGITAL INTELLIGENCE PLATFORM';
   };
 
   const tenant = cleanTenant(tenantName);
@@ -688,7 +716,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
         <div class="l">ADDRESSED TO STATE HEADQUARTERS</div>
         <div class="who">${esc(tenant)}</div>
       </div>`;
-  const lead = platformEntries[0];
+  let lead = platformEntries[0];
   const placeLexicon = buildPlaceLexicon(event);
   const broad = broadPlaces(event);
 
@@ -723,12 +751,51 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       specific: (factsPlaces ? (factsPlaces[n]?.places || []) : places).filter((p) => !broad.has(p.toLowerCase())),
       isVisit,
       url: postUrl,
-      when: e.posted_at ? new Date(e.posted_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—',
+      when: e.posted_at ? new Date(e.posted_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: REPORT_TZ }) : '—',
       eng: likes + comments * 2 + shares * 3 + Math.floor(views / 10),
       inter: likes + comments + shares,
       vw: views,
     };
   });
+
+  // Region scope: the headline numbers describe posts about the event's own region, computed from the evidence list.
+  // Without place data the monitor-wide numbers are kept, so nothing is invented.
+  const scopeInfo = classifyEvidence(ev, analysis, event);
+  const { inEv, outEv, outsideNs } = scopeInfo;
+  const regionName = event.location || 'the event region';
+  const relevantTotal = n0(stats.relevant_posts_count) || ev.length;
+  const scoped = scopeInfo.reliable && inEv.length > 0;
+  const scopeEv = scoped ? inEv : ev;
+  if (scoped) {
+    total = inEv.length;
+    const tone = { positive: 0, neutral: 0, negative: 0 };
+    inEv.forEach((e) => { if (e.sentK) tone[e.sentK] += 1; });
+    sent = tone;
+    sentTotal = Math.max(tone.positive + tone.neutral + tone.negative, 1);
+    const byPlat = {};
+    inEv.forEach((e) => { byPlat[e.plat] = (byPlat[e.plat] || 0) + 1; });
+    platformEntries = Object.entries(byPlat).sort((a, b) => b[1] - a[1]);
+    engTotal = inEv.reduce((x, e) => x + e.inter, 0);
+    viewsTotal = inEv.reduce((x, e) => x + e.vw, 0);
+    lead = platformEntries[0];
+  }
+  const riskFrom = (list) => list.reduce((acc, e) => { const k = String(e.risk_level || 'low').toLowerCase(); acc[k] = (acc[k] || 0) + 1; return acc; }, { critical: 0, high: 0, medium: 0, low: 0 });
+  const dailySeries = (list) => {
+    const by = {};
+    list.forEach((e) => { if (e.posted_at) { const k = dateDayKey(e.posted_at); by[k] = (by[k] || 0) + 1; } });
+    return Object.keys(by).sort().map((date) => ({ date, count: by[date] }));
+  };
+  const entitiesFrom = (list) => {
+    const by = {};
+    list.forEach((e) => {
+      const k = String(e.target_entity || '').trim();
+      if (!k) return;
+      const r = by[k] || (by[k] = { name: k, total: 0, praise: 0, news: 0, crit: 0 });
+      r.total += 1;
+      if (e.sentK === 'positive') r.praise += 1; else if (e.sentK === 'negative') r.crit += 1; else r.news += 1;
+    });
+    return Object.values(by);
+  };
 
   const regionNameWords = String(event.location || '').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim().split(' ').filter((w) => w.length > 2);
   const foldRegionName = (d) => regionNameWords.includes(String(d).toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim());
@@ -775,25 +842,14 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     visits = sortByDateAndTone(ev.filter((e) => activeNs.has(e.n)));
   }
 
-  // A post is "outside the region" only when it names places and every one of them lies outside the event region.
-  // Posts that name no place, or any place inside the region, stay in the region's evidence.
-  const insideByName = new Map(geoMapped.map((p) => [foldGeo(p.name), p.inside]));
-  const outsideNs = new Set();
-  if (geoReliable) {
-    ev.forEach((e) => {
-      const names = analysis?.facts?.byPost?.[e.n]?.places || [];
-      if (names.length && names.every((nm) => insideByName.get(foldGeo(nm)) === false)) outsideNs.add(e.n);
-    });
-  }
-
   const factPosts = new Set([...(analysis?.facts?.calls?.posts || []), ...(analysis?.facts?.violence?.posts || [])]);
   const critical = sortByDateAndTone(
-    ev.filter((e) => ['critical', 'high'].includes(String(e.risk_level || '').toLowerCase()) || e.has_threat_vector || factPosts.has(e.n))
+    scopeEv.filter((e) => ['critical', 'high'].includes(String(e.risk_level || '').toLowerCase()) || e.has_threat_vector || factPosts.has(e.n))
   );
 
   // Amplifiers & high monitoring profiles — CAPPED to Top 10 (or max 15 if engagement is high)
   const authors = {};
-  ev.forEach((e) => {
+  scopeEv.forEach((e) => {
     const key = `${e.plat}|${e.author}`;
     authors[key] = authors[key] || {
       author: e.author,
@@ -917,8 +973,9 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   const promoters = highWatchList;
 
-  const entities = Object.entries(stats.target_classification || {})
-    .map(([k, v]) => ({ name: k, total: n0(v.total), praise: n0(v.praise), news: n0(v.news), crit: n0(v.criticism) }))
+  const entities = (scoped
+    ? entitiesFrom(inEv)
+    : Object.entries(stats.target_classification || {}).map(([k, v]) => ({ name: k, total: n0(v.total), praise: n0(v.praise), news: n0(v.news), crit: n0(v.criticism) })))
     .filter((e) => e.total > 0)
     .sort((a, b) => b.total - a.total);
 
@@ -965,8 +1022,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     return `@${esc(author)}`;
   };
 
-  const activityPosts = sortByDateAndTone(ev.filter((e) => e.isVisit));
-  const activityList = activityPosts.length ? activityPosts : sortByDateAndTone(ev);
+  const activityPosts = sortByDateAndTone(scopeEv.filter((e) => e.isVisit));
+  const activityList = activityPosts.length ? activityPosts : sortByDateAndTone(scopeEv);
   const activityRows = activityList
     .map(
       (e) => `<tr>
@@ -1061,14 +1118,11 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 <td>${authorProfileLink(e.plat, e.author, e.url)}</td>
 <td class="tone-${e.sentK || 'neu'}">${esc(toneLabel(e.sentK))}</td>
 <td>${fmt(e.inter)}</td>
-<td>${esc(clip(e.text, 240))}</td>
+<td>${esc(clip(e.text, 600))}</td>
 </tr>`
     )
     .join('');
-  const inEv = ev.filter((e) => !outsideNs.has(e.n));
-  const outEv = ev.filter((e) => outsideNs.has(e.n));
-  const regionName = event.location || 'the event region';
-  const evidenceTable = (list, heading, kind) => `${heading ? `<div class="annex-sub${kind === 'ctx' ? ' ctx' : ''}"><b>${esc(heading)}</b><span>${fmt(list.length)} post${list.length === 1 ? '' : 's'}</span></div>` : ''}
+  const evidenceTable = (list, heading, kind) => `${heading ? `<div class="annex-sub${kind === 'ctx' ? ' ctx' : ''}"><b>${esc(heading)}</b><span>${L(list.length === 1 ? '{n} post' : '{n} posts', { n: fmt(list.length) })}</span></div>` : ''}
   <table>
     <colgroup>
       <col style="width:10%">
@@ -1100,7 +1154,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     : '';
 
   const actionsHtml = actions.length
-    ? `<ul class="bul">${actions.map((a) => `<li><b>${esc(a.action)}</b> — ${esc(a.detail)}${a.posts && a.posts.length ? ` <span class="sm">(${esc(a.posts.map(p => `Post #${p}`).join(', '))})</span>` : ''}</li>`).join('')}</ul>`
+    ? `<ul class="bul">${actions.map((a) => `<li><b>${esc(a.action)}</b> — ${esc(a.detail)}${a.posts && a.posts.length ? ` <span class="sm">${esc(a.posts.map((p) => `[Post #${p}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>`
     : '';
 
   const platMax = platformEntries.length ? n0(platformEntries[0][1]) : 1;
@@ -1132,7 +1186,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
         { k: 'Negative', v: c.negative, c: NEG },
       ], false)}</div>
     </div>`).join('');
-  const riskCounts = stats.risk_counts || kwa?.summary?.risk_levels || {};
+  const riskCounts = scoped ? riskFrom(inEv) : (stats.risk_counts || kwa?.summary?.risk_levels || {});
   const riskParts = [
     { k: 'Critical', v: riskCounts.critical, c: '#7A1F1F' },
     { k: 'High', v: riskCounts.high, c: '#B42318' },
@@ -1173,20 +1227,25 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const negativeSharePct = sentTotal > 0 ? Math.round((negativePostCount / sentTotal) * 100) : 0;
   const highRiskCount = highRiskN;
 
-  const levelReason = violenceN > 0 ? 'posts mention violence or damage linked to the event'
-    : callN > 0 ? 'posts call people to join a bandh, rally or blockade'
-      : highRiskCount > 0 ? 'some posts are rated high risk by the post analysis, although none call for action or mention violence'
-        : 'no post calls for action, mentions violence or is rated high risk';
-  const rationaleParts = [`Rated ${threatLevelVal} because ${levelReason}.`];
+  // The sentences are built from fixed phrases with {placeholders}, so each phrase can be translated into the tenant's language.
+  const levelReason = violenceN > 0 ? L('posts mention violence or damage linked to the event')
+    : callN > 0 ? L('posts call people to join a bandh, rally or blockade')
+      : highRiskCount > 0 ? L('some posts are rated high risk by the post analysis, although none call for action or mention violence')
+        : L('no post calls for action, mentions violence or is rated high risk');
+  const rationaleParts = [L('Rated {level} because {reason}.', { level: L(threatLevelVal), reason: levelReason })];
+  const plural = (n, one, many) => L(n === 1 ? one : many, { n: fmt(n) });
   if (haveFacts) {
-    rationaleParts.push(violenceN > 0 ? `${fmt(violenceN)} post${violenceN === 1 ? ' mentions' : 's mention'} violence or damage.` : 'No post reports violence or damage.');
-    rationaleParts.push(callN > 0 ? `${fmt(callN)} post${callN === 1 ? ' calls' : 's call'} people to join or take action.` : 'No post calls for a bandh, blockade or gathering.');
+    rationaleParts.push(violenceN > 0 ? plural(violenceN, '{n} post mentions violence or damage.', '{n} posts mention violence or damage.') : L('No post reports violence or damage.'));
+    rationaleParts.push(callN > 0 ? plural(callN, '{n} post calls people to join or take action.', '{n} posts call people to join or take action.') : L('No post calls for a bandh, blockade or gathering.'));
   }
-  if (highRiskCount > 0) rationaleParts.push(`${fmt(highRiskCount)} post${highRiskCount === 1 ? ' is' : 's are'} rated high risk by the post analysis.`);
+  if (highRiskCount > 0) rationaleParts.push(plural(highRiskCount, '{n} post is rated high risk by the post analysis.', '{n} posts are rated high risk by the post analysis.'));
   const callOut = n0(analysis?.facts?.callsOutside?.count);
   const violOut = n0(analysis?.facts?.violenceOutside?.count);
-  if (callOut || violOut) rationaleParts.push(`${fmt(callOut + violOut)} further post${callOut + violOut === 1 ? '' : 's'} concern activity outside ${esc(event.location || 'the event region')} (${callOut ? `${fmt(callOut)} call for it` : ''}${callOut && violOut ? ', ' : ''}${violOut ? `${fmt(violOut)} mention violence` : ''}); this does not raise the level here.`);
-  rationaleParts.push('Negative tone is criticism, not a risk signal.');
+  if (callOut || violOut) {
+    const detail = [callOut ? L('{n} call for it', { n: fmt(callOut) }) : '', violOut ? L('{n} mention violence', { n: fmt(violOut) }) : ''].filter(Boolean).join(', ');
+    rationaleParts.push(L('{n} further posts concern activity outside {region} ({detail}); this does not raise the level here.', { n: fmt(callOut + violOut), region: esc(event.location || 'the event region'), detail }));
+  }
+  rationaleParts.push(L('Negative tone is criticism, not a risk signal.'));
   const computedRationale = rationaleParts.join(' ');
 
   const threatDesc = computedRationale;
@@ -1219,7 +1278,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       <div style="background:#f8fafc;border:.6px solid #e2e8f0;padding:1.4mm 2mm;border-radius:2px">
         <div style="font-size:6.1pt;color:#64748b;font-weight:700;text-transform:uppercase">Narratives to Watch</div>
         <div style="font-size:7.2pt;font-weight:700;color:${INK}">
-          ${fmt((analysis?.narrativesToWatch || analysis?.claims || []).length)} narrative${(analysis?.narrativesToWatch || analysis?.claims || []).length === 1 ? '' : 's'} flagged
+          ${esc(plural((analysis?.narrativesToWatch || analysis?.claims || []).length, '{n} narrative flagged', '{n} narratives flagged'))}
         </div>
       </div>
       <div style="background:#f8fafc;border:.6px solid #e2e8f0;padding:1.4mm 2mm;border-radius:2px">
@@ -1291,17 +1350,17 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     ? `<div class="intel-grid">${datesHtml || '<div></div>'}${watchHtml || '<div></div>'}</div>`
     : '';
 
-  const evidenceSecHtml = includeEvidence ? `
-  <div class="sec" style="break-before:page;page-break-before:always"><span class="no">08.</span><span class="nm">Evidence Annex</span></div>
+  const evidenceSection = () => (includeEvidence ? `
+  <div class="sec" style="break-before:page;page-break-before:always"><span class="no">${secNo()}</span><span class="nm">Evidence Annex</span></div>
   <div class="metrics">
     ${metric(fmt(ev.length), 'Posts in this brief', 'Direct hyperlinks enabled for each evidence post')}
-    ${metric(fmt(inEv.length), `Posts in ${regionName}`, 'Cited in the sections above')}
+    ${metric(fmt(inEv.length), L('Posts in {region}', { region: regionName }), 'Cited in the sections above')}
     ${metric(fmt(outEv.length), 'Outside the region', 'Context only; not counted as activity here')}
     ${metric(fmt(ev.filter((e) => e.posted_at).length), 'Dated posts', 'Verified publication timestamp')}
   </div>
   <p class="sm">Newest first. Click any Post # link to inspect the original live record; every [Post #n] cited above jumps to its row here. Eng. = likes + shares + comments. Tone is the automated rating.</p>
-  ${evidenceTable(inEv, outEv.length ? `Posts in ${regionName}` : '', 'in')}
-  ${outEv.length ? evidenceTable(outEv, `Outside ${regionName} (context only)`, 'ctx') : ''}` : '';
+  ${evidenceTable(inEv, outEv.length ? L('Posts in {region}', { region: regionName }) : '', 'in')}
+  ${outEv.length ? evidenceTable(outEv, L('Outside {region} (context only)', { region: regionName }), 'ctx') : ''}` : '');
 
   // Group highWatchList by platform
   const platformGroups = {};
@@ -1354,43 +1413,73 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
         .join('')
     : '<p class="sm">No high monitoring profiles identified in this dataset.</p>';
 
+  const isDraft = Boolean(review) && review.status !== 'approved';
+  const stampDate = (d) => (d ? new Date(d).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: REPORT_TZ }) : '');
+  const reviewBannerHtml = !review ? '' : isDraft
+    ? `<div class="draftbar"><b>DRAFT</b><span>${esc(L('Not yet approved. Check the review notes, then approve before this report is shared.'))}</span>${review.version ? `<em>v${esc(review.version)}</em>` : ''}</div>`
+    : `<div class="draftbar ok"><b>APPROVED</b><span>${esc(review.approvedBy || '')}${review.approvedAt ? ` · ${esc(stampDate(review.approvedAt))}` : ''}</span>${review.version ? `<em>v${esc(review.version)}</em>` : ''}</div>`;
+  const reviewNotesHtml = (isDraft && quality && (quality.issues || []).length)
+    ? `<div class="reviewnotes"><h4>Review notes</h4><ul>${quality.issues.slice(0, 10).map((i) => `<li class="${esc(i.level)}"><b>${i.level === 'error' ? 'Fix' : 'Check'}</b> ${esc(i.where ? `${i.where}: ` : '')}${esc(i.message)}</li>`).join('')}</ul></div>`
+    : '';
+
+  // "What the issue is": the separate stories that overlap in these posts, then what is and is not known.
+  const strands = (analysis?.issueStrands || []).slice(0, 4);
+  const knownList = analysis?.known || [];
+  const notKnownList = analysis?.notKnown || [];
+  const citeSpan = (posts) => ((posts && posts.length) ? ` <span class="sm">${posts.slice(0, 4).map((n) => `[Post #${n}]`).join(' ')}</span>` : '');
+  const issueHtml = (strands.length || knownList.length || notKnownList.length) ? `
+  <div class="sec"><span class="no">${secNo()}</span><span class="nm">What the Issue Is</span></div>
+  ${strands.length ? `<table>
+    <colgroup><col style="width:20%"><col style="width:22%"><col style="width:36%"><col style="width:22%"></colgroup>
+    <thead><tr><th>Strand</th><th>Who</th><th>What they ask or do</th><th>Where it stands</th></tr></thead>
+    <tbody>${strands.map((x) => `<tr><td><b>${esc(x.title)}</b></td><td>${esc(x.who || '—')}</td><td>${esc(x.demand || '—')}${citeSpan(x.posts)}</td><td>${esc(x.status || '—')}</td></tr>`).join('')}</tbody>
+  </table>` : ''}
+  ${analysis?.issueLink ? `<p>${esc(analysis.issueLink)}</p>` : ''}
+  ${(knownList.length || notKnownList.length) ? `<div class="kn">
+    <div class="yes"><h4>What we know</h4><ul>${knownList.map((k) => `<li>${esc(k.text)}${citeSpan(k.posts)}</li>`).join('') || '<li>—</li>'}</ul></div>
+    <div class="no"><h4>What we do not know yet</h4><ul>${notKnownList.map((t) => `<li>${esc(t)}</li>`).join('') || '<li>—</li>'}</ul></div>
+  </div>` : ''}` : '';
+
+  const signRoles = (hq?.signoff && hq.signoff.length) ? hq.signoff.slice(0, 3) : ['Prepared by', 'Reviewed by', 'Approved by'];
+  const signNames = [review?.preparedBy, review?.reviewedBy, review?.approvedBy ? `${review.approvedBy}${review.approvedAt ? ` · ${stampDate(review.approvedAt)}` : ''}` : ''];
+  const signHtml = `<div class="sign">${signRoles.map((r, i) => `<div><span>${esc(r)}</span>${signNames[i] ? `<b class="signname">${esc(signNames[i])}</b>` : ''}</div>`).join('')}</div>`;
+
   const body = `
+${isDraft ? '<div class="wm">DRAFT</div>' : ''}
 <section class="pg">
   <div class="hero">
+    ${hq?.classification ? `<div class="classif">${esc(hq.classification)}</div>` : ''}
     <div class="eyebrow">${esc(tenant)} · ${includeEvidence ? 'FULL INTELLIGENCE & EVIDENCE REPORT' : 'EXECUTIVE ACTION SUMMARY BRIEF'}</div>
     <h1>${esc(event.name || 'Event')}</h1>
     <div class="sub">${esc(event.location || 'Location not specified')} · ${includeEvidence ? 'Detailed intelligence brief with complete evidence register' : 'Executive action summary and tactical intelligence brief'}</div>
     <div class="meta">
       <span>MONITORING WINDOW<b>${esc(windowStr)}</b></span>
       <span>GENERATED<b>${esc(dateStr)}</b></span>
-      <span>POSTS ANALYSED<b>${fmt(total)}</b></span>
+      <span>POSTS ANALYSED<b>${scoped ? L('{n} in {region} of {m} monitored', { n: fmt(inEv.length), region: esc(regionName), m: fmt(monitoredTotal) }) : fmt(total)}</b></span>
       <span>REPORT FORMAT<b>${includeEvidence ? `With Evidence (${fmt(ev.length)})` : 'Executive Brief'}</b></span>
     </div>
   </div>
+  ${reviewBannerHtml}
+  ${reviewNotesHtml}
   ${hqHtml}
+
+  ${analysis?.bottomLine ? `<p class="lead"><b>Bottom line:</b> ${esc(analysis.bottomLine)}</p>` : ''}
+  ${issueHtml}
 
   ${actionSummaryHtml}
 
   ${threatCardHtml}
 
-  <div class="kpi">
-    <div><div class="n">${fmt(total)}</div><div class="l">Total posts</div></div>
-    <div><div class="n">${esc(lead ? platLabel(lead[0]) : '—')}</div><div class="l">Lead platform</div></div>
+  <div class="kpi" style="grid-template-columns:repeat(3,1fr)">
     <div><div class="n">${fmt(engTotal)}</div><div class="l">Interactions (likes, shares, comments)</div></div>
     <div><div class="n">${fmt(critical.length)}</div><div class="l">Posts to review</div></div>
-    <div><div class="n">${haveFacts ? fmt(callN) : '—'}</div><div class="l">Posts calling people to act</div></div>
+    <div><div class="n">${fmt(places.length)}</div><div class="l">Places covered</div></div>
   </div>
-
-  ${(() => {
-    const tiles = [
-      [haveFacts ? fmt(violenceN) : '—', 'Violence reports'],
-      [fmt(highRiskN), 'High / critical risk'],
-      [fmt(places.length), 'Places covered'],
-      topKwA ? [fmt(n0(topKwA.total_posts)), clip(topKwA.keyword, 22)] : null,
-      topKwB ? [fmt(n0(topKwB.total_posts)), clip(topKwB.keyword, 22)] : null,
-    ].filter(Boolean);
-    return `<div class="kpi" style="grid-template-columns:repeat(${tiles.length},1fr)">${tiles.map(([n, l]) => `<div><div class="n">${n}</div><div class="l">${esc(l)}</div></div>`).join('')}</div>`;
-  })()}
+  <div class="kpi" style="grid-template-columns:repeat(3,1fr)">
+    <div><div class="n">${haveFacts ? fmt(callN) : '—'}</div><div class="l">Posts calling people to act</div></div>
+    <div><div class="n">${haveFacts ? fmt(violenceN) : '—'}</div><div class="l">Violence reports</div></div>
+    <div><div class="n">${fmt(highRiskN)}</div><div class="l">High / critical risk</div></div>
+  </div>
 
   <p class="sm"><b>Tracked Keywords:</b> ${esc(clip(kwStr, 280))}</p>
 
@@ -1410,17 +1499,16 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     <div class="chartbox">
       <h4>Posting Timeline & Cadence</h4>
       <p class="sm">Chronological posting volume and publication cadence over the monitored window.</p>
-      ${timelineChart(kwa?.timeline_overall)}
+      ${timelineChart(scoped ? dailySeries(inEv) : kwa?.timeline_overall)}
     </div>
   </div>
   ${keywordStacks ? `<div class="chartbox"><h4>Sentiment by Keyword</h4><p class="sm">Categorized sentiment distribution across individual keywords.</p><div class="legend"><span><i style="background:${POS}"></i>Positive</span><span><i style="background:${NEU}"></i>Neutral</span><span><i style="background:${NEG}"></i>Negative</span></div>${keywordStacks}</div>` : ''}
 
-  ${analysis?.bottomLine ? `<p class="lead"><b>Bottom line:</b> ${esc(analysis.bottomLine)}</p>` : ''}
   ${includeEvidence ? findingsHtml : ''}
 
   ${intelGridHtml}
 
-  <div class="sec"><span class="no">01.</span><span class="nm">Situation and Risk Assessment</span></div>
+  <div class="sec"><span class="no">${secNo()}</span><span class="nm">Situation and Risk Assessment</span></div>
   <div class="chartbox"><h4>Risk Bands</h4>${stackBar(riskParts)}</div>
   ${includeEvidence
     ? (critical.length ? `<p class="sm">Flagged for review (high-risk rating, call to act, or violence mentioned): ${critical.slice(0, 15).map((e) => postRefInternal(e)).join(' · ')}. Full text of every post is in the evidence annex.</p>` : '<p class="sm">No post is flagged for review.</p>')
@@ -1429,7 +1517,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       : `<p class="sm">No critical, high-risk, or hostile posts detected in this dataset.</p>`}
   ${analysis?.publicOrder ? `<p><b>Public Order Assessment:</b> ${esc(analysis.publicOrder)}</p>` : ''}
 
-  <div class="sec"><span class="no">02.</span><span class="nm">Where It Is Happening</span></div>
+  <div class="sec"><span class="no">${secNo()}</span><span class="nm">Where It Is Happening</span></div>
   <div class="metrics" style="grid-template-columns:repeat(3,1fr)">
     ${metric(fmt(visits.length), 'Posts reporting people on site', 'Reported by the posts; not verified')}
     ${metric(fmt(visits.filter((e) => e.specific.length).length), 'Specific sites', topPlace ? `Highest: ${topPlace.name}` : 'Cities/districts/landmarks')}
@@ -1449,7 +1537,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 </section>
 
 <section class="pg">
-  <div class="sec"><span class="no">03.</span><span class="nm">Activity and Ground Presence</span></div>
+  <div class="sec"><span class="no">${secNo()}</span><span class="nm">Activity and Ground Presence</span></div>
   <div class="metrics" style="grid-template-columns:repeat(2,1fr)">
     ${metric(fmt(activityPosts.length), 'Activity posts', 'Posts naming a bandh, rally, meeting, or blockade')}
     ${metric(fmt((analysis?.activities || []).length), 'Activities named', 'Distinct campaigns, protests, bandhs and programmes')}
@@ -1458,7 +1546,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${activityBrief ? `<ul class="bul">${activityBrief}</ul>` : narrHtml}
 
 
-  <div class="sec"><span class="no">04.</span><span class="nm">Key Actors and Figures</span></div>
+  <div class="sec"><span class="no">${secNo()}</span><span class="nm">Key Actors and Figures</span></div>
   <div class="metrics" style="grid-template-columns:repeat(3,1fr)">
     ${metric(fmt(entities.length), 'Entities classified', 'Who the posts are about')}
     ${metric(topEntity ? fmt(topEntity.total) : '0', topEntity ? topEntity.name : 'Top entity', topEntity ? `${pct(topEntity.crit, topEntity.total)} negative` : '—')}
@@ -1483,7 +1571,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${(analysis?.leaders || []).length ? `<ul class="bul">${analysis.leaders.map((l) => `<li><b>${esc(l.name)}</b>${l.role ? ` — ${esc(l.role)}` : ''}${l.posts?.length ? ` <span class="sm">${esc(l.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : ''}
   ${analysis?.platformsCommentary ? `<p>${esc(analysis.platformsCommentary)}</p>` : ''}
 
-  <div class="sec"><span class="no">05.</span><span class="nm">Accounts to Watch</span></div>
+  <div class="sec"><span class="no">${secNo()}</span><span class="nm">Accounts to Watch</span></div>
   <div class="metrics" style="grid-template-columns:repeat(3,1fr)">
     ${metric(fmt(highWatchList.length), 'Profiles tracked', 'Monitored accounts categorized by platform')}
     ${metric(fmt(highWatchList.filter((p) => p.tier === 'priority').length), 'High watch tier', 'Priority surveillance & escalation targets')}
@@ -1495,31 +1583,33 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     ${Object.values(authors).sort((x, y) => (y.inter || 0) - (x.inter || 0)).slice(0, 8).map((a, _i, arr) => hbar(a.author, a.inter, Math.max(1, arr[0]?.inter || 1), '#6366f1', `${a.vw ? `${fmt(a.vw)} views` : 'views not reported'} · ${a.count} post${a.count === 1 ? '' : 's'}`, 'interactions')).join('') || '<p class="sm">No accounts in this set.</p>'}
   </div>
   <p class="sm">Surveillance register limited to the Top ${highWatchList.length} high-engagement accounts across platforms with direct profile links.</p>
+  ${haveFacts && violenceN === 0 ? `<p class="sm">${esc(L('No post from the accounts listed here reports violence or damage.'))}</p>` : ''}
   ${platformBoxesHtml}
   ${(analysis?.amplifiers || []).length
     ? `<ul class="bul">${analysis.amplifiers.map((a) => `<li><b>${esc(a.account)}</b> — ${esc(a.why || '')}${a.posts?.length ? ` <span class="sm">${esc(a.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>`
     : ''}
 
-  <div class="sec"><span class="no">06.</span><span class="nm">Public Reaction and Tone</span></div>
+  <div class="sec"><span class="no">${secNo()}</span><span class="nm">Public Reaction and Tone</span></div>
   <div class="chartbox">
     <h4>Tone Breakdown</h4>
     <p class="sm">Positive, neutral and negative posts, with counts and shares. Negative tone is criticism, not a risk signal.</p>
     <div class="donutwrap">${donutSvg(briefSent, pct(sent.negative, sentTotal), 'Negative')}<div style="flex:1">${stackBar(briefSent)}</div></div>
   </div>
 
-  <div class="sec"><span class="no">07.</span><span class="nm">Recommended Actions</span></div>
+  <div class="sec"><span class="no">${secNo()}</span><span class="nm">Recommended Actions</span></div>
   ${actionsHtml || '<p class="sm">Maintain standard baseline monitoring. No immediate operational escalation required at this stage.</p>'}
 
 
-  ${evidenceSecHtml}
+  ${evidenceSection()}
 
   <div class="footnote">
     <b>Executive Brief Summary</b><br>
     • Target Force: ${hq ? esc(`${hq.head}, ${hq.force}, ${hq.addressLine}`) : esc(tenant)}.<br>
     • Monitored Event: ${esc(event.name || '—')}.<br>
-    • ${includeEvidence ? 'Every post cited in this report is listed, with its live link, in the evidence annex.' : 'The post-by-post evidence is in the full report.'}${outsideNs.size ? ` Posts about places outside ${esc(regionName)} are context only and are not counted as activity there.` : ''}<br>
-    • Tone and risk ratings are automated. Claims, locations and on-site reports are as posted and are not verified. Closed groups and private messaging are not covered.
+    • ${includeEvidence ? esc(L('Every post cited in this report is listed, with its live link, in the evidence annex.')) : esc(L('The post-by-post evidence is in the full report.'))}${outsideNs.size ? ` ${esc(L('Posts about places outside {region} are context only and are not counted as activity there.', { region: regionName }))}` : ''}<br>
+    • ${esc(L('Tone and risk ratings are automated. Claims, locations and on-site reports are as posted and are not verified. Closed groups and private messaging are not covered.'))}
   </div>
+  ${signHtml}
 </section>
 `;
 

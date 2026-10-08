@@ -20,6 +20,18 @@ const loadProfiles = () => {
 };
 const KNOWN_DIRECTORIES = loadProfiles();
 
+
+// Report settings that come from the force profile: timezone, classification marking, unit names and sign-off roles.
+// Lists are kept as comma-separated text in the profile so an admin can edit them as plain text.
+const list = (v) => String(v || '').split(',').map((t) => t.trim()).filter(Boolean);
+const extras = (src) => ({
+  display_name: src.display_name || '',
+  timezone: src.timezone || '',
+  classification: src.classification || '',
+  units: list(src.units),
+  signoff: list(src.signoff),
+});
+
 const fold = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 /**
@@ -40,6 +52,7 @@ const resolveHeadquarters = (label, customConfig = null) => {
         phone: customConfig.phone || '',
         official: true,
         addressLine: [headquarters, customConfig.pin].filter(Boolean).join(', PIN '),
+        ...extras(customConfig),
       };
     }
   }
@@ -57,6 +70,7 @@ const resolveHeadquarters = (label, customConfig = null) => {
       phone: hit.phone,
       official: hit.official,
       addressLine: [hit.headquarters, hit.pin].filter(Boolean).join(', PIN '),
+      ...extras(hit),
     };
   }
 
