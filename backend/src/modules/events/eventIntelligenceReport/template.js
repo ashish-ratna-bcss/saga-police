@@ -710,30 +710,46 @@ const linkCitations = (html, validNs) => String(html)
  * The brief for one region only: drops everything the analysis says about posts that are all outside the region, and any
  * sentence of the model's free text that names a place outside it. Counts and charts are already built from the region's posts.
  */
+const nameMatcher = (outsideNames) => {
+  const parts = (outsideNames || []).map((n) => String(n).trim()).filter((n) => n.length > 2).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  if (!parts.length) return () => false;
+  const re = new RegExp(`(^|[^\\p{L}\\p{N}])(${parts.join('|')})(?![\\p{L}\\p{N}])`, 'iu');   // whole words only: "goa" does not match "goal"
+  return (text) => re.test(String(text || ''));
+};
+
+/**
+ * The brief for one region only. An item is dropped when all its posts are outside the region OR its own text names a place outside it;
+ * a sentence of the model's free text is dropped when it names one. Counts and charts are already built from the region's posts.
+ */
 const regionFilter = (analysis, outsideNs, outsideNames) => {
   if (!analysis) return analysis;
+  const mentions = nameMatcher(outsideNames);
   const inside = (posts) => !posts || !posts.length || posts.some((n) => !outsideNs.has(Number(n)));
-  const keep = (list) => (Array.isArray(list) ? list.filter((x) => inside(x?.posts)) : list);
-  const names = (outsideNames || []).map((n) => String(n).toLowerCase()).filter((n) => n.length > 2);
+  const textOf = (x) => (typeof x === 'string' ? x : JSON.stringify(x || {}));
+  const keep = (list) => (Array.isArray(list) ? list.filter((x) => (typeof x === 'string' || inside(x?.posts)) && !mentions(textOf(x))) : list);
   const clean = (text) => {
-    if (!text || !names.length) return text;
-    const kept = String(text).split(/(?<=[.!?।])\s+/).filter((sen) => { const low = sen.toLowerCase(); return !names.some((n) => low.includes(n)); });
-    return kept.join(' ');
+    if (!text) return text;
+    return String(text).split(/(?<=[.!?।])\s+/).filter((sen) => !mentions(sen)).join(' ');
   };
   const strands = keep(analysis.issueStrands);
   return {
     ...analysis,
     bottomLine: clean(analysis.bottomLine),
     publicOrder: clean(analysis.publicOrder),
+    situation: clean(analysis.situation),
+    sentimentCommentary: clean(analysis.sentimentCommentary),
     platformsCommentary: '',
     issueStrands: strands,
     issueLink: strands?.length === (analysis.issueStrands || []).length ? clean(analysis.issueLink) : '',
     known: keep(analysis.known),
+    notKnown: keep(analysis.notKnown),
     actions: keep(analysis.actions),
     narrativesToWatch: keep(analysis.narrativesToWatch),
+    narratives: keep(analysis.narratives),
     claims: keep(analysis.claims),
-    keyDates: (analysis.keyDates || []).filter((k) => !k.outside && inside(k.posts)),
+    keyDates: (analysis.keyDates || []).filter((k) => !k.outside && inside(k.posts) && !mentions(textOf(k))),
     activities: keep(analysis.activities),
+    presence: keep(analysis.presence),
     leaders: keep(analysis.leaders),
     amplifiers: keep(analysis.amplifiers),
     geography: keep(analysis.geography),
@@ -1032,7 +1048,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       if (tier === 'amplifier') reasons.push(`${fmt(a.inter)} interactions${a.vw ? ` and ${fmt(a.vw)} views` : ''} over ${fmt(a.count)} posts.`);
       if (a.criticalCount > 0) reasons.push(`${fmt(a.criticalCount)} post${a.criticalCount === 1 ? '' : 's'} rated high risk by the post analysis (this does not make the account itself a priority).`);
       if (!reasons.length) reasons.push(`${fmt(a.count)} post${a.count === 1 ? '' : 's'} on the event; no call to act or violence found.`);
-      const quote = extractCleanQuote((a.samples.find((x) => x.sentK === 'negative') || a.samples[0] || { text: a.sample }).text, 90);
+      const quoteRaw = extractCleanQuote((a.samples.find((x) => x.sentK === 'negative') || a.samples[0] || { text: a.sample }).text, 90);
+      const quote = regionOnly && scopeInfo.reliable && nameMatcher(scopeInfo.outsideNames)(quoteRaw) ? '' : quoteRaw;
       const t = TIER[tier];
       const label = tier === 'priority' ? (PRIORITY_LABEL[role] || 'Mobiliser') : tier === 'amplifier' ? 'Amplifier' : tier === 'media' ? 'Media / news' : 'Observer';
       return {

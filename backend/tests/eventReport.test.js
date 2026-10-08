@@ -376,3 +376,19 @@ test('region-only brief drops outside-region posts, places, dates and sentences,
   const normal = buildReportHtml({ summary, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false });
   assert.ok(/Mumbai/.test(normal));
 });
+
+test('Odisha-only report: nothing names a place outside the region, in lists or in the model text; "goal" is not "Goa"', () => {
+  const posts = [1, 2, 3].map((n) => ({ id: n, platform: 'x', author: `A${n}`, text: n === 1 ? 'bandh in Bhubaneswar' : n === 2 ? 'protest at Shivaji Park Mumbai' : 'a goal was scored', sentiment: 'neutral', risk_level: 'low', posted_at: '2026-10-07T10:00:00Z', likes: 1, shares: 0, comments: 0, views: 0, url: 'u' + n, is_relevant: true, citationTag: `[Post #${n}]` }));
+  const analysis = {
+    bottomLine: 'A bandh is planned in Odisha. A protest is planned in Mumbai. The goal is to stop traffic.',
+    actions: [{ action: 'Bandobast', detail: 'Deploy in Bhubaneswar.', posts: [1] }, { action: 'Watch Mumbai', detail: 'Monitor the Mumbai protest.', posts: [2] }],
+    keyDates: [{ date: '2026-10-08', type: 'upcoming', event: 'Bandh at Bhubaneswar', posts: [1] }, { date: '2026-10-02', type: 'past', event: 'Protest at Shivaji Park', posts: [2] }],
+    facts: { places: [{ name: 'Bhubaneswar', region: 'Odisha, India', mentioned: 1, active: 1, posts: [1] }, { name: 'Mumbai', region: 'Maharashtra, India', mentioned: 1, active: 1, posts: [2] }, { name: 'Shivaji Park', region: 'Maharashtra, India', mentioned: 1, active: 1, posts: [2] }], byPost: { 1: { places: ['Bhubaneswar'] }, 2: { places: ['Mumbai', 'Shivaji Park'] }, 3: { places: [] } }, calls: { count: 0, posts: [] }, violence: { count: 0, posts: [] }, accounts: [], activities: [] },
+  };
+  const html = buildReportHtml({ summary: { event: { name: 'E', location: 'Odisha' }, stats: {}, evidence_traceability: posts }, keywordData: null, tenantName: 'odisha', analysis, headquarters: null, includeEvidence: false, regionOnly: true });
+  assert.ok(!/Mumbai|Shivaji/.test(html), 'an outside place is still named');
+  assert.ok(/Bhubaneswar/.test(html));
+  assert.ok(/The goal is to stop traffic/.test(html));
+  const full = buildReportHtml({ summary: { event: { name: 'E', location: 'Odisha' }, stats: {}, evidence_traceability: posts }, keywordData: null, tenantName: 'odisha', analysis, headquarters: null, includeEvidence: false });
+  assert.ok(/Mumbai/.test(full));
+});
