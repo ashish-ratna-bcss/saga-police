@@ -34,7 +34,7 @@ const fontFace = (family, file) => {
   let css = '';
   try {
     const b64 = fs.readFileSync(path.join(__dirname, 'fonts', file)).toString('base64');
-    css = `@font-face{font-family:'${family}';src:url(data:font/ttf;base64,${b64}) format('truetype');font-weight:100 900;}`;
+    css = `@font-face{font-family:'${family}';src:url(data:font/ttf;base64,${b64}) format('truetype');font-display:swap;}`;
   } catch (e) {
     css = '';
   }
@@ -1625,15 +1625,6 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   </div>
   <p class="sm"><b>Tracked Keywords:</b> ${esc(clip(kwStr, 280))}</p>`}`;
 
-  const notesHtml = `
-  <div class="footnote">
-    <b>Executive Brief Summary</b><br>
-    • Target Force: ${hq ? esc(`${hq.head}, ${hq.force}, ${hq.addressLine}`) : esc(tenant)}.<br>
-    • Monitored Event: ${esc(event.name || '—')}.<br>
-    • ${includeEvidence ? esc(L('Every post cited in this report is listed, with its live link, in the evidence annex.')) : esc(L('The post-by-post evidence is in the full report.'))}${regionOnly ? ` ${esc(`This report covers ${regionName} only; posts and places elsewhere are left out.`)}` : outsideNs.size ? ` ${esc(L('Posts about places outside {region} are context only and are not counted as activity there.', { region: regionName }))}` : ''}<br>
-    • ${esc(L('Tone and risk ratings are automated. Claims, locations and on-site reports are as posted and are not verified. Closed groups and private messaging are not covered.'))}
-  </div>`;
-
   const body = `
 <section class="pg">
   <header class="hero">
@@ -1662,7 +1653,6 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${actorsSection()}
   ${accountsSection()}
   ${reactionSection()}
-  ${notesHtml}
   ${evidenceSection()}
 </section>
 `;
