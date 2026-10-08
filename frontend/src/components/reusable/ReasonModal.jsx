@@ -208,6 +208,7 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
         : [];
 
     // Auto-extract hashtags from post text if none populated in database yet
+    const isEventPost = Array.isArray(content?.event_ids) && content.event_ids.length > 0;
     const textHashtags = (postText.match(/#[^\s#.,!?:;()[\]{}]+/g) || []).map(h => ({ keyword: h, type: 'hashtag' }));
 
     const rawKeywords = [
@@ -221,7 +222,9 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
         ...(Array.isArray(content?.matched_keywords) ? content.matched_keywords : []),
         ...(Array.isArray(analysis?.triggered_keywords) ? analysis.triggered_keywords : []),
         ...(Array.isArray(alert?.highlights) ? alert.highlights : []),
-        ...textHashtags,
+        // Event posts: "Detected Keywords" are the event's own keywords only. The post's own
+        // hashtags are listed separately below so they are not mistaken for event keywords.
+        ...(isEventPost ? [] : textHashtags),
     ];
 
     const detectedKeywords = [];
@@ -500,6 +503,19 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
                                         )}
                                     </td>
                                 </tr>
+
+                                {isEventPost && textHashtags.length > 0 && (
+                                    <tr className="border-b">
+                                        <td className="py-3 pr-4 font-medium text-gray-600 dark:text-gray-400 align-top">Hashtags in Post</td>
+                                        <td className="py-3">
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {[...new Set(textHashtags.map((h) => h.keyword))].map((h) => (
+                                                    <Badge key={h} variant="outline" className="text-xs text-gray-600 dark:text-gray-400">{h}</Badge>
+                                                ))}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
 
                                  {/* Indian Laws Violated */}
                                 <tr className="border-b">

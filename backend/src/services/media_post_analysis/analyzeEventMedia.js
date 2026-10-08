@@ -5,6 +5,7 @@ const mappingService = require('../../modules/settings/mapping.service');
 const { getSettingsDoc } = require('../../modules/settings/settings.service');
 const { resolveTenantName } = require('../../lib/tenantDatabase.service');
 const { extractOcr, extractVideo } = require('./extractOcr');
+const { keywordMatchesText } = require('../../modules/events/event.utils');
 
 const MAX_ATTEMPTS = Math.max(1, Number(process.env.SENTIMENT_MAX_ATTEMPTS) || 5);
 
@@ -56,30 +57,40 @@ function hasMediaAnalysis(imageAnalysis) {
   return Boolean(imageAnalysis?.full_text) || Boolean(imageAnalysis?.description);
 }
 
-const matchKeywords = async (text, { db } = {}) => {
+/**
+ * Keywords found in an event post.
+ * - `event`: this event's own keywords (whole-word match). Shown as "Detected Keywords".
+ * - `watchlist`: tenant-wide Settings keywords. Kept separately so they never
+ *   appear as if they were part of this event.
+ */
+const matchKeywords = async (text, { db, eventId } = {}) => {
   const prisma = dbOf(db);
-  const matched = [];
+  const out = { event: [], watchlist: [] };
+  const hit = (keyword) => ({ keyword, weight: 50, category: 'other' });
   try {
-    const keywords = await prisma.keywords.findMany({
-      select: { keyword: true },
-      take: 2000,
-    });
-    const hay = String(text || '').toLowerCase();
-    for (const k of keywords) {
-      const needle = String(k.keyword || '').toLowerCase().trim();
-      if (!needle) continue;
-      if (hay.includes(needle)) {
-        matched.push({
-          keyword: k.keyword,
-          weight: 50,
-          category: 'other',
-        });
+    if (eventId != null) {
+      const ev = await prisma.social_media_events.findUnique({
+        where: { id: Number(eventId) },
+        select: { keywords: true },
+      });
+      const list = Array.isArray(ev?.keywords) ? ev.keywords : [];
+      const seen = new Set();
+      for (const k of list) {
+        const kw = String(typeof k === 'string' ? k : k?.keyword || '').trim();
+        if (!kw || seen.has(kw.toLowerCase())) continue;
+        seen.add(kw.toLowerCase());
+        if (keywordMatchesText(kw, text)) out.event.push(hit(kw));
       }
+    }
+    const keywords = await prisma.keywords.findMany({ select: { keyword: true }, take: 2000 });
+    for (const k of keywords) {
+      const kw = String(k.keyword || '').trim();
+      if (kw && keywordMatchesText(kw, text)) out.watchlist.push(hit(kw));
     }
   } catch (err) {
     console.error('[media_post_analysis/event] keyword match failed:', err.message);
   }
-  return matched;
+  return out;
 };
 
 const loadRiskThresholds = async ({ db } = {}) => {
@@ -198,7 +209,8 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
     return { ok: true, skipped: true, reason: 'empty_text' };
   }
 
-  const matchedKeywords = await matchKeywords(textForAnalysis, { db });
+  const keywordHits = await matchKeywords(textForAnalysis, { db, eventId: row.event_id });
+  const matchedKeywords = keywordHits.event;
   const { high, medium } = await loadRiskThresholds({ db });
   const tenantName = await resolveTenantName(dbName).catch(() => null);
 
@@ -269,7 +281,7 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
     await mappingService.waitForLoad(5000);
     mapping = mappingService.resolveForAnalysis({
       category: intel.category,
-      text,
+      text: textForAnalysis,
       platform,
       country: 'IN',
     });
@@ -293,6 +305,7 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
     signals: intel.signals || [],
     keyword_context: intel.keyword_context || [],
     matched_keywords: matchedKeywords,
+    watchlist_keywords: keywordHits.watchlist,
     legal_sections: mapping.legal_sections || [],
     violated_policies: mapping.platform_policies || [],
     policy_triggered_keywords: mapping.triggered_keywords || [],

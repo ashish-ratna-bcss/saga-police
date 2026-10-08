@@ -52,7 +52,7 @@ const tokenize = (text = '') => {
     new Set(
       String(text)
         .toLowerCase()
-        .replace(/[^\p{L}\p{N}\s_-]/gu, ' ')
+        .replace(/[^\p{L}\p{M}\p{N}\s_-]/gu, ' ')
         .split(/\s+/)
         .map((t) => t.trim())
         .filter((t) => t.length >= 3 && !GRAMMAR_STOPWORDS.has(t))
@@ -82,12 +82,19 @@ const getEventAnchorProfile = (eventInput, keywordsListInput = [], locationInput
     rawKeywords = keywordsListInput;
   }
 
-  const cleanTitle = name.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+  const cleanTitle = name.toLowerCase().replace(/[^\p{L}\p{M}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
   const titleTokens = tokenize(name);
   const baseLocTokens = tokenize(location);
   const statePlaces = resolveStatePlaces(location);
   const statePlaceTokens = statePlaces.flatMap((p) => tokenize(p));
-  const locationTokens = Array.from(new Set([...baseLocTokens, ...statePlaceTokens]));
+  // The state's place list contains generic words ("high", "road", "state"), so a place only counts
+  // as this event's location when the typed location or the event's own text/keywords also use it.
+  const ownText = new Set([
+    ...tokenize(name),
+    ...tokenize(description),
+    ...(Array.isArray(rawKeywords) ? rawKeywords : []).flatMap((k) => tokenize(typeof k === 'string' ? k : k?.keyword || '')),
+  ]);
+  const locationTokens = Array.from(new Set([...baseLocTokens, ...statePlaceTokens.filter((t) => t.length >= 5 && ownText.has(t))]));
 
   const descTokens = tokenize(description);
   const coreAnchors = Array.from(new Set([...titleTokens, ...baseLocTokens, ...descTokens]));
@@ -104,12 +111,22 @@ const getEventAnchorProfile = (eventInput, keywordsListInput = [], locationInput
     const lower = kw.toLowerCase();
     const kwTokens = tokenize(kw);
     // A keyword is inherently anchored if it contains at least one core anchor from the event
-    const isInherentlyAnchored = kwTokens.some((kt) => coreAnchors.includes(kt));
     const isHashtag = kw.startsWith('#') && kw.length >= 4;
+    // Hashtags are one glued token (#OdishaEducationProtest): anchored if they embed an event anchor
+    const isInherentlyAnchored =
+      kwTokens.some((kt) => coreAnchors.includes(kt)) ||
+      (isHashtag && coreAnchors.some((a) => a.length >= 5 && lower.includes(a)));
     const isAcronym = kw.length >= 2 && kw === kw.toUpperCase() && !GRAMMAR_STOPWORDS.has(lower);
     const isMultiWord = kwTokens.length >= 2;
 
-    if (isInherentlyAnchored && (isMultiWord || isHashtag || isAcronym || titleTokens.includes(lower))) {
+    // A phrase in another script than the event text (e.g. Odia keyword on an English-titled event)
+    // cannot share words with it, so it is treated as deliberately event-specific.
+    const eventIsLatin = /[A-Za-z]/.test(`${name} ${location} ${description}`);
+    const crossScript = eventIsLatin && !/[A-Za-z]/.test(kw) && (isMultiWord || isHashtag);
+
+    if (crossScript) {
+      anchoredKeywords.push({ raw: kw, lower, isHashtag, crossScript: true });
+    } else if (isInherentlyAnchored && (isMultiWord || isHashtag || isAcronym || titleTokens.includes(lower))) {
       anchoredKeywords.push({ raw: kw, lower, isHashtag });
     } else {
       unanchoredKeywords.push({ raw: kw, lower, isHashtag });
@@ -136,7 +153,25 @@ const getEventAnchorProfile = (eventInput, keywordsListInput = [], locationInput
  * 100% Dynamic — zero hardcoded geographic, entity, or topic dictionaries.
  * Evaluates exact title containment, compound keywords, and whole-word token overlap.
  */
-const classifyEventRelevance = (text, eventInput, keywordsList = [], eventLocation = '', eventDescription = '') => {
+const profileCache = new WeakMap();
+const profileFor = (eventInput, keywordsList, eventLocation, eventDescription) => {
+  if (eventInput && typeof eventInput === 'object') {
+    let p = profileCache.get(eventInput);
+    if (!p) {
+      p = getEventAnchorProfile(eventInput, keywordsList, eventLocation, eventDescription);
+      profileCache.set(eventInput, p);
+    }
+    return p;
+  }
+  return getEventAnchorProfile(eventInput, keywordsList, eventLocation, eventDescription);
+};
+
+/**
+ * `ctx.genericTokens` (optional) is the tenant-learned set of common words
+ * (event.corpus.service). A keyword made only of common words and the event's
+ * location is "weak": it can support a match but never decide one alone.
+ */
+const classifyEventRelevance = (text, eventInput, keywordsList = [], eventLocation = '', eventDescription = '', ctx = {}) => {
   if (!text || typeof text !== 'string') {
     return { isRelevant: false, score: 0, reason: 'empty_text' };
   }
@@ -146,7 +181,7 @@ const classifyEventRelevance = (text, eventInput, keywordsList = [], eventLocati
     return { isRelevant: false, score: 0, reason: 'too_short' };
   }
 
-  const profile = getEventAnchorProfile(eventInput, keywordsList, eventLocation, eventDescription);
+  const profile = profileFor(eventInput, keywordsList, eventLocation, eventDescription);
   const { cleanTitle, titleTokens, locationTokens, descTokens, anchoredKeywords, unanchoredKeywords } = profile;
 
   const postTokens = new Set(tokenize(cleanText));
@@ -158,59 +193,75 @@ const classifyEventRelevance = (text, eventInput, keywordsList = [], eventLocati
   const matchedCoreAnchors = [...matchedLocs, ...matchedTitles, ...matchedDescs];
   const hasCoreAnchor = matchedCoreAnchors.length > 0;
 
-  const FOREIGN_OUT_OF_SCOPE_RE = /\b(france|paris|french|gaza|israel|palestine|ukraine|russia|bangladesh|pakistan|nepal|australia|sydney|melbourne|london|britain|uk|united kingdom|usa|america|washington|california|new york|texas|florida|germany|berlin|spain|madrid|italy|rome|canada|toronto|ottawa)\b/i;
+  const hasLocation = locationTokens.length > 0;
+  const locOk = !hasLocation || matchedLocs.length > 0;
+  // Description words are generic ("students", "protest"): a weak signal only.
+  // A title word that is also the location (e.g. "Odisha") is not subject evidence.
+  const subjectTitles = matchedTitles.filter((t) => !locationTokens.includes(t));
+  const subjectDescs = matchedDescs.filter((d) => !locationTokens.includes(d) && !subjectTitles.includes(d));
+  const strongSubject = subjectTitles.length >= 1 || subjectDescs.length >= 3;
+  // Location + subject alone (no keyword) is easy to hit by accident in long posts, so it needs
+  // more than one subject word: two title words, or a title word plus two description words.
+  const solidSubject = subjectTitles.length >= 2 || (subjectTitles.length >= 1 && subjectDescs.length >= 2) || subjectDescs.length >= 4;
 
-  const hasExplicitEventFigure = /\b(nityananda gond|school thik karo|cockroach janta party|nycs|navnirman yuva|textbook error|textbook printing)\b/i.test(cleanText);
+  // Whole-word / whole-phrase containment (no substring hits like "mp" in "camp").
+  const hasPhrase = (phrase) => {
+    const p = String(phrase || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!p) return false;
+    const escaped = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(^|[^\\p{L}\\p{M}\\p{N}_])${escaped}($|[^\\p{L}\\p{M}\\p{N}_])`, 'u').test(cleanText);
+  };
+  const hasKeyword = (k) => {
+    if (k.isHashtag) {
+      const bare = k.lower.slice(1);
+      return hasPhrase(k.lower) || (bare.length >= 3 && postTokens.has(bare));
+    }
+    return hasPhrase(k.lower);
+  };
 
-  // If event is localized, strictly reject foreign / out-of-scope country discussions unless explicitly tied to event figure
-  if (locationTokens.length > 0 && FOREIGN_OUT_OF_SCOPE_RE.test(cleanText) && !hasExplicitEventFigure && matchedLocs.length === 0) {
-    return { isRelevant: false, score: 0, reason: 'foreign_out_of_scope_location' };
-  }
-
-  // If event has designated location, check for conflicting domestic landmarks (e.g. Jantar Mantar / Delhi for an Odisha event)
-  const isDifferentDomesticLandmark = /\b(jantar mantar|delhi police|bengaluru police|mumbai police|hyderabad police)\b/i.test(cleanText);
-  if (locationTokens.length > 0 && matchedLocs.length === 0 && isDifferentDomesticLandmark && !hasExplicitEventFigure) {
-    return { isRelevant: false, score: 10, reason: 'out_of_state_domestic_landmark' };
-  }
-
-  // 1. Direct Title Match (post contains exact event name)
-  if (cleanTitle.length >= 6 && cleanText.includes(cleanTitle)) {
+  // 1. Direct title match
+  if (cleanTitle.length >= 6 && hasPhrase(cleanTitle)) {
     return { isRelevant: true, score: 100, reason: 'direct_title_match' };
   }
 
-  // 2. Inherently Anchored Keyword Match (e.g. #OdishaEducationProtest, CJP School Thik Karo)
-  const matchedAnchored = anchoredKeywords.filter((ak) => {
-    if (ak.isHashtag) {
-      const bare = ak.lower.slice(1);
-      return cleanText.includes(ak.lower) || (bare.length >= 3 && postTokens.has(bare));
-    }
-    return cleanText.includes(ak.lower);
-  });
+  const generic = ctx?.genericTokens instanceof Set ? ctx.genericTokens : new Set();
+  const ownLoc = new Set(tokenize(profile.location));
+  const isWeak = (k) => {
+    const ws = String(k.raw).replace(/^[#@]/, '').toLowerCase().split(/[^\p{L}\p{M}\p{N}]+/u).filter(Boolean);
+    if (k.isHashtag) return false;
+    return ws.length > 0 && ws.every((w) => generic.has(w) || ownLoc.has(w) || GRAMMAR_STOPWORDS.has(w));
+  };
 
-  if (matchedAnchored.length > 0) {
-    // If event has location, require either location match, figure match, or multi-word anchored keyword
-    if (locationTokens.length === 0 || matchedLocs.length > 0 || hasExplicitEventFigure || matchedAnchored.some((a) => a.lower.length > 12)) {
+  // 2. Anchored keyword (contains an event anchor and is multi-word / hashtag / acronym)
+  const matchedAnchored = anchoredKeywords.filter(hasKeyword);
+  const strongAnchored = matchedAnchored.filter((a) => !isWeak(a));
+  if (strongAnchored.length > 0) {
+    const specific = strongAnchored.some((a) => a.isHashtag || tokenize(a.raw).length >= 2);
+    if ((specific && (locOk || strongAnchored.some((a) => a.isHashtag || a.crossScript))) || (matchedLocs.length > 0 && strongSubject) || subjectTitles.length >= 2) {
       return {
         isRelevant: true,
         score: 95,
         reason: 'anchored_keyword_match',
-        matched: matchedAnchored.map((a) => a.raw),
+        matched: strongAnchored.map((a) => a.raw),
       };
     }
   }
 
-  // 3. Unanchored Keyword Match (e.g. #Developers, #TechCommunity, #FutureTech, demanding)
-  // MUST have at least 1 core event anchor in the post itself
-  const matchedUnanchored = unanchoredKeywords.filter((uk) => {
-    if (uk.isHashtag) {
-      const bare = uk.lower.slice(1);
-      return cleanText.includes(uk.lower) || (bare.length >= 3 && postTokens.has(bare));
-    }
-    return cleanText.includes(uk.lower);
-  });
-
+  // 3. Unanchored or weak keyword: needs title-level subject evidence and the location
+  const hitUnanchored = unanchoredKeywords.filter(hasKeyword);
+  // A distinctive multi-word phrase / hashtag / acronym stands on its own once the location matches.
+  const specificUnanchored = hitUnanchored.filter((u) => !isWeak(u) && (u.isHashtag || tokenize(u.raw).length >= 2 || (u.raw.length >= 2 && u.raw === u.raw.toUpperCase())));
+  if (specificUnanchored.length > 0 && locOk) {
+    return {
+      isRelevant: true,
+      score: 80,
+      reason: 'specific_keyword_match',
+      matched: specificUnanchored.map((u) => u.raw),
+    };
+  }
+  const matchedUnanchored = [...hitUnanchored, ...matchedAnchored.filter(isWeak)];
   if (matchedUnanchored.length > 0) {
-    if (hasCoreAnchor && (locationTokens.length === 0 || matchedLocs.length > 0 || hasExplicitEventFigure)) {
+    if (strongSubject && locOk) {
       return {
         isRelevant: true,
         score: 75,
@@ -227,24 +278,14 @@ const classifyEventRelevance = (text, eventInput, keywordsList = [], eventLocati
     };
   }
 
-  // 4. Dynamic Location + Subject Match (mentions event location and title/desc entity)
-  if (matchedLocs.length > 0 && (matchedTitles.length > 0 || matchedDescs.length > 0)) {
-    return {
-      isRelevant: true,
-      score: 85,
-      reason: 'location_and_subject_match',
-      anchors: matchedCoreAnchors,
-    };
+  // 4. Location + subject
+  if (matchedLocs.length > 0 && solidSubject) {
+    return { isRelevant: true, score: 85, reason: 'location_and_subject_match', anchors: matchedCoreAnchors };
   }
 
-  // 5. Multi-token Title Match (>= 2 distinct core title tokens present in post)
-  if (matchedTitles.length >= 2 && (locationTokens.length === 0 || matchedLocs.length > 0 || hasExplicitEventFigure)) {
-    return {
-      isRelevant: true,
-      score: 80,
-      reason: 'multi_title_token_match',
-      anchors: matchedTitles,
-    };
+  // 5. Multi-token title match
+  if (subjectTitles.length >= 2 && locOk) {
+    return { isRelevant: true, score: 80, reason: 'multi_title_token_match', anchors: matchedTitles };
   }
 
   return { isRelevant: false, score: 0, reason: 'insufficient_event_overlap' };
@@ -259,44 +300,19 @@ const classifyEventRelevance = (text, eventInput, keywordsList = [], eventLocati
  * - Other
  */
 const classifyTargetEntity = (text = '', author = '', analysis = {}) => {
+  // Prefer an explicit target from post analysis when it is one of the known buckets.
+  const declared = String(analysis?.target_entity || analysis?.target || '').trim().toLowerCase();
+  if (declared) {
+    const hit = Object.values(TARGET_ENTITIES).find((v) => v.toLowerCase() === declared);
+    if (hit) return hit;
+  }
   const combined = `${text} ${author} ${analysis?.summary || ''} ${analysis?.category || ''}`.toLowerCase();
 
-  // 1. Police / Law enforcement
-  if (
-    /\b(police|cop|cops|dgp|sp|commissioner|constable|dsp|inspector|chowki|thana|patrol|traffic police|khaki)\b/i.test(
-      combined
-    )
-  ) {
-    return TARGET_ENTITIES.POLICE;
-  }
-
-  // 2. Political Leader
-  if (
-    /\b(cm|pm|chief minister|prime minister|narendra modi|modi|putin|xi jinping|biden|minister|neta|mla|mp|president|leader|mohan majhi|rahul gandhi)\b/i.test(
-      combined
-    )
-  ) {
-    return TARGET_ENTITIES.POLITICAL_LEADER;
-  }
-
-  // 3. Government / Administration / Policy
-  if (
-    /\b(govt|government|sarkar|administration|cabinet|ministry|yojana|parliament|assembly|vidhan sabha|scheme|portal|dept|department)\b/i.test(
-      combined
-    )
-  ) {
-    return TARGET_ENTITIES.GOVERNMENT;
-  }
-
-  // 4. Organization / Summit / Multilateral body
-  if (
-    /\b(brics|summit|un|united nations|nato|g20|asean|ngo|omc|corporation|committee|delegation|confederation|alliance)\b/i.test(
-      combined
-    )
-  ) {
-    return TARGET_ENTITIES.ORGANIZATION;
-  }
-
+  // Generic institutional roles only (no person, party or organisation names).
+  if (/\b(police|cops?|constable|inspector|thana|chowki|patrol)\b/i.test(combined)) return TARGET_ENTITIES.POLICE;
+  if (/\b(chief minister|prime minister|minister|mla|mp|neta|president|leader)\b/i.test(combined)) return TARGET_ENTITIES.POLITICAL_LEADER;
+  if (/\b(govt|government|sarkar|administration|cabinet|ministry|department|assembly|parliament)\b/i.test(combined)) return TARGET_ENTITIES.GOVERNMENT;
+  if (/\b(ngo|committee|delegation|confederation|alliance|corporation)\b/i.test(combined)) return TARGET_ENTITIES.ORGANIZATION;
   return TARGET_ENTITIES.OTHER;
 };
 
@@ -313,44 +329,25 @@ const getSentimentTargetSemantics = (sentiment) => {
   return { label: 'News/Updates', code: 'neutral' };
 };
 
-const CRITICAL_THREAT_KEYWORDS = /\b(riot|riots|rioting|violence|violent|burn|burning|arson|weapon|weapons|bomb|explosive|clash|clashes|assault|murder|kill|attack|attacks|lynch|bloodshed)\b/i;
-const HIGH_THREAT_KEYWORDS = /\b(bandh|strike|strikes|rail roko|rasta roko|chakka jam|blockade|siege|gherao|hartal|disruption|mass protest|shut down|shutdown|vandalism|vandalize)\b/i;
-const MEDIUM_THREAT_KEYWORDS = /\b(protest|protests|protesting|agitation|morcha|rally|boycott|satyagraha|demonstration|dharna|memorandum|ultimatum)\b/i;
-
 /**
- * Evaluate Risk Level strictly separated from sentiment.
- * Strict 4-tier threat taxonomy:
- * - Critical: Physical violence, riots, arson, attacks, weapon threats (Score: >= 85)
- * - High: On-ground disruptions, bandh, strikes, rail/rasta roko, chakka jam (Score: >= 65)
- * - Medium: Peaceful protests, rallies, dharna, satyagraha, boycotts (Score: 35-60)
- * - Low: Digital criticism, opinions, debates, updates without disruption vectors (Score: <= 25)
+ * Risk comes from the post-analysis result (risk_level / risk_score), kept
+ * separate from sentiment. No keyword lists: text is not used to override it.
  */
-const evaluateThreatRisk = (analysisResult = {}, text = '') => {
-  let riskScore = Number(analysisResult.risk_score || 0);
-  let riskLevel = String(analysisResult.risk_level || '').toLowerCase().trim();
-  const textLower = String(text || '').toLowerCase();
-
-  const hasCriticalVector = CRITICAL_THREAT_KEYWORDS.test(textLower);
-  const hasHighVector = HIGH_THREAT_KEYWORDS.test(textLower);
-  const hasMediumVector = MEDIUM_THREAT_KEYWORDS.test(textLower);
-  const hasThreatVector = hasCriticalVector || hasHighVector || hasMediumVector;
-
-  if (hasCriticalVector) {
-    riskLevel = 'critical';
-    riskScore = Math.max(riskScore, 85);
-  } else if (hasHighVector) {
-    riskLevel = 'high';
-    riskScore = Math.max(riskScore, 65);
-  } else if (hasMediumVector) {
-    if (riskLevel === 'critical') riskLevel = 'high';
-    else if (!['high', 'critical'].includes(riskLevel)) riskLevel = 'medium';
-    riskScore = Math.max(35, Math.min(riskScore || 45, 60));
-  } else {
-    riskLevel = 'low';
-    riskScore = Math.min(riskScore || 15, 25);
+const evaluateThreatRisk = (analysisResult = {}) => {
+  const score = Math.max(0, Math.min(100, Number(analysisResult?.risk_score) || 0));
+  let level = String(analysisResult?.risk_level || '').toLowerCase().trim();
+  if (!['critical', 'high', 'medium', 'low'].includes(level)) {
+    level = score >= 85 ? 'critical' : score >= 65 ? 'high' : score >= 35 ? 'medium' : 'low';
   }
-
-  return { riskLevel, riskScore, hasThreatVector, hasCriticalVector, hasHighVector, hasMediumVector };
+  const hasThreatVector = level === 'critical' || level === 'high';
+  return {
+    riskLevel: level,
+    riskScore: score,
+    hasThreatVector,
+    hasCriticalVector: level === 'critical',
+    hasHighVector: level === 'high',
+    hasMediumVector: level === 'medium',
+  };
 };
 
 /**

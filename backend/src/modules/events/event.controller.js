@@ -373,7 +373,7 @@ const getEventIntelligenceReportPdf = async (req, res) => {
 
 const generateEventTerms = async (req, res) => {
   try {
-    const data = await eventHashtagClient.generateEventTerms(req.body || {});
+    const data = await eventHashtagClient.generateEventTerms(req.body || {}, { db: req.tenantPrisma });
     return res.status(200).json(data);
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message || 'Event terms fetch failed' });

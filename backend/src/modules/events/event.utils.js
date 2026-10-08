@@ -296,7 +296,46 @@ const hydrateOccasion = (row) => {
   });
 };
 
+/** Whole-word / whole-phrase match (no substring hits inside other words). */
+const keywordMatchesText = (keyword, text) => {
+  const k = String(keyword || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const t = String(text || '').toLowerCase();
+  if (!k || !t) return false;
+  const esc = (v) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const test = (needle) =>
+    new RegExp(`(^|[^\\p{L}\\p{M}\\p{N}_])${esc(needle)}($|[^\\p{L}\\p{M}\\p{N}_])`, 'u').test(t);
+  if (test(k)) return true;
+  if (k.startsWith('#') || k.startsWith('@')) {
+    const bare = k.slice(1);
+    return bare.length >= 3 && test(bare);
+  }
+  return false;
+};
+
+/**
+ * Engagement score from whatever metrics a platform reports; null when it
+ * reports none (so "no data" is never treated as "zero engagement").
+ */
+const engagementScore = (engagement) => {
+  const e = asJson(engagement, {}) || {};
+  const pick = (...keys) => {
+    for (const k of keys) if (e[k] != null && Number.isFinite(Number(e[k]))) return Number(e[k]);
+    return null;
+  };
+  const parts = [
+    pick('likes', 'like_count', 'like', 'reactions', 'reactions_count'),
+    pick('shares', 'retweet_count', 'retweet', 'reshares'),
+    pick('comments', 'reply_count', 'reply', 'replies'),
+    pick('quote_count', 'quote'),
+  ];
+  const views = pick('views', 'impression_count', 'view', 'view_count');
+  if (parts.every((p) => p == null) && views == null) return null;
+  return parts.reduce((a, b) => a + (b || 0), 0) + (views || 0) / 100;
+};
+
 module.exports = {
+  keywordMatchesText,
+  engagementScore,
   serialize,
   asJson,
   normalizeKeywords,

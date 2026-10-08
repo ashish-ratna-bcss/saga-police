@@ -132,7 +132,7 @@ const findStateForLocation = (location = '') => {
 
   for (const c of candidates) {
     if (c.len < 3) continue;
-    const re = new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapeRe(c.place)}(?=[^\\p{L}\\p{N}]|$)`, 'iu');
+    const re = new RegExp(`(?:^|[^\\p{L}\\p{M}\\p{N}])${escapeRe(c.place)}(?=[^\\p{L}\\p{M}\\p{N}]|$)`, 'iu');
     if (re.test(locLower)) {
       return c.state;
     }

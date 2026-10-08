@@ -404,7 +404,7 @@ const analyzeMediaPost = async (postId, { db, dbName } = {}) => {
     await mappingService.waitForLoad(5000);
     mapping = mappingService.resolveForAnalysis({
       category: intel.category,
-      text,
+      text: textForAnalysis,
       platform,
       country: 'IN',
     });

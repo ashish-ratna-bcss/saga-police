@@ -500,6 +500,7 @@ const generateEventSummary = async (
   const relevantPosts = [];
   const peripheralPosts = [];
 
+  const relCtx = { genericTokens: await require('../../modules/events/event.corpus.service').getGenericTokens(prisma) };
   for (const m of mediaRows) {
     // Platform
     let p = String(m.platform || 'unknown').toLowerCase().trim();
@@ -539,7 +540,7 @@ const generateEventSummary = async (
     else riskCounts.low++;
 
     // Event Relevance Classification
-    const relevance = classifyEventRelevance(m.text || '', event);
+    const relevance = classifyEventRelevance(m.text || '', event, [], '', '', relCtx);
     const targetEntity = classifyTargetEntity(m.text || '', m.author_name || m.author_handle || '', analysis);
     const targetSemantics = getSentimentTargetSemantics(sent);
 

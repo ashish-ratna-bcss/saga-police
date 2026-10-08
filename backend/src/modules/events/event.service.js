@@ -1,6 +1,16 @@
 const dbOf = require('../../lib/dbOf');
-const { hydrateEvent, hydrateEventMedia, normalizeEventPayload, asJson, resolveEventPlatforms, postedAtRangeWhere } = require('./event.utils');
-const { classifyEventRelevance } = require('./eventTelemetry.service');
+const { hydrateEvent, hydrateEventMedia, normalizeEventPayload, asJson, resolveEventPlatforms, postedAtRangeWhere, keywordMatchesText } = require('./event.utils');
+const { classifyEventRelevance, evaluateThreatRisk } = require('./eventTelemetry.service');
+const { getGenericTokens } = require('./event.corpus.service');
+const cfg = require('./event.config');
+const { sanitizeEventKeywords, findOverlappingEvents } = require('./event.keywords.service');
+
+/** Keep only the rows relevant to the event, using the tenant-learned vocabulary. */
+const filterRelevantRows = async (prisma, event, rows) => {
+  const genericTokens = await getGenericTokens(prisma);
+  const ctx = { genericTokens };
+  return rows.filter((r) => classifyEventRelevance(r.text || '', event, [], '', '', ctx).isRelevant);
+};
 
 const withPublicationRange = (where, event) => {
   const postedAt = postedAtRangeWhere(event);
@@ -54,6 +64,10 @@ const createEvent = async (body, user, { db } = {}) => {
     throw err;
   }
 
+  const review = await sanitizeEventKeywords(prisma, payload, payload.keywords || []);
+  payload.keywords = review.keywords;
+  const overlaps = await findOverlappingEvents(prisma, payload);
+
   const interval = payload.polling_interval_minutes ?? 60;
   const row = await prisma.social_media_events.create({
     data: {
@@ -79,7 +93,11 @@ const createEvent = async (body, user, { db } = {}) => {
       created_by: String(user?.email || user?.id || 'system'),
     },
   });
-  return hydrateEvent(row);
+  return {
+    ...hydrateEvent(row),
+    keyword_review: { removed: review.removed, warnings: review.warnings },
+    possible_duplicates: overlaps,
+  };
 };
 
 const updateEvent = async (id, body, { db } = {}) => {
@@ -113,11 +131,24 @@ const updateEvent = async (id, body, { db } = {}) => {
         ? Number(payload.origin_calendar_id)
         : null;
   }
+  let review = { removed: [], warnings: [] };
+  if (data.keywords !== undefined) {
+    const merged = {
+      name: data.name ?? existing.name,
+      location: data.location ?? existing.location,
+      description: data.description ?? existing.description,
+    };
+    review = await sanitizeEventKeywords(prisma, merged, data.keywords);
+    data.keywords = review.keywords;
+  }
   const row = await prisma.social_media_events.update({
     where: { id: Number(id) },
     data,
   });
-  return hydrateEvent(row);
+  return {
+    ...hydrateEvent(row),
+    keyword_review: { removed: review.removed, warnings: review.warnings },
+  };
 };
 
 /**
@@ -187,16 +218,27 @@ const getDashboard = async (id, { db } = {}) => {
     throw err;
   }
 
-  const byPlatformRows = await prisma.social_media_event_media.groupBy({
-    by: ['platform'],
+  // Same relevance filter as the content list so counts and list always agree.
+  const candidateRows = await prisma.social_media_event_media.findMany({
     where: withPublicationRange({ event_id: Number(id) }, event),
-    _count: { _all: true },
+    select: { id: true, platform: true, text: true, posted_at: true, analysis_result: true, analysis_status: true },
+    take: cfg.maxRowsScanned,
   });
+  const relevantForCount = await filterRelevantRows(prisma, event, candidateRows);
   const content_by_platform = {};
   let content_total = 0;
-  for (const row of byPlatformRows) {
-    content_by_platform[row.platform] = row._count._all;
-    content_total += row._count._all;
+  let content_priority = 0;
+  let content_recent_24h = 0;
+  let content_analyzing = 0;
+  const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  for (const row of relevantForCount) {
+    content_by_platform[row.platform] = (content_by_platform[row.platform] || 0) + 1;
+    content_total += 1;
+    // Priority = analysed as high/critical risk; Recent = posted in the last 24h.
+    const { riskLevel } = evaluateThreatRisk(asJson(row.analysis_result, {}) || {});
+    if (row.analysis_status === 'done' && (riskLevel === 'high' || riskLevel === 'critical')) content_priority += 1;
+    if (row.posted_at && new Date(row.posted_at).getTime() >= dayAgo) content_recent_24h += 1;
+    if (row.analysis_status === 'pending' || row.analysis_status === 'processing') content_analyzing += 1;
   }
 
   const hydrated = hydrateEvent(event);
@@ -227,6 +269,9 @@ const getDashboard = async (id, { db } = {}) => {
       alerts_active: 0,
       alerts_priority: 0,
       content_by_platform,
+      content_priority,
+      content_recent_24h,
+      content_analyzing,
       // Platforms selected on the event (tabs always list all; this is the configured set)
       platforms_configured: Array.isArray(hydrated.platforms) ? hydrated.platforms.filter(Boolean).length : 0,
       // Platforms that actually have ingested media for this event
@@ -255,20 +300,14 @@ const listEventContent = async (id, { page = 1, limit = 50, platform = 'all', db
   const rawRows = await prisma.social_media_event_media.findMany({
     where,
     orderBy: [{ posted_at: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
-    take: 3000,
+    take: cfg.maxRowsScanned,
   });
 
-  const keywordsList = (asJson(event.keywords, []) || [])
-    .map((k) => (typeof k === 'string' ? k : k?.keyword))
-    .filter(Boolean);
+  // Filter out irrelevant noise using the dynamic event profile + tenant-learned vocabulary
+  const filtered = await filterRelevantRows(prisma, event, rawRows);
 
-  // Filter out irrelevant noise and unanchored posts using dynamic event profile
-  const filtered = rawRows.filter((r) => {
-    const relevance = classifyEventRelevance(r.text || '', event);
-    return relevance.isRelevant;
-  });
-
-  const finalRows = filtered.length > 0 ? filtered : rawRows;
+  // Never fall back to unfiltered rows: showing everything surfaces unrelated posts.
+  const finalRows = filtered;
   const total = finalRows.length;
   const skip = (Math.max(1, page) - 1) * Math.min(200, Math.max(1, limit));
   const take = Math.min(200, Math.max(1, limit));
@@ -336,30 +375,6 @@ const recordFetch = async (id, historyEntry = null, { db } = {}) => {
 /** @deprecated use recordFetch */
 const markPolled = async (id, historyEntry = null, { db } = {}) => recordFetch(id, historyEntry, { db });
 
-const squeezeWhitespace = (text) => String(text || '').replace(/\s+/g, ' ').trim();
-const normalizeForKeywordMatch = (text) => squeezeWhitespace(String(text || '').toLowerCase());
-const collapseForFuzzyMatch = (text) =>
-  String(text || '')
-    .toLowerCase()
-    .replace(/[\s_\-.,!?'"():;/\\#@]+/g, '');
-
-const keywordMatchesText = (keyword, text) => {
-  const k = normalizeForKeywordMatch(keyword);
-  if (!k || !text) return false;
-  const t = String(text).toLowerCase();
-  if (t.includes(k)) return true;
-  if (k.startsWith('#') || k.startsWith('@')) {
-    const bare = k.slice(1);
-    if (bare && t.includes(bare)) return true;
-  }
-  const kFuzzy = collapseForFuzzyMatch(k);
-  if (kFuzzy && kFuzzy.length >= 3) {
-    const tFuzzy = collapseForFuzzyMatch(text);
-    if (tFuzzy.includes(kFuzzy)) return true;
-  }
-  return false;
-};
-
 const getKeywordAnalytics = async (id, { db } = {}) => {
   const prisma = dbOf(db);
   const event = await prisma.social_media_events.findUnique({
@@ -394,11 +409,13 @@ const getKeywordAnalytics = async (id, { db } = {}) => {
   }
 
   // 2. Fetch event media across all monitored platforms (no artificial exclusions)
-  const rows = await prisma.social_media_event_media.findMany({
+  const allRows = await prisma.social_media_event_media.findMany({
     where: withPublicationRange({ event_id: Number(id) }, event),
     orderBy: [{ posted_at: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
     take: 5000,
   });
+  // Keyword counts only make sense over posts that are actually about the event.
+  const rows = await filterRelevantRows(prisma, event, allRows);
 
   const {
     parseSentiment,

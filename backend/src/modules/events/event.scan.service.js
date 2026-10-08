@@ -10,6 +10,7 @@ const {
 const { engagementFromXMetricsBag } = require('../../lib/engagementMetrics');
 const {
   asJson,
+  engagementScore,
   resolveEventPlatforms,
   eventPublicationWindow,
   postedAtInEventWindow,
@@ -17,6 +18,8 @@ const {
 } = require('./event.utils');
 const { classifyEventRelevance } = require('./eventTelemetry.service');
 const { recordFetch } = require('./event.service');
+const cfg = require('./event.config');
+const { getGenericTokens } = require('./event.corpus.service');
 const logger = require('../../lib/logger');
 
 const squeezeWhitespace = (text) => String(text || '').replace(/\s+/g, ' ').trim();
@@ -84,87 +87,16 @@ const redditRelevanceEvent = (event) => {
   return keywords.length ? { ...event, keywords } : event;
 };
 
-const normalizeForKeywordMatch = (text) => squeezeWhitespace(String(text || '').toLowerCase());
-const collapseForFuzzyMatch = (text) =>
-  String(text || '')
-    .toLowerCase()
-    .replace(/[\s_\-.,!?'"():;/\\#@]+/g, '');
-
-const keywordMatchesText = (keyword, text) => {
-  const k = normalizeForKeywordMatch(keyword);
-  if (!k || !text) return false;
-  if (text.includes(k)) return true;
-  if (k.startsWith('#') || k.startsWith('@')) {
-    const bare = k.slice(1);
-    if (bare && text.includes(bare)) return true;
-  }
-  const kFuzzy = collapseForFuzzyMatch(k);
-  if (kFuzzy && kFuzzy.length >= 3) {
-    const tFuzzy = collapseForFuzzyMatch(text);
-    if (tFuzzy.includes(kFuzzy)) return true;
-  }
-  return false;
-};
-
-const evaluateBooleanQuery = (query, text) => {
-  const normText = normalizeForKeywordMatch(text);
-  if (!normText) return false;
-  const q = String(query || '').trim();
-  if (!q) return false;
-
-  const hasOperators = /\b(AND|OR|NOT|&&|\|\|)\b|[&|!()]/.test(q);
-  if (!hasOperators) {
-    return keywordMatchesText(q, normText);
-  }
-
-  try {
-    let expr = q
-      .replace(/\s+AND\s+/gi, ' && ')
-      .replace(/\s+OR\s+/gi, ' || ')
-      .replace(/\s+NOT\s+/gi, ' ! ')
-      .replace(/\s*&\s*/g, ' && ')
-      .replace(/\s*\|\s*/g, ' || ');
-
-    const termMap = new Map();
-    let termIndex = 0;
-
-    expr = expr.replace(/"([^"]+)"|'([^']+)'/g, (match, p1, p2) => {
-      const term = p1 || p2;
-      const key = `__T${termIndex++}__`;
-      termMap.set(key, keywordMatchesText(term, normText));
-      return key;
-    });
-
-    expr = expr.replace(/([#@\p{L}\p{N}_-]+)/gu, (match) => {
-      if (['true', 'false', '&&', '||', '!'].includes(match)) return match;
-      if (termMap.has(match)) return match;
-      const key = `__T${termIndex++}__`;
-      termMap.set(key, keywordMatchesText(match, normText));
-      return key;
-    });
-
-    for (const [key, val] of termMap.entries()) {
-      expr = expr.replaceAll(key, val ? 'true' : 'false');
-    }
-
-    const sanitized = expr.replace(/[^truefals&|!()\s]/g, '');
-    const fn = new Function(`return Boolean(${sanitized});`);
-    return Boolean(fn());
-  } catch (err) {
-    return keywordMatchesText(q, normText);
-  }
-};
-
 /**
  * Filter items using dynamic event relevance classification.
  * Evaluates the dynamic event anchor profile (title, location, description, keywords).
  */
-const filterByKeywords = (items, event, getText) => {
+const filterByKeywords = (items, event, getText, ctx = {}) => {
   if (!Array.isArray(items) || !items.length) return [];
   return items.filter((item) => {
     const text = getText(item);
     if (!text) return false;
-    const relevance = classifyEventRelevance(text, event);
+    const relevance = classifyEventRelevance(text, event, [], '', '', ctx);
     return relevance.isRelevant;
   });
 };
@@ -257,6 +189,7 @@ const ingestCatalogMatches = async ({
   platform,
   db,
   dbName,
+  ctx,
 }) => {
   const catalogPosts = await prisma.social_media_posts.findMany({
     where: buildCatalogPostsWhere(event, platform),
@@ -265,7 +198,7 @@ const ingestCatalogMatches = async ({
   const matchEvent = resolveCatalogMatchEvent(event, queries);
   const publicationWindow = eventPublicationWindow(event);
   const inRange = catalogPosts.filter((p) => postedAtInEventWindow(p.posted_at, publicationWindow));
-  const relevant = filterByKeywords(inRange, matchEvent, getCatalogPostSearchText);
+  const relevant = filterByKeywords(inRange, matchEvent, getCatalogPostSearchText, ctx);
   let ingested = 0;
   for (const p of relevant) {
     const pid = p.external_id || p.id;
@@ -357,6 +290,13 @@ const upsertMedia = async ({ eventId, platform, externalId, payload, db, dbName,
   const { nudgeTenant } = require('../../services/media_post_analysis');
 
   if (!existing) {
+    // Skip new posts nobody interacted with. Only when the platform reports metrics at all.
+    if (cfg.minEngagement > 0) {
+      const score = engagementScore(payload.engagement);
+      if (score != null && score < cfg.minEngagement) {
+        return { isNew: false, skipped: true, reason: 'low_engagement' };
+      }
+    }
     const created = await prisma.social_media_event_media.create({
       data: {
         event_id: Number(eventId),
@@ -443,6 +383,17 @@ const normalizeFbMedia = (post) => {
   }
   return items;
 };
+
+/** Telegram (and similar) media: already a list of {url,type} or plain URL strings. */
+const normalizeGenericMedia = (list) =>
+  (Array.isArray(list) ? list : [])
+    .map((m) => {
+      const url = typeof m === 'string' ? m : m?.url || m?.file_url || m?.src || null;
+      if (!url) return null;
+      const type = (typeof m === 'object' && m?.type) || (/\.(mp4|mov|webm|m3u8)(\?|$)/i.test(url) ? 'video' : 'photo');
+      return { type, url, preview: (typeof m === 'object' && (m.preview || m.thumbnail)) || url };
+    })
+    .filter(Boolean);
 
 /* ── Blugate X search helpers ── */
 
@@ -819,14 +770,35 @@ const runScanEventOnce = async (event, options = {}) => {
     return authFn(platformRow);
   };
 
-  const fetchUniqueByQueriesCounted = async (qs, fetcher, concurrency = 5) => {
+  // Most specific queries first (hashtags, longer phrases); cap per platform.
+  const rankQueries = (qs) =>
+    [...new Set(qs)]
+      .map((q, i) => ({ q, i, w: (String(q).startsWith('#') ? 2 : 0) + Math.min(String(q).split(/\s+/).length, 4) }))
+      .sort((a, b) => b.w - a.w || a.i - b.i)
+      .slice(0, cfg.maxQueriesPerPlatform)
+      .map((x) => x.q);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const withRetry = async (fn) => {
+    try {
+      return await fn();
+    } catch (err) {
+      if (/429|rate limit/i.test(String(err?.message))) {
+        await sleep(2000);
+        return fn();
+      }
+      throw err;
+    }
+  };
+
+  const fetchUniqueByQueriesCounted = async (qs, fetcher, concurrency = cfg.queryConcurrency) => {
     const merged = [];
-    for (let i = 0; i < qs.length; i += concurrency) {
-      const chunk = qs.slice(i, i + concurrency);
+    const ranked = rankQueries(qs);
+    for (let i = 0; i < ranked.length; i += concurrency) {
+      const chunk = ranked.slice(i, i + concurrency);
       const results = await Promise.allSettled(
         chunk.map(async (query) => {
           apiHits += 1;
-          return await fetcher(query);
+          return await withRetry(() => fetcher(query));
         })
       );
       for (let j = 0; j < results.length; j++) {
@@ -837,9 +809,12 @@ const runScanEventOnce = async (event, options = {}) => {
           logger.warn(`[EventScan] Query "${chunk[j]}" skipped: ${res.reason?.message || res.reason}`);
         }
       }
+      if (i + concurrency < ranked.length) await sleep(cfg.queryDelayMs);
     }
     return uniqueById(merged);
   };
+
+  const relCtx = { genericTokens: await getGenericTokens(prisma) };
 
   // DB scan first for every selected platform. Alerts profile monitoring already
   // stored these posts. Instagram stops here — it has no keyword search API.
@@ -854,6 +829,7 @@ const runScanEventOnce = async (event, options = {}) => {
         platform,
         db,
         dbName,
+        ctx: relCtx,
       });
       scanned += catalog.scanned;
       ingested += catalog.ingested;
@@ -873,7 +849,7 @@ const runScanEventOnce = async (event, options = {}) => {
       const tweets = await fetchUniqueByQueriesCounted(queries, (q) =>
         searchXViaBlugate(q, xAuth)
       );
-      const relevant = filterByKeywords(tweets, event, (t) => t?.text || '');
+      const relevant = filterByKeywords(tweets, event, (t) => t?.text || '', relCtx);
       scanned += relevant.length;
       track('x', { scanned: relevant.length });
       let xIn = 0;
@@ -915,7 +891,8 @@ const runScanEventOnce = async (event, options = {}) => {
       const relevant = filterByKeywords(
         videos,
         event,
-        (v) => `${v?.title || ''} ${v?.description || ''} ${(v?.tags || []).join(' ')}`
+        (v) => `${v?.title || ''} ${v?.description || ''} ${(v?.tags || []).join(' ')}`,
+        relCtx
       );
       scanned += relevant.length;
       track('youtube', { scanned: relevant.length });
@@ -966,7 +943,7 @@ const runScanEventOnce = async (event, options = {}) => {
       const posts = await fetchUniqueByQueriesCounted(queries, (q) =>
         searchFacebookViaBlugate(q, fbAuth)
       );
-      const relevant = filterByKeywords(posts, event, (p) => p?.message || p?.text || '');
+      const relevant = filterByKeywords(posts, event, (p) => p?.message || p?.text || '', relCtx);
       scanned += relevant.length;
       track('facebook', { scanned: relevant.length });
       let fbIn = 0;
@@ -991,7 +968,7 @@ const runScanEventOnce = async (event, options = {}) => {
               reactions: p.reactions_count ?? p.reactions ?? 0,
               shares: p.shares ?? p.reshare_count ?? 0,
             },
-            media: normalizeFbMedia(p),
+            media: normalizeFbMedia(p.raw_data || p),
             raw_data: p.raw_data || p,
           },
         });
@@ -1009,7 +986,7 @@ const runScanEventOnce = async (event, options = {}) => {
     try {
       const tgAuth = await loadPlatformAuth(['telegram'], callTelegramApi.authFromPlatformRow);
       const posts = await fetchUniqueByQueriesCounted(queries, (q) => searchTelegramViaBlugate(q, tgAuth));
-      const relevant = filterByKeywords(posts, event, (p) => p?.text || '');
+      const relevant = filterByKeywords(posts, event, (p) => p?.text || '', relCtx);
       scanned += relevant.length;
       track('telegram', { scanned: relevant.length });
       let tgIn = 0;
@@ -1038,7 +1015,7 @@ const runScanEventOnce = async (event, options = {}) => {
               shares: p.forwards ?? 0,
               comments: p.replies ?? 0,
             },
-            media: normalizeFbMedia(p.media),
+            media: normalizeGenericMedia(p.media),
             raw_data: p.raw_data || p,
           },
         });
@@ -1063,7 +1040,8 @@ const runScanEventOnce = async (event, options = {}) => {
       const relevant = filterByKeywords(
         posts,
         redditRelevanceEvent(event),
-        (p) => `${p?.title || ''} ${p?.content || ''}`
+        (p) => `${p?.title || ''} ${p?.content || ''}`,
+        relCtx
       );
       scanned += relevant.length;
       track('reddit', { scanned: relevant.length });

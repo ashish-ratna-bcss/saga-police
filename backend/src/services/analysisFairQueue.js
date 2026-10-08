@@ -78,8 +78,31 @@ const ELIGIBLE_ORDER = [
  * Load the oldest eligible catalog + event rows for one tenant and enqueue them.
  * Does not change analysis_status, attempts, or posted_at.
  */
+const STALE_PROCESSING_MS = Math.max(60_000, Number(process.env.MEDIA_ANALYSIS_STALE_MS) || 15 * 60_000);
+
+/**
+ * Rows left in 'processing' (process restarted or crashed mid-analysis) are never
+ * picked up again and show "Analyzing..." forever. Hand them back to the queue.
+ */
+const releaseStaleProcessing = async (prisma) => {
+  const cutoff = new Date(Date.now() - STALE_PROCESSING_MS);
+  const data = { analysis_status: 'pending' };
+  for (const table of ['social_media_posts', 'social_media_event_media']) {
+    if (!prisma[table]?.updateMany) continue;
+    try {
+      await prisma[table].updateMany({
+        where: { analysis_status: 'processing', updated_at: { lt: cutoff } },
+        data,
+      });
+    } catch (err) {
+      if (!/analysis_status|updated_at|does not exist/i.test(err.message || '')) throw err;
+    }
+  }
+};
+
 const enqueueOldestPending = async (prisma, dbName, enqueue, { batch, maxAttempts }) => {
   if (!prisma || typeof enqueue !== 'function') return 0;
+  await releaseStaleProcessing(prisma);
   const where = {
     analysis_status: { in: ['pending', 'failed'] },
     analysis_attempts: { lt: maxAttempts },
