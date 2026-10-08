@@ -463,6 +463,11 @@ th{word-break:keep-all;overflow-wrap:normal;hyphens:none}tr{break-inside:avoid}t
 
 .post-link{color:#1d4ed8;text-decoration:underline;font-weight:700;word-break:break-all}
 .post-link:hover{color:#1e40af}
+.ref{color:#1d4ed8;text-decoration:none;font-weight:700;white-space:nowrap}
+.annex-sub{display:flex;align-items:center;gap:2.4mm;margin:3mm 0 1.6mm;padding:1.6mm 2.6mm;background:#f8fafc;border:.6px solid ${LINE};border-left:3.5px solid ${TEAL}}
+.annex-sub b{font-size:7.8pt;color:${INK};flex:1}
+.annex-sub span{font-size:6.6pt;color:${MUT};text-transform:uppercase;letter-spacing:.04em}
+.annex-sub.ctx{border-left-color:#94a3b8}
 
 .intel-grid{display:grid;grid-template-columns:1fr 1fr;gap:2.4mm;margin:0 0 2.8mm}
 .dates-box{background:#f8fafc;border:.6px solid #e2e8f0;border-left:3px solid #3b82f6;border-radius:3px;padding:2mm 2.8mm;margin:0 0 2.4mm}
@@ -626,6 +631,15 @@ const metric = (n, label, action) => `<div><div class="n">${esc(String(n))}</div
 
 const { localizeHtml } = require('./labels');
 
+/**
+ * Turns plain "[Post #n]" citations in the brief into links to the evidence annex row (#e<n>).
+ * Text inside existing links is left alone, and only posts that are actually in the annex are linked.
+ */
+const linkCitations = (html, validNs) => String(html)
+  .split(/(<a\b[\s\S]*?<\/a>)/g)
+  .map((seg, i) => (i % 2 ? seg : seg.replace(/\[Post #(\d+)\]/g, (m, n) => (validNs.has(Number(n)) ? `<a href="#e${n}" class="ref">[Post #${n}]</a>` : m))))
+  .join('');
+
 const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquarters, includeEvidence = true, labels = null }) => {
   const stats = summary?.stats || {};
   const event = summary?.event || {};
@@ -745,7 +759,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const factPlaces = analysis?.facts?.places || [];
   const geoReliable = Boolean(analysis?.facts);
   if (!geoReliable) { places = []; visits = []; }   // guessed places are not shown as facts
-  let geoIn = []; let geoOut = [];
+  let geoIn = []; let geoOut = []; let geoMapped = [];
   if (factPlaces.length) {
     const byN = new Map(ev.map((e) => [e.n, e]));
     const mapped = factPlaces.map((p) => {
@@ -753,11 +767,23 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       const inside = !regionWords.length || regionWords.some((w) => hay.includes(` ${w} `));
       return { name: p.name, region: p.region, count: p.mentioned, active: p.active, inside, sample: byN.get(p.posts[0]) || null, posts: p.posts };
     });
+    geoMapped = mapped;
     geoIn = mapped.filter((p) => p.inside && !regionWords.includes(foldGeo(p.name)));
     geoOut = mapped.filter((p) => !p.inside);
     places = geoIn.length ? geoIn : mapped.filter((p) => p.inside);
     const activeNs = new Set(mapped.filter((p) => p.inside && p.active).flatMap((p) => p.posts));
     visits = sortByDateAndTone(ev.filter((e) => activeNs.has(e.n)));
+  }
+
+  // A post is "outside the region" only when it names places and every one of them lies outside the event region.
+  // Posts that name no place, or any place inside the region, stay in the region's evidence.
+  const insideByName = new Map(geoMapped.map((p) => [foldGeo(p.name), p.inside]));
+  const outsideNs = new Set();
+  if (geoReliable) {
+    ev.forEach((e) => {
+      const names = analysis?.facts?.byPost?.[e.n]?.places || [];
+      if (names.length && names.every((nm) => insideByName.get(foldGeo(nm)) === false)) outsideNs.add(e.n);
+    });
   }
 
   const factPosts = new Set([...(analysis?.facts?.calls?.posts || []), ...(analysis?.facts?.violence?.posts || [])]);
@@ -916,6 +942,9 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     return esc(label);
   };
 
+  // Inside the brief a post reference jumps to its row in the evidence annex; the annex row holds the live link.
+  const postRefInternal = (e) => `<a href="#e${e.n}" class="ref">${esc(e.citationTag ? e.citationTag : `Post #${e.n}`)}</a>`;
+
   const authorProfileLink = (platOrObj, maybeAuthor, maybeSampleUrl) => {
     let plat = '';
     let author = '';
@@ -1022,20 +1051,38 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     )
     .join('');
 
-  const evidenceRows = sortByDateAndTone(ev)
+  const evidenceRowsFor = (list) => sortByDateAndTone(list)
     .map(
-      (e) => `<tr>
+      (e) => `<tr id="e${e.n}">
 <td>${postRefLink(e)}</td>
 <td>${esc(e.when)}</td>
 <td>${esc(placeLabel(e))}</td>
 <td>${esc(platLabel(e.plat))}</td>
 <td>${authorProfileLink(e.plat, e.author, e.url)}</td>
 <td class="tone-${e.sentK || 'neu'}">${esc(toneLabel(e.sentK))}</td>
-<td>${fmt(e.eng)}</td>
+<td>${fmt(e.inter)}</td>
 <td>${esc(clip(e.text, 240))}</td>
 </tr>`
     )
     .join('');
+  const inEv = ev.filter((e) => !outsideNs.has(e.n));
+  const outEv = ev.filter((e) => outsideNs.has(e.n));
+  const regionName = event.location || 'the event region';
+  const evidenceTable = (list, heading, kind) => `${heading ? `<div class="annex-sub${kind === 'ctx' ? ' ctx' : ''}"><b>${esc(heading)}</b><span>${fmt(list.length)} post${list.length === 1 ? '' : 's'}</span></div>` : ''}
+  <table>
+    <colgroup>
+      <col style="width:10%">
+      <col style="width:10%">
+      <col style="width:11%">
+      <col style="width:9.5%">
+      <col style="width:13%">
+      <col style="width:8.5%">
+      <col style="width:6%">
+      <col style="width:32%">
+    </colgroup>
+    <thead><tr><th>Post Link</th><th>When</th><th>Place</th><th>Platform</th><th>Account</th><th>Tone</th><th>Eng.</th><th>Text</th></tr></thead>
+    <tbody>${evidenceRowsFor(list) || '<tr><td colspan="8">No posts in this evidence set.</td></tr>'}</tbody>
+  </table>`;
 
   const narrHtml = narratives.length
     ? `<ul class="bul">${narratives
@@ -1139,7 +1186,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const callOut = n0(analysis?.facts?.callsOutside?.count);
   const violOut = n0(analysis?.facts?.violenceOutside?.count);
   if (callOut || violOut) rationaleParts.push(`${fmt(callOut + violOut)} further post${callOut + violOut === 1 ? '' : 's'} concern activity outside ${esc(event.location || 'the event region')} (${callOut ? `${fmt(callOut)} call for it` : ''}${callOut && violOut ? ', ' : ''}${violOut ? `${fmt(violOut)} mention violence` : ''}); this does not raise the level here.`);
-  rationaleParts.push(`${negativeSharePct}% of posts (${fmt(negativePostCount)}) are negative in tone. Negative tone is criticism, not a risk signal.`);
+  rationaleParts.push('Negative tone is criticism, not a risk signal.');
   const computedRationale = rationaleParts.join(' ');
 
   const threatDesc = computedRationale;
@@ -1155,7 +1202,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
         <span class="threat-pill ${threatPillClass}">Threat Level: ${esc(threatLevelVal)}</span>
         <span style="font-size:8.2pt;font-weight:700;color:${INK}">Operational Threat Assessment & Risk Rationale</span>
       </div>
-      <span style="font-size:6.8pt;color:${MUT};font-weight:700">${fmt(highRiskCount)} high-risk posts · ${negativeSharePct}% negative in tone</span>
+      <span style="font-size:6.8pt;color:${MUT};font-weight:700">${fmt(highRiskCount)} high-risk post${highRiskCount === 1 ? '' : 's'}</span>
     </div>
     
     <div class="threat-desc" style="font-size:7.4pt;color:#334155;line-height:1.4;margin-bottom:2mm">
@@ -1170,9 +1217,9 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
         </div>
       </div>
       <div style="background:#f8fafc;border:.6px solid #e2e8f0;padding:1.4mm 2mm;border-radius:2px">
-        <div style="font-size:6.1pt;color:#64748b;font-weight:700;text-transform:uppercase">Adverse Narrative Share</div>
-        <div style="font-size:7.2pt;font-weight:700;color:${negativeSharePct >= 20 ? '#b91c1c' : INK}">
-          ${negativeSharePct}% (${fmt(negativePostCount)} posts)
+        <div style="font-size:6.1pt;color:#64748b;font-weight:700;text-transform:uppercase">Narratives to Watch</div>
+        <div style="font-size:7.2pt;font-weight:700;color:${INK}">
+          ${fmt((analysis?.narrativesToWatch || analysis?.claims || []).length)} narrative${(analysis?.narrativesToWatch || analysis?.claims || []).length === 1 ? '' : 's'} flagged
         </div>
       </div>
       <div style="background:#f8fafc;border:.6px solid #e2e8f0;padding:1.4mm 2mm;border-radius:2px">
@@ -1200,7 +1247,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       <div class="action-item">
         <div class="action-title">2. Critical Monitored Posts Requiring Action</div>
         <div class="action-desc">
-          ${topFlaggedPosts.length ? topFlaggedPosts.map(p => `• ${postRefLink(p)} [${esc(platLabel(p.plat))}] by ${authorProfileLink(p.plat, p.author, p.url)}: "${esc(clip(p.text, 90))}"`).join('<br>') : '• No active high-threat posts flagged in this window.'}
+          ${topFlaggedPosts.length ? topFlaggedPosts.map(p => `• ${postRefInternal(p)} [${esc(platLabel(p.plat))}] by ${authorProfileLink(p.plat, p.author, p.url)}: "${esc(clip(p.text, 90))}"`).join('<br>') : '• No active high-threat posts flagged in this window.'}
         </div>
       </div>
     </div>
@@ -1248,25 +1295,13 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   <div class="sec" style="break-before:page;page-break-before:always"><span class="no">08.</span><span class="nm">Evidence Annex</span></div>
   <div class="metrics">
     ${metric(fmt(ev.length), 'Posts in this brief', 'Direct hyperlinks enabled for each evidence post')}
+    ${metric(fmt(inEv.length), `Posts in ${regionName}`, 'Cited in the sections above')}
+    ${metric(fmt(outEv.length), 'Outside the region', 'Context only; not counted as activity here')}
     ${metric(fmt(ev.filter((e) => e.posted_at).length), 'Dated posts', 'Verified publication timestamp')}
-    ${metric(fmt(sent.negative), 'Negative tone', `${pct(sent.negative, sentTotal)} of toned posts`)}
-    ${metric(fmt(places.length), 'Places named', topPlace ? `Lead site: ${topPlace.name}` : 'None named')}
   </div>
-  <p class="sm">All ${fmt(ev.length)} posts used for this brief. Click any Post # link to inspect the original live record.</p>
-  <table>
-    <colgroup>
-      <col style="width:11%">
-      <col style="width:13%">
-      <col style="width:14%">
-      <col style="width:9%">
-      <col style="width:14%">
-      <col style="width:8%">
-      <col style="width:7%">
-      <col style="width:24%">
-    </colgroup>
-    <thead><tr><th>Post Link</th><th>When</th><th>Place</th><th>Platform</th><th>Account</th><th>Tone</th><th>Eng.</th><th>Text</th></tr></thead>
-    <tbody>${evidenceRows || '<tr><td colspan="8">No posts in this evidence set.</td></tr>'}</tbody>
-  </table>` : '';
+  <p class="sm">Newest first. Click any Post # link to inspect the original live record; every [Post #n] cited above jumps to its row here. Eng. = likes + shares + comments. Tone is the automated rating.</p>
+  ${evidenceTable(inEv, outEv.length ? `Posts in ${regionName}` : '', 'in')}
+  ${outEv.length ? evidenceTable(outEv, `Outside ${regionName} (context only)`, 'ctx') : ''}` : '';
 
   // Group highWatchList by platform
   const platformGroups = {};
@@ -1341,28 +1376,29 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   <div class="kpi">
     <div><div class="n">${fmt(total)}</div><div class="l">Total posts</div></div>
     <div><div class="n">${esc(lead ? platLabel(lead[0]) : '—')}</div><div class="l">Lead platform</div></div>
-    <div><div class="n">${fmt(places.length)}</div><div class="l">Places covered</div></div>
-    <div><div class="n">${fmt(sent.negative)}</div><div class="l">Negative posts</div></div>
     <div><div class="n">${fmt(engTotal)}</div><div class="l">Interactions (likes, shares, comments)</div></div>
+    <div><div class="n">${fmt(critical.length)}</div><div class="l">Posts to review</div></div>
+    <div><div class="n">${haveFacts ? fmt(callN) : '—'}</div><div class="l">Posts calling people to act</div></div>
   </div>
 
-  <div class="kpi">
-    <div><div class="n">${pct(sent.positive, sentTotal)}</div><div class="l">Positive share</div></div>
-    <div><div class="n">${pct(sent.neutral, sentTotal)}</div><div class="l">Neutral share</div></div>
-    <div><div class="n">${pct(sent.negative, sentTotal)}</div><div class="l">Negative share</div></div>
-    <div><div class="n">${fmt(topKwA ? n0(topKwA.total_posts) : 0)}</div><div class="l">${esc(topKwA ? clip(topKwA.keyword, 22) : 'Top keyword')}</div></div>
-    <div><div class="n">${fmt(topKwB ? n0(topKwB.total_posts) : visits.length)}</div><div class="l">${esc(topKwB ? clip(topKwB.keyword, 22) : 'Field activity')}</div></div>
-  </div>
+  ${(() => {
+    const tiles = [
+      [haveFacts ? fmt(violenceN) : '—', 'Violence reports'],
+      [fmt(highRiskN), 'High / critical risk'],
+      [fmt(places.length), 'Places covered'],
+      topKwA ? [fmt(n0(topKwA.total_posts)), clip(topKwA.keyword, 22)] : null,
+      topKwB ? [fmt(n0(topKwB.total_posts)), clip(topKwB.keyword, 22)] : null,
+    ].filter(Boolean);
+    return `<div class="kpi" style="grid-template-columns:repeat(${tiles.length},1fr)">${tiles.map(([n, l]) => `<div><div class="n">${n}</div><div class="l">${esc(l)}</div></div>`).join('')}</div>`;
+  })()}
 
-  <p class="sm"><b>Active Platforms:</b> ${esc(platStr)}</p>
   <p class="sm"><b>Tracked Keywords:</b> ${esc(clip(kwStr, 280))}</p>
 
   <div class="charts">
     <div class="chartbox">
-      <h4>Platform Distribution & Sentiment Mix</h4>
+      <h4>Platform Distribution</h4>
       <p class="sm">Post volume distribution across monitored social and digital channels.</p>
       ${platformBars || '<p class="sm">No platform split.</p>'}
-      <div style="margin-top:2mm">${stackBar(briefSent)}</div>
     </div>
     <div class="chartbox">
       <h4>Keyword Share of Voice</h4>
@@ -1385,26 +1421,19 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${intelGridHtml}
 
   <div class="sec"><span class="no">01.</span><span class="nm">Situation and Risk Assessment</span></div>
-  <div class="metrics">
-    ${metric(fmt(critical.length), 'Posts to review', 'High-risk rating, call to act, or violence mentioned')}
-    ${metric(pct(sent.negative, sentTotal), 'Negative share', `${fmt(sent.negative)} of ${fmt(sentTotal)} toned posts`)}
-    ${metric(fmt(highRiskN), 'High / Critical risk', 'Priority alerts')}
-    ${metric(fmt(n0(riskCounts.medium)), 'Medium risk', 'Active tracking')}
-  </div>
   <div class="chartbox"><h4>Risk Bands</h4>${stackBar(riskParts)}</div>
   ${includeEvidence
-    ? (critical.length ? `<p class="sm">${fmt(critical.length)} post${critical.length === 1 ? '' : 's'} flagged for review (high-risk rating, call to act, or violence mentioned): ${critical.slice(0, 15).map((e) => postRefLink(e)).join(' · ')}. Full text of every post is in the evidence annex.</p>` : '<p class="sm">No post is flagged for review.</p>')
+    ? (critical.length ? `<p class="sm">Flagged for review (high-risk rating, call to act, or violence mentioned): ${critical.slice(0, 15).map((e) => postRefInternal(e)).join(' · ')}. Full text of every post is in the evidence annex.</p>` : '<p class="sm">No post is flagged for review.</p>')
     : critical.length > 0
-      ? `<p class="sm">${fmt(critical.length)} post${critical.length === 1 ? '' : 's'} flagged for review because of a high-risk rating, a call to act, or a mention of violence. Separately, ${pct(sent.negative, sentTotal)} of posts are negative in tone.</p>`
+      ? `<p class="sm">Posts are flagged for review because of a high-risk rating, a call to act, or a mention of violence. Tone is shown separately and is not a risk signal.</p>`
       : `<p class="sm">No critical, high-risk, or hostile posts detected in this dataset.</p>`}
   ${analysis?.publicOrder ? `<p><b>Public Order Assessment:</b> ${esc(analysis.publicOrder)}</p>` : ''}
 
   <div class="sec"><span class="no">02.</span><span class="nm">Where It Is Happening</span></div>
-  <div class="metrics">
+  <div class="metrics" style="grid-template-columns:repeat(3,1fr)">
     ${metric(fmt(visits.length), 'Posts reporting people on site', 'Reported by the posts; not verified')}
-    ${metric(fmt(places.length), 'Places named', topPlace ? `Highest: ${topPlace.name}` : 'None named')}
-    ${metric(topPlace ? fmt(topPlace.count) : '0', 'Top place volume', topPlace ? topPlace.name : '—')}
-    ${metric(fmt(visits.filter((e) => e.specific.length).length), 'Specific sites', 'Cities/districts/landmarks')}
+    ${metric(fmt(visits.filter((e) => e.specific.length).length), 'Specific sites', topPlace ? `Highest: ${topPlace.name}` : 'Cities/districts/landmarks')}
+    ${metric(fmt(geoOut.length), 'Places outside the region', 'Context only')}
   </div>
   <div class="chartbox">
     <h4>Top Locations Named in Discussion</h4>
@@ -1421,22 +1450,19 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
 <section class="pg">
   <div class="sec"><span class="no">03.</span><span class="nm">Activity and Ground Presence</span></div>
-  <div class="metrics">
+  <div class="metrics" style="grid-template-columns:repeat(2,1fr)">
     ${metric(fmt(activityPosts.length), 'Activity posts', 'Posts naming a bandh, rally, meeting, or blockade')}
-    ${metric(fmt(total), 'Posts in window', 'Total posts analyzed')}
-    ${metric(lead ? platLabel(lead[0]) : '—', 'Lead platform', lead ? `${fmt(lead[1])} posts, ${pct(lead[1], total)}` : 'No platform split')}
-    ${metric(fmt(engTotal), 'Interactions', `Likes + shares + comments${viewsTotal ? ` · ${fmt(viewsTotal)} views` : ''}`)}
+    ${metric(fmt((analysis?.activities || []).length), 'Activities named', 'Distinct campaigns, protests, bandhs and programmes')}
   </div>
   <p class="sm">Campaigns, meetings, protests, bandhs, rallies, and programmes named in the posts.</p>
   ${activityBrief ? `<ul class="bul">${activityBrief}</ul>` : narrHtml}
 
 
   <div class="sec"><span class="no">04.</span><span class="nm">Key Actors and Figures</span></div>
-  <div class="metrics">
+  <div class="metrics" style="grid-template-columns:repeat(3,1fr)">
     ${metric(fmt(entities.length), 'Entities classified', 'Who the posts are about')}
     ${metric(topEntity ? fmt(topEntity.total) : '0', topEntity ? topEntity.name : 'Top entity', topEntity ? `${pct(topEntity.crit, topEntity.total)} negative` : '—')}
     ${metric(fmt((analysis?.leaders || []).length), 'People named', 'Named in post text')}
-    ${metric(fmt(sent.negative), 'Negative posts', 'Negative sentiment volume')}
   </div>
   ${entityBars ? `<div class="chartbox"><h4>Tone by Entity</h4><p class="sm">Sentiment distribution categorized by monitored entity and subject.</p><div class="legend"><span><i style="background:${PR}"></i>Positive</span><span><i style="background:${NW}"></i>Neutral</span><span><i style="background:${CR}"></i>Negative</span></div>${entityBars}</div>` : ''}
   ${
@@ -1458,11 +1484,10 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${analysis?.platformsCommentary ? `<p>${esc(analysis.platformsCommentary)}</p>` : ''}
 
   <div class="sec"><span class="no">05.</span><span class="nm">Accounts to Watch</span></div>
-  <div class="metrics">
+  <div class="metrics" style="grid-template-columns:repeat(3,1fr)">
     ${metric(fmt(highWatchList.length), 'Profiles tracked', 'Monitored accounts categorized by platform')}
     ${metric(fmt(highWatchList.filter((p) => p.tier === 'priority').length), 'High watch tier', 'Priority surveillance & escalation targets')}
     ${metric(topVoice ? fmt(topVoice.count) : '0', topVoice ? clip(topVoice.author, 16) : 'Top account', topVoice ? platLabel(topVoice.platform) : '—')}
-    ${metric(fmt(engTotal), 'Interactions', `Likes + shares + comments${viewsTotal ? ` · ${fmt(viewsTotal)} views` : ''}`)}
   </div>
   <div class="chartbox">
     <h4>Top Accounts by Interactions</h4>
@@ -1476,15 +1501,9 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     : ''}
 
   <div class="sec"><span class="no">06.</span><span class="nm">Public Reaction and Tone</span></div>
-  <div class="kpi">
-    <div><div class="n tone-pos">${fmt(sent.positive)}</div><div class="l">Positive (${pct(sent.positive, sentTotal)})</div></div>
-    <div><div class="n tone-neu">${fmt(sent.neutral)}</div><div class="l">Neutral (${pct(sent.neutral, sentTotal)})</div></div>
-    <div><div class="n tone-neg">${fmt(sent.negative)}</div><div class="l">Negative (${pct(sent.negative, sentTotal)})</div></div>
-    <div><div class="n">${fmt(sent.positive + sent.neutral + sent.negative)}</div><div class="l">Toned volume</div></div>
-    <div><div class="n">${fmt(total)}</div><div class="l">Total posts</div></div>
-  </div>
   <div class="chartbox">
     <h4>Tone Breakdown</h4>
+    <p class="sm">Positive, neutral and negative posts, with counts and shares. Negative tone is criticism, not a risk signal.</p>
     <div class="donutwrap">${donutSvg(briefSent, pct(sent.negative, sentTotal), 'Negative')}<div style="flex:1">${stackBar(briefSent)}</div></div>
   </div>
 
@@ -1498,16 +1517,14 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     <b>Executive Brief Summary</b><br>
     • Target Force: ${hq ? esc(`${hq.head}, ${hq.force}, ${hq.addressLine}`) : esc(tenant)}.<br>
     • Monitored Event: ${esc(event.name || '—')}.<br>
-    • Posts analysed from database: ${fmt(total)}.${includeEvidence ? ` Cited evidence: ${fmt(ev.length)}.` : ' The post-by-post evidence is in the full report.'}<br>
-    • Platforms: ${esc(platStr)}.<br>
-    • Places named in posts: ${fmt(places.length)}${places[0] ? `; highest volume in ${esc(places[0].name)}` : ''}.<br>
-    • Sentiment (Positive / Neutral / Negative): ${fmt(sent.positive)} / ${fmt(sent.neutral)} / ${fmt(sent.negative)}.
+    • ${includeEvidence ? 'Every post cited in this report is listed, with its live link, in the evidence annex.' : 'The post-by-post evidence is in the full report.'}${outsideNs.size ? ` Posts about places outside ${esc(regionName)} are context only and are not counted as activity there.` : ''}<br>
+    • Tone and risk ratings are automated. Claims, locations and on-site reports are as posted and are not verified. Closed groups and private messaging are not covered.
   </div>
 </section>
 `;
 
   // The executive brief carries no post links: citations are for the full report.
-  const finalBody = localizeHtml(includeEvidence ? body.replace(/(\[Post #\d+\])\s*\((?:Posts? #\d+(?:,\s*)?)+\)/g, '$1').replace(/\s*\((?:Posts? #\d+(?:,\s*)?)+\)(?=\s*<span class="sm">)/g, '') : body
+  const finalBody = localizeHtml(includeEvidence ? linkCitations(body.replace(/(\[Post #\d+\])\s*\((?:Posts? #\d+(?:,\s*)?)+\)/g, '$1').replace(/\s*\((?:Posts? #\d+(?:,\s*)?)+\)(?=\s*<span class="sm">)/g, ''), new Set(ev.map((e) => e.n))) : body
     .replace(/\s*<span class="sm">(?:\s*\[Post #\d+\])+\s*<\/span>/g, '')
     .replace(/\s*\((?:Posts? #\d+(?:,\s*)?)+\)/g, '')
     .replace(/\s*\[Post #\d+\]/g, '')

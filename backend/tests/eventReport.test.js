@@ -163,3 +163,41 @@ test('a place name that only exists in another country than the model said is no
   assert.strictEqual(g.lookupPlace('Umarkot', 'Odisha', 'Odisha, India'), null);
   assert.strictEqual(g.lookupPlace('Cuttack', 'Odisha', 'Odisha, India').region, 'Odisha');
 });
+
+const evRow = (n, o = {}) => ({ citationTag: `[Post #${n}]`, id: String(n), platform: 'facebook', author: `acct${n}`, text: `Post ${n} about the bandh`, sentiment: 'neutral', risk_level: 'low', url: `https://facebook.com/p/${n}`, posted_at: '2026-10-07T10:00:00Z', likes: 3, shares: 0, comments: 0, views: 0, ...o });
+const evSummary = { event: { name: 'E', location: 'Odisha' }, stats: { total_unique_posts: 2, sentiment_counts: { positive: 0, neutral: 2, negative: 0 }, platform_counts: { facebook: 2 } }, evidence_traceability: [evRow(1), evRow(2)] };
+const evAnalysis = {
+  bottomLine: 'A bandh was called. [Post #1]',
+  facts: {
+    places: [{ name: 'Bhubaneswar', region: 'Odisha, India', mentioned: 1, active: 1, posts: [1] }, { name: 'Kozhikode', region: 'Kerala, India', mentioned: 1, active: 1, posts: [2] }],
+    byPost: { 1: { places: ['Bhubaneswar'] }, 2: { places: ['Kozhikode'] } },
+    calls: { count: 0, posts: [] }, violence: { count: 0, posts: [] }, accounts: [], activities: [],
+  },
+};
+
+test('full report: each [Post #n] in the brief links to its annex row, and annex rows carry the target id', () => {
+  const html = buildReportHtml({ summary: evSummary, keywordData: null, tenantName: 'odisha', analysis: evAnalysis, headquarters: null, includeEvidence: true });
+  assert.ok(/<a href="#e1" class="ref">\[Post #1\]<\/a>/.test(html));
+  assert.ok(/<tr id="e1">/.test(html) && /<tr id="e2">/.test(html));
+  assert.ok(/href="https:\/\/facebook\.com\/p\/1"/.test(html));   // the annex row still holds the live link
+});
+
+test('annex lists posts about other regions apart, as context only', () => {
+  const html = buildReportHtml({ summary: evSummary, keywordData: null, tenantName: 'odisha', analysis: evAnalysis, headquarters: null, includeEvidence: true });
+  assert.ok(/Posts in Odisha/.test(html));
+  assert.ok(/Outside Odisha \(context only\)/.test(html));
+  const inPart = html.slice(html.indexOf('Posts in Odisha'), html.indexOf('Outside Odisha (context only)'));
+  assert.ok(inPart.includes('id="e1"') && !inPart.includes('id="e2"'));
+});
+
+test('each headline number appears once: no repeated tone or total tiles', () => {
+  const html = buildReportHtml({ summary: evSummary, keywordData: null, tenantName: 'odisha', analysis: evAnalysis, headquarters: null, includeEvidence: true });
+  assert.ok(!/Negative share|Positive share|Neutral share|Toned volume|Posts in window/.test(html));
+  assert.strictEqual((html.match(/Total posts/g) || []).length, 1);
+});
+
+test('executive brief still carries no post links after the citation change', () => {
+  const html = buildReportHtml({ summary: evSummary, keywordData: null, tenantName: 'odisha', analysis: evAnalysis, headquarters: null, includeEvidence: false });
+  assert.ok(!/Post #\d/.test(html));
+  assert.ok(!/href="#e\d/.test(html));
+});
