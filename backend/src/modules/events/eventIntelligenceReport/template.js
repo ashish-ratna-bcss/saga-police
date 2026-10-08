@@ -491,7 +491,17 @@ tr{break-inside:avoid}thead{display:table-header-group}
 .chartbox p{margin:0 0 2mm}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:2.6mm;align-items:stretch}
 .grid2>.chartbox{margin-bottom:2.6mm}
-.donutwrap{display:flex;align-items:center;gap:3mm}
+.donutwrap{display:flex;align-items:center;gap:4mm}
+.trows{flex:1;min-width:0}
+.trow{display:grid;grid-template-columns:1fr auto 11mm;align-items:center;gap:2mm;padding:.9mm 0;border-bottom:.5px solid #EEF2F6;font-size:7.4pt;color:#334155}
+.trow:last-child{border-bottom:none}
+.trow.tone{grid-template-columns:1fr 22mm;padding:1.4mm 0}
+.trow .tl{display:flex;align-items:center;min-width:0;overflow:hidden;white-space:nowrap}
+.trow .tl i{flex:none;width:6px;height:6px;border-radius:50%;margin-right:1.6mm}
+.trow .tv{font-weight:700;color:${INK};text-align:right}
+.trow .tp{color:${MUT};text-align:right}
+.platbars .hbar{grid-template-columns:18mm 1fr 18mm;margin-bottom:2.6mm}
+.platbars .track{height:7px}
 
 /* Timeline and what-to-watch boxes */
 .dates-box,.watch-box{border:.6px solid ${LINE};border-radius:4px;padding:2.6mm 3.2mm;background:#fff}
@@ -591,33 +601,42 @@ const timelineChart = (days) => {
   const rows = (days || []).slice(-24);
   if (!rows.length) return '<p class="sm">No daily series in this window.</p>';
   const w = 340;
-  const h = 70;
-  const padL = 8;
-  const padR = 8;
-  const padT = 8;
+  const h = 96;
+  const padL = 28;
+  const padR = 10;
+  const padT = 14;
   const padB = 16;
   const max = Math.max(...rows.map((d) => n0(d.count)), 1);
-  const step = rows.length > 1 ? (w - padL - padR) / (rows.length - 1) : 0;
-  const pts = rows.map((d, i) => {
-    const x = padL + i * step;
-    const y = h - padB - ((h - padT - padB) * n0(d.count)) / max;
-    return [x, y];
-  });
+  const inset = 8;
+  const step = rows.length > 1 ? (w - padL - padR - 2 * inset) / (rows.length - 1) : 0;
+  const xOf = (i) => (rows.length > 1 ? padL + inset + i * step : (w + padL - padR) / 2);
+  const yOf = (v) => h - padB - ((h - padT - padB) * n0(v)) / max;
+  const pts = rows.map((d, i) => [xOf(i), yOf(d.count)]);
   const line = pts.map((p) => p.join(',')).join(' ');
   const area = `${pts[0][0]},${h - padB} ${line} ${pts[pts.length - 1][0]},${h - padB}`;
-  const labelAt = [0, Math.floor((rows.length - 1) / 2), rows.length - 1].filter((v, i, a) => a.indexOf(v) === i);
-  const labels = labelAt.map((i) => {
-    const raw = String(rows[i].date || '');
-    const bits = raw.split('-');
-    const text = bits.length === 3 ? `${bits[2]}/${bits[1]}` : raw.slice(5);
-    const anchor = i === 0 ? 'start' : i === rows.length - 1 ? 'end' : 'middle';   // the first and last labels stay inside the chart
-    return `<text x="${i === 0 ? pts[i][0] - 4 : i === rows.length - 1 ? pts[i][0] + 4 : pts[i][0]}" y="${h - 3}" text-anchor="${anchor}" font-size="7" fill="#6B7C8A">${esc(text)}</text>`;
+  const grid = [0, 0.5, 1].map((f) => {
+    const v = Math.round(max * f);
+    const y = yOf(max * f);
+    return `<line x1="${padL}" x2="${w - padR}" y1="${y}" y2="${y}" stroke="#E2E8F0" stroke-width="0.6" ${f === 0 ? '' : 'stroke-dasharray="2 2"'}/><text x="${padL - 4}" y="${y + 2.4}" text-anchor="end" font-size="6.5" fill="#6B7C8A">${fmt(v)}</text>`;
   }).join('');
+  const every = rows.length > 12 ? Math.ceil(rows.length / 10) : 1;
+  const labels = rows.map((d, i) => {
+    if (i % every !== 0 && i !== rows.length - 1) return '';
+    const bits = String(d.date || '').split('-');
+    const text = bits.length === 3 ? `${bits[2]}/${bits[1]}` : String(d.date || '').slice(5);
+    return `<text x="${pts[i][0]}" y="${h - 4}" text-anchor="middle" font-size="6.5" fill="#6B7C8A">${esc(text)}</text>`;
+  }).join('');
+  const peakI = rows.reduce((bi, d, i) => (n0(d.count) > n0(rows[bi].count) ? i : bi), 0);
+  const values = rows.map((d, i) => (rows.length <= 12 || i === peakI
+    ? `<text x="${pts[i][0]}" y="${pts[i][1] - 4}" text-anchor="middle" font-size="6.5" font-weight="700" fill="${i === peakI ? '#C45C26' : '#12324D'}">${fmt(d.count)}</text>`
+    : '')).join('');
   return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block">
-    <defs><linearGradient id="tlfill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stop-color="#2F5D8A" stop-opacity="0.28"/><stop offset="95%" stop-color="#2F5D8A" stop-opacity="0"/></linearGradient></defs>
+    <defs><linearGradient id="tlfill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stop-color="#2F5D8A" stop-opacity="0.22"/><stop offset="95%" stop-color="#2F5D8A" stop-opacity="0"/></linearGradient></defs>
+    ${grid}
     <polygon points="${area}" fill="url(#tlfill)"/>
-    <polyline points="${line}" fill="none" stroke="#2F5D8A" stroke-width="1.8"/>
-    ${pts.map((p) => `<circle cx="${p[0]}" cy="${p[1]}" r="1.8" fill="#2F5D8A"/>`).join('')}
+    <polyline points="${line}" fill="none" stroke="#2F5D8A" stroke-width="1.4" stroke-linejoin="round"/>
+    ${pts.map((p, i) => `<circle cx="${p[0]}" cy="${p[1]}" r="${i === peakI ? 2.6 : 1.8}" fill="${i === peakI ? '#C45C26' : '#2F5D8A'}"/>`).join('')}
+    ${values}
     ${labels}
   </svg>
   <div class="legend"><span>Daily posts by publication date. Peak ${fmt(max)}. ${rows.length} day${rows.length === 1 ? '' : 's'}.</span></div>`;
@@ -1194,13 +1213,14 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   const matchTotal = n0(kwa?.summary?.total_matched_posts) || sovParts.reduce((s, p) => s + n0(p.v), 0);
   const keywordStacks = comparisons.map((c) => `
-    <div class="hbar" style="grid-template-columns:36mm 1fr;margin-bottom:2.2mm">
-      <div class="hl">${esc(clip(c.keyword, 28))}</div>
+    <div class="hbar" style="grid-template-columns:30mm 1fr 9mm;margin-bottom:1.8mm">
+      <div class="hl" style="text-align:left">${esc(clip(c.keyword, 26))}</div>
       <div>${stackBar([
         { k: 'Positive', v: c.positive, c: POS },
         { k: 'Neutral', v: c.neutral, c: NEU },
         { k: 'Negative', v: c.negative, c: NEG },
       ], false)}</div>
+      <div class="hn" style="text-align:right">${fmt(c.posts)}</div>
     </div>`).join('');
   const riskCounts = scoped ? riskFrom(inEv) : (stats.risk_counts || kwa?.summary?.risk_levels || {});
   const riskParts = [
@@ -1529,12 +1549,12 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     <div class="chartbox">
       <h4>Tone Breakdown</h4>
       <p class="sm">Positive, neutral and negative posts. Negative tone is criticism, not a risk signal.</p>
-      <div class="donutwrap">${donutSvg(briefSent, pct(sent.negative, sentTotal), 'Negative')}<div style="flex:1">${stackBar(briefSent)}</div></div>
+      <div class="donutwrap">${donutSvg(briefSent, pct(sent.negative, sentTotal), 'Negative')}<div class="trows">${briefSent.map((x) => `<div class="trow tone"><span class="tl"><i style="background:${x.c}"></i><span>${esc(x.k)} ${fmt(x.v)} (${pct(x.v, sentTotal)})</span></span><span class="track"><span class="fill" style="display:block;width:${(100 * n0(x.v)) / sentTotal}%;background:${x.c}"></span></span></div>`).join('')}</div></div>
     </div>
     <div class="chartbox">
       <h4>Platform Distribution</h4>
       <p class="sm">Post volume across monitored social and digital channels.</p>
-      ${platformBars || '<p class="sm">No platform split.</p>'}
+      <div class="platbars">${platformBars || '<p class="sm">No platform split.</p>'}</div>
     </div>
   </div>
   <div class="chartbox">
@@ -1546,7 +1566,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     <div class="chartbox">
       <h4>Keyword Share of Voice</h4>
       <p class="sm">Proportional share of keyword mentions across monitored discourse.</p>
-      ${sovParts.length ? `<div class="donutwrap">${donutSvg(sovParts, fmt(matchTotal), 'mentions')}<div class="legend" style="flex-direction:column;gap:1mm;margin:0">${sovParts.map((p) => `<span><i style="background:${p.c}"></i>${esc(clip(p.k, 24))} ${fmt(p.v)}</span>`).join('')}</div></div>` : '<p class="sm">No keyword split for this event.</p>'}
+      ${sovParts.length ? `<div class="donutwrap">${donutSvg(sovParts, fmt(matchTotal), 'mentions')}<div class="trows">${sovParts.map((p) => `<div class="trow"><span class="tl"><i style="background:${p.c}"></i>${esc(clip(p.k, 24))}</span><span class="tv">${fmt(p.v)}</span><span class="tp">${pct(p.v, matchTotal)}</span></div>`).join('')}</div></div>` : '<p class="sm">No keyword split for this event.</p>'}
     </div>
     ${keywordStacks ? `<div class="chartbox"><h4>Sentiment by Keyword</h4><p class="sm">Categorized sentiment distribution across individual keywords.</p><div class="legend" style="margin:0 0 1.6mm"><span><i style="background:${POS}"></i>Positive</span><span><i style="background:${NEU}"></i>Neutral</span><span><i style="background:${NEG}"></i>Negative</span></div>${keywordStacks}</div>` : '<div></div>'}
   </div>
