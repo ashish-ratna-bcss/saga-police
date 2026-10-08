@@ -433,7 +433,7 @@ th{word-break:keep-all;overflow-wrap:normal;hyphens:none}tr{break-inside:avoid}t
 .legend{display:flex;flex-wrap:wrap;gap:2.8mm;margin-top:1.1mm;font-size:6.8pt;color:#3D5568}
 .legend i{display:inline-block;width:6.5px;height:6.5px;border-radius:1px;margin-right:1mm;vertical-align:middle}
 .chartbox{border:.6px solid ${LINE};border-radius:3px;padding:2.3mm;background:#fff;margin:0 0 2.3mm;break-inside:avoid;page-break-inside:avoid}
-.metrics{break-inside:avoid;page-break-inside:avoid}
+.metrics{break-inside:avoid;page-break-inside:avoid;break-after:avoid;page-break-after:avoid}
 .chartbox h4{margin:0 0 .3mm;font-size:7.8pt;color:${NAVY}}
 .chartbox p{margin:0 0 1.6mm}
 .charts{display:grid;grid-template-columns:1.3fr .7fr;gap:2.4mm;margin:0 0 2.3mm}
@@ -1534,7 +1534,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   <div class="chartbox">
     <h4>Top Accounts by Interactions</h4>
     <p class="sm">Interactions = likes + shares + comments. Views are shown separately and are not added in.</p>
-    ${Object.values(authors).sort((x, y) => (y.inter || 0) - (x.inter || 0)).slice(0, 8).map((a, _i, arr) => hbar(a.author, a.inter, Math.max(1, arr[0]?.inter || 1), '#6366f1', `${a.vw ? `${fmt(a.vw)} views` : 'views not reported'} · ${a.count} post${a.count === 1 ? '' : 's'}`, 'interactions')).join('') || '<p class="sm">No accounts in this set.</p>'}
+    ${Object.values(authors).sort((x, y) => (y.inter || 0) - (x.inter || 0)).slice(0, 8).map((a, _i, arr) => hbar(a.author, a.inter, Math.max(1, arr[0]?.inter || 1), '#6366f1', `${a.count} post${a.count === 1 ? '' : 's'}`, 'interactions')).join('') || '<p class="sm">No accounts in this set.</p>'}
   </div>
   <p class="sm">Surveillance register limited to the Top ${highWatchList.length} high-engagement accounts across platforms with direct profile links.</p>
   ${haveFacts && violenceN === 0 ? `<p class="sm">${esc(L('No post from the accounts listed here reports violence or damage.'))}</p>` : ''}
