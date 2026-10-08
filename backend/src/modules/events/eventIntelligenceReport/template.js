@@ -706,7 +706,41 @@ const linkCitations = (html, validNs) => String(html)
   .map((seg, i) => (i % 2 ? seg : seg.replace(/\[Post #(\d+)\]/g, (m, n) => (validNs.has(Number(n)) ? `<a href="#e${n}" class="ref">[Post #${n}]</a>` : m))))
   .join('');
 
-const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquarters, includeEvidence = true, labels = null }) => {
+/**
+ * The brief for one region only: drops everything the analysis says about posts that are all outside the region, and any
+ * sentence of the model's free text that names a place outside it. Counts and charts are already built from the region's posts.
+ */
+const regionFilter = (analysis, outsideNs, outsideNames) => {
+  if (!analysis) return analysis;
+  const inside = (posts) => !posts || !posts.length || posts.some((n) => !outsideNs.has(Number(n)));
+  const keep = (list) => (Array.isArray(list) ? list.filter((x) => inside(x?.posts)) : list);
+  const names = (outsideNames || []).map((n) => String(n).toLowerCase()).filter((n) => n.length > 2);
+  const clean = (text) => {
+    if (!text || !names.length) return text;
+    const kept = String(text).split(/(?<=[.!?।])\s+/).filter((sen) => { const low = sen.toLowerCase(); return !names.some((n) => low.includes(n)); });
+    return kept.join(' ');
+  };
+  const strands = keep(analysis.issueStrands);
+  return {
+    ...analysis,
+    bottomLine: clean(analysis.bottomLine),
+    publicOrder: clean(analysis.publicOrder),
+    platformsCommentary: '',
+    issueStrands: strands,
+    issueLink: strands?.length === (analysis.issueStrands || []).length ? clean(analysis.issueLink) : '',
+    known: keep(analysis.known),
+    actions: keep(analysis.actions),
+    narrativesToWatch: keep(analysis.narrativesToWatch),
+    claims: keep(analysis.claims),
+    keyDates: (analysis.keyDates || []).filter((k) => !k.outside && inside(k.posts)),
+    activities: keep(analysis.activities),
+    leaders: keep(analysis.leaders),
+    amplifiers: keep(analysis.amplifiers),
+    geography: keep(analysis.geography),
+  };
+};
+
+const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquarters, includeEvidence = true, labels = null, regionOnly = false }) => {
   setReportTz(headquarters?.timezone);
   // Fixed wording that carries a value (a region, a count) goes through the label map here, because the post-build
   // translation only replaces text that is exactly one label. {placeholders} are kept by the translator.
@@ -805,6 +839,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   // Without place data the monitor-wide numbers are kept, so nothing is invented.
   const scopeInfo = classifyEvidence(ev, analysis, event);
   const { inEv, outEv, outsideNs } = scopeInfo;
+  if (regionOnly && scopeInfo.reliable) analysis = regionFilter(analysis, outsideNs, scopeInfo.outsideNames);
   const regionName = event.location || 'the event region';
   const relevantTotal = n0(stats.relevant_posts_count) || ev.length;
   const scoped = scopeInfo.reliable && inEv.length > 0;
@@ -881,6 +916,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     geoIn = mapped.filter((p) => p.inside && !regionWords.includes(foldGeo(p.name)));
     geoOut = mapped.filter((p) => !p.inside);
     places = geoIn.length ? geoIn : mapped.filter((p) => p.inside);
+    if (regionOnly) geoOut = [];
     const activeNs = new Set(mapped.filter((p) => p.inside && p.active).flatMap((p) => p.posts));
     visits = sortByDateAndTone(ev.filter((e) => activeNs.has(e.n)));
   }
@@ -1280,7 +1316,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   if (highRiskCount > 0) rationaleParts.push(plural(highRiskCount, '{n} post is rated high risk by the post analysis.', '{n} posts are rated high risk by the post analysis.'));
   const callOut = n0(analysis?.facts?.callsOutside?.count);
   const violOut = n0(analysis?.facts?.violenceOutside?.count);
-  if (callOut || violOut) {
+  if ((callOut || violOut) && !regionOnly) {
     const detail = [callOut ? L('{n} call for it', { n: fmt(callOut) }) : '', violOut ? L('{n} mention violence', { n: fmt(violOut) }) : ''].filter(Boolean).join(', ');
     rationaleParts.push(L('{n} further posts concern activity outside {region} ({detail}); this does not raise the level here.', { n: fmt(callOut + violOut), region: esc(event.location || 'the event region'), detail }));
   }
@@ -1488,10 +1524,10 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   const whereSection = () => `
   ${secHead('Where It Is Happening')}
-  <div class="metrics" style="grid-template-columns:repeat(3,1fr)">
+  <div class="metrics" style="grid-template-columns:repeat(${regionOnly ? 2 : 3},1fr)">
     ${metric(fmt(visits.length), 'Posts reporting people on site', 'Reported by the posts; not verified')}
     ${metric(fmt(visits.filter((e) => e.specific.length).length), 'Specific sites', topPlace ? `Highest: ${topPlace.name}` : 'Cities/districts/landmarks')}
-    ${metric(fmt(geoOut.length), 'Places outside the region', 'Context only')}
+    ${regionOnly ? '' : metric(fmt(geoOut.length), 'Places outside the region', 'Context only')}
   </div>
   <div class="chartbox">
     <h4>Top Locations Named in Discussion</h4>
@@ -1562,7 +1598,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     <p class="sm">Chronological posting volume over the monitored window.</p>
     ${timelineChart(scoped ? dailySeries(inEv) : kwa?.timeline_overall)}
   </div>
-  <div class="grid2">
+  ${regionOnly ? '' : `<div class="grid2">
     <div class="chartbox">
       <h4>Keyword Share of Voice</h4>
       <p class="sm">Proportional share of keyword mentions across monitored discourse.</p>
@@ -1570,14 +1606,14 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     </div>
     ${keywordStacks ? `<div class="chartbox"><h4>Sentiment by Keyword</h4><p class="sm">Categorized sentiment distribution across individual keywords.</p><div class="legend" style="margin:0 0 1.6mm"><span><i style="background:${POS}"></i>Positive</span><span><i style="background:${NEU}"></i>Neutral</span><span><i style="background:${NEG}"></i>Negative</span></div>${keywordStacks}</div>` : '<div></div>'}
   </div>
-  <p class="sm"><b>Tracked Keywords:</b> ${esc(clip(kwStr, 280))}</p>`;
+  <p class="sm"><b>Tracked Keywords:</b> ${esc(clip(kwStr, 280))}</p>`}`;
 
   const notesHtml = `
   <div class="footnote">
     <b>Executive Brief Summary</b><br>
     • Target Force: ${hq ? esc(`${hq.head}, ${hq.force}, ${hq.addressLine}`) : esc(tenant)}.<br>
     • Monitored Event: ${esc(event.name || '—')}.<br>
-    • ${includeEvidence ? esc(L('Every post cited in this report is listed, with its live link, in the evidence annex.')) : esc(L('The post-by-post evidence is in the full report.'))}${outsideNs.size ? ` ${esc(L('Posts about places outside {region} are context only and are not counted as activity there.', { region: regionName }))}` : ''}<br>
+    • ${includeEvidence ? esc(L('Every post cited in this report is listed, with its live link, in the evidence annex.')) : esc(L('The post-by-post evidence is in the full report.'))}${regionOnly ? ` ${esc(`This report covers ${regionName} only; posts and places elsewhere are left out.`)}` : outsideNs.size ? ` ${esc(L('Posts about places outside {region} are context only and are not counted as activity there.', { region: regionName }))}` : ''}<br>
     • ${esc(L('Tone and risk ratings are automated. Claims, locations and on-site reports are as posted and are not verified. Closed groups and private messaging are not covered.'))}
   </div>`;
 
@@ -1593,8 +1629,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     <div class="meta">
       <span><i>Monitoring window</i><b>${esc(windowStr)}</b></span>
       <span><i>Generated</i><b>${esc(dateStr)}</b></span>
-      <span><i>Posts analysed</i><b>${scoped ? L('{n} in {region} of {m} monitored', { n: fmt(inEv.length), region: esc(regionName), m: fmt(monitoredTotal) }) : fmt(total)}</b></span>
-      <span><i>Report format</i><b>${includeEvidence ? `With Evidence (${fmt(ev.length)})` : 'Executive Brief'}</b></span>
+      <span><i>Posts analysed</i><b>${regionOnly && scoped ? `${fmt(inEv.length)} · ${esc(regionName)} only` : scoped ? L('{n} in {region} of {m} monitored', { n: fmt(inEv.length), region: esc(regionName), m: fmt(monitoredTotal) }) : fmt(total)}</b></span>
+      <span><i>Report format</i><b>${includeEvidence ? `With Evidence (${fmt(ev.length)})` : regionOnly ? `${esc(regionName)} Only Brief` : 'Executive Brief'}</b></span>
     </div>
   </header>
   ${hqHtml}

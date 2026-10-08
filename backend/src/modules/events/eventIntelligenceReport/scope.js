@@ -22,9 +22,11 @@ const classifyEvidence = (ev = [], analysis = null, event = {}) => {
       if (names.length && names.every((nm) => insideByName.get(foldGeo(nm)) === false)) outsideNs.add(e.n);
     });
   }
+  const outsideNames = factPlaces.filter((p) => insideByName.get(foldGeo(p.name)) === false).map((p) => p.name);
   return {
     reliable,
     outsideNs,
+    outsideNames,
     inEv: ev.filter((e) => !outsideNs.has(e.n)),
     outEv: ev.filter((e) => outsideNs.has(e.n)),
   };

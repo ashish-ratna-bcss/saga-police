@@ -353,3 +353,26 @@ test('a 400-post event builds quickly, every post has an anchor, and long text i
   assert.strictEqual((html.match(/<tr id="e\d+">/g) || []).length, 400);
   assert.ok(/long long long long long long long long long long/.test(html.slice(html.indexOf('id="e400"'))));
 });
+
+test('region-only brief drops outside-region posts, places, dates and sentences, and has no annex', () => {
+  const posts = [
+    { citationTag: '[Post #1]', id: '1', platform: 'facebook', author: 'a', text: 'Bandh in Bhubaneswar', sentiment: 'neutral', risk_level: 'low', posted_at: '2026-10-08T05:00:00Z', likes: 5 },
+    { citationTag: '[Post #2]', id: '2', platform: 'x', author: 'b', text: 'Protest in Mumbai', sentiment: 'neutral', risk_level: 'low', posted_at: '2026-10-07T05:00:00Z', likes: 9 },
+  ];
+  const facts = { places: [{ name: 'Bhubaneswar', region: 'Odisha, India', mentioned: 1, active: 1, posts: [1] }, { name: 'Mumbai', region: 'Maharashtra, India', mentioned: 1, active: 1, posts: [2] }], byPost: { 1: { places: ['Bhubaneswar'] }, 2: { places: ['Mumbai'] } }, calls: { count: 1, posts: [1] }, violence: { count: 0, posts: [] }, accounts: [], activities: [] };
+  const a = {
+    bottomLine: 'A bandh is called in Bhubaneswar. A protest is planned in Mumbai.',
+    issueStrands: [{ title: 'Odisha bandh', who: 'INDIA bloc', demand: 'x', status: 'y', posts: [1] }, { title: 'Mumbai march', who: 'CJP', demand: 'z', status: 'w', posts: [2] }],
+    keyDates: [{ date: '2026-10-08', event: 'Bandh', posts: [1] }, { date: '2026-10-10', event: 'March in Mumbai', posts: [2], outside: true }],
+    actions: [{ action: 'Watch Mumbai: Cyber Cell', detail: 'd', posts: [2] }, { action: 'Watch roads: Police', detail: 'd', posts: [1] }],
+    facts,
+  };
+  const summary = { event: { name: 'E', location: 'Odisha' }, stats: {}, evidence_traceability: posts };
+  const html = buildReportHtml({ summary, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false, regionOnly: true });
+  assert.ok(/Bhubaneswar/.test(html) && /Odisha bandh/.test(html) && /Watch roads/.test(html));
+  assert.ok(!/Mumbai/.test(html));
+  assert.ok(!/Evidence Annex/.test(html));
+  assert.ok(/Odisha Only Brief/.test(html));
+  const normal = buildReportHtml({ summary, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false });
+  assert.ok(/Mumbai/.test(normal));
+});

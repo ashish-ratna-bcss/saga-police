@@ -46,6 +46,7 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ArrowRight,
+  MapPin,
 } from 'lucide-react';
 import {
   XBrandLogo,
@@ -699,7 +700,8 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
    * server (HTML → PDF) from the cached Summary AI result and keyword analytics, so charts
    * and multilingual post text render consistently.
    */
-  const handleDownload = async (withEvidence = true) => {
+  const regionLabel = summaryData?.event?.location || 'Region';
+  const handleDownload = async (withEvidence = true, regionOnly = false) => {
     if (!summaryData?.summary || !eventId) return;
     setPdfGenerating(true);
     try {
@@ -710,6 +712,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
           from_date: fromDate || undefined,
           to_date: toDate || undefined,
           include_evidence: withEvidence ? 'true' : 'false',
+          scope: regionOnly ? 'region' : undefined,
         },
         responseType: 'blob',
         timeout: 300000,
@@ -720,12 +723,12 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       const link = document.createElement('a');
       link.href = url;
       const tfSuffix = timeframe && timeframe !== 'full' ? `_${safe(timeframe).toUpperCase()}` : '';
-      link.download = `${safe(tenantName)}_${safe(displayName)}${tfSuffix}_Report_${withEvidence ? 'With_Evidence' : 'Executive'}.pdf`;
+      link.download = `${safe(tenantName)}_${safe(displayName)}${tfSuffix}_Report_${withEvidence ? 'With_Evidence' : regionOnly ? 'Region_Only' : 'Executive'}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      toast.success(`Event Intelligence report (${withEvidence ? 'with evidence' : 'executive summary'}) downloaded`);
+      toast.success(`Event Intelligence report (${withEvidence ? 'with evidence' : regionOnly ? `${regionLabel} only` : 'executive summary'}) downloaded`);
     } catch (err) {
       console.error('Failed to generate PDF report:', err);
       toast.error('Failed to generate PDF report: ' + (err?.response?.statusText || err.message));
@@ -880,6 +883,19 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                     <span className="text-xs font-semibold text-foreground">Executive Summary (without evidence)</span>
                     <span className="text-[11px] text-muted-foreground leading-tight">
                       The assessment, risk, places, actors and actions, without the post-by-post register
+                    </span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleDownload(false, true)}
+                  disabled={pdfGenerating}
+                  className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
+                >
+                  <MapPin className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs font-semibold text-foreground">{regionLabel} Only Report (executive summary)</span>
+                    <span className="text-[11px] text-muted-foreground leading-tight">
+                      Only posts, places, actors and actions in {regionLabel}; nothing from other regions
                     </span>
                   </div>
                 </DropdownMenuItem>

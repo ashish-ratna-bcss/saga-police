@@ -342,7 +342,9 @@ const getEventIntelligenceReportPdf = async (req, res) => {
     const timeframe = req.query?.timeframe || 'full';
     const fromDate = req.query?.from_date || req.query?.fromDate || null;
     const toDate = req.query?.to_date || req.query?.toDate || null;
-    const includeEvidence =
+    // scope=region: the executive brief with only the event region's own content (no evidence annex, nothing from elsewhere).
+    const regionOnly = req.query?.scope === 'region';
+    const includeEvidence = !regionOnly &&
       req.query?.include_evidence !== 'false' &&
       req.query?.with_evidence !== 'false' &&
       req.query?.evidence !== 'false';
@@ -355,12 +357,13 @@ const getEventIntelligenceReportPdf = async (req, res) => {
       fromDate,
       toDate,
       includeEvidence,
+      regionOnly,
     });
     // Keep the "PDF saved" flag on the cached summary in sync; failure here must not block the download.
     if (includeEvidence) {
       saveEventSummaryPdf(req.params.id, pdf.toString('base64'), { db: req.tenantPrisma }).catch(() => {});
     }
-    const evTag = includeEvidence ? 'With_Evidence' : 'Without_Evidence';
+    const evTag = includeEvidence ? 'With_Evidence' : regionOnly ? 'Region_Only' : 'Without_Evidence';
     const safe = `${tenantName || 'Report'}_${eventName}`.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
