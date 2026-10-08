@@ -263,7 +263,7 @@ const runningSummaryResponse = (res, job, eventId) =>
     started_at: job.started_at,
     event_id: String(eventId),
   });
-const { generateEventIntelligencePdf, getReviewState, saveReviewEdits, approveReport, reopenReport } = require('./eventIntelligenceReport');
+const { generateEventIntelligencePdf } = require('./eventIntelligenceReport');
 
 /** GET: cached report, or the background job already writing one. Starts the job if needed. */
 const getEventSummaryLLM = async (req, res) => {
@@ -346,7 +346,7 @@ const getEventIntelligenceReportPdf = async (req, res) => {
       req.query?.include_evidence !== 'false' &&
       req.query?.with_evidence !== 'false' &&
       req.query?.evidence !== 'false';
-    const { pdf, eventName, review } = await generateEventIntelligencePdf(req.params.id, {
+    const { pdf, eventName } = await generateEventIntelligencePdf(req.params.id, {
       db: req.tenantPrisma,
       dbName: req.tenantDbName,
       tenantName,
@@ -363,9 +363,8 @@ const getEventIntelligenceReportPdf = async (req, res) => {
     const evTag = includeEvidence ? 'With_Evidence' : 'Without_Evidence';
     const safe = `${tenantName || 'Report'}_${eventName}`.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('X-Report-Status', review?.status === 'approved' ? 'approved' : 'draft');
-    res.setHeader('Access-Control-Expose-Headers', 'X-Report-Status, Content-Disposition');
-    res.setHeader('Content-Disposition', `attachment; filename="${safe}_Summary_Report_${evTag}${review?.status === 'approved' ? '' : '_DRAFT'}.pdf"`);
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+    res.setHeader('Content-Disposition', `attachment; filename="${safe}_Summary_Report_${evTag}.pdf"`);
     res.setHeader('Content-Length', pdf.length);
     return res.status(200).send(pdf);
   } catch (error) {
@@ -373,27 +372,6 @@ const getEventIntelligenceReportPdf = async (req, res) => {
   }
 };
 
-
-/** Review and approval of the generated report: read state, save edits, approve, reopen. */
-const reviewCtx = (req) => ({
-  db: req.tenantPrisma,
-  dbName: req.tenantDbName,
-  tenantName: resolveTenantLabel(req.query?.tenant || req.body?.tenant, req.user),
-  user: req.user,
-});
-const reviewFail = (res, error) => res.status(error.status || 500).json({ message: error.message, ...(error.issues ? { issues: error.issues } : {}) });
-const getEventReportReview = async (req, res) => {
-  try { return res.status(200).json(await getReviewState(req.params.id, reviewCtx(req))); } catch (error) { return reviewFail(res, error); }
-};
-const saveEventReportReview = async (req, res) => {
-  try { return res.status(200).json(await saveReviewEdits(req.params.id, req.body?.edits, reviewCtx(req))); } catch (error) { return reviewFail(res, error); }
-};
-const approveEventReport = async (req, res) => {
-  try { return res.status(200).json(await approveReport(req.params.id, reviewCtx(req), req.body?.acknowledge)); } catch (error) { return reviewFail(res, error); }
-};
-const reopenEventReport = async (req, res) => {
-  try { return res.status(200).json(await reopenReport(req.params.id, reviewCtx(req))); } catch (error) { return reviewFail(res, error); }
-};
 
 const generateEventTerms = async (req, res) => {
   try {
@@ -420,10 +398,6 @@ module.exports = {
   regenerateEventSummaryLLM,
   saveEventSummaryPdfHandler,
   getEventIntelligenceReportPdf,
-  getEventReportReview,
-  saveEventReportReview,
-  approveEventReport,
-  reopenEventReport,
   runEventScan,
   getEventsReport,
   generateEventTerms,

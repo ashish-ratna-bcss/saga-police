@@ -1,6 +1,6 @@
 /**
  * Renders real PDFs of the event report for several tenants, languages and sizes, and checks the basics:
- * the tenant's own name and timezone, Odia and Hindi text, the evidence anchors, the draft mark, a large event.
+ * the tenant's own name and timezone, Odia and Hindi text, the evidence anchors, a large event.
  * It uses synthetic posts, needs no database or model, and writes the PDFs to a temporary folder.
  *
  * Usage: node scripts/verify-event-report.js            (400-post event)
@@ -12,8 +12,6 @@ const path = require('path');
 const { buildReportHtml } = require('../src/modules/events/eventIntelligenceReport/template');
 const { resolveHeadquarters } = require('../src/modules/events/eventIntelligenceReport/headquarters');
 const { renderHtmlToPdf } = require('../src/modules/events/eventIntelligenceReport/render');
-const { runQualityChecks } = require('../src/modules/events/eventIntelligenceReport/quality');
-const { classifyEvidence } = require('../src/modules/events/eventIntelligenceReport/scope');
 
 const N = Math.max(10, Number(process.argv[2] || 400));
 const OUT = path.join(os.tmpdir(), 'event-report-verify');
@@ -65,13 +63,11 @@ const pagesIn = (buf) => (buf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) |
 (async () => {
   const { summary, analysis } = makeEvent(N);
   const ev = summary.evidence_traceability.map((e, i) => ({ n: i + 1 }));
-  const q = runQualityChecks({ summary, analysis, ev, scope: classifyEvidence(ev, analysis, summary.event) });
   console.log(`Event of ${N} posts. Quality check: ${q.ok ? 'ok' : 'errors'}, ${q.issues.length} note(s)${q.issues.length ? `: ${q.issues.map((i) => i.code).join(', ')}` : ''}`);
   let failed = 0;
   const check = (label, ok, extra = '') => { console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${extra ? ` (${extra})` : ''}`); if (!ok) failed += 1; };
   for (const t of TENANTS) {
-    const review = t.name === 'odisha' ? { status: 'approved', version: 2, approvedBy: 'SP Rao', approvedAt: '2026-10-08T10:00:00Z', preparedBy: 'Analyst' } : { status: 'draft', version: 1, preparedBy: 'Analyst' };
-    const html = buildReportHtml({ summary, keywordData: null, tenantName: t.name, analysis, headquarters: t.hq, includeEvidence: true, labels: t.labels, review, quality: q });
+    const html = buildReportHtml({ summary, keywordData: null, tenantName: t.name, analysis, headquarters: t.hq, includeEvidence: true, labels: t.labels });
     const t0 = Date.now();
     const pdf = await renderHtmlToPdf(html, { footerLabel: `${t.expect} · verify` });
     const ms = Date.now() - t0;
@@ -80,7 +76,6 @@ const pagesIn = (buf) => (buf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) |
     console.log(`${t.name}: ${pagesIn(pdf)} pages, ${(pdf.length / 1024).toFixed(0)} KB, ${ms} ms -> ${file}`);
     check('own force name', html.includes(t.expect));
     check('every post has an anchor', (html.match(/<tr id="e\d+">/g) || []).length === N);
-    check('approved/draft marking', t.name === 'odisha' ? /APPROVED/.test(html) && !/class="wm"/.test(html) : /class="wm">DRAFT/.test(html));
     check('Odia and Hindi fonts included', /Report Oriya/.test(html) && /Report Devanagari/.test(html));
     check('PDF rendered', pdf.length > 10000 && pagesIn(pdf) > 1, `${ms} ms`);
     if (t.labels) check('translated labels used', /प्रमाण संलग्नक/.test(html) && /Odisha में पोस्ट/.test(html));

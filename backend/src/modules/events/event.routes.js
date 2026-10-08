@@ -16,10 +16,6 @@ const {
   regenerateEventSummaryLLM,
   saveEventSummaryPdfHandler,
   getEventIntelligenceReportPdf,
-  getEventReportReview,
-  saveEventReportReview,
-  approveEventReport,
-  reopenEventReport,
   runEventScan,
   getEventsReport,
   generateEventTerms,
@@ -40,10 +36,6 @@ router.get('/:id/summary-llm', getEventSummaryLLM);
 router.post('/:id/summary-llm', regenerateEventSummaryLLM);
 router.put('/:id/summary-llm/pdf', saveEventSummaryPdfHandler);
 router.get('/:id/summary-llm/report.pdf', getEventIntelligenceReportPdf);
-router.get('/:id/summary-llm/review', getEventReportReview);
-router.put('/:id/summary-llm/review', saveEventReportReview);
-router.post('/:id/summary-llm/review/approve', approveEventReport);
-router.post('/:id/summary-llm/review/reopen', reopenEventReport);
 
 
 router.post('/', createEvent);

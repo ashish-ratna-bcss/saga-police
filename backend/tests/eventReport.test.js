@@ -252,9 +252,6 @@ test('the analyst prompt names the tenant\'s own audience and units, with sensib
 
 // ---------------------------------------------------------------- scope, quality, review, issue section, multi-tenant
 const { classifyEvidence } = require('../src/modules/events/eventIntelligenceReport/scope');
-const { runQualityChecks } = require('../src/modules/events/eventIntelligenceReport/quality');
-const reviewMod = require('../src/modules/events/eventIntelligenceReport/review');
-const { freshReview, normalizeReview } = require('../src/services/SummaryLLM/reviewState');
 const { stockPhrases, genericAction } = require('../src/services/SummaryLLM/styleLint');
 const { parseLLMReport } = require('../src/services/SummaryLLM/eventSummary.prompt');
 
@@ -309,48 +306,6 @@ test('issue strands, what is known and not known are printed, with citations lin
   assert.strictEqual(first[0], 'class="no">01.');                              // sections are numbered in the order they print
   const none = buildReportHtml({ summary: mixed, keywordData: null, tenantName: 'odisha', analysis: mixedAnalysis, headquarters: null, includeEvidence: true });
   assert.ok(!/What the Issue Is/.test(none));                                  // no strands: no empty section
-});
-
-test('draft marking until approved; approval shows who and when; no review means no marking', () => {
-  const base = { summary: mixed, keywordData: null, tenantName: 'odisha', analysis: mixedAnalysis, headquarters: null, includeEvidence: true };
-  const draft = buildReportHtml({ ...base, review: { status: 'draft', version: 2, preparedBy: 'Analyst A' }, quality: { issues: [{ level: 'error', code: 'bad_citation', message: 'Cites [Post #9], which is not in the evidence.', where: 'Bottom line' }] } });
-  assert.ok(/class="wm">DRAFT</.test(draft) && /class="draftbar"/.test(draft) && /Review notes/.test(draft) && /v2/.test(draft) && /Analyst A/.test(draft));
-  const ok = buildReportHtml({ ...base, review: { status: 'approved', version: 2, preparedBy: 'Analyst A', approvedBy: 'SP Rao', approvedAt: '2026-10-08T10:00:00Z' }, quality: { issues: [] } });
-  assert.ok(!/class="wm"/.test(ok) && /APPROVED/.test(ok) && /SP Rao/.test(ok));
-  assert.ok(!/class="wm"/.test(buildReportHtml(base)));
-});
-
-test('quality check finds bad citations, boilerplate, generic actions and impossible counts', () => {
-  const ev = [{ n: 1 }, { n: 2 }];
-  const bad = runQualityChecks({ summary: { stats: { total_unique_posts: 5, relevant_posts_count: 9 } }, analysis: { bottomLine: 'Monitor the situation. [Post #7]', actions: [{ action: 'Watch', detail: 'short', posts: [] }] }, ev });
-  const codes = bad.issues.map((i) => i.code);
-  ['bad_citation', 'stock_phrase', 'generic_action', 'no_citation', 'count_mismatch'].forEach((c) => assert.ok(codes.includes(c), c));
-  assert.strictEqual(bad.ok, false);
-  const good = runQualityChecks({ summary: { stats: { total_unique_posts: 5, relevant_posts_count: 2 } }, analysis: { bottomLine: 'The bandh runs today. [Post #1]', actions: [{ action: 'Watch roads at Cuttack: Traffic Police', detail: 'Report hourly from the main junctions. Escalate if a road is blocked for more than an hour.', posts: [1] }] }, ev });
-  assert.strictEqual(good.ok, true);
-  assert.ok(stockPhrases('We should remain vigilant.').length && !stockPhrases('Traffic Police will report hourly.').length);
-  assert.ok(genericAction({ action: 'Watch', detail: 'x' }).length >= 2);
-});
-
-test('review: edits are validated and replace generated text; unknown post numbers are dropped', () => {
-  const edits = reviewMod.cleanEdits({ bottomLine: '  A  clearer   line.  ', actions: [{ action: 'Do X', detail: 'Y. Escalate if Z.', posts: [1, 99, 'a'] }, { action: '' }], hack: 'ignored', notKnown: ['One', ''] });
-  assert.deepStrictEqual(Object.keys(edits).sort(), ['actions', 'bottomLine', 'notKnown']);
-  assert.strictEqual(edits.bottomLine, 'A clearer line.');
-  const out = reviewMod.applyEdits({ bottomLine: 'old', actions: [{ action: 'old' }], x: 1 }, edits, new Set([1]));
-  assert.strictEqual(out.bottomLine, 'A clearer line.');
-  assert.deepStrictEqual(out.actions[0].posts, [1]);
-  assert.strictEqual(out.x, 1);
-  assert.strictEqual(reviewMod.applyEdits(null, edits), null);
-});
-
-test('review state: a new generation is a new draft and the history keeps what was replaced', () => {
-  const approved = normalizeReview({ status: 'approved', version: 3, approvedBy: 'SP Rao', edits: { bottomLine: 'x' } });
-  const next = freshReview(approved, { preparedBy: 'Analyst B', preparedAt: '2026-10-09T00:00:00Z' });
-  assert.strictEqual(next.status, 'draft');
-  assert.strictEqual(next.version, 4);
-  assert.deepStrictEqual(next.edits, {});
-  assert.ok(/Replaced approved version 3/.test(next.history[next.history.length - 1].note));
-  assert.strictEqual(freshReview(null, { preparedBy: 'A' }).version, 1);
 });
 
 test('the model reply is parsed into issue strands, known and not known, dropping invented posts', () => {

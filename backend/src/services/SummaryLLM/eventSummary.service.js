@@ -1,7 +1,6 @@
 require('dotenv').config();
 const axios = require('axios');
 const dbOf = require('../../lib/dbOf');
-const { freshReview } = require('./reviewState');
 const logger = require('../../lib/logger');
 const {
   buildSystemPrompt, buildUserContext, RETRY_MESSAGE, parseLLMReport, reportToMarkdown,
@@ -186,13 +185,6 @@ const getCachedEventSummary = async (eventId, { db } = {}) => {
 
 /** Persist a freshly-generated summary result, upserted one-per-event. */
 const persistEventSummary = async (prisma, numericId, result, cursor) => {
-  // A new generation is a new draft; the previous version's approval history is kept.
-  try {
-    const prev = await prisma.social_media_event_summaries.findUnique({ where: { event_id: numericId }, select: { stats: true } });
-    result.stats = { ...(result.stats || {}), review: freshReview(prev?.stats?.review, { preparedBy: result.generated_by?.name || '', preparedAt: result.generated_at }) };
-  } catch (e) {
-    result.stats = { ...(result.stats || {}), review: freshReview(null, { preparedBy: result.generated_by?.name || '', preparedAt: result.generated_at }) };
-  }
   const data = sanitizeForPostgresJson({
     summary_markdown: result.summary,
     summary_source: result.summary_source,

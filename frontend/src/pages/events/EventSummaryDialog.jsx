@@ -22,7 +22,6 @@ import {
   Download,
   AlertTriangle,
   FileText,
-  ClipboardCheck,
   BarChart3,
   ShieldAlert,
   CheckCircle2,
@@ -50,7 +49,6 @@ import {
 } from '../../components/PlatformBrandIcon';
 import { toast } from 'sonner';
 import { EventBrief, RiskAlerts } from './EventSummaryBrief';
-import EventReportReview from './EventReportReview';
 
 /**
  * Extracts sections from the markdown text based on common section headers.
@@ -109,10 +107,6 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
   const [allPostsLoaded, setAllPostsLoaded] = useState(false);
   const [allPostsPlatform, setAllPostsPlatform] = useState('all');
   const [pdfGenerating, setPdfGenerating] = useState(false);
-  const [reviewOpen, setReviewOpen] = useState(false);
-  const [reviewState, setReviewState] = useState(null);   // set by the review screen; falls back to what the saved report carries
-  const reviewInfo = reviewState || summaryData?.stats?.review || null;
-  const reportApproved = reviewInfo?.status === 'approved';
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
@@ -713,17 +707,16 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       });
       const blob = new Blob([res.data], { type: 'application/pdf' });
       const safe = (v) => String(v || '').replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
-      const isDraft = String(res.headers?.['x-report-status'] || (reportApproved ? 'approved' : 'draft')) !== 'approved';
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       const tfSuffix = timeframe && timeframe !== 'full' ? `_${safe(timeframe).toUpperCase()}` : '';
-      link.download = `${safe(tenantName)}_${safe(displayName)}${tfSuffix}_Report${isDraft ? '_DRAFT' : ''}.pdf`;
+      link.download = `${safe(tenantName)}_${safe(displayName)}${tfSuffix}_Report.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      toast.success(isDraft ? 'Report exported as a DRAFT. Approve it to remove the mark.' : 'Approved report exported');
+      toast.success('Report downloaded');
     } catch (err) {
       console.error('Failed to generate PDF report:', err);
       toast.error('Failed to generate PDF report: ' + (err?.response?.statusText || err.message));
@@ -848,20 +841,6 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
             >
               {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
               <span>{copied ? 'Copied' : 'Copy'}</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setReviewOpen(true)}
-              disabled={loading || !summaryData?.summary}
-              className="h-8 gap-1.5 text-xs font-medium"
-              title="Edit the opening text and actions, then approve the report"
-            >
-              <ClipboardCheck className="h-3.5 w-3.5" />
-              <span>Review</span>
-              <span className={`ml-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold ${reportApproved ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'}`}>
-                {reportApproved ? 'Approved' : 'Draft'}
-              </span>
             </Button>
             <Button
               variant="outline"
@@ -1800,13 +1779,6 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
           </div>
         </DialogContent>
       </Dialog>
-      <EventReportReview
-        open={reviewOpen}
-        onOpenChange={setReviewOpen}
-        eventId={eventId}
-        tenantName={tenantName}
-        onChange={setReviewState}
-      />
     </Dialog>
   );
 }

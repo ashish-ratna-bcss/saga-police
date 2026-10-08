@@ -465,13 +465,6 @@ th{word-break:keep-all;overflow-wrap:normal;hyphens:none}tr{break-inside:avoid}t
 .sign{display:grid;grid-template-columns:repeat(3,1fr);gap:2.4mm;margin-top:4mm;break-inside:avoid}
 .sign>div{border:.6px solid ${LINE};border-radius:3px;padding:1.8mm 2.4mm;height:15mm;font-size:6.4pt;letter-spacing:.06em;color:${MUT};font-weight:700;text-transform:uppercase}
 .wm{position:fixed;top:42%;left:6%;font-size:120pt;font-weight:800;letter-spacing:.08em;color:rgba(180,35,24,.06);transform:rotate(-28deg);z-index:0;pointer-events:none}
-.draftbar{display:flex;align-items:center;gap:3mm;border:.6px solid #f1b8b2;border-left:3.5px solid ${CR};background:#fff5f4;border-radius:3px;padding:1.8mm 3mm;margin:0 0 2.8mm;font-size:7.6pt;color:#7f1d1d}
-.draftbar b{background:${CR};color:#fff;font-size:6.8pt;letter-spacing:.1em;padding:.8mm 2.2mm;border-radius:2px}
-.draftbar em{margin-left:auto;font-style:normal;color:${MUT};font-weight:700}
-.draftbar.ok{border-color:#b7e0c8;border-left-color:${PR};background:#f1faf5;color:#14532d}.draftbar.ok b{background:${PR}}
-.reviewnotes{border:.6px solid #fde68a;border-left:3.5px solid #f59e0b;background:#fffbeb;border-radius:3px;padding:2mm 3mm;margin:0 0 2.8mm}
-.reviewnotes h4{margin:0 0 1mm;font-size:7.6pt;color:#92400e;text-transform:uppercase;letter-spacing:.05em}
-.reviewnotes ul{margin:0;padding:0;list-style:none}.reviewnotes li{font-size:7.3pt;color:#78350f;margin-bottom:.8mm}.reviewnotes li.error b{color:${CR}}
 .kn{display:grid;grid-template-columns:1fr 1fr;gap:2.4mm;margin:0 0 2.8mm}
 .kn>div{border-radius:3px;padding:2mm 2.8mm;font-size:7.6pt;border:.6px solid ${LINE}}
 .kn h4{margin:0 0 1mm;font-size:7.6pt;text-transform:uppercase;letter-spacing:.05em}
@@ -664,7 +657,7 @@ const linkCitations = (html, validNs) => String(html)
   .map((seg, i) => (i % 2 ? seg : seg.replace(/\[Post #(\d+)\]/g, (m, n) => (validNs.has(Number(n)) ? `<a href="#e${n}" class="ref">[Post #${n}]</a>` : m))))
   .join('');
 
-const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquarters, includeEvidence = true, labels = null, review = null, quality = null }) => {
+const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquarters, includeEvidence = true, labels = null }) => {
   setReportTz(headquarters?.timezone);
   // Fixed wording that carries a value (a region, a count) goes through the label map here, because the post-build
   // translation only replaces text that is exactly one label. {placeholders} are kept by the translator.
@@ -1413,14 +1406,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
         .join('')
     : '<p class="sm">No high monitoring profiles identified in this dataset.</p>';
 
-  const isDraft = Boolean(review) && review.status !== 'approved';
   const stampDate = (d) => (d ? new Date(d).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: REPORT_TZ }) : '');
-  const reviewBannerHtml = !review ? '' : isDraft
-    ? `<div class="draftbar"><b>DRAFT</b><span>${esc(L('Not yet approved. Check the review notes, then approve before this report is shared.'))}</span>${review.version ? `<em>v${esc(review.version)}</em>` : ''}</div>`
-    : `<div class="draftbar ok"><b>APPROVED</b><span>${esc(review.approvedBy || '')}${review.approvedAt ? ` · ${esc(stampDate(review.approvedAt))}` : ''}</span>${review.version ? `<em>v${esc(review.version)}</em>` : ''}</div>`;
-  const reviewNotesHtml = (isDraft && quality && (quality.issues || []).length)
-    ? `<div class="reviewnotes"><h4>Review notes</h4><ul>${quality.issues.slice(0, 10).map((i) => `<li class="${esc(i.level)}"><b>${i.level === 'error' ? 'Fix' : 'Check'}</b> ${esc(i.where ? `${i.where}: ` : '')}${esc(i.message)}</li>`).join('')}</ul></div>`
-    : '';
 
   // "What the issue is": the separate stories that overlap in these posts, then what is and is not known.
   const strands = (analysis?.issueStrands || []).slice(0, 4);
@@ -1441,11 +1427,10 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   </div>` : ''}` : '';
 
   const signRoles = (hq?.signoff && hq.signoff.length) ? hq.signoff.slice(0, 3) : ['Prepared by', 'Reviewed by', 'Approved by'];
-  const signNames = [review?.preparedBy, review?.reviewedBy, review?.approvedBy ? `${review.approvedBy}${review.approvedAt ? ` · ${stampDate(review.approvedAt)}` : ''}` : ''];
+  const signNames = [summary?.generated_by?.name || '', '', ''];
   const signHtml = `<div class="sign">${signRoles.map((r, i) => `<div><span>${esc(r)}</span>${signNames[i] ? `<b class="signname">${esc(signNames[i])}</b>` : ''}</div>`).join('')}</div>`;
 
   const body = `
-${isDraft ? '<div class="wm">DRAFT</div>' : ''}
 <section class="pg">
   <div class="hero">
     ${hq?.classification ? `<div class="classif">${esc(hq.classification)}</div>` : ''}
@@ -1459,8 +1444,6 @@ ${isDraft ? '<div class="wm">DRAFT</div>' : ''}
       <span>REPORT FORMAT<b>${includeEvidence ? `With Evidence (${fmt(ev.length)})` : 'Executive Brief'}</b></span>
     </div>
   </div>
-  ${reviewBannerHtml}
-  ${reviewNotesHtml}
   ${hqHtml}
 
   ${analysis?.bottomLine ? `<p class="lead"><b>Bottom line:</b> ${esc(analysis.bottomLine)}</p>` : ''}
