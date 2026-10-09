@@ -807,7 +807,8 @@ const regionFilter = (analysis, outsideNs, outsideNames) => {
     if (!text) return text;
     return String(text).split(/(?<=[.!?।])\s+/).filter((sen) => !mentions(sen)).join(' ');
   };
-  const strands = keep(analysis.issueStrands);
+  const trim = (list) => (Array.isArray(list) ? list.map((x) => ((x && typeof x === 'object' && Array.isArray(x.posts)) ? { ...x, posts: x.posts.filter((n) => !outsideNs.has(Number(n))) } : x)) : list);
+  const strands = trim(keep(analysis.issueStrands));
   return {
     ...analysis,
     bottomLine: clean(analysis.bottomLine),
@@ -817,20 +818,41 @@ const regionFilter = (analysis, outsideNs, outsideNames) => {
     platformsCommentary: '',
     issueStrands: strands,
     issueLink: strands?.length === (analysis.issueStrands || []).length ? clean(analysis.issueLink) : '',
-    known: keep(analysis.known),
-    notKnown: keep(analysis.notKnown),
-    actions: keep(analysis.actions),
+    known: trim(keep(analysis.known)),
+    notKnown: trim(keep(analysis.notKnown)),
+    actions: trim(keep(analysis.actions)),
     closingSummary: clean(analysis.closingSummary),
-    narrativesToWatch: keep(analysis.narrativesToWatch),
-    narratives: keep(analysis.narratives),
-    claims: keep(analysis.claims),
-    keyDates: (analysis.keyDates || []).filter((k) => !k.outside && inside(k.posts) && !mentions(textOf(k))),
-    activities: keep(analysis.activities),
-    presence: keep(analysis.presence),
-    leaders: keep(analysis.leaders),
-    amplifiers: keep(analysis.amplifiers),
-    geography: keep(analysis.geography),
+    narrativesToWatch: trim(keep(analysis.narrativesToWatch)),
+    narratives: trim(keep(analysis.narratives)),
+    claims: trim(keep(analysis.claims)),
+    keyDates: trim((analysis.keyDates || []).filter((k) => !k.outside && inside(k.posts) && !mentions(textOf(k)))),
+    activities: trim(keep(analysis.activities)),
+    presence: trim(keep(analysis.presence)),
+    leaders: trim(keep(analysis.leaders)),
+    amplifiers: trim(keep(analysis.amplifiers)),
+    geography: trim(keep(analysis.geography)),
   };
+};
+
+// Dates written as 2026-10-08 or 10/8/2026 are shown as "8 Oct 2026" so nobody reads day and month the wrong way round.
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const plainDates = (html) => String(html)
+  .replace(/(?<![\d/-])(\d{4})-(\d{2})-(\d{2})(?![\d-])/g, (m, y, mo, d) => (Number(mo) >= 1 && Number(mo) <= 12 ? `${Number(d)} ${MONTHS_SHORT[Number(mo) - 1]} ${y}` : m))
+  .replace(/(?<![\d/])(\d{1,2})\/(\d{1,2})\/(\d{4})(?![\d/])/g, (m, a, b, y) => (Number(a) <= 12 && Number(b) <= 31 && Number(a) > 0 ? `${Number(b)} ${MONTHS_SHORT[Number(a) - 1]} ${y}` : m));
+
+/** A closing summary whose line breaks were lost ("CONFIRMED - a - b NOT VERIFIED - c ...") is put back into its labelled sections. */
+const relabelClosing = (t) => {
+  if (/^(CONFIRMED|NOT VERIFIED|NEXT STEPS|RISK)\s*$/m.test(t)) return t;
+  const re = /\b(CONFIRMED|NOT VERIFIED|NEXT STEPS|RISK)\b\s*:?\s*/g;
+  const marks = [];
+  let m;
+  while ((m = re.exec(t))) marks.push({ head: m[1], start: m.index, end: re.lastIndex });
+  if (marks.length < 3) return t;
+  return marks.map((mk, i) => {
+    const body = t.slice(mk.end, i + 1 < marks.length ? marks[i + 1].start : t.length);
+    const items = body.split(/\n|\s+-\s+/).map((x) => x.replace(/^[-*•]\s*/, '').trim()).filter(Boolean);
+    return items.length ? `${mk.head}\n${items.map((x) => `- ${x}`).join('\n')}` : '';
+  }).filter(Boolean).join('\n\n');
 };
 
 const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquarters, includeEvidence = true, labels = null, regionOnly = false, compact = false }) => {
@@ -1392,12 +1414,15 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const highRiskN = n0(riskCounts.critical) + n0(riskCounts.high);
 
   // Risk level is computed from what the posts contain (calls to act, violence, high-risk ratings), not from tone.
-  const callN = n0(analysis?.facts?.calls?.count);
-  const violenceN = n0(analysis?.facts?.violence?.count);
-  const violenceAcc = n0(analysis?.facts?.violence?.accounts ?? analysis?.facts?.violence?.count);
+  const inNs = new Set((scoped ? inEv : ev).map((e) => e.n));
+  const regionPosts = (arr) => ((arr || []).filter((n) => !regionOnly || inNs.has(Number(n))));
+  const callN = regionOnly ? regionPosts(analysis?.facts?.calls?.posts).length : n0(analysis?.facts?.calls?.count);
+  const violenceN = regionOnly ? regionPosts(analysis?.facts?.violence?.posts).length : n0(analysis?.facts?.violence?.count);
+  const violenceAcc = regionOnly ? violenceN : n0(analysis?.facts?.violence?.accounts ?? analysis?.facts?.violence?.count);
   const haveFacts = !!analysis?.facts;
-  const allegedN = n0(analysis?.facts?.alleged?.count);
-  const detentionN = n0(analysis?.facts?.detentions?.count);
+  const allegedN = regionOnly ? regionPosts(analysis?.facts?.alleged?.posts).length : n0(analysis?.facts?.alleged?.count);
+  const mobN = regionOnly ? regionPosts(analysis?.facts?.mobilising?.posts).length : n0(analysis?.facts?.mobilising?.count);
+  const detentionN = regionOnly ? regionPosts(analysis?.facts?.detentions?.posts).length : n0(analysis?.facts?.detentions?.count);
   const threatLevelVal = violenceAcc > 1 ? 'High'
     : (violenceN > 0 || allegedN > 0 || detentionN > 0 || callN > 0 || highRiskN > 0) ? 'Medium'
       : (haveFacts || n0(riskCounts.medium) === 0) ? 'Low' : 'Low to Medium';
@@ -1507,8 +1532,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   <div class="kstrip">
     <div><div class="n">${scoped ? fmt(inEv.length) : fmt(total)}</div><div class="l">Posts analysed</div></div>
     <div><div class="n">${fmt(engTotal)}</div><div class="l">Interactions (likes, shares, comments)</div></div>
-    <div><div class="n">${haveFacts ? fmt(callN) : '—'}</div><div class="l">Posts calling people to act</div></div>
-    <div><div class="n">${haveFacts ? fmt(violenceN) : '—'}</div><div class="l">Violence confirmed</div>${haveFacts && (allegedN || detentionN) ? `<div class="l" style="text-transform:none;letter-spacing:0;margin-top:.4mm">${[allegedN ? `${fmt(allegedN)} alleged` : '', detentionN ? `${fmt(detentionN)} arrests` : ''].filter(Boolean).join(' · ')}</div>` : ''}</div>
+    <div><div class="n">${haveFacts ? fmt(callN) : '—'}</div><div class="l">Posts calling people to act</div>${haveFacts && mobN ? `<div class="l" style="text-transform:none;letter-spacing:0;margin-top:.4mm">${fmt(mobN)} report mobilising</div>` : ''}</div>
+    <div><div class="n">${haveFacts ? fmt(violenceAcc > 1 ? violenceN : 0) : '—'}</div><div class="l">Violence confirmed</div>${haveFacts && (violenceAcc <= 1 && violenceN || allegedN || detentionN || mobN) ? `<div class="l" style="text-transform:none;letter-spacing:0;margin-top:.4mm">${[violenceAcc <= 1 && violenceN ? `${fmt(violenceN)} mentioned` : '', allegedN ? `${fmt(allegedN)} alleged` : '', detentionN ? `${fmt(detentionN)} arrests` : ''].filter(Boolean).join(' · ')}</div>` : ''}</div>
     <div><div class="n">${fmt(highRiskN)}</div><div class="l">High / critical risk</div></div>
     <div><div class="n">${fmt(places.length)}</div><div class="l">Places covered</div></div>
   </div>`;
@@ -1525,7 +1550,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   };
   const srcRows = [
     srcLine('High / critical risk', highRiskNs, highRiskNs.length),
-    srcLine('Violence confirmed', analysis?.facts?.violence?.posts, haveFacts ? violenceN : null),
+    srcLine(violenceAcc > 1 ? 'Violence confirmed' : 'Violence mentioned (not confirmed)', analysis?.facts?.violence?.posts, haveFacts ? violenceN : null),
+    srcLine('Posts reporting that a group is mobilising (not a call by the author)', analysis?.facts?.mobilising?.posts, haveFacts ? mobN : null),
     srcLine('Violence alleged or warned (unconfirmed)', analysis?.facts?.alleged?.posts, haveFacts ? allegedN : null),
     srcLine('Arrests, detentions or refused permission', analysis?.facts?.detentions?.posts, haveFacts ? detentionN : null),
     srcLine('Posts calling people to act', analysis?.facts?.calls?.posts, haveFacts ? callN : null),
@@ -1561,10 +1587,11 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   <div style="break-before:page;page-break-before:always"></div>
   ${secHead('Evidence Annex')}
   <div class="metrics">
-    ${metric(fmt(ev.length), 'Posts in this brief', 'Direct hyperlinks enabled for each evidence post')}
-    ${metric(fmt(inEv.length), L('Posts in {region}', { region: regionName }), 'Cited in the sections above')}
+    ${metric(fmt(regionOnly ? inEv.length : ev.length), regionOnly ? L('Posts listed in this annex') : 'Posts in this brief', regionOnly ? L('Only posts about {region}', { region: regionName }) : 'Direct hyperlinks enabled for each evidence post')}
+    ${metric(fmt(inEv.length), L('Posts in {region}', { region: regionName }), 'The posts this report analyses')}
     ${regionOnly ? '' : metric(fmt(outEv.length), 'Outside the region', 'Context only; not counted as activity here')}
-    ${metric(fmt(ev.filter((e) => e.posted_at).length), 'Dated posts', 'Verified publication timestamp')}
+    ${regionOnly ? metric(fmt(ev.length), L('Posts collected for the event'), L('All locations; the rest are in the full report')) : ''}
+    ${metric(fmt((regionOnly ? inEv : ev).filter((e) => e.posted_at).length), 'Dated posts', 'Of the posts listed, those with a publication time')}
   </div>
   <p class="sm">Newest first. Click any Post # link to inspect the original live record; every [Post #n] cited above jumps to its row here. Eng. = likes + shares + comments. Tone is the automated rating.</p>
   ${evidenceTable(inEv, outEv.length && !regionOnly ? L('Posts in {region}', { region: regionName }) : '', 'in')}
@@ -1684,7 +1711,9 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   const factPlaceRegion = new Map((analysis?.facts?.places || []).map((x) => [foldGeo(x.name), foldGeo(x.region || '')]));
   const outsideRegionPlace = (name) => { const r = factPlaceRegion.get(foldGeo(name)); const rn = foldGeo(regionName); return !!(r && rn && !r.includes(rn) && !foldGeo(name).includes(rn)); };
-  const factActs = (analysis?.facts?.activities || []).filter((a) => !a.outside && !(regionOnly && a.place && outsideRegionPlace(a.place)));
+  const factActs = (analysis?.facts?.activities || []).filter((a) => !a.outside && !(regionOnly && a.place && outsideRegionPlace(a.place)))
+    .map((a) => (regionOnly ? { ...a, posts: (a.posts || []).filter((n) => inNs.has(Number(n))) } : a))
+    .filter((a) => !regionOnly || a.posts.length);
   const outsideFactNames = Array.from(factPlaceRegion.keys()).filter((n) => outsideRegionPlace(n));
   const STATUS_TEXT = { denied: 'police permission refused or declared unlawful', permitted: 'permission granted', held: 'has taken place', called_off: 'called off', announced: 'announced' };
   const actLine = (a) => {
@@ -1702,7 +1731,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       ? kds.map((k) => `<li>${esc(String(k.date || ''))}: ${esc(clip(plain(k.event || k.what), 100))}${k.posts?.length ? ` <span class="sm">${esc(k.posts.slice(0, 5).map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')
       : `<li>${esc(L('No dated activity is named in the posts.'))}</li>`;
     const notShown = [
-      haveFacts && callN === 0 ? L('No post calls people to join a bandh, blockade or gathering.') : '',
+      haveFacts && callN === 0 ? L('No post calls people to join a bandh, blockade or gathering in its own words.') : '',
+      haveFacts && mobN ? `${plural(mobN, '{n} post reports that a group is mobilising people; it is not a call by the author.', '{n} posts report that a group is mobilising people; they are not calls by the author.')} ${(analysis.facts.mobilising.posts || []).slice(0, 4).map((n) => `[Post #${n}]`).join(' ')}` : '',
       haveFacts && violenceN === 0 ? L('No post confirms violence or damage.') : '',
       haveFacts && allegedN ? `${plural(allegedN, '{n} post alleges or warns of violence; it is not confirmed.', '{n} posts allege or warn of violence; it is not confirmed.')} ${(analysis.facts.alleged.posts || []).slice(0, 4).map((n) => `[Post #${n}]`).join(' ')}` : '',
       haveFacts && detentionN ? `${plural(detentionN, '{n} post reports arrests, detentions or a refused permission; these are not violence.', '{n} posts report arrests, detentions or a refused permission; these are not violence.')} ${(analysis.facts.detentions.posts || []).slice(0, 4).map((n) => `[Post #${n}]`).join(' ')}` : '',
@@ -1859,7 +1889,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${includeEvidence ? `<p class="sm"><b>Tracked Keywords:</b> ${esc(clip(kwStr, 280))}</p>` : ''}`}`;
 
   const closingSection = () => {
-    const text = String(analysis?.closingSummary || '').trim();
+    const text = relabelClosing(String(analysis?.closingSummary || '').trim());
     if (!text) return '';
     const noPlan = (para) => para.split(/(?<=[.!?])\s+/).filter((x) => !(regionOnly && outsideFactNames.length && nameMatcher(outsideFactNames)(x))).filter((x) => !/\b(police|authorities|administration)\b[^.]{0,40}\b(plan|plans|planned|intend|intends|are monitoring|will monitor)\b/i.test(x)).join(' ');
     const labelled = /^(CONFIRMED|NOT VERIFIED|NEXT STEPS|RISK)\s*$/m.test(text);
@@ -1976,7 +2006,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     : liveLinkCitations(body, urlByN), labels);
   // Emoji have no glyph in the report fonts and print as empty boxes, so they are left out of the printed text.
   // Whole emoji sequences go first (so a joiner is only removed where it joins emoji; Indic scripts use it too), then flags, skin tones and keycaps.
-  const printable = finalBody
+  const printable = plainDates(finalBody)
     .replace(/\p{Extended_Pictographic}[\uFE0F\p{Emoji_Modifier}]*(?:\u200D\p{Extended_Pictographic}[\uFE0F\p{Emoji_Modifier}]*)*/gu, '')
     .replace(/[\p{Regional_Indicator}\p{Emoji_Modifier}\uFE0F\u20E3\u{E0020}-\u{E007F}]/gu, '');
   return `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>${fontFacesFor(printable)}${CSS}</style></head><body>${printable}</body></html>`;

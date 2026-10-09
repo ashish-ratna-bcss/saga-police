@@ -496,7 +496,7 @@ test('every number about posts shows its posts as links: annex links in the full
   const exec = buildReportHtml({ summary, keywordData: null, tenantName: 'odisha', analysis: { facts }, headquarters: null, includeEvidence: false });
   assert.ok(/Posts behind these numbers/.test(exec));
   assert.ok(/High \/ critical risk \(2\):<\/b>\s*<a href="https:\/\/x\.com\/a\/status\/1"[^>]*class="plink">#1<\/a>\s*<a href="https:\/\/x\.com\/a\/status\/3"/.test(exec), 'risk posts are live links');
-  assert.ok(/Violence confirmed \(1\):<\/b>\s*<a href="https:\/\/x\.com\/a\/status\/3"/.test(exec));
+  assert.ok(/Violence mentioned \(not confirmed\) \(1\):<\/b>\s*<a href="https:\/\/x\.com\/a\/status\/3"/.test(exec));
   assert.ok(/Posts calling people to act \(1\):<\/b>\s*<a href="https:\/\/x\.com\/a\/status\/2"/.test(exec));
   assert.ok(/class="pcard[^"]*"[\s\S]*A2[\s\S]*<a href="https:\/\/x\.com\/a\/status\/2"[^>]*>#2<\/a>/.test(exec), 'the summary shows each platform with its accounts and their posts as links');
   assert.ok(!/<th>Posts & Reach<\/th>/.test(exec), 'the summary has no long accounts table');

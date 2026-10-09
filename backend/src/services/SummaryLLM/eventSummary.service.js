@@ -782,7 +782,7 @@ const generateEventSummary = async (
       for (let i = 0; i < factPosts.length; i += FACT_BATCH) {
         const batch = factPosts.slice(i, i + FACT_BATCH);
         try {
-          const res = await callLLM([{ role: 'system', content: FACTS_SYSTEM }, { role: 'user', content: buildFactsUserContext(batch) }], NOTES_OUTPUT_TOKENS);
+          const res = await callLLM([{ role: 'system', content: FACTS_SYSTEM }, { role: 'user', content: buildFactsUserContext(batch, event) }], NOTES_OUTPUT_TOKENS);
           const parsed = parseFacts(res.data?.choices?.[0]?.message?.content || '', byNoFacts, extractJson);
           if (parsed) Object.assign(factsMap, parsed);
           else logger.warn(`[SummaryLLM] Facts reply unusable (${batch.length} posts, finish=${res.data?.choices?.[0]?.finish_reason})`);
