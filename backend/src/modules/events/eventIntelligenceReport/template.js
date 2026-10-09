@@ -1812,10 +1812,13 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     const placeBars = topPlaces.length
       ? topPlaces.map((x) => hbar(x.name, x.count, pMax, BAR, '', L(x.count === 1 ? 'post' : 'posts'))).join('')
       : `<p class="sm">${esc(L('No specific place inside the region is named in the posts.'))}</p>`;
-    const top5 = actions.slice(0, 5);
-    const actCards = top5.length
-      ? `<div class="cp-acts">${top5.map((a, i) => `<div class="cp-act"><div class="no">${i + 1}</div><div><b>${esc(a.action)}</b><div class="d">${esc(clip(a.detail, 190))}</div>${a.posts?.length ? `<div class="lk">${esc(a.posts.slice(0, 6).map((n) => `[Post #${n}]`).join(' '))}</div>` : ''}</div></div>`).join('')}</div>`
+    const card = (a, i) => `<div class="cp-act"><div class="no">${i + 1}</div><div><b>${esc(a.action)}</b><div class="d">${esc(clip(a.detail, 300))}</div>${a.posts?.length ? `<div class="lk">${esc(a.posts.slice(0, 6).map((n) => `[Post #${n}]`).join(' '))}</div>` : ''}</div></div>`;
+    const first = actions.slice(0, 3);
+    const more = actions.slice(3, 5);
+    const actCards = first.length
+      ? `<div class="cp-acts">${first.map(card).join('')}</div>`
       : `<p class="sm">${esc(L('Maintain standard baseline monitoring.'))}</p>`;
+    const moreCards = more.length ? `${secHead('Further Actions')}<div class="cp-acts">${more.map((a, i) => card(a, i + 3)).join('')}</div>` : '';
     const rb = riskParts.map((x) => `<div style="background:${x.c}"><div class="n">${fmt(x.v)}</div><div class="l">${esc(L(x.k))}</div></div>`).join('');
     const reach = acctList.slice().sort((a, b) => (b.inter || 0) - (a.inter || 0)).slice(0, 5);
     const rMax = Math.max(1, ...reach.map((a) => a.inter || 0));
@@ -1831,6 +1834,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${secHead('What To Do')}
   ${actCards}
   <div style="break-before:page;page-break-before:always"></div>
+  ${moreCards}
   ${secHead('How Serious It Is')}
   <div class="cp-row">
     <div class="cp-box"><h4>${esc(L('Risk of the posts'))}</h4><div class="cp-big">${rb}</div>${stackBar(riskParts, false)}<p class="cp-note">${esc(L('Risk comes from calls to act, violence or a high-risk rating. Tone is shown separately.'))}</p></div>
@@ -1842,7 +1846,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   </div>
   <div class="cp-row">
     <div class="cp-box"><h4>${esc(L('Largest reach'))}</h4>${reachBars || `<p class="sm">${esc(L('No accounts in this set.'))}</p>`}<p class="cp-note">${Object.entries(TIER_WORD).map(([t, w]) => `<span style="color:${TIER_DOT[t]}">●</span> ${esc(L(w))}`).join(' &nbsp; ')}</p></div>
-    <div class="cp-box"><h4>${esc(L('Watch and verify'))}</h4>${watch.length ? `<ul class="bul">${watch.map((n) => `<li><b>${esc(clip(n.narrative, 80))}</b>${n.riskNote ? `: ${esc(clip(n.riskNote, 90))}` : ''}${n.posts?.length ? ` <span class="sm">${esc(n.posts.slice(0, 4).map((p) => `[Post #${p}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : `<p class="sm">${esc(L('No narrative flagged.'))}</p>`}${unknown.length ? `<p class="cp-note"><b>${esc(L('Not known'))}:</b> ${unknown.map((u) => esc(clip(typeof u === 'string' ? u : (u.text || u.item || ''), 90))).join('; ')}</p>` : ''}</div>
+    <div class="cp-box"><h4>${esc(L('Watch and verify'))}</h4>${watch.length ? `<ul class="bul">${watch.map((n) => `<li><b>${esc(clip(n.narrative, 80))}</b>${n.riskNote ? `: ${esc(clip(n.riskNote, 90))}` : ''}${n.posts?.length ? ` <span class="sm">${esc(n.posts.slice(0, 4).map((p) => `[Post #${p}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : `<p class="sm">${esc(L('No narrative flagged.'))}</p>`}${unknown.length ? `<p class="cp-note"><b>${esc(L('Not known'))}:</b> ${unknown.map((u) => esc(clip(String(typeof u === 'string' ? u : (u.text || u.item || '')).replace(/[.\s]+$/, ''), 90))).join('; ')}</p>` : ''}</div>
   </div>
   ${closingSection()}`;
   };
