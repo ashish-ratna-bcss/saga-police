@@ -6,7 +6,7 @@
 
 const FACTS_SYSTEM = `You extract facts from social-media posts for an event analyst. Each line is: number|posted YYYY-MM-DD|@author|text.
 Return ONLY compact JSON on ONE line (no spaces, no line breaks), one entry for EVERY post number given. Leave out any field that is empty or 0:
-{"p":[{"n":12,"k":"bandh","d":"2026-10-08","o":"organiser","s":"demand or reason","w":"place","c":1,"v":0,"x":0,"a":0,"t":"denied","r":"m","pl":[{"n":"Bhubaneswar","in":"Odisha, India","a":1}]}]}
+{"p":[{"n":12,"k":"bandh","d":"2026-10-08","o":"organiser","s":"demand or reason","w":"place","c":1,"v":0,"x":0,"a":0,"t":"denied","r":"m","pl":[{"n":"CityName","in":"State, Country","a":1}]}]}
 - k: what the post is about: bandh | rally | protest | meeting | notice | campaign | visit | violence | other. Use bandh only when the post itself says bandh, shutdown or strike; a march, sit-in, demonstration or protest at a site is protest.
 - d: the date the activity takes place, as YYYY-MM-DD. Work it out from the post date ("tomorrow", "8th", "next Friday"). Leave "" if the post gives no date. NEVER use the posting date unless the post says the activity happens that day.
 - o: the group or person that ORGANISES or CALLS the activity, exactly as the post names it. "" if not stated. A party that stays away from, opposes or only comments on the activity is NOT its organiser; a post that says "A has called a bandh, B stays away" has organiser A.
@@ -113,7 +113,7 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
   const placeMap = new Map();
   const byPost = {};
   let calls = 0; let violence = 0; let callsOut = 0; let violenceOut = 0;
-  const allegedPosts = []; const detentionPosts = [];
+  const allegedPosts = []; const detentionPosts = []; const violenceAuthors = new Set();
   const callPosts = []; const violencePosts = []; const callOutPosts = []; const violenceOutPosts = [];
 
   Object.entries(factsMap).forEach(([nStr, f]) => {
@@ -124,9 +124,9 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
     const ownCall = f.call && f.role !== 'media' && where !== 'out';   // a news report of someone else's call is not a call; calls elsewhere are counted apart
     if (f.call && f.role !== 'media' && where === 'out') { callsOut += 1; callOutPosts.push(n); }
     if (ownCall) { calls += 1; callPosts.push(n); }
-    const ownViolence = f.violence && where !== 'out';
+    const ownViolence = f.violence && !f.detention && !f.alleged && where !== 'out';   // arrests and allegations are not confirmed violence
     if (f.violence && where === 'out') { violenceOut += 1; violenceOutPosts.push(n); }
-    if (ownViolence) { violence += 1; violencePosts.push(n); }
+    if (ownViolence) { violence += 1; violencePosts.push(n); violenceAuthors.add(String(post?.author || n).toLowerCase()); }
     if (f.alleged && where !== 'out') allegedPosts.push(n);
     if (f.detention && where !== 'out') detentionPosts.push(n);
     (f.places || []).forEach((pl) => {
@@ -153,24 +153,25 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
     const d = dated.get(k) || { date: f.date, kind: f.kind, posts: [], organisers: new Map(), places: new Map(), subjects: new Map(), statuses: new Map(), outside: 0 };
     d.posts.push(n);
     if (where === 'out') d.outside += 1;
-    if (f.organiser) d.organisers.set(f.organiser, (d.organisers.get(f.organiser) || 0) + 1);
+    if (f.organiser) { const ok = fold(f.organiser); const cur = d.organisers.get(ok) || { name: f.organiser, n: 0, forms: new Map() }; cur.n += 1; cur.forms.set(f.organiser, (cur.forms.get(f.organiser) || 0) + 1); cur.name = Array.from(cur.forms.entries()).sort((a, b) => b[1] - a[1])[0][0]; d.organisers.set(ok, cur); }
     if (f.status) d.statuses.set(f.status, (d.statuses.get(f.status) || 0) + 1);
     if (f.subject) d.subjects.set(f.subject, (d.subjects.get(f.subject) || 0) + 1);
     if (f.place) d.places.set(f.place, (d.places.get(f.place) || 0) + 1);
     dated.set(k, d);
-    if (f.organiser) organiserCounts.set(f.organiser, (organiserCounts.get(f.organiser) || 0) + 1);
+    if (f.organiser) { const ok = fold(f.organiser); const cur = organiserCounts.get(ok) || { name: f.organiser, n: 0, forms: new Map() }; cur.n += 1; cur.forms.set(f.organiser, (cur.forms.get(f.organiser) || 0) + 1); cur.name = Array.from(cur.forms.entries()).sort((a, b) => b[1] - a[1])[0][0]; organiserCounts.set(ok, cur); }
   });
 
   const top = (m) => Array.from(m.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+  const topOrg = (m) => Array.from(m.values()).sort((a, b) => b.n - a.n)[0]?.name || '';
   const activities = Array.from(dated.values())
-    .map((d) => ({ date: d.date, kind: d.kind, organiser: top(d.organisers), place: top(d.places), subject: top(d.subjects), statuses: Object.fromEntries(d.statuses), posts: d.posts.slice(0, 8), support: d.posts.length, outside: d.outside > 0 && d.outside === d.posts.length }))
+    .map((d) => ({ date: d.date, kind: d.kind, organiser: topOrg(d.organisers), place: top(d.places), subject: top(d.subjects), statuses: Object.fromEntries(d.statuses), posts: d.posts.slice(0, 8), support: d.posts.length, outside: d.outside > 0 && d.outside === d.posts.length }))
     .sort((a, b) => a.date.localeCompare(b.date));
   return {
     activities,
     places: Array.from(placeMap.values()).sort((a, b) => b.active - a.active || b.mentioned - a.mentioned),
-    organisers: Array.from(organiserCounts.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 10),
+    organisers: Array.from(organiserCounts.values()).map((o) => ({ name: o.name, count: o.n })).sort((a, b) => b.count - a.count).slice(0, 10),
     calls: { count: calls, posts: callPosts.slice(0, 10) },
-    violence: { count: violence, posts: violencePosts.slice(0, 10) },
+    violence: { count: violence, accounts: violenceAuthors.size, posts: violencePosts.slice(0, 10) },
     alleged: { count: allegedPosts.length, posts: allegedPosts.slice(0, 10) },
     detentions: { count: detentionPosts.length, posts: detentionPosts.slice(0, 10) },
     byPost,
