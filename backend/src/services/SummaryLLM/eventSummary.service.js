@@ -1201,6 +1201,7 @@ const saveClosingSummary = async (db, eventId, text) => {
 };
 
 module.exports = {
+  computeEffectiveDateWindow,
   cancelSummaryJobs,
   generateClosingSummary,
   saveClosingSummary,

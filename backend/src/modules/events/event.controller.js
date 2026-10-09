@@ -192,6 +192,9 @@ const getEventContent = async (req, res) => {
       page,
       limit,
       platform,
+      timeframe: req.query.timeframe || 'full',
+      fromDate: req.query.from_date || null,
+      toDate: req.query.to_date || null,
       db: req.tenantPrisma,
     });
     return res.status(200).json(data);

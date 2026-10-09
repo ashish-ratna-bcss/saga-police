@@ -291,7 +291,7 @@ const getDashboard = async (id, { db } = {}) => {
   };
 };
 
-const listEventContent = async (id, { page = 1, limit = 50, platform = 'all', db } = {}) => {
+const listEventContent = async (id, { page = 1, limit = 50, platform = 'all', db, timeframe = 'full', fromDate = null, toDate = null } = {}) => {
   const prisma = dbOf(db);
   const event = await prisma.social_media_events.findUnique({ where: { id: Number(id) } });
   if (!event) {
@@ -303,6 +303,12 @@ const listEventContent = async (id, { page = 1, limit = 50, platform = 'all', db
   const where = withPublicationRange({ event_id: Number(id) }, event);
   if (platform && platform !== 'all') {
     where.platform = String(platform).toLowerCase();
+  }
+  // The same time window as the report the reader has open (Daily, Weekly, ...), so the list and the report show the same posts.
+  if (timeframe && String(timeframe).toLowerCase() !== 'full') {
+    const { computeEffectiveDateWindow } = require('../../services/SummaryLLM/eventSummary.service');
+    const win = computeEffectiveDateWindow(event, timeframe, fromDate, toDate);
+    if (win && win.rangeWhere) where.posted_at = win.rangeWhere;
   }
 
   const rawRows = await prisma.social_media_event_media.findMany({

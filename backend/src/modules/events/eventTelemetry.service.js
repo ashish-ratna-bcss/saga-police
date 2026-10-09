@@ -87,7 +87,10 @@ const getEventAnchorProfile = (eventInput, keywordsListInput = [], locationInput
   const titleTokens = tokenize(name);
   const baseLocTokens = tokenize(location);
   const statePlaces = resolveStatePlaces(location);
-  const statePlaceTokens = statePlaces.flatMap((p) => tokenize(p));
+  // A one-word place ("Bhubaneswar") can count as a word. A multi-word place ("Odisha Legislative Assembly") counts only as the whole
+  // phrase: split into words it would turn plain words like "assembly" into locations and match unrelated posts ("morning assembly").
+  const statePlaceTokens = statePlaces.filter((p) => tokenize(p).length === 1).flatMap((p) => tokenize(p));
+  const multiWordPlaces = statePlaces.filter((p) => tokenize(p).length > 1).map((p) => tokenize(p).join(' '));
   // The state's place list contains generic words ("high", "road", "state"), so a place only counts
   // as this event's location when the typed location or the event's own text/keywords also use it.
   const ownText = new Set([
@@ -96,6 +99,8 @@ const getEventAnchorProfile = (eventInput, keywordsListInput = [], locationInput
     ...(Array.isArray(rawKeywords) ? rawKeywords : []).flatMap((k) => tokenize(typeof k === 'string' ? k : k?.keyword || '')),
   ]);
   const locationTokens = Array.from(new Set([...baseLocTokens, ...statePlaceTokens.filter((t) => t.length >= 5 && ownText.has(t))]));
+  const ownTextJoined = ` ${[name, description, ...(Array.isArray(rawKeywords) ? rawKeywords : []).map((k) => (typeof k === 'string' ? k : k?.keyword || ''))].map((x) => tokenize(x).join(' ')).join(' ')} `;
+  const locationPhrases = multiWordPlaces.filter((ph) => ownTextJoined.includes(` ${ph} `));
 
   const descTokens = tokenize(description);
   const coreAnchors = Array.from(new Set([...titleTokens, ...baseLocTokens, ...descTokens]));
@@ -140,6 +145,7 @@ const getEventAnchorProfile = (eventInput, keywordsListInput = [], locationInput
     titleTokens,
     location,
     locationTokens,
+    locationPhrases,
     description,
     descTokens,
     coreAnchors,
@@ -184,11 +190,13 @@ const classifyEventRelevance = (text, eventInput, keywordsList = [], eventLocati
 
   const profile = profileFor(eventInput, keywordsList, eventLocation, eventDescription);
   const { cleanTitle, titleTokens, locationTokens, descTokens, anchoredKeywords, unanchoredKeywords } = profile;
+  const locationPhrases = profile.locationPhrases || [];
 
   const postTokens = new Set(tokenize(cleanText));
+  const postJoined = ` ${tokenize(cleanText).join(' ')} `;
 
   // Check whole-word token overlaps against dynamic event profile
-  const matchedLocs = locationTokens.filter((loc) => postTokens.has(loc));
+  const matchedLocs = [...locationTokens.filter((loc) => postTokens.has(loc)), ...locationPhrases.filter((ph) => postJoined.includes(` ${ph} `))];
   const matchedTitles = titleTokens.filter((t) => postTokens.has(t));
   const matchedDescs = descTokens.filter((d) => postTokens.has(d));
   const matchedCoreAnchors = [...matchedLocs, ...matchedTitles, ...matchedDescs];

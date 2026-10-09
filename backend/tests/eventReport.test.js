@@ -472,3 +472,15 @@ test('cancel: stops only that event\'s running generation, aborts its model call
   assert.strictEqual(svc.cancelSummaryJobs('nobody', 7), 0);
   ['t1:7:full', 't1:7:weekly', 't1:8:full', 't1:7:daily'].forEach((k) => jobs.delete(k));
 });
+
+test('relevance: a place name split into words must not turn plain words into locations ("morning assembly" is not Odisha)', () => {
+  const { classifyEventRelevance, getEventAnchorProfile } = require('../src/modules/events/eventTelemetry.service');
+  const ev = { name: "CJP Demand - Education Minister's Resignation", location: 'Odisha', description: 'Students protested near the Odisha Legislative Assembly in Bhubaneswar over textbook errors and demanded the Education Minister resign.', keywords: [{ keyword: 'School Thik Karo' }] };
+  const profile = getEventAnchorProfile(ev, ev.keywords, '', '');
+  assert.ok(!profile.locationTokens.includes('assembly'), 'assembly must not be a location word');
+  assert.ok(profile.locationTokens.includes('odisha') && profile.locationTokens.includes('bhubaneswar'));
+  const sriLanka = 'It is time to end the school cut. Students are pulled out of the morning assembly by a teacher. Email the Ministry of Education and demand an end to this. The minister should act. Students demand education rights.';
+  assert.strictEqual(classifyEventRelevance(sriLanka, ev, [], '', '', {}).isRelevant, false);
+  const real = 'Students gathered near the Odisha Legislative Assembly and demanded the education minister resign over textbook errors in Bhubaneswar.';
+  assert.strictEqual(classifyEventRelevance(real, ev, [], '', '', {}).isRelevant, true);
+});

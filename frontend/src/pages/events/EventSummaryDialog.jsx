@@ -430,13 +430,22 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
     onOpenChange(next);
   };
 
+  // A different report window (Daily, Weekly, ...) means a different set of posts: clear the list so it is loaded again for that window.
+  useEffect(() => {
+    setAllPosts([]);
+    setAllPostsPage(1);
+    setAllPostsHasMore(true);
+    setAllPostsTotal(0);
+    setAllPostsLoaded(false);
+  }, [timeframe, fromDate, toDate, eventId]);
+
   const fetchAllPosts = useCallback(
     async (page = 1, platform = allPostsPlatform, append = false) => {
       if (!eventId) return;
       setAllPostsLoading(true);
       try {
         const res = await api.get(`/events/${eventId}/content`, {
-          params: { page, limit: 50, platform },
+          params: { page, limit: 50, platform, timeframe: timeframeRef.current || 'full', from_date: fromDateRef.current || undefined, to_date: toDateRef.current || undefined },
         });
         const data = res?.data || {};
         const items = Array.isArray(data.content) ? data.content : [];

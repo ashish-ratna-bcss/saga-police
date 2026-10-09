@@ -1,4 +1,5 @@
 const {
+  computeEffectiveDateWindow,
   cancelSummaryJobs,
   generateClosingSummary,
   saveClosingSummary,
@@ -11,6 +12,7 @@ const {
 } = require('./eventSummary.service');
 
 module.exports = {
+  computeEffectiveDateWindow,
   cancelSummaryJobs,
   generateClosingSummary,
   saveClosingSummary,
