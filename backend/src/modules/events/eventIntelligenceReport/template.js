@@ -451,9 +451,9 @@ b{font-weight:700}
 .vline{font-size:7.8pt;margin-top:.8mm;color:inherit}.calm b,.watch>b{font-size:8.6pt}
 .pcards.one{grid-template-columns:1fr}
 .pcard.wide{padding:2.4mm 3.2mm}
-.grp{display:grid;grid-template-columns:34mm 1fr;gap:3mm;align-items:baseline;padding:1mm 0;border-top:.4px solid #eef2f6}
+.grp{display:grid;grid-template-columns:44mm 1fr;gap:3mm;align-items:baseline;padding:1mm 0;border-top:.4px solid #eef2f6}
 .grp .gt{font-size:6.8pt;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}.grp .gt i{display:inline-block;width:1.8mm;height:1.8mm;border-radius:50%;margin-right:1.2mm}.grp .gt b{color:${INK};margin-left:1.2mm}
-.grp .gl{font-size:7.5pt;line-height:1.6;color:#334155}.grp .acct{white-space:nowrap}.grp .sep{color:#cbd5e1}
+.grp .gl{font-size:7.5pt;line-height:1.6;color:#334155}.grp .acct{white-space:nowrap}.grp .acct .post-link{color:#0f172a;font-weight:700;text-decoration:none;border-bottom:.4px dotted #64748b}.grp .lk{margin-left:1mm}.grp .lk a,.grp .lk .pc{display:inline-block;background:#eef4ff;border:.4px solid #b8cbf2;border-radius:1mm;padding:0 1.3mm;margin-left:.7mm;font-size:6.4pt;font-weight:700;color:#1d4ed8;text-decoration:none}.grp .sep{color:#cbd5e1}
 .pcards{display:grid;grid-template-columns:1fr 1fr;gap:2.4mm;margin:0 0 3mm}
 .pcard{border:.6px solid ${LINE};border-radius:3px;background:#fff;padding:2mm 2.6mm;break-inside:avoid}
 .pc-h{display:flex;align-items:center;gap:2mm;margin:0 0 1.4mm;font-size:7.8pt;color:${INK}}
@@ -801,7 +801,7 @@ const regionFilter = (analysis, outsideNs, outsideNames) => {
   };
 };
 
-const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquarters, includeEvidence = true, labels = null, regionOnly = false }) => {
+const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquarters, includeEvidence = true, labels = null, regionOnly = false, compact = false }) => {
   setReportTz(headquarters?.timezone);
   // Fixed wording that carries a value (a region, a count) goes through the label map here, because the post-build
   // translation only replaces text that is exactly one label. {placeholders} are kept by the translator.
@@ -1547,7 +1547,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
           const shown = x.items.slice(0, Math.max(0, left));
           left -= shown.length;
           const rest = x.items.length - shown.length;
-          const line = shown.map((p) => `<span class="acct">${authorProfileLink(p)} <span class="lk">${p.posts.slice(0, 4).map((n) => `[Post #${n}]`).join(' ')}${p.posts.length > 4 ? ` +${p.posts.length - 4}` : ''}</span></span>`).join('<span class="sep"> · </span>');
+          const line = shown.map((p) => `<span class="acct">${authorProfileLink(p)} <span class="lk">${esc(L(p.posts.length === 1 ? 'post' : 'posts'))}${p.posts.slice(0, 4).map((n) => `[Post #${n}]`).join('')}${p.posts.length > 4 ? ` +${p.posts.length - 4}` : ''}</span></span>`).join('<span class="sep"> · </span>');
           return `<div class="grp"><span class="gt"><i style="background:${TIER_DOT[x.t]}"></i>${esc(L(GROUP_TITLE[x.t]))} <b>${x.items.length}</b></span><div class="gl">${line}${rest > 0 ? ` <span class="sm">+${rest} ${esc(L('more accounts'))}</span>` : ''}</div></div>`;
         }).join('');
         return `<div class="pcard wide"><div class="pc-h"><span class="plat-badge" style="background:${platColor(k)}">${esc(platLabel(k))}</span><b>${fmt(list.length)} ${esc(L(list.length === 1 ? 'account' : 'accounts'))} · ${fmt(postsTotal)} ${esc(L(postsTotal === 1 ? 'post' : 'posts'))}</b></div>${bar}${groups}</div>`;
@@ -1788,24 +1788,24 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       <span><i>Monitoring window</i><b>${esc(windowStr)}</b></span>
       <span><i>Generated</i><b>${esc(dateStr)}</b></span>
       <span><i>Posts analysed</i><b>${regionOnly && scoped ? `${fmt(inEv.length)} · ${esc(regionName)} only` : scoped ? L('{n} in {region} of {m} monitored', { n: fmt(inEv.length), region: esc(regionName), m: fmt(monitoredTotal) }) : fmt(total)}</b></span>
-      <span><i>Report format</i><b>${includeEvidence ? 'Full Report (with evidence)' : regionOnly ? `${esc(regionName)} Executive Summary` : 'Executive Summary'}</b></span>
+      <span><i>Report format</i><b>${includeEvidence ? 'Full Report (with evidence)' : compact ? `${esc(regionName)} Location Summary` : regionOnly ? `${esc(regionName)} Executive Summary` : 'Executive Summary'}</b></span>
     </div>
   </header>
   ${hqHtml}
   ${assessHtml}
   ${kstripHtml}
-  ${srcBoxHtml}
-  ${issueSection()}
+  ${compact ? '' : srcBoxHtml}
+  ${compact ? '' : issueSection()}
   ${actionSummaryHtml}
   ${recommendedSection()}
   ${riskSection()}
-  ${whereSection()}
+  ${compact ? '' : whereSection()}
   ${activitySection()}
-  ${actorsSection()}
-  ${accountsSection()}
-  ${reactionSection()}
+  ${compact ? '' : actorsSection()}
+  ${compact ? '' : accountsSection()}
+  ${compact ? '' : reactionSection()}
   ${closingSection()}
-  ${evidenceSection()}
+  ${compact ? '' : evidenceSection()}
 </section>
 `;
 
