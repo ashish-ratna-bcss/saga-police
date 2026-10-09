@@ -361,10 +361,11 @@ const getEventIntelligenceReportPdf = async (req, res) => {
     const fromDate = req.query?.from_date || req.query?.fromDate || null;
     const toDate = req.query?.to_date || req.query?.toDate || null;
     // scope=region: the executive brief with only the event region's own content (no evidence annex, nothing from elsewhere).
+    const presentation = req.query?.scope === 'presentation';
     const compact = req.query?.scope === 'location';
     const regionEvidence = req.query?.scope === 'location_full';   // the location report with its own evidence annex
     const regionOnly = req.query?.scope === 'region' || compact || regionEvidence;
-    const includeEvidence = regionEvidence || !regionOnly &&
+    const includeEvidence = !presentation && (regionEvidence || !regionOnly) &&
       req.query?.include_evidence !== 'false' &&
       req.query?.with_evidence !== 'false' &&
       req.query?.evidence !== 'false';
@@ -379,12 +380,13 @@ const getEventIntelligenceReportPdf = async (req, res) => {
       includeEvidence,
       regionOnly,
       compact,
+      presentation,
     });
     // Keep the "PDF saved" flag on the cached summary in sync; failure here must not block the download.
     if (includeEvidence && !regionOnly) {
       saveEventSummaryPdf(req.params.id, pdf.toString('base64'), { db: req.tenantPrisma }).catch(() => {});
     }
-    const evTag = regionEvidence ? 'Location_Full_With_Evidence' : includeEvidence ? 'With_Evidence' : compact ? 'Location_Summary' : regionOnly ? 'Region_Executive_Summary' : 'Without_Evidence';
+    const evTag = presentation ? 'Presentation' : regionEvidence ? 'Location_Full_With_Evidence' : includeEvidence ? 'With_Evidence' : compact ? 'Location_Summary' : regionOnly ? 'Region_Executive_Summary' : 'Without_Evidence';
     const safe = `${tenantName || 'Report'}_${eventName}`.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');

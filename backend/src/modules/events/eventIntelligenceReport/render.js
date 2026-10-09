@@ -45,17 +45,21 @@ const renderHtmlToPdf = async (html, opts = {}) => {
   }
 };
 
-const renderNow = async (html, { footerLabel = '' } = {}) => {
+const renderNow = async (html, { footerLabel = '', presentation = false } = {}) => {
   const browser = await getBrowser();
   const page = await browser.newPage();
   try {
-    await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 1 });
+    await page.setViewport(presentation ? { width: 1280, height: 720, deviceScaleFactor: 1 } : { width: 794, height: 1123, deviceScaleFactor: 1 });
     await page.setContent(html, { waitUntil: ['load', 'domcontentloaded', 'networkidle0'], timeout: 60000 });
     await page.evaluate(async () => {
       if (document.fonts && document.fonts.ready) await document.fonts.ready;
     });
     const footer = `<div style="width:100%;font-size:7px;color:#8792A6;font-family:Arial,sans-serif;padding:0 11mm;display:flex;justify-content:space-between;">
       <span>${esc(footerLabel)}</span><span>Page <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`;
+    if (presentation) {
+      const slides = await page.pdf({ width: '1280px', height: '720px', printBackground: true, displayHeaderFooter: false, margin: { top: '0', bottom: '0', left: '0', right: '0' }, preferCSSPageSize: true, timeout: RENDER_TIMEOUT_MS });
+      return Buffer.from(slides);
+    }
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
