@@ -104,7 +104,7 @@ const buildPresentationBody = (ctx) => {
   const {
     esc, fmt, pct, clip, L, donutSvg, platLabel, platColor,
     event, tenant, windowStr: windowFull, period, dateStr, total, sent, sentTotal, engTotal, ev, riskParts, platformEntries, kws,
-    analysis, places, authors, threatLevel, rationale, bottomLine, counts, narrativesToWatch, actions, notKnown, stats,
+    analysis, places, authors, threatLevel, rationale, coverage, bottomLine, counts, narrativesToWatch, actions, notKnown, stats,
   } = ctx;
   const t = esc(tenant);
   const windowStr = period || windowFull;
@@ -218,7 +218,7 @@ const buildPresentationBody = (ctx) => {
     <div class="tone"><div class="lab">${esc(L('Share of posts'))}</div><div class="bar">${tone(sent.negative, sent.neutral, sent.positive, sentTotal)}</div></div>
     <div class="tone"><div class="lab">${esc(L('Share of engagement'))}</div><div class="bar">${engSum > 0 ? tone(engBy.negative, engBy.neutral, engBy.positive, engSum) : ''}</div></div>
     <div class="legend2"><span><i style="background:${COLORS.red}"></i>${esc(L('Negative'))}</span><span><i style="background:${COLORS.grey}"></i>${esc(L('Neutral'))}</span><span><i style="background:${COLORS.green}"></i>${esc(L('Positive'))}</span></div>
-    <p class="small" style="margin-top:26px">${esc(L('Engagement is counted over the {n} posts listed in the evidence register.', { n: fmt((ev || []).length) }))}</p>`;
+    <p class="small" style="margin-top:26px">${esc(L('Engagement is counted over the {n} posts analysed in this deck.', { n: fmt((ev || []).length) }))}</p>`;
 
   // ---- 6. What the posts are about
   const topKw = (kws || []).slice(0, 7);
@@ -300,13 +300,19 @@ const buildPresentationBody = (ctx) => {
     <tr><td>${esc(L('High and critical-risk posts'))}</td><td>${fmt(hi)}</td><td class="dir">${esc(L('Down'))}</td></tr></table>`;
 
   // ---- 12. Notes
-  const collected = Number(stats.total_unique_posts || stats.total_media_count || total) || total;
-  const unrelated = Number(stats.unrelated_posts_count || 0);
+  const cv = coverage || {};
+  const covText = [
+    L('{n} posts about the event were collected in this window.', { n: fmt(cv.collected || total) }),
+    cv.inRegion != null && cv.inRegion < (cv.collected || 0) ? L('{n} of them are about {place} and are the posts analysed here.', { n: fmt(cv.inRegion), place: cv.region || '' }) : '',
+    cv.unrelated ? L('{n} other stored posts were set aside as unrelated.', { n: fmt(cv.unrelated) }) : '',
+    cv.duplicates ? L('{n} repeated copies were merged.', { n: fmt(cv.duplicates) }) : '',
+    L('The evidence register lists {n} posts.', { n: fmt(cv.register || (ev || []).length) }),
+  ].filter(Boolean).join(' ');
   const s12 = `<h2>${esc(L('Notes on the figures'))}</h2><table class="m n"><tr><th>${esc(L('Item'))}</th><th>${esc(L('What to know'))}</th></tr>
-    <tr><td>${esc(L('Coverage'))}</td><td>${esc(L('{a} posts analysed as relevant; {b} set aside as unrelated; {c} posts are listed in the evidence register. Duplicates are merged.', { a: fmt(total), b: fmt(unrelated), c: fmt((ev || []).length) }))}</td></tr>
+    <tr><td>${esc(L('Coverage'))}</td><td>${esc(covText)}</td></tr>
     <tr><td>${esc(L('Negative'))}</td><td>${esc(L('A negative post criticises or opposes; it measures opinion, not hostility or threat.'))}</td></tr>
     <tr><td>${esc(L('Risk'))}</td><td>${esc(L('Risk comes from calls to act, confirmed violence or a high-risk rating. Arrests and allegations are shown apart and are not violence. Risk bands are model labels, not analyst-reviewed.'))}</td></tr>
-    <tr><td>${esc(L('Engagement'))}</td><td>${esc(L('Interactions are likes, shares and comments. Views are not added in.'))}</td></tr></table>`;
+    <tr><td>${esc(L('Engagement'))}</td><td>${esc(L('Interactions are likes, shares and comments. Views are not added in. Engagement shares are counted over the {n} posts analysed here.', { n: fmt((ev || []).length) }))}</td></tr></table>`;
 
   // A slide with nothing to show (no claim to check) is left out instead of printing an empty page.
   const slides = [s1, s2, hasClaims || hasActs ? s3 : '', s4, s5, s6, s7, s8, claimBars.length ? s9 : '', s10, s11, s12].filter(Boolean);

@@ -1988,6 +1988,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       esc, fmt, pct, clip, L, donutSvg, platLabel, platColor,
       event, tenant, windowStr, period: presentationPeriod, dateStr, total, sent, sentTotal, engTotal, ev: scopeEv, riskParts, platformEntries, kws,
       classification: hq?.classification || '',
+      coverage: { collected: n0(stats.relevant_posts_count) || ev.length, inRegion: scoped ? inEv.length : null, region: event.location || '', unrelated: n0(stats.unrelated_posts_count), duplicates: n0(stats.duplicate_posts_merged), register: ev.length },
       analysis, places, authors, threatLevel: threatLevelVal, rationale: computedRationale, bottomLine: bl, narrativesToWatch, actions, notKnown: analysis?.notKnown || [], stats,
       counts: {
         violenceConfirmed: violenceAcc > 1 ? violenceN : 0, violenceMentioned: violenceAcc > 1 ? 0 : violenceN, alleged: allegedN, detentions: detentionN,
