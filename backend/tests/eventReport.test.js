@@ -212,7 +212,7 @@ test('accounts whose platform gives no view counts say so instead of showing 0 v
 test('executive cleanup does not damage normal sentences that start with "post"', () => {
   const a = { facts: { places: [], calls: { count: 0, posts: [] }, violence: { count: 0, posts: [] }, accounts: [], activities: [] } };
   const html = buildReportHtml({ summary: { event: { name: 'E', location: 'Odisha' }, stats: {} }, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false });
-  assert.ok(/No post reports violence/.test(html));
+  assert.ok(/No post confirms violence/.test(html));
   assert.ok(!/No Posts reports/.test(html));
 });
 
@@ -496,7 +496,7 @@ test('every number about posts shows its posts as links: annex links in the full
   const exec = buildReportHtml({ summary, keywordData: null, tenantName: 'odisha', analysis: { facts }, headquarters: null, includeEvidence: false });
   assert.ok(/Posts behind these numbers/.test(exec));
   assert.ok(/High \/ critical risk \(2\):<\/b>\s*<a href="https:\/\/x\.com\/a\/status\/1"[^>]*class="plink">#1<\/a>\s*<a href="https:\/\/x\.com\/a\/status\/3"/.test(exec), 'risk posts are live links');
-  assert.ok(/Violence reports \(1\):<\/b>\s*<a href="https:\/\/x\.com\/a\/status\/3"/.test(exec));
+  assert.ok(/Violence confirmed \(1\):<\/b>\s*<a href="https:\/\/x\.com\/a\/status\/3"/.test(exec));
   assert.ok(/Posts calling people to act \(1\):<\/b>\s*<a href="https:\/\/x\.com\/a\/status\/2"/.test(exec));
   assert.ok(/class="pcard[^"]*"[\s\S]*A2[\s\S]*<a href="https:\/\/x\.com\/a\/status\/2"[^>]*>#2<\/a>/.test(exec), 'the summary shows each platform with its accounts and their posts as links');
   assert.ok(!/<th>Posts & Reach<\/th>/.test(exec), 'the summary has no long accounts table');
@@ -516,4 +516,23 @@ test('accounts section tells the officer the answer first and never claims an of
   assert.ok(/Largest reach from a non-news account/.test(html) && /Page3/.test(html));
   assert.ok(/News \/ official pages <b>2<\/b>/.test(html) && /class="grp"/.test(html), 'accounts are listed by role in one dense index');
   assert.ok(!/does not organise/.test(html));
+});
+
+test('closing summary comes as confirmed / not verified / next steps / risk; allegations and arrests make Medium, never High', () => {
+  const prompt = require('../src/services/SummaryLLM/eventSummary.prompt');
+  const text = prompt.parseClosing(JSON.stringify({
+    confirmed: ['The INDIA bloc called a 12-hour Odisha bandh on 8 October over three demands, and the CJP did not call it.'],
+    unverified: ['Saurav Das alleges stone-pelting may be planned at the 10 October protest in Delhi; no post confirms it.'],
+    next: ['Verify how the 8 October bandh passed in Bhubaneswar and Cuttack.'],
+    risk: 'Medium, because posts allege violence and report arrests, but none confirms violence.',
+  }));
+  assert.match(text, /^CONFIRMED\n- /);
+  assert.match(text, /\n\nNOT VERIFIED\n- /);
+  assert.match(text, /\n\nNEXT STEPS\n- /);
+  assert.match(text, /\n\nRISK\n- /);
+  const level = (facts) => prompt.closingLevel({ facts, stats: { risk_counts: {} } });
+  assert.equal(level({ violence: { count: 0 }, alleged: { count: 2 }, detentions: { count: 1 }, calls: { count: 0 } }), 'Medium');
+  assert.equal(level({ violence: { count: 1 }, alleged: { count: 0 }, detentions: { count: 0 }, calls: { count: 0 } }), 'Medium');
+  assert.equal(level({ violence: { count: 2 }, alleged: { count: 0 }, detentions: { count: 0 }, calls: { count: 0 } }), 'High');
+  assert.equal(level({ violence: { count: 0 }, alleged: { count: 0 }, detentions: { count: 0 }, calls: { count: 0 } }), 'Low');
 });
