@@ -3,7 +3,7 @@ const axios = require('axios');
 const dbOf = require('../../lib/dbOf');
 const logger = require('../../lib/logger');
 const {
-  buildSystemPrompt, buildUserContext, RETRY_MESSAGE, RETRY_SHORTER_MESSAGE, buildRulesReport, MINIMAL_CONTRACT, languageLine, parseLLMReport, reportToMarkdown,
+  buildSystemPrompt, buildUserContext, RETRY_MESSAGE, RETRY_SHORTER_MESSAGE, parseLLMReport, reportToMarkdown,
   BATCH_SYSTEM, buildBatchUserContext, parseBatchNotes, buildReducerSystemPrompt, buildReducerUserContext,
   estimateTokens, truncateToTokens, makeBatches, reducerToReport, extractJson,
   buildActionsSystem, buildActionsContext, parseMoreActions, mergeActions,
@@ -794,32 +794,6 @@ const generateEventSummary = async (
       else logger.warn('[SummaryLLM] Facts pass produced nothing; the report will not list organisers, dates or places from the posts');
     } catch (e) { logger.warn(`[SummaryLLM] Facts pass skipped: ${e.message}`); }
     let factsPack = factsPackText(facts, new Date());
-
-    // When the model cannot finish the full report, nothing is thrown away: a short model answer (if it gives one) is merged into a report
-    // written by rules from the counted facts, so the report, its facts, places and accounts still exist and every format can be built from it.
-    const rulesFallback = async (digestForRules, notesForRules, userContent) => {
-      const rules = buildRulesReport({ event, facts, risk: riskCounts, sentiment: activeSentiment, platforms: platformCounts, total: totalMediaCount, digest: digestForRules, today: new Date().toISOString().slice(0, 10) });
-      let usedModel = false;
-      try {
-        const res = await callLLM([{ role: 'system', content: `${MINIMAL_CONTRACT} ${languageLine(promptCtx)}` }, { role: 'user', content: userContent }], 1500);
-        const o = extractJson(res.data?.choices?.[0]?.message?.content || '');
-        if (o && typeof o === 'object') {
-          ['bottom_line', 'situation', 'public_order'].forEach((k) => { if (typeof o[k] === 'string' && o[k].trim().length > 20) { rules[k] = o[k].trim(); usedModel = true; } });
-          if (Array.isArray(o.key_findings) && o.key_findings.length) { rules.key_findings = o.key_findings.slice(0, 6); usedModel = true; }
-        }
-      } catch (e) { logger.warn(`[SummaryLLM] Short model answer not available either (${e.message}); the report is written from the counted facts`); }
-      const rep = reducerToReport(JSON.stringify(rules), digestForRules || { clusters: [] }, notesForRules || {}, analysed);
-      return { report: rep, usedModel };
-    };
-    const useRulesFallback = async (digestForRules, notesForRules, userContent) => {
-      logger.warn('[SummaryLLM] The full report could not be finished by the model; building it from the counted facts');
-      const fb = await rulesFallback(digestForRules, notesForRules, userContent);
-      if (fb.report) {
-        structuredReport = fb.report;
-        summarySource = fb.usedModel ? 'llm_partial' : 'rules';
-        llmError = 'The AI could not finish the full report, so parts of it were written from the counted facts.';
-      }
-    };
     let withFacts = (content) => (factsPack ? `${content}\n\nCONFIRMED FACTS (computed from the posts; use these dates, organisers and places exactly, do not contradict them):\n${factsPack}` : content);
     const refreshFacts = (mediaNos) => {   // once the per-post source types are known, news outlets stop counting as organisers or callers
       facts = finalizeFacts(mediaNos);
@@ -877,7 +851,6 @@ const generateEventSummary = async (
           reducerMessages.push({ role: 'assistant', content: llmFinishReason === 'length' ? '(the reply was cut off)' : rawReport }, { role: 'user', content: llmFinishReason === 'length' ? RETRY_SHORTER_MESSAGE : RETRY_MESSAGE });
         }
       }
-      if (!structuredReport) await useRulesFallback(digest, notesMap, withFacts(buildReducerUserContext(promptCtx, digest)));
       if (structuredReport) {
         // Measured narrative volumes over ALL analysed posts (not just the cited ones).
         const byNo = new Map(analysed.map((x) => [postNo(x), x]));
@@ -909,7 +882,6 @@ const generateEventSummary = async (
           messages.push({ role: 'assistant', content: rawContent }, { role: 'user', content: RETRY_MESSAGE });
         }
       }
-      if (!structuredReport) await useRulesFallback(null, {}, withFacts(llmUserContext));
     }
     if (structuredReport) {
       // ---- PLAIN-LANGUAGE PASS: strip filler openers in code; ask the model once to rewrite what still reads stiffly.
@@ -1113,21 +1085,6 @@ ${Object.entries(platformCounts).map(([p, count]) => `- **${p.toUpperCase()}**: 
 
   // 6. Cache the result so re-opening the dialog is instant until new posts arrive. A cancelled report is never saved.
   throwIfCancelled();
-  // A good AI report is never replaced by a weaker one: if this run could not get a full AI answer, the earlier full report stays.
-  if (result.summary_source !== 'llm') {
-    try {
-      const prev = await prisma.social_media_event_summaries.findUnique({ where: { event_id: numericId }, select: { summary_source: true, stats: true } });
-      const sameWindow = String(prev?.stats?.timeframe || 'full') === String(result.stats?.timeframe || 'full');
-      if (prev?.summary_source === 'llm' && sameWindow) {
-        const keep = new Error('The AI could not finish this report this time, so the earlier full report was kept. Press Regenerate again in a few minutes.');
-        keep.status = 503;
-        throw keep;
-      }
-    } catch (keepErr) {
-      if (keepErr.status === 503) throw keepErr;
-      logger.warn(`[SummaryLLM] Could not compare with the earlier report: ${keepErr.message}`);
-    }
-  }
   try {
     const cursor = await getEventMediaCursor(prisma, numericId);
     await persistEventSummary(prisma, numericId, result, cursor);
