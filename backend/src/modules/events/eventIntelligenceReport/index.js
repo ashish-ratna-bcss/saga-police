@@ -75,7 +75,7 @@ const generateEventIntelligencePdf = async (
     analysis,
     headquarters: resolveHeadquarters(tenantName, profile),
     includeEvidence,
-    regionOnly: regionOnly || compact,
+    regionOnly: regionOnly || compact || presentation,
     compact,
     presentation,
     labels: await getLabels(reportLanguageFor(tenantName, profile), getLLMConfig),

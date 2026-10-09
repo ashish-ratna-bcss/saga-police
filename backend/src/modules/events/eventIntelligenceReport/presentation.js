@@ -137,7 +137,7 @@ const buildPresentationBody = (ctx) => {
 
   // ---- 1. Title
   const s1 = `
-    <div class="left"><h1>${esc(L('Situation assessment and way forward'))}</h1><div class="sub">${esc(event.name || '')}</div>
+    <div class="left"><h1>${esc(L('Situation assessment and way forward'))}</h1><div class="sub">${esc(event.name || '')}${event.location ? ` · ${esc(event.location)}` : ''}</div>
       <div class="meta">${esc(L('Monitoring period'))} ${esc(windowStr)}<br>${esc(L('Prepared'))} ${esc(dateStr)} ${esc(L('by'))} ${t}</div></div>
     <div class="tiles">
       <div class="tile or"><div class="n">${fmt(total)}</div><div class="l">${esc(L('public posts read'))}</div></div>
