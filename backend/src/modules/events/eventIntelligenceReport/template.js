@@ -1508,7 +1508,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
         <div class="sub-h">1. Priority accounts for review (${topFlaggedProfiles.length})</div>
         <ul class="rows">
           ${topFlaggedProfiles.length
-            ? topFlaggedProfiles.map((p) => `<li><span class="tag" style="background:${platColor(p.platform)}">${esc(platLabel(p.platform))}</span><b>${authorProfileLink(p)}</b><span class="why">${esc([p.callsN ? `${fmt(p.callsN)} post${p.callsN === 1 ? ' calls' : 's call'} people to join or act` : '', p.violenceN ? `${fmt(p.violenceN)} mention${p.violenceN === 1 ? 's' : ''} violence` : ''].filter(Boolean).join('; ') || clip(p.why, 90))}${p.quote ? ` ${esc(clip(p.quote, 70))}` : ''}</span></li>`).join('')
+            ? topFlaggedProfiles.map((p) => `<li><span class="tag" style="background:${platColor(p.platform)}">${esc(platLabel(p.platform))}</span><b>${authorProfileLink(p)}</b>${(p.posts || []).length ? ` <span class="sm">${p.posts.slice(0, 3).map((n) => `[Post #${n}]`).join(' ')}</span>` : ''}<span class="why">${esc([p.callsN ? `${fmt(p.callsN)} post${p.callsN === 1 ? ' calls' : 's call'} people to join or act` : '', p.violenceN ? `${fmt(p.violenceN)} mention${p.violenceN === 1 ? 's' : ''} violence` : ''].filter(Boolean).join('; ') || clip(p.why, 90))}${p.quote ? ` ${esc(clip(p.quote, 70))}` : ''}</span></li>`).join('')
             : `<li>${haveFacts ? 'No account in this window calls for action or violence.' : 'Account roles are not available in this report. Regenerate it to classify accounts.'}</li>`}
         </ul>
       </div>
@@ -1516,7 +1516,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
         <div class="sub-h">2. Posts flagged for review</div>
         <ul class="rows">
           ${topFlaggedPosts.length
-            ? topFlaggedPosts.map((p) => `<li><span class="tag" style="background:${platColor(p.plat)}">${esc(platLabel(p.plat))}</span>${includeEvidence ? `${postRefInternal(p)} · ` : ''}<b>${authorProfileLink(p.plat, p.author, p.url)}</b><span class="why">"${esc(clip(p.text, 100))}"</span></li>`).join('')
+            ? topFlaggedPosts.map((p) => `<li><span class="tag" style="background:${platColor(p.plat)}">${esc(platLabel(p.plat))}</span>${includeEvidence ? postRefInternal(p) : `[Post #${p.n}]`} · <b>${authorProfileLink(p.plat, p.author, p.url)}</b><span class="why">"${esc(clip(p.text, 100))}"</span></li>`).join('')
             : '<li>No active high-threat posts flagged in this window.</li>'}
         </ul>
       </div>
