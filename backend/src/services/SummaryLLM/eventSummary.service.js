@@ -417,8 +417,10 @@ function computeEffectiveDateWindow(event, timeframe = 'full', fromDate = null, 
  */
 const generateEventSummary = async (
   eventId,
-  { db, dbName = null, generatedBy, tenantName, timeframe = 'full', fromDate = null, toDate = null } = {}
+  { db, dbName = null, generatedBy, tenantName, timeframe = 'full', fromDate = null, toDate = null, signal = null } = {}
 ) => {
+  const cancelledError = () => Object.assign(new Error('Report generation was cancelled.'), { code: 'CANCELLED', status: 409 });
+  const throwIfCancelled = () => { if (signal && signal.aborted) throw cancelledError(); };
   const prisma = dbOf(db);
   const numericId = Number(eventId);
   if (!Number.isFinite(numericId) || numericId <= 0) {
@@ -707,6 +709,7 @@ const generateEventSummary = async (
       const pauses = [3000, 8000];
       let thinkingOff = true;
       for (let attempt = 0; ; attempt += 1) {
+        throwIfCancelled();
         try {
           return await axios.post(
             `${baseUrl}/chat/completions`,
@@ -717,9 +720,10 @@ const generateEventSummary = async (
               temperature: 0.15,
               ...(thinkingOff ? { chat_template_kwargs: { enable_thinking: false } } : {}),
             },
-            { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, timeout: timeoutMs }
+            { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, timeout: timeoutMs, ...(signal ? { signal } : {}) }
           );
         } catch (err) {
+          if ((signal && signal.aborted) || axios.isCancel(err)) throw cancelledError();
           const status = err?.response?.status;
           if (status === 400 && thinkingOff) { thinkingOff = false; continue; }
           if ((!status || status >= 500) && attempt < pauses.length) {
@@ -922,7 +926,7 @@ const generateEventSummary = async (
       } catch (e) { logger.warn(`[SummaryLLM] Second actions step skipped: ${e.message}`); }
       // ---- CLOSING SUMMARY: the last section, in plain words.
       try {
-        const text = await generateClosingSummary({ report: structuredReport, facts, event, stats: { risk_counts: riskCounts, sentiment_counts: activeSentiment }, ctx: promptCtx });
+        const text = await generateClosingSummary({ report: structuredReport, facts, event, stats: { risk_counts: riskCounts, sentiment_counts: activeSentiment }, ctx: promptCtx, signal });
         if (text) structuredReport.closingSummary = text;
         else logger.warn('[SummaryLLM] Closing summary was empty; the report goes without it');
       } catch (e) { logger.warn(`[SummaryLLM] Closing summary skipped: ${e.message}`); }
@@ -959,6 +963,7 @@ const generateEventSummary = async (
     summaryMarkdown = reportToMarkdown(structuredReport, event.name);
     summaryTruncated = false;
   } catch (err) {
+    if (err?.code === 'CANCELLED' || (signal && signal.aborted)) throw cancelledError();
     summarySource = 'fallback';
     const body = err?.response?.data;
     const bodyText = typeof body === 'string' ? body.slice(0, 200) : '';
@@ -1076,7 +1081,8 @@ ${Object.entries(platformCounts).map(([p, count]) => `- **${p.toUpperCase()}**: 
   // The structured report (narratives, claims, findings...) came from the same LLM call; saved with the summary in stats JSON.
   if (structuredReport) result.stats.structured_report = structuredReport;
 
-  // 6. Cache the result so re-opening the dialog is instant until new posts arrive.
+  // 6. Cache the result so re-opening the dialog is instant until new posts arrive. A cancelled report is never saved.
+  throwIfCancelled();
   try {
     const cursor = await getEventMediaCursor(prisma, numericId);
     await persistEventSummary(prisma, numericId, result, cursor);
@@ -1103,20 +1109,28 @@ const startSummaryJob = ({ eventId, db, dbName, generatedBy, tenantName, timefra
   const existing = summaryJobs.get(key);
   if (existing?.status === 'running') return existing;
 
+  const abort = new AbortController();
   const job = {
     status: 'running',
     started_at: new Date().toISOString(),
     error: null,
     promise: null,
+    abort,
   };
   logger.info(`[SummaryLLM] regenerate started event=${eventId} timeframe=${timeframe} tenant=${tenantName || dbName || 'default'}`);
-  const promise = generateEventSummary(eventId, { db, dbName, generatedBy, tenantName, timeframe, fromDate, toDate })
+  const promise = generateEventSummary(eventId, { db, dbName, generatedBy, tenantName, timeframe, fromDate, toDate, signal: abort.signal })
     .then((result) => {
       logger.info(`[SummaryLLM] regenerate finished event=${eventId} source=${result?.summary_source || 'unknown'}`);
       if (summaryJobs.get(key) === job) summaryJobs.delete(key);
       return result;
     })
     .catch((err) => {
+      if (err?.code === 'CANCELLED') {
+        job.status = 'cancelled';
+        job.finished_at = new Date().toISOString();
+        logger.info(`[SummaryLLM] generation cancelled event=${eventId} timeframe=${timeframe}`);
+        throw err;
+      }
       job.status = 'failed';
       job.error = err.message || 'Failed to generate event summary.';
       job.finished_at = new Date().toISOString();
@@ -1124,12 +1138,33 @@ const startSummaryJob = ({ eventId, db, dbName, generatedBy, tenantName, timefra
       throw err;
     });
   job.promise = promise;
+  promise.catch(() => {});   // a cancelled or failed job nobody is waiting on must not crash the process
   summaryJobs.set(key, job);
   return job;
 };
 
+/**
+ * Stops every report being generated for this event (all time windows): the model calls in flight are aborted,
+ * nothing is saved, and the previous saved report stays as it was. A short "cancelled" marker is kept so a status
+ * check that is already on its way does not start a new generation.
+ */
+const cancelSummaryJobs = (dbName, eventId) => {
+  const prefix = `${dbName || 'default'}:${Number(eventId)}:`;
+  let stopped = 0;
+  for (const [key, job] of summaryJobs.entries()) {
+    if (!key.startsWith(prefix) || job.status !== 'running') continue;
+    job.status = 'cancelled';
+    job.finished_at = new Date().toISOString();
+    try { job.abort.abort(); } catch (e) { /* already stopped */ }
+    stopped += 1;
+    const t = setTimeout(() => { if (summaryJobs.get(key) === job) summaryJobs.delete(key); }, 20000);
+    if (t.unref) t.unref();
+  }
+  return stopped;
+};
+
 /** One short call that writes the closing summary in plain words. Returns '' when the model is unavailable or the reply is unusable. */
-const generateClosingSummary = async ({ report, facts, event, stats, ctx }) => {
+const generateClosingSummary = async ({ report, facts, event, stats, ctx, signal = null }) => {
   const { baseUrl, apiKey, model, timeoutMs } = getLLMConfig();
   const level = closingLevel({ facts, stats });
   const base = buildClosingContext({ report, facts, event, stats });
@@ -1142,7 +1177,7 @@ const generateClosingSummary = async ({ report, facts, event, stats, ctx }) => {
       max_tokens: 900,
       chat_template_kwargs: { enable_thinking: false },
       messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-    }, { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, timeout: Math.min(timeoutMs || 120000, 120000) });
+    }, { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, timeout: Math.min(timeoutMs || 120000, 120000), ...(signal ? { signal } : {}) });
     const text = parseClosing(res.data?.choices?.[0]?.message?.content || '');
     if (!text) { user = `${base}\n\nYour last reply was empty or not plain text. Write the summary as plain sentences.`; continue; }
     const problem = checkClosing(text, level, ctx?.reportLanguage);
@@ -1166,6 +1201,7 @@ const saveClosingSummary = async (db, eventId, text) => {
 };
 
 module.exports = {
+  cancelSummaryJobs,
   generateClosingSummary,
   saveClosingSummary,
   generateEventSummary,
@@ -1174,5 +1210,5 @@ module.exports = {
   getLLMConfig,
   getSummaryJob,
   startSummaryJob,
-  __test: { buildBatchDigest },
+  __test: { buildBatchDigest, summaryJobs },
 };

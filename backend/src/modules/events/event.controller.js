@@ -239,7 +239,7 @@ const getEventsReport = async (req, res) => {
   }
 };
 
-const { getCachedEventSummary, saveEventSummaryPdf, getSummaryJob, startSummaryJob } = require('../../services/SummaryLLM');
+const { getCachedEventSummary, saveEventSummaryPdf, getSummaryJob, startSummaryJob, cancelSummaryJobs } = require('../../services/SummaryLLM');
 
 const summaryCaller = (req) => {
   const timeframe = req.body?.timeframe || req.query?.timeframe || 'full';
@@ -274,6 +274,11 @@ const getEventSummaryLLM = async (req, res) => {
       return runningSummaryResponse(res, existing, req.params.id);
     }
     const cached = await getCachedEventSummary(req.params.id, { db: req.tenantPrisma });
+    // Just cancelled: do not start another generation behind the user's back.
+    if (existing?.status === 'cancelled') {
+      if (cached && (!caller.timeframe || caller.timeframe === 'full' || cached.stats?.timeframe === caller.timeframe)) return res.status(200).json(cached);
+      return res.status(200).json({ status: 'cancelled', message: 'Report generation was cancelled.' });
+    }
     // If client requested specific timeframe, check if cached matches or regenerate
     if (cached && (!caller.timeframe || caller.timeframe === 'full' || cached.stats?.timeframe === caller.timeframe)) {
       return res.status(200).json(
@@ -300,6 +305,16 @@ const regenerateEventSummaryLLM = async (req, res) => {
     }
     const job = startSummaryJob(caller);
     return runningSummaryResponse(res, job, req.params.id);
+  } catch (error) {
+    return res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
+/** POST: cancel the report being generated for this event. Nothing is saved; the earlier saved report stays. */
+const cancelEventSummaryLLM = async (req, res) => {
+  try {
+    const stopped = cancelSummaryJobs(req.tenantDbName, req.params.id);
+    return res.status(200).json({ cancelled: stopped > 0, stopped, event_id: String(req.params.id) });
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
   }
@@ -399,6 +414,7 @@ module.exports = {
   getEventKeywordAnalytics,
   getEventSummaryLLM,
   regenerateEventSummaryLLM,
+  cancelEventSummaryLLM,
   saveEventSummaryPdfHandler,
   getEventIntelligenceReportPdf,
   runEventScan,

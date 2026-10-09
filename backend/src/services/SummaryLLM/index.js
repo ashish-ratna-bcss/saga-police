@@ -1,4 +1,5 @@
 const {
+  cancelSummaryJobs,
   generateClosingSummary,
   saveClosingSummary,
   generateEventSummary,
@@ -10,6 +11,7 @@ const {
 } = require('./eventSummary.service');
 
 module.exports = {
+  cancelSummaryJobs,
   generateClosingSummary,
   saveClosingSummary,
   generateEventSummary,

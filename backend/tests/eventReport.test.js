@@ -456,3 +456,19 @@ test('the posts behind "people on site" and "calls to act" are listed, linked in
   const exec = buildReportHtml({ summary, keywordData: null, tenantName: 'odisha', analysis: { facts }, headquarters: null, includeEvidence: false });
   assert.ok(/Picket at Bhubaneswar square/.test(exec) && !/Post #\d/.test(exec));
 });
+
+test('cancel: stops only that event\'s running generation, aborts its model calls, leaves others alone', () => {
+  const svc = require('../src/services/SummaryLLM/eventSummary.service');
+  const jobs = svc.__test.summaryJobs;
+  const mk = (status = 'running') => ({ status, abort: new AbortController(), started_at: 'now' });
+  const mine = mk(); const mineWeekly = mk(); const other = mk(); const done = mk('failed');
+  jobs.set('t1:7:full', mine); jobs.set('t1:7:weekly', mineWeekly); jobs.set('t1:8:full', other); jobs.set('t1:7:daily', done);
+  assert.strictEqual(svc.cancelSummaryJobs('t1', 7), 2);
+  assert.ok(mine.abort.signal.aborted && mineWeekly.abort.signal.aborted);
+  assert.strictEqual(mine.status, 'cancelled');
+  assert.ok(!other.abort.signal.aborted && other.status === 'running');
+  assert.strictEqual(done.status, 'failed');
+  assert.strictEqual(svc.cancelSummaryJobs('t1', 7), 0);     // nothing left to cancel
+  assert.strictEqual(svc.cancelSummaryJobs('nobody', 7), 0);
+  ['t1:7:full', 't1:7:weekly', 't1:8:full', 't1:7:daily'].forEach((k) => jobs.delete(k));
+});

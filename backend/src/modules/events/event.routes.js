@@ -14,6 +14,7 @@ const {
   getEventKeywordAnalytics,
   getEventSummaryLLM,
   regenerateEventSummaryLLM,
+  cancelEventSummaryLLM,
   saveEventSummaryPdfHandler,
   getEventIntelligenceReportPdf,
   runEventScan,
@@ -34,6 +35,7 @@ router.get('/:id/content', getEventContent);
 router.get('/:id/keyword-analytics', getEventKeywordAnalytics);
 router.get('/:id/summary-llm', getEventSummaryLLM);
 router.post('/:id/summary-llm', regenerateEventSummaryLLM);
+router.post('/:id/summary-llm/cancel', cancelEventSummaryLLM);
 router.put('/:id/summary-llm/pdf', saveEventSummaryPdfHandler);
 router.get('/:id/summary-llm/report.pdf', getEventIntelligenceReportPdf);
 

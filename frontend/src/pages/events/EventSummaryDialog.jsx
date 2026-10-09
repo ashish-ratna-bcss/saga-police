@@ -148,6 +148,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
   const progressTimer = useRef(null);
   const progressAnchor = useRef(null);
   const generatingRef = useRef(false);
+  const cancelledRef = useRef(false);
   const refreshStartedRef = useRef(0);
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
@@ -189,6 +190,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       const tDate = overrideParams.toDate !== undefined ? overrideParams.toDate : toDateRef.current;
 
       clearInterval(pollTimer.current);
+      cancelledRef.current = false;
       generatingRef.current = true;
       if (refresh) refreshStartedRef.current = Date.now();
       setLoading(true);
@@ -205,7 +207,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       let usePost = refresh;
       let stopped = false;
       const tick = async () => {
-        if (stopped || eventIdRef.current !== id) return;
+        if (stopped || cancelledRef.current || eventIdRef.current !== id) return;
         try {
           const res = usePost
             ? await api.post(`/events/${id}/summary-llm`, {
@@ -222,12 +224,24 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                 },
               });
           usePost = false;
-          if (stopped || eventIdRef.current !== id) return;
+          if (stopped || cancelledRef.current || eventIdRef.current !== id) return;
           const data = res?.data?.data || res?.data;
 
           if (data?.status === 'running') {
             setLoading(true);
             startProgress(data.started_at);
+            return;
+          }
+
+          if (data?.status === 'cancelled') {
+            stopped = true;
+            clearInterval(pollTimer.current);
+            clearInterval(progressTimer.current);
+            pollTimer.current = null;
+            progressTimer.current = null;
+            generatingRef.current = false;
+            refreshStartedRef.current = 0;
+            setLoading(false);
             return;
           }
 
@@ -316,7 +330,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
           setLoading(false);
           setError('No summary data returned from the service.');
         } catch (err) {
-          if (stopped || eventIdRef.current !== id) return;
+          if (stopped || cancelledRef.current || eventIdRef.current !== id) return;
           stopped = true;
           clearInterval(pollTimer.current);
           clearInterval(progressTimer.current);
@@ -343,6 +357,36 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
   );
 
   useEffect(() => () => clearJobTimers(), [clearJobTimers]);
+
+  // Stops the report being generated: the server aborts the model calls and saves nothing; the earlier saved report, if any, is shown again.
+  const [cancelling, setCancelling] = useState(false);
+  const cancelGeneration = useCallback(async () => {
+    const id = eventIdRef.current;
+    if (!id) return;
+    setCancelling(true);
+    cancelledRef.current = true;                 // status checks already on their way are ignored
+    clearInterval(pollTimer.current);
+    clearInterval(progressTimer.current);
+    pollTimer.current = null;
+    progressTimer.current = null;
+    try {
+      await api.post(`/events/${id}/summary-llm/cancel`);
+    } catch (err) {
+      toast.error('Could not cancel', { description: err?.response?.data?.message || err?.message });
+    }
+    generatingRef.current = false;
+    refreshStartedRef.current = 0;
+    setLoading(false);
+    setError(null);
+    setCancelling(false);
+    toast.success('Report generation cancelled', { description: 'Nothing was saved. The earlier report, if there is one, is unchanged.' });
+    try {
+      const res = await api.get(`/events/${id}/summary-llm`, { params: { timeframe: timeframeRef.current, from_date: fromDateRef.current || null, to_date: toDateRef.current || null, _t: Date.now() } });
+      const data = res?.data?.data || res?.data;
+      if (data && data.status !== 'running' && data.status !== 'cancelled' && (data.summary || data.structuredBriefing)) setSummaryData(data);
+    } catch (err) { /* no earlier report to show */ }
+  }, []);
+
 
   useEffect(() => {
     onGeneratingChange?.(Boolean(loading && !summaryData));
@@ -1036,6 +1080,19 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                 })}
               </div>
               </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={cancelGeneration}
+                disabled={cancelling}
+                className="mt-4 h-9 gap-2 border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                title="Stop generating this report. Nothing is saved."
+              >
+                {cancelling ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
+                <span>{cancelling ? 'Cancelling…' : 'Cancel generation'}</span>
+              </Button>
 
               <p className="text-[11px] text-muted-foreground/80 mt-4 flex items-center justify-center gap-1.5">
                 <Info className="h-3.5 w-3.5 text-purple-500 shrink-0" />
