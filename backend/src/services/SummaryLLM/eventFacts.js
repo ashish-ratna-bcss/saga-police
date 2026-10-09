@@ -6,10 +6,11 @@
 
 const FACTS_SYSTEM = `You extract facts from social-media posts for an event analyst. Each line is: number|posted YYYY-MM-DD|@author|text.
 Return ONLY compact JSON on ONE line (no spaces, no line breaks), one entry for EVERY post number given. Leave out any field that is empty or 0:
-{"p":[{"n":12,"k":"bandh","d":"2026-10-08","o":"organiser","w":"place","c":1,"v":0,"r":"m","pl":[{"n":"Bhubaneswar","in":"Odisha, India","a":1}]}]}
+{"p":[{"n":12,"k":"bandh","d":"2026-10-08","o":"organiser","s":"demand or reason","w":"place","c":1,"v":0,"r":"m","pl":[{"n":"Bhubaneswar","in":"Odisha, India","a":1}]}]}
 - k: what the post is about: bandh | rally | protest | meeting | notice | campaign | visit | violence | other
 - d: the date the activity takes place, as YYYY-MM-DD. Work it out from the post date ("tomorrow", "8th", "next Friday"). Leave "" if the post gives no date. NEVER use the posting date unless the post says the activity happens that day.
 - o: the group or person that ORGANISES or CALLS the activity, exactly as the post names it. "" if not stated. A party that stays away from, opposes or only comments on the activity is NOT its organiser; a post that says "A has called a bandh, B stays away" has organiser A.
+- s: WHY the activity is held: the demand, issue or reason the post gives, in English, at most 10 words (for example "against the arrest of a leader"). "" if the post does not say.
 - w: the place where the activity happens, as the post names it. "" if not stated.
 - c: 1 only if the AUTHOR of the post calls people to join, strike, block or gather (an explicit invitation or instruction to attend or take part). A news report saying someone else has called or announced a bandh, protest or rally is 0, and so is a post by a news outlet. A memorandum, petition, delegation, press meet, meeting with an official, or an announcement of dates is 0. Greetings, thanks and support messages are 0.
 - v: 1 only if the post reports or threatens violence, arson, clashes or damage that is part of THIS event's own activity. Riots, attacks or damage in another country or about another story are 0. A police case or FIR alone is 0. Arrests, detentions, preventive custody, a ban or a police warning are 0 unless the post also reports clashes, stone-pelting, arson, injury or damage.
@@ -70,6 +71,7 @@ const parseFacts = (raw, byNo, extractJson) => {
       if (!Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === m[0] && (Number.isNaN(posted) || Math.abs(t - posted) <= 120 * DAY)) date = m[0];
     }
     const organiser = String(f.o || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    const subject = String(f.s || '').replace(/\s+/g, ' ').trim().slice(0, 110);
     const place = String(f.w || '').replace(/\s+/g, ' ').trim().slice(0, 80);
     const pl = (Array.isArray(f.pl) ? f.pl : []).map((x) => ({
       name: String(x?.n || '').replace(/\s+/g, ' ').trim().slice(0, 60),
@@ -82,6 +84,7 @@ const parseFacts = (raw, byNo, extractJson) => {
       date,
       organiser: supported(organiser, hay) ? organiser : '',
       place: supported(place, hay) ? place : '',
+      subject,
       call: Number(f.c) === 1,
       violence: Number(f.v) === 1,
       role: ROLES[String(f.r || '').toLowerCase()] || '',
@@ -137,10 +140,11 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
     }
     if (!ACTIVITY_KINDS.has(f.kind) || !f.date) return;
     const k = `${f.date}|${f.kind}`;
-    const d = dated.get(k) || { date: f.date, kind: f.kind, posts: [], organisers: new Map(), places: new Map(), outside: 0 };
+    const d = dated.get(k) || { date: f.date, kind: f.kind, posts: [], organisers: new Map(), places: new Map(), subjects: new Map(), outside: 0 };
     d.posts.push(n);
     if (where === 'out') d.outside += 1;
     if (f.organiser) d.organisers.set(f.organiser, (d.organisers.get(f.organiser) || 0) + 1);
+    if (f.subject) d.subjects.set(f.subject, (d.subjects.get(f.subject) || 0) + 1);
     if (f.place) d.places.set(f.place, (d.places.get(f.place) || 0) + 1);
     dated.set(k, d);
     if (f.organiser) organiserCounts.set(f.organiser, (organiserCounts.get(f.organiser) || 0) + 1);
@@ -148,7 +152,7 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
 
   const top = (m) => Array.from(m.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
   const activities = Array.from(dated.values())
-    .map((d) => ({ date: d.date, kind: d.kind, organiser: top(d.organisers), place: top(d.places), posts: d.posts.slice(0, 8), support: d.posts.length, outside: d.outside > 0 && d.outside === d.posts.length }))
+    .map((d) => ({ date: d.date, kind: d.kind, organiser: top(d.organisers), place: top(d.places), subject: top(d.subjects), posts: d.posts.slice(0, 8), support: d.posts.length, outside: d.outside > 0 && d.outside === d.posts.length }))
     .sort((a, b) => a.date.localeCompare(b.date));
   return {
     activities,
@@ -176,7 +180,7 @@ const factsPackText = (facts, today) => {
   };
   const lines = [];
   facts.activities.filter((a) => !a.outside).slice(0, 10).forEach((a) => lines.push(
-    `FACT ${day(a.date)} ${a.kind}${a.organiser ? ` called by ${a.organiser}` : ''}${a.place ? ` at ${a.place}` : ''} — ${a.support} post(s) ${a.posts.map((p) => `[Post #${p}]`).join(' ')}`));
+    `FACT ${day(a.date)} ${a.kind}${a.organiser ? ` called by ${a.organiser}` : ''}${a.place ? ` at ${a.place}` : ''}${a.subject ? ` about: ${a.subject}` : ''} — ${a.support} post(s) ${a.posts.map((p) => `[Post #${p}]`).join(' ')}`));
   facts.activities.filter((a) => a.outside).slice(0, 4).forEach((a) => lines.push(
     `FACT (OUTSIDE the event region, mention only as context) ${day(a.date)} ${a.kind}${a.place ? ` at ${a.place}` : ''} — ${a.support} post(s)`));
   if (facts.calls.count) lines.push(`FACT ${facts.calls.count} post(s) call people to join or act ${facts.calls.posts.map((p) => `[Post #${p}]`).join(' ')}`);
