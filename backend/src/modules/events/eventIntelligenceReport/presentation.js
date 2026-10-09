@@ -309,7 +309,7 @@ const buildPresentationBody = (ctx) => {
     <tr><td>${esc(L('Engagement'))}</td><td>${esc(L('Interactions are likes, shares and comments. Views are not added in.'))}</td></tr></table>`;
 
   // A slide with nothing to show (no claim to check) is left out instead of printing an empty page.
-  const slides = [s1, s2, s3, s4, s5, s6, s7, s8, claimBars.length ? s9 : '', s10, s11, s12].filter(Boolean);
+  const slides = [s1, s2, hasClaims || hasActs ? s3 : '', s4, s5, s6, s7, s8, claimBars.length ? s9 : '', s10, s11, s12].filter(Boolean);
   return slides.map((inner, i) => slide(i === 0 ? 'title' : '', inner, { tenant: t, mark: esc(ctx.classification || ''), no: i === 0 ? '' : String(i + 1) })).join('');
 };
 
