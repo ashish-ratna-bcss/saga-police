@@ -79,6 +79,9 @@ const sentimentOf = (c = {}) => ({
   neutral: n0(c.neutral ?? c.news),
   negative: n0(c.negative ?? c.criticism),
 });
+// Scripts the report has no font for (Chinese, Japanese, Korean, Khmer, Burmese, Georgian, Armenian, Ethiopic, Lao) would print as empty boxes, so a keyword in one of them is labelled instead.
+const NO_FONT = /[\u0530-\u058F\u10A0-\u10FF\u1200-\u137F\u1780-\u17FF\u1000-\u109F\u0E80-\u0EFF\u2E80-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF]/;
+const kwLabel = (t) => (NO_FONT.test(String(t || '')) ? '(keyword in another script)' : String(t || ''));
 const clip = (s, n = 160) => {
   const t = String(s || '')
     .replace(/\s+/g, ' ')
@@ -1163,7 +1166,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   }));
 
   const platStr = platformEntries.map(([k, v]) => `${platLabel(k)}: ${fmt(v)}`).join(', ') || '—';
-  const kwStr = kws.slice(0, 14).map((k) => k.keyword).join(', ') || (event.keywords || []).map((k) => (k.keyword || k)).join(', ') || '—';
+  const kwStr = kws.slice(0, 14).map((k) => kwLabel(k.keyword)).join(', ') || (event.keywords || []).map((k) => (k.keyword || k)).join(', ') || '—';
 
   const placeLabel = (e) => (e.specific.length ? e.specific.join(', ') : e.places.length ? e.places.join(', ') : 'Not named in post');
   
@@ -1343,17 +1346,17 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const comparisons = (Array.isArray(kwa?.comparisons) ? kwa.comparisons : []).slice(0, 8);
   const kwMax = comparisons.length ? n0(comparisons[0].posts) : 1;
   const keywordBars = comparisons
-    .map((c) => hbar(c.keyword, c.posts, kwMax, BAR, ''))
+    .map((c) => hbar(kwLabel(c.keyword), c.posts, kwMax, BAR, ''))
     .join('');
   const sovParts = (kwa?.keywords || [])
     .filter((k) => n0(k.total_posts) > 0)
     .slice(0, 8)
-    .map((k, i) => ({ k: k.keyword, v: k.total_posts, c: CHART_COLORS[i % CHART_COLORS.length] }));
+    .map((k, i) => ({ k: kwLabel(k.keyword), v: k.total_posts, c: CHART_COLORS[i % CHART_COLORS.length] }));
 
   const matchTotal = n0(kwa?.summary?.total_matched_posts) || sovParts.reduce((s, p) => s + n0(p.v), 0);
   const keywordStacks = comparisons.map((c) => `
     <div class="hbar" style="grid-template-columns:30mm 1fr 9mm;margin-bottom:1.8mm">
-      <div class="hl" style="text-align:left">${esc(clip(c.keyword, 26))}</div>
+      <div class="hl" style="text-align:left">${esc(clip(kwLabel(c.keyword), 26))}</div>
       <div>${stackBar([
         { k: 'Positive', v: c.positive, c: POS },
         { k: 'Neutral', v: c.neutral, c: NEU },
@@ -1668,7 +1671,10 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${secHead('Recommended Actions')}
   ${actions.length ? `<div class="cp-acts">${actions.map((a, i) => actCardHtml(a, i)).join('')}</div>` : '<p class="sm">Maintain standard baseline monitoring. No immediate operational escalation required at this stage.</p>'}`;
 
-  const factActs = (analysis?.facts?.activities || []).filter((a) => !a.outside);
+  const factPlaceRegion = new Map((analysis?.facts?.places || []).map((x) => [foldGeo(x.name), foldGeo(x.region || '')]));
+  const outsideRegionPlace = (name) => { const r = factPlaceRegion.get(foldGeo(name)); const rn = foldGeo(regionName); return !!(r && rn && !r.includes(rn) && !foldGeo(name).includes(rn)); };
+  const factActs = (analysis?.facts?.activities || []).filter((a) => !a.outside && !(regionOnly && a.place && outsideRegionPlace(a.place)));
+  const outsideFactNames = Array.from(factPlaceRegion.keys()).filter((n) => outsideRegionPlace(n));
   const actLine = (a) => {
     const kind = L(String(a.kind || 'activity').replace(/^./, (c) => c.toUpperCase()));
     return `${kind}${a.organiser ? ` ${L('called by')} ${a.organiser}` : ''}${a.place ? ` ${L('at')} ${a.place}` : ''}${a.subject ? ` — ${L('about')}: ${a.subject}` : a.subject === '' ? ` — ${L('reason not stated in the posts')}` : ''}`;
@@ -1839,7 +1845,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const closingSection = () => {
     const text = String(analysis?.closingSummary || '').trim();
     if (!text) return '';
-    const noPlan = (para) => para.split(/(?<=[.!?])\s+/).filter((x) => !/\b(police|authorities|administration)\b[^.]{0,40}\b(plan|plans|planned|intend|intends|are monitoring|will monitor)\b/i.test(x)).join(' ');
+    const noPlan = (para) => para.split(/(?<=[.!?])\s+/).filter((x) => !(regionOnly && outsideFactNames.length && nameMatcher(outsideFactNames)(x))).filter((x) => !/\b(police|authorities|administration)\b[^.]{0,40}\b(plan|plans|planned|intend|intends|are monitoring|will monitor)\b/i.test(x)).join(' ');
     const paras = text.split(/\n{2,}/).map((x) => noPlan(x.trim())).filter(Boolean);
     return `
   <div class="sec"><span class="no">${secNo()}</span><span class="nm">${esc(L('Summary'))}</span></div>
