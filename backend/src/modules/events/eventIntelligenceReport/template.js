@@ -464,7 +464,7 @@ b{font-weight:700}
 .cp-acts{display:grid;grid-template-columns:1fr;gap:1.8mm;margin:0 0 3mm}
 .cp-act{display:flex;gap:2.6mm;border:.6px solid ${LINE};border-left:1.2mm solid ${TEAL};border-radius:3px;padding:2mm 3mm;background:#fff;break-inside:avoid}
 .cp-act .no{flex:none;width:5.4mm;height:5.4mm;border-radius:50%;background:${NAVY};color:#fff;font-weight:700;font-size:8pt;text-align:center;line-height:5.4mm}
-.cp-act b{font-size:8.4pt;color:${INK}}.cp-act .d{font-size:7.6pt;color:#475569;line-height:1.4;margin-top:.4mm}.cp-act .lk{font-size:6.6pt}
+.cp-act .bd{flex:1;min-width:0}.cp-act .tt{display:flex;flex-wrap:wrap;align-items:center;gap:1.6mm}.cp-act b{font-size:8.6pt;color:${INK}}.cp-act .own{font-size:6.6pt;font-weight:700;color:#fff;background:${TEAL};border-radius:2px;padding:.2mm 1.6mm;text-transform:uppercase;letter-spacing:.03em}.cp-act .d{font-size:7.8pt;color:#334155;line-height:1.45;margin-top:.8mm}.cp-act .up{font-size:7.4pt;color:#7A1F1F;background:#FDF1EF;border-radius:2px;padding:.6mm 1.8mm;margin-top:1mm;line-height:1.4}.cp-act .up span{font-weight:700;text-transform:uppercase;font-size:6.4pt;letter-spacing:.05em;margin-right:1mm}.cp-act .lk{font-size:6.8pt;margin-top:1mm}
 .cp-big{display:flex;gap:2mm;margin:0 0 2.2mm}
 .cp-big>div{flex:1;text-align:center;border-radius:3px;padding:1.6mm 1mm;color:#fff}
 .cp-big .n{font-size:15pt;font-weight:700;line-height:1.05}.cp-big .l{font-size:6pt;text-transform:uppercase;letter-spacing:.06em;opacity:.92}
@@ -1319,6 +1319,17 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     ? `<ul class="bul">${actions.map((a) => `<li><b>${esc(a.action)}</b> — ${esc(a.detail)}${a.posts && a.posts.length ? ` <span class="sm">${esc(a.posts.map((p) => `[Post #${p}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>`
     : '';
 
+  // One action as a card: number, what to do, who does it, the "escalate if" trigger on its own line, and the posts behind it.
+  const actCardHtml = (a, i, max = 260) => {
+    const parts = String(a.action || '').split(/\s+[—–]\s+/);
+    const title = parts[0];
+    const owner = parts.length > 1 ? parts.slice(1).join(' — ') : '';
+    const m = String(a.detail || '').match(/\s*(Escalate if[^]*?)$/i);
+    const esc2 = m ? m[1].trim() : '';
+    const doText = m ? String(a.detail).slice(0, m.index).trim() : String(a.detail || '').trim();
+    return `<div class="cp-act"><div class="no">${i + 1}</div><div class="bd"><div class="tt"><b>${esc(title)}</b>${owner ? `<span class="own">${esc(owner)}</span>` : ''}</div>${doText ? `<div class="d">${esc(clip(doText, max))}</div>` : ''}${esc2 ? `<div class="up"><span>${esc(L('Escalate if'))}</span> ${esc(clip(esc2.replace(/^Escalate if\s*/i, '').replace(/[.\s]+$/, ''), 160))}</div>` : ''}${a.posts?.length ? `<div class="lk"><span class="sm">${esc(L('Posts'))}</span> ${esc(a.posts.slice(0, 8).map((n) => `[Post #${n}]`).join(' '))}</div>` : ''}</div></div>`;
+  };
+
   const platMax = platformEntries.length ? n0(platformEntries[0][1]) : 1;
   const platformBars = platformEntries
     .map(([k, v]) => hbar(platLabel(k), v, platMax, platColor(k), pct(v, total)))
@@ -1654,7 +1665,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   const recommendedSection = () => `
   ${secHead('Recommended Actions')}
-  ${actionsHtml || '<p class="sm">Maintain standard baseline monitoring. No immediate operational escalation required at this stage.</p>'}`;
+  ${actions.length ? `<div class="cp-acts">${actions.map((a, i) => actCardHtml(a, i)).join('')}</div>` : '<p class="sm">Maintain standard baseline monitoring. No immediate operational escalation required at this stage.</p>'}`;
 
   const factActs = (analysis?.facts?.activities || []).filter((a) => !a.outside);
   const actLine = (a) => {
@@ -1846,7 +1857,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     const placeBars = topPlaces.length
       ? topPlaces.map((x) => hbar(x.name, x.count, pMax, BAR, '', L(x.count === 1 ? 'post' : 'posts'))).join('')
       : `<p class="sm">${esc(L('No specific place inside the region is named in the posts.'))}</p>`;
-    const card = (a, i) => `<div class="cp-act"><div class="no">${i + 1}</div><div><b>${esc(a.action)}</b><div class="d">${esc(clip(a.detail, 300))}</div>${a.posts?.length ? `<div class="lk">${esc(a.posts.slice(0, 6).map((n) => `[Post #${n}]`).join(' '))}</div>` : ''}</div></div>`;
+    const card = (a, i) => actCardHtml(a, i);
     const first = actions.slice(0, 3);
     const more = actions.slice(3, 5);
     const actCards = first.length
