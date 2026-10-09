@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const { esc } = require('./render');
 const { classifyEvidence } = require('./scope');
+const { buildPresentationBody, PRESENTATION_CSS } = require('./presentation');
 
 /**
  * Bundled fonts (./fonts). Only the scripts that actually appear in a report are embedded,
@@ -857,7 +858,7 @@ const relabelClosing = (t) => {
 // Two actions with the same lead unit and the same posts say the same thing; the first is kept.
 const dedupeActions = (list) => { const seen = new Set(); return list.filter((a) => { const k = `${String(a.action || '').split(/\s+[—–]\s+/)[1] || ''}|${(a.posts || []).slice().sort((x, y) => x - y).join(',')}`; if ((a.posts || []).length && seen.has(k)) return false; seen.add(k); return true; }); };
 
-const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquarters, includeEvidence = true, labels = null, regionOnly = false, compact = false }) => {
+const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquarters, includeEvidence = true, labels = null, regionOnly = false, compact = false, presentation = false }) => {
   setReportTz(headquarters?.timezone);
   // Fixed wording that carries a value (a region, a count) goes through the label map here, because the post-build
   // translation only replaces text that is exactly one label. {placeholders} are kept by the translator.
@@ -1974,6 +1975,23 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   </div>
   ${closingSection()}`;
   };
+
+  if (presentation) {
+    const bl = analysis?.bottomLine ? String(analysis.bottomLine).replace(/(\d+%\s+(?:of\s+(?:the\s+)?posts\s+)?(?:are|is)\s+)critical\b/gi, '$1negative') : '';
+    const slides = buildPresentationBody({
+      esc, fmt, pct, clip, L, donutSvg, platLabel, platColor,
+      event, tenant, windowStr, dateStr, total, sent, sentTotal, engTotal, ev: scopeEv, riskParts, platformEntries, kws,
+      analysis, places, authors, threatLevel: threatLevelVal, rationale: computedRationale, bottomLine: bl, narrativesToWatch, actions, notKnown: analysis?.notKnown || [], stats,
+      counts: {
+        violenceConfirmed: violenceAcc > 1 ? violenceN : 0, violenceMentioned: violenceAcc > 1 ? 0 : violenceN, alleged: allegedN, detentions: detentionN,
+        calls: callN, mobilising: mobN, highRisk: highRiskN,
+      },
+    });
+    const printableSlides = plainDates(slides)
+      .replace(/\p{Extended_Pictographic}[\uFE0F\p{Emoji_Modifier}]*(?:\u200D\p{Extended_Pictographic}[\uFE0F\p{Emoji_Modifier}]*)*/gu, '')
+      .replace(/[\p{Regional_Indicator}\p{Emoji_Modifier}\uFE0F\u20E3\u{E0020}-\u{E007F}]/gu, '');
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>${fontFacesFor(printableSlides)}${PRESENTATION_CSS}body{font-family:${FONT_STACK},'Lato','Liberation Sans',Arial,sans-serif}</style></head><body>${printableSlides}</body></html>`;
+  }
 
   const body = `
 <section class="pg">
