@@ -125,7 +125,7 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
   Object.entries(factsMap).forEach(([nStr, f]) => {
     const n = Number(nStr);
     const post = byNo.get(n);
-    byPost[n] = { places: (f.places || []).map((pl) => pl.name), kind: f.kind, date: f.date, relevant: f.relevant !== false };
+    byPost[n] = { places: (f.places || []).map((pl) => pl.name), kind: f.kind, date: f.date, relevant: f.relevant !== false, active: (f.places || []).filter((pl) => pl.active).map((pl) => pl.name) };
     if (f.relevant === false) return;     // a post that is not about the event adds nothing to its activities, places or counts
     const where = regionOf(n);                       // 'in', 'out' (all named places are outside the event region) or 'unknown'
     const ownCall = f.call && f.role !== 'media' && where !== 'out';   // a news report of someone else's call is not a call; calls elsewhere are counted apart

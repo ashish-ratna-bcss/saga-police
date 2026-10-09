@@ -1036,7 +1036,13 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     geoOut = mapped.filter((p) => !p.inside);
     places = geoIn.length ? geoIn : mapped.filter((p) => p.inside);
     if (regionOnly) geoOut = [];
-    const activeNs = new Set(mapped.filter((p) => p.inside && p.active).flatMap((p) => p.posts));
+    const insideNames = new Set(mapped.filter((p) => p.inside).map((p) => foldGeo(p.name)));
+    const perPost = analysis?.facts?.byPost || {};
+    const hasPerPost = Object.values(perPost).some((v) => Array.isArray(v.active));
+    // Only the posts that themselves say people are or were there; older saved reports fall back to every post naming an active place.
+    const activeNs = hasPerPost
+      ? new Set(ev.filter((e) => (perPost[e.n]?.active || []).some((nm) => insideNames.has(foldGeo(nm)))).map((e) => e.n))
+      : new Set(mapped.filter((p) => p.inside && p.active).flatMap((p) => p.posts));
     visits = sortByDateAndTone(ev.filter((e) => activeNs.has(e.n)));
   }
 
@@ -1720,7 +1726,9 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const STATUS_TEXT = { denied: 'police permission refused or declared unlawful', permitted: 'permission granted', held: 'has taken place', called_off: 'called off', announced: 'announced' };
   const actLine = (a) => {
     const kind = L(String(a.kind || 'activity').replace(/^./, (c) => c.toUpperCase()));
-    const st = Object.entries(a.statuses || {}).filter(([k]) => k !== 'announced').sort((x, y) => y[1] - x[1]).map(([k]) => STATUS_TEXT[k]).filter(Boolean)[0];
+    const total = Object.values(a.statuses || {}).reduce((x, y) => x + y, 0);
+    const solid = (k, n) => k !== 'denied' || n >= 3 || n * 2 >= total;   // a refusal is shown only when several posts, or most of them, say so
+    const st = Object.entries(a.statuses || {}).filter(([k, n]) => k !== 'announced' && solid(k, n)).sort((x, y) => y[1] - x[1]).map(([k]) => STATUS_TEXT[k]).filter(Boolean)[0];
     const announced = (a.statuses || {}).announced ? ` (${L('organiser says it will go ahead')})` : '';
     return `${kind}${a.organiser ? ` ${L('called by')} ${a.organiser}` : ''}${a.place ? ` ${L('at')} ${a.place}` : ''}${a.subject ? ` — ${L('about')}: ${a.subject}` : a.subject === '' ? ` — ${L('reason not stated in the posts')}` : ''}${st ? `; ${L(st)}${st === STATUS_TEXT.denied ? announced : ''}` : ''}`;
   };

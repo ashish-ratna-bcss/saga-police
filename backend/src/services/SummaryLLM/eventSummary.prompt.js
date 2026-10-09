@@ -577,6 +577,8 @@ const checkClosing = (text, level, reportLanguage) => {
   if (reportLanguage && !/^english$/i.test(reportLanguage)) return '';
   const t = String(text || '');
   if (!new RegExp(`\\b${level}\\b`, 'i').test(t)) return `it must state the risk level "${level}"`;
+  const riskPart = (t.match(/(?:^|\n)RISK\s*\n([\s\S]*)$/) || [])[1];
+  if (riskPart !== undefined && riskPart.replace(/^[-*•\s]+/, '').length < 70) return 'the risk part must give the level and the real reason, in one or two sentences';
   if (level !== 'Low' && /\b(risk|seriousness|level|threat)\b[^.]{0,40}\blow\b|\blow[- ]risk\b/i.test(t)) return `it calls the risk low but the level is ${level}`;
   if (/\bpolice\b[^.]{0,50}\b(are|have|has|is)\b[^.]{0,40}\b(monitoring|planned|plans|prepared|deployed|already|will)\b/i.test(t) || /\b(police|authorities|administration)\b[^.]{0,30}\b(plan|plans|planned|intend|intends)\s+to\b/i.test(t) || /already recommended/i.test(t)) return 'it says what the police are already doing, which the facts do not say';
   return '';
