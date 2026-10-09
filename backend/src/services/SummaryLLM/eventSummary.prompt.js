@@ -558,15 +558,34 @@ const buildClosingSystem = (ctx) => `You are briefing ${audienceOf(ctx)} in pers
 ${languageLine(ctx || {})}
 Length: 6 to 9 short sentences in one or two paragraphs. No lists, no headings, no bullet points, no post numbers, no jargon.
 Say, in this order: what is happening and where; who is behind it; how serious it is and the real reason for that level; what is planned next, with dates; what is not known yet; and the one or two most important things for the police to do.
+${ctx && ctx.level ? `The risk level is "${ctx.level}". Say it with exactly that word, followed by the real reason from the facts. ` : ''}Say what the police SHOULD do; never say what the police are already doing, planning or monitoring. Put a date and a place together only as the facts do; an activity outside the region is not in the region.
 Use at most three numbers. Use only the facts given; never invent a name, place, date or number. Do not start sentences with "The analysis indicates", "The data suggests" or similar. Do not call criticism a threat.
 Return only the text of the summary.`;
+
+/** The public order risk level, by the same rule as the report: violence, then calls to act or high-risk posts, else low. */
+const closingLevel = ({ facts, stats }) => {
+  const risk = stats?.risk_counts || stats?.risk || {};
+  const highRisk = Number(risk.critical || 0) + Number(risk.high || 0);
+  if (Number(facts?.violence?.count || 0) > 0) return 'High';
+  return (Number(facts?.calls?.count || 0) > 0 || highRisk > 0) ? 'Medium' : 'Low';
+};
+
+/** Checks a draft against the facts (English drafts): the right level, no invented police activity. Returns '' when fine, else the reason. */
+const checkClosing = (text, level, reportLanguage) => {
+  if (reportLanguage && !/^english$/i.test(reportLanguage)) return '';
+  const t = String(text || '');
+  if (!new RegExp(`\\b${level}\\b`, 'i').test(t)) return `it must state the risk level "${level}"`;
+  if (level !== 'Low' && /\b(risk|seriousness|level|threat)\b[^.]{0,40}\blow\b|\blow[- ]risk\b/i.test(t)) return `it calls the risk low but the level is ${level}`;
+  if (/\bpolice\b[^.]{0,50}\b(are|have|has|is)\b[^.]{0,40}\b(monitoring|planned|plans|prepared|deployed|already)\b/i.test(t) || /already recommended/i.test(t)) return 'it says what the police are already doing, which the facts do not say';
+  return '';
+};
 
 const buildClosingContext = ({ report, facts, event, stats }) => {
   const risk = stats?.risk_counts || stats?.risk || {};
   const highRisk = Number(risk.critical || 0) + Number(risk.high || 0);
   const calls = Number(facts?.calls?.count || 0);
   const violence = Number(facts?.violence?.count || 0);
-  const level = violence > 0 ? 'High' : (calls > 0 || highRisk > 0) ? 'Medium' : 'Low';
+  const level = closingLevel({ facts, stats });
   const sent = stats?.sentiment_counts || {};
   const tot = Math.max(1, Number(sent.positive || 0) + Number(sent.neutral || 0) + Number(sent.negative || 0));
   const L = [];
@@ -595,7 +614,7 @@ const parseClosing = (raw) => {
 };
 
 module.exports = {
-  buildClosingSystem, buildClosingContext, parseClosing,
+  buildClosingSystem, buildClosingContext, parseClosing, closingLevel, checkClosing,
   buildActionsSystem, buildActionsContext, parseMoreActions, mergeActions,
   buildSystemPrompt, buildUserContext, RETRY_MESSAGE, parseLLMReport, reportToMarkdown,
   BATCH_SYSTEM, buildBatchUserContext, parseBatchNotes, buildReducerSystemPrompt, buildReducerUserContext,

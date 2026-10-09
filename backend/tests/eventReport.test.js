@@ -428,3 +428,16 @@ test('closing summary: cleaned reply, printed as the last section, and trimmed i
   const none = buildReportHtml({ summary: sm, keywordData: null, tenantName: 'odisha', analysis: { ...a, closingSummary: '' }, headquarters: null, includeEvidence: false });
   assert.ok(!/class="closing"/.test(none));
 });
+
+test('closing summary check: right risk level, nothing invented about what the police already do', () => {
+  const p = require('../src/services/SummaryLLM/eventSummary.prompt');
+  assert.strictEqual(p.closingLevel({ facts: { calls: { count: 7 }, violence: { count: 0 } }, stats: {} }), 'Medium');
+  assert.strictEqual(p.closingLevel({ facts: { calls: { count: 0 }, violence: { count: 2 } }, stats: {} }), 'High');
+  assert.strictEqual(p.closingLevel({ facts: { calls: { count: 0 }, violence: { count: 0 } }, stats: { risk_counts: { high: 0 } } }), 'Low');
+  assert.match(p.checkClosing('The seriousness is low because there is no violence.', 'Medium'), /Medium/);
+  assert.match(p.checkClosing('The risk is Medium. The police are monitoring the situation closely.', 'Medium'), /police/);
+  assert.match(p.checkClosing('The risk is Medium because posts call for a bandh. The police should deploy early.', 'Low') || 'x', /Low|x/);
+  assert.strictEqual(p.checkClosing('The risk is Medium because posts call for a bandh on 8 October. The police should keep roads clear.', 'Medium'), '');
+  assert.strictEqual(p.checkClosing('anything', 'Medium', 'Hindi'), '');
+  assert.ok(/risk level is "Medium"/.test(p.buildClosingSystem({ event: { name: 'E' }, level: 'Medium' })));
+});

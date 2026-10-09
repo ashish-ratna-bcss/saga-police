@@ -7,7 +7,7 @@ const {
   BATCH_SYSTEM, buildBatchUserContext, parseBatchNotes, buildReducerSystemPrompt, buildReducerUserContext,
   estimateTokens, truncateToTokens, makeBatches, reducerToReport, extractJson,
   buildActionsSystem, buildActionsContext, parseMoreActions, mergeActions,
-  buildClosingSystem, buildClosingContext, parseClosing,
+  buildClosingSystem, buildClosingContext, parseClosing, closingLevel, checkClosing,
 } = require('./eventSummary.prompt');
 const eventConfig = require('../../modules/events/event.config');
 const { cleanText } = require('./styleLint');
@@ -1131,17 +1131,26 @@ const startSummaryJob = ({ eventId, db, dbName, generatedBy, tenantName, timefra
 /** One short call that writes the closing summary in plain words. Returns '' when the model is unavailable or the reply is unusable. */
 const generateClosingSummary = async ({ report, facts, event, stats, ctx }) => {
   const { baseUrl, apiKey, model, timeoutMs } = getLLMConfig();
-  const res = await axios.post(`${baseUrl}/chat/completions`, {
-    model,
-    temperature: 0.3,
-    max_tokens: 900,
-    chat_template_kwargs: { enable_thinking: false },
-    messages: [
-      { role: 'system', content: buildClosingSystem(ctx) },
-      { role: 'user', content: buildClosingContext({ report, facts, event, stats }) },
-    ],
-  }, { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, timeout: Math.min(timeoutMs || 120000, 120000) });
-  return parseClosing(res.data?.choices?.[0]?.message?.content || '');
+  const level = closingLevel({ facts, stats });
+  const base = buildClosingContext({ report, facts, event, stats });
+  const system = buildClosingSystem({ ...(ctx || {}), level });
+  let user = base;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const res = await axios.post(`${baseUrl}/chat/completions`, {
+      model,
+      temperature: 0.3,
+      max_tokens: 900,
+      chat_template_kwargs: { enable_thinking: false },
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+    }, { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, timeout: Math.min(timeoutMs || 120000, 120000) });
+    const text = parseClosing(res.data?.choices?.[0]?.message?.content || '');
+    if (!text) { user = `${base}\n\nYour last reply was empty or not plain text. Write the summary as plain sentences.`; continue; }
+    const problem = checkClosing(text, level, ctx?.reportLanguage);
+    if (!problem) return text;
+    logger.warn(`[SummaryLLM] Closing summary rejected (${problem}); ${attempt === 0 ? 'retrying once' : 'leaving it out'}`);
+    user = `${base}\n\nYour last draft was rejected because ${problem}. Write it again and fix that.`;
+  }
+  return '';
 };
 
 /** Stores the closing summary inside the saved report, so it is written once. */
