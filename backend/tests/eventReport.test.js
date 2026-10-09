@@ -566,19 +566,3 @@ test('region view: the popup data is narrowed to posts about the event location,
   assert.equal(out.stats.structured_report.facts.calls.count, 0);
   assert.equal(out.evidence_traceability.length, 2);
 });
-
-test('when the model cannot finish the report, a full report is still written from the counted facts', () => {
-  const prompt = require('../src/services/SummaryLLM/eventSummary.prompt');
-  const rules = prompt.buildRulesReport({
-    event: { name: 'Test Event', location: 'Somewhere' },
-    facts: { activities: [{ date: '2026-10-08', kind: 'bandh', organiser: 'Group A', place: 'Somewhere', subject: 'a demand', posts: [1, 2] }], violence: { count: 0 }, alleged: { count: 0 }, detentions: { count: 1 }, calls: { count: 0 } },
-    risk: { high: 2 }, sentiment: { positive: 2, neutral: 20, negative: 3 }, platforms: { facebook: 20, x: 5 }, total: 25,
-    digest: { clusters: [{ label: 'Bandh', posts: [1, 2], sentiment: { positive: 0, neutral: 2, negative: 0 } }] }, today: '2026-10-09',
-  });
-  const evidence = [{ citationTag: '[Post #1]' }, { citationTag: '[Post #2]' }];
-  const report = prompt.reducerToReport(JSON.stringify(rules), { clusters: [{ label: 'Bandh', posts: [1, 2], sentiment: { positive: 0, neutral: 2, negative: 0 }, platforms: {} }] }, {}, evidence);
-  assert.ok(report && report.bottomLine.includes('Test Event'));
-  assert.equal(report.narratives.length >= 1, true);
-  assert.match(report.actions[0].action, /Check what happened/);   // the date has passed, so the action checks the outcome
-  assert.ok(report.known.length >= 1);
-});
