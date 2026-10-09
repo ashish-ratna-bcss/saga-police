@@ -135,7 +135,7 @@ test('a news account is Media, and a high-risk post alone does not make an accou
   const summary = { event: { name: 'E', location: 'Odisha' }, stats: { total_media_count: 2 }, evidence_traceability: posts };
   const analysis = { sourceTypes: { 1: 'media', 2: 'individual' }, facts: { places: [], calls: { count: 1, posts: [2] }, violence: { count: 0, posts: [] }, accounts: [{ author: 'Group A', role: 'organisation', calls: 1, violence: 0, posts: [2] }], activities: [] } };
   const html = buildReportHtml({ summary, keywordData: null, tenantName: 'odisha', analysis, headquarters: null, includeEvidence: true });
-  assert.ok(/Media \/ news/.test(html));
+  assert.ok(/News \/ official/.test(html));
   assert.ok(/Organiser/.test(html));
   assert.ok(!/critical in tone/.test(html));
 });
@@ -498,10 +498,22 @@ test('every number about posts shows its posts as links: annex links in the full
   assert.ok(/High \/ critical risk \(2\):<\/b>\s*<a href="https:\/\/x\.com\/a\/status\/1"[^>]*class="plink">#1<\/a>\s*<a href="https:\/\/x\.com\/a\/status\/3"/.test(exec), 'risk posts are live links');
   assert.ok(/Violence reports \(1\):<\/b>\s*<a href="https:\/\/x\.com\/a\/status\/3"/.test(exec));
   assert.ok(/Posts calling people to act \(1\):<\/b>\s*<a href="https:\/\/x\.com\/a\/status\/2"/.test(exec));
-  assert.ok(/class="pcard"[\s\S]*A2[\s\S]*<a href="https:\/\/x\.com\/a\/status\/2"[^>]*>#2<\/a>/.test(exec), 'the summary shows each platform with its accounts and their posts as links');
+  assert.ok(/class="pcard[^"]*"[\s\S]*A2[\s\S]*<a href="https:\/\/x\.com\/a\/status\/2"[^>]*>#2<\/a>/.test(exec), 'the summary shows each platform with its accounts and their posts as links');
   assert.ok(!/<th>Posts & Reach<\/th>/.test(exec), 'the summary has no long accounts table');
   assert.ok(!/\[Post #\d+\]/.test(exec), 'no raw bracket tags are left');
   const full = buildReportHtml({ summary, keywordData: null, tenantName: 'odisha', analysis: { facts }, headquarters: null, includeEvidence: true });
   assert.ok(/High \/ critical risk \(2\):<\/b>\s*<a href="#e1" class="ref">\[Post #1\]<\/a>/.test(full), 'full report links to the annex');
   assert.ok(/Posts & Reach/.test(full) && /<b>1<\/b> post<br><span class="sm"><a href="#e2" class="ref">\[Post #2\]<\/a>/.test(full), 'the full report keeps the table with each account\'s posts');
+});
+
+test('accounts section tells the officer the answer first and never claims an official page "does not organise" the event', () => {
+  const mk = (n, o = {}) => ({ id: n, platform: 'facebook', author: `Page${n}`, text: `post ${n} about the bandh`, sentiment: 'neutral', risk_level: 'low', posted_at: '2026-10-07T10:00:00Z', likes: n * 10, shares: 0, comments: 0, views: 0, url: `https://fb.com/p/${n}`, is_relevant: true, citationTag: `[Post #${n}]`, ...o });
+  const posts = [mk(1), mk(2), mk(3, { likes: 5000 })];
+  const facts = { places: [], byPost: {}, calls: { count: 0, posts: [] }, violence: { count: 0, posts: [] }, accounts: [{ author: 'Page1', role: 'media', calls: 0, violence: 0, posts: [1] }, { author: 'Page2', role: 'media', calls: 0, violence: 0, posts: [2] }], activities: [] };
+  const html = buildReportHtml({ summary: { event: { name: 'E', location: 'Odisha' }, stats: {}, evidence_traceability: posts }, keywordData: null, tenantName: 'odisha', analysis: { facts }, headquarters: null, includeEvidence: false });
+  assert.ok(/No account in these posts calls for action or violence/.test(html));
+  assert.ok(/2 of 3 accounts are news or official pages reporting the event/.test(html));
+  assert.ok(/Largest reach from a non-news account/.test(html) && /Page3/.test(html));
+  assert.ok(/News \/ official pages <b>2<\/b>/.test(html) && /class="grp"/.test(html), 'accounts are listed by role in one dense index');
+  assert.ok(!/does not organise/.test(html));
 });
