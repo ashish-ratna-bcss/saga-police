@@ -750,7 +750,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
    * and multilingual post text render consistently.
    */
   const regionLabel = summaryData?.event?.location || 'Region';
-  const handleDownload = async (withEvidence = true, regionOnly = false, compact = false, regionEvidence = false, presentation = false) => {
+  const handleDownload = async (withEvidence = true, regionOnly = false, compact = false, regionEvidence = false, presentation = false, presentationLocation = false) => {
     if (!summaryData?.summary || !eventId) return;
     setPdfGenerating(true);
     try {
@@ -761,7 +761,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
           from_date: fromDate || undefined,
           to_date: toDate || undefined,
           include_evidence: withEvidence ? 'true' : 'false',
-          scope: presentation ? 'presentation' : regionEvidence ? 'location_full' : compact ? 'location' : regionOnly ? 'region' : undefined,
+          scope: presentationLocation ? 'presentation_location' : presentation ? 'presentation' : regionEvidence ? 'location_full' : compact ? 'location' : regionOnly ? 'region' : undefined,
         },
         responseType: 'blob',
         timeout: 300000,
@@ -772,12 +772,12 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       const link = document.createElement('a');
       link.href = url;
       const tfSuffix = timeframe && timeframe !== 'full' ? `_${safe(timeframe).toUpperCase()}` : '';
-      link.download = `${safe(tenantName)}_${safe(displayName)}${tfSuffix}_Report_${presentation ? 'Presentation' : regionEvidence ? 'Location_Full_With_Evidence' : withEvidence ? 'With_Evidence' : compact ? 'Location_Summary' : regionOnly ? 'Region_Executive_Summary' : 'Executive'}.pdf`;
+      link.download = `${safe(tenantName)}_${safe(displayName)}${tfSuffix}_Report_${presentationLocation ? 'Location_Presentation' : presentation ? 'Presentation' : regionEvidence ? 'Location_Full_With_Evidence' : withEvidence ? 'With_Evidence' : compact ? 'Location_Summary' : regionOnly ? 'Region_Executive_Summary' : 'Executive'}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      toast.success(`Event Intelligence report (${presentation ? 'presentation' : regionEvidence ? `${regionLabel} full report with evidence` : withEvidence ? 'with evidence' : compact ? `${regionLabel} location summary` : regionOnly ? `${regionLabel} executive summary` : 'executive summary'}) downloaded`);
+      toast.success(`Event Intelligence report (${presentationLocation ? `${regionLabel} presentation` : presentation ? 'presentation' : regionEvidence ? `${regionLabel} full report with evidence` : withEvidence ? 'with evidence' : compact ? `${regionLabel} location summary` : regionOnly ? `${regionLabel} executive summary` : 'executive summary'}) downloaded`);
     } catch (err) {
       console.error('Failed to generate PDF report:', err);
       toast.error('Failed to generate PDF report: ' + (err?.response?.statusText || err.message));
@@ -952,6 +952,19 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                     className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
                   >
                     <BarChart3 className="h-4 w-4 text-pink-600 dark:text-pink-400 mt-0.5 shrink-0" />
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-semibold text-foreground">Presentation (12 slides), whole event</span>
+                      <span className="text-[11px] text-muted-foreground leading-tight">
+                        Slides for the whole event, all places: key numbers, trend, tone, accounts, risk and next steps
+                      </span>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDownload(false, true, false, false, false, true)}
+                    disabled={pdfGenerating}
+                    className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
+                  >
+                    <BarChart3 className="h-4 w-4 text-rose-600 dark:text-rose-400 mt-0.5 shrink-0" />
                     <div className="flex flex-col gap-0.5">
                       <span className="text-xs font-semibold text-foreground">{regionLabel} Presentation (12 slides)</span>
                       <span className="text-[11px] text-muted-foreground leading-tight">
