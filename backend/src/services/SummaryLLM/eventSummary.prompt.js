@@ -297,6 +297,67 @@ const reducerToReport = (raw, digest, notesMap, analysed) => {
   return parseLLMReport({ ...obj, narratives, source_types: sourceTypes, emerging_keywords: emerging }, analysed);
 };
 
+/**
+ * A complete report written by rules from the counted facts, for when the model cannot finish its answer.
+ * It uses only what the data holds (counts, dates, organisers, places, topic groups), so the report is never empty
+ * and the facts, places and accounts still reach every report.
+ */
+const buildRulesReport = ({ event, facts, risk = {}, sentiment = {}, platforms = {}, total = 0, digest = null, today = new Date().toISOString().slice(0, 10) }) => {
+  const name = event?.name || 'The event';
+  const where = event?.location ? ` in ${event.location}` : '';
+  const tot = Math.max(1, Number(sentiment.positive || 0) + Number(sentiment.neutral || 0) + Number(sentiment.negative || 0));
+  const pctOf = (n) => Math.round((100 * Number(n || 0)) / tot);
+  const dominant = ['negative', 'positive', 'neutral'].sort((a, b) => Number(sentiment[b] || 0) - Number(sentiment[a] || 0))[0];
+  const platList = Object.entries(platforms).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k} ${v}`).join(', ');
+  const highRisk = Number(risk.critical || 0) + Number(risk.high || 0);
+  const acts = (facts?.activities || []).filter((a) => !a.outside).slice(0, 6);
+  const cap = (t) => String(t || '').replace(/^./, (c) => c.toUpperCase());
+  const actText = (a) => `${cap(a.kind)}${a.organiser ? ` called by ${a.organiser}` : ''}${a.place ? ` at ${a.place}` : ''}${a.subject ? ` about ${a.subject}` : ''} on ${a.date}`;
+  const past = (a) => String(a.date || '') < today;
+  const posts = (a) => (a.posts || []).slice(0, 8);
+
+  const lead = acts[0] ? ` ${actText(acts[0])}${acts.length > 1 ? `, and ${acts.length - 1} other ${acts.length - 1 === 1 ? 'activity' : 'activities'}` : ''}.` : '';
+  const violence = Number(facts?.violence?.count || 0);
+  const alleged = Number(facts?.alleged?.count || 0);
+  const detentions = Number(facts?.detentions?.count || 0);
+  const calls = Number(facts?.calls?.count || 0);
+
+  return {
+    bottom_line: `${name}${where}: ${total} posts were analysed.${lead} Most posts are ${dominant}; ${pctOf(sentiment.negative)}% are negative in tone.`,
+    key_findings: [
+      { headline: 'Tone', detail: `${pctOf(sentiment.positive)}% of posts are positive, ${pctOf(sentiment.neutral)}% neutral and ${pctOf(sentiment.negative)}% negative.` },
+      { headline: 'Platforms', detail: platList ? `Most posts come from ${platList}.` : 'No platform split is available.' },
+      { headline: 'Risk', detail: `${highRisk} ${highRisk === 1 ? 'post is' : 'posts are'} rated high or critical risk.` },
+      ...(acts.length ? [{ headline: 'Activity', detail: `${acts.length} dated ${acts.length === 1 ? 'activity is' : 'activities are'} named in the posts.` }] : []),
+    ],
+    situation: `${name}${where} is monitored across ${Object.keys(platforms).length || 'several'} platforms. ${total} posts were analysed.${lead}`,
+    issue_strands: acts.slice(0, 4).map((a) => ({ title: `${cap(a.kind)}${a.place ? ` at ${a.place}` : ''}`.slice(0, 60), who: a.organiser || '', demand: a.subject || '', status: past(a) ? 'The date has passed; the outcome is not confirmed by these posts.' : 'Planned.', posts: posts(a) })),
+    known: acts.map((a) => ({ text: actText(a), posts: posts(a) })).slice(0, 5),
+    not_known: [
+      ...acts.filter((a) => !a.organiser).slice(0, 2).map((a) => `Who organised the ${a.kind} on ${a.date}`),
+      ...acts.filter((a) => past(a)).slice(0, 1).map((a) => `How the ${a.kind} on ${a.date} went`),
+    ].slice(0, 4),
+    sentiment_commentary: `${pctOf(sentiment.positive)}% of posts are positive, ${pctOf(sentiment.neutral)}% neutral and ${pctOf(sentiment.negative)}% negative. Negative tone is criticism, not a threat.`,
+    narratives: ((digest && digest.clusters) || []).slice(0, 6).map((c, i) => ({
+      title: String(c.label || `Topic ${i + 1}`).slice(0, 60),
+      clusters: [`C${i + 1}`],
+      discussed: `${(c.posts || []).length} posts on this topic.`,
+      tone: `Praise ${c.sentiment?.positive || 0}, news ${c.sentiment?.neutral || 0}, criticism ${c.sentiment?.negative || 0}.`,
+      risk: 'No risk signal.',
+    })),
+    public_order: `${highRisk} ${highRisk === 1 ? 'post is' : 'posts are'} rated high risk. ${violence ? `${violence} ${violence === 1 ? 'post mentions' : 'posts mention'} violence. ` : 'No post confirms violence. '}${alleged ? `${alleged} ${alleged === 1 ? 'post alleges' : 'posts allege'} or warn of violence; this is not confirmed. ` : ''}${detentions ? `${detentions} ${detentions === 1 ? 'post reports' : 'posts report'} arrests or detentions; these are not violence. ` : ''}${calls ? `${calls} ${calls === 1 ? 'post calls' : 'posts call'} people to act.` : 'No post calls people to act in its own words.'}`,
+    platforms_commentary: platList ? `Most posts come from ${platList}.` : '',
+    recommended_actions: acts.slice(0, 5).map((a) => (past(a)
+      ? { action: `Check what happened at the ${a.kind}${a.place ? ` in ${a.place}` : ''} — District Police`, detail: `Confirm the turnout, any arrests and any disruption at the ${a.kind} held on ${a.date}${a.place ? ` in ${a.place}` : ''}. Escalate if there are reports of violence or damage.`, posts: posts(a) }
+      : { action: `Prepare for the ${a.kind}${a.place ? ` in ${a.place}` : ''} — District Police`, detail: `Plan for the ${a.kind} on ${a.date}${a.place ? ` in ${a.place}` : ''}${a.organiser ? ` called by ${a.organiser}` : ''}. Escalate if there are calls to block roads or reports of violence.`, posts: posts(a) })),
+    claims: [], changes: [], emerging_keywords: [],
+    activities: acts.map((a) => ({ what: `${cap(a.kind)}${a.subject ? `: ${a.subject}` : ''}`, where: a.place || '', when: a.date, posts: posts(a) })),
+    presence: [], geography: [], leaders: [], amplifiers: [],
+  };
+};
+
+const MINIMAL_CONTRACT = 'Reply with ONE short JSON object only, no text around it: {"bottom_line": "2 sentences", "situation": "2 sentences", "public_order": "2 sentences", "key_findings": [{"headline": "short", "detail": "one sentence"}]} with 3 key_findings. Use only the statistics and notes given.';
+
 const RETRY_SHORTER_MESSAGE = 'Your reply was cut off before the JSON was complete. Reply again with ONLY the complete JSON object, but SHORTER: every text field at most one or two short sentences, at most 4 actions, at most 3 items in each list, no text around it, no code fences.';
 const RETRY_MESSAGE = 'Not valid JSON. Reply again with ONLY the complete JSON object described in OUTPUT: no text around it, no code fences.';
 
@@ -673,7 +734,7 @@ const parseClosing = (raw) => {
 module.exports = {
   buildClosingSystem, buildClosingContext, parseClosing, closingLevel, checkClosing,
   buildActionsSystem, buildActionsContext, parseMoreActions, mergeActions,
-  buildSystemPrompt, buildUserContext, RETRY_MESSAGE, RETRY_SHORTER_MESSAGE, parseLLMReport, reportToMarkdown,
+  buildSystemPrompt, buildUserContext, RETRY_MESSAGE, RETRY_SHORTER_MESSAGE, buildRulesReport, MINIMAL_CONTRACT, languageLine, parseLLMReport, reportToMarkdown,
   BATCH_SYSTEM, buildBatchUserContext, parseBatchNotes, buildReducerSystemPrompt, buildReducerUserContext,
   estimateTokens, truncateToTokens, makeBatches, reducerToReport, extractJson,
 };
