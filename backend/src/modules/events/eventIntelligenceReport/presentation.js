@@ -34,7 +34,7 @@ body{font-family:'Lato','Liberation Sans','Helvetica Neue',Arial,sans-serif;colo
 .title .sub{font-size:25px;margin:0 0 56px;color:#E8ECF8}
 .title .meta{font-size:19px;line-height:1.6;color:#DCE3F5}
 .title .tiles{position:absolute;right:72px;top:150px;width:518px;display:grid;grid-template-columns:1fr 1fr;gap:22px}
-.title .note{position:absolute;right:72px;top:420px;width:518px;font-size:17px;font-style:italic;line-height:1.5;color:#C9D3EE}
+.title .note{position:absolute;right:72px;top:478px;width:518px;font-size:17px;font-style:italic;line-height:1.5;color:#C9D3EE}
 .title .foot{color:#C9D3EE}
 .tile{border-radius:18px;color:#fff;text-align:center;padding:26px 14px;display:flex;flex-direction:column;justify-content:center;min-height:132px}
 .tile .n{font-family:'Lora',Georgia,'Times New Roman',serif;font-size:48px;font-weight:700;line-height:1.05}
@@ -46,7 +46,7 @@ body{font-family:'Lato','Liberation Sans','Helvetica Neue',Arial,sans-serif;colo
 .point .num{flex:none;width:64px;height:64px;border-radius:50%;color:#fff;font-weight:700;font-size:26px;display:flex;align-items:center;justify-content:center;font-family:'Lora',Georgia,serif}
 .point .tx{flex:1}
 .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
-.card{background:${COLORS.card};border-radius:18px;padding:24px 26px;border-top:7px solid ${COLORS.blue};min-height:470px}
+.card{background:${COLORS.card};border-radius:18px;padding:24px 26px;border-top:7px solid ${COLORS.blue};height:500px;overflow:hidden}
 .card.o{border-top-color:${COLORS.orange}}.card.g{border-top-color:${COLORS.green}}.card.r{border-top-color:${COLORS.red}}.card.t{border-top-color:${COLORS.teal}}
 .card h3{margin:0 0 14px;font-size:25px;color:${COLORS.navy};line-height:1.2}
 .card p{margin:0 0 12px;font-size:17px;line-height:1.42;color:#2B3957}
@@ -107,6 +107,8 @@ const buildPresentationBody = (ctx) => {
     analysis, places, authors, threatLevel, rationale, bottomLine, counts, narrativesToWatch, actions, notKnown, stats,
   } = ctx;
   const t = esc(tenant);
+  const noCite = (x) => String(x || '').replace(/\s*Posts?\s*(?:\[Post #\d+\][,\s]*(?:and\s*)?)+\.?/gi, ' ').replace(/\s*\[Post #\d+\]/g, '').replace(/\s+/g, ' ').trim();
+  const nPosts = (n, one, many) => L(n === 1 ? one : many, { n });
   const compact = (n) => {
     const v = Number(n) || 0;
     if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
@@ -140,7 +142,7 @@ const buildPresentationBody = (ctx) => {
   const points = [];
   if (bottomLine) points.push({ c: COLORS.blue, tx: esc(clip(bottomLine, 230)) });
   if (engSum > 0) points.push({ c: COLORS.orange, tx: esc(L('Negative posts are {a}% of posts and draw {b}% of the engagement.', { a: negPostPct, b: negEngPct })) });
-  points.push({ c: COLORS.purple, tx: `${esc(L('Risk level'))}: <b>${esc(L(threatLevel))}</b>. ${esc(clip(String(rationale || '').split(/(?<=[.!?])\s+/).slice(0, 2).join(' '), 220))}` });
+  points.push({ c: COLORS.purple, tx: `${esc(L('Risk level'))}: <b>${esc(L(threatLevel))}</b>. ${esc(clip(String(rationale || '').split(/(?<=[.!?])\s+/).slice(0, 2).join(' '), 200))}` });
   const dates = (analysis?.keyDates || []).filter((k) => !k.outside).slice(0, 1);
   if (dates.length) points.push({ c: COLORS.green, tx: `${esc(dates[0].date || '')}: ${esc(clip(dates[0].event || '', 170))}` });
   const s2 = `<h2>${esc(L('In short'))}</h2>
@@ -153,18 +155,18 @@ const buildPresentationBody = (ctx) => {
     ${points.slice(0, 4).map((p, i) => `<div class="point"><div class="num" style="background:${p.c}">${i + 1}</div><div class="tx">${p.tx}</div></div>`).join('')}`;
 
   // ---- 3. Recommended actions
-  const claimLines = (narrativesToWatch || []).slice(0, 2).map((n) => `<p><b>${esc(clip(n.narrative || '', 120))}</b><br>${esc(clip(n.riskNote || '', 150))}</p>`).join('')
+  const claimLines = (narrativesToWatch || []).slice(0, 2).map((n) => `<p><b>${esc(clip(noCite(n.narrative), 100))}</b><br>${esc(clip(noCite(n.riskNote), 110))}</p>`).join('')
     || `<p>${esc(L('No claim needs checking in this window.'))}</p>`;
-  const actLines = (actions || []).slice(0, 3).map((a) => {
+  const actLines = (actions || []).slice(0, 2).map((a) => {
     const parts = String(a.action || '').split(/\s+[—–]\s+/);
     const m = String(a.detail || '').match(/\s*(Escalate if[^]*?)$/i);
-    const doText = m ? String(a.detail).slice(0, m.index).trim() : String(a.detail || '').trim();
-    return `<p><b>${esc(parts[0])}</b>${parts[1] ? ` · ${esc(parts[1])}` : ''}<br>${esc(clip(doText, 150))}${m ? `<span class="esc">${esc(clip(m[1], 120))}</span>` : ''}</p>`;
+    const doText = noCite(m ? String(a.detail).slice(0, m.index) : a.detail);
+    return `<p><b>${esc(parts[0])}</b>${parts[1] ? ` · ${esc(parts[1])}` : ''}<br>${esc(clip(doText, 110))}${m ? `<span class="esc">${esc(clip(noCite(m[1]), 90))}</span>` : ''}</p>`;
   }).join('') || `<p>${esc(L('Maintain standard baseline monitoring.'))}</p>`;
   const watch = [];
   watch.push(L('Violence: {a} confirmed, {b} mentioned, {c} alleged or warned.', { a: counts.violenceConfirmed, b: counts.violenceMentioned, c: counts.alleged }));
-  if (counts.detentions) watch.push(L('{n} posts report arrests, detentions or a refused permission.', { n: counts.detentions }));
-  (notKnown || []).slice(0, 2).forEach((x) => watch.push(String(typeof x === 'string' ? x : (x.text || x.item || '')).replace(/[.\s]+$/, '')));
+  if (counts.detentions) watch.push(nPosts(counts.detentions, '{n} post reports arrests, detentions or a refused permission.', '{n} posts report arrests, detentions or a refused permission.'));
+  (notKnown || []).slice(0, 2).forEach((x) => watch.push(noCite(String(typeof x === 'string' ? x : (x.text || x.item || '')).replace(/[.\s]+$/, ''))));
   const s3 = `<h2>${esc(L('Recommended actions'))}</h2><div class="cols3">
     <div class="card"><h3>${esc(L('Claims to verify and answer'))}</h3>${claimLines}</div>
     <div class="card o"><h3>${esc(L('What to do first'))}</h3>${actLines}</div>
@@ -272,8 +274,8 @@ const buildPresentationBody = (ctx) => {
   const s10 = `<h2>${esc(L('Risk signals'))}</h2><div class="split"><div class="donutbox">${donutSvg(riskParts, String((counts.highRisk || 0)), L('high / critical'))}
       <div class="lg">${riskParts.map((p) => `<div><i style="background:${p.c}"></i>${esc(L(p.k))}: ${fmt(p.v)}</div>`).join('')}</div></div><div>
       <div class="info"><div class="ic"><div class="dot" style="background:${COLORS.red}">!</div><div><h3>${esc(L('Violence'))}</h3><p>${esc(L('{a} confirmed, {b} mentioned, {c} alleged or warned.', { a: counts.violenceConfirmed, b: counts.violenceMentioned, c: counts.alleged }))}</p></div></div></div>
-      <div class="info"><div class="ic"><div class="dot" style="background:${COLORS.orange}">?</div><div><h3>${esc(L('Arrests and calls to act'))}</h3><p>${esc(L('{a} posts report arrests or detentions; {b} call people to act; {c} report a group mobilising.', { a: counts.detentions, b: counts.calls, c: counts.mobilising }))}</p></div></div></div>
-      <div class="info"><div class="ic"><div class="dot" style="background:${COLORS.purple}">∗</div><div><h3>${esc(L('Level'))}: ${esc(L(threatLevel))}</h3><p>${esc(clip(rationale || '', 200))}</p></div></div></div>
+      <div class="info"><div class="ic"><div class="dot" style="background:${COLORS.orange}">?</div><div><h3>${esc(L('Arrests and calls to act'))}</h3><p>${esc(L('Arrests or detentions reported: {a}. Posts calling people to act: {b}. Posts reporting a group mobilising: {c}.', { a: counts.detentions, b: counts.calls, c: counts.mobilising }))}</p></div></div></div>
+      <div class="info"><div class="ic"><div class="dot" style="background:${COLORS.purple}">∗</div><div><h3>${esc(L('Level'))}: ${esc(L(threatLevel))}</h3><p>${esc(clip(String(rationale || '').split(/(?<=[.!?])\s+/)[0] || '', 130))}</p></div></div></div>
     </div></div>`;
 
   // ---- 11. How we will know it is working
