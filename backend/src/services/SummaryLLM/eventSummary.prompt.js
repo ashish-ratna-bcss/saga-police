@@ -297,9 +297,31 @@ const reducerToReport = (raw, digest, notesMap, analysed) => {
   return parseLLMReport({ ...obj, narratives, source_types: sourceTypes, emerging_keywords: emerging }, analysed);
 };
 
+const RETRY_SHORTER_MESSAGE = 'Your reply was cut off before the JSON was complete. Reply again with ONLY the complete JSON object, but SHORTER: every text field at most one or two short sentences, at most 4 actions, at most 3 items in each list, no text around it, no code fences.';
 const RETRY_MESSAGE = 'Not valid JSON. Reply again with ONLY the complete JSON object described in OUTPUT: no text around it, no code fences.';
 
 /* ------------------------------------------------------------ 4. READ + VALIDATE THE ANSWER -------------- */
+/** A reply cut off in the middle: cut back to the last complete item and close what is open, so the finished part is kept. */
+const repairTruncatedJson = (text) => {
+  const cuts = [];
+  const stack = [];
+  let inStr = false; let esc = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text[i];
+    if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false; continue; }
+    if (c === '"') inStr = true;
+    else if (c === '{' || c === '[') stack.push(c);
+    else if (c === '}' || c === ']') stack.pop();
+    else if (c === ',') cuts.push({ at: i, stack: stack.slice() });
+  }
+  for (let k = cuts.length - 1, tries = 0; k >= 0 && tries < 40; k -= 1, tries += 1) {
+    const cut = cuts[k];
+    const closers = cut.stack.slice().reverse().map((b) => (b === '{' ? '}' : ']')).join('');
+    try { return JSON.parse(text.slice(0, cut.at) + closers); } catch (e) { /* try an earlier cut */ }
+  }
+  return null;
+};
+
 const extractJson = (raw) => {
   let t = String(raw || '').replace(/<(?:think|redacted_thinking)>[\s\S]*?<\/(?:think|redacted_thinking)>/gi, '').trim();
   t = t.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
@@ -307,8 +329,12 @@ const extractJson = (raw) => {
   const start = t.search(/[[{]/);
   if (start === -1) throw new Error('no JSON in model output');
   const close = t[start] === '[' ? t.lastIndexOf(']') : t.lastIndexOf('}');
-  if (close <= start) throw new Error('unterminated JSON in model output');
-  return JSON.parse(t.slice(start, close + 1));
+  if (close > start) {
+    try { return JSON.parse(t.slice(start, close + 1)); } catch (e) { /* maybe cut off: try to repair below */ }
+  }
+  const fixed = repairTruncatedJson(t.slice(start));
+  if (fixed) return fixed;
+  throw new Error('unterminated JSON in model output');
 };
 
 const postNumber = (e) => Number((String(e.citationTag || '').match(/\d+/) || [])[0]);
@@ -647,7 +673,7 @@ const parseClosing = (raw) => {
 module.exports = {
   buildClosingSystem, buildClosingContext, parseClosing, closingLevel, checkClosing,
   buildActionsSystem, buildActionsContext, parseMoreActions, mergeActions,
-  buildSystemPrompt, buildUserContext, RETRY_MESSAGE, parseLLMReport, reportToMarkdown,
+  buildSystemPrompt, buildUserContext, RETRY_MESSAGE, RETRY_SHORTER_MESSAGE, parseLLMReport, reportToMarkdown,
   BATCH_SYSTEM, buildBatchUserContext, parseBatchNotes, buildReducerSystemPrompt, buildReducerUserContext,
   estimateTokens, truncateToTokens, makeBatches, reducerToReport, extractJson,
 };
