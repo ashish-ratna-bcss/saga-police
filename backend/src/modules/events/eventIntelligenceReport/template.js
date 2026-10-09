@@ -1855,7 +1855,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     const topPlaces = places.slice(0, 5);
     const pMax = Math.max(1, ...topPlaces.map((x) => x.count));
     const placeBars = topPlaces.length
-      ? topPlaces.map((x) => hbar(x.name, x.count, pMax, BAR, '', L(x.count === 1 ? 'post' : 'posts'))).join('')
+      ? topPlaces.map((x) => `${hbar(x.name, x.count, pMax, BAR, '', L(x.count === 1 ? 'post' : 'posts'))}<div class="glinks" style="margin:-.6mm 0 1.6mm 27%">${(x.posts || []).slice(0, 6).map((n) => `[Post #${n}]`).join(' ')}</div>`).join('')
       : `<p class="sm">${esc(L('No specific place inside the region is named in the posts.'))}</p>`;
     const card = (a, i) => actCardHtml(a, i);
     const first = actions.slice(0, 2);
@@ -1874,7 +1874,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${kstripHtml}
   <div class="cp-row">
     <div class="cp-box"><h4>${esc(L('What is happening and when'))}</h4>${timeline}</div>
-    <div class="cp-box"><h4>${esc(L('Where posts place it'))}</h4>${placeBars}<p class="cp-note">${esc(L('People reported on site'))}: <b>${fmt(visits.length)}</b></p></div>
+    <div class="cp-box"><h4>${esc(L('Where posts place it'))}</h4>${placeBars}<p class="cp-note">${esc(L('People reported on site'))}: <b>${fmt(visits.length)}</b> ${visits.slice(0, 10).map((e) => `[Post #${e.n}]`).join(' ')}</p></div>
   </div>
   ${secHead('What To Do')}
   ${actCards}
