@@ -268,6 +268,18 @@ const runningSummaryResponse = (res, job, eventId) =>
   });
 const { generateEventIntelligencePdf } = require('./eventIntelligenceReport');
 
+/** GET: the saved summary narrowed to the event's own location (same rule as the location PDFs), for the popup. */
+const getEventSummaryRegionView = async (req, res) => {
+  try {
+    const cached = await getCachedEventSummary(req.params.id, { db: req.tenantPrisma });
+    if (!cached) return res.status(404).json({ message: 'No report has been generated for this event yet' });
+    const { toRegionView } = require('./eventIntelligenceReport/regionView');
+    return res.status(200).json(toRegionView(cached));
+  } catch (error) {
+    return res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
 /** GET: cached report, or the background job already writing one. Starts the job if needed. */
 const getEventSummaryLLM = async (req, res) => {
   try {
@@ -422,6 +434,7 @@ module.exports = {
   getEventContent,
   getEventKeywordAnalytics,
   getEventSummaryLLM,
+  getEventSummaryRegionView,
   regenerateEventSummaryLLM,
   cancelEventSummaryLLM,
   saveEventSummaryPdfHandler,

@@ -2048,4 +2048,4 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   return `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>${fontFacesFor(printable)}${CSS}</style></head><body>${printable}</body></html>`;
 };
 
-module.exports = { buildReportHtml, fontFacesFor, FONT_STACK };
+module.exports = { buildReportHtml, fontFacesFor, FONT_STACK, regionFilter };
