@@ -455,6 +455,7 @@ b{font-weight:700}
 .pcards.one{grid-template-columns:1fr}
 .pcard.wide{padding:2.4mm 3.2mm}
 
+.sumgrid{display:grid;grid-template-columns:1fr 1fr;gap:2.6mm;margin:0 0 3mm}.sumbox{border:.6px solid ${LINE};border-top:1.2mm solid ${NAVY};border-radius:3px;padding:2.4mm 3mm;background:#fff;break-inside:avoid}.sumbox h4{margin:0 0 1.2mm;font-size:7.6pt;text-transform:uppercase;letter-spacing:.07em}.sumbox ul{margin:0;padding-left:3.6mm}.sumbox li{font-size:8pt;line-height:1.45;color:#334155;margin:0 0 1mm}
 .cp-row{display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin:0 0 3mm}
 .cp-box{border:.6px solid ${LINE};border-radius:4px;padding:3mm 3.4mm;background:#fff;break-inside:avoid}
 .cp-box h4{margin:0 0 2mm;font-size:8pt;color:${NAVY};font-weight:700;text-transform:uppercase;letter-spacing:.06em}
@@ -1392,8 +1393,10 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const callN = n0(analysis?.facts?.calls?.count);
   const violenceN = n0(analysis?.facts?.violence?.count);
   const haveFacts = !!analysis?.facts;
+  const allegedN = n0(analysis?.facts?.alleged?.count);
+  const detentionN = n0(analysis?.facts?.detentions?.count);
   const threatLevelVal = violenceN > 1 ? 'High'
-    : (violenceN > 0 || callN > 0 || highRiskN > 0) ? 'Medium'
+    : (violenceN > 0 || allegedN > 0 || detentionN > 0 || callN > 0 || highRiskN > 0) ? 'Medium'
       : (haveFacts || n0(riskCounts.medium) === 0) ? 'Low' : 'Low to Medium';
   const threatPillClass = /crit/i.test(threatLevelVal)
     ? 'threat-pill-crit'
@@ -1412,12 +1415,15 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const levelReason = violenceN > 1 ? L('posts mention violence or damage linked to the event')
     : violenceN === 1 ? L('one post mentions violence or damage, and no other post confirms it')
     : callN > 0 ? L('posts call people to join a bandh, rally or blockade')
+      : (allegedN > 0 || detentionN > 0) ? L('posts allege or warn of violence, or report arrests, and no post confirms violence')
       : highRiskCount > 0 ? L('some posts are rated high risk by the post analysis, although none call for action or mention violence')
         : L('no post calls for action, mentions violence or is rated high risk');
   const rationaleParts = [L('Rated {level} because {reason}.', { level: L(threatLevelVal), reason: levelReason })];
   const plural = (n, one, many) => L(n === 1 ? one : many, { n: fmt(n) });
   if (haveFacts) {
-    rationaleParts.push(violenceN > 0 ? plural(violenceN, '{n} post mentions violence or damage.', '{n} posts mention violence or damage.') : L('No post reports violence or damage.'));
+    rationaleParts.push(violenceN > 0 ? plural(violenceN, '{n} post mentions violence or damage.', '{n} posts mention violence or damage.') : L('No post confirms violence or damage.'));
+    if (allegedN) rationaleParts.push(plural(allegedN, '{n} post alleges or warns of violence; this is not confirmed.', '{n} posts allege or warn of violence; this is not confirmed.'));
+    if (detentionN) rationaleParts.push(plural(detentionN, '{n} post reports arrests or detentions; these are not violence.', '{n} posts report arrests or detentions; these are not violence.'));
     rationaleParts.push(callN > 0 ? plural(callN, '{n} post calls people to join or take action.', '{n} posts call people to join or take action.') : L('No post calls for a bandh, blockade or gathering.'));
   }
   if (highRiskCount > 0) rationaleParts.push(plural(highRiskCount, '{n} post is rated high risk by the post analysis.', '{n} posts are rated high risk by the post analysis.'));
@@ -1499,7 +1505,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     <div><div class="n">${scoped ? fmt(inEv.length) : fmt(total)}</div><div class="l">Posts analysed</div></div>
     <div><div class="n">${fmt(engTotal)}</div><div class="l">Interactions (likes, shares, comments)</div></div>
     <div><div class="n">${haveFacts ? fmt(callN) : '—'}</div><div class="l">Posts calling people to act</div></div>
-    <div><div class="n">${haveFacts ? fmt(violenceN) : '—'}</div><div class="l">Violence reports</div></div>
+    <div><div class="n">${haveFacts ? fmt(violenceN) : '—'}</div><div class="l">Violence confirmed</div>${haveFacts && (allegedN || detentionN) ? `<div class="l" style="text-transform:none;letter-spacing:0;margin-top:.4mm">${[allegedN ? `${fmt(allegedN)} alleged` : '', detentionN ? `${fmt(detentionN)} arrests` : ''].filter(Boolean).join(' · ')}</div>` : ''}</div>
     <div><div class="n">${fmt(highRiskN)}</div><div class="l">High / critical risk</div></div>
     <div><div class="n">${fmt(places.length)}</div><div class="l">Places covered</div></div>
   </div>`;
@@ -1516,7 +1522,9 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   };
   const srcRows = [
     srcLine('High / critical risk', highRiskNs, highRiskNs.length),
-    srcLine('Violence reports', analysis?.facts?.violence?.posts, haveFacts ? violenceN : null),
+    srcLine('Violence confirmed', analysis?.facts?.violence?.posts, haveFacts ? violenceN : null),
+    srcLine('Violence alleged or warned (unconfirmed)', analysis?.facts?.alleged?.posts, haveFacts ? allegedN : null),
+    srcLine('Arrests, detentions or refused permission', analysis?.facts?.detentions?.posts, haveFacts ? detentionN : null),
     srcLine('Posts calling people to act', analysis?.facts?.calls?.posts, haveFacts ? callN : null),
     srcLine('Posts reporting people on site', visits.map((e) => e.n), visits.length),
   ].filter(Boolean).join('');
@@ -1675,9 +1683,12 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const outsideRegionPlace = (name) => { const r = factPlaceRegion.get(foldGeo(name)); const rn = foldGeo(regionName); return !!(r && rn && !r.includes(rn) && !foldGeo(name).includes(rn)); };
   const factActs = (analysis?.facts?.activities || []).filter((a) => !a.outside && !(regionOnly && a.place && outsideRegionPlace(a.place)));
   const outsideFactNames = Array.from(factPlaceRegion.keys()).filter((n) => outsideRegionPlace(n));
+  const STATUS_TEXT = { denied: 'police permission refused or declared unlawful', permitted: 'permission granted', held: 'has taken place', called_off: 'called off', announced: 'announced' };
   const actLine = (a) => {
     const kind = L(String(a.kind || 'activity').replace(/^./, (c) => c.toUpperCase()));
-    return `${kind}${a.organiser ? ` ${L('called by')} ${a.organiser}` : ''}${a.place ? ` ${L('at')} ${a.place}` : ''}${a.subject ? ` — ${L('about')}: ${a.subject}` : a.subject === '' ? ` — ${L('reason not stated in the posts')}` : ''}`;
+    const st = Object.entries(a.statuses || {}).filter(([k]) => k !== 'announced').sort((x, y) => y[1] - x[1]).map(([k]) => STATUS_TEXT[k]).filter(Boolean)[0];
+    const announced = (a.statuses || {}).announced ? ` (${L('organiser says it will go ahead')})` : '';
+    return `${kind}${a.organiser ? ` ${L('called by')} ${a.organiser}` : ''}${a.place ? ` ${L('at')} ${a.place}` : ''}${a.subject ? ` — ${L('about')}: ${a.subject}` : a.subject === '' ? ` — ${L('reason not stated in the posts')}` : ''}${st ? `; ${L(st)}${st === STATUS_TEXT.denied ? announced : ''}` : ''}`;
   };
 
   // Public order block built from the counted facts, so the level, what is confirmed and what is not can never disagree.
@@ -1689,7 +1700,9 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       : `<li>${esc(L('No dated activity is named in the posts.'))}</li>`;
     const notShown = [
       haveFacts && callN === 0 ? L('No post calls people to join a bandh, blockade or gathering.') : '',
-      haveFacts && violenceN === 0 ? L('No post reports violence or damage.') : '',
+      haveFacts && violenceN === 0 ? L('No post confirms violence or damage.') : '',
+      haveFacts && allegedN ? `${plural(allegedN, '{n} post alleges or warns of violence; it is not confirmed.', '{n} posts allege or warn of violence; it is not confirmed.')} ${(analysis.facts.alleged.posts || []).slice(0, 4).map((n) => `[Post #${n}]`).join(' ')}` : '',
+      haveFacts && detentionN ? `${plural(detentionN, '{n} post reports arrests, detentions or a refused permission; these are not violence.', '{n} posts report arrests, detentions or a refused permission; these are not violence.')} ${(analysis.facts.detentions.posts || []).slice(0, 4).map((n) => `[Post #${n}]`).join(' ')}` : '',
       haveFacts && violenceN === 1 ? L('One post mentions violence or damage; no other post confirms it.') : '',
       ...notKnownList.slice(0, 3).map((x) => String(typeof x === 'string' ? x : (x.text || x.item || '')).replace(/[.\s]+$/, '') + '.'),
     ].filter(Boolean);
@@ -1846,6 +1859,23 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     const text = String(analysis?.closingSummary || '').trim();
     if (!text) return '';
     const noPlan = (para) => para.split(/(?<=[.!?])\s+/).filter((x) => !(regionOnly && outsideFactNames.length && nameMatcher(outsideFactNames)(x))).filter((x) => !/\b(police|authorities|administration)\b[^.]{0,40}\b(plan|plans|planned|intend|intends|are monitoring|will monitor)\b/i.test(x)).join(' ');
+    const labelled = /^(CONFIRMED|NOT VERIFIED|NEXT STEPS|RISK)\s*$/m.test(text);
+    if (labelled) {
+      const blocks = text.split(/\n{2,}/).map((b) => {
+        const lines = b.split('\n').map((x) => x.trim()).filter(Boolean);
+        const head = lines.shift();
+        return { head, items: lines.map((x) => noPlan(x.replace(/^[-*•]\s*/, ''))).filter(Boolean) };
+      }).filter((b) => b.items.length);
+      const META = {
+        CONFIRMED: { t: 'Confirmed', c: '#1B7A4E' },
+        'NOT VERIFIED': { t: 'Not yet verified', c: '#C45C26' },
+        'NEXT STEPS': { t: 'Next steps', c: NAVY },
+        RISK: { t: 'Risk reassessed', c: '#B42318' },
+      };
+      return `
+  <div class="sec"><span class="no">${secNo()}</span><span class="nm">${esc(L('Summary'))}</span></div>
+  <div class="sumgrid">${blocks.map((b) => { const m = META[b.head] || { t: b.head, c: NAVY }; return `<div class="sumbox" style="border-top-color:${m.c}"><h4 style="color:${m.c}">${esc(L(m.t))}</h4><ul>${b.items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>`; }).join('')}</div>`;
+    }
     const paras = text.split(/\n{2,}/).map((x) => noPlan(x.trim())).filter(Boolean);
     return `
   <div class="sec"><span class="no">${secNo()}</span><span class="nm">${esc(L('Summary'))}</span></div>

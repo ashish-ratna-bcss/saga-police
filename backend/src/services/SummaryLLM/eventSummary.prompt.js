@@ -556,18 +556,19 @@ const mergeActions = (core, extra, cap = 10) => {
 /* ------------------------------------------------ CLOSING SUMMARY (plain words, last section) ------------------- */
 const buildClosingSystem = (ctx) => `You are briefing ${audienceOf(ctx)} in person. Write the closing summary of this report in natural, plain language, as one person speaking to another.
 ${languageLine(ctx || {})}
-Length: 6 to 9 short sentences in one or two paragraphs. No lists, no headings, no bullet points, no post numbers, no jargon.
-Say, in this order: what is happening and where; who is behind it; how serious it is and the real reason for that level; what is planned next, with dates; what is not known yet; and the one or two most important things for the police to do.
-${ctx && ctx.level ? `The risk level is "${ctx.level}". Say it with exactly that word, followed by the real reason from the facts. ` : ''}Say what the police SHOULD do; never say what the police are already doing, planning or monitoring. Put a date and a place together only as the facts do; an activity outside the region is not in the region.
-Use at most three numbers. Use only the facts given; never invent a name, place, date or number. Do not start sentences with "The analysis indicates", "The data suggests" or similar. Do not call criticism a threat.
-Return only the text of the summary.`;
+Return ONLY JSON: {"confirmed":["..."],"unverified":["..."],"next":["..."],"risk":"..."}
+- confirmed: 2 to 4 short sentences. Only what the posts establish: what happened or is dated and organised, with who organised it and where. Say which group organises each activity. If the event is named after one group (for example a party or movement) and an activity is organised by a different group, say plainly that it is organised by that other group and not by the first.
+- unverified: 2 to 4 short sentences. Claims, allegations, warnings and disputes that the posts do not settle (for example an allegation of planned violence, a refused permission that the organiser disputes, a number nobody confirms). Name who made the claim. If an activity has a refusal or ban in the posts and the organiser says it will go ahead, state both.
+- next: 2 to 4 short sentences. The immediate verification priorities and what the police SHOULD do, each with a place. Never say what the police are already doing, planning or monitoring.
+- risk: 1 or 2 sentences. ${ctx && ctx.level ? `The risk level is "${ctx.level}". Say it with exactly that word, then the real reason, and say what would change it (for example confirmed violence would raise it).` : 'State the level and the real reason.'} Arrests and detentions are not violence. An allegation is not confirmed violence. Do not call criticism a threat.
+Style: short plain sentences, active voice, no jargon, no post numbers, no sentence starting with "The analysis indicates" or "The data suggests". Use only the facts given; never invent a name, place, date or number. An activity outside the region is not in the region; leave it out unless the facts say it affects the region.`;
 
 /** The public order risk level, by the same rule as the report: violence, then calls to act or high-risk posts, else low. */
 const closingLevel = ({ facts, stats }) => {
   const risk = stats?.risk_counts || stats?.risk || {};
   const highRisk = Number(risk.critical || 0) + Number(risk.high || 0);
   if (Number(facts?.violence?.count || 0) > 1) return 'High';
-  return (Number(facts?.violence?.count || 0) > 0 || Number(facts?.calls?.count || 0) > 0 || highRisk > 0) ? 'Medium' : 'Low';
+  return (Number(facts?.violence?.count || 0) > 0 || Number(facts?.alleged?.count || 0) > 0 || Number(facts?.detentions?.count || 0) > 0 || Number(facts?.calls?.count || 0) > 0 || highRisk > 0) ? 'Medium' : 'Low';
 };
 
 /** Checks a draft against the facts (English drafts): the right level, no invented police activity. Returns '' when fine, else the reason. */
@@ -590,12 +591,12 @@ const buildClosingContext = ({ report, facts, event, stats }) => {
   const tot = Math.max(1, Number(sent.positive || 0) + Number(sent.neutral || 0) + Number(sent.negative || 0));
   const L = [];
   L.push(`EVENT: ${event?.name || ''} | REGION: ${event?.location || ''}`);
-  L.push(`RISK LEVEL: ${level}. Posts calling for action in the region: ${calls}. Posts mentioning violence in the region: ${violence}. Posts rated high risk: ${highRisk}. Negative tone: ${Math.round((100 * Number(sent.negative || 0)) / tot)}% (criticism, not a threat).`);
+  L.push(`RISK LEVEL: ${level}. Posts calling for action in the region: ${calls}. Posts confirming violence in the region: ${violence}. Posts alleging or warning of violence (unconfirmed): ${Number(facts?.alleged?.count || 0)}. Posts reporting arrests, detentions, a ban or refused permission: ${Number(facts?.detentions?.count || 0)}. Posts rated high risk: ${highRisk}. Negative tone: ${Math.round((100 * Number(sent.negative || 0)) / tot)}% (criticism, not a threat).`);
   if (report?.bottomLine) L.push(`BOTTOM LINE: ${report.bottomLine}`);
   if (report?.situation) L.push(`SITUATION: ${report.situation}`);
   if (report?.publicOrder) L.push(`PUBLIC ORDER: ${report.publicOrder}`);
   const acts = (facts?.activities || []).filter((a) => !a.outside).slice(0, 6);
-  if (acts.length) L.push('PLANNED OR REPORTED ACTIVITY IN THE REGION:\n' + acts.map((a) => `- ${a.date} ${a.kind}${a.organiser ? ` called by ${a.organiser}` : ''}${a.place ? ` at ${a.place}` : ''}`).join('\n'));
+  if (acts.length) L.push('PLANNED OR REPORTED ACTIVITY IN THE REGION:\n' + acts.map((a) => `- ${a.date} ${a.kind}${a.organiser ? ` called by ${a.organiser}` : ''}${a.place ? ` at ${a.place}` : ''}${a.subject ? ` about: ${a.subject}` : ''}${a.statuses && Object.keys(a.statuses).length ? ` [status in posts: ${Object.entries(a.statuses).map(([k, v]) => `${k} x${v}`).join(', ')}]` : ''}`).join('\n'));
   const lead = (facts?.accounts || []).filter((a) => (a.calls || 0) > 0).slice(0, 4);
   if (lead.length) L.push('ACCOUNTS CALLING FOR ACTION: ' + lead.map((a) => `@${a.author}`).join(', '));
   if (report?.known?.length) L.push('KNOWN: ' + report.known.slice(0, 4).map((k) => (typeof k === 'string' ? k : k.text || k.fact || '')).filter(Boolean).join(' | '));
@@ -607,7 +608,17 @@ const buildClosingContext = ({ report, facts, event, stats }) => {
 /** Cleans the model's reply into plain paragraphs; returns '' when it is unusable. */
 const parseClosing = (raw) => {
   let t = String(raw || '').replace(/```[a-z]*\n?|```/gi, '').trim();
-  if (/^\s*[{[]/.test(t)) { try { const o = extractJson(t); t = String(o.summary || o.text || o.closing || ''); } catch (e) { return ''; } }
+  const clean = (x) => String(x || '').replace(/\[Post #\d+\]/g, '').replace(/[ \t]+/g, ' ').replace(/\s+([.,;:])/g, '$1').trim();
+  if (/^\s*[{[]/.test(t)) {
+    let o; try { o = extractJson(t); } catch (e) { return ''; }
+    const list = (v) => (Array.isArray(v) ? v : (v ? [v] : [])).map(clean).filter(Boolean);
+    const parts = [['CONFIRMED', list(o.confirmed)], ['NOT VERIFIED', list(o.unverified)], ['NEXT STEPS', list(o.next)], ['RISK', list(o.risk)]];
+    if (parts[0][1].length && parts[3][1].length) {
+      const text = parts.filter(([, v]) => v.length).map(([h, v]) => `${h}\n${v.map((x) => `- ${x}`).join('\n')}`).join('\n\n');
+      return text.length < 120 || text.length > 3000 ? '' : text;
+    }
+    t = clean(o.summary || o.text || o.closing || '');
+  }
   t = t.replace(/\[Post #\d+\]/g, '').replace(/^["“]|["”]$/g, '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').replace(/^[-*•]\s+/gm, '').trim();
   if (t.length < 120 || t.length > 2200) return '';
   return t;

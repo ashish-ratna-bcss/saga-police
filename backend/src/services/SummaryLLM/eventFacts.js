@@ -6,14 +6,17 @@
 
 const FACTS_SYSTEM = `You extract facts from social-media posts for an event analyst. Each line is: number|posted YYYY-MM-DD|@author|text.
 Return ONLY compact JSON on ONE line (no spaces, no line breaks), one entry for EVERY post number given. Leave out any field that is empty or 0:
-{"p":[{"n":12,"k":"bandh","d":"2026-10-08","o":"organiser","s":"demand or reason","w":"place","c":1,"v":0,"r":"m","pl":[{"n":"Bhubaneswar","in":"Odisha, India","a":1}]}]}
-- k: what the post is about: bandh | rally | protest | meeting | notice | campaign | visit | violence | other
+{"p":[{"n":12,"k":"bandh","d":"2026-10-08","o":"organiser","s":"demand or reason","w":"place","c":1,"v":0,"x":0,"a":0,"t":"denied","r":"m","pl":[{"n":"Bhubaneswar","in":"Odisha, India","a":1}]}]}
+- k: what the post is about: bandh | rally | protest | meeting | notice | campaign | visit | violence | other. Use bandh only when the post itself says bandh, shutdown or strike; a march, sit-in, demonstration or protest at a site is protest.
 - d: the date the activity takes place, as YYYY-MM-DD. Work it out from the post date ("tomorrow", "8th", "next Friday"). Leave "" if the post gives no date. NEVER use the posting date unless the post says the activity happens that day.
 - o: the group or person that ORGANISES or CALLS the activity, exactly as the post names it. "" if not stated. A party that stays away from, opposes or only comments on the activity is NOT its organiser; a post that says "A has called a bandh, B stays away" has organiser A.
 - s: WHY the activity is held: the demand, issue or reason the post gives, in English, at most 10 words (for example "against the arrest of a leader"). "" if the post does not say.
 - w: the place where the activity happens, as the post names it. "" if not stated.
 - c: 1 only if the AUTHOR of the post calls people to join, strike, block or gather (an explicit invitation or instruction to attend or take part). A news report saying someone else has called or announced a bandh, protest or rally is 0, and so is a post by a news outlet. A memorandum, petition, delegation, press meet, meeting with an official, or an announcement of dates is 0. Greetings, thanks and support messages are 0.
 - v: 1 only if the post reports or threatens violence, arson, clashes or damage that is part of THIS event's own activity. Riots, attacks or damage in another country or about another story are 0. A police case or FIR alone is 0. Arrests, detentions, preventive custody, a ban or a police warning are 0 unless the post also reports clashes, stone-pelting, arson, injury or damage.
+- x: 1 if the post only ALLEGES, WARNS OF or PREDICTS violence or disruption that has not been reported as happening (for example "stone-pelting may be planned", "a violence warning"). A post with v=1 has x=0.
+- a: 1 if the post reports arrests, detentions, preventive custody, a ban, prohibitory orders or a police refusal of permission about this activity.
+- t: status of the activity as the post reports it: announced | permitted | denied (permission refused, banned or declared unlawful) | held (it has happened) | called_off. "" if not stated.
 - r: who posts: m = news outlet, agency or TV/YouTube news channel (judge by the account name and style); o = organisation/party account; p = politician or public figure; i = ordinary person. A post that reports what others announced or did ("X has announced…", "police said…") is written by media (m) unless the account is itself that group.
 - pl: EVERY real place the post names (city, district, state, country, landmark), written as in the post. in = the state/region and country that place belongs to, in English. a = 1 only if the post says people are, were or will be there doing the activity; 0 if the place is only mentioned. Do not list a person, party or word that is not a place.
 Use only what the post says; never invent a date, organiser or place.`;
@@ -26,6 +29,7 @@ const buildFactsUserContext = (posts) =>
   }).join('\n')}`;
 
 const KINDS = new Set(['bandh', 'rally', 'protest', 'meeting', 'notice', 'campaign', 'visit', 'violence', 'other']);
+const STATUS = new Set(['announced', 'permitted', 'denied', 'held', 'called_off']);
 const ROLES = { m: 'media', o: 'organisation', p: 'figure', i: 'individual' };
 const DAY = 86400000;
 
@@ -87,6 +91,9 @@ const parseFacts = (raw, byNo, extractJson) => {
       subject,
       call: Number(f.c) === 1,
       violence: Number(f.v) === 1,
+      alleged: Number(f.x) === 1 && Number(f.v) !== 1,
+      detention: Number(f.a) === 1,
+      status: STATUS.has(String(f.t || '').toLowerCase()) ? String(f.t).toLowerCase() : '',
       role: ROLES[String(f.r || '').toLowerCase()] || '',
     };
   });
@@ -106,6 +113,7 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
   const placeMap = new Map();
   const byPost = {};
   let calls = 0; let violence = 0; let callsOut = 0; let violenceOut = 0;
+  const allegedPosts = []; const detentionPosts = [];
   const callPosts = []; const violencePosts = []; const callOutPosts = []; const violenceOutPosts = [];
 
   Object.entries(factsMap).forEach(([nStr, f]) => {
@@ -119,6 +127,8 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
     const ownViolence = f.violence && where !== 'out';
     if (f.violence && where === 'out') { violenceOut += 1; violenceOutPosts.push(n); }
     if (ownViolence) { violence += 1; violencePosts.push(n); }
+    if (f.alleged && where !== 'out') allegedPosts.push(n);
+    if (f.detention && where !== 'out') detentionPosts.push(n);
     (f.places || []).forEach((pl) => {
       const key = fold(pl.name);
       const e = placeMap.get(key) || { name: pl.name, region: pl.region, mentioned: 0, active: 0, posts: [] };
@@ -140,10 +150,11 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
     }
     if (!ACTIVITY_KINDS.has(f.kind) || !f.date) return;
     const k = `${f.date}|${f.kind}`;
-    const d = dated.get(k) || { date: f.date, kind: f.kind, posts: [], organisers: new Map(), places: new Map(), subjects: new Map(), outside: 0 };
+    const d = dated.get(k) || { date: f.date, kind: f.kind, posts: [], organisers: new Map(), places: new Map(), subjects: new Map(), statuses: new Map(), outside: 0 };
     d.posts.push(n);
     if (where === 'out') d.outside += 1;
     if (f.organiser) d.organisers.set(f.organiser, (d.organisers.get(f.organiser) || 0) + 1);
+    if (f.status) d.statuses.set(f.status, (d.statuses.get(f.status) || 0) + 1);
     if (f.subject) d.subjects.set(f.subject, (d.subjects.get(f.subject) || 0) + 1);
     if (f.place) d.places.set(f.place, (d.places.get(f.place) || 0) + 1);
     dated.set(k, d);
@@ -152,7 +163,7 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
 
   const top = (m) => Array.from(m.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
   const activities = Array.from(dated.values())
-    .map((d) => ({ date: d.date, kind: d.kind, organiser: top(d.organisers), place: top(d.places), subject: top(d.subjects), posts: d.posts.slice(0, 8), support: d.posts.length, outside: d.outside > 0 && d.outside === d.posts.length }))
+    .map((d) => ({ date: d.date, kind: d.kind, organiser: top(d.organisers), place: top(d.places), subject: top(d.subjects), statuses: Object.fromEntries(d.statuses), posts: d.posts.slice(0, 8), support: d.posts.length, outside: d.outside > 0 && d.outside === d.posts.length }))
     .sort((a, b) => a.date.localeCompare(b.date));
   return {
     activities,
@@ -160,6 +171,8 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
     organisers: Array.from(organiserCounts.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 10),
     calls: { count: calls, posts: callPosts.slice(0, 10) },
     violence: { count: violence, posts: violencePosts.slice(0, 10) },
+    alleged: { count: allegedPosts.length, posts: allegedPosts.slice(0, 10) },
+    detentions: { count: detentionPosts.length, posts: detentionPosts.slice(0, 10) },
     byPost,
     callsOutside: { count: callsOut, posts: callOutPosts.slice(0, 10) },
     violenceOutside: { count: violenceOut, posts: violenceOutPosts.slice(0, 10) },
@@ -180,14 +193,16 @@ const factsPackText = (facts, today) => {
   };
   const lines = [];
   facts.activities.filter((a) => !a.outside).slice(0, 10).forEach((a) => lines.push(
-    `FACT ${day(a.date)} ${a.kind}${a.organiser ? ` called by ${a.organiser}` : ''}${a.place ? ` at ${a.place}` : ''}${a.subject ? ` about: ${a.subject}` : ''} — ${a.support} post(s) ${a.posts.map((p) => `[Post #${p}]`).join(' ')}`));
+    `FACT ${day(a.date)} ${a.kind}${a.organiser ? ` called by ${a.organiser}` : ''}${a.place ? ` at ${a.place}` : ''}${a.subject ? ` about: ${a.subject}` : ''}${a.statuses && Object.keys(a.statuses).length ? ` [status in posts: ${Object.entries(a.statuses).map(([k, v]) => `${k} x${v}`).join(', ')}]` : ''} — ${a.support} post(s) ${a.posts.map((p) => `[Post #${p}]`).join(' ')}`));
   facts.activities.filter((a) => a.outside).slice(0, 4).forEach((a) => lines.push(
     `FACT (OUTSIDE the event region, mention only as context) ${day(a.date)} ${a.kind}${a.place ? ` at ${a.place}` : ''} — ${a.support} post(s)`));
   if (facts.calls.count) lines.push(`FACT ${facts.calls.count} post(s) call people to join or act ${facts.calls.posts.map((p) => `[Post #${p}]`).join(' ')}`);
   if (facts.callsOutside && facts.callsOutside.count) lines.push(`FACT ${facts.callsOutside.count} post(s) call for activity OUTSIDE the event region; this does not raise the risk in the event region`);
   lines.push(facts.violence.count
     ? `FACT ${facts.violence.count} post(s) mention violence or damage ${facts.violence.posts.map((p) => `[Post #${p}]`).join(' ')}`
-    : 'UNKNOWN no post reports violence or damage');
+    : 'UNKNOWN no post confirms violence or damage');
+  if (facts.alleged && facts.alleged.count) lines.push(`FACT ${facts.alleged.count} post(s) ALLEGE or warn of violence that is not confirmed ${facts.alleged.posts.map((p) => `[Post #${p}]`).join(' ')}`);
+  if (facts.detentions && facts.detentions.count) lines.push(`FACT ${facts.detentions.count} post(s) report arrests, detentions, a ban or a refusal of permission ${facts.detentions.posts.map((p) => `[Post #${p}]`).join(' ')}`);
   return lines.join('\n');
 };
 
