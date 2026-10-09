@@ -1981,6 +1981,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     const slides = buildPresentationBody({
       esc, fmt, pct, clip, L, donutSvg, platLabel, platColor,
       event, tenant, windowStr, dateStr, total, sent, sentTotal, engTotal, ev: scopeEv, riskParts, platformEntries, kws,
+      classification: hq?.classification || '',
       analysis, places, authors, threatLevel: threatLevelVal, rationale: computedRationale, bottomLine: bl, narrativesToWatch, actions, notKnown: analysis?.notKnown || [], stats,
       counts: {
         violenceConfirmed: violenceAcc > 1 ? violenceN : 0, violenceMentioned: violenceAcc > 1 ? 0 : violenceN, alleged: allegedN, detentions: detentionN,
