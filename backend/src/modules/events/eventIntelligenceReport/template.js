@@ -468,6 +468,7 @@ b{font-weight:700}
 .cp-big{display:flex;gap:2mm;margin:0 0 2.2mm}
 .cp-big>div{flex:1;text-align:center;border-radius:3px;padding:1.6mm 1mm;color:#fff}
 .cp-big .n{font-size:15pt;font-weight:700;line-height:1.05}.cp-big .l{font-size:6pt;text-transform:uppercase;letter-spacing:.06em;opacity:.92}
+.cp-pl{display:grid;grid-template-columns:22mm 1fr 5mm 22mm;gap:2mm;align-items:center;margin:0 0 1.8mm;font-size:8pt}.cp-pl .pn{text-align:right;color:#334155}.cp-pl .pb{height:2.2mm;background:#E8EEF3;border-radius:2mm;overflow:hidden}.cp-pl .pb i{display:block;height:100%;background:${BAR};border-radius:2mm}.cp-pl .pv{font-weight:700;color:${INK}}.cp-pl .pk{font-size:6.8pt;white-space:nowrap}
 .cp-note{font-size:7.4pt;color:#475569;line-height:1.45;margin:1.6mm 0 0}
 .cp-note b{color:${INK}}
 
@@ -1855,7 +1856,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     const topPlaces = places.slice(0, 5);
     const pMax = Math.max(1, ...topPlaces.map((x) => x.count));
     const placeBars = topPlaces.length
-      ? topPlaces.map((x) => `${hbar(x.name, x.count, pMax, BAR, '', L(x.count === 1 ? 'post' : 'posts'))}<div class="glinks" style="margin:-.6mm 0 1.6mm 27%">${(x.posts || []).slice(0, 6).map((n) => `[Post #${n}]`).join(' ')}</div>`).join('')
+      ? topPlaces.map((x) => `<div class="cp-pl"><span class="pn">${esc(x.name)}</span><span class="pb"><i style="width:${Math.max(10, (100 * x.count) / pMax)}%"></i></span><span class="pv">${fmt(x.count)}</span><span class="pk">${(x.posts || []).slice(0, 3).map((n) => `[Post #${n}]`).join(' ')}</span></div>`).join('')
       : `<p class="sm">${esc(L('No specific place inside the region is named in the posts.'))}</p>`;
     const card = (a, i) => actCardHtml(a, i);
     const first = actions.slice(0, 2);
@@ -1874,7 +1875,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${kstripHtml}
   <div class="cp-row">
     <div class="cp-box"><h4>${esc(L('What is happening and when'))}</h4>${timeline}</div>
-    <div class="cp-box"><h4>${esc(L('Where posts place it'))}</h4>${placeBars}<p class="cp-note">${esc(L('People reported on site'))}: <b>${fmt(visits.length)}</b> ${visits.slice(0, 10).map((e) => `[Post #${e.n}]`).join(' ')}</p></div>
+    <div class="cp-box"><h4>${esc(L('Where posts place it'))}</h4>${placeBars}<p class="cp-note">${esc(L('People reported on site'))}: <b>${fmt(visits.length)}</b> ${visits.slice(0, 6).map((e) => `[Post #${e.n}]`).join(' ')}</p></div>
   </div>
   ${secHead('What To Do')}
   ${actCards}
