@@ -494,8 +494,8 @@ const ACTION_THEMES = `Cover each of these where the facts give a reason, one ac
 const buildActionsSystem = (ctx) => `You advise ${audienceOf(ctx)} on what to do next. Using ONLY the facts given, write 6 to 10 recommended actions.
 ${ACTION_THEMES}
 Each action has: WHO acts (choose from: ${unitsOf(ctx)}), WHAT exactly they do, WHERE or on WHICH account, hashtag or claim, WHY (the fact that justifies it), and one sentence that starts "Escalate if" and names the trigger.
-Rules: use only dates, places, accounts, organisers and claims that appear in the facts; never invent any; do not repeat an action that is already listed; no generic advice such as "monitor the situation". Plain, direct sentences. Cite the post numbers given with the facts, as numbers in "posts".
-Return ONLY JSON on one line: {"actions":[{"action":"Short title — Lead unit","detail":"2-3 sentences ending with the Escalate if sentence","posts":[12]}]}`;
+Rules: use only dates, places, accounts, organisers and claims that appear in the facts; never invent any. Some actions are ALREADY LISTED: write actions ONLY for themes they do not already cover, and at most ONE action per theme. If a theme is already covered, skip it. No generic advice such as "monitor the situation". Plain, direct sentences. Cite the post numbers given with the facts, as numbers in "posts".
+Return ONLY JSON on one line: {"actions":[{"theme":"b","action":"Short title — Lead unit","detail":"2-3 sentences ending with the Escalate if sentence","posts":[12]}]} where theme is the letter a-i of the theme above.`;
 
 const buildActionsContext = ({ report, facts, event, today, existing }) => {
   const L = [];
@@ -514,7 +514,7 @@ const buildActionsContext = ({ report, facts, event, today, existing }) => {
   if (claims.length) L.push('CLAIMS: ' + claims.map((c) => `${c.claim} [${c.triage}] (posts ${c.posts.join(',')})`).join('; '));
   if (report?.narrativesToWatch?.length) L.push('NARRATIVES TO WATCH: ' + report.narrativesToWatch.slice(0, 4).map((n) => `${n.narrative} (posts ${n.posts.join(',')})`).join('; '));
   if (facts) L.push(`COUNTS: ${facts.calls?.count || 0} posts call for action in the region, ${facts.violence?.count || 0} mention violence in the region, ${facts.callsOutside?.count || 0} call for action outside it.`);
-  if (existing?.length) L.push('ALREADY LISTED (do not repeat): ' + existing.map((a) => a.action).join(' | '));
+  if (existing?.length) L.push('ALREADY LISTED (their themes are covered; do not repeat):\n' + existing.map((a) => `- ${a.action}: ${String(a.detail || '').slice(0, 140)}`).join('\n'));
   return L.join('\n');
 };
 
@@ -525,18 +525,31 @@ const parseMoreActions = (raw, validNumbers) => {
   const list = Array.isArray(obj?.actions) ? obj.actions : Array.isArray(obj) ? obj : [];
   const one = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
   return list.map((a) => ({
+    theme: one(a.theme, 1).toLowerCase(),
     action: one(a.action, 200),
     detail: one(a.detail, 800),
     posts: (Array.isArray(a.posts) ? a.posts : []).map(Number).filter((n) => validNumbers.has(n)).slice(0, 8),
   })).filter((a) => a.action && a.detail.length > 30);
 };
 
-/** Core actions first, then new ones that do not repeat a title; at most `cap`. */
+/** Core actions first, then new ones that are not near-copies of a listed one and that add a new theme; at most `cap`. */
 const mergeActions = (core, extra, cap = 10) => {
-  const key = (t) => String(t || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-  const seen = new Set((core || []).map((a) => key(a.action)));
+  const words = (t) => new Set(String(t || '').toLowerCase().split(/[—–-]/)[0].split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 4));
+  const similar = (a, b) => {
+    const A = words(a); const B = words(b);
+    if (!A.size || !B.size) return false;
+    let hit = 0; A.forEach((w) => { if (B.has(w)) hit += 1; });
+    return hit / Math.min(A.size, B.size) >= 0.5;
+  };
   const out = [...(core || [])];
-  (extra || []).forEach((a) => { const k = key(a.action); if (k && !seen.has(k) && out.length < cap) { seen.add(k); out.push(a); } });
+  const themes = new Set();
+  (extra || []).forEach((a) => {
+    if (out.length >= cap || !a.action) return;
+    if (out.some((x) => similar(x.action, a.action))) return;
+    if (a.theme && themes.has(a.theme)) return;      // one action per theme
+    if (a.theme) themes.add(a.theme);
+    out.push(a);
+  });
   return out;
 };
 
