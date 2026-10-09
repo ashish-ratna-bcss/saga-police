@@ -1392,10 +1392,11 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   // Risk level is computed from what the posts contain (calls to act, violence, high-risk ratings), not from tone.
   const callN = n0(analysis?.facts?.calls?.count);
   const violenceN = n0(analysis?.facts?.violence?.count);
+  const violenceAcc = n0(analysis?.facts?.violence?.accounts ?? analysis?.facts?.violence?.count);
   const haveFacts = !!analysis?.facts;
   const allegedN = n0(analysis?.facts?.alleged?.count);
   const detentionN = n0(analysis?.facts?.detentions?.count);
-  const threatLevelVal = violenceN > 1 ? 'High'
+  const threatLevelVal = violenceAcc > 1 ? 'High'
     : (violenceN > 0 || allegedN > 0 || detentionN > 0 || callN > 0 || highRiskN > 0) ? 'Medium'
       : (haveFacts || n0(riskCounts.medium) === 0) ? 'Low' : 'Low to Medium';
   const threatPillClass = /crit/i.test(threatLevelVal)
@@ -1412,8 +1413,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const highRiskCount = highRiskN;
 
   // The sentences are built from fixed phrases with {placeholders}, so each phrase can be translated into the tenant's language.
-  const levelReason = violenceN > 1 ? L('posts mention violence or damage linked to the event')
-    : violenceN === 1 ? L('one post mentions violence or damage, and no other post confirms it')
+  const levelReason = violenceAcc > 1 ? L('posts mention violence or damage linked to the event')
+    : violenceN >= 1 ? L('one post mentions violence or damage, and no other post confirms it')
     : callN > 0 ? L('posts call people to join a bandh, rally or blockade')
       : (allegedN > 0 || detentionN > 0) ? L('posts allege or warn of violence, or report arrests, and no post confirms violence')
       : highRiskCount > 0 ? L('some posts are rated high risk by the post analysis, although none call for action or mention violence')

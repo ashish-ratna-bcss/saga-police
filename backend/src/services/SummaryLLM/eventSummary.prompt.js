@@ -567,7 +567,7 @@ Style: short plain sentences, active voice, no jargon, no post numbers, no sente
 const closingLevel = ({ facts, stats }) => {
   const risk = stats?.risk_counts || stats?.risk || {};
   const highRisk = Number(risk.critical || 0) + Number(risk.high || 0);
-  if (Number(facts?.violence?.count || 0) > 1) return 'High';
+  if (Number(facts?.violence?.accounts ?? facts?.violence?.count ?? 0) > 1) return 'High';
   return (Number(facts?.violence?.count || 0) > 0 || Number(facts?.alleged?.count || 0) > 0 || Number(facts?.detentions?.count || 0) > 0 || Number(facts?.calls?.count || 0) > 0 || highRisk > 0) ? 'Medium' : 'Low';
 };
 
@@ -606,8 +606,25 @@ const buildClosingContext = ({ report, facts, event, stats }) => {
 };
 
 /** Cleans the model's reply into plain paragraphs; returns '' when it is unusable. */
+/** A reply that came as one line ("CONFIRMED - a - b NOT VERIFIED - c ...") is put back into labelled sections. */
+const relabel = (t) => {
+  const re = /\b(CONFIRMED|NOT VERIFIED|NEXT STEPS|RISK)\b\s*:?\s*/g;
+  if ((t.match(re) || []).length < 3) return '';
+  const parts = [];
+  let m; let last = null; let idx = 0;
+  const marks = [];
+  while ((m = re.exec(t))) marks.push({ head: m[1], start: m.index, end: re.lastIndex });
+  marks.forEach((mk, i) => {
+    const body = t.slice(mk.end, i + 1 < marks.length ? marks[i + 1].start : t.length);
+    const items = body.split(/\n|\s+-\s+/).map((x) => x.replace(/^[-*•]\s*/, '').trim()).filter(Boolean);
+    if (items.length) parts.push(`${mk.head}\n${items.map((x) => `- ${x}`).join('\n')}`);
+  });
+  return parts.join('\n\n');
+};
+
 const parseClosing = (raw) => {
   let t = String(raw || '').replace(/```[a-z]*\n?|```/gi, '').trim();
+  if (!/^\s*[{[]/.test(t)) { const rl = relabel(t.replace(/\[Post #\d+\]/g, '')); if (rl.length >= 120 && rl.length <= 3000) return rl; }
   const clean = (x) => String(x || '').replace(/\[Post #\d+\]/g, '').replace(/[ \t]+/g, ' ').replace(/\s+([.,;:])/g, '$1').trim();
   if (/^\s*[{[]/.test(t)) {
     let o; try { o = extractJson(t); } catch (e) { return ''; }
