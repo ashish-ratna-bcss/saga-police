@@ -451,6 +451,25 @@ b{font-weight:700}
 .vline{font-size:7.8pt;margin-top:.8mm;color:inherit}.calm b,.watch>b{font-size:8.6pt}
 .pcards.one{grid-template-columns:1fr}
 .pcard.wide{padding:2.4mm 3.2mm}
+
+.cp-row{display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin:0 0 3mm}
+.cp-box{border:.6px solid ${LINE};border-radius:4px;padding:3mm 3.4mm;background:#fff;break-inside:avoid}
+.cp-box h4{margin:0 0 2mm;font-size:8pt;color:${NAVY};font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.cp-tl{position:relative;margin-left:2mm;padding-left:4mm;border-left:1.4px solid #C9D6E2}
+.cp-tl .it{position:relative;margin:0 0 2.6mm;font-size:8pt;line-height:1.4;color:#334155}
+.cp-tl .it:before{content:'';position:absolute;left:-5.4mm;top:.8mm;width:2.2mm;height:2.2mm;border-radius:50%;background:${ACCENT};border:1.2px solid #fff}
+.cp-tl .dt{display:inline-block;background:${NAVY};color:#fff;font-weight:700;font-size:7pt;border-radius:2px;padding:.2mm 1.6mm;margin-right:1.4mm}
+.cp-tl .kd{font-weight:700;color:${INK}}
+.cp-tl .lk{display:block;margin-top:.6mm;font-size:6.6pt}
+.cp-acts{display:grid;grid-template-columns:1fr;gap:1.8mm;margin:0 0 3mm}
+.cp-act{display:flex;gap:2.6mm;border:.6px solid ${LINE};border-left:1.2mm solid ${TEAL};border-radius:3px;padding:2mm 3mm;background:#fff;break-inside:avoid}
+.cp-act .no{flex:none;width:5.4mm;height:5.4mm;border-radius:50%;background:${NAVY};color:#fff;font-weight:700;font-size:8pt;text-align:center;line-height:5.4mm}
+.cp-act b{font-size:8.4pt;color:${INK}}.cp-act .d{font-size:7.6pt;color:#475569;line-height:1.4;margin-top:.4mm}.cp-act .lk{font-size:6.6pt}
+.cp-big{display:flex;gap:2mm;margin:0 0 2.2mm}
+.cp-big>div{flex:1;text-align:center;border-radius:3px;padding:1.6mm 1mm;color:#fff}
+.cp-big .n{font-size:15pt;font-weight:700;line-height:1.05}.cp-big .l{font-size:6pt;text-transform:uppercase;letter-spacing:.06em;opacity:.92}
+.cp-note{font-size:7.4pt;color:#475569;line-height:1.45;margin:1.6mm 0 0}
+.cp-note b{color:${INK}}
 .grp{display:grid;grid-template-columns:44mm 1fr;gap:3mm;align-items:baseline;padding:1mm 0;border-top:.4px solid #eef2f6}
 .grp .gt{font-size:6.8pt;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}.grp .gt i{display:inline-block;width:1.8mm;height:1.8mm;border-radius:50%;margin-right:1.2mm}.grp .gt b{color:${INK};margin-left:1.2mm}
 .grp .gl{font-size:7.5pt;line-height:1.6;color:#334155}.grp .acct{white-space:nowrap}.grp .acct .post-link{color:#0f172a;font-weight:700;text-decoration:none;border-bottom:.4px dotted #64748b}.grp .lk{margin-left:1mm}.grp .lk a,.grp .lk .pc{display:inline-block;background:#eef4ff;border:.4px solid #b8cbf2;border-radius:1mm;padding:0 1.3mm;margin-left:.7mm;font-size:6.4pt;font-weight:700;color:#1d4ed8;text-decoration:none}.grp .sep{color:#cbd5e1}
@@ -1128,7 +1147,11 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   const findings = (analysis?.keyFindings || []).slice(0, 6);
   const narratives = (analysis?.narratives || []).slice(0, 5);
-  const actions = (analysis?.actions || []).slice(0, 10);
+  const seenEsc = new Set();
+  const actions = (analysis?.actions || []).slice(0, 10).map((a) => ({
+    ...a,
+    detail: String(a.detail || '').replace(/\s*Escalate if[^.]*\./gi, (m) => { const k = m.trim().toLowerCase(); if (seenEsc.has(k)) return ''; seenEsc.add(k); return m; }),
+  }));
 
   const platStr = platformEntries.map(([k, v]) => `${platLabel(k)}: ${fmt(v)}`).join(', ') || '—';
   const kwStr = kws.slice(0, 14).map((k) => k.keyword).join(', ') || (event.keywords || []).map((k) => (k.keyword || k)).join(', ') || '—';
@@ -1346,8 +1369,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const callN = n0(analysis?.facts?.calls?.count);
   const violenceN = n0(analysis?.facts?.violence?.count);
   const haveFacts = !!analysis?.facts;
-  const threatLevelVal = violenceN > 0 ? 'High'
-    : (callN > 0 || highRiskN > 0) ? 'Medium'
+  const threatLevelVal = violenceN > 1 ? 'High'
+    : (violenceN > 0 || callN > 0 || highRiskN > 0) ? 'Medium'
       : (haveFacts || n0(riskCounts.medium) === 0) ? 'Low' : 'Low to Medium';
   const threatPillClass = /crit/i.test(threatLevelVal)
     ? 'threat-pill-crit'
@@ -1363,7 +1386,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const highRiskCount = highRiskN;
 
   // The sentences are built from fixed phrases with {placeholders}, so each phrase can be translated into the tenant's language.
-  const levelReason = violenceN > 0 ? L('posts mention violence or damage linked to the event')
+  const levelReason = violenceN > 1 ? L('posts mention violence or damage linked to the event')
+    : violenceN === 1 ? L('one post mentions violence or damage, and no other post confirms it')
     : callN > 0 ? L('posts call people to join a bandh, rally or blockade')
       : highRiskCount > 0 ? L('some posts are rated high risk by the post analysis, although none call for action or mention violence')
         : L('no post calls for action, mentions violence or is rated high risk');
@@ -1437,7 +1461,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       <div class="lvl-n">${fmt(highRiskCount)} high-risk post${highRiskCount === 1 ? '' : 's'}</div>
     </div>
     <div class="assess-body">
-      ${analysis?.bottomLine ? `<p class="lead"><b>Bottom line:</b> ${esc(analysis.bottomLine)}</p>` : ''}
+      ${analysis?.bottomLine ? `<p class="lead"><b>Bottom line:</b> ${esc(String(analysis.bottomLine).replace(/(\d+%\s+(?:of\s+(?:the\s+)?posts\s+)?(?:are|is)\s+)critical\b/gi, '$1negative'))}</p>` : ''}
       <p class="why"><b>Why this Risk Level:</b> ${esc(threatDesc)}</p>
       <div class="chips">
         <div><div class="ck">Mobilization & Agitation</div><div class="cv" style="color:${highRiskCount > 0 ? '#B42318' : INK}">${visits.length > 0 ? `${fmt(visits.length)} post${visits.length === 1 ? '' : 's'} report people on site` : 'No call to act found'}</div>${onSiteRefs ? `<div class="sm" style="margin-top:.6mm">${onSiteRefs}</div>` : ''}</div>
@@ -1489,7 +1513,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
         </ul>
       </div>
       <div>
-        <div class="sub-h">2. Critical Monitored Posts Requiring Action</div>
+        <div class="sub-h">2. Posts flagged for review</div>
         <ul class="rows">
           ${topFlaggedPosts.length
             ? topFlaggedPosts.map((p) => `<li><span class="tag" style="background:${platColor(p.plat)}">${esc(platLabel(p.plat))}</span>${includeEvidence ? `${postRefInternal(p)} · ` : ''}<b>${authorProfileLink(p.plat, p.author, p.url)}</b><span class="why">"${esc(clip(p.text, 100))}"</span></li>`).join('')
@@ -1769,10 +1793,58 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const closingSection = () => {
     const text = String(analysis?.closingSummary || '').trim();
     if (!text) return '';
-    const paras = text.split(/\n{2,}/).map((x) => x.trim()).filter(Boolean);
+    const noPlan = (para) => para.split(/(?<=[.!?])\s+/).filter((x) => !/\b(police|authorities|administration)\b[^.]{0,40}\b(plan|plans|planned|intend|intends|are monitoring|will monitor)\b/i.test(x)).join(' ');
+    const paras = text.split(/\n{2,}/).map((x) => noPlan(x.trim())).filter(Boolean);
     return `
   <div class="sec"><span class="no">${secNo()}</span><span class="nm">${esc(L('Summary'))}</span></div>
   <div class="closing">${paras.map((x) => `<p>${esc(x)}</p>`).join('')}</div>`;
+  };
+
+  // Specific Event Location Summary: two pages, visual first. Same facts as the other reports, laid out as boards and charts.
+  const compactBody = () => {
+    const kd = keyDates.filter((k) => !k.outside).slice(0, 5);
+    const dayLabel = (d) => { const t = parseDateMs(d); return t ? new Date(t).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: REPORT_TZ }) : esc(clip(String(d || ''), 12)); };
+    const timeline = kd.length
+      ? `<div class="cp-tl">${kd.map((k) => `<div class="it"><span class="dt">${dayLabel(k.date)}</span><span class="kd">${esc(clip(String(k.event || k.what || '').replace(/^\d{4}-\d{2}-\d{2}:?\s*/, ''), 90))}</span>${k.posts?.length ? `<span class="lk">${esc(k.posts.slice(0, 5).map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</div>`).join('')}</div>`
+      : `<p class="sm">${esc(L('No dated activity is named in the posts.'))}</p>`;
+    const topPlaces = places.slice(0, 5);
+    const pMax = Math.max(1, ...topPlaces.map((x) => x.count));
+    const placeBars = topPlaces.length
+      ? topPlaces.map((x) => hbar(x.name, x.count, pMax, BAR, '', L(x.count === 1 ? 'post' : 'posts'))).join('')
+      : `<p class="sm">${esc(L('No specific place inside the region is named in the posts.'))}</p>`;
+    const top5 = actions.slice(0, 5);
+    const actCards = top5.length
+      ? `<div class="cp-acts">${top5.map((a, i) => `<div class="cp-act"><div class="no">${i + 1}</div><div><b>${esc(a.action)}</b><div class="d">${esc(clip(a.detail, 190))}</div>${a.posts?.length ? `<div class="lk">${esc(a.posts.slice(0, 6).map((n) => `[Post #${n}]`).join(' '))}</div>` : ''}</div></div>`).join('')}</div>`
+      : `<p class="sm">${esc(L('Maintain standard baseline monitoring.'))}</p>`;
+    const rb = riskParts.map((x) => `<div style="background:${x.c}"><div class="n">${fmt(x.v)}</div><div class="l">${esc(L(x.k))}</div></div>`).join('');
+    const reach = acctList.slice().sort((a, b) => (b.inter || 0) - (a.inter || 0)).slice(0, 5);
+    const rMax = Math.max(1, ...reach.map((a) => a.inter || 0));
+    const reachBars = reach.map((a) => hbar(a.author, a.inter || 0, rMax, TIER_DOT[a.tier] || BAR, `${a.posts.length} ${L(a.posts.length === 1 ? 'post' : 'posts')}`, L('interactions'))).join('');
+    const watch = narrativesToWatch.slice(0, 3);
+    const unknown = (analysis?.notKnown || []).slice(0, 3);
+    return `
+  ${kstripHtml}
+  <div class="cp-row">
+    <div class="cp-box"><h4>${esc(L('What is happening and when'))}</h4>${timeline}</div>
+    <div class="cp-box"><h4>${esc(L('Where posts place it'))}</h4>${placeBars}<p class="cp-note">${esc(L('People reported on site'))}: <b>${fmt(visits.length)}</b></p></div>
+  </div>
+  ${secHead('What To Do')}
+  ${actCards}
+  <div style="break-before:page;page-break-before:always"></div>
+  ${secHead('How Serious It Is')}
+  <div class="cp-row">
+    <div class="cp-box"><h4>${esc(L('Risk of the posts'))}</h4><div class="cp-big">${rb}</div>${stackBar(riskParts, false)}<p class="cp-note">${esc(L('Risk comes from calls to act, violence or a high-risk rating. Tone is shown separately.'))}</p></div>
+    <div class="cp-box"><h4>${esc(L('Tone of the posts'))}</h4><div class="donutwrap">${donutSvg(briefSent, pct(sent.negative, sentTotal), 'Negative')}<div class="trows">${briefSent.map((x) => `<div class="trow tone"><span class="tl"><i style="background:${x.c}"></i><span>${esc(L(x.k))} ${fmt(x.v)} (${pct(x.v, sentTotal)})</span></span></div>`).join('')}</div></div></div>
+  </div>
+  <div class="cp-row">
+    <div class="cp-box"><h4>${esc(L('Posts per day'))}</h4>${timelineChart(scoped ? dailySeries(inEv) : kwa?.timeline_overall)}</div>
+    <div class="cp-box"><h4>${esc(L('Where it is posted'))}</h4>${platformBars || ''}</div>
+  </div>
+  <div class="cp-row">
+    <div class="cp-box"><h4>${esc(L('Largest reach'))}</h4>${reachBars || `<p class="sm">${esc(L('No accounts in this set.'))}</p>`}<p class="cp-note">${Object.entries(TIER_WORD).map(([t, w]) => `<span style="color:${TIER_DOT[t]}">●</span> ${esc(L(w))}`).join(' &nbsp; ')}</p></div>
+    <div class="cp-box"><h4>${esc(L('Watch and verify'))}</h4>${watch.length ? `<ul class="bul">${watch.map((n) => `<li><b>${esc(clip(n.narrative, 80))}</b>${n.riskNote ? `: ${esc(clip(n.riskNote, 90))}` : ''}${n.posts?.length ? ` <span class="sm">${esc(n.posts.slice(0, 4).map((p) => `[Post #${p}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : `<p class="sm">${esc(L('No narrative flagged.'))}</p>`}${unknown.length ? `<p class="cp-note"><b>${esc(L('Not known'))}:</b> ${unknown.map((u) => esc(clip(typeof u === 'string' ? u : (u.text || u.item || ''), 90))).join('; ')}</p>` : ''}</div>
+  </div>
+  ${closingSection()}`;
   };
 
   const body = `
@@ -1793,19 +1865,19 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   </header>
   ${hqHtml}
   ${assessHtml}
-  ${kstripHtml}
-  ${compact ? '' : srcBoxHtml}
-  ${compact ? '' : issueSection()}
+  ${compact ? compactBody() : `${kstripHtml}
+  ${srcBoxHtml}
+  ${issueSection()}
   ${actionSummaryHtml}
   ${recommendedSection()}
   ${riskSection()}
-  ${compact ? '' : whereSection()}
+  ${whereSection()}
   ${activitySection()}
-  ${compact ? '' : actorsSection()}
-  ${compact ? '' : accountsSection()}
-  ${compact ? '' : reactionSection()}
+  ${actorsSection()}
+  ${accountsSection()}
+  ${reactionSection()}
   ${closingSection()}
-  ${compact ? '' : evidenceSection()}
+  ${evidenceSection()}`}
 </section>
 `;
 
