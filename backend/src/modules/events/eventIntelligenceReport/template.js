@@ -447,6 +447,13 @@ b{font-weight:700}
 .gname b{display:block;font-size:8.4pt;color:${INK}}.gname .sm{display:block}
 .gbar .stack{display:flex}.gval{display:block;font-size:7pt;color:#475569;margin-top:.6mm}
 .glinks{font-size:7.4pt;line-height:1.5}
+.acc-head.two{grid-template-columns:28mm 1fr}
+.vline{font-size:7.8pt;margin-top:.8mm;color:inherit}.calm b,.watch>b{font-size:8.6pt}
+.pcards.one{grid-template-columns:1fr}
+.pcard.wide{padding:2.4mm 3.2mm}
+.grp{display:grid;grid-template-columns:34mm 1fr;gap:3mm;align-items:baseline;padding:1mm 0;border-top:.4px solid #eef2f6}
+.grp .gt{font-size:6.8pt;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}.grp .gt i{display:inline-block;width:1.8mm;height:1.8mm;border-radius:50%;margin-right:1.2mm}.grp .gt b{color:${INK}}
+.grp .gl{font-size:7.5pt;line-height:1.6;color:#334155}.grp .acct{white-space:nowrap}.grp .sep{color:#cbd5e1}
 .pcards{display:grid;grid-template-columns:1fr 1fr;gap:2.4mm;margin:0 0 3mm}
 .pcard{border:.6px solid ${LINE};border-radius:3px;background:#fff;padding:2mm 2.6mm;break-inside:avoid}
 .pc-h{display:flex;align-items:center;gap:2mm;margin:0 0 1.4mm;font-size:7.8pt;color:${INK}}
@@ -1080,7 +1087,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       else if (a.eng >= topReach * 0.5 && a.eng > 0 && a.count >= 2) tier = 'amplifier';
 
       const reasons = [];
-      if (tier === 'media') reasons.push(`News or official channel: ${fmt(a.count)} post${a.count === 1 ? '' : 's'}; it reports the event, it does not organise it.`);
+      if (tier === 'media') reasons.push(`News or official page: ${fmt(a.count)} post${a.count === 1 ? '' : 's'} about the event.`);
       if (calls > 0) reasons.push(`${fmt(calls)} post${calls === 1 ? ' calls' : 's call'} people to join or act.`);
       if (violence > 0) reasons.push(`${fmt(violence)} post${violence === 1 ? ' mentions' : 's mention'} violence or damage.`);
       if (tier === 'amplifier') reasons.push(`${fmt(a.inter)} interactions${a.vw ? ` and ${fmt(a.vw)} views` : ''} over ${fmt(a.count)} posts.`);
@@ -1089,7 +1096,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       const quoteRaw = extractCleanQuote((a.samples.find((x) => x.sentK === 'negative') || a.samples[0] || { text: a.sample }).text, 90);
       const quote = regionOnly && scopeInfo.reliable && nameMatcher(scopeInfo.outsideNames)(quoteRaw) ? '' : quoteRaw;
       const t = TIER[tier];
-      const label = tier === 'priority' ? (PRIORITY_LABEL[role] || 'Mobiliser') : tier === 'amplifier' ? 'Amplifier' : tier === 'media' ? 'Media / news' : 'Observer';
+      const label = tier === 'priority' ? (PRIORITY_LABEL[role] || 'Mobiliser') : tier === 'amplifier' ? 'Amplifier' : tier === 'media' ? 'News / official' : 'Other';
       return {
         ...a,
         role,
@@ -1515,7 +1522,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   // Summary report: one small card per platform with every account (priority first), its role and its post links. Detail stays in the full report.
   const TIER_DOT = { priority: '#B42318', amplifier: '#C45C26', media: '#2A8FA8', routine: '#94A3B8' };
-  const TIER_WORD = { priority: 'priority', amplifier: 'amplifier', media: 'media / news', routine: 'other' };
+  const TIER_WORD = { priority: 'need attention', amplifier: 'amplifiers', media: 'news / official pages', routine: 'other accounts' };
   // Every account with the posts that belong to this report (in-region only for the Odisha-only report).
   const acctList = allWatch
     .map((p) => ({ ...p, posts: (p.posts || []).filter((n) => !regionOnly || inSet.has(n)) }))
@@ -1527,19 +1534,25 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       const k = String(p.platform || 'other').toLowerCase();
       (byPlat[k] = byPlat[k] || []).push(p);
     });
-    const MAX = 14;
+    const MAX = 60;
+    const GROUP_TITLE = { priority: 'Need attention', amplifier: 'Amplifiers', media: 'News / official pages', routine: 'Other accounts' };
     const cards = Object.entries(byPlat)
       .sort((x, y) => y[1].reduce((t, a) => t + a.posts.length, 0) - x[1].reduce((t, a) => t + a.posts.length, 0))
       .map(([k, list]) => {
         const postsTotal = list.reduce((t, a) => t + a.posts.length, 0);
-        const tiers = ['priority', 'amplifier', 'media', 'routine'].map((t) => ({ t, n: list.filter((x) => x.tier === t).length })).filter((x) => x.n);
-        const bar = `<div class="stack">${tiers.map((x) => `<div style="width:${(100 * x.n) / list.length}%;background:${TIER_DOT[x.t]}"></div>`).join('')}</div>`;
-        const legend = `<div class="legend">${tiers.map((x) => `<span><i style="background:${TIER_DOT[x.t]}"></i>${x.n} ${esc(L(TIER_WORD[x.t]))}</span>`).join('')}</div>`;
-        const rows = list.slice(0, MAX).map((p) => `<li><span class="nm">${authorProfileLink(p)}</span><span class="rpill ${ROLE_PILL[p.tier]}">${esc(p.priority)}</span><span class="lk">${p.posts.slice(0, 4).map((n) => `[Post #${n}]`).join(' ')}${p.posts.length > 4 ? ` +${p.posts.length - 4}` : ''}</span></li>`).join('');
-        const more = list.length > MAX ? `<li class="more">+${list.length - MAX} ${esc(L('more accounts'))} · ${fmt(list.slice(MAX).reduce((t, a) => t + a.posts.length, 0))} ${esc(L('posts'))}</li>` : '';
-        return `<div class="pcard"><div class="pc-h"><span class="plat-badge" style="background:${platColor(k)}">${esc(platLabel(k))}</span><b>${fmt(list.length)} ${esc(L(list.length === 1 ? 'account' : 'accounts'))} · ${fmt(postsTotal)} ${esc(L(postsTotal === 1 ? 'post' : 'posts'))}</b></div>${bar}${legend}<ul class="plist">${rows}${more}</ul></div>`;
+        const tiers = ['priority', 'amplifier', 'media', 'routine'].map((t) => ({ t, items: list.filter((x) => x.tier === t) })).filter((x) => x.items.length);
+        const bar = `<div class="stack">${tiers.map((x) => `<div style="width:${(100 * x.items.length) / list.length}%;background:${TIER_DOT[x.t]}"></div>`).join('')}</div>`;
+        let left = MAX;
+        const groups = tiers.map((x) => {
+          const shown = x.items.slice(0, Math.max(0, left));
+          left -= shown.length;
+          const rest = x.items.length - shown.length;
+          const line = shown.map((p) => `<span class="acct">${authorProfileLink(p)} <span class="lk">${p.posts.slice(0, 4).map((n) => `[Post #${n}]`).join(' ')}${p.posts.length > 4 ? ` +${p.posts.length - 4}` : ''}</span></span>`).join('<span class="sep"> · </span>');
+          return `<div class="grp"><span class="gt"><i style="background:${TIER_DOT[x.t]}"></i>${esc(L(GROUP_TITLE[x.t]))} <b>${x.items.length}</b></span><div class="gl">${line}${rest > 0 ? ` <span class="sm">+${rest} ${esc(L('more accounts'))}</span>` : ''}</div></div>`;
+        }).join('');
+        return `<div class="pcard wide"><div class="pc-h"><span class="plat-badge" style="background:${platColor(k)}">${esc(platLabel(k))}</span><b>${fmt(list.length)} ${esc(L(list.length === 1 ? 'account' : 'accounts'))} · ${fmt(postsTotal)} ${esc(L(postsTotal === 1 ? 'post' : 'posts'))}</b></div>${bar}${groups}</div>`;
       }).join('');
-    return cards ? `<div class="pcards">${cards}</div>` : `<p class="sm">${esc(L('No accounts in this set.'))}</p>`;
+    return cards ? `<div class="pcards one">${cards}</div>` : `<p class="sm">${esc(L('No accounts in this set.'))}</p>`;
   })();
 
   const platformBoxesHtml = Object.entries(platformGroups).length
@@ -1681,31 +1694,43 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     const tierN = (t) => acctList.filter((x) => x.tier === t).length;
     const total = acctList.length;
     const platN = new Set(acctList.map((x) => String(x.platform || 'other').toLowerCase())).size;
+    const attention = acctList.filter((x) => x.tier === 'priority');
+    const newsN = tierN('media');
+    const otherN = tierN('routine') + tierN('amplifier');
+    // The answer an officer needs first, in plain words.
+    const verdictTitle = !haveFacts ? L('Account roles are not available in this report.')
+      : attention.length ? plural(attention.length, '{n} account needs attention: it calls for action or mentions violence.', '{n} accounts need attention: they call for action or mention violence.')
+        : L('No account in these posts calls for action or violence.');
+    const topOther = acctList.filter((x) => x.tier !== 'media').sort((x, y) => (y.inter || 0) - (x.inter || 0))[0];
+    const verdictLines = [
+      `${fmt(newsN)} of ${fmt(total)} ${esc(L('accounts'))} ${esc(L('are news or official pages reporting the event'))}; ${fmt(total - newsN)} ${esc(L('are other accounts'))}.`,
+      topOther && topOther.inter ? `${esc(L('Largest reach from a non-news account'))}: <b>${authorProfileLink(topOther)}</b> (${fmt(topOther.inter)} ${esc(L('interactions'))}, ${esc(platLabel(topOther.platform))}) ${topOther.posts.slice(0, 3).map((n) => `[Post #${n}]`).join(' ')}` : '',
+    ].filter(Boolean);
+    const verdictHtml = `<div class="${attention.length ? 'watch' : 'calm'}"><b>${esc(verdictTitle)}</b>${verdictLines.map((x) => `<div class="vline">${x}</div>`).join('')}</div>`;
     const mix = ['priority', 'amplifier', 'media', 'routine'].map((t) => ({ t, n: tierN(t), posts: acctList.filter((x) => x.tier === t).reduce((c, x) => c + x.posts.length, 0) })).filter((x) => x.n);
     const mixBar = `<div class="stack tall">${mix.map((x) => `<div style="width:${(100 * x.n) / Math.max(1, total)}%;background:${TIER_DOT[x.t]}"></div>`).join('')}</div>`;
     const mixLegend = `<div class="legend">${mix.map((x) => `<span><i style="background:${TIER_DOT[x.t]}"></i><b>${fmt(x.n)}</b> ${esc(L(TIER_WORD[x.t]))} <span class="sm">(${fmt(x.posts)} ${esc(L(x.posts === 1 ? 'post' : 'posts'))})</span></span>`).join('')}</div>`;
-    const topA = Object.values(authors).sort((x, y) => (y.inter || 0) - (x.inter || 0))[0];
-    const overview = `<div class="acc-head">
+    const overview = `<div class="acc-head two">
       <div class="acc-n"><b>${fmt(total)}</b><span>${esc(L(total === 1 ? 'account' : 'accounts'))}</span><em>${fmt(platN)} ${esc(L(platN === 1 ? 'platform' : 'platforms'))}</em></div>
       <div class="acc-mix"><h4>${esc(L('Who is posting'))}</h4>${mixBar}${mixLegend}</div>
-      <div class="acc-top"><h4>${esc(L('Most interactions'))}</h4>${topA ? `<b>${esc(clip(topA.author, 22))}</b><span>${fmt(topA.inter)} ${esc(L('interactions'))} · ${esc(platLabel(topA.platform))}</span>` : '<span>—</span>'}</div>
     </div>`;
     const watch = acctList.filter((x) => x.tier === 'priority' || x.tier === 'amplifier').slice(0, 6);
     const watchHtml = watch.length
       ? `<div class="watch"><h4>${esc(L('Watch first'))}</h4>${watch.map((p) => `<div class="wrow"><span class="plat-badge" style="background:${platColor(p.platform)}">${esc(platLabel(p.platform))}</span><span class="nm">${authorProfileLink(p)}</span><span class="rpill ${ROLE_PILL[p.tier]}">${esc(p.priority)}</span><span class="why">${esc(clip(String(p.why || '').split(/(?<=[.!?])\s/)[0], 120))}</span><span class="lk">${p.posts.slice(0, 4).map((n) => `[Post #${n}]`).join(' ')}</span></div>`).join('')}</div>`
-      : `<div class="calm">${esc(haveFacts ? L('No account in these posts calls for action or violence.') : L('Account roles are not available in this report.'))}</div>`;
+      : '';
     const tierOfAuthor = new Map(allWatch.map((p) => [`${p.platform}|${p.author}`, p.tier]));
-    const topBars = Object.values(authors).sort((x, y) => (y.inter || 0) - (x.inter || 0)).slice(0, 8).map((a, _i, arr) => hbar(a.author, a.inter, Math.max(1, arr[0]?.inter || 1), TIER_DOT[tierOfAuthor.get(`${a.platform}|${a.author}`)] || BAR, `${a.count} post${a.count === 1 ? '' : 's'}`, 'interactions')).join('');
+    const topBars = Object.values(authors).sort((x, y) => (y.inter || 0) - (x.inter || 0)).slice(0, 6).map((a, _i, arr) => hbar(a.author, a.inter, Math.max(1, arr[0]?.inter || 1), TIER_DOT[tierOfAuthor.get(`${a.platform}|${a.author}`)] || BAR, `${a.count} post${a.count === 1 ? '' : 's'}`, 'interactions')).join('');
     return `
   ${secHead('Accounts to Watch')}
-  ${overview}
+  ${verdictHtml}
   ${watchHtml}
+  ${overview}
   <div class="chartbox">
-    <h4>Top Accounts by Interactions</h4>
-    <p class="sm">Interactions = likes + shares + comments (views are not added in). Bar colour shows the account's role.</p>
+    <h4>${esc(L('Largest reach'))}</h4>
+    <p class="sm">Interactions = likes + shares + comments (views are not added in). Colour shows the role: ${Object.entries(TIER_WORD).map(([t, w]) => `<span style="color:${TIER_DOT[t]}">●</span> ${esc(L(w))}`).join(' &nbsp; ')}.</p>
     ${topBars || `<p class="sm">${esc(L('No accounts in this set.'))}</p>`}
   </div>
-  <p class="sm">${includeEvidence ? `Priority accounts first, then the most-engaged accounts: ${highWatchList.length} profiles, each with a direct link.` : 'Every platform and its accounts, priority first. The number links open the posts.'}</p>
+  <p class="sm">${includeEvidence ? `Priority accounts first, then the most-engaged accounts: ${highWatchList.length} profiles, each with a direct link.` : esc(L('Every account by platform and role. The numbers open the posts.'))}</p>
   ${includeEvidence ? platformBoxesHtml : compactAccountsHtml}
   ${(analysis?.amplifiers || []).length
     ? `<ul class="bul">${analysis.amplifiers.map((a) => `<li><b>${esc(a.account)}</b> — ${esc(a.why || '')}${a.posts?.length ? ` <span class="sm">${esc(a.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>`
