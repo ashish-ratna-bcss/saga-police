@@ -495,8 +495,10 @@ test('every number about posts shows its posts as links: annex links in the full
   assert.ok(/High \/ critical risk \(2\):<\/b>\s*<a href="https:\/\/x\.com\/a\/status\/1"[^>]*class="plink">#1<\/a>\s*<a href="https:\/\/x\.com\/a\/status\/3"/.test(exec), 'risk posts are live links');
   assert.ok(/Violence reports \(1\):<\/b>\s*<a href="https:\/\/x\.com\/a\/status\/3"/.test(exec));
   assert.ok(/Posts calling people to act \(1\):<\/b>\s*<a href="https:\/\/x\.com\/a\/status\/2"/.test(exec));
-  assert.ok(/<b>1<\/b> post<br><span class="sm"><a href="https:\/\/x\.com\/a\/status\/2"[^>]*>#2<\/a>/.test(exec), 'posts and reach lists the account\'s posts');
+  assert.ok(/class="pcard"[\s\S]*A2[\s\S]*<a href="https:\/\/x\.com\/a\/status\/2"[^>]*>#2<\/a>/.test(exec), 'the summary shows each platform with its accounts and their posts as links');
+  assert.ok(!/<th>Posts & Reach<\/th>/.test(exec), 'the summary has no long accounts table');
   assert.ok(!/\[Post #\d+\]/.test(exec), 'no raw bracket tags are left');
   const full = buildReportHtml({ summary, keywordData: null, tenantName: 'odisha', analysis: { facts }, headquarters: null, includeEvidence: true });
   assert.ok(/High \/ critical risk \(2\):<\/b>\s*<a href="#e1" class="ref">\[Post #1\]<\/a>/.test(full), 'full report links to the annex');
+  assert.ok(/Posts & Reach/.test(full) && /<b>1<\/b> post<br><span class="sm"><a href="#e2" class="ref">\[Post #2\]<\/a>/.test(full), 'the full report keeps the table with each account\'s posts');
 });
