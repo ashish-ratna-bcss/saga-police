@@ -392,3 +392,21 @@ test('Odisha-only report: nothing names a place outside the region, in lists or 
   const full = buildReportHtml({ summary: { event: { name: 'E', location: 'Odisha' }, stats: {}, evidence_traceability: posts }, keywordData: null, tenantName: 'odisha', analysis, headquarters: null, includeEvidence: false });
   assert.ok(/Mumbai/.test(full));
 });
+
+test('more recommended actions: valid posts only, no repeats, at most ten, region facts only', () => {
+  const p = require('../src/services/SummaryLLM/eventSummary.prompt');
+  const extra = p.parseMoreActions(JSON.stringify({ actions: [
+    { action: 'Traffic plan — Traffic Police', detail: 'Divert heavy vehicles around Bhubaneswar on 8 October from 6 AM. Escalate if roads are blocked.', posts: [3, 999] },
+    { action: 'Empty', detail: 'x', posts: [1] },
+  ] }), new Set([1, 2, 3]));
+  assert.strictEqual(extra.length, 1);
+  assert.deepStrictEqual(extra[0].posts, [3]);
+  const core = [{ action: 'Bandobast — District Police', detail: 'd', posts: [1] }];
+  const merged = p.mergeActions(core, [...extra, { action: 'bandobast — district police', detail: 'again', posts: [] }], 10);
+  assert.strictEqual(merged.length, 2);
+  const many = Array.from({ length: 20 }, (_, i) => ({ action: `A${i}`, detail: 'd'.repeat(40), posts: [] }));
+  assert.strictEqual(p.mergeActions([], many, 10).length, 10);
+  const ctx = p.buildActionsContext({ report: { bottomLine: 'b', claims: [] }, facts: { activities: [{ date: '2026-10-08', kind: 'bandh', place: 'Odisha', posts: [1], outside: false }, { date: '2026-10-10', kind: 'protest', place: 'Delhi', posts: [2], outside: true }], places: [], accounts: [], calls: { count: 1 }, violence: { count: 0 }, callsOutside: { count: 1 } }, event: { name: 'E', location: 'Odisha' }, today: '2026-10-08', existing: core });
+  assert.ok(/ACTIVITIES IN THE REGION:\n- 2026-10-08 bandh/.test(ctx) && /OUTSIDE THE REGION \(context only\)/.test(ctx) && /do not repeat\): Bandobast/.test(ctx));
+  assert.ok(/6 to 10 recommended actions/.test(p.buildActionsSystem({ event: { name: 'E' } })));
+});

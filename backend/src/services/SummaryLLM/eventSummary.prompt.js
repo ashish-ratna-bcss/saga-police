@@ -37,7 +37,7 @@ RULES:
 8. Places: name a place only if a post names it. Say where an activity happens, and keep that apart from places that are only mentioned in talk. A place in another state or country is "outside the event region": mention it once, do not treat it as activity in the event region. Never invent a place.
 9. Public order: a bandh, blockade, highway block, gherao, rally, or protest named in a post is a fact. Do not write that there is no unrest or no blockade when the evidence says otherwise. Keep peaceful criticism separate from those calls.
 10. Leave out anything the posts do not support.
-11. Recommended Actions: 3-5 actions a police unit can carry out today. Each action names, in this order: WHO acts (a unit, e.g. ${unitsOf(ctx)}), WHAT exactly they do, WHERE or on WHICH account, hashtag or claim, WHY (the fact from the posts that justifies it), and the TRIGGER that would require escalation ("Escalate if ..."). Never write "monitor the situation", "verify claims" or "monitor social media" alone. Do not add the same advice twice. Cite [Post #n].
+11. Recommended Actions: 4-6 core actions a police unit can carry out today (a second step adds further measures). Each action names, in this order: WHO acts (a unit, e.g. ${unitsOf(ctx)}), WHAT exactly they do, WHERE or on WHICH account, hashtag or claim, WHY (the fact from the posts that justifies it), and the TRIGGER that would require escalation ("Escalate if ..."). Never write "monitor the situation", "verify claims" or "monitor social media" alone. Do not add the same advice twice. Cite [Post #n].
 11a. Do not repeat the same conclusion in several sections. State a fact once where it belongs; other sections may point to it in a few words. The bottom line is 2-3 sentences: what is happening, where, who is behind it, how serious it is, and the one thing to do.
 11b. Tone is not risk. Negative or critical posts are criticism. Risk comes only from calls to act (bandh, blockade, rally), violence or damage, or threats. Never describe negative tone as "critical" or as a threat. A high-risk post does not make its author a priority account.
 11c. Name only the platforms listed in the statistics; never mention a platform that has no posts. Describe tone with the exact Positive / Neutral / Negative counts: if most posts are neutral, say so, and do not call the discussion "mostly critical" unless negative posts are more than half. Do not write sentences like "Posts [Post #1] and [Post #2] mention this"; write the point once and put the citations at the end of the sentence.
@@ -333,7 +333,7 @@ const parseLLMReport = (raw, evidence) => {
 
   const keyFindings = (Array.isArray(obj.key_findings) ? obj.key_findings : []).slice(0, 6)
     .map((k) => ({ headline: str(k.headline, 160), detail: str(k.detail, 400) })).filter((k) => k.headline);
-  const actions = (Array.isArray(obj.recommended_actions) ? obj.recommended_actions : []).slice(0, 6)
+  const actions = (Array.isArray(obj.recommended_actions) ? obj.recommended_actions : []).slice(0, 10)
     .map((a) => ({ action: str(a.action, 200), detail: str(a.detail, 800), posts: ids(a.posts) })).filter((a) => a.action);
   const claims = (Array.isArray(obj.claims) ? obj.claims : []).slice(0, 8).map((c) => ({
     claim: str(c.claim, 200), posts: ids(c.posts), triage: String(c.triage).toUpperCase() === 'MONITOR' ? 'MONITOR' : 'VERIFY', note: str(c.note, 300),
@@ -479,7 +479,69 @@ const reportToMarkdown = (r, eventName) => {
   ].join('\n\n');
 };
 
+/* ----------------------------------------------- MORE RECOMMENDED ACTIONS (second, small call) ------------------- */
+const ACTION_THEMES = `Cover each of these where the facts give a reason, one action per theme, and skip a theme when nothing supports it:
+ a) Ground deployment: for each planned or reported activity INSIDE the event region, name the date, the place and the unit.
+ b) Traffic, essential services and public transport on the days named.
+ c) Liaison with the organisers or local leaders named (who to contact, to agree route, timing and peaceful conduct).
+ d) Legal and permissions: permission status, notices, prohibitory orders, records to keep, only where the facts show a need.
+ e) Cyber / OSINT: the named accounts, hashtags and claims to track, and what to capture as evidence.
+ f) Fact-check and public messaging: the named claim or rumour, who answers it, through which channel.
+ g) Intelligence sharing with neighbouring districts or other units about activity elsewhere that may reach the region.
+ h) Contingency: reserve force, quick-reaction team and escalation steps, each tied to a trigger.
+ i) Review after the event: what to collect and report back.`;
+
+const buildActionsSystem = (ctx) => `You advise ${audienceOf(ctx)} on what to do next. Using ONLY the facts given, write 6 to 10 recommended actions.
+${ACTION_THEMES}
+Each action has: WHO acts (choose from: ${unitsOf(ctx)}), WHAT exactly they do, WHERE or on WHICH account, hashtag or claim, WHY (the fact that justifies it), and one sentence that starts "Escalate if" and names the trigger.
+Rules: use only dates, places, accounts, organisers and claims that appear in the facts; never invent any; do not repeat an action that is already listed; no generic advice such as "monitor the situation". Plain, direct sentences. Cite the post numbers given with the facts, as numbers in "posts".
+Return ONLY JSON on one line: {"actions":[{"action":"Short title — Lead unit","detail":"2-3 sentences ending with the Escalate if sentence","posts":[12]}]}`;
+
+const buildActionsContext = ({ report, facts, event, today, existing }) => {
+  const L = [];
+  L.push(`EVENT: ${event?.name || ''} | REGION: ${event?.location || ''} | TODAY: ${today}`);
+  if (report?.bottomLine) L.push(`SITUATION: ${report.bottomLine}`);
+  if (report?.publicOrder) L.push(`PUBLIC ORDER: ${report.publicOrder}`);
+  const acts = (facts?.activities || []).filter((a) => !a.outside).slice(0, 8);
+  if (acts.length) L.push('ACTIVITIES IN THE REGION:\n' + acts.map((a) => `- ${a.date} ${a.kind}${a.organiser ? ` called by ${a.organiser}` : ''}${a.place ? ` at ${a.place}` : ''} (posts ${a.posts.join(',')})`).join('\n'));
+  const elsewhere = (facts?.activities || []).filter((a) => a.outside).slice(0, 4);
+  if (elsewhere.length) L.push('ACTIVITY OUTSIDE THE REGION (context only):\n' + elsewhere.map((a) => `- ${a.date} ${a.kind}${a.place ? ` at ${a.place}` : ''}`).join('\n'));
+  const places = (facts?.places || []).filter((p) => p.region && p.active).slice(0, 8);
+  if (places.length) L.push('PLACES WHERE PEOPLE ARE REPORTED: ' + places.map((p) => `${p.name} (${p.region})`).join('; '));
+  const people = (facts?.accounts || []).filter((a) => (a.calls || 0) > 0 || (a.violence || 0) > 0).slice(0, 8);
+  if (people.length) L.push('ACCOUNTS THAT CALL FOR ACTION: ' + people.map((a) => `@${a.author} (${a.platform}, ${a.calls || 0} calls, posts ${a.posts.slice(0, 3).join(',')})`).join('; '));
+  const claims = (report?.claims || []).slice(0, 5);
+  if (claims.length) L.push('CLAIMS: ' + claims.map((c) => `${c.claim} [${c.triage}] (posts ${c.posts.join(',')})`).join('; '));
+  if (report?.narrativesToWatch?.length) L.push('NARRATIVES TO WATCH: ' + report.narrativesToWatch.slice(0, 4).map((n) => `${n.narrative} (posts ${n.posts.join(',')})`).join('; '));
+  if (facts) L.push(`COUNTS: ${facts.calls?.count || 0} posts call for action in the region, ${facts.violence?.count || 0} mention violence in the region, ${facts.callsOutside?.count || 0} call for action outside it.`);
+  if (existing?.length) L.push('ALREADY LISTED (do not repeat): ' + existing.map((a) => a.action).join(' | '));
+  return L.join('\n');
+};
+
+/** Reads the extra actions: valid post numbers only, no empty rows. */
+const parseMoreActions = (raw, validNumbers) => {
+  let obj;
+  try { obj = extractJson(raw); } catch (e) { return []; }
+  const list = Array.isArray(obj?.actions) ? obj.actions : Array.isArray(obj) ? obj : [];
+  const one = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+  return list.map((a) => ({
+    action: one(a.action, 200),
+    detail: one(a.detail, 800),
+    posts: (Array.isArray(a.posts) ? a.posts : []).map(Number).filter((n) => validNumbers.has(n)).slice(0, 8),
+  })).filter((a) => a.action && a.detail.length > 30);
+};
+
+/** Core actions first, then new ones that do not repeat a title; at most `cap`. */
+const mergeActions = (core, extra, cap = 10) => {
+  const key = (t) => String(t || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const seen = new Set((core || []).map((a) => key(a.action)));
+  const out = [...(core || [])];
+  (extra || []).forEach((a) => { const k = key(a.action); if (k && !seen.has(k) && out.length < cap) { seen.add(k); out.push(a); } });
+  return out;
+};
+
 module.exports = {
+  buildActionsSystem, buildActionsContext, parseMoreActions, mergeActions,
   buildSystemPrompt, buildUserContext, RETRY_MESSAGE, parseLLMReport, reportToMarkdown,
   BATCH_SYSTEM, buildBatchUserContext, parseBatchNotes, buildReducerSystemPrompt, buildReducerUserContext,
   estimateTokens, truncateToTokens, makeBatches, reducerToReport, extractJson,

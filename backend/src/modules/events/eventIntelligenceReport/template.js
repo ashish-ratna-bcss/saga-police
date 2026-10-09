@@ -1083,7 +1083,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   const findings = (analysis?.keyFindings || []).slice(0, 6);
   const narratives = (analysis?.narratives || []).slice(0, 5);
-  const actions = (analysis?.actions || []).slice(0, 6);
+  const actions = (analysis?.actions || []).slice(0, 10);
 
   const platStr = platformEntries.map(([k, v]) => `${platLabel(k)}: ${fmt(v)}`).join(', ') || '—';
   const kwStr = kws.slice(0, 14).map((k) => k.keyword).join(', ') || (event.keywords || []).map((k) => (k.keyword || k)).join(', ') || '—';

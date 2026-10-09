@@ -6,6 +6,7 @@ const {
   buildSystemPrompt, buildUserContext, RETRY_MESSAGE, parseLLMReport, reportToMarkdown,
   BATCH_SYSTEM, buildBatchUserContext, parseBatchNotes, buildReducerSystemPrompt, buildReducerUserContext,
   estimateTokens, truncateToTokens, makeBatches, reducerToReport, extractJson,
+  buildActionsSystem, buildActionsContext, parseMoreActions, mergeActions,
 } = require('./eventSummary.prompt');
 const eventConfig = require('../../modules/events/event.config');
 const { cleanText } = require('./styleLint');
@@ -905,6 +906,19 @@ const generateEventSummary = async (
         }
       } catch (e) { logger.warn(`[SummaryLLM] Plain-language pass skipped: ${e.message}`); }
       structuredReport.coverage = coverage;
+      // ---- MORE ACTIONS: a second small call writes the further measures (ground, traffic, liaison, legal, cyber, messaging, contingency, review).
+      try {
+        const validNos = new Set(analysed.map((x) => postNo(x)));
+        const ctxText = buildActionsContext({ report: structuredReport, facts, event, today: new Date().toISOString().slice(0, 10), existing: structuredReport.actions || [] });
+        const res = await callLLM([{ role: 'system', content: buildActionsSystem(promptCtx) }, { role: 'user', content: ctxText }], 3000);
+        const extra = parseMoreActions(res.data?.choices?.[0]?.message?.content || '', validNos);
+        if (extra.length) {
+          structuredReport.actions = mergeActions(structuredReport.actions, extra, 10);
+          logger.info(`[SummaryLLM] Actions: ${structuredReport.actions.length} in total (${extra.length} added by the second step)`);
+        } else {
+          logger.warn('[SummaryLLM] Second actions step returned nothing usable; the core actions stay');
+        }
+      } catch (e) { logger.warn(`[SummaryLLM] Second actions step skipped: ${e.message}`); }
       // The model's own per-post source types (news outlet or not) correct who counts as a caller or organiser.
       try {
         const mediaNos = new Set(Object.entries(structuredReport.sourceTypes || {}).filter(([, t]) => t === 'media').map(([n]) => Number(n)));
