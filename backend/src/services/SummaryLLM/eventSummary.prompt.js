@@ -566,8 +566,8 @@ Return only the text of the summary.`;
 const closingLevel = ({ facts, stats }) => {
   const risk = stats?.risk_counts || stats?.risk || {};
   const highRisk = Number(risk.critical || 0) + Number(risk.high || 0);
-  if (Number(facts?.violence?.count || 0) > 0) return 'High';
-  return (Number(facts?.calls?.count || 0) > 0 || highRisk > 0) ? 'Medium' : 'Low';
+  if (Number(facts?.violence?.count || 0) > 1) return 'High';
+  return (Number(facts?.violence?.count || 0) > 0 || Number(facts?.calls?.count || 0) > 0 || highRisk > 0) ? 'Medium' : 'Low';
 };
 
 /** Checks a draft against the facts (English drafts): the right level, no invented police activity. Returns '' when fine, else the reason. */
@@ -576,7 +576,7 @@ const checkClosing = (text, level, reportLanguage) => {
   const t = String(text || '');
   if (!new RegExp(`\\b${level}\\b`, 'i').test(t)) return `it must state the risk level "${level}"`;
   if (level !== 'Low' && /\b(risk|seriousness|level|threat)\b[^.]{0,40}\blow\b|\blow[- ]risk\b/i.test(t)) return `it calls the risk low but the level is ${level}`;
-  if (/\bpolice\b[^.]{0,50}\b(are|have|has|is)\b[^.]{0,40}\b(monitoring|planned|plans|prepared|deployed|already)\b/i.test(t) || /already recommended/i.test(t)) return 'it says what the police are already doing, which the facts do not say';
+  if (/\bpolice\b[^.]{0,50}\b(are|have|has|is)\b[^.]{0,40}\b(monitoring|planned|plans|prepared|deployed|already|will)\b/i.test(t) || /\b(police|authorities|administration)\b[^.]{0,30}\b(plan|plans|planned|intend|intends)\s+to\b/i.test(t) || /already recommended/i.test(t)) return 'it says what the police are already doing, which the facts do not say';
   return '';
 };
 
