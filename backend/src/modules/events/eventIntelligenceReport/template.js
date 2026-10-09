@@ -1818,7 +1818,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     const actCards = first.length
       ? `<div class="cp-acts">${first.map(card).join('')}</div>`
       : `<p class="sm">${esc(L('Maintain standard baseline monitoring.'))}</p>`;
-    const moreCards = more.length ? `${secHead('Further Actions')}<div class="cp-acts">${more.map((a, i) => card(a, i + 3)).join('')}</div>` : '';
+    const moreCards = () => (more.length ? `${secHead('Further Actions')}<div class="cp-acts">${more.map((a, i) => card(a, i + 3)).join('')}</div>` : '');
     const rb = riskParts.map((x) => `<div style="background:${x.c}"><div class="n">${fmt(x.v)}</div><div class="l">${esc(L(x.k))}</div></div>`).join('');
     const reach = acctList.slice().sort((a, b) => (b.inter || 0) - (a.inter || 0)).slice(0, 5);
     const rMax = Math.max(1, ...reach.map((a) => a.inter || 0));
@@ -1834,7 +1834,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${secHead('What To Do')}
   ${actCards}
   <div style="break-before:page;page-break-before:always"></div>
-  ${moreCards}
+  ${moreCards()}
   ${secHead('How Serious It Is')}
   <div class="cp-row">
     <div class="cp-box"><h4>${esc(L('Risk of the posts'))}</h4><div class="cp-big">${rb}</div>${stackBar(riskParts, false)}<p class="cp-note">${esc(L('Risk comes from calls to act, violence or a high-risk rating. Tone is shown separately.'))}</p></div>
