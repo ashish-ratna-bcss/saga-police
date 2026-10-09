@@ -430,6 +430,16 @@ b{font-weight:700}
 .chips .cv{font-size:7.4pt;font-weight:700;color:${INK};margin-top:.3mm}
 
 /* Headline numbers: one strip */
+.pcards{display:grid;grid-template-columns:1fr 1fr;gap:2.4mm;margin:0 0 3mm}
+.pcard{border:.6px solid ${LINE};border-radius:3px;background:#fff;padding:2mm 2.6mm;break-inside:avoid}
+.pc-h{display:flex;align-items:center;gap:2mm;margin:0 0 1.4mm;font-size:7.8pt;color:${INK}}
+.plist{list-style:none;margin:1.2mm 0 0;padding:0}
+.plist li{display:flex;align-items:baseline;gap:1.4mm;font-size:7.2pt;padding:.55mm 0;border-top:.4px solid #eef2f6}
+.plist li>i{display:inline-block;width:1.7mm;height:1.7mm;border-radius:50%;flex:none;align-self:center}
+.plist .nm{font-weight:700;flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.plist .rl{color:${MUT};font-size:6.2pt;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.plist .lk{font-size:7pt;white-space:nowrap}
+.plist .more{color:${MUT};font-size:7pt;padding-top:.8mm}
 .srcbox{border:.6px solid #d6dde6;border-left:3px solid #94a3b8;background:#fbfcfd;border-radius:3px;padding:2.2mm 3.4mm;margin:0 0 3.4mm;break-inside:avoid}
 .srcbox h4{margin:0 0 1.4mm;font-size:7.2pt;color:#475569;text-transform:uppercase;letter-spacing:.07em}
 .srcrow{font-size:7.8pt;line-height:1.6;color:#334155;margin:0 0 .5mm}
@@ -1040,7 +1050,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const topReach = Math.max(1, ...Object.values(authors).map((a) => a.eng || 0));
   const sourceTypes = analysis?.sourceTypes || {};
 
-  const highWatchList = Object.values(authors)
+  const allWatch = Object.values(authors)
     .map((a) => {
       const f = factAccounts.get(`${a.author}`.toLowerCase()) || {};
       // Media: from the posts' own reading (facts) or the earlier per-post source type, never from the account name.
@@ -1080,8 +1090,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
         priorityClass: t.cls,
       };
     })
-    .sort((a, b) => b.tierRank - a.tierRank || b.riskScore - a.riskScore || b.eng - a.eng || b.count - a.count)
-    .slice(0, profileCapLimit);
+    .sort((a, b) => b.tierRank - a.tierRank || b.riskScore - a.riskScore || b.eng - a.eng || b.count - a.count);
+  const highWatchList = allWatch.slice(0, profileCapLimit);
 
   const promoters = highWatchList;
 
@@ -1488,6 +1498,32 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     platformGroups[platKey].push(p);
   });
 
+  // Summary report: one small card per platform with every account (priority first), its role and its post links. Detail stays in the full report.
+  const TIER_DOT = { priority: '#B42318', amplifier: '#C45C26', media: '#2A8FA8', routine: '#94A3B8' };
+  const TIER_WORD = { priority: 'priority', amplifier: 'amplifier', media: 'media / news', routine: 'other' };
+  const compactAccountsHtml = (() => {
+    const byPlat = {};
+    allWatch.forEach((p) => {
+      const posts = (p.posts || []).filter((n) => !regionOnly || inSet.has(n));
+      if (!posts.length) return;
+      const k = String(p.platform || 'other').toLowerCase();
+      (byPlat[k] = byPlat[k] || []).push({ ...p, posts });
+    });
+    const MAX = 14;
+    const cards = Object.entries(byPlat)
+      .sort((x, y) => y[1].reduce((t, a) => t + a.posts.length, 0) - x[1].reduce((t, a) => t + a.posts.length, 0))
+      .map(([k, list]) => {
+        const postsTotal = list.reduce((t, a) => t + a.posts.length, 0);
+        const tiers = ['priority', 'amplifier', 'media', 'routine'].map((t) => ({ t, n: list.filter((x) => x.tier === t).length })).filter((x) => x.n);
+        const bar = `<div class="stack">${tiers.map((x) => `<div style="width:${(100 * x.n) / list.length}%;background:${TIER_DOT[x.t]}"></div>`).join('')}</div>`;
+        const legend = `<div class="legend">${tiers.map((x) => `<span><i style="background:${TIER_DOT[x.t]}"></i>${x.n} ${esc(L(TIER_WORD[x.t]))}</span>`).join('')}</div>`;
+        const rows = list.slice(0, MAX).map((p) => `<li><i style="background:${TIER_DOT[p.tier]}"></i><span class="nm">${authorProfileLink(p)}</span><span class="rl">${esc(p.priority)}</span><span class="lk">${p.posts.slice(0, 4).map((n) => `[Post #${n}]`).join(' ')}${p.posts.length > 4 ? ` +${p.posts.length - 4}` : ''}</span></li>`).join('');
+        const more = list.length > MAX ? `<li class="more">+${list.length - MAX} ${esc(L('more accounts'))} · ${fmt(list.slice(MAX).reduce((t, a) => t + a.posts.length, 0))} ${esc(L('posts'))}</li>` : '';
+        return `<div class="pcard"><div class="pc-h"><span class="plat-badge" style="background:${platColor(k)}">${esc(platLabel(k))}</span><b>${fmt(list.length)} ${esc(L('accounts'))} · ${fmt(postsTotal)} ${esc(L('posts'))}</b></div>${bar}${legend}<ul class="plist">${rows}${more}</ul></div>`;
+      }).join('');
+    return cards ? `<div class="pcards">${cards}</div>` : `<p class="sm">${esc(L('No accounts in this set.'))}</p>`;
+  })();
+
   const platformBoxesHtml = Object.entries(platformGroups).length
     ? Object.entries(platformGroups)
         .sort((a, b) => b[1].length - a[1].length)
@@ -1611,7 +1647,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const accountsSection = () => `
   ${secHead('Accounts to Watch')}
   <div class="metrics" style="grid-template-columns:repeat(3,1fr)">
-    ${metric(fmt(highWatchList.length), 'Profiles tracked', 'Monitored accounts categorized by platform')}
+    ${metric(fmt(includeEvidence ? highWatchList.length : allWatch.length), 'Profiles tracked', 'Monitored accounts categorized by platform')}
     ${metric(fmt(highWatchList.filter((p) => p.tier === 'priority').length), 'High watch tier', 'Priority surveillance & escalation targets')}
     ${metric(topVoice ? fmt(topVoice.count) : '0', topVoice ? clip(topVoice.author, 16) : 'Top account', topVoice ? platLabel(topVoice.platform) : '—')}
   </div>
@@ -1620,9 +1656,9 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     <p class="sm">Interactions = likes + shares + comments. Views are shown separately and are not added in.</p>
     ${Object.values(authors).sort((x, y) => (y.inter || 0) - (x.inter || 0)).slice(0, 8).map((a, _i, arr) => hbar(a.author, a.inter, Math.max(1, arr[0]?.inter || 1), BAR, `${a.count} post${a.count === 1 ? '' : 's'}`, 'interactions')).join('') || '<p class="sm">No accounts in this set.</p>'}
   </div>
-  <p class="sm">Priority accounts first, then the most-engaged accounts: ${highWatchList.length} profiles, each with a direct link.</p>
+  <p class="sm">${includeEvidence ? `Priority accounts first, then the most-engaged accounts: ${highWatchList.length} profiles, each with a direct link.` : 'Every platform and its accounts, priority first. Colour shows the role; the numbers open the posts.'}</p>
   ${haveFacts && violenceN === 0 ? `<p class="sm">${esc(L('No post from the accounts listed here reports violence or damage.'))}</p>` : ''}
-  ${platformBoxesHtml}
+  ${includeEvidence ? platformBoxesHtml : compactAccountsHtml}
   ${(analysis?.amplifiers || []).length
     ? `<ul class="bul">${analysis.amplifiers.map((a) => `<li><b>${esc(a.account)}</b> — ${esc(a.why || '')}${a.posts?.length ? ` <span class="sm">${esc(a.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>`
     : ''}`;
