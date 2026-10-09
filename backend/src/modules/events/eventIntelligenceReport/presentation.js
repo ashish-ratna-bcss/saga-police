@@ -48,10 +48,10 @@ body{font-family:'Lato','Liberation Sans','Helvetica Neue',Arial,sans-serif;colo
 .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
 .card{background:${COLORS.card};border-radius:18px;padding:24px 26px;border-top:7px solid ${COLORS.blue};height:500px;overflow:hidden}
 .card.o{border-top-color:${COLORS.orange}}.card.g{border-top-color:${COLORS.green}}.card.r{border-top-color:${COLORS.red}}.card.t{border-top-color:${COLORS.teal}}
-.card h3{margin:0 0 14px;font-size:25px;color:${COLORS.navy};line-height:1.2}
-.card p{margin:0 0 12px;font-size:17px;line-height:1.42;color:#2B3957}
+.card h3{margin:0 0 14px;font-size:27px;color:${COLORS.navy};line-height:1.2}
+.card p{margin:0 0 14px;font-size:19px;line-height:1.4;color:#2B3957}
 .card p b{color:${COLORS.navy}}
-.card .esc{display:block;margin-top:5px;font-size:15px;color:#7A1F1F}
+.card .esc{display:block;margin-top:6px;font-size:16px;color:#7A1F1F}
 .small{font-size:15px;color:#5B6880}
 .chartcol{display:flex;gap:14px;align-items:flex-end;height:360px;border-bottom:2px solid #D5DCE8;padding:0 6px}
 .chartcol .b{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%}
@@ -78,9 +78,9 @@ body{font-family:'Lato','Liberation Sans','Helvetica Neue',Arial,sans-serif;colo
 .big{border-radius:18px;color:#fff;text-align:center;padding:30px 20px;margin:0 0 20px}
 .big .n{font-family:'Lora',Georgia,serif;font-size:80px;font-weight:700;line-height:1}
 .big .l{font-size:20px;margin-top:10px;line-height:1.3}
-.info{background:${COLORS.card};border-radius:18px;padding:22px 26px;margin:0 0 18px}
+.info{background:${COLORS.card};border-radius:18px;padding:18px 24px;margin:0 0 14px}
 .info h3{margin:0 0 8px;font-size:25px;color:${COLORS.navy}}
-.info p{margin:0;font-size:19px;line-height:1.45;color:#2B3957}
+.info p{margin:0;font-size:18px;line-height:1.4;color:#2B3957}
 .ic{display:flex;gap:20px;align-items:flex-start}
 .ic .dot{flex:none;width:56px;height:56px;border-radius:50%;color:#fff;font-size:26px;font-weight:700;display:flex;align-items:center;justify-content:center}
 table.m{width:100%;border-collapse:collapse;font-size:23px}
@@ -103,10 +103,11 @@ const slide = (cls, inner, { tenant, mark, no }) => `<section class="slide ${cls
 const buildPresentationBody = (ctx) => {
   const {
     esc, fmt, pct, clip, L, donutSvg, platLabel, platColor,
-    event, tenant, windowStr, dateStr, total, sent, sentTotal, engTotal, ev, riskParts, platformEntries, kws,
+    event, tenant, windowStr: windowFull, period, dateStr, total, sent, sentTotal, engTotal, ev, riskParts, platformEntries, kws,
     analysis, places, authors, threatLevel, rationale, bottomLine, counts, narrativesToWatch, actions, notKnown, stats,
   } = ctx;
   const t = esc(tenant);
+  const windowStr = period || windowFull;
   // Text on a slide is shortened by whole sentences, never cut in the middle of one.
   const whole = (text, max) => {
     const sentences = String(text || '').replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s+/).filter(Boolean);
@@ -243,8 +244,8 @@ const buildPresentationBody = (ctx) => {
   const scriptTot = Object.values(scriptCount).reduce((a, b) => a + b, 0);
   const scriptLine = Object.entries(scriptCount).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${esc(L(k))} ${pc(v, scriptTot).toFixed(0)}%`).join(' · ');
   const s7 = `<h2>${esc(L('Where the conversation is concentrated'))}</h2><div class="split"><div>
-      <div class="small" style="font-weight:700;margin-bottom:12px">${esc(L('Share of posts negative, by place named (overall {p}%)', { p: Math.round(negPostPct) }))}</div>
-      ${placeRows.map((p) => `<div class="hb"><div class="nm">${esc(clip(p.name, 28))}</div><div class="tr"><div class="fl" style="width:${Math.max(1, p.negPct)}%;background:${p.negPct > negPostPct ? COLORS.red : COLORS.blue}"></div></div><div class="v">${p.negPct}%</div></div>`).join('') || `<p class="small">${esc(L('No specific place is named in the posts.'))}</p>`}
+      <div class="small" style="font-weight:700;margin-bottom:12px">${placeRows.some((x) => x.negPct > 0) ? esc(L('Share of posts negative, by place named (overall {p}%)', { p: Math.round(negPostPct) })) : esc(L('Posts by place named'))}</div>
+      ${placeRows.map((p) => { const byCount = !placeRows.some((x) => x.negPct > 0); const mx = Math.max(1, ...placeRows.map((x) => x.n)); return `<div class="hb"><div class="nm">${esc(clip(p.name, 28))}</div><div class="tr"><div class="fl" style="width:${byCount ? Math.max(3, (100 * p.n) / mx) : Math.max(1, p.negPct)}%;background:${!byCount && p.negPct > negPostPct ? COLORS.red : COLORS.blue}"></div></div><div class="v">${byCount ? p.n : `${p.negPct}%`}</div></div>`; }).join('') || `<p class="small">${esc(L('No specific place is named in the posts.'))}</p>`}
     </div><div>
       ${placeRows[0] ? `<div class="info"><h3>${esc(placeRows.slice().sort((a, b) => b.n - a.n)[0].name)}</h3><p>${esc(L('Named in {n} of the posts listed.', { n: placeRows.slice().sort((a, b) => b.n - a.n)[0].n }))}</p></div>` : ''}
       ${scriptLine ? `<div class="info"><h3>${esc(L('Language'))}</h3><p>${scriptLine} ${esc(L('of posts. Respond in these scripts at a minimum.'))}</p></div>` : ''}
@@ -283,7 +284,7 @@ const buildPresentationBody = (ctx) => {
       <div class="lg">${riskParts.map((p) => `<div><i style="background:${p.c}"></i>${esc(L(p.k))}: ${fmt(p.v)}</div>`).join('')}</div></div><div>
       <div class="info"><div class="ic"><div class="dot" style="background:${COLORS.red}">!</div><div><h3>${esc(L('Violence'))}</h3><p>${esc(L('{a} confirmed, {b} mentioned, {c} alleged or warned.', { a: counts.violenceConfirmed, b: counts.violenceMentioned, c: counts.alleged }))}</p></div></div></div>
       <div class="info"><div class="ic"><div class="dot" style="background:${COLORS.orange}">?</div><div><h3>${esc(L('Arrests and calls to act'))}</h3><p>${esc(L('Arrests or detentions reported: {a}. Posts calling people to act: {b}. Posts reporting a group mobilising: {c}.', { a: counts.detentions, b: counts.calls, c: counts.mobilising }))}</p></div></div></div>
-      <div class="info"><div class="ic"><div class="dot" style="background:${COLORS.purple}">∗</div><div><h3>${esc(L('Level'))}: ${esc(L(threatLevel))}</h3><p>${esc(whole(rationale, 170))}</p></div></div></div>
+      <div class="info"><div class="ic"><div class="dot" style="background:${COLORS.purple}">∗</div><div><h3>${esc(L('Level'))}: ${esc(L(threatLevel))}</h3><p>${esc(whole(rationale, 120))}</p></div></div></div>
     </div></div>`;
 
   // ---- 11. How we will know it is working

@@ -1976,11 +1976,17 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${closingSection()}`;
   };
 
+  const presentationPeriod = (() => {
+    const a = stats.effective_start || stats.date_range?.start; const b = stats.effective_end || stats.date_range?.end;
+    if (!a || !b) return '';
+    const f = (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: REPORT_TZ });
+    return `${f(a)} to ${f(b)}`;
+  })();
   if (presentation) {
     const bl = analysis?.bottomLine ? String(analysis.bottomLine).replace(/(\d+%\s+(?:of\s+(?:the\s+)?posts\s+)?(?:are|is)\s+)critical\b/gi, '$1negative') : '';
     const slides = buildPresentationBody({
       esc, fmt, pct, clip, L, donutSvg, platLabel, platColor,
-      event, tenant, windowStr, dateStr, total, sent, sentTotal, engTotal, ev: scopeEv, riskParts, platformEntries, kws,
+      event, tenant, windowStr, period: presentationPeriod, dateStr, total, sent, sentTotal, engTotal, ev: scopeEv, riskParts, platformEntries, kws,
       classification: hq?.classification || '',
       analysis, places, authors, threatLevel: threatLevelVal, rationale: computedRationale, bottomLine: bl, narrativesToWatch, actions, notKnown: analysis?.notKnown || [], stats,
       counts: {
