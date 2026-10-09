@@ -953,9 +953,9 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                   >
                     <BarChart3 className="h-4 w-4 text-pink-600 dark:text-pink-400 mt-0.5 shrink-0" />
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-semibold text-foreground">Presentation (12 slides)</span>
+                      <span className="text-xs font-semibold text-foreground">{regionLabel} Presentation (12 slides)</span>
                       <span className="text-[11px] text-muted-foreground leading-tight">
-                        Situation assessment as slides: key numbers, trend, tone, places, accounts, risk and next steps
+                        Slides for {regionLabel} only: key numbers, trend, tone, places, accounts, risk and next steps
                       </span>
                     </div>
                   </DropdownMenuItem>
