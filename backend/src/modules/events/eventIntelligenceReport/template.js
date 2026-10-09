@@ -896,7 +896,9 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     const n = Number((String(e.citationTag || '').match(/\d+/) || [i + 1])[0]);
     const text = String(e.text || '');
     const sk = sentKey(e.sentiment);
-    const isVisit = VISIT_RE.test(text);
+    // With facts, "activity" is what the post was read as (any language); the English word list is only the fallback for old reports.
+    const factKind = factsPlaces ? factsPlaces[n]?.kind : '';
+    const isVisit = factsPlaces ? ['bandh', 'rally', 'protest', 'meeting', 'campaign', 'visit'].includes(factKind) : VISIT_RE.test(text);
     const places = [];
     const addPlace = (name) => {
       if (!name || places.some((h) => h.toLowerCase() === name.toLowerCase())) return;
