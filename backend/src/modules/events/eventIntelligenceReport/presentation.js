@@ -49,7 +49,7 @@ body{font-family:'Lato','Liberation Sans','Helvetica Neue',Arial,sans-serif;colo
 .card{background:${COLORS.card};border-radius:18px;padding:24px 26px;border-top:7px solid ${COLORS.blue};height:500px;overflow:hidden}
 .card.o{border-top-color:${COLORS.orange}}.card.g{border-top-color:${COLORS.green}}.card.r{border-top-color:${COLORS.red}}.card.t{border-top-color:${COLORS.teal}}
 .card h3{margin:0 0 14px;font-size:27px;color:${COLORS.navy};line-height:1.2}
-.card p{margin:0 0 14px;font-size:19px;line-height:1.4;color:#2B3957}
+.card p{margin:0 0 12px;font-size:18px;line-height:1.38;color:#2B3957}
 .card p b{color:${COLORS.navy}}
 .card .esc{display:block;margin-top:6px;font-size:16px;color:#7A1F1F}
 .small{font-size:15px;color:#5B6880}
@@ -170,7 +170,7 @@ const buildPresentationBody = (ctx) => {
     const parts = String(a.action || '').split(/\s+[—–]\s+/);
     const m = String(a.detail || '').match(/\s*(Escalate if[^]*?)$/i);
     const doText = noCite(m ? String(a.detail).slice(0, m.index) : a.detail);
-    return `<p><b>${esc(parts[0])}</b>${parts[1] ? ` · ${esc(parts[1])}` : ''}<br>${esc(whole(doText, 150))}${m ? `<span class="esc">${esc(whole(noCite(m[1]), 110))}</span>` : ''}</p>`;
+    return `<p><b>${esc(parts[0])}</b>${parts[1] ? ` · ${esc(parts[1])}` : ''}<br>${esc(whole(doText, 120))}${m ? `<span class="esc">${esc(whole(noCite(m[1]), 110))}</span>` : ''}</p>`;
   }).join('') || `<p>${esc(L('Maintain standard baseline monitoring.'))}</p>`;
   const watch = [];
   watch.push(L('Violence: {a} confirmed, {b} mentioned, {c} alleged or warned.', { a: counts.violenceConfirmed, b: counts.violenceMentioned, c: counts.alleged }));
