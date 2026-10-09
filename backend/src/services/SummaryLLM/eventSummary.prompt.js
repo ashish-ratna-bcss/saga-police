@@ -553,7 +553,49 @@ const mergeActions = (core, extra, cap = 10) => {
   return out;
 };
 
+/* ------------------------------------------------ CLOSING SUMMARY (plain words, last section) ------------------- */
+const buildClosingSystem = (ctx) => `You are briefing ${audienceOf(ctx)} in person. Write the closing summary of this report in natural, plain language, as one person speaking to another.
+${languageLine(ctx || {})}
+Length: 6 to 9 short sentences in one or two paragraphs. No lists, no headings, no bullet points, no post numbers, no jargon.
+Say, in this order: what is happening and where; who is behind it; how serious it is and the real reason for that level; what is planned next, with dates; what is not known yet; and the one or two most important things for the police to do.
+Use at most three numbers. Use only the facts given; never invent a name, place, date or number. Do not start sentences with "The analysis indicates", "The data suggests" or similar. Do not call criticism a threat.
+Return only the text of the summary.`;
+
+const buildClosingContext = ({ report, facts, event, stats }) => {
+  const risk = stats?.risk_counts || stats?.risk || {};
+  const highRisk = Number(risk.critical || 0) + Number(risk.high || 0);
+  const calls = Number(facts?.calls?.count || 0);
+  const violence = Number(facts?.violence?.count || 0);
+  const level = violence > 0 ? 'High' : (calls > 0 || highRisk > 0) ? 'Medium' : 'Low';
+  const sent = stats?.sentiment_counts || {};
+  const tot = Math.max(1, Number(sent.positive || 0) + Number(sent.neutral || 0) + Number(sent.negative || 0));
+  const L = [];
+  L.push(`EVENT: ${event?.name || ''} | REGION: ${event?.location || ''}`);
+  L.push(`RISK LEVEL: ${level}. Posts calling for action in the region: ${calls}. Posts mentioning violence in the region: ${violence}. Posts rated high risk: ${highRisk}. Negative tone: ${Math.round((100 * Number(sent.negative || 0)) / tot)}% (criticism, not a threat).`);
+  if (report?.bottomLine) L.push(`BOTTOM LINE: ${report.bottomLine}`);
+  if (report?.situation) L.push(`SITUATION: ${report.situation}`);
+  if (report?.publicOrder) L.push(`PUBLIC ORDER: ${report.publicOrder}`);
+  const acts = (facts?.activities || []).filter((a) => !a.outside).slice(0, 6);
+  if (acts.length) L.push('PLANNED OR REPORTED ACTIVITY IN THE REGION:\n' + acts.map((a) => `- ${a.date} ${a.kind}${a.organiser ? ` called by ${a.organiser}` : ''}${a.place ? ` at ${a.place}` : ''}`).join('\n'));
+  const lead = (facts?.accounts || []).filter((a) => (a.calls || 0) > 0).slice(0, 4);
+  if (lead.length) L.push('ACCOUNTS CALLING FOR ACTION: ' + lead.map((a) => `@${a.author}`).join(', '));
+  if (report?.known?.length) L.push('KNOWN: ' + report.known.slice(0, 4).map((k) => (typeof k === 'string' ? k : k.text || k.fact || '')).filter(Boolean).join(' | '));
+  if (report?.notKnown?.length) L.push('NOT KNOWN: ' + report.notKnown.slice(0, 4).map((k) => (typeof k === 'string' ? k : k.text || k.fact || '')).filter(Boolean).join(' | '));
+  if (report?.actions?.length) L.push('ACTIONS ALREADY RECOMMENDED: ' + report.actions.slice(0, 6).map((a) => a.action).join(' | '));
+  return L.join('\n');
+};
+
+/** Cleans the model's reply into plain paragraphs; returns '' when it is unusable. */
+const parseClosing = (raw) => {
+  let t = String(raw || '').replace(/```[a-z]*\n?|```/gi, '').trim();
+  if (/^\s*[{[]/.test(t)) { try { const o = extractJson(t); t = String(o.summary || o.text || o.closing || ''); } catch (e) { return ''; } }
+  t = t.replace(/\[Post #\d+\]/g, '').replace(/^["“]|["”]$/g, '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').replace(/^[-*•]\s+/gm, '').trim();
+  if (t.length < 120 || t.length > 2200) return '';
+  return t;
+};
+
 module.exports = {
+  buildClosingSystem, buildClosingContext, parseClosing,
   buildActionsSystem, buildActionsContext, parseMoreActions, mergeActions,
   buildSystemPrompt, buildUserContext, RETRY_MESSAGE, parseLLMReport, reportToMarkdown,
   BATCH_SYSTEM, buildBatchUserContext, parseBatchNotes, buildReducerSystemPrompt, buildReducerUserContext,

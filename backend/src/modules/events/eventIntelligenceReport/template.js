@@ -744,6 +744,7 @@ const regionFilter = (analysis, outsideNs, outsideNames) => {
     known: keep(analysis.known),
     notKnown: keep(analysis.notKnown),
     actions: keep(analysis.actions),
+    closingSummary: clean(analysis.closingSummary),
     narrativesToWatch: keep(analysis.narrativesToWatch),
     narratives: keep(analysis.narratives),
     claims: keep(analysis.claims),
@@ -1625,6 +1626,15 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   </div>
   <p class="sm"><b>Tracked Keywords:</b> ${esc(clip(kwStr, 280))}</p>`}`;
 
+  const closingSection = () => {
+    const text = String(analysis?.closingSummary || '').trim();
+    if (!text) return '';
+    const paras = text.split(/\n{2,}/).map((x) => x.trim()).filter(Boolean);
+    return `
+  <div class="sec"><span class="no">${secNo()}</span><span class="nm">${esc(L('Summary in Plain Words'))}</span></div>
+  <div class="closing">${paras.map((x) => `<p>${esc(x)}</p>`).join('')}</div>`;
+  };
+
   const body = `
 <section class="pg">
   <header class="hero">
@@ -1653,6 +1663,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${actorsSection()}
   ${accountsSection()}
   ${reactionSection()}
+  ${closingSection()}
   ${evidenceSection()}
 </section>
 `;

@@ -1,4 +1,6 @@
 const {
+  generateClosingSummary,
+  saveClosingSummary,
   generateEventSummary,
   getCachedEventSummary,
   saveEventSummaryPdf,
@@ -8,6 +10,8 @@ const {
 } = require('./eventSummary.service');
 
 module.exports = {
+  generateClosingSummary,
+  saveClosingSummary,
   generateEventSummary,
   getCachedEventSummary,
   saveEventSummaryPdf,

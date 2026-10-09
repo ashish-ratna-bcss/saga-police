@@ -7,6 +7,7 @@ const {
   BATCH_SYSTEM, buildBatchUserContext, parseBatchNotes, buildReducerSystemPrompt, buildReducerUserContext,
   estimateTokens, truncateToTokens, makeBatches, reducerToReport, extractJson,
   buildActionsSystem, buildActionsContext, parseMoreActions, mergeActions,
+  buildClosingSystem, buildClosingContext, parseClosing,
 } = require('./eventSummary.prompt');
 const eventConfig = require('../../modules/events/event.config');
 const { cleanText } = require('./styleLint');
@@ -919,6 +920,12 @@ const generateEventSummary = async (
           logger.warn('[SummaryLLM] Second actions step returned nothing usable; the core actions stay');
         }
       } catch (e) { logger.warn(`[SummaryLLM] Second actions step skipped: ${e.message}`); }
+      // ---- CLOSING SUMMARY: the last section, in plain words.
+      try {
+        const text = await generateClosingSummary({ report: structuredReport, facts, event, stats: { risk_counts: riskCounts, sentiment_counts: activeSentiment }, ctx: promptCtx });
+        if (text) structuredReport.closingSummary = text;
+        else logger.warn('[SummaryLLM] Closing summary was empty; the report goes without it');
+      } catch (e) { logger.warn(`[SummaryLLM] Closing summary skipped: ${e.message}`); }
       // The model's own per-post source types (news outlet or not) correct who counts as a caller or organiser.
       try {
         const mediaNos = new Set(Object.entries(structuredReport.sourceTypes || {}).filter(([, t]) => t === 'media').map(([n]) => Number(n)));
@@ -1121,7 +1128,37 @@ const startSummaryJob = ({ eventId, db, dbName, generatedBy, tenantName, timefra
   return job;
 };
 
+/** One short call that writes the closing summary in plain words. Returns '' when the model is unavailable or the reply is unusable. */
+const generateClosingSummary = async ({ report, facts, event, stats, ctx }) => {
+  const { baseUrl, apiKey, model, timeoutMs } = getLLMConfig();
+  const res = await axios.post(`${baseUrl}/chat/completions`, {
+    model,
+    temperature: 0.3,
+    max_tokens: 900,
+    chat_template_kwargs: { enable_thinking: false },
+    messages: [
+      { role: 'system', content: buildClosingSystem(ctx) },
+      { role: 'user', content: buildClosingContext({ report, facts, event, stats }) },
+    ],
+  }, { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, timeout: Math.min(timeoutMs || 120000, 120000) });
+  return parseClosing(res.data?.choices?.[0]?.message?.content || '');
+};
+
+/** Stores the closing summary inside the saved report, so it is written once. */
+const saveClosingSummary = async (db, eventId, text) => {
+  const prisma = dbOf(db);
+  const row = await prisma.social_media_event_summaries.findUnique({ where: { event_id: Number(eventId) }, select: { stats: true } });
+  if (!row) return false;
+  const stats = JSON.parse(JSON.stringify(row.stats || {}));
+  if (!stats.structured_report) return false;
+  stats.structured_report.closingSummary = text;
+  await prisma.social_media_event_summaries.update({ where: { event_id: Number(eventId) }, data: { stats } });
+  return true;
+};
+
 module.exports = {
+  generateClosingSummary,
+  saveClosingSummary,
   generateEventSummary,
   getCachedEventSummary,
   saveEventSummaryPdf,

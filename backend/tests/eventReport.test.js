@@ -410,3 +410,21 @@ test('more recommended actions: valid posts only, no repeats, at most ten, regio
   assert.ok(/ACTIVITIES IN THE REGION:\n- 2026-10-08 bandh/.test(ctx) && /OUTSIDE THE REGION \(context only\)/.test(ctx) && /ALREADY LISTED[^\n]*\n- Bandobast/.test(ctx));
   assert.ok(/6 to 10 recommended actions/.test(p.buildActionsSystem({ event: { name: 'E' } })));
 });
+
+test('closing summary: cleaned reply, printed as the last section, and trimmed in the region-only report', () => {
+  const p = require('../src/services/SummaryLLM/eventSummary.prompt');
+  const good = 'A 12-hour bandh is planned in Odisha on 8 October by the INDIA bloc. [Post #4] The posts show no violence in the state. A protest in Mumbai is also planned, but that is outside the state. Nobody has said how many people will come. The police should keep the main roads clear and stay in touch with the organisers.';
+  const txt = p.parseClosing('```\n' + good + '\n```');
+  assert.ok(txt.length > 120 && !/\[Post #/.test(txt) && !/```/.test(txt));
+  assert.strictEqual(p.parseClosing('Too short.'), '');
+  assert.strictEqual(p.parseClosing('{"summary": "' + 'word '.repeat(40) + '"}').length > 120, true);
+  const a = { closingSummary: txt, facts: { places: [{ name: 'Bhubaneswar', region: 'Odisha, India', mentioned: 1, active: 1, posts: [1] }, { name: 'Mumbai', region: 'Maharashtra, India', mentioned: 1, active: 1, posts: [2] }], byPost: { 1: { places: ['Bhubaneswar'] }, 2: { places: ['Mumbai'] } }, calls: { count: 0, posts: [] }, violence: { count: 0, posts: [] }, accounts: [], activities: [] } };
+  const posts = [1, 2].map((n) => ({ id: n, platform: 'x', author: `A${n}`, text: n === 1 ? 'bandh Bhubaneswar' : 'protest Mumbai', sentiment: 'neutral', risk_level: 'low', posted_at: '2026-10-07T10:00:00Z', likes: 1, shares: 0, comments: 0, views: 0, url: 'u' + n, is_relevant: true, citationTag: `[Post #${n}]` }));
+  const sm = { event: { name: 'E', location: 'Odisha' }, stats: {}, evidence_traceability: posts };
+  const full = buildReportHtml({ summary: sm, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false });
+  assert.ok(/Summary in Plain Words/.test(full) && /class="closing"/.test(full) && /A protest in Mumbai/.test(full));
+  const region = buildReportHtml({ summary: sm, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false, regionOnly: true });
+  assert.ok(/class="closing"/.test(region) && !/Mumbai/.test(region) && /12-hour bandh is planned in Odisha/.test(region));
+  const none = buildReportHtml({ summary: sm, keywordData: null, tenantName: 'odisha', analysis: { ...a, closingSummary: '' }, headquarters: null, includeEvidence: false });
+  assert.ok(!/class="closing"/.test(none));
+});

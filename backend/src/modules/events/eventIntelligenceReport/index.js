@@ -1,4 +1,4 @@
-const { getCachedEventSummary, getSummaryJob, startSummaryJob, getLLMConfig } = require('../../../services/SummaryLLM');
+const { getCachedEventSummary, getSummaryJob, startSummaryJob, getLLMConfig, generateClosingSummary, saveClosingSummary } = require('../../../services/SummaryLLM');
 const eventService = require('../event.service');
 const { buildReportHtml } = require('./template');
 const { resolveHeadquarters, tenantDisplayName, reportLanguageFor } = require('./headquarters');
@@ -51,6 +51,16 @@ const generateEventIntelligencePdf = async (
   const prepared = await prepareReport(eventId, { db, dbName, tenantName, user, timeframe, fromDate, toDate });
   const { summary, analysis } = prepared;
   const profile = await getTenantProfile(dbName);
+  // A report saved before the closing summary existed gets it now, once; the text is stored with the report.
+  if (analysis && !analysis.closingSummary) {
+    try {
+      const text = await generateClosingSummary({
+        report: analysis, facts: analysis.facts, event: summary?.event, stats: summary?.stats,
+        ctx: { event: summary?.event, headquarters: resolveHeadquarters(tenantName, profile), reportLanguage: reportLanguageFor(tenantName, profile) },
+      });
+      if (text) { analysis.closingSummary = text; await saveClosingSummary(db, eventId, text); }
+    } catch (err) { /* the report is still produced without it */ }
+  }
   let keywordData = null;
   try {
     const windowed = summary?.stats?.timeframe && summary.stats.timeframe !== 'full';
