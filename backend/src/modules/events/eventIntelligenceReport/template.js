@@ -701,6 +701,14 @@ const { localizeHtml } = require('./labels');
  * Turns plain "[Post #n]" citations in the brief into links to the evidence annex row (#e<n>).
  * Text inside existing links is left alone, and only posts that are actually in the annex are linked.
  */
+/** Executive summary: every "[Post #n]" / "Post #n" becomes a live link labelled "#n" (plain "#n" when the post has no address). Existing links only get the short label. */
+const liveLinkCitations = (html, urlByN) => String(html)
+  .split(/(<a\b[\s\S]*?<\/a>)/g)
+  .map((seg, i) => (i % 2
+    ? seg.replace(/\[Post #(\d+)\]/g, '#$1')
+    : seg.replace(/\[?Post #(\d+)\]?/g, (m, n) => (urlByN.get(Number(n)) ? `<a href="${esc(urlByN.get(Number(n)))}" target="_blank" class="plink">#${n}</a>` : `#${n}`))))
+  .join('');
+
 const linkCitations = (html, validNs) => String(html)
   .split(/(<a\b[\s\S]*?<\/a>)/g)
   .map((seg, i) => (i % 2 ? seg : seg.replace(/\[Post #(\d+)\]/g, (m, n) => (validNs.has(Number(n)) ? `<a href="#e${n}" class="ref">[Post #${n}]</a>` : m))))
@@ -1146,12 +1154,12 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const onSiteTable = visits.length
     ? `<div class="chartbox"><h4>Posts reporting people on site</h4><p class="sm">Reported by the posts; not verified.${visits.length > 10 ? ` Showing the latest 10 of ${fmt(visits.length)}; all are in the evidence annex.` : ''}</p>
   <table>
-    <colgroup>${includeEvidence ? '<col style="width:11%">' : ''}<col style="width:11%"><col style="width:13%"><col style="width:17%"><col>${includeEvidence ? '' : ''}</colgroup>
-    <thead><tr>${includeEvidence ? '<th>Post Link</th>' : ''}<th>When</th><th>Place</th><th>Account</th><th>Text</th></tr></thead>
-    <tbody>${visits.slice(0, 10).map((e) => `<tr>${includeEvidence ? `<td>${postRefLink(e)}</td>` : ''}<td>${esc(e.when)}</td><td>${esc(placeLabel(e))}</td><td>${authorProfileLink(e.plat, e.author, e.url)}</td><td>${esc(clip(e.text, 170))}</td></tr>`).join('')}</tbody>
+    <colgroup><col style="width:9%"><col style="width:11%"><col style="width:13%"><col style="width:17%"><col>${includeEvidence ? '' : ''}</colgroup>
+    <thead><tr><th>Post</th><th>When</th><th>Place</th><th>Account</th><th>Text</th></tr></thead>
+    <tbody>${visits.slice(0, 10).map((e) => `<tr><td>${postRefLink(e)}</td><td>${esc(e.when)}</td><td>${esc(placeLabel(e))}</td><td>${authorProfileLink(e.plat, e.author, e.url)}</td><td>${esc(clip(e.text, 170))}</td></tr>`).join('')}</tbody>
   </table></div>`
     : '';
-  const refList = (ns) => (includeEvidence && ns && ns.length ? ` <span class="sm">${ns.slice(0, 8).map((n) => `[Post #${n}]`).join(' ')}</span>` : '');
+  const refList = (ns) => (ns && ns.length ? ` <span class="sm">${ns.slice(0, 8).map((n) => `[Post #${n}]`).join(' ')}</span>` : '');
   const onSiteRefs = includeEvidence ? visits.slice(0, 8).map((e) => `[Post #${e.n}]`).join(' ') : '';
   const callRefs = refList(analysis?.facts?.calls?.posts);
 
@@ -1413,6 +1421,24 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     <div><div class="n">${fmt(places.length)}</div><div class="l">Places covered</div></div>
   </div>`;
 
+  // The posts behind the headline numbers, so each number can be checked. Post numbers become links (annex links in the full report, live links in the executive summary).
+  const inSet = new Set((scoped ? inEv : ev).map((e) => e.n));
+  const highRiskNs = ev.filter((e) => (['critical', 'high'].includes(String(e.risk_level || '').toLowerCase()) || e.has_threat_vector) && (!regionOnly || inSet.has(e.n))).map((e) => e.n);
+  const keepIn = (ns) => (ns || []).filter((n) => !regionOnly || inSet.has(Number(n)));
+  const srcLine = (label, ns, count) => {
+    const list = Array.from(new Set(keepIn(ns)));
+    if (!list.length) return '';
+    const more = Math.max(0, (count != null ? count : list.length) - Math.min(list.length, 12));
+    return `<div class="srcrow"><b>${esc(L(label))} (${fmt(count != null ? count : list.length)}):</b> ${list.slice(0, 12).map((n) => `[Post #${n}]`).join(' ')}${more ? ` <span class="sm">+${fmt(more)} ${esc(L('more'))}</span>` : ''}</div>`;
+  };
+  const srcRows = [
+    srcLine('High / critical risk', highRiskNs, highRiskNs.length),
+    srcLine('Violence reports', analysis?.facts?.violence?.posts, haveFacts ? violenceN : null),
+    srcLine('Posts calling people to act', analysis?.facts?.calls?.posts, haveFacts ? callN : null),
+    srcLine('Posts reporting people on site', visits.map((e) => e.n), visits.length),
+  ].filter(Boolean).join('');
+  const srcBoxHtml = srcRows ? `<div class="srcbox"><h4>${esc(L('Posts behind these numbers'))}</h4>${srcRows}</div>` : '';
+
   const actionSummaryHtml = `
   <div class="callout">
     <div class="callout-h">Immediate Action Summary (Executive & Police Directives)</div>
@@ -1490,7 +1516,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
               <tr>
                 <td>${authorProfileLink(p)}</td>
                 <td><span class="prio-pill ${p.priorityClass}">${esc(p.priority)}</span></td>
-                <td><b>${fmt(p.count)}</b> post${p.count === 1 ? '' : 's'}<br><span class="sm">${fmt(p.inter)} interactions · ${p.vw ? `${fmt(p.vw)} views` : 'views not reported'}</span></td>
+                <td><b>${fmt(p.count)}</b> post${p.count === 1 ? '' : 's'}${(p.posts || []).length ? `<br><span class="sm">${p.posts.slice(0, 6).map((n) => `[Post #${n}]`).join(' ')}${p.posts.length > 6 ? ` +${p.posts.length - 6}` : ''}</span>` : ''}<br><span class="sm">${fmt(p.inter)} interactions · ${p.vw ? `${fmt(p.vw)} views` : 'views not reported'}</span></td>
                 <td class="reason-text">${esc(p.why)}${p.posts?.length ? ` <span class="sm">${esc(p.posts.slice(0, 3).map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</td>
               </tr>
             `).join('')}
@@ -1654,6 +1680,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${hqHtml}
   ${assessHtml}
   ${kstripHtml}
+  ${srcBoxHtml}
   ${issueSection()}
   ${actionSummaryHtml}
   ${recommendedSection()}
@@ -1668,14 +1695,11 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 </section>
 `;
 
-  // The executive brief carries no post links: citations are for the full report.
-  const finalBody = localizeHtml(includeEvidence ? linkCitations(body.replace(/(\[Post #\d+\])\s*\((?:Posts? #\d+(?:,\s*)?)+\)/g, '$1').replace(/\s*\((?:Posts? #\d+(?:,\s*)?)+\)(?=\s*<span class="sm">)/g, ''), new Set(ev.map((e) => e.n))) : body
-    .replace(/\s*<span class="sm">(?:\s*\[Post #\d+\])+\s*<\/span>/g, '')
-    .replace(/\s*\((?:Posts? #\d+(?:,\s*)?)+\)/g, '')
-    .replace(/\s*\[Post #\d+\]/g, '')
-    .replace(/\.\s+(?:and|&)\s*\./g, '.')
-    .replace(/\s+(?:and|&)\s*\./g, '.')
-    .replace(/\bPosts\s+and\s+(mention|show|say|report|confirm)/g, 'Posts $1'), labels);
+  // Post references: the full report links each to its entry in the evidence annex; the executive summary has no annex, so each becomes a live link to the post itself.
+  const urlByN = new Map(ev.filter((e) => e.url).map((e) => [e.n, e.url]));
+  const finalBody = localizeHtml(includeEvidence
+    ? linkCitations(body.replace(/(\[Post #\d+\])\s*\((?:Posts? #\d+(?:,\s*)?)+\)/g, '$1').replace(/\s*\((?:Posts? #\d+(?:,\s*)?)+\)(?=\s*<span class="sm">)/g, ''), new Set(ev.map((e) => e.n)))
+    : liveLinkCitations(body, urlByN), labels);
   // Emoji have no glyph in the report fonts and print as empty boxes, so they are left out of the printed text.
   // Whole emoji sequences go first (so a joiner is only removed where it joins emoji; Indic scripts use it too), then flags, skin tones and keycaps.
   const printable = finalBody

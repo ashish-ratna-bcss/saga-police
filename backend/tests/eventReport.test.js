@@ -484,3 +484,19 @@ test('relevance: a place name split into words must not turn plain words into lo
   const real = 'Students gathered near the Odisha Legislative Assembly and demanded the education minister resign over textbook errors in Bhubaneswar.';
   assert.strictEqual(classifyEventRelevance(real, ev, [], '', '', {}).isRelevant, true);
 });
+
+test('every number about posts shows its posts as links: annex links in the full report, live links in the executive summary', () => {
+  const mk = (n, o = {}) => ({ id: n, platform: 'x', author: `A${n}`, text: `post ${n} about the bandh in Bhubaneswar`, sentiment: 'neutral', risk_level: 'low', posted_at: '2026-10-07T10:00:00Z', likes: 1, shares: 0, comments: 0, views: 0, url: `https://x.com/a/status/${n}`, is_relevant: true, citationTag: `[Post #${n}]`, ...o });
+  const posts = [mk(1, { risk_level: 'high' }), mk(2), mk(3, { risk_level: 'critical' })];
+  const facts = { places: [{ name: 'Bhubaneswar', region: 'Odisha, India', mentioned: 3, active: 1, posts: [1] }], byPost: { 1: { places: ['Bhubaneswar'] }, 2: { places: [] }, 3: { places: [] } }, calls: { count: 1, posts: [2] }, violence: { count: 1, posts: [3] }, accounts: [{ author: 'A2', platform: 'x', role: 'organisation', calls: 1, violence: 0, posts: [2] }], activities: [] };
+  const summary = { event: { name: 'E', location: 'Odisha' }, stats: { risk_counts: { high: 1, critical: 1 } }, evidence_traceability: posts };
+  const exec = buildReportHtml({ summary, keywordData: null, tenantName: 'odisha', analysis: { facts }, headquarters: null, includeEvidence: false });
+  assert.ok(/Posts behind these numbers/.test(exec));
+  assert.ok(/High \/ critical risk \(2\):<\/b>\s*<a href="https:\/\/x\.com\/a\/status\/1"[^>]*class="plink">#1<\/a>\s*<a href="https:\/\/x\.com\/a\/status\/3"/.test(exec), 'risk posts are live links');
+  assert.ok(/Violence reports \(1\):<\/b>\s*<a href="https:\/\/x\.com\/a\/status\/3"/.test(exec));
+  assert.ok(/Posts calling people to act \(1\):<\/b>\s*<a href="https:\/\/x\.com\/a\/status\/2"/.test(exec));
+  assert.ok(/<b>1<\/b> post<br><span class="sm"><a href="https:\/\/x\.com\/a\/status\/2"[^>]*>#2<\/a>/.test(exec), 'posts and reach lists the account\'s posts');
+  assert.ok(!/\[Post #\d+\]/.test(exec), 'no raw bracket tags are left');
+  const full = buildReportHtml({ summary, keywordData: null, tenantName: 'odisha', analysis: { facts }, headquarters: null, includeEvidence: true });
+  assert.ok(/High \/ critical risk \(2\):<\/b>\s*<a href="#e1" class="ref">\[Post #1\]<\/a>/.test(full), 'full report links to the annex');
+});
