@@ -6,7 +6,7 @@
 
 const FACTS_SYSTEM = `You extract facts from social-media posts for an event analyst. Each line is: number|posted YYYY-MM-DD|@author|text.
 Return ONLY compact JSON on ONE line (no spaces, no line breaks), one entry for EVERY post number given. Leave out any field that is empty or 0:
-{"p":[{"n":12,"k":"bandh","d":"2026-10-08","o":"organiser","s":"demand or reason","w":"place","c":1,"v":0,"x":0,"a":0,"t":"denied","r":"m","pl":[{"n":"CityName","in":"State, Country","a":1}]}]}
+{"p":[{"n":12,"k":"bandh","d":"2026-10-08","o":"organiser","s":"demand or reason","w":"place","c":1,"v":0,"x":0,"a":0,"m":0,"t":"denied","r":"m","pl":[{"n":"CityName","in":"State, Country","a":1}]}]}
 - k: what the post is about: bandh | rally | protest | meeting | notice | campaign | visit | violence | other. Use bandh only when the post itself says bandh, shutdown or strike; a march, sit-in, demonstration or protest at a site is protest.
 - d: the date the activity takes place, as YYYY-MM-DD. Work it out from the post date ("tomorrow", "8th", "next Friday"). Leave "" if the post gives no date. NEVER use the posting date unless the post says the activity happens that day.
 - o: the group or person that ORGANISES or CALLS the activity, exactly as the post names it. "" if not stated. A party that stays away from, opposes or only comments on the activity is NOT its organiser; a post that says "A has called a bandh, B stays away" has organiser A.
@@ -17,12 +17,14 @@ Return ONLY compact JSON on ONE line (no spaces, no line breaks), one entry for 
 - x: 1 if the post only ALLEGES, WARNS OF or PREDICTS violence or disruption that has not been reported as happening (for example "stone-pelting may be planned", "a violence warning"). A post with v=1 has x=0.
 - a: 1 if the post reports arrests, detentions, preventive custody, a ban, prohibitory orders or a police refusal of permission about this activity.
 - t: status of the activity as the post reports it: announced | permitted | denied (permission refused, banned or declared unlawful) | held (it has happened) | called_off. "" if not stated.
+- m: 1 if the post (any author, including news) reports that a group is preparing, mobilising or asking its workers or the public to turn out for the activity. This is NOT the same as c: c is only for the author's own call.
+- e: 0 ONLY if the post is clearly NOT about the monitored event or its subject (for example an exam guide, a travel story, a routine government camp, an advertisement that merely shares a place name). Leave e out when the post is about the event, its organisers, its demands or its effects.
 - r: who posts: m = news outlet, agency or TV/YouTube news channel (judge by the account name and style); o = organisation/party account; p = politician or public figure; i = ordinary person. A post that reports what others announced or did ("X has announced…", "police said…") is written by media (m) unless the account is itself that group.
-- pl: EVERY real place the post names (city, district, state, country, landmark), written as in the post. in = the state/region and country that place belongs to, in English. a = 1 only if the post says people are, were or will be there doing the activity; 0 if the place is only mentioned. Do not list a person, party or word that is not a place.
+- pl: EVERY real place the post names (city, district, state, country, landmark), written as in the post. in = the state/region and country that place belongs to, in English. a = 1 only if the post says people ARE or WERE physically there (a turnout, a march under way, arrests there); 0 if the place is only mentioned or the gathering is only announced for the future. Do not list a person, party or word that is not a place.
 Use only what the post says; never invent a date, organiser or place.`;
 
-const buildFactsUserContext = (posts) =>
-  `Posts:\n${posts.map((s) => {
+const buildFactsUserContext = (posts, event = null) =>
+  `${event && event.name ? `Event being monitored: ${String(event.name).slice(0, 120)}${event.description ? ` — ${String(event.description).replace(/\s+/g, ' ').slice(0, 260)}` : ''}${event.location ? ` (location: ${String(event.location).slice(0, 80)})` : ''}\n` : ''}Posts:\n${posts.map((s) => {
     const day = s.postedAt ? new Date(s.postedAt).toISOString().slice(0, 10) : 'unknown';
     const body = String(s.englishText || s.text || '').slice(0, 220);
     return `${s.n}|posted ${day}|@${s.author}|${body}`;
@@ -91,6 +93,8 @@ const parseFacts = (raw, byNo, extractJson) => {
       subject,
       call: Number(f.c) === 1,
       violence: Number(f.v) === 1,
+      mobilising: Number(f.m) === 1,
+      relevant: f.e === undefined || Number(f.e) !== 0,
       alleged: Number(f.x) === 1 && Number(f.v) !== 1,
       detention: Number(f.a) === 1,
       status: STATUS.has(String(f.t || '').toLowerCase()) ? String(f.t).toLowerCase() : '',
@@ -113,13 +117,14 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
   const placeMap = new Map();
   const byPost = {};
   let calls = 0; let violence = 0; let callsOut = 0; let violenceOut = 0;
-  const allegedPosts = []; const detentionPosts = []; const violenceAuthors = new Set();
+  const allegedPosts = []; const detentionPosts = []; const mobilisingPosts = []; const violenceAuthors = new Set();
   const callPosts = []; const violencePosts = []; const callOutPosts = []; const violenceOutPosts = [];
 
   Object.entries(factsMap).forEach(([nStr, f]) => {
     const n = Number(nStr);
     const post = byNo.get(n);
-    byPost[n] = { places: (f.places || []).map((pl) => pl.name), kind: f.kind, date: f.date };
+    byPost[n] = { places: (f.places || []).map((pl) => pl.name), kind: f.kind, date: f.date, relevant: f.relevant !== false };
+    if (f.relevant === false) return;     // a post that is not about the event adds nothing to its activities, places or counts
     const where = regionOf(n);                       // 'in', 'out' (all named places are outside the event region) or 'unknown'
     const ownCall = f.call && f.role !== 'media' && where !== 'out';   // a news report of someone else's call is not a call; calls elsewhere are counted apart
     if (f.call && f.role !== 'media' && where === 'out') { callsOut += 1; callOutPosts.push(n); }
@@ -128,6 +133,7 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
     if (f.violence && where === 'out') { violenceOut += 1; violenceOutPosts.push(n); }
     if (ownViolence) { violence += 1; violencePosts.push(n); violenceAuthors.add(String(post?.author || n).toLowerCase()); }
     if (f.alleged && where !== 'out') allegedPosts.push(n);
+    if (f.mobilising && where !== 'out') mobilisingPosts.push(n);
     if (f.detention && where !== 'out') detentionPosts.push(n);
     (f.places || []).forEach((pl) => {
       const key = fold(pl.name);
@@ -172,6 +178,7 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
     organisers: Array.from(organiserCounts.values()).map((o) => ({ name: o.name, count: o.n })).sort((a, b) => b.count - a.count).slice(0, 10),
     calls: { count: calls, posts: callPosts.slice(0, 10) },
     violence: { count: violence, accounts: violenceAuthors.size, posts: violencePosts.slice(0, 10) },
+    mobilising: { count: mobilisingPosts.length, posts: mobilisingPosts.slice(0, 10) },
     alleged: { count: allegedPosts.length, posts: allegedPosts.slice(0, 10) },
     detentions: { count: detentionPosts.length, posts: detentionPosts.slice(0, 10) },
     byPost,
@@ -202,6 +209,7 @@ const factsPackText = (facts, today) => {
   lines.push(facts.violence.count
     ? `FACT ${facts.violence.count} post(s) mention violence or damage ${facts.violence.posts.map((p) => `[Post #${p}]`).join(' ')}`
     : 'UNKNOWN no post confirms violence or damage');
+  if (facts.mobilising && facts.mobilising.count) lines.push(`FACT ${facts.mobilising.count} post(s) report that a group is mobilising people; none of them is an author's own call to act ${facts.mobilising.posts.map((p) => `[Post #${p}]`).join(' ')}`);
   if (facts.alleged && facts.alleged.count) lines.push(`FACT ${facts.alleged.count} post(s) ALLEGE or warn of violence that is not confirmed ${facts.alleged.posts.map((p) => `[Post #${p}]`).join(' ')}`);
   if (facts.detentions && facts.detentions.count) lines.push(`FACT ${facts.detentions.count} post(s) report arrests, detentions, a ban or a refusal of permission ${facts.detentions.posts.map((p) => `[Post #${p}]`).join(' ')}`);
   return lines.join('\n');
