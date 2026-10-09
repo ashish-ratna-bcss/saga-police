@@ -118,8 +118,14 @@ export const riskLevelOf = (stats) => {
   const highRisk = n0(r.critical) + n0(r.high);
   const calls = n0(facts?.calls?.count);
   const violence = n0(facts?.violence?.count);
-  const level = violence > 0 ? 'High' : calls > 0 || highRisk > 0 ? 'Medium' : 'Low';
-  return { level, calls, violence, highRisk, hasFacts: Boolean(facts) };
+  const violenceAccounts = n0(facts?.violence?.accounts ?? facts?.violence?.count);
+  const alleged = n0(facts?.alleged?.count);
+  const detentions = n0(facts?.detentions?.count);
+  const mobilising = n0(facts?.mobilising?.count);
+  // Same rule as the PDF reports: High needs violence from two accounts; arrests and allegations are Medium, never violence.
+  const level = violenceAccounts > 1 ? 'High'
+    : (violence > 0 || alleged > 0 || detentions > 0 || calls > 0 || highRisk > 0) ? 'Medium' : 'Low';
+  return { level, calls, violence, violenceAccounts, alleged, detentions, mobilising, highRisk, hasFacts: Boolean(facts) };
 };
 
 const LEVEL_STYLE = {
@@ -217,9 +223,19 @@ export function EventBrief({ summaryData, platformList, displayName, tenantName,
   const watchRows = report?.narrativesToWatch?.length
     ? report.narrativesToWatch.map((n) => ({ key: n.narrative, title: n.narrative, note: n.riskNote || n.sourceAccounts || '', posts: n.posts }))
     : (report?.claims || []).map((c) => ({ key: c.claim, title: c.claim, note: c.note || (c.triage === 'VERIFY' ? 'Requires official verification' : 'Monitoring required'), posts: c.posts }));
-  const riskWhy = `${risk.hasFacts ? '' : 'Detailed post analysis is not available for this summary, so the level rests on high-risk ratings only. '}${risk.hasFacts
-    ? `${risk.violence ? `${fmt(risk.violence)} post${risk.violence === 1 ? ' mentions' : 's mention'} violence or damage. ` : 'No post reports violence or damage. '}${risk.calls ? `${fmt(risk.calls)} post${risk.calls === 1 ? ' calls' : 's call'} people to join or act. ` : (keyDates.some((k) => k.type === 'upcoming' && !k.outside) ? 'The posts report planned activity (see key dates); none of them is itself a call to join. ' : 'No post calls for a bandh, blockade or gathering. ')}`
-    : ''}${risk.highRisk ? `${fmt(risk.highRisk)} post${risk.highRisk === 1 ? ' is' : 's are'} rated high risk. ` : ''}${pct(sent.negative, sentTotal)} of posts are negative in tone. Negative tone is criticism, not a risk signal.`;
+  const plural1 = (n, one, many) => (n === 1 ? one : many);
+  const riskWhy = [
+    risk.hasFacts ? '' : 'Detailed post analysis is not available for this summary, so the level rests on high-risk ratings only.',
+    risk.hasFacts && risk.violenceAccounts > 1 ? `${fmt(risk.violence)} posts report violence or damage.` : '',
+    risk.hasFacts && risk.violence > 0 && risk.violenceAccounts <= 1 ? `${fmt(risk.violence)} ${plural1(risk.violence, 'post mentions', 'posts mention')} violence or damage, and no other account confirms it.` : '',
+    risk.hasFacts && !risk.violence ? 'No post confirms violence or damage.' : '',
+    risk.alleged ? `${fmt(risk.alleged)} ${plural1(risk.alleged, 'post alleges or warns', 'posts allege or warn')} of violence; this is not confirmed.` : '',
+    risk.detentions ? `${fmt(risk.detentions)} ${plural1(risk.detentions, 'post reports', 'posts report')} arrests, detentions or a refused permission; these are not violence.` : '',
+    risk.hasFacts ? (risk.calls ? `${fmt(risk.calls)} ${plural1(risk.calls, 'post calls', 'posts call')} people to join or act in their own words.` : (keyDates.some((k) => k.type === 'upcoming' && !k.outside) ? 'The posts report planned activity (see key dates); none of them is itself a call to join.' : 'No post calls for a bandh, blockade or gathering in its own words.')) : '',
+    risk.mobilising ? `${fmt(risk.mobilising)} ${plural1(risk.mobilising, 'post reports', 'posts report')} that a group is mobilising people.` : '',
+    risk.highRisk ? `${fmt(risk.highRisk)} ${plural1(risk.highRisk, 'post is', 'posts are')} rated high risk.` : '',
+    `${pct(sent.negative, sentTotal)} of posts are negative in tone. Negative tone is criticism, not a risk signal.`,
+  ].filter(Boolean).join(' ');
 
   return (
     <div className="text-foreground w-full">
@@ -284,7 +300,7 @@ export function EventBrief({ summaryData, platformList, displayName, tenantName,
         <Kpi n={fmt(total)} l="Posts analysed" />
         <Kpi n={fmt(interactions)} l="Interactions" sub={n0(eng.views) ? `${fmt(eng.views)} views` : ''} />
         <Kpi n={risk.hasFacts ? fmt(risk.calls) : '—'} l="Calls to act" />
-        <Kpi n={risk.hasFacts ? fmt(risk.violence) : '—'} l="Violence reports" />
+        <Kpi n={risk.hasFacts ? fmt(risk.violenceAccounts > 1 ? risk.violence : 0) : '—'} l={risk.violence > 0 && risk.violenceAccounts <= 1 ? 'Violence confirmed (1 mentioned)' : 'Violence confirmed'} />
         <Kpi n={fmt(risk.highRisk)} l="High / critical risk" />
         <Kpi n={fmt(geo.inside.length)} l="Places covered" />
       </div>
