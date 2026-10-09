@@ -13,6 +13,7 @@ const {
   getEventContent,
   getEventKeywordAnalytics,
   getEventSummaryLLM,
+  getEventSummaryRegionView,
   regenerateEventSummaryLLM,
   cancelEventSummaryLLM,
   saveEventSummaryPdfHandler,
@@ -34,6 +35,7 @@ router.get('/:id/dashboard', getEventDashboard);
 router.get('/:id/content', getEventContent);
 router.get('/:id/keyword-analytics', getEventKeywordAnalytics);
 router.get('/:id/summary-llm', getEventSummaryLLM);
+router.get('/:id/summary-llm/region', getEventSummaryRegionView);
 router.post('/:id/summary-llm', regenerateEventSummaryLLM);
 router.post('/:id/summary-llm/cancel', cancelEventSummaryLLM);
 router.put('/:id/summary-llm/pdf', saveEventSummaryPdfHandler);

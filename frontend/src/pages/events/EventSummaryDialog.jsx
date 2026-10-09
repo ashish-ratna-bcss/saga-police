@@ -94,7 +94,14 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState(null);
-  const [summaryData, setSummaryData] = useState(null);
+  const [fullSummaryData, setSummaryData] = useState(null);
+  // The popup shows the event's own location by default (same posts and numbers as the location PDFs); "Whole event" shows everything.
+  const [viewScope, setViewScope] = useState(() => { try { return localStorage.getItem('eventSummaryViewScope') || 'region'; } catch (e) { return 'region'; } });
+  const [regionData, setRegionData] = useState(null);
+  const summaryData = useMemo(
+    () => (fullSummaryData && viewScope === 'region' && regionData?.region_view?.applied && regionData.generated_at === fullSummaryData.generated_at ? regionData : fullSummaryData),
+    [viewScope, regionData, fullSummaryData]
+  );
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('briefing');
 
@@ -749,7 +756,18 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
    * server (HTML → PDF) from the cached Summary AI result and keyword analytics, so charts
    * and multilingual post text render consistently.
    */
-  const regionLabel = summaryData?.event?.location || 'Region';
+  useEffect(() => {
+    if (!open || !eventId || !fullSummaryData || fullSummaryData.status || viewScope !== 'region') return undefined;
+    let live = true;
+    api.get(`/events/${eventId}/summary-llm/region`, { params: { _t: Date.now() } })
+      .then((r) => { if (live) setRegionData(r?.data?.data || r?.data || null); })
+      .catch(() => { if (live) setRegionData(null); });
+    return () => { live = false; };
+  }, [open, eventId, fullSummaryData?.generated_at, viewScope]);
+
+  useEffect(() => { setRegionData(null); }, [eventId]);
+
+  const regionLabel = fullSummaryData?.event?.location || summaryData?.event?.location || 'Region';
   const handleDownload = async (withEvidence = true, regionOnly = false, compact = false, regionEvidence = false, presentation = false, presentationLocation = false) => {
     if (!summaryData?.summary || !eventId) return;
     setPdfGenerating(true);
@@ -835,6 +853,28 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                 <DialogDescription className="text-[13px] font-medium text-foreground/90 leading-5 truncate" title={displayName}>
                   {displayName}
                 </DialogDescription>
+                {fullSummaryData && !loading && !fullSummaryData.status && (
+                  <div className="mt-1 flex items-center gap-2">
+                    <div className="inline-flex rounded-md border overflow-hidden text-[11px]" role="group" aria-label="Report view">
+                      {[['region', `${regionLabel} only`], ['all', 'Whole event']].map(([k, label]) => (
+                        <button
+                          key={k}
+                          type="button"
+                          onClick={() => { setViewScope(k); try { localStorage.setItem('eventSummaryViewScope', k); } catch (e) { /* the choice just is not remembered */ } }}
+                          className={`px-2 py-0.5 ${viewScope === k ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {viewScope === 'region' && regionData && !regionData.region_view?.applied && (
+                      <span className="text-[11px] text-muted-foreground">Location view is not available for this report; showing the whole event.</span>
+                    )}
+                    {viewScope === 'region' && regionData?.region_view?.applied && (
+                      <span className="text-[11px] text-muted-foreground">{regionData.region_view.inRegion} of {regionData.region_view.all} posts are about {regionLabel}</span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

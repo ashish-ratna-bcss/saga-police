@@ -545,3 +545,24 @@ test('a report reply cut off by the length limit keeps its finished part instead
   assert.equal(out.actions.length, 2);
   assert.deepEqual(extractJson('{"a":1,"b":[1,2]}'), { a: 1, b: [1, 2] });
 });
+
+test('region view: the popup data is narrowed to posts about the event location, with matching counts', () => {
+  const { toRegionView } = require('../src/modules/events/eventIntelligenceReport/regionView');
+  const ev = [
+    { citationTag: '[Post #1]', text: 'Bandh across Odisha tomorrow', sentiment: 'Neutral', likes: 10, platform: 'facebook', author: 'a', risk_level: 'low' },
+    { citationTag: '[Post #2]', text: 'Protest at Jantar Mantar in Delhi', sentiment: 'Negative', likes: 5, platform: 'x', author: 'b', risk_level: 'high' },
+    { citationTag: '[Post #3]', text: 'Rally in Rourkela', sentiment: 'Positive', likes: 1, platform: 'facebook', author: 'c', risk_level: 'low' },
+  ];
+  const facts = {
+    places: [{ name: 'Odisha', region: 'India', posts: [1] }, { name: 'Jantar Mantar', region: 'Delhi, India', posts: [2] }, { name: 'Rourkela', region: 'Odisha, India', posts: [3] }],
+    byPost: { 1: { places: ['Odisha'] }, 2: { places: ['Jantar Mantar'] }, 3: { places: ['Rourkela'] } },
+    calls: { count: 1, posts: [2] }, violence: { count: 0, posts: [] }, alleged: { count: 0, posts: [] }, detentions: { count: 0, posts: [] },
+    activities: [{ date: '2026-10-10', kind: 'protest', place: 'Jantar Mantar', posts: [2] }], accounts: [],
+  };
+  const out = toRegionView({ event: { location: 'Odisha' }, evidence_traceability: ev, stats: { structured_report: { facts, bottomLine: 'x' }, sentiment_counts: { positive: 1, neutral: 1, negative: 1 } } });
+  assert.equal(out.region_view.applied, true);
+  assert.equal(out.stats.total_unique_posts, 2);
+  assert.equal(out.stats.sentiment_counts.negative, 0);
+  assert.equal(out.stats.structured_report.facts.calls.count, 0);
+  assert.equal(out.evidence_traceability.length, 2);
+});
