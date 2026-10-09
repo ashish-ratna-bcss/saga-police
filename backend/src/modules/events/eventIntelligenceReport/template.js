@@ -1561,16 +1561,16 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   <div class="metrics">
     ${metric(fmt(ev.length), 'Posts in this brief', 'Direct hyperlinks enabled for each evidence post')}
     ${metric(fmt(inEv.length), L('Posts in {region}', { region: regionName }), 'Cited in the sections above')}
-    ${metric(fmt(outEv.length), 'Outside the region', 'Context only; not counted as activity here')}
+    ${regionOnly ? '' : metric(fmt(outEv.length), 'Outside the region', 'Context only; not counted as activity here')}
     ${metric(fmt(ev.filter((e) => e.posted_at).length), 'Dated posts', 'Verified publication timestamp')}
   </div>
   <p class="sm">Newest first. Click any Post # link to inspect the original live record; every [Post #n] cited above jumps to its row here. Eng. = likes + shares + comments. Tone is the automated rating.</p>
-  ${evidenceTable(inEv, outEv.length ? L('Posts in {region}', { region: regionName }) : '', 'in')}
-  ${outEv.length ? evidenceTable(outEv, L('Outside {region} (context only)', { region: regionName }), 'ctx') : ''}` : '');
+  ${evidenceTable(inEv, outEv.length && !regionOnly ? L('Posts in {region}', { region: regionName }) : '', 'in')}
+  ${outEv.length && !regionOnly ? evidenceTable(outEv, L('Outside {region} (context only)', { region: regionName }), 'ctx') : ''}` : '');
 
   // Group highWatchList by platform
   const platformGroups = {};
-  highWatchList.forEach((p) => {
+  highWatchList.filter((p) => !regionOnly || (p.posts || []).some((n) => inSet.has(n))).forEach((p) => {
     const platKey = String(p.platform || 'other').toLowerCase();
     platformGroups[platKey] = platformGroups[platKey] || [];
     platformGroups[platKey].push(p);
@@ -1946,7 +1946,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       <span><i>Monitoring window</i><b>${esc(windowStr)}</b></span>
       <span><i>Generated</i><b>${esc(dateStr)}</b></span>
       <span><i>Posts analysed</i><b>${regionOnly && scoped ? `${fmt(inEv.length)} · ${esc(regionName)} only` : scoped ? L('{n} in {region} of {m} monitored', { n: fmt(inEv.length), region: esc(regionName), m: fmt(monitoredTotal) }) : fmt(total)}</b></span>
-      <span><i>Report format</i><b>${includeEvidence ? 'Full Report (with evidence)' : compact ? `${esc(regionName)} Location Summary` : regionOnly ? `${esc(regionName)} Executive Summary` : 'Executive Summary'}</b></span>
+      <span><i>Report format</i><b>${includeEvidence ? (regionOnly ? `${esc(regionName)} Full Report (with evidence)` : 'Full Report (with evidence)') : compact ? `${esc(regionName)} Location Summary` : regionOnly ? `${esc(regionName)} Executive Summary` : 'Executive Summary'}</b></span>
     </div>
   </header>
   ${hqHtml}
@@ -1970,7 +1970,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   // Post references: the full report links each to its entry in the evidence annex; the executive summary has no annex, so each becomes a live link to the post itself.
   const urlByN = new Map(ev.filter((e) => e.url).map((e) => [e.n, e.url]));
   const finalBody = localizeHtml(includeEvidence
-    ? linkCitations(body.replace(/(\[Post #\d+\])\s*\((?:Posts? #\d+(?:,\s*)?)+\)/g, '$1').replace(/\s*\((?:Posts? #\d+(?:,\s*)?)+\)(?=\s*<span class="sm">)/g, ''), new Set(ev.map((e) => e.n)))
+    ? linkCitations(body.replace(/(\[Post #\d+\])\s*\((?:Posts? #\d+(?:,\s*)?)+\)/g, '$1').replace(/\s*\((?:Posts? #\d+(?:,\s*)?)+\)(?=\s*<span class="sm">)/g, ''), new Set((regionOnly ? inEv : ev).map((e) => e.n)))
     : liveLinkCitations(body, urlByN), labels);
   // Emoji have no glyph in the report fonts and print as empty boxes, so they are left out of the printed text.
   // Whole emoji sequences go first (so a joiner is only removed where it joins emoji; Indic scripts use it too), then flags, skin tones and keycaps.
