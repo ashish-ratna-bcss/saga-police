@@ -26,3 +26,6 @@ backend/tmp_*.js
 backend/config/i18n/
 backend/storage/grievance-reports/
 generated-event-reports/
+.claude/
+.claudecode/
+.agent/
