@@ -362,8 +362,9 @@ const getEventIntelligenceReportPdf = async (req, res) => {
     const toDate = req.query?.to_date || req.query?.toDate || null;
     // scope=region: the executive brief with only the event region's own content (no evidence annex, nothing from elsewhere).
     const compact = req.query?.scope === 'location';
-    const regionOnly = req.query?.scope === 'region' || compact;
-    const includeEvidence = !regionOnly &&
+    const regionEvidence = req.query?.scope === 'location_full';   // the location report with its own evidence annex
+    const regionOnly = req.query?.scope === 'region' || compact || regionEvidence;
+    const includeEvidence = regionEvidence || !regionOnly &&
       req.query?.include_evidence !== 'false' &&
       req.query?.with_evidence !== 'false' &&
       req.query?.evidence !== 'false';
@@ -380,10 +381,10 @@ const getEventIntelligenceReportPdf = async (req, res) => {
       compact,
     });
     // Keep the "PDF saved" flag on the cached summary in sync; failure here must not block the download.
-    if (includeEvidence) {
+    if (includeEvidence && !regionOnly) {
       saveEventSummaryPdf(req.params.id, pdf.toString('base64'), { db: req.tenantPrisma }).catch(() => {});
     }
-    const evTag = includeEvidence ? 'With_Evidence' : compact ? 'Location_Summary' : regionOnly ? 'Region_Executive_Summary' : 'Without_Evidence';
+    const evTag = regionEvidence ? 'Location_Full_With_Evidence' : includeEvidence ? 'With_Evidence' : compact ? 'Location_Summary' : regionOnly ? 'Region_Executive_Summary' : 'Without_Evidence';
     const safe = `${tenantName || 'Report'}_${eventName}`.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');

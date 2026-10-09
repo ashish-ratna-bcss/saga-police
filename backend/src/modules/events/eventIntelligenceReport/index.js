@@ -82,7 +82,7 @@ const generateEventIntelligencePdf = async (
   const cleanTenant = (t) => tenantDisplayName(t, profile);
   const name = summary?.event?.name || 'Event';
   const pdf = await renderHtmlToPdf(html, {
-    footerLabel: `${cleanTenant(tenantName)} · ${name}${includeEvidence ? '' : compact ? ` (${summary?.event?.location || 'Location'} summary)` : regionOnly ? ` (${summary?.event?.location || 'Region'} only)` : ' (Executive)'}`,
+    footerLabel: `${cleanTenant(tenantName)} · ${name}${includeEvidence ? (regionOnly ? ` (${summary?.event?.location || 'Location'} with evidence)` : '') : compact ? ` (${summary?.event?.location || 'Location'} summary)` : regionOnly ? ` (${summary?.event?.location || 'Region'} only)` : ' (Executive)'}`,
   });
   return { pdf, eventName: name };
 };
