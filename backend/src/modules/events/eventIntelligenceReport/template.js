@@ -1823,7 +1823,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   <div class="chartbox">
     <h4>Posting Timeline & Cadence</h4>
     <p class="sm">Chronological posting volume over the monitored window.</p>
-    ${timelineChart(scoped ? dailySeries(inEv) : kwa?.timeline_overall)}
+    <div${includeEvidence ? '' : ' style="width:64%;margin:0 auto"'}>${timelineChart(scoped ? dailySeries(inEv) : kwa?.timeline_overall)}</div>
   </div>
   ${regionOnly ? '' : `<div class="grid2">
     <div class="chartbox">
@@ -1833,7 +1833,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     </div>
     ${keywordStacks ? `<div class="chartbox"><h4>Sentiment by Keyword</h4><p class="sm">Categorized sentiment distribution across individual keywords.</p><div class="legend" style="margin:0 0 1.6mm"><span><i style="background:${POS}"></i>Positive</span><span><i style="background:${NEU}"></i>Neutral</span><span><i style="background:${NEG}"></i>Negative</span></div>${keywordStacks}</div>` : '<div></div>'}
   </div>
-  <p class="sm"><b>Tracked Keywords:</b> ${esc(clip(kwStr, 280))}</p>`}`;
+  ${includeEvidence ? `<p class="sm"><b>Tracked Keywords:</b> ${esc(clip(kwStr, 280))}</p>` : ''}`}`;
 
   const closingSection = () => {
     const text = String(analysis?.closingSummary || '').trim();
