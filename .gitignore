@@ -15,3 +15,14 @@ backend/archive/
 frontend/archive/
 
 /archive/
+
+# macOS
+.DS_Store
+
+# Local and server working leftovers (never part of the code)
+frontend/build_*/
+backend/tmp_*.js
+*.bak*
+backend/config/i18n/
+backend/storage/grievance-reports/
+generated-event-reports/
