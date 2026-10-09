@@ -470,6 +470,14 @@ b{font-weight:700}
 .cp-big .n{font-size:15pt;font-weight:700;line-height:1.05}.cp-big .l{font-size:6pt;text-transform:uppercase;letter-spacing:.06em;opacity:.92}
 .cp-note{font-size:7.4pt;color:#475569;line-height:1.45;margin:1.6mm 0 0}
 .cp-note b{color:${INK}}
+
+.po{border:.6px solid ${LINE};border-radius:4px;margin:0 0 2.6mm;background:#fff;break-inside:avoid}
+.po-r{display:grid;grid-template-columns:30mm 1fr;gap:3mm;padding:2mm 3mm;border-top:.4px solid #eef2f6;font-size:8pt;color:#334155}
+.po-r:first-child{border-top:0}
+.po-k{font-size:6.8pt;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;padding-top:.4mm}
+.po-v ul{margin:0;padding-left:3.4mm}.po-v li{margin:0 0 .8mm}
+.po-lv{display:inline-block;color:#fff;border-radius:2px;padding:.1mm 1.8mm;margin-right:1mm}
+.po-low{background:#1B7A4E}.po-med{background:#C45C26}.po-high{background:#B42318}.po-crit{background:#7A1F1F}
 .grp{display:grid;grid-template-columns:44mm 1fr;gap:3mm;align-items:baseline;padding:1mm 0;border-top:.4px solid #eef2f6}
 .grp .gt{font-size:6.8pt;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}.grp .gt i{display:inline-block;width:1.8mm;height:1.8mm;border-radius:50%;margin-right:1.2mm}.grp .gt b{color:${INK};margin-left:1.2mm}
 .grp .gl{font-size:7.5pt;line-height:1.6;color:#334155}.grp .acct{white-space:nowrap}.grp .acct .post-link{color:#0f172a;font-weight:700;text-decoration:none;border-bottom:.4px dotted #64748b}.grp .lk{margin-left:1mm}.grp .lk a,.grp .lk .pc{display:inline-block;background:#eef4ff;border:.4px solid #b8cbf2;border-radius:1mm;padding:0 1.3mm;margin-left:.7mm;font-size:6.4pt;font-weight:700;color:#1d4ed8;text-decoration:none}.grp .sep{color:#cbd5e1}
@@ -1648,6 +1656,26 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${secHead('Recommended Actions')}
   ${actionsHtml || '<p class="sm">Maintain standard baseline monitoring. No immediate operational escalation required at this stage.</p>'}`;
 
+  // Public order block built from the counted facts, so the level, what is confirmed and what is not can never disagree.
+  const publicOrderHtml = () => {
+    const kds = keyDates.filter((k) => !k.outside).slice(0, 4);
+    const plain = (t) => String(t || '').replace(/^\d{4}-\d{2}-\d{2}:?\s*/, '');
+    const happening = kds.length
+      ? kds.map((k) => `<li>${esc(String(k.date || ''))}: ${esc(clip(plain(k.event || k.what), 100))}${k.posts?.length ? ` <span class="sm">${esc(k.posts.slice(0, 5).map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')
+      : `<li>${esc(L('No dated activity is named in the posts.'))}</li>`;
+    const notShown = [
+      haveFacts && callN === 0 ? L('No post calls people to join a bandh, blockade or gathering.') : '',
+      haveFacts && violenceN === 0 ? L('No post reports violence or damage.') : '',
+      haveFacts && violenceN === 1 ? L('One post mentions violence or damage; no other post confirms it.') : '',
+      ...notKnownList.slice(0, 3).map((x) => String(typeof x === 'string' ? x : (x.text || x.item || '')).replace(/[.\s]+$/, '') + '.'),
+    ].filter(Boolean);
+    return `<div class="po">
+    <div class="po-r"><div class="po-k">${esc(L('Level'))}</div><div class="po-v"><b class="po-lv po-${levelKey}">${esc(L(threatLevelVal))}</b> ${esc(levelReason.charAt(0).toUpperCase() + levelReason.slice(1))}.</div></div>
+    <div class="po-r"><div class="po-k">${esc(L('What is happening'))}</div><div class="po-v"><ul>${happening}</ul></div></div>
+    <div class="po-r"><div class="po-k">${esc(L('Not shown by the posts'))}</div><div class="po-v"><ul>${notShown.map((x) => `<li>${esc(x)}</li>`).join('') || `<li>${esc(L('Nothing further.'))}</li>`}</ul></div></div>
+  </div>`;
+  };
+
   const riskSection = () => `
   ${secHead('Situation and Risk Assessment')}
   <div class="chartbox"><h4>Risk Bands</h4>${stackBar(riskParts)}</div>
@@ -1657,7 +1685,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       ? `<p class="sm">Posts are flagged for review because of a high-risk rating, a call to act, or a mention of violence. Tone is shown separately and is not a risk signal.</p>`
       : `<p class="sm">No critical, high-risk, or hostile posts detected in this dataset.</p>`}
   ${callRefs ? `<p class="sm">Posts calling people to act:${callRefs}</p>` : ''}
-  ${analysis?.publicOrder ? `<p><b>Public Order Assessment:</b> ${esc(analysis.publicOrder)}</p>` : ''}
+  ${publicOrderHtml()}
   ${intelGridHtml}`;
 
   // Place board: one row per place in the region, split into "people reported on site" and "mentioned only", with the posts behind it.
