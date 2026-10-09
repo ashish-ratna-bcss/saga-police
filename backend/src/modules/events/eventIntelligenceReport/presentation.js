@@ -42,7 +42,7 @@ body{font-family:'Lato','Liberation Sans','Helvetica Neue',Arial,sans-serif;colo
 .tile.or{background:${COLORS.orange}}.tile.bl{background:${COLORS.blue}}.tile.rd{background:${COLORS.red}}.tile.gr{background:${COLORS.green}}.tile.pu{background:${COLORS.purple}}.tile.tl{background:${COLORS.teal}}
 .row4{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;margin:0 0 34px}
 .row4 .tile{min-height:112px;padding:18px 10px}.row4 .tile .n{font-size:40px}.row4 .tile .l{font-size:16px}
-.point{display:flex;align-items:center;gap:26px;margin:0 0 26px;font-size:25px;line-height:1.35}
+.point{display:flex;align-items:center;gap:24px;margin:0 0 16px;font-size:23px;line-height:1.32}
 .point .num{flex:none;width:64px;height:64px;border-radius:50%;color:#fff;font-weight:700;font-size:26px;display:flex;align-items:center;justify-content:center;font-family:'Lora',Georgia,serif}
 .point .tx{flex:1}
 .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
@@ -107,6 +107,14 @@ const buildPresentationBody = (ctx) => {
     analysis, places, authors, threatLevel, rationale, bottomLine, counts, narrativesToWatch, actions, notKnown, stats,
   } = ctx;
   const t = esc(tenant);
+  // Text on a slide is shortened by whole sentences, never cut in the middle of one.
+  const whole = (text, max) => {
+    const sentences = String(text || '').replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s+/).filter(Boolean);
+    let out = '';
+    for (const sn of sentences) { if ((out + ' ' + sn).trim().length > max && out) break; out = (out + ' ' + sn).trim(); }
+    if (out.length > max * 1.6) { const cut = out.slice(0, max).replace(/[,;:\s]+\S*$/, ''); out = cut.replace(/[.,;:\s]+$/, '') + '.'; }
+    return out;
+  };
   const noCite = (x) => String(x || '').replace(/\s*Posts?\s*(?:\[Post #\d+\][,\s]*(?:and\s*)?)+\.?/gi, ' ').replace(/\s*\[Post #\d+\]/g, '').replace(/\s+/g, ' ').trim();
   const nPosts = (n, one, many) => L(n === 1 ? one : many, { n });
   const compact = (n) => {
@@ -140,11 +148,11 @@ const buildPresentationBody = (ctx) => {
 
   // ---- 2. In short
   const points = [];
-  if (bottomLine) points.push({ c: COLORS.blue, tx: esc(clip(bottomLine, 230)) });
+  if (bottomLine) points.push({ c: COLORS.blue, tx: esc(whole(bottomLine, 330)) });
   if (engSum > 0) points.push({ c: COLORS.orange, tx: esc(L('Negative posts are {a}% of posts and draw {b}% of the engagement.', { a: negPostPct, b: negEngPct })) });
-  points.push({ c: COLORS.purple, tx: `${esc(L('Risk level'))}: <b>${esc(L(threatLevel))}</b>. ${esc(clip(String(rationale || '').split(/(?<=[.!?])\s+/).slice(0, 2).join(' '), 200))}` });
+  points.push({ c: COLORS.purple, tx: `${esc(L('Risk level'))}: <b>${esc(L(threatLevel))}</b>. ${esc(whole(rationale, 260))}` });
   const dates = (analysis?.keyDates || []).filter((k) => !k.outside).slice(0, 1);
-  if (dates.length) points.push({ c: COLORS.green, tx: `${esc(dates[0].date || '')}: ${esc(clip(dates[0].event || '', 170))}` });
+  if (dates.length) points.push({ c: COLORS.green, tx: `${esc(dates[0].date || '')}: ${esc(whole(dates[0].event || '', 200))}` });
   const s2 = `<h2>${esc(L('In short'))}</h2>
     <div class="row4">
       <div class="tile or"><div class="n">${fmt(total)}</div><div class="l">${esc(L('public posts'))}</div></div>
@@ -155,13 +163,13 @@ const buildPresentationBody = (ctx) => {
     ${points.slice(0, 4).map((p, i) => `<div class="point"><div class="num" style="background:${p.c}">${i + 1}</div><div class="tx">${p.tx}</div></div>`).join('')}`;
 
   // ---- 3. Recommended actions
-  const claimLines = (narrativesToWatch || []).slice(0, 2).map((n) => `<p><b>${esc(clip(noCite(n.narrative), 100))}</b><br>${esc(clip(noCite(n.riskNote), 110))}</p>`).join('')
+  const claimLines = (narrativesToWatch || []).slice(0, 2).map((n) => `<p><b>${esc(whole(noCite(n.narrative), 110))}</b><br>${esc(whole(noCite(n.riskNote), 130))}</p>`).join('')
     || `<p>${esc(L('No claim needs checking in this window.'))}</p>`;
   const actLines = (actions || []).slice(0, 2).map((a) => {
     const parts = String(a.action || '').split(/\s+[—–]\s+/);
     const m = String(a.detail || '').match(/\s*(Escalate if[^]*?)$/i);
     const doText = noCite(m ? String(a.detail).slice(0, m.index) : a.detail);
-    return `<p><b>${esc(parts[0])}</b>${parts[1] ? ` · ${esc(parts[1])}` : ''}<br>${esc(clip(doText, 110))}${m ? `<span class="esc">${esc(clip(noCite(m[1]), 90))}</span>` : ''}</p>`;
+    return `<p><b>${esc(parts[0])}</b>${parts[1] ? ` · ${esc(parts[1])}` : ''}<br>${esc(whole(doText, 150))}${m ? `<span class="esc">${esc(whole(noCite(m[1]), 110))}</span>` : ''}</p>`;
   }).join('') || `<p>${esc(L('Maintain standard baseline monitoring.'))}</p>`;
   const watch = [];
   watch.push(L('Violence: {a} confirmed, {b} mentioned, {c} alleged or warned.', { a: counts.violenceConfirmed, b: counts.violenceMentioned, c: counts.alleged }));
@@ -170,7 +178,7 @@ const buildPresentationBody = (ctx) => {
   const s3 = `<h2>${esc(L('Recommended actions'))}</h2><div class="cols3">
     <div class="card"><h3>${esc(L('Claims to verify and answer'))}</h3>${claimLines}</div>
     <div class="card o"><h3>${esc(L('What to do first'))}</h3>${actLines}</div>
-    <div class="card g"><h3>${esc(L('What to watch next'))}</h3>${watch.filter(Boolean).map((w) => `<p>${esc(clip(w, 170))}</p>`).join('')}</div></div>`;
+    <div class="card g"><h3>${esc(L('What to watch next'))}</h3>${watch.filter(Boolean).map((w) => `<p>${esc(whole(w, 190))}</p>`).join('')}</div></div>`;
 
   // ---- 4. How the conversation built up
   const byDay = {};
@@ -275,7 +283,7 @@ const buildPresentationBody = (ctx) => {
       <div class="lg">${riskParts.map((p) => `<div><i style="background:${p.c}"></i>${esc(L(p.k))}: ${fmt(p.v)}</div>`).join('')}</div></div><div>
       <div class="info"><div class="ic"><div class="dot" style="background:${COLORS.red}">!</div><div><h3>${esc(L('Violence'))}</h3><p>${esc(L('{a} confirmed, {b} mentioned, {c} alleged or warned.', { a: counts.violenceConfirmed, b: counts.violenceMentioned, c: counts.alleged }))}</p></div></div></div>
       <div class="info"><div class="ic"><div class="dot" style="background:${COLORS.orange}">?</div><div><h3>${esc(L('Arrests and calls to act'))}</h3><p>${esc(L('Arrests or detentions reported: {a}. Posts calling people to act: {b}. Posts reporting a group mobilising: {c}.', { a: counts.detentions, b: counts.calls, c: counts.mobilising }))}</p></div></div></div>
-      <div class="info"><div class="ic"><div class="dot" style="background:${COLORS.purple}">∗</div><div><h3>${esc(L('Level'))}: ${esc(L(threatLevel))}</h3><p>${esc(clip(String(rationale || '').split(/(?<=[.!?])\s+/)[0] || '', 130))}</p></div></div></div>
+      <div class="info"><div class="ic"><div class="dot" style="background:${COLORS.purple}">∗</div><div><h3>${esc(L('Level'))}: ${esc(L(threatLevel))}</h3><p>${esc(whole(rationale, 170))}</p></div></div></div>
     </div></div>`;
 
   // ---- 11. How we will know it is working
