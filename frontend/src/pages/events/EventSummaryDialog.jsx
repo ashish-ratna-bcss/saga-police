@@ -47,6 +47,7 @@ import {
   ChevronDown,
   ArrowRight,
   MapPin,
+  FolderOpen,
 } from 'lucide-react';
 import {
   XBrandLogo,
@@ -768,34 +769,58 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
   useEffect(() => { setRegionData(null); }, [eventId]);
 
   const regionLabel = fullSummaryData?.event?.location || summaryData?.event?.location || 'Region';
-  const handleDownload = async (withEvidence = true, regionOnly = false, compact = false, regionEvidence = false, presentation = false, presentationLocation = false) => {
+  // Every report format in one list: the download menu and the Reports tab are both built from it, so names stay the same everywhere.
+  const reportFormats = [
+    { id: 'r-brief', group: 'region', title: 'Short Brief (2 pages)', note: `The key points about ${regionLabel}: risk, what is happening, what to do`, scope: 'location', evidence: false, tag: 'Location_Short_Brief', Icon: MapPin, color: 'text-emerald-600 dark:text-emerald-400' },
+    { id: 'r-exec', group: 'region', title: 'Executive Summary', note: `Assessment, risk, places, actors and actions for ${regionLabel} only`, scope: 'region', evidence: false, tag: 'Location_Executive_Summary', Icon: FileText, color: 'text-amber-600 dark:text-amber-400' },
+    { id: 'r-full', group: 'region', title: 'Full Report with Evidence', note: `Everything about ${regionLabel}, with every post listed and linked`, scope: 'location_full', evidence: true, tag: 'Location_Full_With_Evidence', Icon: FileCheck, color: 'text-indigo-600 dark:text-indigo-400' },
+    { id: 'r-deck', group: 'region', title: 'Presentation (12 slides)', note: `Slides about ${regionLabel} only`, scope: 'presentation_location', evidence: false, tag: 'Location_Presentation', Icon: BarChart3, color: 'text-rose-600 dark:text-rose-400' },
+    { id: 'w-exec', group: 'whole', title: 'Executive Summary', note: 'All places, without the post-by-post list', scope: undefined, evidence: false, tag: 'Executive', Icon: FileText, color: 'text-primary' },
+    { id: 'w-full', group: 'whole', title: 'Full Report with Evidence', note: 'All places, with every post listed and linked', scope: undefined, evidence: true, tag: 'With_Evidence', Icon: FileCheck, color: 'text-emerald-600 dark:text-emerald-400' },
+    { id: 'w-deck', group: 'whole', title: 'Presentation (12 slides)', note: 'All places: key numbers, trend, tone, accounts, risk and next steps', scope: 'presentation', evidence: false, tag: 'Presentation', Icon: BarChart3, color: 'text-pink-600 dark:text-pink-400' },
+  ];
+  const groupTitles = { region: `${regionLabel} only (posts about ${regionLabel})`, whole: 'Whole event (all places)' };
+
+  const requestReportBlob = async (fmt) => {
+    const res = await api.get(`/events/${eventId}/summary-llm/report.pdf`, {
+      params: {
+        tenant: tenantName,
+        timeframe: timeframe || 'full',
+        from_date: fromDate || undefined,
+        to_date: toDate || undefined,
+        include_evidence: fmt.evidence ? 'true' : 'false',
+        scope: fmt.scope,
+      },
+      responseType: 'blob',
+      timeout: 300000,
+    });
+    return new Blob([res.data], { type: 'application/pdf' });
+  };
+
+  const fileNameFor = (fmt) => {
+    const safe = (v) => String(v || '').replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
+    const tfSuffix = timeframe && timeframe !== 'full' ? `_${safe(timeframe).toUpperCase()}` : '';
+    return `${safe(tenantName)}_${safe(displayName)}${tfSuffix}_Report_${fmt.tag}.pdf`;
+  };
+
+  const saveBlob = (blob, name) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 2000);
+  };
+
+  const downloadFormat = async (fmt) => {
     if (!summaryData?.summary || !eventId) return;
     setPdfGenerating(true);
     try {
-      const res = await api.get(`/events/${eventId}/summary-llm/report.pdf`, {
-        params: {
-          tenant: tenantName,
-          timeframe: timeframe || 'full',
-          from_date: fromDate || undefined,
-          to_date: toDate || undefined,
-          include_evidence: withEvidence ? 'true' : 'false',
-          scope: presentationLocation ? 'presentation_location' : presentation ? 'presentation' : regionEvidence ? 'location_full' : compact ? 'location' : regionOnly ? 'region' : undefined,
-        },
-        responseType: 'blob',
-        timeout: 300000,
-      });
-      const blob = new Blob([res.data], { type: 'application/pdf' });
-      const safe = (v) => String(v || '').replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      const tfSuffix = timeframe && timeframe !== 'full' ? `_${safe(timeframe).toUpperCase()}` : '';
-      link.download = `${safe(tenantName)}_${safe(displayName)}${tfSuffix}_Report_${presentationLocation ? 'Location_Presentation' : presentation ? 'Presentation' : regionEvidence ? 'Location_Full_With_Evidence' : withEvidence ? 'With_Evidence' : compact ? 'Location_Summary' : regionOnly ? 'Region_Executive_Summary' : 'Executive'}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      toast.success(`Event Intelligence report (${presentationLocation ? `${regionLabel} presentation` : presentation ? 'presentation' : regionEvidence ? `${regionLabel} full report with evidence` : withEvidence ? 'with evidence' : compact ? `${regionLabel} location summary` : regionOnly ? `${regionLabel} executive summary` : 'executive summary'}) downloaded`);
+      const blob = await requestReportBlob(fmt);
+      saveBlob(blob, fileNameFor(fmt));
+      toast.success(`${fmt.group === 'region' ? `${regionLabel}: ` : 'Whole event: '}${fmt.title} downloaded`);
     } catch (err) {
       console.error('Failed to generate PDF report:', err);
       toast.error('Failed to generate PDF report: ' + (err?.response?.statusText || err.message));
@@ -803,6 +828,41 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       setPdfGenerating(false);
     }
   };
+
+  // Reports tab: click a format to see that report here (the same PDF the download gives).
+  const [previewId, setPreviewId] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [previewError, setPreviewError] = useState('');
+  const previewCache = useRef(new Map());
+  const previewKey = (fmt) => `${fmt.id}|${fullSummaryData?.generated_at || ''}|${timeframe}|${fromDate}|${toDate}`;
+
+  useEffect(() => {
+    if (!open || activeTab !== 'reports' || !fullSummaryData?.summary || !eventId) return undefined;
+    const fmt = reportFormats.find((f) => f.id === previewId);
+    if (!fmt) return undefined;
+    const key = previewKey(fmt);
+    const hit = previewCache.current.get(key);
+    if (hit) { setPreviewUrl(hit); setPreviewError(''); return undefined; }
+    let live = true;
+    setPreviewBusy(true);
+    setPreviewError('');
+    setPreviewUrl(null);
+    requestReportBlob(fmt)
+      .then((blob) => {
+        const url = window.URL.createObjectURL(blob);
+        previewCache.current.set(key, url);
+        if (live) setPreviewUrl(url);
+      })
+      .catch((err) => { if (live) setPreviewError(err?.response?.statusText || err.message || 'The report could not be prepared'); })
+      .finally(() => { if (live) setPreviewBusy(false); });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, activeTab, previewId, fullSummaryData?.generated_at, timeframe, fromDate, toDate, eventId]);
+
+  useEffect(() => { if (activeTab === 'reports' && !previewId) setPreviewId(viewScope === 'region' ? 'r-brief' : 'w-exec'); }, [activeTab, previewId, viewScope]);
+
+  useEffect(() => () => { previewCache.current.forEach((u) => window.URL.revokeObjectURL(u)); previewCache.current.clear(); }, [eventId]);
 
   // Opens the timeframe dialog; from the header it falls back to a window that has posts, from the notice it keeps the current one.
   const openScopeModal = (useFallback) => {
@@ -929,102 +989,32 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                     <ChevronDown className="h-3 w-3 opacity-70 ml-0.5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuContent align="end" className="w-80 max-h-[80vh] overflow-y-auto">
                   <DropdownMenuLabel className="text-[11px] font-semibold text-muted-foreground tracking-wide uppercase">
                     Select Report Format
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => handleDownload(false)}
-                    disabled={pdfGenerating}
-                    className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
-                  >
-                    <FileText className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-semibold text-foreground">Executive Summary (without evidence)</span>
-                      <span className="text-[11px] text-muted-foreground leading-tight">
-                        The assessment, risk, places, actors and actions, without the post-by-post register
-                      </span>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleDownload(false, true)}
-                    disabled={pdfGenerating}
-                    className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
-                  >
-                    <MapPin className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-semibold text-foreground">{regionLabel} Executive Summary</span>
-                      <span className="text-[11px] text-muted-foreground leading-tight">
-                        Only posts, places, actors and actions in {regionLabel}; nothing from elsewhere
-                      </span>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleDownload(false, true, true)}
-                    disabled={pdfGenerating}
-                    className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
-                  >
-                    <MapPin className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-semibold text-foreground">Specific Event Location Summary</span>
-                      <span className="text-[11px] text-muted-foreground leading-tight">
-                        Short 2-3 page brief for {regionLabel}: assessment, risk, actions and what is happening there
-                      </span>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleDownload(true, true, false, true)}
-                    disabled={pdfGenerating}
-                    className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
-                  >
-                    <MapPin className="h-4 w-4 text-indigo-600 dark:text-indigo-400 mt-0.5 shrink-0" />
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-semibold text-foreground">{regionLabel} Full Report with Evidence</span>
-                      <span className="text-[11px] text-muted-foreground leading-tight">
-                        Everything about {regionLabel} only, with every post listed and linked
-                      </span>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleDownload(false, false, false, false, true)}
-                    disabled={pdfGenerating}
-                    className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
-                  >
-                    <BarChart3 className="h-4 w-4 text-pink-600 dark:text-pink-400 mt-0.5 shrink-0" />
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-semibold text-foreground">Presentation (12 slides), whole event</span>
-                      <span className="text-[11px] text-muted-foreground leading-tight">
-                        Slides for the whole event, all places: key numbers, trend, tone, accounts, risk and next steps
-                      </span>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleDownload(false, true, false, false, false, true)}
-                    disabled={pdfGenerating}
-                    className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
-                  >
-                    <BarChart3 className="h-4 w-4 text-rose-600 dark:text-rose-400 mt-0.5 shrink-0" />
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-semibold text-foreground">{regionLabel} Presentation (12 slides)</span>
-                      <span className="text-[11px] text-muted-foreground leading-tight">
-                        Slides for {regionLabel} only: key numbers, trend, tone, places, accounts, risk and next steps
-                      </span>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleDownload(true)}
-                    disabled={pdfGenerating}
-                    className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
-                  >
-                    <FileCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-semibold text-foreground">Full Report (with evidence)</span>
-                      <span className="text-[11px] text-muted-foreground leading-tight">
-                        Everything above plus every post with a clickable link
-                      </span>
-                    </div>
-                  </DropdownMenuItem>
+                  {['region', 'whole'].map((g) => (
+                    <React.Fragment key={g}>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel className="text-[11px] font-semibold tracking-wide uppercase text-foreground/80">
+                        {groupTitles[g]}
+                      </DropdownMenuLabel>
+                      {reportFormats.filter((f) => f.group === g).map((f) => (
+                        <DropdownMenuItem
+                          key={f.id}
+                          onClick={() => downloadFormat(f)}
+                          disabled={pdfGenerating}
+                          className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
+                        >
+                          <f.Icon className={`h-4 w-4 mt-0.5 shrink-0 ${f.color}`} />
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs font-semibold text-foreground">{f.title}</span>
+                            <span className="text-[11px] text-muted-foreground leading-tight">{f.note}</span>
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                    </React.Fragment>
+                  ))}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -1226,6 +1216,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                     ['advisory', ShieldAlert, 'text-amber-600', 'Risk & Advisory'],
                     ['telemetry', BarChart3, 'text-blue-600', 'Data Telemetry'],
                     ['posts', List, 'text-emerald-600', 'All Posts'],
+                    ['reports', FolderOpen, 'text-pink-600', 'Reports'],
                   ].map(([value, TabIcon, iconColor, label]) => (
                     <TabsTrigger
                       key={value}
@@ -1247,6 +1238,70 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                   <ScrollArea className="h-full px-7 py-6">
                     <EventBrief summaryData={summaryData} platformList={platformList} displayName={displayName} tenantName={tenantName} onCite={handleCite} />
                   </ScrollArea>
+                </TabsContent>
+
+                <TabsContent value="reports" className="absolute inset-0 m-0 p-0">
+                  <div className="h-full flex">
+                    <div className="w-72 shrink-0 border-r overflow-y-auto p-3">
+                      {['region', 'whole'].map((g) => (
+                        <div key={g} className="mb-4">
+                          <div className="px-2 pb-1 text-[11px] font-semibold tracking-wide uppercase text-muted-foreground">{groupTitles[g]}</div>
+                          {reportFormats.filter((f) => f.group === g).map((f) => (
+                            <button
+                              key={f.id}
+                              type="button"
+                              onClick={() => setPreviewId(f.id)}
+                              className={`w-full text-left flex items-start gap-2.5 rounded-md px-2.5 py-2 mb-1 border ${previewId === f.id ? 'bg-primary/10 border-primary/40' : 'border-transparent hover:bg-muted'}`}
+                            >
+                              <f.Icon className={`h-4 w-4 mt-0.5 shrink-0 ${f.color}`} />
+                              <span className="flex flex-col gap-0.5">
+                                <span className="text-xs font-semibold text-foreground">{f.title}</span>
+                                <span className="text-[11px] text-muted-foreground leading-tight">{f.note}</span>
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex-1 min-w-0 flex flex-col">
+                      {previewId ? (
+                        <>
+                          <div className="flex items-center justify-between gap-3 px-4 py-2 border-b shrink-0">
+                            <div className="text-sm font-semibold truncate">
+                              {(() => { const f = reportFormats.find((x) => x.id === previewId); return f ? `${f.group === 'region' ? `${regionLabel} only` : 'Whole event'} · ${f.title}` : ''; })()}
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 gap-1.5 text-xs"
+                              disabled={!previewUrl || pdfGenerating}
+                              onClick={() => { const f = reportFormats.find((x) => x.id === previewId); if (f) downloadFormat(f); }}
+                            >
+                              <Download className="h-3.5 w-3.5" /> Download
+                            </Button>
+                          </div>
+                          <div className="flex-1 min-h-0 bg-muted/30">
+                            {previewBusy && (
+                              <div className="h-full flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                                Preparing this report. The longer ones can take up to a minute.
+                              </div>
+                            )}
+                            {!previewBusy && previewError && (
+                              <div className="h-full flex items-center justify-center text-sm text-destructive px-6 text-center">Could not prepare this report: {previewError}</div>
+                            )}
+                            {!previewBusy && !previewError && previewUrl && (
+                              <iframe title="Report preview" src={previewUrl} className="w-full h-full border-0" />
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-sm text-muted-foreground px-6 text-center">
+                          Click a report on the left to see it here.
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </TabsContent>
 
                 <TabsContent value="advisory" className="absolute inset-0 m-0 p-0">
