@@ -16,7 +16,7 @@ Return ONLY compact JSON on ONE line (no spaces, no line breaks), one entry for 
 - v: 1 only if the post reports or threatens violence, arson, clashes or damage that is part of THIS event's own activity. Riots, attacks or damage in another country or about another story are 0. A police case or FIR alone is 0. Arrests, detentions, preventive custody, a ban or a police warning are 0 unless the post also reports clashes, stone-pelting, arson, injury or damage.
 - x: 1 if the post only ALLEGES, WARNS OF or PREDICTS violence or disruption that has not been reported as happening (for example "stone-pelting may be planned", "a violence warning"). A post with v=1 has x=0.
 - a: 1 if the post reports arrests, detentions, preventive custody, a ban, prohibitory orders or a police refusal of permission about this activity.
-- t: status of the activity as the post reports it: announced | permitted | denied (permission refused, banned or declared unlawful) | held (it has happened) | called_off. "" if not stated.
+- t: status of the activity as the post reports it: announced | permitted | denied (ONLY when police or an authority refused permission, banned it or declared it unlawful; a party staying away or opposing it is NOT denied) | held (it has happened) | called_off. "" if not stated.
 - m: 1 if the post (any author, including news) reports that a group is preparing, mobilising or asking its workers or the public to turn out for the activity. This is NOT the same as c: c is only for the author's own call.
 - e: 0 ONLY if the post is clearly NOT about the monitored event or its subject (for example an exam guide, a travel story, a routine government camp, an advertisement that merely shares a place name). Leave e out when the post is about the event, its organisers, its demands or its effects.
 - r: who posts: m = news outlet, agency or TV/YouTube news channel (judge by the account name and style); o = organisation/party account; p = politician or public figure; i = ordinary person. A post that reports what others announced or did ("X has announced…", "police said…") is written by media (m) unless the account is itself that group.
@@ -79,10 +79,12 @@ const parseFacts = (raw, byNo, extractJson) => {
     const organiser = String(f.o || '').replace(/\s+/g, ' ').trim().slice(0, 80);
     const subject = String(f.s || '').replace(/\s+/g, ' ').trim().slice(0, 110);
     const place = String(f.w || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    const postedDay = post.postedAt ? new Date(post.postedAt).toISOString().slice(0, 10) : '';
+    const notYet = Boolean(date && postedDay && postedDay < date);   // a post written before the activity cannot report people already there
     const pl = (Array.isArray(f.pl) ? f.pl : []).map((x) => ({
       name: String(x?.n || '').replace(/\s+/g, ' ').trim().slice(0, 60),
       region: String(x?.in || '').replace(/\s+/g, ' ').trim().slice(0, 80),
-      active: Number(x?.a) === 1,
+      active: Number(x?.a) === 1 && !notYet,
     })).filter((x) => x.name && supported(x.name, hay)).slice(0, 6);
     out[n] = {
       places: pl,
