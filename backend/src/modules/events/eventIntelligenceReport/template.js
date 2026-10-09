@@ -1537,7 +1537,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
         const legend = `<div class="legend">${tiers.map((x) => `<span><i style="background:${TIER_DOT[x.t]}"></i>${x.n} ${esc(L(TIER_WORD[x.t]))}</span>`).join('')}</div>`;
         const rows = list.slice(0, MAX).map((p) => `<li><span class="nm">${authorProfileLink(p)}</span><span class="rpill ${ROLE_PILL[p.tier]}">${esc(p.priority)}</span><span class="lk">${p.posts.slice(0, 4).map((n) => `[Post #${n}]`).join(' ')}${p.posts.length > 4 ? ` +${p.posts.length - 4}` : ''}</span></li>`).join('');
         const more = list.length > MAX ? `<li class="more">+${list.length - MAX} ${esc(L('more accounts'))} · ${fmt(list.slice(MAX).reduce((t, a) => t + a.posts.length, 0))} ${esc(L('posts'))}</li>` : '';
-        return `<div class="pcard"><div class="pc-h"><span class="plat-badge" style="background:${platColor(k)}">${esc(platLabel(k))}</span><b>${fmt(list.length)} ${esc(L('accounts'))} · ${fmt(postsTotal)} ${esc(L('posts'))}</b></div>${bar}${legend}<ul class="plist">${rows}${more}</ul></div>`;
+        return `<div class="pcard"><div class="pc-h"><span class="plat-badge" style="background:${platColor(k)}">${esc(platLabel(k))}</span><b>${fmt(list.length)} ${esc(L(list.length === 1 ? 'account' : 'accounts'))} · ${fmt(postsTotal)} ${esc(L(postsTotal === 1 ? 'post' : 'posts'))}</b></div>${bar}${legend}<ul class="plist">${rows}${more}</ul></div>`;
       }).join('');
     return cards ? `<div class="pcards">${cards}</div>` : `<p class="sm">${esc(L('No accounts in this set.'))}</p>`;
   })();
@@ -1637,7 +1637,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     const max = Math.max(1, ...rows.map((r) => r.count));
     return `<div class="geo"><div class="geo-h"><h4>${esc(L('Where posts place the activity'))}</h4><div class="legend"><span><i style="background:${PR}"></i>${esc(L('People reported on site'))}</span><span><i style="background:#94A3B8"></i>${esc(L('Mentioned only'))}</span></div></div>${rows.map((r) => {
       const on = Math.min(r.onSite.length, r.count);
-      return `<div class="geo-row"><div class="gname"><b>${esc(r.name)}</b>${r.region ? `<span class="sm">${esc(clip(r.region, 28))}</span>` : ''}</div><div class="gbar"><div class="stack tall" style="width:${Math.max(8, (100 * r.count) / max)}%"><div style="width:${r.count ? (100 * on) / r.count : 0}%;background:${PR}"></div><div style="flex:1;background:#94A3B8"></div></div><span class="gval">${fmt(r.count)} ${esc(L('posts'))}${on ? ` · ${fmt(on)} ${esc(L('on site'))}` : ''}</span></div><div class="glinks">${r.all.slice(0, 6).map((n) => `[Post #${n}]`).join(' ')}${r.all.length > 6 ? ` +${r.all.length - 6}` : ''}</div></div>`;
+      return `<div class="geo-row"><div class="gname"><b>${esc(r.name)}</b>${r.region ? `<span class="sm">${esc(clip(r.region, 28))}</span>` : ''}</div><div class="gbar"><div class="stack tall" style="width:${Math.max(8, (100 * r.count) / max)}%"><div style="width:${r.count ? (100 * on) / r.count : 0}%;background:${PR}"></div><div style="flex:1;background:#94A3B8"></div></div><span class="gval">${fmt(r.count)} ${esc(L(r.count === 1 ? 'post' : 'posts'))}${on ? ` · ${fmt(on)} ${esc(L('on site'))}` : ''}</span></div><div class="glinks">${r.all.slice(0, 6).map((n) => `[Post #${n}]`).join(' ')}${r.all.length > 6 ? ` +${r.all.length - 6}` : ''}</div></div>`;
     }).join('')}</div>`;
   })();
 
@@ -1683,10 +1683,10 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     const platN = new Set(acctList.map((x) => String(x.platform || 'other').toLowerCase())).size;
     const mix = ['priority', 'amplifier', 'media', 'routine'].map((t) => ({ t, n: tierN(t), posts: acctList.filter((x) => x.tier === t).reduce((c, x) => c + x.posts.length, 0) })).filter((x) => x.n);
     const mixBar = `<div class="stack tall">${mix.map((x) => `<div style="width:${(100 * x.n) / Math.max(1, total)}%;background:${TIER_DOT[x.t]}"></div>`).join('')}</div>`;
-    const mixLegend = `<div class="legend">${mix.map((x) => `<span><i style="background:${TIER_DOT[x.t]}"></i><b>${fmt(x.n)}</b> ${esc(L(TIER_WORD[x.t]))} <span class="sm">(${fmt(x.posts)} ${esc(L('posts'))})</span></span>`).join('')}</div>`;
+    const mixLegend = `<div class="legend">${mix.map((x) => `<span><i style="background:${TIER_DOT[x.t]}"></i><b>${fmt(x.n)}</b> ${esc(L(TIER_WORD[x.t]))} <span class="sm">(${fmt(x.posts)} ${esc(L(x.posts === 1 ? 'post' : 'posts'))})</span></span>`).join('')}</div>`;
     const topA = Object.values(authors).sort((x, y) => (y.inter || 0) - (x.inter || 0))[0];
     const overview = `<div class="acc-head">
-      <div class="acc-n"><b>${fmt(total)}</b><span>${esc(L('accounts'))}</span><em>${fmt(platN)} ${esc(L('platforms'))}</em></div>
+      <div class="acc-n"><b>${fmt(total)}</b><span>${esc(L(total === 1 ? 'account' : 'accounts'))}</span><em>${fmt(platN)} ${esc(L(platN === 1 ? 'platform' : 'platforms'))}</em></div>
       <div class="acc-mix"><h4>${esc(L('Who is posting'))}</h4>${mixBar}${mixLegend}</div>
       <div class="acc-top"><h4>${esc(L('Most interactions'))}</h4>${topA ? `<b>${esc(clip(topA.author, 22))}</b><span>${fmt(topA.inter)} ${esc(L('interactions'))} · ${esc(platLabel(topA.platform))}</span>` : '<span>—</span>'}</div>
     </div>`;
