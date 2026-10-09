@@ -430,6 +430,10 @@ b{font-weight:700}
 .chips .cv{font-size:7.4pt;font-weight:700;color:${INK};margin-top:.3mm}
 
 /* Headline numbers: one strip */
+.srcbox{border:.6px solid #d6dde6;border-left:3px solid #94a3b8;background:#fbfcfd;border-radius:3px;padding:2.2mm 3.4mm;margin:0 0 3.4mm;break-inside:avoid}
+.srcbox h4{margin:0 0 1.4mm;font-size:7.2pt;color:#475569;text-transform:uppercase;letter-spacing:.07em}
+.srcrow{font-size:7.8pt;line-height:1.6;color:#334155;margin:0 0 .5mm}
+.plink{color:#1d4ed8;font-weight:700;text-decoration:none}
 .kstrip{display:grid;grid-template-columns:repeat(6,1fr);border:.6px solid ${LINE};border-radius:4px;margin:0 0 3mm;background:#fff;break-inside:avoid}
 .kstrip>div{padding:2mm 2mm;text-align:center}
 .kstrip>div+div{border-left:.6px solid ${LINE}}
