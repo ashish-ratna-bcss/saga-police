@@ -1656,9 +1656,15 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${secHead('Recommended Actions')}
   ${actionsHtml || '<p class="sm">Maintain standard baseline monitoring. No immediate operational escalation required at this stage.</p>'}`;
 
+  const factActs = (analysis?.facts?.activities || []).filter((a) => !a.outside);
+  const actLine = (a) => {
+    const kind = L(String(a.kind || 'activity').replace(/^./, (c) => c.toUpperCase()));
+    return `${kind}${a.organiser ? ` ${L('called by')} ${a.organiser}` : ''}${a.place ? ` ${L('at')} ${a.place}` : ''}${a.subject ? ` — ${L('about')}: ${a.subject}` : a.subject === '' ? ` — ${L('reason not stated in the posts')}` : ''}`;
+  };
+
   // Public order block built from the counted facts, so the level, what is confirmed and what is not can never disagree.
   const publicOrderHtml = () => {
-    const kds = keyDates.filter((k) => !k.outside).slice(0, 4);
+    const kds = (factActs.length ? factActs.map((a) => ({ date: a.date, event: actLine(a), posts: a.posts })) : keyDates.filter((k) => !k.outside)).slice(0, 4);
     const plain = (t) => String(t || '').replace(/^\d{4}-\d{2}-\d{2}:?\s*/, '');
     const happening = kds.length
       ? kds.map((k) => `<li>${esc(String(k.date || ''))}: ${esc(clip(plain(k.event || k.what), 100))}${k.posts?.length ? ` <span class="sm">${esc(k.posts.slice(0, 5).map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')
@@ -1830,10 +1836,10 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   // Specific Event Location Summary: two pages, visual first. Same facts as the other reports, laid out as boards and charts.
   const compactBody = () => {
-    const kd = keyDates.filter((k) => !k.outside).slice(0, 5);
+    const kd = (factActs.length ? factActs.map((a) => ({ date: a.date, event: actLine(a), posts: a.posts })) : keyDates.filter((k) => !k.outside)).slice(0, 5);
     const dayLabel = (d) => { const t = parseDateMs(d); return t ? new Date(t).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: REPORT_TZ }) : esc(clip(String(d || ''), 12)); };
     const timeline = kd.length
-      ? `<div class="cp-tl">${kd.map((k) => `<div class="it"><span class="dt">${dayLabel(k.date)}</span><span class="kd">${esc(clip(String(k.event || k.what || '').replace(/^\d{4}-\d{2}-\d{2}:?\s*/, ''), 90))}</span>${k.posts?.length ? `<span class="lk">${esc(k.posts.slice(0, 5).map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</div>`).join('')}</div>`
+      ? `<div class="cp-tl">${kd.map((k) => `<div class="it"><span class="dt">${dayLabel(k.date)}</span><span class="kd">${esc(clip(String(k.event || k.what || '').replace(/^\d{4}-\d{2}-\d{2}:?\s*/, ''), 150))}</span>${k.posts?.length ? `<span class="lk">${esc(k.posts.slice(0, 5).map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</div>`).join('')}</div>`
       : `<p class="sm">${esc(L('No dated activity is named in the posts.'))}</p>`;
     const topPlaces = places.slice(0, 5);
     const pMax = Math.max(1, ...topPlaces.map((x) => x.count));
