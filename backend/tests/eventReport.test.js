@@ -454,7 +454,10 @@ test('the posts behind "people on site" and "calls to act" are listed, linked in
   assert.ok(/<a href="#e1" class="ref">\[Post #1\]<\/a>/.test(full));
   assert.ok(/Posts calling people to act:/.test(full) && /<a href="#e2" class="ref">\[Post #2\]<\/a>/.test(full));
   const exec = buildReportHtml({ summary, keywordData: null, tenantName: 'odisha', analysis: { facts }, headquarters: null, includeEvidence: false });
-  assert.ok(/Picket at Bhubaneswar square/.test(exec) && !/Post #\d/.test(exec));
+  assert.ok(/class="geo"/.test(exec) && /<b>Bhubaneswar<\/b>/.test(exec) && /1 on site/.test(exec), 'the summary shows the place board');
+  assert.ok(/class="glinks"[^>]*>\s*<a href="[^"]*"[^>]*class="plink">#1<\/a>/.test(exec) || /class="glinks">#1/.test(exec), 'the place row links to its post');
+  assert.ok(!/Picket at Bhubaneswar square/.test(exec), 'the summary has no long table of post texts');
+  assert.ok(!/Post #\d/.test(exec));
 });
 
 test('cancel: stops only that event\'s running generation, aborts its model calls, leaves others alone', () => {

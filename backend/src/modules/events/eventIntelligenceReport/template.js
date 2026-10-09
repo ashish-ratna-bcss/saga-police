@@ -430,14 +430,29 @@ b{font-weight:700}
 .chips .cv{font-size:7.4pt;font-weight:700;color:${INK};margin-top:.3mm}
 
 /* Headline numbers: one strip */
+.rpill{font-size:6pt;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:8px;padding:.25mm 1.8mm;white-space:nowrap}
+.rp-pri{background:#fde8e6;color:#9b1c14}.rp-amp{background:#fdecdc;color:#9a4a12}.rp-med{background:#e1f1f5;color:#1f6f86}.rp-oth{background:#eceff3;color:#5b6676}
+.stack.tall{height:11px;border-radius:3px}
+.acc-head{display:grid;grid-template-columns:28mm 1fr 44mm;gap:4mm;align-items:center;border:.6px solid ${LINE};border-radius:4px;padding:3mm 4mm;margin:0 0 3mm;background:#fff;break-inside:avoid}
+.acc-n b{display:block;font-size:22pt;line-height:1;color:${INK};letter-spacing:-.02em}.acc-n span{display:block;font-size:7pt;color:${MUT};text-transform:uppercase;letter-spacing:.07em;margin-top:.8mm}.acc-n em{display:block;font-style:normal;font-size:7pt;color:${MUT}}
+.acc-mix h4,.acc-top h4{margin:0 0 1.4mm;font-size:6.8pt;color:${MUT};text-transform:uppercase;letter-spacing:.07em}
+.acc-top{border-left:.6px solid ${LINE};padding-left:4mm}.acc-top b{display:block;font-size:9pt;color:${INK}}.acc-top span{display:block;font-size:7.2pt;color:${MUT};margin-top:.6mm}
+.watch{border:.6px solid #f1b8b2;border-left:3.5px solid ${CR};background:#fff8f7;border-radius:3px;padding:2.2mm 3.2mm;margin:0 0 3mm;break-inside:avoid}
+.watch h4{margin:0 0 1.4mm;font-size:7.6pt;color:#7f1d1d;text-transform:uppercase;letter-spacing:.06em}
+.wrow{display:flex;align-items:baseline;gap:2mm;font-size:7.6pt;padding:.8mm 0;border-top:.4px solid #f6d8d4}.wrow .nm{font-weight:700}.wrow .why{flex:1;color:#5b3a37}.wrow .lk{white-space:nowrap}
+.calm{border-left:3.5px solid ${PR};background:#f1faf5;border-radius:3px;padding:2.2mm 3.2mm;margin:0 0 3mm;font-size:8pt;color:#14532d}
+.geo{border:.6px solid ${LINE};border-radius:4px;background:#fff;padding:2.4mm 3.4mm;margin:0 0 3mm;break-inside:avoid}
+.geo-h{display:flex;justify-content:space-between;align-items:center;margin:0 0 1.6mm}.geo-h h4{margin:0;font-size:8.4pt;color:${NAVY}}
+.geo-row{display:grid;grid-template-columns:32mm 1fr 44mm;gap:3.5mm;align-items:center;padding:1.3mm 0;border-top:.4px solid #eef2f6}
+.gname b{display:block;font-size:8.4pt;color:${INK}}.gname .sm{display:block}
+.gbar .stack{display:flex}.gval{display:block;font-size:7pt;color:#475569;margin-top:.6mm}
+.glinks{font-size:7.4pt;line-height:1.5}
 .pcards{display:grid;grid-template-columns:1fr 1fr;gap:2.4mm;margin:0 0 3mm}
 .pcard{border:.6px solid ${LINE};border-radius:3px;background:#fff;padding:2mm 2.6mm;break-inside:avoid}
 .pc-h{display:flex;align-items:center;gap:2mm;margin:0 0 1.4mm;font-size:7.8pt;color:${INK}}
 .plist{list-style:none;margin:1.2mm 0 0;padding:0}
 .plist li{display:flex;align-items:baseline;gap:1.4mm;font-size:7.2pt;padding:.55mm 0;border-top:.4px solid #eef2f6}
-.plist li>i{display:inline-block;width:1.7mm;height:1.7mm;border-radius:50%;flex:none;align-self:center}
 .plist .nm{font-weight:700;flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.plist .rl{color:${MUT};font-size:6.2pt;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
 .plist .lk{font-size:7pt;white-space:nowrap}
 .plist .more{color:${MUT};font-size:7pt;padding-top:.8mm}
 .srcbox{border:.6px solid #d6dde6;border-left:3px solid #94a3b8;background:#fbfcfd;border-radius:3px;padding:2.2mm 3.4mm;margin:0 0 3.4mm;break-inside:avoid}
@@ -1501,13 +1516,16 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   // Summary report: one small card per platform with every account (priority first), its role and its post links. Detail stays in the full report.
   const TIER_DOT = { priority: '#B42318', amplifier: '#C45C26', media: '#2A8FA8', routine: '#94A3B8' };
   const TIER_WORD = { priority: 'priority', amplifier: 'amplifier', media: 'media / news', routine: 'other' };
+  // Every account with the posts that belong to this report (in-region only for the Odisha-only report).
+  const acctList = allWatch
+    .map((p) => ({ ...p, posts: (p.posts || []).filter((n) => !regionOnly || inSet.has(n)) }))
+    .filter((p) => p.posts.length);
+  const ROLE_PILL = { priority: 'rp-pri', amplifier: 'rp-amp', media: 'rp-med', routine: 'rp-oth' };
   const compactAccountsHtml = (() => {
     const byPlat = {};
-    allWatch.forEach((p) => {
-      const posts = (p.posts || []).filter((n) => !regionOnly || inSet.has(n));
-      if (!posts.length) return;
+    acctList.forEach((p) => {
       const k = String(p.platform || 'other').toLowerCase();
-      (byPlat[k] = byPlat[k] || []).push({ ...p, posts });
+      (byPlat[k] = byPlat[k] || []).push(p);
     });
     const MAX = 14;
     const cards = Object.entries(byPlat)
@@ -1517,7 +1535,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
         const tiers = ['priority', 'amplifier', 'media', 'routine'].map((t) => ({ t, n: list.filter((x) => x.tier === t).length })).filter((x) => x.n);
         const bar = `<div class="stack">${tiers.map((x) => `<div style="width:${(100 * x.n) / list.length}%;background:${TIER_DOT[x.t]}"></div>`).join('')}</div>`;
         const legend = `<div class="legend">${tiers.map((x) => `<span><i style="background:${TIER_DOT[x.t]}"></i>${x.n} ${esc(L(TIER_WORD[x.t]))}</span>`).join('')}</div>`;
-        const rows = list.slice(0, MAX).map((p) => `<li><i style="background:${TIER_DOT[p.tier]}"></i><span class="nm">${authorProfileLink(p)}</span><span class="rl">${esc(p.priority)}</span><span class="lk">${p.posts.slice(0, 4).map((n) => `[Post #${n}]`).join(' ')}${p.posts.length > 4 ? ` +${p.posts.length - 4}` : ''}</span></li>`).join('');
+        const rows = list.slice(0, MAX).map((p) => `<li><span class="nm">${authorProfileLink(p)}</span><span class="rpill ${ROLE_PILL[p.tier]}">${esc(p.priority)}</span><span class="lk">${p.posts.slice(0, 4).map((n) => `[Post #${n}]`).join(' ')}${p.posts.length > 4 ? ` +${p.posts.length - 4}` : ''}</span></li>`).join('');
         const more = list.length > MAX ? `<li class="more">+${list.length - MAX} ${esc(L('more accounts'))} · ${fmt(list.slice(MAX).reduce((t, a) => t + a.posts.length, 0))} ${esc(L('posts'))}</li>` : '';
         return `<div class="pcard"><div class="pc-h"><span class="plat-badge" style="background:${platColor(k)}">${esc(platLabel(k))}</span><b>${fmt(list.length)} ${esc(L('accounts'))} · ${fmt(postsTotal)} ${esc(L('posts'))}</b></div>${bar}${legend}<ul class="plist">${rows}${more}</ul></div>`;
       }).join('');
@@ -1605,6 +1623,24 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${analysis?.publicOrder ? `<p><b>Public Order Assessment:</b> ${esc(analysis.publicOrder)}</p>` : ''}
   ${intelGridHtml}`;
 
+  // Place board: one row per place in the region, split into "people reported on site" and "mentioned only", with the posts behind it.
+  const placeBoardHtml = (() => {
+    if (!geoReliable) return `<div class="chartbox"><p class="sm">${esc(L('Place analysis is not available in this report. Regenerate it to see where the activity is.'))}</p></div>`;
+    const byPostPlaces = analysis?.facts?.byPost || {};
+    const same = (a, b) => foldGeo(a) === foldGeo(b);
+    const rows = places.slice(0, 8).map((pl) => {
+      const onSite = visits.map((v) => v.n).filter((n) => (byPostPlaces[n]?.places || []).some((x) => same(x, pl.name)));
+      const rest = (pl.posts || []).filter((n) => !onSite.includes(n));
+      return { ...pl, onSite, rest, all: Array.from(new Set([...onSite, ...rest])) };
+    }).sort((x, y) => y.onSite.length - x.onSite.length || y.count - x.count);
+    if (!rows.length) return `<div class="chartbox"><p class="sm">${esc(L('No specific place inside the region is named in the posts.'))}</p></div>`;
+    const max = Math.max(1, ...rows.map((r) => r.count));
+    return `<div class="geo"><div class="geo-h"><h4>${esc(L('Where posts place the activity'))}</h4><div class="legend"><span><i style="background:${PR}"></i>${esc(L('People reported on site'))}</span><span><i style="background:#94A3B8"></i>${esc(L('Mentioned only'))}</span></div></div>${rows.map((r) => {
+      const on = Math.min(r.onSite.length, r.count);
+      return `<div class="geo-row"><div class="gname"><b>${esc(r.name)}</b>${r.region ? `<span class="sm">${esc(clip(r.region, 28))}</span>` : ''}</div><div class="gbar"><div class="stack tall" style="width:${Math.max(8, (100 * r.count) / max)}%"><div style="width:${r.count ? (100 * on) / r.count : 0}%;background:${PR}"></div><div style="flex:1;background:#94A3B8"></div></div><span class="gval">${fmt(r.count)} ${esc(L('posts'))}${on ? ` · ${fmt(on)} ${esc(L('on site'))}` : ''}</span></div><div class="glinks">${r.all.slice(0, 6).map((n) => `[Post #${n}]`).join(' ')}${r.all.length > 6 ? ` +${r.all.length - 6}` : ''}</div></div>`;
+    }).join('')}</div>`;
+  })();
+
   const whereSection = () => `
   ${secHead('Where It Is Happening')}
   <div class="metrics" style="grid-template-columns:repeat(${regionOnly ? 2 : 3},1fr)">
@@ -1612,11 +1648,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     ${metric(fmt(visits.filter((e) => e.specific.length).length), 'Specific sites', topPlace ? `Highest: ${topPlace.name}` : 'Cities/districts/landmarks')}
     ${regionOnly ? '' : metric(fmt(geoOut.length), 'Places outside the region', 'Context only')}
   </div>
-  ${onSiteTable}
-  <div class="chartbox">
-    <h4>Top Locations Named in Discussion</h4>
-    ${places.slice(0, 8).map((d) => hbar(d.name, d.count, places[0]?.count || 1, NAVY, d.active ? `${d.count} posts · activity reported` : `${d.count} posts · mentioned only`)).join('') || (geoReliable ? '<p class="sm">No place named inside a post.</p>' : '<p class="sm">Place analysis is not available in this report. Regenerate it to see where the activity is.</p>')}
-  </div>
+  ${placeBoardHtml}
+  ${includeEvidence ? onSiteTable : ''}
   ${geoOut.length ? `<p class="sm"><b>Outside ${esc(event.location || 'the event region')}:</b> ${geoOut.slice(0, 8).map((p) => `${esc(p.name)}${p.region ? ` (${esc(p.region)})` : ''}`).join(', ')}. These are listed for information and are not counted as activity in the region.</p>` : ''}
   ${(analysis?.geography || []).length
     ? `<ul class="bul">${analysis.geography.map((g) => `<li><b>${esc(g.place)}</b> — ${esc(g.note || '')} ${g.posts?.length ? `<span class="sm">${esc(g.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>`
@@ -1644,24 +1677,40 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${entities.length ? '' : '<p class="sm">Entity classification not available for this event.</p>'}
   ${(analysis?.leaders || []).length ? `<ul class="bul">${analysis.leaders.map((l) => `<li><b>${esc(l.name)}</b>${l.role ? ` — ${esc(l.role)}` : ''}${l.posts?.length ? ` <span class="sm">${esc(l.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : ''}`;
 
-  const accountsSection = () => `
+  const accountsSection = () => {
+    const tierN = (t) => acctList.filter((x) => x.tier === t).length;
+    const total = acctList.length;
+    const platN = new Set(acctList.map((x) => String(x.platform || 'other').toLowerCase())).size;
+    const mix = ['priority', 'amplifier', 'media', 'routine'].map((t) => ({ t, n: tierN(t), posts: acctList.filter((x) => x.tier === t).reduce((c, x) => c + x.posts.length, 0) })).filter((x) => x.n);
+    const mixBar = `<div class="stack tall">${mix.map((x) => `<div style="width:${(100 * x.n) / Math.max(1, total)}%;background:${TIER_DOT[x.t]}"></div>`).join('')}</div>`;
+    const mixLegend = `<div class="legend">${mix.map((x) => `<span><i style="background:${TIER_DOT[x.t]}"></i><b>${fmt(x.n)}</b> ${esc(L(TIER_WORD[x.t]))} <span class="sm">(${fmt(x.posts)} ${esc(L('posts'))})</span></span>`).join('')}</div>`;
+    const topA = Object.values(authors).sort((x, y) => (y.inter || 0) - (x.inter || 0))[0];
+    const overview = `<div class="acc-head">
+      <div class="acc-n"><b>${fmt(total)}</b><span>${esc(L('accounts'))}</span><em>${fmt(platN)} ${esc(L('platforms'))}</em></div>
+      <div class="acc-mix"><h4>${esc(L('Who is posting'))}</h4>${mixBar}${mixLegend}</div>
+      <div class="acc-top"><h4>${esc(L('Most interactions'))}</h4>${topA ? `<b>${esc(clip(topA.author, 22))}</b><span>${fmt(topA.inter)} ${esc(L('interactions'))} · ${esc(platLabel(topA.platform))}</span>` : '<span>—</span>'}</div>
+    </div>`;
+    const watch = acctList.filter((x) => x.tier === 'priority' || x.tier === 'amplifier').slice(0, 6);
+    const watchHtml = watch.length
+      ? `<div class="watch"><h4>${esc(L('Watch first'))}</h4>${watch.map((p) => `<div class="wrow"><span class="plat-badge" style="background:${platColor(p.platform)}">${esc(platLabel(p.platform))}</span><span class="nm">${authorProfileLink(p)}</span><span class="rpill ${ROLE_PILL[p.tier]}">${esc(p.priority)}</span><span class="why">${esc(clip(String(p.why || '').split(/(?<=[.!?])\s/)[0], 120))}</span><span class="lk">${p.posts.slice(0, 4).map((n) => `[Post #${n}]`).join(' ')}</span></div>`).join('')}</div>`
+      : `<div class="calm">${esc(haveFacts ? L('No account in these posts calls for action or violence.') : L('Account roles are not available in this report.'))}</div>`;
+    const tierOfAuthor = new Map(allWatch.map((p) => [`${p.platform}|${p.author}`, p.tier]));
+    const topBars = Object.values(authors).sort((x, y) => (y.inter || 0) - (x.inter || 0)).slice(0, 8).map((a, _i, arr) => hbar(a.author, a.inter, Math.max(1, arr[0]?.inter || 1), TIER_DOT[tierOfAuthor.get(`${a.platform}|${a.author}`)] || BAR, `${a.count} post${a.count === 1 ? '' : 's'}`, 'interactions')).join('');
+    return `
   ${secHead('Accounts to Watch')}
-  <div class="metrics" style="grid-template-columns:repeat(3,1fr)">
-    ${metric(fmt(includeEvidence ? highWatchList.length : allWatch.length), 'Profiles tracked', 'Monitored accounts categorized by platform')}
-    ${metric(fmt(highWatchList.filter((p) => p.tier === 'priority').length), 'High watch tier', 'Priority surveillance & escalation targets')}
-    ${metric(topVoice ? fmt(topVoice.count) : '0', topVoice ? clip(topVoice.author, 16) : 'Top account', topVoice ? platLabel(topVoice.platform) : '—')}
-  </div>
+  ${overview}
+  ${watchHtml}
   <div class="chartbox">
     <h4>Top Accounts by Interactions</h4>
-    <p class="sm">Interactions = likes + shares + comments. Views are shown separately and are not added in.</p>
-    ${Object.values(authors).sort((x, y) => (y.inter || 0) - (x.inter || 0)).slice(0, 8).map((a, _i, arr) => hbar(a.author, a.inter, Math.max(1, arr[0]?.inter || 1), BAR, `${a.count} post${a.count === 1 ? '' : 's'}`, 'interactions')).join('') || '<p class="sm">No accounts in this set.</p>'}
+    <p class="sm">Interactions = likes + shares + comments (views are not added in). Bar colour shows the account's role.</p>
+    ${topBars || `<p class="sm">${esc(L('No accounts in this set.'))}</p>`}
   </div>
-  <p class="sm">${includeEvidence ? `Priority accounts first, then the most-engaged accounts: ${highWatchList.length} profiles, each with a direct link.` : 'Every platform and its accounts, priority first. Colour shows the role; the numbers open the posts.'}</p>
-  ${haveFacts && violenceN === 0 ? `<p class="sm">${esc(L('No post from the accounts listed here reports violence or damage.'))}</p>` : ''}
+  <p class="sm">${includeEvidence ? `Priority accounts first, then the most-engaged accounts: ${highWatchList.length} profiles, each with a direct link.` : 'Every platform and its accounts, priority first. The number links open the posts.'}</p>
   ${includeEvidence ? platformBoxesHtml : compactAccountsHtml}
   ${(analysis?.amplifiers || []).length
     ? `<ul class="bul">${analysis.amplifiers.map((a) => `<li><b>${esc(a.account)}</b> — ${esc(a.why || '')}${a.posts?.length ? ` <span class="sm">${esc(a.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>`
     : ''}`;
+  };
 
   const reactionSection = () => `
   ${secHead('Public Reaction and Tone')}
