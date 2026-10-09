@@ -422,7 +422,7 @@ test('closing summary: cleaned reply, printed as the last section, and trimmed i
   const posts = [1, 2].map((n) => ({ id: n, platform: 'x', author: `A${n}`, text: n === 1 ? 'bandh Bhubaneswar' : 'protest Mumbai', sentiment: 'neutral', risk_level: 'low', posted_at: '2026-10-07T10:00:00Z', likes: 1, shares: 0, comments: 0, views: 0, url: 'u' + n, is_relevant: true, citationTag: `[Post #${n}]` }));
   const sm = { event: { name: 'E', location: 'Odisha' }, stats: {}, evidence_traceability: posts };
   const full = buildReportHtml({ summary: sm, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false });
-  assert.ok(/Summary in Plain Words/.test(full) && /class="closing"/.test(full) && /A protest in Mumbai/.test(full));
+  assert.ok(/<span class="nm">Summary<\/span>/.test(full) && /class="closing"/.test(full) && /A protest in Mumbai/.test(full));
   const region = buildReportHtml({ summary: sm, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false, regionOnly: true });
   assert.ok(/class="closing"/.test(region) && !/Mumbai/.test(region) && /12-hour bandh is planned in Odisha/.test(region));
   const none = buildReportHtml({ summary: sm, keywordData: null, tenantName: 'odisha', analysis: { ...a, closingSummary: '' }, headquarters: null, includeEvidence: false });

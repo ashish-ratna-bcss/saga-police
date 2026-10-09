@@ -1631,7 +1631,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     if (!text) return '';
     const paras = text.split(/\n{2,}/).map((x) => x.trim()).filter(Boolean);
     return `
-  <div class="sec"><span class="no">${secNo()}</span><span class="nm">${esc(L('Summary in Plain Words'))}</span></div>
+  <div class="sec"><span class="no">${secNo()}</span><span class="nm">${esc(L('Summary'))}</span></div>
   <div class="closing">${paras.map((x) => `<p>${esc(x)}</p>`).join('')}</div>`;
   };
 
