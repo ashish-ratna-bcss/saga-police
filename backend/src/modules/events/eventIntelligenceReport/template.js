@@ -834,11 +834,10 @@ const regionFilter = (analysis, outsideNs, outsideNames) => {
   };
 };
 
-// Dates written as 2026-10-08 or 10/8/2026 are shown as "8 Oct 2026" so nobody reads day and month the wrong way round.
+// Dates written as 2026-10-08 are shown as "8 Oct 2026" so nobody reads day and month the wrong way round.
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const plainDates = (html) => String(html)
-  .replace(/(?<![\d/-])(\d{4})-(\d{2})-(\d{2})(?![\d-])/g, (m, y, mo, d) => (Number(mo) >= 1 && Number(mo) <= 12 ? `${Number(d)} ${MONTHS_SHORT[Number(mo) - 1]} ${y}` : m))
-  .replace(/(?<![\d/])(\d{1,2})\/(\d{1,2})\/(\d{4})(?![\d/])/g, (m, a, b, y) => (Number(a) <= 12 && Number(b) <= 31 && Number(a) > 0 ? `${Number(b)} ${MONTHS_SHORT[Number(a) - 1]} ${y}` : m));
+  .replace(/(?<![\d/-])(\d{4})-(\d{2})-(\d{2})(?![\d-])/g, (m, y, mo, d) => (Number(mo) >= 1 && Number(mo) <= 12 ? `${Number(d)} ${MONTHS_SHORT[Number(mo) - 1]} ${y}` : m));
 
 /** A closing summary whose line breaks were lost ("CONFIRMED - a - b NOT VERIFIED - c ...") is put back into its labelled sections. */
 const relabelClosing = (t) => {
@@ -854,6 +853,9 @@ const relabelClosing = (t) => {
     return items.length ? `${mk.head}\n${items.map((x) => `- ${x}`).join('\n')}` : '';
   }).filter(Boolean).join('\n\n');
 };
+
+// Two actions with the same lead unit and the same posts say the same thing; the first is kept.
+const dedupeActions = (list) => { const seen = new Set(); return list.filter((a) => { const k = `${String(a.action || '').split(/\s+[—–]\s+/)[1] || ''}|${(a.posts || []).slice().sort((x, y) => x - y).join(',')}`; if ((a.posts || []).length && seen.has(k)) return false; seen.add(k); return true; }); };
 
 const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquarters, includeEvidence = true, labels = null, regionOnly = false, compact = false }) => {
   setReportTz(headquarters?.timezone);
@@ -1185,7 +1187,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const findings = (analysis?.keyFindings || []).slice(0, 6);
   const narratives = (analysis?.narratives || []).slice(0, 5);
   const seenEsc = new Set();
-  const actions = (analysis?.actions || []).slice(0, 10).map((a) => ({
+  const actions = dedupeActions((analysis?.actions || []).slice(0, 10)).map((a) => ({
     ...a,
     detail: String(a.detail || '').replace(/\s*Escalate if[^.]*\./gi, (m) => { const k = m.trim().toLowerCase(); if (seenEsc.has(k)) return ''; seenEsc.add(k); return m; }),
   }));
