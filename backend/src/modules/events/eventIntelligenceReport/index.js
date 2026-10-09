@@ -46,7 +46,7 @@ const prepareReport = async (eventId, ctx = {}) => {
  */
 const generateEventIntelligencePdf = async (
   eventId,
-  { db, dbName, tenantName, user, timeframe = 'full', fromDate = null, toDate = null, includeEvidence = true, regionOnly = false } = {}
+  { db, dbName, tenantName, user, timeframe = 'full', fromDate = null, toDate = null, includeEvidence = true, regionOnly = false, compact = false } = {}
 ) => {
   const prepared = await prepareReport(eventId, { db, dbName, tenantName, user, timeframe, fromDate, toDate });
   const { summary, analysis } = prepared;
@@ -75,13 +75,14 @@ const generateEventIntelligencePdf = async (
     analysis,
     headquarters: resolveHeadquarters(tenantName, profile),
     includeEvidence,
-    regionOnly,
+    regionOnly: regionOnly || compact,
+    compact,
     labels: await getLabels(reportLanguageFor(tenantName, profile), getLLMConfig),
   });
   const cleanTenant = (t) => tenantDisplayName(t, profile);
   const name = summary?.event?.name || 'Event';
   const pdf = await renderHtmlToPdf(html, {
-    footerLabel: `${cleanTenant(tenantName)} · ${name}${includeEvidence ? '' : regionOnly ? ` (${summary?.event?.location || 'Region'} only)` : ' (Executive)'}`,
+    footerLabel: `${cleanTenant(tenantName)} · ${name}${includeEvidence ? '' : compact ? ` (${summary?.event?.location || 'Location'} summary)` : regionOnly ? ` (${summary?.event?.location || 'Region'} only)` : ' (Executive)'}`,
   });
   return { pdf, eventName: name };
 };

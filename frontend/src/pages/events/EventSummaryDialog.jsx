@@ -750,7 +750,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
    * and multilingual post text render consistently.
    */
   const regionLabel = summaryData?.event?.location || 'Region';
-  const handleDownload = async (withEvidence = true, regionOnly = false) => {
+  const handleDownload = async (withEvidence = true, regionOnly = false, compact = false) => {
     if (!summaryData?.summary || !eventId) return;
     setPdfGenerating(true);
     try {
@@ -761,7 +761,7 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
           from_date: fromDate || undefined,
           to_date: toDate || undefined,
           include_evidence: withEvidence ? 'true' : 'false',
-          scope: regionOnly ? 'region' : undefined,
+          scope: compact ? 'location' : regionOnly ? 'region' : undefined,
         },
         responseType: 'blob',
         timeout: 300000,
@@ -772,12 +772,12 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       const link = document.createElement('a');
       link.href = url;
       const tfSuffix = timeframe && timeframe !== 'full' ? `_${safe(timeframe).toUpperCase()}` : '';
-      link.download = `${safe(tenantName)}_${safe(displayName)}${tfSuffix}_Report_${withEvidence ? 'With_Evidence' : regionOnly ? 'Region_Executive_Summary' : 'Executive'}.pdf`;
+      link.download = `${safe(tenantName)}_${safe(displayName)}${tfSuffix}_Report_${withEvidence ? 'With_Evidence' : compact ? 'Location_Summary' : regionOnly ? 'Region_Executive_Summary' : 'Executive'}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      toast.success(`Event Intelligence report (${withEvidence ? 'with evidence' : regionOnly ? `${regionLabel} executive summary` : 'executive summary'}) downloaded`);
+      toast.success(`Event Intelligence report (${withEvidence ? 'with evidence' : compact ? `${regionLabel} location summary` : regionOnly ? `${regionLabel} executive summary` : 'executive summary'}) downloaded`);
     } catch (err) {
       console.error('Failed to generate PDF report:', err);
       toast.error('Failed to generate PDF report: ' + (err?.response?.statusText || err.message));
@@ -917,6 +917,19 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                       <span className="text-xs font-semibold text-foreground">{regionLabel} Executive Summary</span>
                       <span className="text-[11px] text-muted-foreground leading-tight">
                         Only posts, places, actors and actions in {regionLabel}; nothing from elsewhere
+                      </span>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDownload(false, true, true)}
+                    disabled={pdfGenerating}
+                    className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
+                  >
+                    <MapPin className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-semibold text-foreground">Specific Event Location Summary</span>
+                      <span className="text-[11px] text-muted-foreground leading-tight">
+                        Short 2-3 page brief for {regionLabel}: assessment, risk, actions and what is happening there
                       </span>
                     </div>
                   </DropdownMenuItem>
