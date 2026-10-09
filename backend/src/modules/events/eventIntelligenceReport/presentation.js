@@ -176,10 +176,14 @@ const buildPresentationBody = (ctx) => {
   watch.push(L('Violence: {a} confirmed, {b} mentioned, {c} alleged or warned.', { a: counts.violenceConfirmed, b: counts.violenceMentioned, c: counts.alleged }));
   if (counts.detentions) watch.push(nPosts(counts.detentions, '{n} post reports arrests, detentions or a refused permission.', '{n} posts report arrests, detentions or a refused permission.'));
   (notKnown || []).slice(0, 2).forEach((x) => watch.push(noCite(String(typeof x === 'string' ? x : (x.text || x.item || '')).replace(/[.\s]+$/, ''))));
-  const s3 = `<h2>${esc(L('Recommended actions'))}</h2><div class="cols3">
-    <div class="card"><h3>${esc(L('Claims to verify and answer'))}</h3>${claimLines}</div>
-    <div class="card o"><h3>${esc(L('What to do first'))}</h3>${actLines}</div>
-    <div class="card g"><h3>${esc(L('What to watch next'))}</h3>${watch.filter(Boolean).map((w) => `<p>${esc(whole(w, 190))}</p>`).join('')}</div></div>`;
+  const hasClaims = (narrativesToWatch || []).length > 0;
+  const hasActs = (actions || []).length > 0;
+  const cards3 = [
+    hasClaims ? `<div class="card"><h3>${esc(L('Claims to verify and answer'))}</h3>${claimLines}</div>` : '',
+    hasActs ? `<div class="card o"><h3>${esc(L('What to do first'))}</h3>${actLines}</div>` : '',
+    `<div class="card g"><h3>${esc(L('What to watch next'))}</h3>${watch.filter(Boolean).map((w) => `<p>${esc(whole(w, 190))}</p>`).join('')}</div>`,
+  ].filter(Boolean);
+  const s3 = `<h2>${esc(L('Recommended actions'))}</h2><div class="cols3" style="grid-template-columns:repeat(${cards3.length},1fr)">${cards3.join('')}</div>${hasActs ? '' : `<p class="small" style="margin-top:22px">${esc(L('Maintain standard baseline monitoring.'))}</p>`}`;
 
   // ---- 4. How the conversation built up
   const byDay = {};
@@ -243,7 +247,7 @@ const buildPresentationBody = (ctx) => {
   });
   const scriptTot = Object.values(scriptCount).reduce((a, b) => a + b, 0);
   const scriptLine = Object.entries(scriptCount).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${esc(L(k))} ${pc(v, scriptTot).toFixed(0)}%`).join(' · ');
-  const s7 = `<h2>${esc(L('Where the conversation is concentrated'))}</h2><div class="split"><div>
+  const s7 = !placeRows.length ? `<h2>${esc(L('Language of the conversation'))}</h2><div class="info"><h3>${esc(L('Language'))}</h3><p>${scriptLine} ${esc(L('of posts. Respond in these scripts at a minimum.'))}</p></div><p class="small">${esc(L('No specific place is named in the posts.'))}</p>` : `<h2>${esc(L('Where the conversation is concentrated'))}</h2><div class="split"><div>
       <div class="small" style="font-weight:700;margin-bottom:12px">${placeRows.some((x) => x.negPct > 0) ? esc(L('Share of posts negative, by place named (overall {p}%)', { p: Math.round(negPostPct) })) : esc(L('Posts by place named'))}</div>
       ${placeRows.map((p) => { const byCount = !placeRows.some((x) => x.negPct > 0); const mx = Math.max(1, ...placeRows.map((x) => x.n)); return `<div class="hb"><div class="nm">${esc(clip(p.name, 28))}</div><div class="tr"><div class="fl" style="width:${byCount ? Math.max(3, (100 * p.n) / mx) : Math.max(1, p.negPct)}%;background:${!byCount && p.negPct > negPostPct ? COLORS.red : COLORS.blue}"></div></div><div class="v">${byCount ? p.n : `${p.negPct}%`}</div></div>`; }).join('') || `<p class="small">${esc(L('No specific place is named in the posts.'))}</p>`}
     </div><div>
