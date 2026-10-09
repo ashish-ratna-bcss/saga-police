@@ -95,7 +95,7 @@ table.n td{font-size:20px;line-height:1.45}
 .lg i{display:inline-block;width:18px;height:18px;margin-right:10px;vertical-align:-2px;border-radius:3px}
 `;
 
-const slide = (cls, inner, { tenant, no }) => `<section class="slide ${cls}">${inner}<div class="foot"><span>${tenant} | Restricted</span><span>${no || ''}</span></div></section>`;
+const slide = (cls, inner, { tenant, mark, no }) => `<section class="slide ${cls}">${inner}<div class="foot"><span>${tenant}${mark ? ` | ${mark}` : ''}</span><span>${no || ''}</span></div></section>`;
 
 /**
  * ctx: values already computed by the report builder (see template.js). Functions: esc, fmt, pct, clip, L, donutSvg, platLabel.
@@ -297,7 +297,7 @@ const buildPresentationBody = (ctx) => {
 
   // A slide with nothing to show (no claim to check) is left out instead of printing an empty page.
   const slides = [s1, s2, s3, s4, s5, s6, s7, s8, claimBars.length ? s9 : '', s10, s11, s12].filter(Boolean);
-  return slides.map((inner, i) => slide(i === 0 ? 'title' : '', inner, { tenant: t, no: i === 0 ? '' : String(i + 1) })).join('');
+  return slides.map((inner, i) => slide(i === 0 ? 'title' : '', inner, { tenant: t, mark: esc(ctx.classification || ''), no: i === 0 ? '' : String(i + 1) })).join('');
 };
 
 module.exports = { buildPresentationBody, PRESENTATION_CSS: CSS, SLIDE_W, SLIDE_H };
