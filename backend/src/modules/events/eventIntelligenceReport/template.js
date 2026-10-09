@@ -1858,12 +1858,12 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       ? topPlaces.map((x) => hbar(x.name, x.count, pMax, BAR, '', L(x.count === 1 ? 'post' : 'posts'))).join('')
       : `<p class="sm">${esc(L('No specific place inside the region is named in the posts.'))}</p>`;
     const card = (a, i) => actCardHtml(a, i);
-    const first = actions.slice(0, 3);
-    const more = actions.slice(3, 5);
+    const first = actions.slice(0, 2);
+    const more = actions.slice(2, 5);
     const actCards = first.length
       ? `<div class="cp-acts">${first.map(card).join('')}</div>`
       : `<p class="sm">${esc(L('Maintain standard baseline monitoring.'))}</p>`;
-    const moreCards = () => (more.length ? `${secHead('Further Actions')}<div class="cp-acts">${more.map((a, i) => card(a, i + 3)).join('')}</div>` : '');
+    const moreCards = () => (more.length ? `${secHead('Further Actions')}<div class="cp-acts">${more.map((a, i) => card(a, i + 2)).join('')}</div>` : '');
     const rb = riskParts.map((x) => `<div style="background:${x.c}"><div class="n">${fmt(x.v)}</div><div class="l">${esc(L(x.k))}</div></div>`).join('');
     const reach = acctList.slice().sort((a, b) => (b.inter || 0) - (a.inter || 0)).slice(0, 5);
     const rMax = Math.max(1, ...reach.map((a) => a.inter || 0));
@@ -1878,7 +1878,6 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   </div>
   ${secHead('What To Do')}
   ${actCards}
-  <div style="break-before:page;page-break-before:always"></div>
   ${moreCards()}
   ${secHead('How Serious It Is')}
   <div class="cp-row">
