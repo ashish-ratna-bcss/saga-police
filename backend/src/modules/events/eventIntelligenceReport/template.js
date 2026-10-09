@@ -1977,10 +1977,10 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   };
 
   const presentationPeriod = (() => {
+    const fmtDay = (d, tz) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: tz });
+    if (stats.from_date && stats.to_date) return `${fmtDay(`${String(stats.from_date).slice(0, 10)}T12:00:00Z`, 'UTC')} to ${fmtDay(`${String(stats.to_date).slice(0, 10)}T12:00:00Z`, 'UTC')}`;
     const a = stats.effective_start || stats.date_range?.start; const b = stats.effective_end || stats.date_range?.end;
-    if (!a || !b) return '';
-    const f = (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: REPORT_TZ });
-    return `${f(a)} to ${f(b)}`;
+    return a && b ? `${fmtDay(a, 'UTC')} to ${fmtDay(b, 'UTC')}` : '';
   })();
   if (presentation) {
     const bl = analysis?.bottomLine ? String(analysis.bottomLine).replace(/(\d+%\s+(?:of\s+(?:the\s+)?posts\s+)?(?:are|is)\s+)critical\b/gi, '$1negative') : '';
