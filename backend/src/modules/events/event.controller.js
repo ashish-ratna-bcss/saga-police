@@ -363,7 +363,7 @@ const getEventIntelligenceReportPdf = async (req, res) => {
     if (includeEvidence) {
       saveEventSummaryPdf(req.params.id, pdf.toString('base64'), { db: req.tenantPrisma }).catch(() => {});
     }
-    const evTag = includeEvidence ? 'With_Evidence' : regionOnly ? 'Region_Only' : 'Without_Evidence';
+    const evTag = includeEvidence ? 'With_Evidence' : regionOnly ? 'Region_Executive_Summary' : 'Without_Evidence';
     const safe = `${tenantName || 'Report'}_${eventName}`.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');

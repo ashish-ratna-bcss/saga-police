@@ -49,13 +49,22 @@ const Stack = ({ parts, height = 'h-5', labels = true }) => {
 };
 
 const Section = ({ n, name, children }) => (
-  <section className="mb-8">
-    <div className="flex items-baseline gap-2.5 border-b border-border/80 pb-2 mb-4">
-      <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">{String(n).padStart(2, '0')}</span>
-      <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-foreground/90">{name}</span>
+  <section className="mb-7">
+    <div className="flex items-center gap-2.5 mb-3">
+      <span className="rounded bg-slate-800 dark:bg-slate-200 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white dark:text-slate-900">{String(n).padStart(2, '0')}.</span>
+      <span className="text-[15px] font-semibold tracking-tight text-foreground">{name}</span>
+      <span className="h-px flex-1 bg-border" />
     </div>
     {children}
   </section>
+);
+
+const Kpi = ({ n, l, sub }) => (
+  <div className="px-2 py-3 text-center min-w-0">
+    <div className="text-xl font-semibold tabular-nums leading-none text-foreground">{n}</div>
+    <div className="mt-1.5 text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">{l}</div>
+    {sub ? <div className="text-[10px] text-muted-foreground/80 mt-0.5">{sub}</div> : null}
+  </div>
 );
 
 const linkCites = (text) => String(text || '').replace(/\[Post #(\d+)\]/g, '[Post #$1](#cite-$1)');
@@ -118,6 +127,7 @@ const LEVEL_STYLE = {
   Medium: 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200',
   Low: 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200',
 };
+const LEVEL_PANEL = { High: 'bg-rose-600', Medium: 'bg-amber-600', Low: 'bg-emerald-600' };
 const ROLE_LABEL = { priority: 'Priority', amplifier: 'Amplifier', media: 'Media', routine: 'Routine' };
 const ROLE_STYLE = {
   priority: 'bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-200',
@@ -184,78 +194,186 @@ export function EventBrief({ summaryData, platformList, displayName, tenantName,
   }, [facts]);
 
   const title = displayName || summaryData?.event?.name || 'Event';
-  const metaParts = [tenant || null, eventLoc || null, isFallback ? 'rule-based summary (the model was not available)' : null].filter(Boolean);
+  const metaParts = [];
   const keyDates = report?.keyDates || [];
 
+  let sectionNo = 0;
+  const nx = () => { sectionNo += 1; return sectionNo; };
+  const hasReport = Boolean(report);
+  const showSituation = Boolean(report?.situation || report?.publicOrder || (report?.claims || []).length);
+  const showWhere = Boolean(facts?.places?.length || (report?.geography || []).length);
+  const showActivity = Boolean((report?.activities || []).length || (report?.presence || []).length);
+  const showActors = Boolean((report?.leaders || []).length || entities.length);
+  const showAccounts = Boolean(accounts.length || (report?.amplifiers || []).length);
+  const windowLabel = stats.timeframe_label
+    || (stats.date_range?.start && stats.date_range?.end ? `${new Date(stats.date_range.start).toLocaleDateString('en-GB')} – ${new Date(stats.date_range.end).toLocaleDateString('en-GB')}` : '—');
+  const generatedLabel = summaryData?.generated_at ? new Date(summaryData.generated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+  const onSitePosts = [...new Set(geo.inside.filter((p) => p.active).flatMap((p) => p.posts || []))];
+  const priorityAccounts = accounts.filter((a) => a.tier === 'priority').length;
+  const narrativesWatch = (report?.narrativesToWatch || []).length || (report?.claims || []).length;
+  const strands = report?.issueStrands || [];
+  const known = report?.known || [];
+  const notKnown = report?.notKnown || [];
+  const watchRows = report?.narrativesToWatch?.length
+    ? report.narrativesToWatch.map((n) => ({ key: n.narrative, title: n.narrative, note: n.riskNote || n.sourceAccounts || '', posts: n.posts }))
+    : (report?.claims || []).map((c) => ({ key: c.claim, title: c.claim, note: c.note || (c.triage === 'VERIFY' ? 'Requires official verification' : 'Monitoring required'), posts: c.posts }));
+  const riskWhy = `${risk.hasFacts ? '' : 'Detailed post analysis is not available for this summary, so the level rests on high-risk ratings only. '}${risk.hasFacts
+    ? `${risk.violence ? `${fmt(risk.violence)} post${risk.violence === 1 ? ' mentions' : 's mention'} violence or damage. ` : 'No post reports violence or damage. '}${risk.calls ? `${fmt(risk.calls)} post${risk.calls === 1 ? ' calls' : 's call'} people to join or act. ` : (keyDates.some((k) => k.type === 'upcoming' && !k.outside) ? 'The posts report planned activity (see key dates); none of them is itself a call to join. ' : 'No post calls for a bandh, blockade or gathering. ')}`
+    : ''}${risk.highRisk ? `${fmt(risk.highRisk)} post${risk.highRisk === 1 ? ' is' : 's are'} rated high risk. ` : ''}${pct(sent.negative, sentTotal)} of posts are negative in tone. Negative tone is criticism, not a risk signal.`;
+
   return (
-    <div className="text-foreground max-w-3xl">
-      <header className="mb-5">
-        <div className="text-[10px] font-semibold tracking-[0.14em] uppercase text-muted-foreground mb-1.5">Event intelligence brief</div>
-        <h2 className="text-xl font-semibold tracking-tight text-foreground leading-snug">{title}</h2>
-        {metaParts.length > 0 && <p className="mt-1.5 text-[12px] text-muted-foreground leading-5">{metaParts.join(' · ')}</p>}
+    <div className="text-foreground w-full">
+      {/* Cover */}
+      <header className="relative overflow-hidden rounded-lg bg-slate-800 text-white mb-4">
+        <div className="absolute inset-y-0 left-0 w-1.5 bg-orange-600" />
+        <div className="px-6 pt-4">
+          <div className="text-[10px] font-semibold tracking-[0.14em] uppercase text-slate-300 mb-1.5">
+            {[tenant, 'Event intelligence brief'].filter(Boolean).join(' · ')}
+          </div>
+          <h2 className="text-2xl font-semibold tracking-tight leading-tight m-0">{title}</h2>
+          {metaParts.length > 0 && <p className="mt-1 mb-0 text-[12.5px] text-slate-300">{metaParts.join(' · ')}</p>}
+        </div>
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 border-t border-slate-600/60">
+          {[
+            ['Monitoring window', windowLabel],
+            ['Generated', generatedLabel],
+            ['Region', eventLoc || '—'],
+            ['Analysis', isFallback ? 'Rule-based (AI unavailable)' : 'AI summary'],
+          ].map(([k, v], i) => (
+            <div key={k} className={`px-6 py-2.5 ${i > 0 ? 'md:border-l border-slate-600/60' : ''}`}>
+              <div className="text-[10px] uppercase tracking-[0.08em] text-slate-400">{k}</div>
+              <div className="text-[13px] font-semibold mt-0.5 leading-snug">{v}</div>
+            </div>
+          ))}
+        </div>
       </header>
 
-      {/* Risk card: the answer first */}
-      <div className={`rounded-md border px-4 py-3 mb-5 ${LEVEL_STYLE[risk.level]}`}>
-        <div className="flex items-baseline justify-between gap-3">
-          <div className="text-[10px] font-semibold tracking-[0.14em] uppercase opacity-80">Public order risk</div>
-          <div className="text-lg font-semibold">{risk.level}</div>
+      {/* Assessment: risk level + the answer */}
+      <div className="grid md:grid-cols-[9.5rem_1fr] rounded-lg border bg-card overflow-hidden mb-4">
+        <div className={`${LEVEL_PANEL[risk.level]} text-white flex flex-col items-center justify-center text-center px-4 py-5`}>
+          <div className="text-[10px] font-semibold tracking-[0.14em] uppercase opacity-90">Public order risk</div>
+          <div className="text-3xl font-bold tracking-wide uppercase my-1.5 leading-none">{risk.level}</div>
+          <div className="text-[11px] opacity-90">{fmt(risk.highRisk)} high-risk post{risk.highRisk === 1 ? '' : 's'}</div>
         </div>
-        <p className="text-[12.5px] leading-5 mt-1.5 m-0">
-          {risk.hasFacts
-            ? `${risk.violence ? `${fmt(risk.violence)} post${risk.violence === 1 ? ' mentions' : 's mention'} violence or damage. ` : 'No post reports violence or damage. '}${risk.calls ? `${fmt(risk.calls)} post${risk.calls === 1 ? ' calls' : 's call'} people to join or act. ` : (keyDates.some((k) => k.type === 'upcoming' && !k.outside) ? 'The posts report planned activity (see key dates); none of them is itself a call to join. ' : 'No post calls for a bandh, blockade or gathering. ')}`
-            : ''}
-          {risk.highRisk ? `${fmt(risk.highRisk)} post${risk.highRisk === 1 ? ' is' : 's are'} rated high risk. ` : ''}
-          {pct(sent.negative, sentTotal)} of posts are negative in tone. Negative tone is criticism, not a risk signal.
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-baseline gap-y-1 text-[12.5px] mb-6 pb-4 border-b border-border/70">
-        <span><span className="text-muted-foreground">Posts</span> <strong className="tabular-nums font-semibold">{fmt(total)}</strong></span>
-        <StatSep />
-        <span><span className="text-muted-foreground">Lead</span> <strong className="font-semibold">{lead ? lead.label : '—'}</strong>{lead ? <span className="text-muted-foreground"> ({pct(lead.count, total)})</span> : null}</span>
-        <StatSep />
-        <span className="text-emerald-700 dark:text-emerald-400">Positive {pct(sent.positive, sentTotal)}</span>
-        <StatSep />
-        <span className="text-slate-600 dark:text-slate-400">Neutral {pct(sent.neutral, sentTotal)}</span>
-        <StatSep />
-        <span className="text-rose-700 dark:text-rose-400">Negative {pct(sent.negative, sentTotal)}</span>
-        <StatSep />
-        <span><span className="text-muted-foreground">Interactions</span> <strong className="tabular-nums font-semibold">{fmt(interactions)}</strong>{n0(eng.views) ? <span className="text-muted-foreground"> · {fmt(eng.views)} views</span> : null}</span>
-      </div>
-
-      {report?.bottomLine && (
-        <div className="mb-7">
-          <div className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted-foreground mb-2">Bottom line</div>
-          <Md onCite={onCite} className="!text-[15px] !leading-7 prose-p:text-foreground/90">{report.bottomLine}</Md>
-        </div>
-      )}
-
-      {keyDates.length > 0 && (
-        <div className="mb-8">
-          <div className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted-foreground mb-3">Key dates</div>
-          <ul className="m-0 p-0 list-none space-y-2">
-            {keyDates.map((k) => (
-              <li key={`${k.date}-${k.event}`} className="grid grid-cols-[9rem_1fr] gap-3 text-[13px]">
-                <span className="font-semibold tabular-nums whitespace-nowrap">
-                  {k.date}
-                  <span className={`ml-1.5 text-[10px] font-medium ${k.type === 'upcoming' ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground'}`}>{k.type}</span>
-                </span>
-                <span className="text-foreground/85">{k.event} {k.posts?.length ? <span className="text-[11px] text-muted-foreground">{citeBtns(k.posts, onCite)}</span> : null}</span>
-              </li>
+        <div className="p-4 min-w-0">
+          {report?.bottomLine && (
+            <div className="mb-2">
+              <span className="text-[10px] font-semibold tracking-[0.12em] uppercase text-muted-foreground mr-2">Bottom line</span>
+              <Md onCite={onCite} className="!text-[15px] !leading-7 prose-p:text-foreground/90 mt-1">{report.bottomLine}</Md>
+            </div>
+          )}
+          <p className="text-[12px] leading-5 text-muted-foreground m-0 mb-3">{riskWhy}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {[
+              ['Mobilisation', risk.calls ? `${fmt(risk.calls)} post${risk.calls === 1 ? '' : 's'} call people to act` : onSitePosts.length ? `${fmt(onSitePosts.length)} post${onSitePosts.length === 1 ? '' : 's'} report people on site` : 'No call to act found', risk.calls ? (facts?.calls?.posts || []) : onSitePosts],
+              ['Narratives to watch', `${fmt(narrativesWatch)} flagged`, (report?.narrativesToWatch || []).flatMap((n) => n.posts || [])],
+              ['Surveillance priority', priorityAccounts ? `${fmt(priorityAccounts)} priority account${priorityAccounts === 1 ? '' : 's'}` : 'Baseline monitoring', null],
+            ].map(([k, v, refs]) => (
+              <div key={k} className="rounded-md bg-muted/60 px-3 py-2">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{k}</div>
+                <div className="text-[12.5px] font-semibold mt-0.5">{v}</div>
+                {refs && refs.length > 0 ? <div className="text-[11px] text-muted-foreground mt-0.5">{citeBtns([...new Set(refs)].slice(0, 6), onCite)}</div> : null}
+              </div>
             ))}
-          </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Headline numbers */}
+      <div className="grid grid-cols-3 md:grid-cols-6 rounded-lg border bg-card divide-x divide-border mb-6">
+        <Kpi n={fmt(total)} l="Posts analysed" />
+        <Kpi n={fmt(interactions)} l="Interactions" sub={n0(eng.views) ? `${fmt(eng.views)} views` : ''} />
+        <Kpi n={risk.hasFacts ? fmt(risk.calls) : '—'} l="Calls to act" />
+        <Kpi n={risk.hasFacts ? fmt(risk.violence) : '—'} l="Violence reports" />
+        <Kpi n={fmt(risk.highRisk)} l="High / critical risk" />
+        <Kpi n={fmt(geo.inside.length)} l="Places covered" />
+      </div>
+
+      {!hasReport && (
+        <div className="rounded-lg border border-dashed bg-muted/30 px-5 py-4 mb-6 text-[13px] text-muted-foreground">
+          <strong className="text-foreground">No detailed analysis for this summary yet.</strong> The counts above are live. Regenerate the report to add the issue, places, activity, actors, accounts and recommended actions.
         </div>
       )}
 
-      <Section n={1} name="Situation and risk">
+      {(strands.length > 0 || known.length > 0 || notKnown.length > 0) && (
+        <Section n={nx()} name="What the issue is">
+          {strands.length > 0 && (
+            <div className="rounded-lg border bg-card overflow-hidden mb-3">
+              <div className="hidden md:grid grid-cols-[1fr_1fr_1.6fr_1fr] gap-3 bg-muted/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <span>Strand</span><span>Who</span><span>What they ask or do</span><span>Where it stands</span>
+              </div>
+              {strands.map((x) => (
+                <div key={x.title} className="grid md:grid-cols-[1fr_1fr_1.6fr_1fr] gap-x-3 gap-y-0.5 px-4 py-2.5 border-t first:border-t-0 text-[12.5px]">
+                  <span className="font-semibold">{x.title}</span>
+                  <span className="text-foreground/85">{x.who || '—'}</span>
+                  <span className="text-foreground/85">{x.demand || '—'} {x.posts?.length ? <span className="text-[11px] text-muted-foreground">{citeBtns(x.posts, onCite)}</span> : null}</span>
+                  <span className="text-foreground/85">{x.status || '—'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {report?.issueLink && <p className="text-[13px] text-foreground/85 mt-0 mb-3">{report.issueLink}</p>}
+          {(known.length > 0 || notKnown.length > 0) && (
+            <div className="grid md:grid-cols-2 gap-3">
+              <div className="rounded-lg border border-emerald-200 dark:border-emerald-900 border-l-4 border-l-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/20 px-4 py-3">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-300 mb-1.5">What we know</div>
+                <ul className="m-0 pl-4 list-disc text-[12.5px] space-y-1">
+                  {known.map((k) => <li key={k.text}>{k.text} {k.posts?.length ? <span className="text-[11px] text-muted-foreground">{citeBtns(k.posts, onCite)}</span> : null}</li>)}
+                </ul>
+              </div>
+              <div className="rounded-lg border border-amber-200 dark:border-amber-900 border-l-4 border-l-amber-600 bg-amber-50/60 dark:bg-amber-950/20 px-4 py-3">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300 mb-1.5">What we do not know yet</div>
+                <ul className="m-0 pl-4 list-disc text-[12.5px] space-y-1">
+                  {notKnown.map((t) => <li key={typeof t === 'string' ? t : t.text}>{typeof t === 'string' ? t : t.text}</li>)}
+                </ul>
+              </div>
+            </div>
+          )}
+        </Section>
+      )}
+
+      {(keyDates.length > 0 || watchRows.length > 0) && (
+        <div className="grid md:grid-cols-2 gap-3 mb-7">
+          {keyDates.length > 0 && (
+            <div className="rounded-lg border border-l-4 border-l-blue-600 bg-card px-4 py-3">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-blue-900 dark:text-blue-300 mb-2">Operational timeline and key dates</div>
+              <ul className="m-0 p-0 list-none space-y-2">
+                {keyDates.map((k) => (
+                  <li key={`${k.date}-${k.event}`} className={`text-[12.5px] ${k.outside ? 'text-muted-foreground' : ''}`}>
+                    <span className="font-semibold tabular-nums">{k.date}</span>
+                    <span className={`ml-1.5 text-[10px] font-medium ${k.type === 'upcoming' ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground'}`}>{k.type}</span>
+                    <div className="text-foreground/85">{k.event} {k.posts?.length ? <span className="text-[11px] text-muted-foreground">{citeBtns(k.posts, onCite)}</span> : null}</div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {watchRows.length > 0 && (
+            <div className="rounded-lg border border-l-4 border-l-amber-600 bg-amber-50/50 dark:bg-amber-950/10 px-4 py-3">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-900 dark:text-amber-300 mb-2">Narratives to watch</div>
+              <ul className="m-0 p-0 list-none space-y-2">
+                {watchRows.map((w) => (
+                  <li key={w.key} className="text-[12.5px]">
+                    <span className="font-semibold">{w.title}</span>
+                    {w.note ? <div className="text-foreground/80">{w.note}</div> : null}
+                    {w.posts?.length ? <div className="text-[11px] text-muted-foreground">{citeBtns(w.posts, onCite)}</div> : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {showSituation && (
+      <Section n={nx()} name="Situation and risk">
         {report?.situation && <Md onCite={onCite}>{report.situation}</Md>}
         {report?.publicOrder && <Md onCite={onCite}>{`**Public order:** ${report.publicOrder}`}</Md>}
         {(report?.claims || []).length > 0 && (
-          <div className="mt-3">
-            <div className="text-[12px] text-muted-foreground mb-1.5">Claims in the posts (not confirmed)</div>
+          <div className="mt-3 rounded-lg border bg-card px-4 py-2">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground py-1.5">Claims in the posts (not confirmed)</div>
             {report.claims.map((c) => (
-              <div key={c.claim} className="py-2 border-t border-border/60 first:border-t-0 grid grid-cols-[3px_1fr] gap-3">
+              <div key={c.claim} className="py-2 border-t border-border/60 grid grid-cols-[3px_1fr] gap-3">
                 <div className={`rounded-full ${c.triage === 'VERIFY' ? 'bg-rose-500' : 'bg-teal-700'}`} />
                 <div className="text-[12.5px]">
                   <span className="font-semibold">{c.claim}</span> <span className="text-[10px] font-semibold text-muted-foreground">{c.triage}</span>
@@ -268,16 +386,21 @@ export function EventBrief({ summaryData, platformList, displayName, tenantName,
         )}
         {!report?.situation && !report?.publicOrder && <p className="text-[12.5px] text-muted-foreground m-0">Regenerate the report to see the situation summary.</p>}
       </Section>
+      )}
 
-      <Section n={2} name="Where it is happening">
+      {showWhere && (
+      <Section n={nx()} name="Where it is happening">
         {facts?.places?.length ? (
           <>
             {geo.inside.length > 0 ? (
-              <div className="space-y-2">
+              <div className="rounded-lg border bg-card px-4 py-3 space-y-2.5">
                 {geo.inside.slice(0, 10).map((p) => (
-                  <div key={p.name} className="grid grid-cols-[1fr_auto] items-baseline gap-2 text-[12.5px]">
-                    <span><strong className="font-semibold">{p.name}</strong>{p.region ? <span className="text-muted-foreground"> · {p.region}</span> : null}</span>
-                    <span className="tabular-nums text-muted-foreground">
+                  <div key={p.name} className="grid grid-cols-[8rem_1fr_auto] items-center gap-3 text-[12.5px]">
+                    <span className="font-semibold truncate" title={p.name}>{p.name}</span>
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full rounded-full bg-slate-700 dark:bg-slate-300" style={{ width: `${(100 * n0(p.mentioned)) / Math.max(n0(geo.inside[0]?.mentioned), 1)}%` }} />
+                    </div>
+                    <span className="tabular-nums text-muted-foreground whitespace-nowrap">
                       {fmt(p.mentioned)} post{p.mentioned === 1 ? '' : 's'} ·{' '}
                       <span className={p.active ? 'text-emerald-700 dark:text-emerald-300 font-medium' : ''}>{p.active ? 'activity reported' : 'mentioned only'}</span>
                     </span>
@@ -295,7 +418,7 @@ export function EventBrief({ summaryData, platformList, displayName, tenantName,
             )}
           </>
         ) : (report?.geography || []).length > 0 ? (
-          <ul className="m-0 pl-4 text-[12.5px] space-y-1">
+          <ul className="m-0 pl-4 list-disc text-[12.5px] space-y-1">
             {report.geography.map((g) => (
               <li key={g.place}><strong>{g.place}</strong> — {g.note} <span className="text-[11px] text-muted-foreground">{citeBtns(g.posts, onCite)}</span></li>
             ))}
@@ -304,16 +427,20 @@ export function EventBrief({ summaryData, platformList, displayName, tenantName,
           <p className="text-[12.5px] text-muted-foreground m-0">No place is named in the posts.</p>
         )}
       </Section>
+      )}
 
-      <Section n={3} name="Activity and ground presence">
+      {showActivity && (
+      <Section n={nx()} name="Activity and ground presence">
         {(report?.activities || []).length > 0 ? (
-          <ul className="m-0 pl-4 text-[12.5px] space-y-1">
+          <div className="rounded-lg border bg-card divide-y">
             {report.activities.map((a) => (
-              <li key={`${a.what}-${a.when}-${a.where}`}>
-                <strong>{a.what}</strong>{a.where ? ` — ${a.where}` : ''}{a.when ? `, ${a.when}` : ''} <span className="text-[11px] text-muted-foreground">{citeBtns(a.posts, onCite)}</span>
-              </li>
+              <div key={`${a.what}-${a.when}-${a.where}`} className="px-4 py-2.5 text-[12.5px] flex flex-wrap items-baseline gap-x-2">
+                <strong>{a.what}</strong>
+                <span className="text-foreground/85">{[a.where, a.when].filter(Boolean).join(' · ')}</span>
+                <span className="text-[11px] text-muted-foreground">{citeBtns(a.posts, onCite)}</span>
+              </div>
             ))}
-          </ul>
+          </div>
         ) : (
           <p className="text-[12.5px] text-muted-foreground m-0">No campaign, meeting, bandh or rally is named in the posts.</p>
         )}
@@ -324,56 +451,53 @@ export function EventBrief({ summaryData, platformList, displayName, tenantName,
             ))}
           </ul>
         )}
-        {plats.length > 0 && (
-          <div className="mt-4 space-y-2">
-            <div className="text-[12px] text-muted-foreground">Posts by platform</div>
-            {plats.map((p) => (
-              <div key={p.key} className="grid grid-cols-[4.5rem_1fr_auto] items-center gap-2 text-[12px]">
-                <span className="text-right text-muted-foreground">{p.label}</span>
-                <div className="h-2 rounded-sm bg-muted overflow-hidden">
-                  <div className="h-full rounded-sm" style={{ width: `${(100 * p.count) / Math.max(plats[0].count, 1)}%`, background: platColor(p.key) }} />
-                </div>
-                <span className="tabular-nums text-foreground/80 font-medium min-w-[5.5rem] text-right">{fmt(p.count)} · {pct(p.count, total)}</span>
+      </Section>
+      )}
+
+      {showActors && (
+      <Section n={nx()} name="Key actors and figures">
+        {(report?.leaders || []).length > 0 && (
+          <div className="grid sm:grid-cols-2 gap-2 mb-3">
+            {report.leaders.map((l) => (
+              <div key={l.name} className="rounded-lg border bg-card px-3.5 py-2.5 text-[12.5px]">
+                <div className="font-semibold">{l.name}</div>
+                {l.role ? <div className="text-muted-foreground">{l.role}</div> : null}
+                {l.posts?.length ? <div className="text-[11px] text-muted-foreground mt-0.5">{citeBtns(l.posts, onCite)}</div> : null}
               </div>
             ))}
           </div>
         )}
-      </Section>
-
-      <Section n={4} name="Key actors and figures">
-        {(report?.leaders || []).length > 0 && (
-          <ul className="m-0 pl-4 text-[12.5px] space-y-1 mb-3">
-            {report.leaders.map((l) => (
-              <li key={l.name}><strong>{l.name}</strong>{l.role ? ` — ${l.role}` : ''} <span className="text-[11px] text-muted-foreground">{citeBtns(l.posts, onCite)}</span></li>
-            ))}
-          </ul>
-        )}
         {entities.length ? (
-          <div className="space-y-2.5">
-            {entities.map((e) => (
-              <div key={e.name} className="grid grid-cols-[7rem_1fr_4.5rem] items-center gap-2 text-[12px]">
-                <span className="text-right text-muted-foreground truncate" title={e.name}>{e.name} <span className="text-foreground font-semibold tabular-nums">{fmt(e.total)}</span></span>
-                <Stack height="h-2" labels={false} parts={[{ k: 'Positive', v: e.praise, c: '#1B7A4E' }, { k: 'Neutral', v: e.news, c: '#5B6B78' }, { k: 'Negative', v: e.crit, c: '#B42318' }]} />
-                <span className="tabular-nums text-muted-foreground text-right">{pct(e.crit, e.total)} neg.</span>
-              </div>
-            ))}
+          <div className="rounded-lg border bg-card px-4 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2.5">Tone by entity</div>
+            <div className="space-y-2.5">
+              {entities.map((e) => (
+                <div key={e.name} className="grid grid-cols-[8rem_1fr_4.5rem] items-center gap-2 text-[12px]">
+                  <span className="text-muted-foreground truncate" title={e.name}>{e.name} <span className="text-foreground font-semibold tabular-nums">{fmt(e.total)}</span></span>
+                  <Stack height="h-2" labels={false} parts={[{ k: 'Positive', v: e.praise, c: '#1B7A4E' }, { k: 'Neutral', v: e.news, c: '#94A3B8' }, { k: 'Negative', v: e.crit, c: '#B42318' }]} />
+                  <span className="tabular-nums text-muted-foreground text-right">{pct(e.crit, e.total)} neg.</span>
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
           !(report?.leaders || []).length && <p className="text-[12.5px] text-muted-foreground m-0">No people or groups are classified.</p>
         )}
       </Section>
+      )}
 
-      <Section n={5} name="Accounts to watch">
+      {showAccounts && (
+      <Section n={nx()} name="Accounts to watch">
         {accounts.length > 0 ? (
-          <div className="space-y-0">
+          <div className="rounded-lg border bg-card overflow-hidden">
             {accounts.map((a) => (
-              <div key={`${a.platform}-${a.author}`} className="py-2.5 border-t border-border/60 first:border-t-0 first:pt-0 text-[12.5px]">
-                <div className="flex items-center gap-2">
+              <div key={`${a.platform}-${a.author}`} className="px-4 py-2.5 border-t first:border-t-0 text-[12.5px]">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold">@{String(a.author || '').replace(/^@/, '')}</span>
-                  <span className="text-muted-foreground">{platLabel(a.platform)}</span>
-                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${ROLE_STYLE[a.tier]}`}>{ROLE_LABEL[a.tier]}</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-white px-1.5 py-0.5 rounded" style={{ background: platColor(a.platform) }}>{platLabel(a.platform)}</span>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${ROLE_STYLE[a.tier]}`}>{ROLE_LABEL[a.tier]}</span>
                 </div>
-                <div className="text-muted-foreground mt-0.5">{a.reasons.join(' ')} <span className="text-[11px]">{citeBtns((a.posts || []).slice(0, 3), onCite)}</span></div>
+                <div className="text-muted-foreground mt-1">{a.reasons.join(' ')} <span className="text-[11px]">{citeBtns((a.posts || []).slice(0, 3), onCite)}</span></div>
               </div>
             ))}
           </div>
@@ -388,35 +512,54 @@ export function EventBrief({ summaryData, platformList, displayName, tenantName,
           </ul>
         )}
       </Section>
+      )}
 
-      <Section n={6} name="Public reaction and tone">
-        <Stack height="h-2.5" labels={false} parts={[{ k: 'Positive', v: sent.positive, c: '#1B7A4E' }, { k: 'Neutral', v: sent.neutral, c: '#5B6B78' }, { k: 'Negative', v: sent.negative, c: '#B42318' }]} />
-        <div className="flex gap-4 text-[11px] mt-1.5 mb-3 text-muted-foreground">
-          <span>Positive {fmt(sent.positive)}</span><span>Neutral {fmt(sent.neutral)}</span><span>Negative {fmt(sent.negative)}</span>
+      <Section n={nx()} name="Public reaction and tone">
+        <div className="grid md:grid-cols-2 gap-3 mb-3">
+          <div className="rounded-lg border bg-card px-4 py-3">
+            <div className="text-[13px] font-semibold mb-2">Tone breakdown</div>
+            {[['Positive', sent.positive, '#1B7A4E'], ['Neutral', sent.neutral, '#94A3B8'], ['Negative', sent.negative, '#B42318']].map(([k, v, c]) => (
+              <div key={k} className="grid grid-cols-[6.5rem_1fr_auto] items-center gap-2 py-1 text-[12px]">
+                <span className="flex items-center gap-1.5"><i className="inline-block h-2 w-2 rounded-full" style={{ background: c }} />{k} <strong className="tabular-nums">{fmt(v)}</strong></span>
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full" style={{ width: `${(100 * v) / sentTotal}%`, background: c }} /></div>
+                <span className="tabular-nums text-muted-foreground w-9 text-right">{pct(v, sentTotal)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-lg border bg-card px-4 py-3">
+            <div className="text-[13px] font-semibold mb-2">Platform distribution</div>
+            {plats.length > 0 ? plats.map((p) => (
+              <div key={p.key} className="grid grid-cols-[4.5rem_1fr_auto] items-center gap-2 py-1 text-[12px]">
+                <span className="text-muted-foreground">{p.label}</span>
+                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${(100 * p.count) / Math.max(plats[0].count, 1)}%`, background: platColor(p.key) }} />
+                </div>
+                <span className="tabular-nums font-medium text-right min-w-[5rem]">{fmt(p.count)} · {pct(p.count, total)}</span>
+              </div>
+            )) : <p className="text-[12px] text-muted-foreground m-0">No platform split.</p>}
+          </div>
         </div>
         {report?.sentimentCommentary && <Md onCite={onCite}>{report.sentimentCommentary}</Md>}
         {N.length > 0 && (
-          <div className="space-y-4 mt-4">
+          <div className="grid md:grid-cols-2 gap-3 mt-3">
             {N.map((n, i) => (
-              <div key={n.code || n.title} className="grid grid-cols-[3px_1fr] gap-3">
-                <div className="rounded-full" style={{ background: NARR_COLORS[i % NARR_COLORS.length] }} />
-                <div>
-                  <div className="text-[13.5px] font-semibold leading-snug">{n.title}</div>
-                  <Md onCite={onCite} className="!text-[12.5px] mt-1">{n.discussed}</Md>
-                  {n.posts?.length > 0 && <div className="text-[11px] text-muted-foreground mt-1.5">Evidence: {citeBtns(n.posts, onCite)}</div>}
-                </div>
+              <div key={n.code || n.title} className="rounded-lg border bg-card border-l-4 px-4 py-3" style={{ borderLeftColor: NARR_COLORS[i % NARR_COLORS.length] }}>
+                <div className="text-[13.5px] font-semibold leading-snug">{n.title}</div>
+                <Md onCite={onCite} className="!text-[12.5px] mt-1">{n.discussed}</Md>
+                {n.posts?.length > 0 && <div className="text-[11px] text-muted-foreground mt-1.5">Evidence: {citeBtns(n.posts, onCite)}</div>}
               </div>
             ))}
           </div>
         )}
       </Section>
 
-      <Section n={7} name="Recommended actions">
+      {hasReport && (
+      <Section n={nx()} name="Recommended actions">
         {(report?.actions || []).length > 0 ? (
-          <ol className="m-0 p-0 list-none">
+          <ol className="m-0 p-0 list-none rounded-lg border bg-card divide-y">
             {report.actions.map((a, i) => (
-              <li key={a.action} className="flex gap-3 py-3 border-t border-border/60 first:border-t-0 first:pt-0">
-                <span className="text-[12px] font-semibold tabular-nums text-muted-foreground w-5 shrink-0 pt-0.5">{String(i + 1).padStart(2, '0')}</span>
+              <li key={a.action} className="flex gap-3 px-4 py-3">
+                <span className="grid place-items-center h-6 w-6 shrink-0 rounded-full bg-slate-800 dark:bg-slate-200 text-[11px] font-semibold tabular-nums text-white dark:text-slate-900">{i + 1}</span>
                 <div className="min-w-0">
                   <div className="text-[13.5px] font-semibold leading-snug">{a.action}</div>
                   <Md onCite={onCite} className="!text-[12.5px] mt-1">{`${a.detail}${cites(a.posts)}`}</Md>
@@ -428,6 +571,7 @@ export function EventBrief({ summaryData, platformList, displayName, tenantName,
           <p className="text-[12.5px] text-muted-foreground m-0">Maintain baseline monitoring. No escalation is needed from these posts.</p>
         )}
       </Section>
+      )}
     </div>
   );
 }

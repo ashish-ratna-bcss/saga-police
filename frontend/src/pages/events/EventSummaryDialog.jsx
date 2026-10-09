@@ -58,7 +58,7 @@ import {
   AllPlatformsLogo,
 } from '../../components/PlatformBrandIcon';
 import { toast } from 'sonner';
-import { EventBrief, RiskAlerts } from './EventSummaryBrief';
+import { EventBrief, RiskAlerts, riskLevelOf } from './EventSummaryBrief';
 
 /**
  * Extracts sections from the markdown text based on common section headers.
@@ -480,10 +480,6 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
     return [...basePlatforms, ...customList].filter((p) => p.count > 0);
   }, [platforms, platformPercentages, totalPosts]);
 
-  const activeSignals = useMemo(() => {
-    return platformList.filter((p) => p.count > 0);
-  }, [platformList]);
-
   const { user } = useAuth() || {};
   const tenantName = useMemo(() => {
     // 1. Direct tenant properties from authenticated user
@@ -723,12 +719,12 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       const link = document.createElement('a');
       link.href = url;
       const tfSuffix = timeframe && timeframe !== 'full' ? `_${safe(timeframe).toUpperCase()}` : '';
-      link.download = `${safe(tenantName)}_${safe(displayName)}${tfSuffix}_Report_${withEvidence ? 'With_Evidence' : regionOnly ? 'Region_Only' : 'Executive'}.pdf`;
+      link.download = `${safe(tenantName)}_${safe(displayName)}${tfSuffix}_Report_${withEvidence ? 'With_Evidence' : regionOnly ? 'Region_Executive_Summary' : 'Executive'}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      toast.success(`Event Intelligence report (${withEvidence ? 'with evidence' : regionOnly ? `${regionLabel} only` : 'executive summary'}) downloaded`);
+      toast.success(`Event Intelligence report (${withEvidence ? 'with evidence' : regionOnly ? `${regionLabel} executive summary` : 'executive summary'}) downloaded`);
     } catch (err) {
       console.error('Failed to generate PDF report:', err);
       toast.error('Failed to generate PDF report: ' + (err?.response?.statusText || err.message));
@@ -737,352 +733,216 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
     }
   };
 
+  // Opens the timeframe dialog; from the header it falls back to a window that has posts, from the notice it keeps the current one.
+  const openScopeModal = (useFallback) => {
+    if (useFallback) {
+      const isCurrentAvail = scopeOptions.find((o) => o.id === timeframe)?.available !== false;
+      const fallbackTf = scopeOptions.find((o) => o.id === 'last_month')?.available ? 'last_month' : 'full';
+      setTempTimeframe(isCurrentAvail ? timeframe : fallbackTf);
+    } else {
+      setTempTimeframe(timeframe);
+    }
+    setTempFromDate(fromDate);
+    setTempToDate(toDate);
+    setScopeModalOpen(true);
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="sm:max-w-5xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden bg-background border-border shadow-2xl rounded-xl"
+        className="sm:max-w-6xl h-[90vh] flex flex-col p-0 gap-0 overflow-hidden bg-background border-border shadow-2xl rounded-xl"
         onPointerDownOutside={(e) => { if (generatingRef.current) e.preventDefault(); }}
         onInteractOutside={(e) => { if (generatingRef.current) e.preventDefault(); }}
         onFocusOutside={(e) => { if (generatingRef.current) e.preventDefault(); }}
       >
-        {/* Header */}
-        <DialogHeader className="px-6 py-4 border-b bg-muted/20 flex flex-row flex-wrap items-center justify-between gap-y-3 space-y-0">
-          <div className="flex items-center gap-3 min-w-0 flex-1 basis-[22rem]">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-purple-500/20 shrink-0">
-              <Sparkles className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <DialogTitle className="text-lg font-bold tracking-tight text-foreground whitespace-nowrap">
-                  Event Summary
-                </DialogTitle>
-                {totalPosts > 0 && (
-                  <Badge
-                    variant="secondary"
-                    className="text-[11px] px-2 py-0.5 font-normal shrink-0"
-                  >
-                    {totalPosts} unique posts analyzed
-                  </Badge>
-                )}
-                {/* The timeframe is shown once, on the selector button at the right. */}
+        {/* Header: title, event, risk, and one toolbar */}
+        <DialogHeader className="px-6 pt-4 pb-3 border-b bg-background space-y-0 text-left">
+          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 pr-8">
+            <div className="flex items-center gap-3 min-w-0 flex-1 basis-[20rem]">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-sm shrink-0">
+                <Sparkles className="h-5 w-5" />
               </div>
-              <DialogDescription className="text-xs text-muted-foreground flex items-center gap-2 mt-1 truncate">
-                <span>Event: <strong className="text-foreground">{displayName}</strong></span>
-                {(stats.relevant_posts_count ?? totalPosts) > 0 && (
-                  <>
-                    <span>•</span>
-                    <span title="Posts classified as directly related to the event">{stats.relevant_posts_count ?? totalPosts} event-relevant posts</span>
-                  </>
-                )}
-                {generatedAt && (
-                  <>
-                    <span>•</span>
-                    <span>Generated {new Date(generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                  </>
-                )}
-                {summaryData?.generated_by?.name && (
-                  <>
-                    <span>•</span>
-                    <span>by <strong className="text-foreground">{summaryData.generated_by.name}</strong></span>
-                  </>
-                )}
-                {summaryData?.has_pdf && (
-                  <>
-                    <span>•</span>
-                    <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                      <CheckCircle2 className="h-3 w-3" /> PDF saved
-                    </span>
-                  </>
-                )}
-              </DialogDescription>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <DialogTitle className="text-[15px] font-semibold tracking-tight text-foreground leading-6">Event Summary</DialogTitle>
+                  {summaryData && !loading && (() => {
+                    const rk = riskLevelOf(stats);
+                    const tone = rk.level === 'High'
+                      ? 'bg-rose-600 text-white'
+                      : rk.level === 'Medium'
+                        ? 'bg-amber-600 text-white'
+                        : 'bg-emerald-600 text-white';
+                    return (
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${tone}`} title="Public order risk: from calls to act, violence and high-risk ratings. Negative tone alone does not raise it.">
+                        {rk.level} risk
+                      </span>
+                    );
+                  })()}
+                </div>
+                <DialogDescription className="text-[13px] font-medium text-foreground/90 leading-5 truncate" title={displayName}>
+                  {displayName}
+                </DialogDescription>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap ml-auto">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => openScopeModal(true)}
+                disabled={loading}
+                className="h-9 gap-1.5 text-xs font-medium"
+                title="Select report timeframe (Daily, Weekly, Monthly, Custom Range)"
+              >
+                <CalendarDays className="h-3.5 w-3.5 text-indigo-500" />
+                <span className="max-w-[150px] truncate">{timeframeLabel}</span>
+                <ChevronDown className="h-3 w-3 opacity-60 shrink-0" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); openScopeModal(true); }}
+                disabled={loading}
+                className="h-9 gap-1.5 text-xs font-medium"
+                title="Change timeframe and regenerate report"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <span>Regenerate</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopy}
+                disabled={loading || !summaryData?.summary}
+                className="h-9 w-9 p-0"
+                title="Copy markdown text"
+                aria-label="Copy summary text"
+              >
+                {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    disabled={loading || pdfGenerating || !summaryData?.summary}
+                    className="h-9 gap-1.5 text-xs font-semibold"
+                    title="Download the report as PDF"
+                  >
+                    {pdfGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                    <span>{pdfGenerating ? 'Preparing…' : 'Download Report'}</span>
+                    <ChevronDown className="h-3 w-3 opacity-70 ml-0.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-72">
+                  <DropdownMenuLabel className="text-[11px] font-semibold text-muted-foreground tracking-wide uppercase">
+                    Select Report Format
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => handleDownload(false)}
+                    disabled={pdfGenerating}
+                    className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
+                  >
+                    <FileText className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-semibold text-foreground">Executive Summary (without evidence)</span>
+                      <span className="text-[11px] text-muted-foreground leading-tight">
+                        The assessment, risk, places, actors and actions, without the post-by-post register
+                      </span>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDownload(false, true)}
+                    disabled={pdfGenerating}
+                    className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
+                  >
+                    <MapPin className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-semibold text-foreground">{regionLabel} Executive Summary</span>
+                      <span className="text-[11px] text-muted-foreground leading-tight">
+                        Only posts, places, actors and actions in {regionLabel}; nothing from elsewhere
+                      </span>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDownload(true)}
+                    disabled={pdfGenerating}
+                    className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
+                  >
+                    <FileCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-semibold text-foreground">Full Report (with evidence)</span>
+                      <span className="text-[11px] text-muted-foreground leading-tight">
+                        Everything above plus every post with a clickable link
+                      </span>
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 pr-6 flex-wrap">
-            {/* Timeframe Scope Selector Trigger */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const isCurrentAvail = scopeOptions.find((o) => o.id === timeframe)?.available !== false;
-                const fallbackTf = scopeOptions.find((o) => o.id === 'last_month')?.available ? 'last_month' : 'full';
-                setTempTimeframe(isCurrentAvail ? timeframe : fallbackTf);
-                setTempFromDate(fromDate);
-                setTempToDate(toDate);
-                setScopeModalOpen(true);
-              }}
-              disabled={loading}
-              className="h-8 gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 font-medium"
-              title="Select report timeframe (Daily, Weekly, Monthly, Custom Range)"
-            >
-              <CalendarDays className="h-3.5 w-3.5 text-indigo-500" />
-              <span className="max-w-[130px] truncate">{timeframeLabel}</span>
-              <ChevronDown className="h-3 w-3 opacity-60 shrink-0" />
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onPointerDown={(e) => e.preventDefault()}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const isCurrentAvail = scopeOptions.find((o) => o.id === timeframe)?.available !== false;
-                const fallbackTf = scopeOptions.find((o) => o.id === 'last_month')?.available ? 'last_month' : 'full';
-                setTempTimeframe(isCurrentAvail ? timeframe : fallbackTf);
-                setTempFromDate(fromDate);
-                setTempToDate(toDate);
-                setScopeModalOpen(true);
-              }}
-              disabled={loading}
-              className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-              title="Change timeframe and regenerate report"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span>Regenerate</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCopy}
-              disabled={loading || !summaryData?.summary}
-              className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-              title="Copy markdown text"
-            >
-              {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
-              <span>{copied ? 'Copied' : 'Copy'}</span>
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={loading || pdfGenerating || !summaryData?.summary}
-                  className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground font-medium"
-                  title="Download the report as PDF"
-                >
-                  {pdfGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                  <span>{pdfGenerating ? 'Preparing…' : 'Download Report'}</span>
-                  <ChevronDown className="h-3 w-3 opacity-60 ml-0.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72">
-                <DropdownMenuLabel className="text-[11px] font-semibold text-muted-foreground tracking-wide uppercase">
-                  Select Report Format
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => handleDownload(false)}
-                  disabled={pdfGenerating}
-                  className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
-                >
-                  <FileText className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-xs font-semibold text-foreground">Executive Summary (without evidence)</span>
-                    <span className="text-[11px] text-muted-foreground leading-tight">
-                      The assessment, risk, places, actors and actions, without the post-by-post register
-                    </span>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleDownload(false, true)}
-                  disabled={pdfGenerating}
-                  className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
-                >
-                  <MapPin className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-xs font-semibold text-foreground">{regionLabel} Only Report (executive summary)</span>
-                    <span className="text-[11px] text-muted-foreground leading-tight">
-                      Only posts, places, actors and actions in {regionLabel}; nothing from other regions
-                    </span>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleDownload(true)}
-                  disabled={pdfGenerating}
-                  className="flex items-start gap-2.5 cursor-pointer py-2 px-2.5"
-                >
-                  <FileCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-xs font-semibold text-foreground">Full Report (with evidence)</span>
-                    <span className="text-[11px] text-muted-foreground leading-tight">
-                      Everything above plus every post with a clickable link
-                    </span>
-                  </div>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 pl-[3.25rem] text-[11.5px] text-muted-foreground">
+            {totalPosts > 0 && <span><strong className="text-foreground tabular-nums">{totalPosts}</strong> unique posts analysed</span>}
+            {(stats.relevant_posts_count ?? totalPosts) > 0 && (
+              <span title="Posts classified as directly related to the event"><strong className="text-foreground tabular-nums">{stats.relevant_posts_count ?? totalPosts}</strong> event-relevant</span>
+            )}
+            {generatedAt && <span>Generated {new Date(generatedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>}
+            {summaryData?.generated_by?.name && <span>by <strong className="text-foreground">{summaryData.generated_by.name}</strong></span>}
+            {summaryData?.has_pdf && (
+              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="h-3 w-3" /> PDF saved</span>
+            )}
           </div>
         </DialogHeader>
 
-        {summaryData?.summary_source === 'fallback' && !loading && (
-          <div className="px-6 py-2.5 border-b border-amber-500/30 bg-amber-500/10 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
-            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>
-              <strong>Database-only summary.</strong> The AI model did not respond, so this report uses fixed template text plus your live
-              post counts and five sample citations — not a full narrative analysis.
-              {summaryData.llm_error ? ` (${summaryData.llm_error})` : ''}
-            </span>
-          </div>
-        )}
-
-        {summaryData?.cached && !summaryData?.is_stale && !loading && (
-          <div className="px-6 py-2 border-b border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-900 dark:text-emerald-200 flex items-center gap-2">
-            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-            <span>
-              This AI summary was already generated
-              {summaryData.generated_by?.name ? (
-                <>
-                  {' '}by <strong>{summaryData.generated_by.name}</strong>
-                </>
-              ) : null}
-              {generatedAt ? (
-                <> on {new Date(generatedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</>
-              ) : null}
-              . Use <strong>Regenerate</strong> to refresh it.
-            </span>
-          </div>
-        )}
-
-        {summaryData?.is_stale && !loading && (
-          <div className="px-6 py-2.5 border-b border-sky-500/30 bg-sky-500/10 text-xs text-sky-950 dark:text-sky-100 flex items-center justify-between gap-3 flex-wrap">
-            <span className="inline-flex items-start gap-2">
-              <Sparkles className="h-4 w-4 shrink-0 mt-0.5" />
-              <span>
+        {/* Notices: one slim row instead of stacked banners */}
+        {!loading && summaryData && (summaryData.summary_source === 'fallback' || summaryData.is_stale || (summaryData.summary_truncated && summaryData.summary_source === 'llm')) && (
+          <div className="px-6 py-2 border-b bg-muted/30 flex flex-wrap items-center gap-2">
+            {summaryData.summary_source === 'fallback' && (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-md border border-amber-300/70 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-900 px-2.5 py-1 text-[11.5px] text-amber-900 dark:text-amber-200"
+                title={`The AI model did not respond, so this report uses fixed template text plus your live post counts and five sample citations.${summaryData.llm_error ? ` (${summaryData.llm_error})` : ''}`}
+              >
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                <strong>Database-only summary</strong>
+                <span className="opacity-80">· AI model did not respond; counts are live, narrative is template text</span>
+              </span>
+            )}
+            {summaryData.summary_truncated && summaryData.summary_source === 'llm' && (
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-orange-300/70 bg-orange-50 dark:bg-orange-950/30 dark:border-orange-900 px-2.5 py-1 text-[11.5px] text-orange-900 dark:text-orange-200">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                <strong>Incomplete report</strong>
+                <span className="opacity-80">· the model stopped before finishing; regenerate</span>
+              </span>
+            )}
+            {summaryData.is_stale && (
+              <span className="inline-flex items-center gap-2 rounded-md border border-sky-300/70 bg-sky-50 dark:bg-sky-950/30 dark:border-sky-900 pl-2.5 pr-1 py-0.5 text-[11.5px] text-sky-950 dark:text-sky-100">
+                <Sparkles className="h-3.5 w-3.5 shrink-0" />
                 <strong>
                   {summaryData.new_posts_count > 0
-                    ? `${summaryData.new_posts_count} new post${summaryData.new_posts_count === 1 ? '' : 's'} since this report was generated.`
-                    : 'New activity detected since this report was generated.'}
-                </strong>{' '}
-                Regenerate to include the latest data.
+                    ? `${summaryData.new_posts_count} new post${summaryData.new_posts_count === 1 ? '' : 's'} since this report`
+                    : 'New activity since this report'}
+                </strong>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 text-[11px]"
+                  onPointerDown={(e) => e.preventDefault()}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); openScopeModal(false); }}
+                >
+                  Regenerate
+                </Button>
               </span>
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs shrink-0"
-              onPointerDown={(e) => e.preventDefault()}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setTempTimeframe(timeframe);
-                setTempFromDate(fromDate);
-                setTempToDate(toDate);
-                setScopeModalOpen(true);
-              }}
-            >
-              Regenerate
-            </Button>
-          </div>
-        )}
-
-        {summaryData?.summary_truncated && summaryData?.summary_source === 'llm' && !loading && (
-          <div className="px-6 py-2.5 border-b border-orange-500/30 bg-orange-500/10 text-xs text-orange-950 dark:text-orange-100 flex items-center justify-between gap-3 flex-wrap">
-            <span className="inline-flex items-start gap-2">
-              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-              <span>
-                <strong>Incomplete report.</strong> The model stopped before finishing all sections. Use <strong>Regenerate</strong> after the
-                server update, or ask your admin to raise <code className="text-[10px]">LLM_SUMMARY_MAX_TOKENS</code>.
-              </span>
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs shrink-0"
-              onPointerDown={(e) => e.preventDefault()}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setTempTimeframe(timeframe);
-                setTempFromDate(fromDate);
-                setTempToDate(toDate);
-                setScopeModalOpen(true);
-              }}
-            >
-              Regenerate
-            </Button>
-          </div>
-        )}
-
-        {/* Telemetry quick stats ribbon */}
-        {summaryData && !loading && (
-          <div className="px-6 py-2.5 border-b border-border/60 bg-muted/10 flex items-center justify-between gap-2 flex-wrap text-xs text-muted-foreground">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-semibold text-foreground text-[11px] uppercase tracking-wider">Signals:</span>
-              {activeSignals.length > 0 ? (
-                activeSignals.map((item) => {
-                  const ItemIcon = item.Icon;
-                  return (
-                    <span
-                      key={item.key}
-                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted/80 text-[11px] font-medium"
-                    >
-                      <ItemIcon className={`h-3 w-3 ${item.color}`} />
-                      <span>{item.label}:</span>
-                      <strong className="text-foreground">
-                        {item.count}
-                        {item.percentage !== undefined && (
-                          <span className="ml-1 text-[10px] font-normal text-muted-foreground">({item.percentage}%)</span>
-                        )}
-                      </strong>
-                    </span>
-                  );
-                })
-              ) : (
-                <span className="text-muted-foreground text-[11px]">No active posts</span>
-              )}
-
-              <div className="h-3.5 w-px bg-border/60 mx-1 hidden sm:block" />
-
-              {sentiment && (
-                <div className="flex items-center gap-2.5 text-[11px]">
-                  {sentiment.positive > 0 && (
-                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                      Positive: {sentiment.positive}{sentimentPercentages.positive !== undefined ? ` (${sentimentPercentages.positive}%)` : ''}
-                    </span>
-                  )}
-                  {sentiment.neutral > 0 && (
-                    <span className="text-sky-600 dark:text-sky-400 font-medium">
-                      Neutral: {sentiment.neutral}{sentimentPercentages.neutral !== undefined ? ` (${sentimentPercentages.neutral}%)` : ''}
-                    </span>
-                  )}
-                  {sentiment.negative > 0 && (
-                    <span className="text-red-600 dark:text-red-400 font-medium">
-                      Negative: {sentiment.negative}{sentimentPercentages.negative !== undefined ? ` (${sentimentPercentages.negative}%)` : ''}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {risk && (() => {
-              const facts = stats?.structured_report?.facts;
-              const highRisk = (risk.critical || 0) + (risk.high || 0);
-              const level = facts?.violence?.count > 0 ? 'High' : (facts?.calls?.count > 0 || highRisk > 0) ? 'Medium' : 'Low';
-              const tone = level === 'High'
-                ? 'border-red-300 text-red-700 bg-red-50 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300'
-                : level === 'Medium'
-                  ? 'border-amber-300 text-amber-700 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
-                  : 'border-emerald-300 text-emerald-700 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300';
-              const why = facts
-                ? `${facts.calls?.count || 0} post(s) call people to act · ${facts.violence?.count || 0} mention violence · ${highRisk} rated high risk. Negative tone alone does not raise this.`
-                : `${highRisk} post(s) rated high risk. Negative tone alone does not raise this.`;
-              return (
-                <div className="text-[11px] flex items-center gap-2 ml-auto" title={why}>
-                  <span className="text-muted-foreground">Public order risk:</span>
-                  <Badge variant="outline" className={`text-[11px] px-1.5 py-0 ${tone}`}>{level}</Badge>
-                </div>
-              );
-            })()}
+            )}
           </div>
         )}
 
         {/* Body content */}
-        <div className="flex-1 overflow-hidden p-0 relative">
+        <div className="flex-1 min-h-0 overflow-hidden p-0 relative">
           {loading ? (
             <div className="flex flex-col items-center justify-center p-8 sm:p-12 min-h-[420px] text-center max-w-xl mx-auto">
               <div className="h-14 w-14 rounded-2xl bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 flex items-center justify-center mb-4 text-purple-600 dark:text-purple-400 shadow-sm shadow-purple-500/10">
@@ -1201,48 +1061,38 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
             </div>
           ) : summaryData ? (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-              <div className="px-6 border-b border-border/50 bg-muted/20">
-                <TabsList className="h-9 bg-transparent p-0 gap-4">
-                  <TabsTrigger
-                    value="briefing"
-                    className="data-[state=active]:border-b-2 data-[state=active]:border-purple-600 rounded-none bg-transparent px-2 text-xs font-medium"
-                  >
-                    <FileText className="h-3.5 w-3.5 mr-1.5 text-purple-600" />
-                    Event Summary
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="advisory"
-                    className="data-[state=active]:border-b-2 data-[state=active]:border-purple-600 rounded-none bg-transparent px-2 text-xs font-medium"
-                  >
-                    <ShieldAlert className="h-3.5 w-3.5 mr-1.5 text-amber-600" />
-                    Risk & Advisory
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="telemetry"
-                    className="data-[state=active]:border-b-2 data-[state=active]:border-purple-600 rounded-none bg-transparent px-2 text-xs font-medium"
-                  >
-                    <BarChart3 className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
-                    Data Telemetry
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="posts"
-                    className="data-[state=active]:border-b-2 data-[state=active]:border-purple-600 rounded-none bg-transparent px-2 text-xs font-medium"
-                  >
-                    <List className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
-                    All Posts{totalPosts > 0 ? ` (${totalPosts})` : ''}
-                  </TabsTrigger>
+              <div className="px-6 border-b bg-background shrink-0">
+                <TabsList className="h-11 bg-transparent p-0 gap-1 justify-start">
+                  {[
+                    ['briefing', FileText, 'text-purple-600', 'Event Summary'],
+                    ['advisory', ShieldAlert, 'text-amber-600', 'Risk & Advisory'],
+                    ['telemetry', BarChart3, 'text-blue-600', 'Data Telemetry'],
+                    ['posts', List, 'text-emerald-600', 'All Posts'],
+                  ].map(([value, TabIcon, iconColor, label]) => (
+                    <TabsTrigger
+                      key={value}
+                      value={value}
+                      className="relative h-11 rounded-none bg-transparent px-3 text-[13px] font-medium text-muted-foreground shadow-none data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full data-[state=active]:after:bg-purple-600"
+                    >
+                      <TabIcon className={`h-4 w-4 mr-1.5 ${iconColor}`} />
+                      {label}
+                      {value === 'posts' && totalPosts > 0 ? (
+                        <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground">{totalPosts}</span>
+                      ) : null}
+                    </TabsTrigger>
+                  ))}
                 </TabsList>
               </div>
 
-              <div className="flex-1 overflow-hidden">
-                <TabsContent value="briefing" className="h-full m-0 p-0">
-                  <ScrollArea className="h-[calc(92vh-185px)] px-7 py-6">
+              <div className="relative flex-1 min-h-0 overflow-hidden">
+                <TabsContent value="briefing" className="absolute inset-0 m-0 p-0">
+                  <ScrollArea className="h-full px-7 py-6">
                     <EventBrief summaryData={summaryData} platformList={platformList} displayName={displayName} tenantName={tenantName} onCite={handleCite} />
                   </ScrollArea>
                 </TabsContent>
 
-                <TabsContent value="advisory" className="h-full m-0 p-0">
-                  <ScrollArea className="h-[calc(92vh-185px)] px-7 py-6">
+                <TabsContent value="advisory" className="absolute inset-0 m-0 p-0">
+                  <ScrollArea className="h-full px-7 py-6">
                     <div className="max-w-3xl text-foreground">
                       <header className="mb-6">
                         <div className="text-[10px] font-semibold tracking-[0.14em] uppercase text-muted-foreground mb-1.5">
@@ -1316,8 +1166,8 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                   </ScrollArea>
                 </TabsContent>
 
-                <TabsContent value="telemetry" className="h-full m-0 p-0">
-                  <ScrollArea className="h-[calc(92vh-185px)] px-7 py-6 space-y-6">
+                <TabsContent value="telemetry" className="absolute inset-0 m-0 p-0">
+                  <ScrollArea className="h-full px-7 py-6 space-y-6">
                     {/* Top KPI Metrics: Clearly distinguish Unique Posts vs Keyword Mentions and decouple Risk from Criticism */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
                       <div className="rounded-xl border border-border/70 p-4 bg-muted/20">
@@ -1540,8 +1390,8 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
                   </ScrollArea>
                 </TabsContent>
 
-                <TabsContent value="posts" className="h-full m-0 p-0">
-                  <ScrollArea className="h-[calc(92vh-185px)] px-7 py-6">
+                <TabsContent value="posts" className="absolute inset-0 m-0 p-0">
+                  <ScrollArea className="h-full px-7 py-6">
                     <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
                       <div className="text-xs text-muted-foreground">
                         Every post about this event (copies of the same post are merged and shown with a repost count).

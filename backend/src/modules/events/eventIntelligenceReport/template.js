@@ -1142,20 +1142,18 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     .map((a) => `<li><b>${esc(a.what)}</b>${a.where ? ` — ${esc(a.where)}` : ''}${a.when ? `, ${esc(a.when)}` : ''}${a.posts?.length ? ` <span class="sm">${esc(a.posts.map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`)
     .join('');
 
-  const visitRows = visits.length
-    ? visits
-        .map(
-          (e) => `<tr>
-<td>${postRefLink(e)}</td>
-<td>${esc(e.when)}</td>
-<td>${esc(placeLabel(e))}</td>
-<td>${esc(platLabel(e.plat))}</td>
-<td>${authorProfileLink(e.plat, e.author, e.url)}</td>
-<td>${esc(clip(e.text, 200))}</td>
-</tr>`
-        )
-        .join('')
-    : `<tr><td colspan="6">No posts in this dataset name a specific ground field location.</td></tr>`;
+  // The posts behind the "people on site" count, so the number can be checked. Links only in the full report.
+  const onSiteTable = visits.length
+    ? `<div class="chartbox"><h4>Posts reporting people on site</h4><p class="sm">Reported by the posts; not verified.${visits.length > 10 ? ` Showing the latest 10 of ${fmt(visits.length)}; all are in the evidence annex.` : ''}</p>
+  <table>
+    <colgroup>${includeEvidence ? '<col style="width:11%">' : ''}<col style="width:11%"><col style="width:13%"><col style="width:17%"><col>${includeEvidence ? '' : ''}</colgroup>
+    <thead><tr>${includeEvidence ? '<th>Post Link</th>' : ''}<th>When</th><th>Place</th><th>Account</th><th>Text</th></tr></thead>
+    <tbody>${visits.slice(0, 10).map((e) => `<tr>${includeEvidence ? `<td>${postRefLink(e)}</td>` : ''}<td>${esc(e.when)}</td><td>${esc(placeLabel(e))}</td><td>${authorProfileLink(e.plat, e.author, e.url)}</td><td>${esc(clip(e.text, 170))}</td></tr>`).join('')}</tbody>
+  </table></div>`
+    : '';
+  const refList = (ns) => (includeEvidence && ns && ns.length ? ` <span class="sm">${ns.slice(0, 8).map((n) => `[Post #${n}]`).join(' ')}</span>` : '');
+  const onSiteRefs = includeEvidence ? visits.slice(0, 8).map((e) => `[Post #${e.n}]`).join(' ') : '';
+  const callRefs = refList(analysis?.facts?.calls?.posts);
 
   const placeRows = places.length
     ? places
@@ -1398,7 +1396,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       ${analysis?.bottomLine ? `<p class="lead"><b>Bottom line:</b> ${esc(analysis.bottomLine)}</p>` : ''}
       <p class="why"><b>Why this Risk Level:</b> ${esc(threatDesc)}</p>
       <div class="chips">
-        <div><div class="ck">Mobilization & Agitation</div><div class="cv" style="color:${highRiskCount > 0 ? '#B42318' : INK}">${visits.length > 0 ? `${fmt(visits.length)} post${visits.length === 1 ? '' : 's'} report people on site` : 'No call to act found'}</div></div>
+        <div><div class="ck">Mobilization & Agitation</div><div class="cv" style="color:${highRiskCount > 0 ? '#B42318' : INK}">${visits.length > 0 ? `${fmt(visits.length)} post${visits.length === 1 ? '' : 's'} report people on site` : 'No call to act found'}</div>${onSiteRefs ? `<div class="sm" style="margin-top:.6mm">${onSiteRefs}</div>` : ''}</div>
         <div><div class="ck">Narratives to Watch</div><div class="cv">${esc(plural(narrativeCount, '{n} narrative flagged', '{n} narratives flagged'))}</div></div>
         <div><div class="ck">Surveillance Priority</div><div class="cv" style="color:${threatBorderColor}">${topFlaggedProfiles.length > 0 ? `${topFlaggedProfiles.length} priority account(s)` : 'Baseline Monitoring'}</div></div>
       </div>
@@ -1537,6 +1535,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     : critical.length > 0
       ? `<p class="sm">Posts are flagged for review because of a high-risk rating, a call to act, or a mention of violence. Tone is shown separately and is not a risk signal.</p>`
       : `<p class="sm">No critical, high-risk, or hostile posts detected in this dataset.</p>`}
+  ${callRefs ? `<p class="sm">Posts calling people to act:${callRefs}</p>` : ''}
   ${analysis?.publicOrder ? `<p><b>Public Order Assessment:</b> ${esc(analysis.publicOrder)}</p>` : ''}
   ${intelGridHtml}`;
 
@@ -1547,6 +1546,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     ${metric(fmt(visits.filter((e) => e.specific.length).length), 'Specific sites', topPlace ? `Highest: ${topPlace.name}` : 'Cities/districts/landmarks')}
     ${regionOnly ? '' : metric(fmt(geoOut.length), 'Places outside the region', 'Context only')}
   </div>
+  ${onSiteTable}
   <div class="chartbox">
     <h4>Top Locations Named in Discussion</h4>
     ${places.slice(0, 8).map((d) => hbar(d.name, d.count, places[0]?.count || 1, NAVY, d.active ? `${d.count} posts · activity reported` : `${d.count} posts · mentioned only`)).join('') || (geoReliable ? '<p class="sm">No place named inside a post.</p>' : '<p class="sm">Place analysis is not available in this report. Regenerate it to see where the activity is.</p>')}
@@ -1648,7 +1648,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       <span><i>Monitoring window</i><b>${esc(windowStr)}</b></span>
       <span><i>Generated</i><b>${esc(dateStr)}</b></span>
       <span><i>Posts analysed</i><b>${regionOnly && scoped ? `${fmt(inEv.length)} · ${esc(regionName)} only` : scoped ? L('{n} in {region} of {m} monitored', { n: fmt(inEv.length), region: esc(regionName), m: fmt(monitoredTotal) }) : fmt(total)}</b></span>
-      <span><i>Report format</i><b>${includeEvidence ? `With Evidence (${fmt(ev.length)})` : regionOnly ? `${esc(regionName)} Only Brief` : 'Executive Brief'}</b></span>
+      <span><i>Report format</i><b>${includeEvidence ? 'Full Report (with evidence)' : regionOnly ? `${esc(regionName)} Executive Summary` : 'Executive Summary'}</b></span>
     </div>
   </header>
   ${hqHtml}

@@ -372,7 +372,7 @@ test('region-only brief drops outside-region posts, places, dates and sentences,
   assert.ok(/Bhubaneswar/.test(html) && /Odisha bandh/.test(html) && /Watch roads/.test(html));
   assert.ok(!/Mumbai/.test(html));
   assert.ok(!/Evidence Annex/.test(html));
-  assert.ok(/Odisha Only Brief/.test(html));
+  assert.ok(/Odisha Executive Summary/.test(html));
   const normal = buildReportHtml({ summary, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false });
   assert.ok(/Mumbai/.test(normal));
 });
@@ -440,4 +440,19 @@ test('closing summary check: right risk level, nothing invented about what the p
   assert.strictEqual(p.checkClosing('The risk is Medium because posts call for a bandh on 8 October. The police should keep roads clear.', 'Medium'), '');
   assert.strictEqual(p.checkClosing('anything', 'Medium', 'Hindi'), '');
   assert.ok(/risk level is "Medium"/.test(p.buildClosingSystem({ event: { name: 'E' }, level: 'Medium' })));
+});
+
+test('the posts behind "people on site" and "calls to act" are listed, linked in the full report only', () => {
+  const posts = [
+    { citationTag: '[Post #1]', id: '1', platform: 'facebook', author: 'a', text: 'Picket at Bhubaneswar square', sentiment: 'neutral', risk_level: 'low', posted_at: '2026-10-08T05:00:00Z', likes: 5 },
+    { citationTag: '[Post #2]', id: '2', platform: 'x', author: 'b', text: 'Join the bandh tomorrow', sentiment: 'neutral', risk_level: 'low', posted_at: '2026-10-07T05:00:00Z', likes: 9 },
+  ];
+  const facts = { places: [{ name: 'Bhubaneswar', region: 'Odisha, India', mentioned: 1, active: 1, posts: [1] }], byPost: { 1: { places: ['Bhubaneswar'] }, 2: { places: [] } }, calls: { count: 1, posts: [2] }, violence: { count: 0, posts: [] }, accounts: [], activities: [] };
+  const summary = { event: { name: 'E', location: 'Odisha' }, stats: {}, evidence_traceability: posts };
+  const full = buildReportHtml({ summary, keywordData: null, tenantName: 'odisha', analysis: { facts }, headquarters: null, includeEvidence: true });
+  assert.ok(/Posts reporting people on site<\/h4>/.test(full) && /Picket at Bhubaneswar square/.test(full));
+  assert.ok(/<a href="#e1" class="ref">\[Post #1\]<\/a>/.test(full));
+  assert.ok(/Posts calling people to act:/.test(full) && /<a href="#e2" class="ref">\[Post #2\]<\/a>/.test(full));
+  const exec = buildReportHtml({ summary, keywordData: null, tenantName: 'odisha', analysis: { facts }, headquarters: null, includeEvidence: false });
+  assert.ok(/Picket at Bhubaneswar square/.test(exec) && !/Post #\d/.test(exec));
 });
