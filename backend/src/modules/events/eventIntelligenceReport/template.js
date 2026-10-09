@@ -930,7 +930,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   // Region scope: the headline numbers describe posts about the event's own region, computed from the evidence list.
   // Without place data the monitor-wide numbers are kept, so nothing is invented.
-  const scopeInfo = classifyEvidence(ev, analysis, event);
+  const scopeInfo = classifyEvidence(ev, analysis, event, { strict: regionOnly });
   const { inEv, outEv, outsideNs } = scopeInfo;
   if (regionOnly && scopeInfo.reliable) analysis = regionFilter(analysis, outsideNs, scopeInfo.outsideNames);
   const regionName = event.location || 'the event region';
