@@ -3,7 +3,7 @@ const axios = require('axios');
 const dbOf = require('../../lib/dbOf');
 const logger = require('../../lib/logger');
 const {
-  buildSystemPrompt, buildUserContext, RETRY_MESSAGE, parseLLMReport, reportToMarkdown,
+  buildSystemPrompt, buildUserContext, RETRY_MESSAGE, RETRY_SHORTER_MESSAGE, parseLLMReport, reportToMarkdown,
   BATCH_SYSTEM, buildBatchUserContext, parseBatchNotes, buildReducerSystemPrompt, buildReducerUserContext,
   estimateTokens, truncateToTokens, makeBatches, reducerToReport, extractJson,
   buildActionsSystem, buildActionsContext, parseMoreActions, mergeActions,
@@ -683,7 +683,8 @@ const generateEventSummary = async (
   // ---- Token budget: input + output must fit the model's context window (e.g. 16384). Tokens are ESTIMATED per script
   // (Odia costs ~2 tokens per character, Hindi ~1); a flat chars-per-token guess overflowed the window by 5x.
   const SAFETY_MARGIN_TOKENS = 700;
-  const REPORT_OUTPUT_TOKENS = Math.min(4500, maxTokens);   // the full report JSON
+  // The full report JSON. It carries many sections, so it needs more room than a batch of notes; outputTokensFor() still shrinks it to fit the model's window.
+  const REPORT_OUTPUT_TOKENS = Math.max(maxTokens, Math.min(6500, Number(process.env.LLM_REPORT_MAX_TOKENS || 6000)));
   const NOTES_OUTPUT_TOKENS = Math.min(2600, maxTokens);    // one batch of per-post notes
   const systemPrompt = cleanSafeUtf8Lines(buildSystemPrompt(promptCtx));
   const msgTokens = (messages) => messages.reduce((n, m) => n + estimateTokens(m.content) + 6, 0);
@@ -846,7 +847,8 @@ const generateEventSummary = async (
         structuredReport = reducerToReport(rawReport, digest, notesMap, analysed);
         if (!structuredReport) {
           logger.warn(`[SummaryLLM] Final reply was not the required JSON (attempt ${attempt + 1}, finish_reason=${llmFinishReason})`);
-          reducerMessages.push({ role: 'assistant', content: rawReport }, { role: 'user', content: RETRY_MESSAGE });
+          // A reply cut off by the length limit is asked for again in a shorter form, not at the same length.
+          reducerMessages.push({ role: 'assistant', content: llmFinishReason === 'length' ? '(the reply was cut off)' : rawReport }, { role: 'user', content: llmFinishReason === 'length' ? RETRY_SHORTER_MESSAGE : RETRY_MESSAGE });
         }
       }
       if (structuredReport) {

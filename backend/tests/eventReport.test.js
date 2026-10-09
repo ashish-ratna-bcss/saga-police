@@ -536,3 +536,12 @@ test('closing summary comes as confirmed / not verified / next steps / risk; all
   assert.equal(level({ violence: { count: 2 }, alleged: { count: 0 }, detentions: { count: 0 }, calls: { count: 0 } }), 'High');
   assert.equal(level({ violence: { count: 0 }, alleged: { count: 0 }, detentions: { count: 0 }, calls: { count: 0 } }), 'Low');
 });
+
+test('a report reply cut off by the length limit keeps its finished part instead of failing', () => {
+  const { extractJson } = require('../src/services/SummaryLLM/eventSummary.prompt');
+  const cut = '{"bottomLine":"A bandh was held.","actions":[{"action":"a","detail":"d"},{"action":"b","detail":"cut off in the mid';
+  const out = extractJson(cut);
+  assert.equal(out.bottomLine, 'A bandh was held.');
+  assert.equal(out.actions.length, 2);
+  assert.deepEqual(extractJson('{"a":1,"b":[1,2]}'), { a: 1, b: [1, 2] });
+});
