@@ -254,7 +254,7 @@ export function EventBrief({ summaryData, platformList, displayName, tenantName,
             ['Monitoring window', windowLabel],
             ['Generated', generatedLabel],
             ['Region', eventLoc || '—'],
-            ['Analysis', isFallback ? 'Rule-based (AI unavailable)' : 'AI summary'],
+            ['Analysis', summaryData?.summary_source === 'llm_partial' ? 'AI summary (shortened)' : isFallback ? 'Written from counted facts' : 'AI summary'],
           ].map(([k, v], i) => (
             <div key={k} className={`px-6 py-2.5 ${i > 0 ? 'md:border-l border-slate-600/60' : ''}`}>
               <div className="text-[10px] uppercase tracking-[0.08em] text-slate-400">{k}</div>
