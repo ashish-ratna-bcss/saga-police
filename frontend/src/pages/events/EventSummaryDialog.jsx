@@ -857,7 +857,6 @@ export default function EventSummaryDialog({ open, onOpenChange, eventId, eventN
       .catch((err) => { if (live) setPreviewError(err?.response?.statusText || err.message || 'The report could not be prepared'); })
       .finally(() => { if (live) setPreviewBusy(false); });
     return () => { live = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, activeTab, previewId, fullSummaryData?.generated_at, timeframe, fromDate, toDate, eventId]);
 
   useEffect(() => { if (activeTab === 'reports' && !previewId) setPreviewId(viewScope === 'region' ? 'r-brief' : 'w-exec'); }, [activeTab, previewId, viewScope]);
