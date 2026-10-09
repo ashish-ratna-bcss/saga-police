@@ -295,7 +295,8 @@ const buildPresentationBody = (ctx) => {
     <tr><td>${esc(L('Risk'))}</td><td>${esc(L('Risk comes from calls to act, confirmed violence or a high-risk rating. Arrests and allegations are shown apart and are not violence. Risk bands are model labels, not analyst-reviewed.'))}</td></tr>
     <tr><td>${esc(L('Engagement'))}</td><td>${esc(L('Interactions are likes, shares and comments. Views are not added in.'))}</td></tr></table>`;
 
-  const slides = [s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12];
+  // A slide with nothing to show (no claim to check) is left out instead of printing an empty page.
+  const slides = [s1, s2, s3, s4, s5, s6, s7, s8, claimBars.length ? s9 : '', s10, s11, s12].filter(Boolean);
   return slides.map((inner, i) => slide(i === 0 ? 'title' : '', inner, { tenant: t, no: i === 0 ? '' : String(i + 1) })).join('');
 };
 
