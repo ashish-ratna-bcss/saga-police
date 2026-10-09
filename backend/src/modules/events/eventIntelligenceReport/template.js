@@ -468,7 +468,7 @@ b{font-weight:700}
 .cp-big{display:flex;gap:2mm;margin:0 0 2.2mm}
 .cp-big>div{flex:1;text-align:center;border-radius:3px;padding:1.6mm 1mm;color:#fff}
 .cp-big .n{font-size:15pt;font-weight:700;line-height:1.05}.cp-big .l{font-size:6pt;text-transform:uppercase;letter-spacing:.06em;opacity:.92}
-.cp-pl{display:grid;grid-template-columns:22mm 1fr 5mm 22mm;gap:2mm;align-items:center;margin:0 0 1.8mm;font-size:8pt}.cp-pl .pn{text-align:right;color:#334155}.cp-pl .pb{height:2.2mm;background:#E8EEF3;border-radius:2mm;overflow:hidden}.cp-pl .pb i{display:block;height:100%;background:${BAR};border-radius:2mm}.cp-pl .pv{font-weight:700;color:${INK}}.cp-pl .pk{font-size:6.8pt;white-space:nowrap}
+.cp-pl{display:grid;grid-template-columns:22mm 1fr 5mm 22mm;gap:2mm;align-items:center;margin:0 0 1.8mm;font-size:8pt}.cp-pl .pn{text-align:right;color:#334155}.cp-pl .pb{height:2.2mm;background:#E8EEF3;border-radius:2mm;overflow:hidden}.cp-pl .pb i{display:block;height:100%;background:#2F5D8A;border-radius:2mm}.cp-pl .pv{font-weight:700;color:${INK}}.cp-pl .pk{font-size:6.8pt;white-space:nowrap}
 .cp-note{font-size:7.4pt;color:#475569;line-height:1.45;margin:1.6mm 0 0}
 .cp-note b{color:${INK}}
 
