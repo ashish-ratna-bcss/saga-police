@@ -20,11 +20,17 @@ const pickBody = (payload = {}) => {
   const event = String(payload.event ?? payload.name ?? '').trim();
   const location = String(payload.location ?? '').trim();
   const description = String(payload.description ?? '').trim();
-  // The generator needs at least one language code (or, ta, te, kn, ml, mr, gu, bn, pa, hi) or 'all'; the form's choice is passed on, 'all' otherwise.
-  const languages = (Array.isArray(payload.languages) ? payload.languages : [])
+  // The form's language choice. 'en' (English) is not a generator code: the generator always writes English terms, so English is applied here
+  // by script (see applyLanguageChoice). The generator needs at least one code, so an English-only choice is sent as 'en'
+  // (it then falls back to the location's own language and the English-only filter below removes the rest).
+  const chosen = (Array.isArray(payload.languages) ? payload.languages : [])
     .map((l) => String(l || '').trim().toLowerCase())
     .filter(Boolean);
-  const body = { event, location, description, languages: languages.length ? [...new Set(languages)] : ['all'] };
+  const chosenSet = new Set(chosen.length ? chosen : ['all']);
+  const wantAll = chosenSet.has('all');
+  const others = wantAll ? ['all'] : [...chosenSet].filter((c) => c !== 'en');
+  const body = { event, location, description, languages: others.length ? others : ['en'] };
+  Object.defineProperty(body, '_choice', { value: { wantEnglish: wantAll || chosenSet.has('en'), onlyEnglish: !wantAll && !others.length }, enumerable: false });
   if (payload.include_social != null) body.include_social = Boolean(payload.include_social);
   if (payload.search_engine != null) body.search_engine = String(payload.search_engine);
   if (payload.max_keywords != null) body.max_keywords = Number(payload.max_keywords);
@@ -96,10 +102,26 @@ const generateEventTerms = async (payload, { db } = {}) => {
     keywords: Array.isArray(res.data?.keywords) ? res.data.keywords : [],
   };
 
-  return curateEventTerms(db, body, rawTerms);
+  const choice = body._choice || { wantEnglish: true, onlyEnglish: false };
+  const curated = await curateEventTerms(db, body, rawTerms, { acceptOtherScripts: !choice.onlyEnglish });
+  return applyLanguageChoice(curated, choice);
+};
+
+/** True when the term has letters outside the Latin script (Hindi, Odia, Bengali ...), also inside a mixed term. */
+const hasOtherScript = (term) => /\p{L}/u.test(String(term || '').replace(/\p{Script=Latin}/gu, ''));
+
+/**
+ * Applies the English choice: English terms are the ones written only in Latin letters.
+ * English unticked removes them; English only keeps nothing else.
+ */
+const applyLanguageChoice = (terms, { wantEnglish = true, onlyEnglish = false } = {}) => {
+  const keep = (t) => (onlyEnglish ? !hasOtherScript(t) : (wantEnglish ? true : hasOtherScript(t)));
+  return { hashtags: (terms.hashtags || []).filter(keep), keywords: (terms.keywords || []).filter(keep) };
 };
 
 module.exports = {
+  hasOtherScript,
+  applyLanguageChoice,
   BASE_URL,
   health,
   generateEventTerms,
