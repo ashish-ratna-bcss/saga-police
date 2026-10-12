@@ -20,7 +20,11 @@ const pickBody = (payload = {}) => {
   const event = String(payload.event ?? payload.name ?? '').trim();
   const location = String(payload.location ?? '').trim();
   const description = String(payload.description ?? '').trim();
-  const body = { event, location, description };
+  // The generator needs at least one language code (or, ta, te, kn, ml, mr, gu, bn, pa, hi) or 'all'; the form's choice is passed on, 'all' otherwise.
+  const languages = (Array.isArray(payload.languages) ? payload.languages : [])
+    .map((l) => String(l || '').trim().toLowerCase())
+    .filter(Boolean);
+  const body = { event, location, description, languages: languages.length ? [...new Set(languages)] : ['all'] };
   if (payload.include_social != null) body.include_social = Boolean(payload.include_social);
   if (payload.search_engine != null) body.search_engine = String(payload.search_engine);
   if (payload.max_keywords != null) body.max_keywords = Number(payload.max_keywords);
