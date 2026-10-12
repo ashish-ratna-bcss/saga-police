@@ -2017,7 +2017,14 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     <div class="meta">
       <span><i>Monitoring window</i><b>${esc(windowStr)}</b></span>
       <span><i>Generated</i><b>${esc(dateStr)}</b></span>
-      <span><i>Posts analysed</i><b>${regionOnly && scoped ? `${fmt(inEv.length)} · ${esc(regionName)} only` : scoped ? L('{n} in {region} of {m} monitored', { n: fmt(inEv.length), region: esc(regionName), m: fmt(monitoredTotal) }) : fmt(total)}</b></span>
+      <span><i>Posts analysed</i><b>${(() => {
+        // Large events are read in detail on a sample: say so, so the number is not mistaken for the whole event.
+        const sampled = ev.length < monitoredTotal;
+        if (regionOnly && scoped) return `${fmt(inEv.length)} · ${esc(regionName)} only${sampled ? ` (${L('reviewed in detail; {m} monitored', { m: fmt(monitoredTotal) })})` : ''}`;
+        if (scoped && inEv.length < ev.length) return L('{n} in {region} of {e} reviewed in detail ({m} monitored)', { n: fmt(inEv.length), region: esc(regionName), e: fmt(ev.length), m: fmt(monitoredTotal) });
+        if (scoped) return sampled ? L('{e} reviewed in detail of {m} monitored', { e: fmt(ev.length), m: fmt(monitoredTotal) }) : L('{n} in {region} of {m} monitored', { n: fmt(inEv.length), region: esc(regionName), m: fmt(monitoredTotal) });
+        return fmt(total);
+      })()}</b></span>
       <span><i>Report format</i><b>${includeEvidence ? (regionOnly ? `${esc(regionName)} Full Report (with evidence)` : 'Full Report (with evidence)') : compact ? `${esc(regionName)} Location Summary` : regionOnly ? `${esc(regionName)} Executive Summary` : 'Executive Summary'}</b></span>
     </div>
   </header>

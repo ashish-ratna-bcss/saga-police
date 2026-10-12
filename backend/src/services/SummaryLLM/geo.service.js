@@ -60,7 +60,9 @@ const lookupPlace = (name, eventRegion = '', hint = '') => {
   };
   let pool = list;
   if (first) { pool = list.filter(matchesHint); if (!pool.length) return null; }
-  const best = pool.slice().sort((a, b) => (inEvent(b) - inEvent(a)) || (b.pop - a.pop))[0];
+  // A bare country name ("India") means the country, not a small town that shares the name (a town called "Indija" in Serbia).
+  const countryFirst = (e) => (!first && !words.length && e.kind === 'country' ? 1 : 0);
+  const best = pool.slice().sort((a, b) => (countryFirst(b) - countryFirst(a)) || (inEvent(b) - inEvent(a)) || (b.pop - a.pop))[0];
   const label = [best.name, best.kind === 'city' ? best.region : '', best.kind === 'country' ? '' : best.country].filter(Boolean).join(', ');
   return { ...best, label };
 };
