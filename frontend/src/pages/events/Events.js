@@ -725,7 +725,7 @@ const EventKeywordsFields = ({
         <div className="space-y-1.5 min-w-0">
           <div className="flex items-center justify-between gap-2">
             <Label className="text-xs font-semibold">Keywords</Label>
-            <Popover open={langOpen} onOpenChange={(v) => { if (canGenerate && !generating) setLangOpen(v); }}>
+            <Popover open={langOpen} onOpenChange={(v) => { if (!canGenerate || generating) return; if (v) setLanguages(ALL_LANGUAGE_CODES); setLangOpen(v); }}>
               <PopoverTrigger asChild>
                 <button
                   type="button"
@@ -746,16 +746,18 @@ const EventKeywordsFields = ({
                   {generating ? 'Fetching…' : 'Suggest keywords & hashtags'}
                 </button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-72 p-3 space-y-2.5">
+              <PopoverContent align="end" className="w-[22rem] max-w-[92vw] p-3 space-y-2.5">
                 <div>
                   <p className="text-xs font-semibold">Languages for the suggestions</p>
-                  <p className="text-[11px] text-muted-foreground">All are selected. Untick the ones you do not need. English terms are always included.</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {languages.length === ALL_LANGUAGE_CODES.length ? 'All languages are selected.' : `${languages.length} of ${ALL_LANGUAGE_CODES.length} selected.`} Untick the ones you do not need. English terms are always included.
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                   {KEYWORD_LANGUAGES.map((l) => (
                     <label key={l.code} className="flex items-center gap-2 text-xs cursor-pointer">
                       <Checkbox checked={languages.includes(l.code)} onCheckedChange={() => toggleLanguage(l.code)} />
-                      <span className="truncate">{l.label} <span className="text-muted-foreground">{l.native}</span></span>
+                      <span className="whitespace-nowrap">{l.label} <span className="text-muted-foreground">{l.native}</span></span>
                     </label>
                   ))}
                 </div>
