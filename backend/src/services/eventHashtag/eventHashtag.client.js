@@ -30,7 +30,7 @@ const pickBody = (payload = {}) => {
   const wantAll = chosenSet.has('all');
   const others = wantAll ? ['all'] : [...chosenSet].filter((c) => c !== 'en');
   const body = { event, location, description, languages: others.length ? others : ['en'] };
-  Object.defineProperty(body, '_choice', { value: { wantEnglish: wantAll || chosenSet.has('en'), onlyEnglish: !wantAll && !others.length }, enumerable: false });
+  Object.defineProperty(body, '_choice', { value: { wantEnglish: wantAll || chosenSet.has('en'), onlyEnglish: !wantAll && !others.length, codes: wantAll ? null : others }, enumerable: false });
   if (payload.include_social != null) body.include_social = Boolean(payload.include_social);
   if (payload.search_engine != null) body.search_engine = String(payload.search_engine);
   if (payload.max_keywords != null) body.max_keywords = Number(payload.max_keywords);
@@ -114,8 +114,25 @@ const hasOtherScript = (term) => /\p{L}/u.test(String(term || '').replace(/\p{Sc
  * Applies the English choice: English terms are the ones written only in Latin letters.
  * English unticked removes them; English only keeps nothing else.
  */
-const applyLanguageChoice = (terms, { wantEnglish = true, onlyEnglish = false } = {}) => {
-  const keep = (t) => (onlyEnglish ? !hasOtherScript(t) : (wantEnglish ? true : hasOtherScript(t)));
+// Writing system of each generator language code (Hindi and Marathi share Devanagari).
+const SCRIPT_OF_CODE = { or: 'Oriya', ta: 'Tamil', te: 'Telugu', kn: 'Kannada', ml: 'Malayalam', mr: 'Devanagari', hi: 'Devanagari', gu: 'Gujarati', bn: 'Bengali', pa: 'Gurmukhi' };
+const SCRIPT_RE = Object.fromEntries(Object.values(SCRIPT_OF_CODE).map((n) => [n, new RegExp(`\\p{Script=${n}}`, 'u')]));
+
+/** True when every non-Latin letter of the term is in one of the chosen scripts. */
+const onlyChosenScripts = (term, scripts) => [...String(term || '')].every((ch) => {
+  if (!/\p{L}/u.test(ch) || /\p{Script=Latin}/u.test(ch)) return true;
+  return scripts.some((n) => SCRIPT_RE[n] && SCRIPT_RE[n].test(ch));
+});
+
+const applyLanguageChoice = (terms, { wantEnglish = true, onlyEnglish = false, codes = null } = {}) => {
+  const scripts = Array.isArray(codes) ? [...new Set(codes.map((c) => SCRIPT_OF_CODE[c]).filter(Boolean))] : null;
+  const keep = (t) => {
+    if (onlyEnglish) return !hasOtherScript(t);
+    if (!wantEnglish && !hasOtherScript(t)) return false;
+    // The generator always adds the location's own language; terms in a script that was not chosen are removed.
+    if (scripts && scripts.length && !onlyChosenScripts(t, scripts)) return false;
+    return true;
+  };
   return { hashtags: (terms.hashtags || []).filter(keep), keywords: (terms.keywords || []).filter(keep) };
 };
 

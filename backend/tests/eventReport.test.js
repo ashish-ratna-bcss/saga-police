@@ -608,3 +608,11 @@ test('keyword language choice: English is kept or removed by script; other langu
   assert.deepEqual(applyLanguageChoice(t, { wantEnglish: false, onlyEnglish: false }), { hashtags: ['#जेपीएससी'], keywords: ['पेपर लीक'] });
   assert.deepEqual(applyLanguageChoice(t, { wantEnglish: true, onlyEnglish: true }), { hashtags: ['#JPSC'], keywords: ['paper leak'] });
 });
+
+test('keyword language choice: a script that was not chosen is removed, even if the generator added it', () => {
+  const { applyLanguageChoice } = require('../src/services/eventHashtag/eventHashtag.client');
+  const t = { hashtags: ['#JPSC', '#जेपीएससी', '#রাঁচি'], keywords: ['paper leak', 'पेपर लीक', 'রাঁচি'] };
+  assert.deepEqual(applyLanguageChoice(t, { wantEnglish: true, onlyEnglish: false, codes: ['bn'] }), { hashtags: ['#JPSC', '#রাঁচি'], keywords: ['paper leak', 'রাঁচি'] });
+  assert.deepEqual(applyLanguageChoice(t, { wantEnglish: false, onlyEnglish: false, codes: ['hi'] }), { hashtags: ['#जेपीएससी'], keywords: ['पेपर लीक'] });
+  assert.deepEqual(applyLanguageChoice(t, { wantEnglish: true, onlyEnglish: false, codes: null }), t);   // all languages: nothing removed
+});
