@@ -961,12 +961,18 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   // Region scope: the headline numbers describe posts about the event's own region, computed from the evidence list.
   // Without place data the monitor-wide numbers are kept, so nothing is invented.
+  // A country-wide event has no narrower location, so its location reports are the whole-event reports.
+  try {
+    const wide = require('../../../services/SummaryLLM/geo.service').lookupPlace(event.location, '', '');
+    if (wide && wide.kind === 'country') regionOnly = false;
+  } catch (e) { /* keep the location rule */ }
   const scopeInfo = classifyEvidence(ev, analysis, event, { strict: regionOnly });
   const { inEv, outEv, outsideNs } = scopeInfo;
   if (regionOnly && scopeInfo.reliable) analysis = regionFilter(analysis, outsideNs, scopeInfo.outsideNames);
   const regionName = event.location || 'the event region';
   const relevantTotal = n0(stats.relevant_posts_count) || ev.length;
-  const scoped = scopeInfo.reliable && inEv.length > 0;
+  // Only a location report narrows the numbers to the location; the whole-event reports count the whole event.
+  const scoped = regionOnly && scopeInfo.reliable && inEv.length > 0;
   const scopeEv = scoped ? inEv : ev;
   if (scoped) {
     total = inEv.length;
@@ -2021,9 +2027,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
         // Large events are read in detail on a sample: say so, so the number is not mistaken for the whole event.
         const sampled = ev.length < monitoredTotal;
         if (regionOnly && scoped) return `${fmt(inEv.length)} · ${esc(regionName)} only${sampled ? ` (${L('reviewed in detail; {m} monitored', { m: fmt(monitoredTotal) })})` : ''}`;
-        if (scoped && inEv.length < ev.length) return L('{n} in {region} of {e} reviewed in detail ({m} monitored)', { n: fmt(inEv.length), region: esc(regionName), e: fmt(ev.length), m: fmt(monitoredTotal) });
-        if (scoped) return sampled ? L('{e} reviewed in detail of {m} monitored', { e: fmt(ev.length), m: fmt(monitoredTotal) }) : L('{n} in {region} of {m} monitored', { n: fmt(inEv.length), region: esc(regionName), m: fmt(monitoredTotal) });
-        return fmt(total);
+        return sampled ? L('{m} posts ({e} reviewed in detail)', { m: fmt(total), e: fmt(ev.length) }) : fmt(total);
       })()}</b></span>
       <span><i>Report format</i><b>${includeEvidence ? (regionOnly ? `${esc(regionName)} Full Report (with evidence)` : 'Full Report (with evidence)') : compact ? `${esc(regionName)} Location Summary` : regionOnly ? `${esc(regionName)} Executive Summary` : 'Executive Summary'}</b></span>
     </div>
