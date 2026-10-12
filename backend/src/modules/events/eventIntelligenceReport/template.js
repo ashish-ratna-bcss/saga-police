@@ -832,6 +832,10 @@ const regionFilter = (analysis, outsideNs, outsideNames) => {
     leaders: trim(keep(analysis.leaders)),
     amplifiers: trim(keep(analysis.amplifiers)),
     geography: trim(keep(analysis.geography)),
+    // Lists whose items cite posts: keep only what still has a post in the location.
+    emerging: trim(keep(analysis.emerging)),
+    highMonitoringProfiles: trim(keep(analysis.highMonitoringProfiles)),
+    changes: (analysis.changes || []).filter((c) => !c || c.post === undefined || !outsideNs.has(Number(c.post))),
   };
 };
 

@@ -566,3 +566,19 @@ test('region view: the popup data is narrowed to posts about the event location,
   assert.equal(out.stats.structured_report.facts.calls.count, 0);
   assert.equal(out.evidence_traceability.length, 2);
 });
+
+test('region view: lists such as emerging keywords no longer cite posts from outside the location', () => {
+  const { toRegionView } = require('../src/modules/events/eventIntelligenceReport/regionView');
+  const ev = [
+    { citationTag: '[Post #1]', text: 'Bandh across Odisha tomorrow', sentiment: 'Neutral', platform: 'facebook', author: 'a' },
+    { citationTag: '[Post #2]', text: 'Protest at Jantar Mantar in Delhi', sentiment: 'Neutral', platform: 'x', author: 'b' },
+  ];
+  const facts = {
+    places: [{ name: 'Odisha', region: 'India', posts: [1] }, { name: 'Jantar Mantar', region: 'Delhi, India', posts: [2] }],
+    byPost: { 1: { places: ['Odisha'] }, 2: { places: ['Jantar Mantar'] } },
+    calls: { count: 0, posts: [] }, violence: { count: 0, posts: [] }, alleged: { count: 0, posts: [] }, detentions: { count: 0, posts: [] }, activities: [], accounts: [],
+  };
+  const out = toRegionView({ event: { location: 'Odisha' }, evidence_traceability: ev, stats: { structured_report: { facts, bottomLine: 'x', emerging: [{ term: '#a', posts: [1, 2] }], highMonitoringProfiles: [{ account: 'b', posts: [2] }] }, sentiment_counts: {} } });
+  assert.deepEqual(out.stats.structured_report.emerging[0].posts, [1]);
+  assert.equal(out.stats.structured_report.highMonitoringProfiles.length, 0);
+});
