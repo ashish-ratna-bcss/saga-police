@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Separator } from '../../components/ui/separator';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/table';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
+import { Checkbox } from '../../components/ui/checkbox';
 import { Calendar as CalendarComponent } from '../../components/ui/calendar';
 import { toast } from 'sonner';
 import { format, parse } from 'date-fns';
@@ -609,6 +610,21 @@ const EventPlatformPicker = ({ value = [], onChange, options = [], loading = fal
   );
 };
 
+// The languages the keyword generator can write terms in (its own language codes). English terms always come with them.
+const KEYWORD_LANGUAGES = [
+  { code: 'hi', label: 'Hindi', native: 'हिन्दी' },
+  { code: 'or', label: 'Odia', native: 'ଓଡ଼ିଆ' },
+  { code: 'bn', label: 'Bengali', native: 'বাংলা' },
+  { code: 'ta', label: 'Tamil', native: 'தமிழ்' },
+  { code: 'te', label: 'Telugu', native: 'తెలుగు' },
+  { code: 'kn', label: 'Kannada', native: 'ಕನ್ನಡ' },
+  { code: 'ml', label: 'Malayalam', native: 'മലയാളം' },
+  { code: 'mr', label: 'Marathi', native: 'मराठी' },
+  { code: 'gu', label: 'Gujarati', native: 'ગુજરાતી' },
+  { code: 'pa', label: 'Punjabi', native: 'ਪੰਜਾਬੀ' },
+];
+const ALL_LANGUAGE_CODES = KEYWORD_LANGUAGES.map((l) => l.code);
+
 const EventKeywordsFields = ({
   keywordsValue = '',
   hashtagsValue = '',
@@ -621,6 +637,11 @@ const EventKeywordsFields = ({
   const [generating, setGenerating] = useState(false);
   const [suggestions, setSuggestions] = useState(null); // { hashtags: string[], keywords: string[] } | null
   const [error, setError] = useState('');
+  // Every language starts ticked; untick the ones that are not needed.
+  const [languages, setLanguages] = useState(ALL_LANGUAGE_CODES);
+  const [langOpen, setLangOpen] = useState(false);
+  const allPicked = languages.length === ALL_LANGUAGE_CODES.length;
+  const toggleLanguage = (code) => setLanguages((cur) => (cur.includes(code) ? cur.filter((c) => c !== code) : [...cur, code]));
 
   const canGenerate = Boolean(
     String(eventName || '').trim() &&
@@ -644,6 +665,7 @@ const EventKeywordsFields = ({
         event: String(eventName).trim(),
         location: String(location).trim(),
         description: String(description).trim(),
+        languages: allPicked ? ['all'] : languages,
       });
       const hashtags = Array.isArray(res?.data?.hashtags)
         ? res.data.hashtags.map((t) => String(t || '').trim()).filter(Boolean)
@@ -703,25 +725,59 @@ const EventKeywordsFields = ({
         <div className="space-y-1.5 min-w-0">
           <div className="flex items-center justify-between gap-2">
             <Label className="text-xs font-semibold">Keywords</Label>
-            <button
-              type="button"
-              disabled={!canGenerate || generating}
-              onClick={runGenerate}
-              title={
-                canGenerate
-                  ? 'Suggest from event name, location, and description'
-                  : 'Fill Event Name, Location, and Description first'
-              }
-              className={cn(
-                'inline-flex items-center gap-1 text-[11px] font-medium transition-colors shrink-0',
-                canGenerate && !generating
-                  ? 'text-primary hover:underline'
-                  : 'text-muted-foreground/50 cursor-not-allowed'
-              )}
-            >
-              {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-              {generating ? 'Fetching…' : 'Suggest'}
-            </button>
+            <Popover open={langOpen} onOpenChange={(v) => { if (canGenerate && !generating) setLangOpen(v); }}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  disabled={!canGenerate || generating}
+                  title={
+                    canGenerate
+                      ? 'Suggests keywords and hashtags from the event name, location and description'
+                      : 'Fill Event Name, Location, and Description first'
+                  }
+                  className={cn(
+                    'inline-flex items-center gap-1 text-[11px] font-medium transition-colors shrink-0',
+                    canGenerate && !generating
+                      ? 'text-primary hover:underline'
+                      : 'text-muted-foreground/50 cursor-not-allowed'
+                  )}
+                >
+                  {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                  {generating ? 'Fetching…' : 'Suggest keywords & hashtags'}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-72 p-3 space-y-2.5">
+                <div>
+                  <p className="text-xs font-semibold">Languages for the suggestions</p>
+                  <p className="text-[11px] text-muted-foreground">All are selected. Untick the ones you do not need. English terms are always included.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                  {KEYWORD_LANGUAGES.map((l) => (
+                    <label key={l.code} className="flex items-center gap-2 text-xs cursor-pointer">
+                      <Checkbox checked={languages.includes(l.code)} onCheckedChange={() => toggleLanguage(l.code)} />
+                      <span className="truncate">{l.label} <span className="text-muted-foreground">{l.native}</span></span>
+                    </label>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between gap-2 pt-0.5">
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <button type="button" className="text-primary hover:underline" onClick={() => setLanguages(ALL_LANGUAGE_CODES)}>Select all</button>
+                    <span className="text-muted-foreground/50">|</span>
+                    <button type="button" className="text-primary hover:underline" onClick={() => setLanguages([])}>Clear</button>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-7 text-xs"
+                    disabled={!languages.length}
+                    onClick={() => { setLangOpen(false); runGenerate(); }}
+                  >
+                    Get suggestions
+                  </Button>
+                </div>
+                {!languages.length && <p className="text-[11px] text-destructive">Pick at least one language.</p>}
+              </PopoverContent>
+            </Popover>
           </div>
           <textarea
             value={keywordsValue || ''}
