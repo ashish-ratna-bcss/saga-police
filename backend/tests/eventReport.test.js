@@ -282,9 +282,11 @@ test('scope: posts that name only places outside the region are split off; posts
   assert.strictEqual(classifyEvidence(ev, null, { location: 'Odisha' }).outEv.length, 0);   // no place data: nothing is split off
 });
 
-test('headline numbers describe the event region, with the monitor-wide total kept apart', () => {
-  const html = buildReportHtml({ summary: mixed, keywordData: null, tenantName: 'odisha', analysis: mixedAnalysis, headquarters: null, includeEvidence: true });
-  assert.ok(/2 in Odisha of \d+ reviewed in detail \(100 monitored\)/.test(html));                       // 2 region posts out of 100 monitored
+test('a location report counts the location only; the whole-event report counts the whole event', () => {
+  const whole = buildReportHtml({ summary: mixed, keywordData: null, tenantName: 'odisha', analysis: mixedAnalysis, headquarters: null, includeEvidence: true });
+  assert.ok(/<div class="n">100<\/div><div class="l">Posts analysed/.test(whole));   // the whole event: every monitored post
+  const html = buildReportHtml({ summary: mixed, keywordData: null, tenantName: 'odisha', analysis: mixedAnalysis, headquarters: null, includeEvidence: true, regionOnly: true });
+  assert.ok(/2 · Odisha only/.test(html));                                           // 2 region posts out of 100 monitored
   assert.ok(/<div class="n">30<\/div><div class="l">Interactions/.test(html)); // 10 + 20 likes, not the 5,000 monitor-wide
   const tone = html.slice(html.indexOf('Tone Breakdown'));
   assert.ok(/Neutral 1 \(50%\)/.test(tone) && /Negative 1 \(50%\)/.test(tone) && /Positive 0/.test(tone));
@@ -292,7 +294,7 @@ test('headline numbers describe the event region, with the monitor-wide total ke
 
 test('timeline days follow the tenant timezone, built from the region evidence', () => {
   const s = { ...mixed, evidence_traceability: [evRow(1, { posted_at: '2026-10-07T20:00:00Z' }), evRow(2, { posted_at: '2026-10-08T10:00:00Z' })] };
-  const html = buildReportHtml({ summary: s, keywordData: null, tenantName: 'odisha', analysis: mixedAnalysis, headquarters: { ...resolveHeadquarters('odisha'), timezone: 'Asia/Kolkata' }, includeEvidence: false });
+  const html = buildReportHtml({ summary: s, keywordData: null, tenantName: 'odisha', analysis: mixedAnalysis, headquarters: { ...resolveHeadquarters('odisha'), timezone: 'Asia/Kolkata' }, includeEvidence: false, regionOnly: true });
   assert.ok(/>08\/10</.test(html) && /Peak 2/.test(html));                    // both posts fall on 8 Oct in India
 });
 
