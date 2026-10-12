@@ -751,7 +751,7 @@ const EventKeywordsFields = ({
                 <div>
                   <p className="text-xs font-semibold">Languages for the suggestions</p>
                   <p className="text-[11px] text-muted-foreground">
-                    {languages.length === ALL_LANGUAGE_CODES.length ? 'All languages are selected.' : `${languages.length} of ${ALL_LANGUAGE_CODES.length} selected.`} Untick the ones you do not need.
+                    {languages.length === ALL_LANGUAGE_CODES.length ? 'All languages are selected.' : `${languages.length} of ${ALL_LANGUAGE_CODES.length} selected.`} Untick the ones you do not need. English stays ticked, so English terms come with your languages; untick English if you do not want them.
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
@@ -766,7 +766,7 @@ const EventKeywordsFields = ({
                   <div className="flex items-center gap-2 text-[11px]">
                     <button type="button" className="text-primary hover:underline" onClick={() => setLanguages(ALL_LANGUAGE_CODES)}>Select all</button>
                     <span className="text-muted-foreground/50">|</span>
-                    <button type="button" className="text-primary hover:underline" onClick={() => setLanguages([])}>Clear</button>
+                    <button type="button" className="text-primary hover:underline" onClick={() => setLanguages(['en'])} title="Unticks every language except English">Clear</button>
                   </div>
                   <Button
                     type="button"
