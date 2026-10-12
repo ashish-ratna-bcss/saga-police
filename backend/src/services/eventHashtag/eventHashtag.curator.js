@@ -8,7 +8,13 @@ const { rejectReason, wordsOf, eventTextWords, anchored } = require('../../modul
  * is tied to the event's own text, directly or through a name that appears in
  * an already-kept phrase.
  */
-const curateEventTerms = async (db, eventObj, candidateTerms = {}) => {
+// A term with letters but none of them Latin (a Hindi or Odia hashtag): it cannot share a word with the English event text.
+const pureOtherScript = (term) => {
+  const letters = String(term || '').match(/\p{L}/gu) || [];
+  return letters.length > 0 && !letters.some((c) => /\p{Script=Latin}/u.test(c));
+};
+
+const curateEventTerms = async (db, eventObj, candidateTerms = {}, { acceptOtherScripts = false } = {}) => {
   const rawHashtags = Array.isArray(candidateTerms.hashtags) ? candidateTerms.hashtags : [];
   const rawKeywords = Array.isArray(candidateTerms.keywords) ? candidateTerms.keywords : [];
   const generic = await getGenericTokens(db);
@@ -23,7 +29,8 @@ const curateEventTerms = async (db, eventObj, candidateTerms = {}) => {
   const pending = [];
   for (const term of [...rawKeywords, ...rawHashtags].map((t) => String(t || '').trim()).filter(Boolean)) {
     if (rejectReason(term, { generic, ev })) continue;
-    if (anchored(term, ev)) accepted.push(term);
+    // The generator wrote these in the languages the user chose, from the event's own text, so they are kept without an English word to match.
+    if (anchored(term, ev) || (acceptOtherScripts && pureOtherScript(term))) accepted.push(term);
     else pending.push(term);
   }
 

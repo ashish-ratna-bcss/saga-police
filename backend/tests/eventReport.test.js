@@ -597,3 +597,14 @@ test('a country name means the country, and a country-wide event keeps posts tha
   const out = classifyEvidence(ev, analysis, { location: 'India' }, { strict: true });
   assert.equal(out.inEv.length, 2);   // the unnamed-place post stays: the whole event is about India
 });
+
+test('keyword language choice: English is kept or removed by script; other languages are kept as chosen', () => {
+  const { applyLanguageChoice, hasOtherScript } = require('../src/services/eventHashtag/eventHashtag.client');
+  assert.equal(hasOtherScript('paper leak'), false);
+  assert.equal(hasOtherScript('पेपर लीक'), true);
+  assert.equal(hasOtherScript('#JPSCपरीक्षा'), true);   // a mixed term counts as the other language
+  const t = { hashtags: ['#JPSC', '#जेपीएससी'], keywords: ['paper leak', 'पेपर लीक'] };
+  assert.deepEqual(applyLanguageChoice(t, { wantEnglish: true, onlyEnglish: false }), t);
+  assert.deepEqual(applyLanguageChoice(t, { wantEnglish: false, onlyEnglish: false }), { hashtags: ['#जेपीएससी'], keywords: ['पेपर लीक'] });
+  assert.deepEqual(applyLanguageChoice(t, { wantEnglish: true, onlyEnglish: true }), { hashtags: ['#JPSC'], keywords: ['paper leak'] });
+});

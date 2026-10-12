@@ -610,8 +610,9 @@ const EventPlatformPicker = ({ value = [], onChange, options = [], loading = fal
   );
 };
 
-// The languages the keyword generator can write terms in (its own language codes). English terms always come with them.
+// The languages the keyword generator can write terms in (its own codes). English is kept or removed by our backend.
 const KEYWORD_LANGUAGES = [
+  { code: 'en', label: 'English', native: 'English' },
   { code: 'hi', label: 'Hindi', native: 'हिन्दी' },
   { code: 'or', label: 'Odia', native: 'ଓଡ଼ିଆ' },
   { code: 'bn', label: 'Bengali', native: 'বাংলা' },
@@ -750,7 +751,7 @@ const EventKeywordsFields = ({
                 <div>
                   <p className="text-xs font-semibold">Languages for the suggestions</p>
                   <p className="text-[11px] text-muted-foreground">
-                    {languages.length === ALL_LANGUAGE_CODES.length ? 'All languages are selected.' : `${languages.length} of ${ALL_LANGUAGE_CODES.length} selected.`} Untick the ones you do not need. English terms are always included.
+                    {languages.length === ALL_LANGUAGE_CODES.length ? 'All languages are selected.' : `${languages.length} of ${ALL_LANGUAGE_CODES.length} selected.`} Untick the ones you do not need.
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
