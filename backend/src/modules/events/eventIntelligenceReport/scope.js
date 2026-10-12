@@ -24,7 +24,15 @@ const classifyEvidence = (ev = [], analysis = null, event = {}, { strict = false
     });
   }
   // A location report keeps a post that names no place only when its own words mention the region; otherwise it is not about this location.
-  if (reliable && strict && regionWords.length) {
+  // When the event's location is a whole country, every post that names no place is still about that country, so nothing is dropped for lacking a name.
+  let strictOn = strict;
+  if (strictOn) {
+    try {
+      const g = require('../../../services/SummaryLLM/geo.service').lookupPlace(event?.location, '', '');
+      if (g && g.kind === 'country') strictOn = false;
+    } catch (e) { /* keep the strict rule */ }
+  }
+  if (reliable && strictOn && regionWords.length) {
     const phrase = foldGeo(event?.location);
     const mentions = (e) => ` ${foldGeo(`${e.text || ''} ${e.english_text || e.englishText || ''}`)} `.includes(` ${phrase} `)
       || regionWords.some((w) => ` ${foldGeo(`${e.text || ''} ${e.english_text || e.englishText || ''}`)} `.includes(` ${w} `));

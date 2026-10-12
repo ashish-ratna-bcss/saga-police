@@ -284,7 +284,7 @@ test('scope: posts that name only places outside the region are split off; posts
 
 test('headline numbers describe the event region, with the monitor-wide total kept apart', () => {
   const html = buildReportHtml({ summary: mixed, keywordData: null, tenantName: 'odisha', analysis: mixedAnalysis, headquarters: null, includeEvidence: true });
-  assert.ok(/2 in Odisha of 100 monitored/.test(html));                       // 2 region posts out of 100 monitored
+  assert.ok(/2 in Odisha of \d+ reviewed in detail \(100 monitored\)/.test(html));                       // 2 region posts out of 100 monitored
   assert.ok(/<div class="n">30<\/div><div class="l">Interactions/.test(html)); // 10 + 20 likes, not the 5,000 monitor-wide
   const tone = html.slice(html.indexOf('Tone Breakdown'));
   assert.ok(/Neutral 1 \(50%\)/.test(tone) && /Negative 1 \(50%\)/.test(tone) && /Positive 0/.test(tone));
@@ -581,4 +581,17 @@ test('region view: lists such as emerging keywords no longer cite posts from out
   const out = toRegionView({ event: { location: 'Odisha' }, evidence_traceability: ev, stats: { structured_report: { facts, bottomLine: 'x', emerging: [{ term: '#a', posts: [1, 2] }], highMonitoringProfiles: [{ account: 'b', posts: [2] }] }, sentiment_counts: {} } });
   assert.deepEqual(out.stats.structured_report.emerging[0].posts, [1]);
   assert.equal(out.stats.structured_report.highMonitoringProfiles.length, 0);
+});
+
+test('a country name means the country, and a country-wide event keeps posts that name no place in the location reports', () => {
+  const geo = require('../src/services/SummaryLLM/geo.service');
+  const india = geo.lookupPlace('India', '', '');
+  if (!india) return;   // the place data file is not installed here
+  assert.equal(india.kind, 'country');
+  assert.equal(india.country, 'India');
+  const { classifyEvidence } = require('../src/modules/events/eventIntelligenceReport/scope');
+  const ev = [{ n: 1, text: 'Protest planned tomorrow' }, { n: 2, text: 'Rally in Mumbai' }];
+  const analysis = { facts: { places: [{ name: 'Mumbai', region: 'Maharashtra, India' }], byPost: { 1: { places: [] }, 2: { places: ['Mumbai'] } } } };
+  const out = classifyEvidence(ev, analysis, { location: 'India' }, { strict: true });
+  assert.equal(out.inEv.length, 2);   // the unnamed-place post stays: the whole event is about India
 });
