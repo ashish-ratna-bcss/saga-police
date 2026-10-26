@@ -70,7 +70,9 @@
     },
     {
       "keys": [
-        "karnataka"
+        "karnataka",
+        "bengaluru",
+        "bangalore"
       ],
       "force": "Karnataka Police",
       "display_name": "KARNATAKA POLICE",

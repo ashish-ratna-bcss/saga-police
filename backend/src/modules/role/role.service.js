@@ -3,12 +3,11 @@ const { ROLE_SLUGS, canAssignRole } = require('./role.utils');
 const { validateCreateRole, validateUpdateRole } = require('./role.validation');
 
 const SYSTEM_ROLE_DEFS = [
-  { slug: ROLE_SLUGS.SUPERADMIN, name: 'Super Admin', is_system: true },
   { slug: ROLE_SLUGS.ADMIN, name: 'Admin', is_system: true },
   { slug: ROLE_SLUGS.USER, name: 'User', is_system: true },
 ];
 
-/** Always upsert system roles (superadmin / admin / user). */
+/** Always upsert system roles (admin / user). */
 const ensureSystemRoles = async () => {
   for (const def of SYSTEM_ROLE_DEFS) {
     await prisma.roles.upsert({

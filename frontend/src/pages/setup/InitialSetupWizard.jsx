@@ -95,11 +95,11 @@ export default function InitialSetupWizard() {
   const [refreshing, setRefreshing] = useState(false);
   const [kwCategory, setKwCategory] = useState(0);
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin' || user?.is_admin;
-  const orgTitle = user?.blurasagatitle || user?.theme_name || 'Delhi Police';
+  const isAdmin = user?.role === 'admin' || user?.is_admin;
+  const orgTitle = user?.blurasagatitle || user?.theme_name || 'Bengaluru Police Saga';
   const orgDesc = user?.blurasagadescription || user?.theme_description || 'Cyber Intelligence & Observability Platform';
   const orgLogo = user?.blurasagalogo || user?.theme_logo || '/blura_saga_logo.jpg';
-  const tenantDb = user?.db_name || 'blurasaga_delhipolice_drishti_5';
+  const tenantDb = user?.db_name || 'bengaluru';
 
   const loadData = useCallback(async () => {
     try {
@@ -136,7 +136,7 @@ export default function InitialSetupWizard() {
   }, [loadData]);
 
   useEffect(() => {
-    const title = user?.blurasagatitle || user?.theme_name || 'DRISHTI';
+    const title = user?.blurasagatitle || user?.theme_name || 'Bengaluru Police Saga';
     const desc = user?.blurasagadescription || user?.theme_description || 'Cyber Intelligence & Surveillance Platform';
     document.title = `${title} — ${desc}`;
 

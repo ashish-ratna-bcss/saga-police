@@ -294,7 +294,7 @@ const getUnreadCount = async ({ db } = {}) => {
       where: { is_read: false, status: 'active' },
     });
   } catch (error) {
-    // Missing tenant / empty schema (e.g. superadmin with no db_name).
+    // Missing schema or unread query failed.
     if (error.code === 'P2021' || error.code === 'NO_TENANT_DB') return 0;
     throw error;
   }

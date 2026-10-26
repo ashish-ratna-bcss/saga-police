@@ -1,4 +1,4 @@
-const { Prisma } = require('../../generated/tenant-client');
+const { Prisma } = require('@prisma/client');
 const dbOf = require('../../lib/dbOf');
 const { getPageCapabilitySlugs } = require('../../lib/pagePlatforms');
 

@@ -324,7 +324,7 @@ const Login = () => {
                   <span className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 shadow-sm shadow-black/20">
                     <img
                       src="/blura_saga_logo.jpg"
-                      alt="Blura Saga"
+                      alt="Bengaluru Police Saga"
                       className="h-11 w-auto max-w-[160px] object-contain"
                       onError={(e) => {
                         e.currentTarget.closest('span')?.remove();
@@ -539,7 +539,7 @@ const Login = () => {
                 <span className="inline-flex items-center rounded-md bg-white px-2 py-1 shadow-sm shadow-black/20">
                   <img
                     src="/blura_saga_logo.jpg"
-                    alt="Blura Saga"
+                    alt="Bengaluru Police Saga"
                     className="h-8 w-auto max-w-[120px] object-contain"
                     onError={(e) => {
                       e.currentTarget.closest('span')?.remove();

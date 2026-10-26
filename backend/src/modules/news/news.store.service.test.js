@@ -7,7 +7,7 @@
  *   node src/modules/news/news.store.service.test.js
  */
 const assert = require('assert');
-const { createTenantPrisma } = require('../../../prisma/tenantClient');
+const { PrismaClient } = require('@prisma/client');
 const store = require('./news.store.service');
 
 const article = (id, extra = {}) => ({
@@ -35,8 +35,8 @@ async function runTests() {
     console.log('Skipping: set NEWS_TEST_TENANT_A_URL and NEWS_TEST_TENANT_B_URL to disposable databases.');
     return;
   }
-  const tenantA = createTenantPrisma(urlA);
-  const tenantB = createTenantPrisma(urlB);
+  const tenantA = new PrismaClient({ datasources: { db: { url: urlA } } });
+  const tenantB = new PrismaClient({ datasources: { db: { url: urlB } } });
   const asha = { id: 7, name: 'Asha' };
   const ravi = { id: 8, name: 'Ravi' };
   const list = (q = {}) => store.listArticles(tenantA, q);

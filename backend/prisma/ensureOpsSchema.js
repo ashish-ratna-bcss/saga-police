@@ -1,12 +1,12 @@
 /**
- * Shared operational DDL for tenant DBs (and optional main-DB ops bootstrap).
- * Keep in sync with ops models in schema.prisma (not roles/users — those stay on main).
+ * Operational DDL for the single application database.
+ * Keep in sync with ops models in schema.prisma.
  * Schema only — no seed INSERTs.
  */
 
 /**
- * Create enums + ops tables on the given Prisma client.
- * @param {import('../src/generated/tenant-client').PrismaClient} prisma
+ * Create enums + ops tables on the application Prisma client.
+ * @param {import('@prisma/client').PrismaClient} prisma
  */
 async function ensureOpsSchema(prisma) {
   await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);

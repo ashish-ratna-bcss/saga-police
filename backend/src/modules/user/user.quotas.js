@@ -27,7 +27,7 @@ const assertUnderUserQuota = async (actor) => {
   });
   if (count >= owner.max_users) {
     const err = new Error(
-      `User limit reached (${owner.max_users}). Ask Superadmin to raise max_users for this admin.`
+      `User limit reached (${owner.max_users}). Ask an administrator to raise the user limit.`
     );
     err.status = 403;
     throw err;
@@ -37,12 +37,12 @@ const assertUnderUserQuota = async (actor) => {
 const assertUnderProfileQuota = async (actor, { db, adding = 1 } = {}) => {
   const owner = await resolveQuotaOwner(actor);
   if (!owner || owner.max_profiles == null) return;
-  const tenant = db || (owner.db_name ? getTenantPrisma(owner.db_name) : null);
+  const tenant = db || getTenantPrisma();
   if (!tenant) return;
   const count = await tenant.social_media_profiles.count();
   if (count + adding > owner.max_profiles) {
     const err = new Error(
-      `Profile limit reached (${owner.max_profiles}). Ask Superadmin to raise max_profiles for this admin.`
+      `Profile limit reached (${owner.max_profiles}). Ask an administrator to raise the profile limit.`
     );
     err.status = 403;
     throw err;

@@ -2,11 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import {
   UserPlus, Search, Pencil, Trash2, Loader2, Shield, Mail, AtSign, KeyRound, Users,
-  ChevronLeft, ChevronRight, Upload, Wand2, Eye, EyeOff, ShieldCheck, Check,
+  ChevronLeft, ChevronRight, Wand2, Eye, EyeOff, ShieldCheck, Check,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../../lib/api';
-import { resolvePublicAssetUrl } from '../../lib/publicAssetUrl';
 import { useAuth } from '../../context/auth.context';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -39,7 +38,6 @@ const generateRandomPassword = () => {
 
 const roleBadgeClass = (role) => {
   const r = String(role || '').toLowerCase();
-  if (r === 'superadmin') return 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30';
   if (r === 'admin') return 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30';
   return 'bg-muted text-muted-foreground border-border';
 };
@@ -49,11 +47,11 @@ const emptyForm = (currentUser) => ({
   username: '',
   email: '',
   password: '',
-  role: currentUser?.role === 'superadmin' ? 'admin' : 'user',
+  role: 'user',
   max_profiles: '50',
   max_users: '10',
   allowed_pages: [],
-  blurasagatitle: currentUser?.blurasagatitle || 'BLURA SAGA',
+  blurasagatitle: currentUser?.blurasagatitle || 'Bengaluru Police Saga',
   blurasagadescription: currentUser?.blurasagadescription || 'Cyber Intelligence Platform',
   blurasagalogo: currentUser?.blurasagalogo || '/blura_saga_logo.jpg',
   port: currentUser?.port != null ? String(currentUser.port) : '',
@@ -77,20 +75,13 @@ const UsersManagement = () => {
   const [form, setForm] = useState(emptyForm(user));
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [showPassword, setShowPassword] = useState(true);
   const [pageCatalog, setPageCatalog] = useState([]);
   const [loadingAccess, setLoadingAccess] = useState(false);
 
   const canManage = Boolean(user?.can_manage_users);
 
-  // Roles this actor may assign: superadmin→admin only, admin→user only.
-  const assignableRoles = useMemo(() => {
-    if (user?.role === 'superadmin') {
-      return [{ slug: 'admin', name: 'Admin' }];
-    }
-    return [{ slug: 'user', name: 'User' }];
-  }, [user?.role]);
+  const assignableRoles = useMemo(() => [{ slug: 'user', name: 'User' }], []);
 
   const loadCatalog = useCallback(async (forRole) => {
     const pagesRes = await api.get('/pages', { params: forRole ? { for: forRole } : {} });
@@ -121,7 +112,7 @@ const UsersManagement = () => {
     // For admin, filter list to show ONLY standard users created by this admin
     if (user?.role === 'admin') {
       list = list.filter(
-        (u) => u.role !== 'superadmin' && u.role !== 'admin' && (u.created_by === user.id || u.created_by == null)
+        (u) => u.role !== 'admin' && (u.created_by === user.id || u.created_by == null)
       );
     }
     const q = query.trim().toLowerCase();
@@ -165,7 +156,7 @@ const UsersManagement = () => {
 
   const openCreate = async () => {
     setEditing(null);
-    const role = assignableRoles[0]?.slug || (user?.role === 'superadmin' ? 'admin' : 'user');
+    const role = assignableRoles[0]?.slug || 'user';
     setForm({
       ...emptyForm(user),
       role,
@@ -200,7 +191,7 @@ const UsersManagement = () => {
       max_profiles: row.max_profiles != null ? String(row.max_profiles) : '50',
       max_users: row.max_users != null ? String(row.max_users) : '10',
       allowed_pages: Array.isArray(row.allowed_pages) ? [...row.allowed_pages] : [],
-      blurasagatitle: row.blurasagatitle || user?.blurasagatitle || 'BLURA SAGA',
+      blurasagatitle: row.blurasagatitle || user?.blurasagatitle || 'Bengaluru Police Saga',
       blurasagadescription: row.blurasagadescription || user?.blurasagadescription || 'Cyber Intelligence Platform',
       blurasagalogo: row.blurasagalogo || user?.blurasagalogo || '/blura_saga_logo.jpg',
       port: row.port != null ? String(row.port) : '',
@@ -214,7 +205,7 @@ const UsersManagement = () => {
     setModalOpen(true);
     try {
       setLoadingAccess(true);
-      await loadCatalog(row.role || (user?.role === 'superadmin' ? 'admin' : 'user'));
+      await loadCatalog(row.role || 'user');
       const res = await api.get(`/users/${row.id}/permissions`);
       setForm((f) => ({
         ...f,
@@ -265,40 +256,10 @@ const UsersManagement = () => {
         username: form.username,
         email: form.email,
         role: form.role,
-        blurasagatitle: form.blurasagatitle,
-        blurasagadescription: form.blurasagadescription,
         theme_color: form.theme_color,
         allowed_pages: form.allowed_pages,
       };
-      if (form.role === 'admin') {
-        if (form.port !== '' && form.port != null) {
-          payload.port = Number(form.port);
-        }
-        if (form.domains != null) {
-          payload.domains = String(form.domains)
-            .split(',')
-            .map((d) => d.trim())
-            .filter(Boolean);
-        }
-      }
-      // Only send logo when a new data-URL was picked. Do not send /api/branding/…
-      // URLs on create — that blocked logo inheritance for admin-created users.
-      if (
-        typeof form.blurasagalogo === 'string' &&
-        form.blurasagalogo.startsWith('data:')
-      ) {
-        payload.blurasagalogo = form.blurasagalogo;
-      }
       if (form.password.trim()) payload.password = form.password;
-
-      if (user?.role === 'superadmin' && form.role === 'admin') {
-        if (form.max_profiles !== '' && form.max_profiles != null) {
-          payload.max_profiles = Number(form.max_profiles);
-        }
-        if (form.max_users !== '' && form.max_users != null) {
-          payload.max_users = Number(form.max_users);
-        }
-      }
 
       if (editing) {
         await api.put(`/users/${editing.id}`, payload);
@@ -316,39 +277,6 @@ const UsersManagement = () => {
       toast.error(error.response?.data?.message || 'Save failed');
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleLogoUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('File size must be less than 5MB');
-      return;
-    }
-
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
-      return;
-    }
-
-    try {
-      setUploadingLogo(true);
-      // Store as data URL → backend saves into users.logo_data (BYTEA), not disk
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error('Failed to read file'));
-        reader.readAsDataURL(file);
-      });
-      setForm((f) => ({ ...f, blurasagalogo: dataUrl }));
-      toast.success('Logo ready — save user to store in database');
-    } catch {
-      toast.error('Logo upload failed');
-    } finally {
-      setUploadingLogo(false);
-      e.target.value = '';
     }
   };
 
@@ -374,12 +302,10 @@ const UsersManagement = () => {
       <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="font-heading text-xl font-bold tracking-wide sm:text-2xl">
-            {user?.role === 'superadmin' ? 'Admins' : 'Users'}
+            Users
           </h1>
           <p className="text-sm text-muted-foreground">
-            {user?.role === 'superadmin'
-              ? `${users.length} admins · each gets a tenant DB and quotas`
-              : `${users.length} accounts · ${filtered.length} matching`}
+            {`${users.length} accounts · ${filtered.length} matching`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -548,13 +474,7 @@ const UsersManagement = () => {
         <DialogContent className="w-[80vw] max-w-[80vw] max-h-[90vh] overflow-y-auto custom-scrollbar sm:max-w-[80vw]">
           <DialogHeader>
             <DialogTitle>
-              {editing
-                ? user?.role === 'superadmin'
-                  ? 'Edit admin'
-                  : 'Edit user'
-                : user?.role === 'superadmin'
-                  ? 'Create admin'
-                  : 'Create user'}
+              {editing ? 'Edit user' : 'Create user'}
             </DialogTitle>
             <DialogDescription>
               {editing
@@ -664,150 +584,6 @@ const UsersManagement = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                {user?.role === 'superadmin' && form.role === 'admin' && (
-                  <div className="space-y-2 rounded-md border border-border/80 bg-muted/20 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Admin quotas
-                    </p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="max_profiles">Max profiles</Label>
-                        <Input
-                          id="max_profiles"
-                          type="number"
-                          min={0}
-                          placeholder="50"
-                          value={form.max_profiles ?? ''}
-                          onChange={(e) => setForm((f) => ({ ...f, max_profiles: e.target.value }))}
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="max_users">Max users</Label>
-                        <Input
-                          id="max_users"
-                          type="number"
-                          min={0}
-                          placeholder="10"
-                          value={form.max_users ?? ''}
-                          onChange={(e) => setForm((f) => ({ ...f, max_users: e.target.value }))}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {(form.role === 'superadmin' || form.role === 'admin') && (
-                  <div className="space-y-3 rounded-md border border-border/80 p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        Application details
-                      </span>
-                      <span className="text-[10px] font-semibold text-primary">
-                        Stored in DB (not theme_color)
-                      </span>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor="app-port">Frontend port</Label>
-                      <Input
-                        id="app-port"
-                        type="number"
-                        min={1}
-                        max={65535}
-                        placeholder="e.g. 3000, 3001, 3002"
-                        value={form.port}
-                        onChange={(e) => setForm((f) => ({ ...f, port: e.target.value }))}
-                        required={form.role === 'admin'}
-                      />
-                      <p className="text-[11px] text-muted-foreground">
-                        Login branding is loaded by this port (e.g. open UI on :3002).
-                      </p>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor="app-domains">Domains (optional, comma-separated)</Label>
-                      <Input
-                        id="app-domains"
-                        placeholder="e.g. odisha.blurasaga.com"
-                        value={form.domains}
-                        onChange={(e) => setForm((f) => ({ ...f, domains: e.target.value }))}
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor="blurasagatitle">Title</Label>
-                      <Input
-                        id="blurasagatitle"
-                        placeholder="e.g. SATARK"
-                        value={form.blurasagatitle}
-                        onChange={(e) => setForm((f) => ({ ...f, blurasagatitle: e.target.value }))}
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor="blurasagadescription">Description</Label>
-                      <Input
-                        id="blurasagadescription"
-                        placeholder="e.g. Cyber Intelligence Platform"
-                        value={form.blurasagadescription}
-                        onChange={(e) =>
-                          setForm((f) => ({ ...f, blurasagadescription: e.target.value }))
-                        }
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor="blurasagalogo">Org logo (stored in database)</Label>
-                      <div className="flex items-center gap-2">
-                        {form.blurasagalogo && (
-                          <img
-                            src={resolvePublicAssetUrl(form.blurasagalogo)}
-                            alt="Logo preview"
-                            className="h-9 w-9 shrink-0 rounded-lg border border-border object-cover bg-muted/30"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                            }}
-                          />
-                        )}
-                        <Input
-                          id="blurasagalogo"
-                          placeholder="Upload an image — saved on this user in the DB"
-                          value={
-                            typeof form.blurasagalogo === 'string' &&
-                            form.blurasagalogo.startsWith('data:')
-                              ? '(new image ready to save)'
-                              : form.blurasagalogo || ''
-                          }
-                          readOnly
-                          className="flex-1"
-                        />
-                        <Label
-                          htmlFor="logo-file-upload"
-                          className="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
-                        >
-                          {uploadingLogo ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Upload className="h-3.5 w-3.5" />
-                          )}
-                          Upload
-                        </Label>
-                        <input
-                          id="logo-file-upload"
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleLogoUpload}
-                          disabled={uploadingLogo}
-                        />
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        Image → users.logo_data; title/description → users.application_details; lookup by
-                        users.port.
-                      </p>
-                    </div>
-                  </div>
-                )}
               </div>
 
               <div className="space-y-4 rounded-md border border-border/80 bg-muted/10 p-3">

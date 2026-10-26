@@ -14,7 +14,7 @@
  * at a word boundary ('kill' finds 'killed', not 'skill').
  */
 
-const { Prisma } = require('../../generated/tenant-client');
+const { Prisma } = require('@prisma/client');
 
 const MAX_PHRASES = 150;
 const MAX_KEYWORD_LENGTH = 6000;

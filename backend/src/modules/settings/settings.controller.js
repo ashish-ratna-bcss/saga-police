@@ -24,7 +24,7 @@ const getSettings = async (req, res) => {
 // @access  Private (Admin only)
 const updateSettings = async (req, res) => {
   try {
-    if (!['superadmin', 'admin'].includes(req.user.role)) {
+    if (req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Insufficient permissions' });
     }
 

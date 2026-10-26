@@ -2,7 +2,7 @@
  * Single auth middleware: validates JWT, loads user, optional role / page checks.
  *
  *   authorize()                         — token only (any logged-in user)
- *   authorize('admin', 'superadmin')    — token + role
+ *   authorize('admin')                  — token + role
  *   authorize({ roles: ['admin'] })     — token + role
  *   authorize({ pages: ['/alerts'] })   — token + page access
  *   authorize({ manageUsers: true })    — token + can_manage_users
@@ -14,7 +14,7 @@ const logger = require('../lib/logger');
 const { getJwtSecret } = require('../config/env');
 const { readAuthCookie } = require('../config/cookies');
 const { toPublicUser } = require('../modules/user/user.utils');
-const { getTenantPrisma } = require('../lib/tenantDatabase.service');
+const { getTenantPrisma, APP_DB_NAME } = require('../lib/tenantDatabase.service');
 const { getSessionById, touchSession } = require('../modules/auth/auth.session');
 
 const getTokenFromRequest = (req) => {
@@ -59,7 +59,6 @@ const roleAllowed = (userRole, requiredRoles) => {
 
 const pageAllowed = (user, requiredPages) => {
   if (!requiredPages.length) return true;
-  if (user.role === 'superadmin') return true;
   const allowed = (user.allowed_pages || []).map(normalizePath);
   return requiredPages.some((pagePath) => {
     const normalized = normalizePath(pagePath);
@@ -146,14 +145,8 @@ const authorize = (...args) => {
       }
 
       req.user = toPublicUser(user, user.roles, { creator });
-      const tenantDbName = user.db_name || null;
-      if (decoded.db_name && user.db_name && decoded.db_name !== user.db_name) {
-        logger.warn(
-          `[tenant] JWT db_name=${decoded.db_name} differs from user.db_name=${user.db_name}; using DB`
-        );
-      }
-      req.tenantPrisma = getTenantPrisma(tenantDbName);
-      req.tenantDbName = tenantDbName;
+      req.tenantPrisma = getTenantPrisma();
+      req.tenantDbName = APP_DB_NAME;
 
       if (roles.length && !roleAllowed(req.user.role, roles)) {
         return res.status(403).json({

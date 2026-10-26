@@ -15,7 +15,7 @@
  * (Older installs also have news_search_articles; it is no longer read or written.)
  */
 
-const { Prisma } = require('../../generated/tenant-client');
+const { Prisma } = require('@prisma/client');
 const dbOf = require('../../lib/dbOf');
 const { keywordSql, HAY_COLUMNS } = require('./news.keywords');
 

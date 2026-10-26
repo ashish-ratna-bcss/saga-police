@@ -71,22 +71,20 @@ const login = async (req, res) => {
     }
 
     const publicUser = toPublicUser(user, user.roles, { creator });
-    if (user.db_name) {
-      try {
-        const tenantPrisma = getTenantPrisma(user.db_name);
-        await ensureOpsSchema(tenantPrisma);
-        await createAuditLog({
-          req,
-          user: publicUser,
-          action: force ? 'login_force' : 'login',
-          resourceType: 'user',
-          resourceId: user.id,
-          newData: toPublicSession(session),
-          tenantPrisma,
-        });
-      } catch {
-        // audit best-effort
-      }
+    try {
+      const tenantPrisma = getTenantPrisma();
+      await ensureOpsSchema(tenantPrisma);
+      await createAuditLog({
+        req,
+        user: publicUser,
+        action: force ? 'login_force' : 'login',
+        resourceType: 'user',
+        resourceId: user.id,
+        newData: toPublicSession(session),
+        tenantPrisma,
+      });
+    } catch {
+      // audit best-effort
     }
 
     createAuthCookie(res, generateToken(user.id, user.db_name, session.id), req);
@@ -138,17 +136,15 @@ const logout = async (req, res) => {
 
     if (userId) {
       const user = await findUserWithRole({ id: userId });
-      if (user?.db_name) {
-        await createAuditLog({
-          req,
-          user: toPublicUser(user, user.roles),
-          action: 'logout',
-          resourceType: 'user',
-          resourceId: user.id,
-          details: { sid },
-          tenantPrisma: getTenantPrisma(user.db_name),
-        });
-      }
+      await createAuditLog({
+        req,
+        user: toPublicUser(user, user.roles),
+        action: 'logout',
+        resourceType: 'user',
+        resourceId: user.id,
+        details: { sid },
+        tenantPrisma: getTenantPrisma(),
+      });
     }
   } catch {
     // best-effort
@@ -157,20 +153,11 @@ const logout = async (req, res) => {
   return res.status(200).json({ message: 'Logged out' });
 };
 
-const checkTenantSetupStatus = async (dbName) => {
-  if (!dbName) {
-    return {
-      is_configured: true,
-      platform_count: 0,
-      keyword_count: 0,
-      needs_platforms: false,
-      needs_keywords: false,
-    };
-  }
+const checkTenantSetupStatus = async () => {
   try {
     const { getTenantPrisma } = require('../../lib/tenantDatabase.service');
     const { ensureOpsSchema } = require('../../../prisma/ensureOpsSchema');
-    const tenantPrisma = getTenantPrisma(dbName);
+    const tenantPrisma = getTenantPrisma();
     await ensureOpsSchema(tenantPrisma);
 
     const [platformCount, keywordCount] = await Promise.all([
@@ -186,7 +173,7 @@ const checkTenantSetupStatus = async (dbName) => {
       needs_keywords: keywordCount === 0,
     };
   } catch (error) {
-    logger.error(`[SetupStatus] error checking setup status for ${dbName}: ${error.message}`);
+    logger.error(`[SetupStatus] error checking setup status: ${error.message}`);
     return {
       is_configured: true,
       platform_count: 0,
@@ -200,7 +187,7 @@ const checkTenantSetupStatus = async (dbName) => {
 
 const getSetupStatus = async (req, res) => {
   try {
-    const status = await checkTenantSetupStatus(req.user?.db_name);
+    const status = await checkTenantSetupStatus();
     return res.status(200).json(status);
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -209,7 +196,7 @@ const getSetupStatus = async (req, res) => {
 
 const getMe = async (req, res) => {
   const user = req.user || {};
-  const setupStatus = await checkTenantSetupStatus(user.db_name);
+  const setupStatus = await checkTenantSetupStatus();
 
   return res.status(200).json({
     ...user,
@@ -359,10 +346,9 @@ const updateMyPlatforms = async (req, res) => {
       where: { id: userId },
       include: { roles: true },
     });
-    if (!currentUser?.db_name) {
-      return res.status(400).json({ message: 'Admin has no tenant database' });
+    if (!currentUser) {
+      return res.status(404).json({ message: 'User not found' });
     }
-
     const updated = await prisma.users.update({
       where: { id: userId },
       data: { allowed_platforms: allowed },
@@ -378,7 +364,7 @@ const updateMyPlatforms = async (req, res) => {
       data: { allowed_platforms: allowed },
     });
 
-    const tenantPrisma = getTenantPrisma(currentUser.db_name);
+    const tenantPrisma = getTenantPrisma();
     await syncTenantPlatforms(tenantPrisma, allowed);
 
     await createAuditLog({

@@ -1,7 +1,5 @@
 const prisma = require('../../../prisma/client');
 const { ensureOpsSchema } = require('../../../prisma/ensureOpsSchema');
-const { getTenantPrisma } = require('../../lib/tenantDatabase.service');
-const logger = require('../../lib/logger');
 
 const shapeLog = (row, tenantMeta = null) => ({
   id: row.id,
@@ -51,88 +49,11 @@ const fetchTenantLogs = async (tenantPrisma, where, take = 1000) => {
   });
 };
 
-/** Distinct tenant DBs (prefer admin name as label for superadmin aggregate view). */
-const listAdminTenants = async () => {
-  const users = await prisma.users.findMany({
-    where: { db_name: { not: null } },
-    select: {
-      id: true,
-      name: true,
-      username: true,
-      db_name: true,
-      roles: { select: { slug: true } },
-    },
-    orderBy: { id: 'asc' },
-  });
-
-  const byDb = new Map();
-  for (const user of users) {
-    const db = String(user.db_name || '').trim();
-    if (!db) continue;
-    const isAdmin = user.roles?.slug === 'admin';
-    const existing = byDb.get(db);
-    if (!existing) {
-      byDb.set(db, {
-        db_name: db,
-        label: user.name || user.username || db,
-        admin_id: isAdmin ? user.id : null,
-      });
-      continue;
-    }
-    // Prefer an admin row for the display label
-    if (isAdmin && !existing.admin_id) {
-      byDb.set(db, {
-        db_name: db,
-        label: user.name || user.username || db,
-        admin_id: user.id,
-      });
-    }
-  }
-  return [...byDb.values()];
-};
-
 const listAuditLogs = async (req, res) => {
   try {
     const role = req.user?.role;
     const baseWhere = buildDateWhere(req.query || {});
-    const { user_id, tenant: tenantFilter } = req.query || {};
-
-    // Superadmin: aggregate every admin tenant (optional ?tenant=db_name filter)
-    if (role === 'superadmin') {
-      const tenants = await listAdminTenants();
-      const selected = tenantFilter && tenantFilter !== 'all'
-        ? tenants.filter((t) => t.db_name === String(tenantFilter))
-        : tenants;
-
-      if (!selected.length) {
-        return res.json([]);
-      }
-
-      const perTenant = Math.min(1000, Math.max(100, Math.floor(2000 / selected.length)));
-      const chunks = await Promise.all(
-        selected.map(async (tenant) => {
-          try {
-            const tenantPrisma = getTenantPrisma(tenant.db_name);
-            if (!tenantPrisma) return [];
-            const where = { ...baseWhere };
-            if (user_id) where.user_id = Number(user_id);
-            const rows = await fetchTenantLogs(tenantPrisma, where, perTenant);
-            return rows.map((row) => shapeLog(row, tenant));
-          } catch (err) {
-            logger.warn(`[audit] skip tenant ${tenant.db_name}:`, err.message);
-            return [];
-          }
-        })
-      );
-
-      const merged = chunks.flat().sort((a, b) => {
-        const ta = new Date(a.created_at).getTime();
-        const tb = new Date(b.created_at).getTime();
-        return tb - ta;
-      });
-
-      return res.json(merged.slice(0, 2000));
-    }
+    const { user_id } = req.query || {};
 
     const tenantPrisma = req.tenantPrisma;
     if (!tenantPrisma || !req.tenantDbName) {

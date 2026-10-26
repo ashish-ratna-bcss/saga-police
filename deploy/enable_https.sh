@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Issue/renew Let's Encrypt cert for site domains and reload nginx (HTTP+HTTPS).
-# Keeps vLLM on default :80. Does not remove vLLM.
-# Supports domain_aliases (SAN certs: primary + aliases on one cert-name).
+# Issue/renew Let's Encrypt cert for the Bengaluru site and reload nginx.
+# vLLM stays on 127.0.0.1:8080. Port 80 serves this app.
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/home/ubuntu/blurasaga}"
@@ -81,18 +80,14 @@ if [[ -f "$ENV_FILE" ]]; then
   if grep -q '^COOKIE_SECURE=' "$ENV_FILE"; then
     sed -i '/^COOKIE_SECURE=/d' "$ENV_FILE"
   fi
-  # Do not set PUBLIC_BACKEND_URL to a single tenant domain — multi-tenant
-  # public file/PDF URLs are derived from each request's Host / X-Forwarded-Host.
-  # Optional fallback for jobs without a request: leave unset or set per process.
   if grep -q '^PUBLIC_BACKEND_URL=' "$ENV_FILE"; then
-    echo "==> Leaving PUBLIC_BACKEND_URL unset for multi-tenant (was pinned to first domain)"
-    sed -i '/^PUBLIC_BACKEND_URL=/d' "$ENV_FILE"
+    echo "==> Leaving PUBLIC_BACKEND_URL as configured"
   fi
 fi
 
 export PATH="/home/ubuntu/.npm-global/bin:$PATH"
-if command -v pm2 >/dev/null 2>&1 && pm2 describe odisha-api >/dev/null 2>&1; then
-  (cd "$APP_DIR/backend" && HOST=127.0.0.1 PORT=5005 NODE_ENV=production pm2 restart odisha-api --update-env)
+if command -v pm2 >/dev/null 2>&1 && pm2 describe bengaluru-api >/dev/null 2>&1; then
+  (cd "$APP_DIR/backend" && HOST=127.0.0.1 PORT=5005 NODE_ENV=production pm2 restart bengaluru-api --update-env)
   pm2 save || true
 fi
 

@@ -13,7 +13,6 @@ const getMyPermissions = async (req, res) => {
     return res.json({
       allowed_pages: req.user.allowed_pages || [],
       allowed_platforms: req.user.allowed_platforms || [],
-      is_super_admin: req.user.role === 'superadmin',
       can_manage_users: Boolean(req.user.can_manage_users),
       max_profiles: req.user.max_profiles ?? null,
       max_users: req.user.max_users ?? null,

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Share public :80 between Blura Saga (odisha.blurasaga.com) and vLLM (default).
-# vLLM is NOT removed — rebound to 127.0.0.1:8080; nginx proxies default :80 to it.
+# Bind vLLM to 127.0.0.1:8080 and serve Bengaluru Police Saga on nginx :80.
+# Port 80 is the app. vLLM is not the default server.
 set -euo pipefail
 
 export PATH="/home/ubuntu/.npm-global/bin:$PATH"
@@ -70,8 +70,9 @@ if ! command -v nginx >/dev/null 2>&1; then
 fi
 nginx -v
 
-echo "==> Free :3000 for nginx UI (stop PM2 serve only)"
+echo "==> Stop leftover UI processes"
 pm2 delete odisha-ui 2>/dev/null || true
+pm2 delete odisha-api 2>/dev/null || true
 pm2 save || true
 
 echo "==> Frontend same-origin API (clear hardcoded :5005)"
@@ -91,7 +92,7 @@ echo "==> Rebuild frontend"
 (cd frontend && NODE_ENV=production npm run build)
 
 echo "==> Install nginx site"
-python3 deploy/render_nginx.py
+node deploy/render_nginx.js
 sudo -n cp deploy/nginx.conf "/etc/nginx/sites-available/$NGINX_SITE"
 sudo -n ln -sf "/etc/nginx/sites-available/$NGINX_SITE" "/etc/nginx/sites-enabled/$NGINX_SITE"
 # disable default site if present so our default_server wins
@@ -101,19 +102,16 @@ sudo -n systemctl enable nginx
 sudo -n systemctl restart nginx
 
 echo "==> Ensure API is up"
-if pm2 describe odisha-api >/dev/null 2>&1; then
-  (cd backend && HOST=127.0.0.1 PORT=5005 NODE_ENV=production pm2 restart odisha-api --update-env)
+if pm2 describe bengaluru-api >/dev/null 2>&1; then
+  (cd backend && HOST=127.0.0.1 PORT=5005 NODE_ENV=production pm2 restart bengaluru-api --update-env)
 else
-  (cd backend && HOST=127.0.0.1 PORT=5005 NODE_ENV=production pm2 start src/index.js --name odisha-api --update-env)
+  (cd backend && HOST=127.0.0.1 PORT=5005 NODE_ENV=production pm2 start src/index.js --name bengaluru-api --update-env)
 fi
 pm2 save || true
 
 echo "==> Verify"
-ss -tlnp | grep -E ":80 |:8080|:3000|:5005" || true
-echo -n "odisha host: "; curl -s -o /dev/null -w "%{http_code} %{content_type}\n" -H "Host: odisha.blurasaga.com" http://127.0.0.1/
-echo -n "odisha body: "; curl -s -H "Host: odisha.blurasaga.com" http://127.0.0.1/ | head -c 80; echo
-echo -n "default :80 (vLLM): "; curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1/
-echo -n "ip:3000: "; curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3000/
-echo -n "api via domain: "; curl -s -o /dev/null -w "%{http_code}\n" -H "Host: odisha.blurasaga.com" http://127.0.0.1/api/ || true
+ss -tlnp | grep -E ":80 |:8080|:5005" || true
+echo -n "app :80: "; curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1/
+echo -n "vLLM :8080: "; curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8080/ || true
 
 echo "Done."

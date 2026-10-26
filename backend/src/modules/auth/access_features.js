@@ -1,7 +1,6 @@
 /**
  * Access catalogs — pages and platforms assigned per user (not on roles).
  *
- * Superadmin = console only (no Alerts/Profiles/…).
  * Admin/User = ops pages (+ admin may manage their users).
  */
 
@@ -27,16 +26,7 @@ const PAGE_CATALOG = [
 
 const PLATFORM_CATALOG = require('../../lib/platformCatalog').PLATFORM_SLUGS;
 
-/** Pages only for Superadmin console (no tenant ops). */
-const SUPERADMIN_PAGE_PATHS = [
-  '/dashboard',
-  '/users-management',
-  '/system-health',
-  '/blugate-billing',
-  '/help',
-];
-
-/** Ops modules Superadmin can grant to Admins (and Admins to Users). */
+/** Ops modules an admin can grant to users. */
 const OPS_PAGE_PATHS = [
   '/dashboard',
   '/alerts',
@@ -62,27 +52,15 @@ const ADMIN_PAGE_PATHS = [
   '/audit-logs',
 ];
 
-/** Pages Superadmin may grant to an Admin (ops + users management). */
-const GRANTABLE_TO_ADMIN_PATHS = [...ADMIN_PAGE_PATHS];
-
-/** Pages Admin may grant to a User (ops only — no users management). */
+/** Pages an admin may grant to a user (ops only — no users management). */
 const GRANTABLE_TO_USER_PATHS = [...OPS_PAGE_PATHS];
 
 const ALL_PAGE_PATHS = PAGE_CATALOG.map((p) => p.path);
 
-const DEFAULT_ADMIN_MAX_PROFILES = 50;
-const DEFAULT_ADMIN_MAX_USERS = 10;
-
 /** Defaults copied onto the user row at create time (then editable). */
 const DEFAULT_ACCESS_BY_ROLE = {
-  superadmin: {
-    allowed_pages: [...SUPERADMIN_PAGE_PATHS],
-    allowed_platforms: [],
-    can_manage_users: true,
-  },
   admin: {
     allowed_pages: [...ADMIN_PAGE_PATHS],
-    // Chosen explicitly when Superadmin creates/edits the admin — not auto-filled.
     allowed_platforms: [],
     can_manage_users: true,
   },
@@ -105,16 +83,8 @@ const getDefaultAccessForRole = (roleSlug) => {
   );
 };
 
-/** Pages the actor is allowed to grant to a given target role. */
-const grantablePagesForTarget = (actor, targetRoleSlug) => {
-  const target = String(targetRoleSlug || 'user').toLowerCase();
-  if (actor?.role === 'superadmin') {
-    if (target === 'admin') {
-      return PAGE_CATALOG.filter((p) => GRANTABLE_TO_ADMIN_PATHS.includes(p.path));
-    }
-    return PAGE_CATALOG.filter((p) => GRANTABLE_TO_USER_PATHS.includes(p.path));
-  }
-  // Admin → user only, capped to own pages ∩ grantable-to-user
+/** Pages the actor is allowed to grant to a user. */
+const grantablePagesForTarget = (actor, _targetRoleSlug) => {
   const own = new Set(actor?.allowed_pages || []);
   return PAGE_CATALOG.filter(
     (p) => GRANTABLE_TO_USER_PATHS.includes(p.path) && own.has(p.path)
@@ -124,9 +94,6 @@ const grantablePagesForTarget = (actor, targetRoleSlug) => {
 /** Sidebar from user.allowed_pages only (no full-catalog bypass). */
 const sidebarForUser = (user) => {
   const allowed = new Set((user?.allowed_pages || []).map((p) => String(p)));
-  if (!allowed.size && user?.role === 'superadmin') {
-    return PAGE_CATALOG.filter((item) => SUPERADMIN_PAGE_PATHS.includes(item.path));
-  }
   const items = PAGE_CATALOG.filter((item) => allowed.has(item.path));
   // Admins who can manage users always see Audit Logs
   if (user?.can_manage_users && !items.some((i) => i.path === '/audit-logs')) {
@@ -140,13 +107,9 @@ module.exports = {
   PAGE_CATALOG,
   PLATFORM_CATALOG,
   ALL_PAGE_PATHS,
-  SUPERADMIN_PAGE_PATHS,
   OPS_PAGE_PATHS,
   ADMIN_PAGE_PATHS,
-  GRANTABLE_TO_ADMIN_PATHS,
   GRANTABLE_TO_USER_PATHS,
-  DEFAULT_ADMIN_MAX_PROFILES,
-  DEFAULT_ADMIN_MAX_USERS,
   DEFAULT_ACCESS_BY_ROLE,
   getDefaultAccessForRole,
   grantablePagesForTarget,

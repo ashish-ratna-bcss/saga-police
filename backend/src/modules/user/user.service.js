@@ -3,12 +3,8 @@ const prisma = require('../../../prisma/client');
 const { getRoleBySlug } = require('../role/role.service');
 const { canAssignRole, ROLE_SLUGS } = require('../role/role.utils');
 const { toPublicUser } = require('./user.utils');
-const { resolveAccessForAssignee, parseQuota } = require('./user.access');
+const { resolveAccessForAssignee } = require('./user.access');
 const { assertUnderUserQuota } = require('./user.quotas');
-const {
-  DEFAULT_ADMIN_MAX_PROFILES,
-  DEFAULT_ADMIN_MAX_USERS,
-} = require('../auth/access_features');
 const { validateCreateUser, validateUpdateUser } = require('./user.validation');
 const { parseLogoInput } = require('./user.logo');
 const {
@@ -79,14 +75,10 @@ const assertPortAvailable = async (port, excludeUserId = null) => {
 };
 
 const listUsers = async (actor) => {
-  const isSuperadmin = actor?.role === ROLE_SLUGS.SUPERADMIN;
   const isAdmin = actor?.role === ROLE_SLUGS.ADMIN;
 
   let where = {};
-  if (isSuperadmin) {
-    // Superadmin manages Admins only (not end-users or other superadmins).
-    where = { roles: { slug: ROLE_SLUGS.ADMIN } };
-  } else if (isAdmin) {
+  if (isAdmin) {
     where = {
       created_by: actor?.id,
       roles: { slug: ROLE_SLUGS.USER },
@@ -104,19 +96,6 @@ const listUsers = async (actor) => {
 };
 
 const assertOwnsUser = (actor, user) => {
-  if (actor.role === ROLE_SLUGS.SUPERADMIN) {
-    // Superadmin only manages Admin accounts (not end-users).
-    if (
-      user.roles?.slug &&
-      user.roles.slug !== ROLE_SLUGS.ADMIN &&
-      user.id !== actor.id
-    ) {
-      const err = new Error('Superadmin can only manage Admin accounts');
-      err.status = 403;
-      throw err;
-    }
-    return;
-  }
   if (user.created_by !== actor.id) {
     const err = new Error('You can only manage users you created');
     err.status = 403;
@@ -148,12 +127,6 @@ const createUserAccount = async (actor, body) => {
   }
   const { name, email, username, password, role: roleSlug } = validated.data;
 
-  // Scope: superadmin creates admins; admin creates users.
-  if (actor.role === ROLE_SLUGS.SUPERADMIN && roleSlug !== ROLE_SLUGS.ADMIN) {
-    const err = new Error('Superadmin can only create Admin accounts');
-    err.status = 400;
-    throw err;
-  }
   if (actor.role === ROLE_SLUGS.ADMIN && roleSlug !== ROLE_SLUGS.USER) {
     const err = new Error('Admin can only create User accounts');
     err.status = 400;
@@ -184,18 +157,7 @@ const createUserAccount = async (actor, body) => {
     actor?.theme_color ||
     'linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)';
 
-  let assignedDbName = null;
-  if (assignedRole.slug === ROLE_SLUGS.USER) {
-    assignedDbName = actorUser?.db_name || actor?.db_name || null;
-  }
-
   const access = resolveAccessForAssignee(actor, assignedRole.slug, body);
-
-  const quotaData = {};
-  if (assignedRole.slug === ROLE_SLUGS.ADMIN) {
-    quotaData.max_profiles = parseQuota(body.max_profiles, DEFAULT_ADMIN_MAX_PROFILES);
-    quotaData.max_users = parseQuota(body.max_users, DEFAULT_ADMIN_MAX_USERS);
-  }
 
   const createData = {
     name,
@@ -204,35 +166,17 @@ const createUserAccount = async (actor, body) => {
     password: hashedPassword,
     role_id: assignedRole.id,
     created_by: actor.id,
-    db_name: assignedDbName,
+    db_name: null,
     ui_mode: 'light',
     theme_color: themeOnly(actorUser?.theme_color, body.theme_color || creatorColor),
-    ...access,
-    ...quotaData,
-  };
-
-  // Admin tenants get application_details + port; child users inherit creator branding
-  if (assignedRole.slug === ROLE_SLUGS.ADMIN) {
-    const port = parsePort(body.port);
-    if (port == null) {
-      const err = new Error('Admin accounts require a frontend port (e.g. 3000)');
-      err.status = 400;
-      throw err;
-    }
-    await assertPortAvailable(port);
-    createData.port = port;
-    createData.application_details = buildApplicationDetails(null, body, {
-      title: body.blurasagatitle || 'BLURA SAGA',
-      description: body.blurasagadescription || 'Cyber Intelligence Platform',
-    });
-  } else {
-    createData.port = null;
-    createData.application_details = buildApplicationDetails(
+    port: null,
+    application_details: buildApplicationDetails(
       actorUser?.application_details,
       {},
       actorApp
-    );
-  }
+    ),
+    ...access,
+  };
 
   const logoResult = applyLogoFields(createData, body.blurasagalogo);
   if (!logoResult.ok) {
@@ -255,30 +199,10 @@ const createUserAccount = async (actor, body) => {
     createData.logo_mime = actorUser.logo_mime;
   }
 
-  const { provisionAdminDatabase } = require('../../lib/tenantDatabase.service');
-
-  let user = await prisma.users.create({
+  const user = await prisma.users.create({
     data: createData,
     include: { roles: true },
   });
-
-  if (assignedRole.slug === ROLE_SLUGS.ADMIN) {
-    try {
-      const titleFromApp = createData.application_details?.title || 'BLURA SAGA';
-      const adminDbName = await provisionAdminDatabase(user.id, {
-        username: user.username,
-        blurasagatitle: titleFromApp,
-      });
-      user = await prisma.users.update({
-        where: { id: user.id },
-        data: { db_name: adminDbName },
-        include: { roles: true },
-      });
-    } catch (provisionErr) {
-      await prisma.users.delete({ where: { id: user.id } }).catch(() => {});
-      throw provisionErr;
-    }
-  }
 
   return toPublicUser(user, user.roles);
 };
@@ -309,19 +233,6 @@ const updateUserAccount = async (actor, userId, body) => {
   const data = { ...validated.data };
   let nextRoleSlug = user.roles?.slug;
   if (data.role) {
-    if (
-      user.roles?.slug === ROLE_SLUGS.SUPERADMIN &&
-      data.role !== ROLE_SLUGS.SUPERADMIN
-    ) {
-      const count = await prisma.users.count({
-        where: { roles: { slug: ROLE_SLUGS.SUPERADMIN } },
-      });
-      if (count <= 1) {
-        const err = new Error('Cannot change the role of the last superadmin');
-        err.status = 400;
-        throw err;
-      }
-    }
     const nextRole = await resolveAssignableRole(actor.role, data.role);
     nextRoleSlug = nextRole.slug;
     data.role_id = nextRole.id;
@@ -405,15 +316,6 @@ const updateUserAccount = async (actor, userId, body) => {
     );
   }
 
-  if (actor.role === ROLE_SLUGS.SUPERADMIN && user.roles?.slug === ROLE_SLUGS.ADMIN) {
-    if (body.max_profiles !== undefined) {
-      data.max_profiles = parseQuota(body.max_profiles, user.max_profiles);
-    }
-    if (body.max_users !== undefined) {
-      data.max_users = parseQuota(body.max_users, user.max_users);
-    }
-  }
-
   const updated = await prisma.users.update({
     where: { id: user.id },
     data,
@@ -442,16 +344,6 @@ const deleteUserAccount = async (actor, userId) => {
     const err = new Error('User not found');
     err.status = 404;
     throw err;
-  }
-  if (user.roles?.slug === ROLE_SLUGS.SUPERADMIN) {
-    const count = await prisma.users.count({
-      where: { roles: { slug: ROLE_SLUGS.SUPERADMIN } },
-    });
-    if (count <= 1) {
-      const err = new Error('Cannot delete the last superadmin');
-      err.status = 400;
-      throw err;
-    }
   }
   if (actor.role === ROLE_SLUGS.ADMIN && user.roles?.slug !== ROLE_SLUGS.USER) {
     const err = new Error('Admin can only delete user accounts');
@@ -520,14 +412,6 @@ const updateUserAccess = async (actor, userId, body) => {
   });
 
   const data = { ...access };
-  if (actor.role === ROLE_SLUGS.SUPERADMIN && user.roles?.slug === ROLE_SLUGS.ADMIN) {
-    if (body.max_profiles !== undefined) {
-      data.max_profiles = parseQuota(body.max_profiles, user.max_profiles);
-    }
-    if (body.max_users !== undefined) {
-      data.max_users = parseQuota(body.max_users, user.max_users);
-    }
-  }
 
   const updated = await prisma.users.update({
     where: { id: user.id },
@@ -537,45 +421,6 @@ const updateUserAccess = async (actor, userId, body) => {
   return toPublicUser(updated, updated.roles);
 };
 
-const getAdminConsoleStats = async (actor) => {
-  if (actor?.role !== ROLE_SLUGS.SUPERADMIN) {
-    const err = new Error('Superadmin only');
-    err.status = 403;
-    throw err;
-  }
-  const { getTenantPrisma } = require('../../lib/tenantDatabase.service');
-  const admins = await prisma.users.findMany({
-    where: { roles: { slug: ROLE_SLUGS.ADMIN } },
-    include: { roles: true },
-    orderBy: { name: 'asc' },
-  });
-
-  const rows = [];
-  for (const admin of admins) {
-    const usersCount = await prisma.users.count({
-      where: { created_by: admin.id, roles: { slug: ROLE_SLUGS.USER } },
-    });
-    let profilesCount = 0;
-    if (admin.db_name) {
-      try {
-        profilesCount = await getTenantPrisma(admin.db_name).social_media_profiles.count();
-      } catch {
-        profilesCount = 0;
-      }
-    }
-    rows.push({
-      ...toPublicUser(admin, admin.roles),
-      users_count: usersCount,
-      profiles_count: profilesCount,
-    });
-  }
-
-  return {
-    admins_total: rows.length,
-    admins: rows,
-  };
-};
-
 module.exports = {
   listUsers,
   createUserAccount,
@@ -583,5 +428,4 @@ module.exports = {
   deleteUserAccount,
   getUserAccess,
   updateUserAccess,
-  getAdminConsoleStats,
 };

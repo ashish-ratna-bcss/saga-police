@@ -1,15 +1,15 @@
 const express = require('express');
 const prisma = require('../../../prisma/client');
 const { resolveLogoUrl } = require('../user/user.utils');
-const { readApplicationDetails, parsePort } = require('../user/user.application');
+const { readApplicationDetails } = require('../user/user.application');
 const { isAllowedLogoMime, normalizeLogoMime } = require('../user/user.logo');
 const logger = require('../../lib/logger');
 
 const router = express.Router();
 
 const DEFAULT = {
-  application_name: 'Blura Saga',
-  title: 'BLURA SAGA',
+  application_name: 'Bengaluru Police Saga',
+  title: 'Bengaluru Police Saga',
   logo: '/blura_saga_logo.jpg',
   description:
     'Next-generation Social Media Observation, Threat Monitoring & Cyber Intelligence Platform — built for real-time situational awareness and rapid investigation.',
@@ -28,38 +28,12 @@ const BRANDING_SELECT = {
   updated_at: true,
 };
 
-const findByPort = async (port) => {
-  const p = parsePort(port);
-  if (!p) return null;
-  return prisma.users.findFirst({
-    where: { port: p },
+const findAdmin = async () =>
+  prisma.users.findFirst({
+    where: { roles: { slug: 'admin' } },
     select: BRANDING_SELECT,
+    orderBy: { id: 'asc' },
   });
-};
-
-const findByHost = async (host) => {
-  const h = String(host || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\.$/, '');
-  if (!h) return null;
-
-  const candidates = await prisma.users.findMany({
-    where: {
-      port: { not: null },
-      application_details: { not: null },
-    },
-    select: BRANDING_SELECT,
-    take: 200,
-  });
-
-  return (
-    candidates.find((u) => {
-      const domains = readApplicationDetails(u).domains || [];
-      return domains.includes(h);
-    }) || null
-  );
-};
 
 const toBrandingPayload = (user) => {
   const app = readApplicationDetails(user);
@@ -81,26 +55,11 @@ const toBrandingPayload = (user) => {
 
 /**
  * Public branding for login — no auth required.
- * GET /api/branding?port=3002 → { title, description, logo }
- * GET /api/branding/logo?port=3002 → image bytes
+ * GET /api/branding → Bengaluru Police Saga (admin row when one exists)
  */
 router.get('/', async (req, res) => {
   try {
-    let user = null;
-    if (req.query.port) {
-      user = await findByPort(req.query.port);
-    }
-    if (!user && req.query.host) {
-      user = await findByHost(req.query.host);
-    }
-    if (!user && req.query.username) {
-      const username = String(req.query.username).trim().toLowerCase();
-      user = await prisma.users.findFirst({
-        where: { username: { equals: username, mode: 'insensitive' } },
-        select: BRANDING_SELECT,
-      });
-    }
-
+    const user = await findAdmin();
     if (!user) return res.json(DEFAULT);
     return res.json(toBrandingPayload(user));
   } catch (error) {
@@ -111,14 +70,11 @@ router.get('/', async (req, res) => {
 
 /**
  * Public logo stream — no auth required.
- * GET /api/branding/logo?port=3002
+ * GET /api/branding/logo
  */
 router.get('/logo', async (req, res) => {
   try {
-    let user = null;
-    if (req.query.port) {
-      user = await findByPort(req.query.port);
-    }
+    let user = await findAdmin();
     if (!user && req.query.username) {
       const username = String(req.query.username).trim().toLowerCase();
       user = await prisma.users.findFirst({

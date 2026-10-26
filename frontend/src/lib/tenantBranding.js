@@ -2,7 +2,7 @@ import { resolvePublicAssetUrl } from './publicAssetUrl';
 import { BACKEND_URL } from './backendUrl';
 
 export const DEFAULT_BLURA_SAGA = {
-  title: 'BLURA SAGA',
+  title: 'Bengaluru Police Saga',
   logo: '/blura_saga_logo.jpg',
   description:
     'Next-generation Social Media Observation, Threat Monitoring & Cyber Intelligence Platform — built for real-time situational awareness and rapid investigation.',
@@ -50,24 +50,13 @@ export function getTenantBranding() {
 
 /**
  * Public login branding (no auth / no cookies).
- * GET /api/branding?port=3002 → { title, description, logo }
+ * GET /api/branding → { title, description, logo }
  */
 export async function fetchTenantBranding() {
-  const port = resolveTargetPort();
-  const host = resolveTargetHost();
   const fallback = getInitialBranding();
 
-  const params = new URLSearchParams();
-  if (port) {
-    params.set('port', String(port));
-  } else if (host && host !== 'localhost' && host !== '127.0.0.1') {
-    params.set('host', host);
-  } else {
-    return fallback;
-  }
-
   try {
-    const res = await fetch(`${BACKEND_URL}/api/branding?${params.toString()}`, {
+    const res = await fetch(`${BACKEND_URL}/api/branding`, {
       method: 'GET',
       // Public endpoint — do not send cookies / Authorization
       credentials: 'omit',
@@ -79,7 +68,7 @@ export async function fetchTenantBranding() {
       title: data.title || fallback.title,
       description: data.description || fallback.description,
       logo: data.logo || fallback.logo,
-      port: data.port ?? port,
+      port: data.port ?? null,
     };
   } catch {
     return fallback;

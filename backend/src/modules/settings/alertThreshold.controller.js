@@ -7,7 +7,7 @@ const { createAuditLog } = require('../../lib/audit');
 const dbOf = require('../../lib/dbOf');
 
 const requireAdmin = (req, res) => {
-  if (!['superadmin', 'admin'].includes(req.user.role)) {
+  if (req.user.role !== 'admin') {
     res.status(403).json({ message: 'Insufficient permissions' });
     return false;
   }

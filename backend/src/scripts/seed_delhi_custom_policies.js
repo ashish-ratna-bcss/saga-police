@@ -113,10 +113,10 @@ const delhiCustomPolicies = [
 ];
 
 async function seedDelhiCustomPolicies() {
-  console.log('--- Seeding Custom Delhi Police Policies into Delhi Tenant Database ---');
-  const delhiPrisma = getTenantPrisma('blurasaga_delhipolice_delhi_blura_saga_2');
+  console.log('--- Seeding custom policies into the application database ---');
+  const delhiPrisma = getTenantPrisma();
   if (!delhiPrisma) {
-    console.error('Could not connect to Delhi Police tenant database.');
+    console.error('Could not connect to the application database.');
     process.exit(1);
   }
 

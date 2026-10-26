@@ -111,11 +111,9 @@ const handleDbPdfFallback = async (req, res, next) => {
     const parts = rawFilename.split('-');
     const potentialCode = parts.length > 2 ? parts.slice(0, -1).join('-') : rawFilename;
 
-    const { listTenantDbNames, getTenantPrisma } = require('./lib/tenantDatabase.service');
-    const dbs = await listTenantDbNames();
-    for (const dbName of dbs) {
-      const tp = getTenantPrisma(dbName);
-      const report = await tp.social_media_grievance_reports.findFirst({
+    const { getTenantPrisma } = require('./lib/tenantDatabase.service');
+    const tp = getTenantPrisma();
+    const report = await tp.social_media_grievance_reports.findFirst({
         where: {
           OR: [
             { id: rawFilename },
@@ -154,7 +152,6 @@ const handleDbPdfFallback = async (req, res, next) => {
           return res.status(200).end(pdfBuffer);
         }
       }
-    }
   } catch (fallbackErr) {
     logger.warn(`[index] DB PDF fallback error for ${req.path}: ${fallbackErr.message}`);
   }
@@ -195,6 +192,14 @@ app.use((err, req, res, next) => {
 
 const startServer = async () => {
   try {
+    const { ensureOpsSchema } = require('../prisma/ensureOpsSchema');
+    const prisma = require('../prisma/client');
+    await ensureOpsSchema(prisma);
+  } catch (schemaErr) {
+    logger.error(`[postgres] operational schema ensure failed: ${schemaErr.message}`);
+  }
+
+  try {
     await require('./modules/settings/mapping.service').start();
   } catch (mappingErr) {
     logger.error(`[MappingService] Initial load failed: ${mappingErr.message}`);
@@ -225,7 +230,7 @@ const startServer = async () => {
 
     console.log(`
 ┌─────────────────────────────────────────────────────────────┐
-│                 BLURA SAGA — CYBER HUB                      │
+│              BENGALURU POLICE SAGA                         │
 │            PostgreSQL Intelligence API Server               │
 ├─────────────────────────────────────────────────────────────┤
 │  🚀 Server Status  : Online (${HOST}:${PORT})               │

@@ -1,15 +1,25 @@
 /**
  * application_details JSON shape (title/description — not theme_color).
  * Logo bytes live in users.logo_data / logo_mime.
- * Login branding is resolved by users.port (and optional domains[]).
+ * Login branding comes from the admin account, with Bengaluru Police Saga as the default.
  */
 
 const DEFAULT_APP = {
-  title: 'BLURA SAGA',
-  description: 'Digital Intelligence Platform for Digital India',
-  application_name: 'Blura Saga',
+  title: 'Bengaluru Police Saga',
+  description: 'Digital Intelligence Platform for Bengaluru Police',
+  application_name: 'Bengaluru Police Saga',
   domains: [],
   notice: null,
+};
+
+const KARNATAKA_FORCE = {
+  force: 'Karnataka Police',
+  display_name: 'KARNATAKA POLICE',
+  head: 'Director General of Police',
+  headquarters: 'Police Headquarters, Nrupathunga Road, Bengaluru',
+  pin: '560001',
+  report_language: 'English',
+  timezone: 'Asia/Kolkata',
 };
 
 const asObject = (raw) =>
@@ -37,13 +47,12 @@ const normalizeForceProfile = (raw) => {
   return Object.keys(out).length ? out : null;
 };
 
-/** Starting profile for a new tenant, taken from the name the admin gave the application; admins can refine it later. */
-const defaultForceProfile = (title) => {
-  // The platform's own brand words are not part of the force name ("Odisha Blura Saga" -> "Odisha").
-  const t = String(title || '').replace(/blura\s*saga/gi, '').replace(/\s+/g, ' ').trim();
-  if (!t) return null;
-  return normalizeForceProfile({ force: t, display_name: t.toUpperCase(), report_language: 'English', timezone: process.env.DEFAULT_REPORT_TIMEZONE || 'Asia/Kolkata' });
-};
+/** Report letterhead for this deployment: Karnataka Police, Bengaluru. */
+const defaultForceProfile = () =>
+  normalizeForceProfile({
+    ...KARNATAKA_FORCE,
+    timezone: process.env.DEFAULT_REPORT_TIMEZONE || KARNATAKA_FORCE.timezone,
+  });
 
 const readApplicationDetails = (user) => {
   const ad = asObject(user?.application_details);

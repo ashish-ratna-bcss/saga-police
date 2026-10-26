@@ -1,14 +1,8 @@
 const logger = require('../../lib/logger');
 const { getOverview } = require('./dashboard.service');
-const { getAdminConsoleStats } = require('../user/user.service');
-const { ROLE_SLUGS } = require('../role/role.utils');
 
 const getDashboardOverview = async (req, res) => {
   try {
-    if (req.user?.role === ROLE_SLUGS.SUPERADMIN) {
-      const data = await getAdminConsoleStats(req.user);
-      return res.json({ mode: 'superadmin', ...data });
-    }
     const data = await getOverview({
       range: req.query.range,
       platform: req.query.platform,

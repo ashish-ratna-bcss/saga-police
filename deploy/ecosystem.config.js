@@ -1,13 +1,9 @@
 /**
- * PM2 Ecosystem Configuration for Multi-Tenant Deployments
+ * PM2 config for the Bengaluru Police Saga API.
  *
- * Manage each tenant independently:
  *   pm2 start ecosystem.config.js
- *   pm2 restart odisha-api
- *   pm2 restart delhipolice-api
- *   pm2 restart uttarakhandpolice-api
- *   pm2 logs odisha-api
- *   pm2 logs delhipolice-api
+ *   pm2 restart bengaluru-api
+ *   pm2 logs bengaluru-api
  */
 
 const path = require('path');
@@ -42,7 +38,7 @@ const apps = (sitesConfig.sites || [])
     const serverIp = sitesConfig.ip || '127.0.0.1';
     const frontendPort = site.frontend_port;
 
-    // Check if a tenant-specific .env exists (e.g. backend/.env.delhipolice)
+    // Optional per-site env file (backend/.env.<admin>).
     const tenantEnvPath = path.join(backendDir, `.env.${admin}`);
     const hasCustomEnv = fs.existsSync(tenantEnvPath);
 

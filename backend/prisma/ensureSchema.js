@@ -1,6 +1,6 @@
 /**
- * Ensure main Postgres has auth tables matching prisma/schema.prisma (roles + users).
- * Operational tables live in per-admin tenant DBs — see ensureOpsSchema.js / tenant schema.
+ * Ensure Postgres has auth and operational tables matching prisma/schema.prisma.
+ * Operational tables are created by ensureOpsSchema.js on the same database.
  */
 require('dotenv').config();
 
@@ -89,7 +89,6 @@ async function migrateRolesAndRoleId(prisma) {
   `);
 
   const systemRoles = [
-    { slug: 'superadmin', name: 'Super Admin' },
     { slug: 'admin', name: 'Admin' },
     { slug: 'user', name: 'User' },
   ];
@@ -121,7 +120,7 @@ async function migrateRolesAndRoleId(prisma) {
 
   await prisma.$executeRawUnsafe(`
     UPDATE users
-    SET role_id = (SELECT id FROM roles WHERE slug = 'superadmin' LIMIT 1)
+    SET role_id = (SELECT id FROM roles WHERE slug = 'admin' LIMIT 1)
     WHERE role_id IS NULL
   `);
 
@@ -247,21 +246,18 @@ async function migrateUserAccessColumns(prisma) {
 
   console.log('[postgres] per-user access columns ready');
 
-  // Keep superadmin on console pages only (no ops).
-  const { SUPERADMIN_PAGE_PATHS } = require('../src/modules/auth/access_features');
+  const adminAccess = getDefaultAccessForRole('admin');
   await prisma.$executeRawUnsafe(
     `
-    UPDATE users u
-    SET
-      allowed_pages = $1::text[],
-      allowed_platforms = '{}'::text[],
-      can_manage_users = true,
-      can_manage_roles = true
-    FROM roles r
-    WHERE u.role_id = r.id AND r.slug = 'superadmin'
+    UPDATE users
+    SET role_id = (SELECT id FROM roles WHERE slug = 'admin' LIMIT 1),
+        allowed_pages = $1::text[],
+        can_manage_users = true
+    WHERE role_id = (SELECT id FROM roles WHERE slug = 'superadmin' LIMIT 1)
     `,
-    SUPERADMIN_PAGE_PATHS
+    adminAccess.allowed_pages
   );
+  await prisma.$executeRawUnsafe(`DELETE FROM roles WHERE slug = 'superadmin'`);
 }
 
 async function ensureUserThemeColumns(prisma) {
@@ -1206,7 +1202,6 @@ async function main() {
     } else if (rolesReady) {
       // Table exists but may be empty (fresh DB) — always upsert system roles
       for (const role of [
-        { slug: 'superadmin', name: 'Super Admin' },
         { slug: 'admin', name: 'Admin' },
         { slug: 'user', name: 'User' },
       ]) {
@@ -1278,6 +1273,27 @@ async function main() {
     }
     if (policySeed.length) {
       console.log(`[postgres] default_policies seeded/updated: ${policySeed.length}`);
+    }
+
+    const { ensureOpsSchema } = require('./ensureOpsSchema');
+    await ensureOpsSchema(prisma);
+    console.log('[postgres] operational schema ready');
+
+    const { buildApplicationDetails } = require('../src/modules/user/user.application');
+    const admins = await prisma.users.findMany({
+      where: { roles: { slug: 'admin' } },
+      select: { id: true, application_details: true },
+    });
+    for (const admin of admins) {
+      const details =
+        admin.application_details && typeof admin.application_details === 'object'
+          ? admin.application_details
+          : {};
+      if (details.force_profile) continue;
+      await prisma.users.update({
+        where: { id: admin.id },
+        data: { application_details: buildApplicationDetails(details, {}) },
+      });
     }
   } catch (error) {
     console.error('[postgres] schema ensure failed:', error.message);
