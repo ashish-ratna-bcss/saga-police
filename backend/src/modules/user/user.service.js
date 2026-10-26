@@ -426,6 +426,7 @@ module.exports = {
   createUserAccount,
   updateUserAccount,
   deleteUserAccount,
+  applyLogoFields,
   getUserAccess,
   updateUserAccess,
 };

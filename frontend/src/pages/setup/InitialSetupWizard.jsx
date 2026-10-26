@@ -96,7 +96,7 @@ export default function InitialSetupWizard() {
   const [kwCategory, setKwCategory] = useState(0);
 
   const isAdmin = user?.role === 'admin' || user?.is_admin;
-  const orgTitle = user?.blurasagatitle || user?.theme_name || 'Bengaluru Police Saga';
+  const orgTitle = user?.blurasagatitle || user?.theme_name || 'Bengaluru Police';
   const orgDesc = user?.blurasagadescription || user?.theme_description || 'Cyber Intelligence & Observability Platform';
   const orgLogo = user?.blurasagalogo || user?.theme_logo || '/blura_saga_logo.jpg';
   const tenantDb = user?.db_name || 'bengaluru';
@@ -136,7 +136,7 @@ export default function InitialSetupWizard() {
   }, [loadData]);
 
   useEffect(() => {
-    const title = user?.blurasagatitle || user?.theme_name || 'Bengaluru Police Saga';
+    const title = user?.blurasagatitle || user?.theme_name || 'Bengaluru Police';
     const desc = user?.blurasagadescription || user?.theme_description || 'Cyber Intelligence & Surveillance Platform';
     document.title = `${title} — ${desc}`;
 
@@ -387,8 +387,6 @@ export default function InitialSetupWizard() {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          <img src="/Logo.png" alt="Blue Cloud Softech" className="h-8 w-auto object-contain opacity-95 hidden md:block" />
-          <div className="mx-1 hidden h-8 w-px bg-white/25 sm:block" aria-hidden />
           <div className="hidden text-right sm:block">
             <div className="max-w-[150px] truncate text-sm font-bold text-white">{user?.name || user?.username}</div>
             <div className="text-[10px] font-semibold uppercase tracking-wide text-white/90">Administrator</div>

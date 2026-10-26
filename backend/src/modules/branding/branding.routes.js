@@ -8,8 +8,8 @@ const logger = require('../../lib/logger');
 const router = express.Router();
 
 const DEFAULT = {
-  application_name: 'Bengaluru Police Saga',
-  title: 'Bengaluru Police Saga',
+  application_name: 'Bengaluru Police',
+  title: 'Bengaluru Police',
   logo: '/blura_saga_logo.jpg',
   description:
     'Next-generation Social Media Observation, Threat Monitoring & Cyber Intelligence Platform — built for real-time situational awareness and rapid investigation.',
@@ -55,7 +55,7 @@ const toBrandingPayload = (user) => {
 
 /**
  * Public branding for login — no auth required.
- * GET /api/branding → Bengaluru Police Saga (admin row when one exists)
+ * GET /api/branding → Bengaluru Police (admin row when one exists)
  */
 router.get('/', async (req, res) => {
   try {

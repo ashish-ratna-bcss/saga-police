@@ -1,13 +1,13 @@
 /**
  * application_details JSON shape (title/description — not theme_color).
  * Logo bytes live in users.logo_data / logo_mime.
- * Login branding comes from the admin account, with Bengaluru Police Saga as the default.
+ * Login branding comes from the admin account, with Bengaluru Police as the default.
  */
 
 const DEFAULT_APP = {
-  title: 'Bengaluru Police Saga',
+  title: 'Bengaluru Police',
   description: 'Digital Intelligence Platform for Bengaluru Police',
-  application_name: 'Bengaluru Police Saga',
+  application_name: 'Bengaluru Police',
   domains: [],
   notice: null,
 };

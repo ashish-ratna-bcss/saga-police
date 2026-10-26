@@ -15,6 +15,8 @@ export const authApi = {
   updateThemeColor: (theme_color) =>
     apiHandler.patch('/me/theme-color', { theme_color }),
 
+  updateBranding: (payload) => apiHandler.patch('/me/branding', payload),
+
   updatePlatforms: (allowed_platforms) =>
     apiHandler.patch('/me/platforms', { allowed_platforms }),
 

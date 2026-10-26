@@ -25,6 +25,7 @@ import { BlugateConnectCard, BlugatePlatformsTable, CustomEndpointsCard } from '
 import AlertKeywordsSection from '../../components/settings/AlertKeywordsSection';
 import RiskLevelsCard, { riskLevelsValid } from '../../components/settings/RiskLevelsCard';
 import ViralAlertsCard, { viralAlertsValid } from '../../components/settings/ViralAlertsCard';
+import PlatformDetailsTab from '../../components/settings/PlatformDetailsTab';
 import { PagePlatformSelectItems } from '../../components/PagePlatformSelectItems';
 
 const KNOWN_PLATFORM_PRESETS = [
@@ -445,7 +446,7 @@ const PlaceholderSidebar = ({ onClose }) => {
 let _settingsCache = null;
 let _settingsCacheTime = 0;
 const SETTINGS_CACHE_TTL = 60_000; // 1 minute
-const VALID_TABS = ['general', 'templates', 'policies', 'theme', 'platforms', 'grievances'];
+const VALID_TABS = ['general', 'templates', 'policies', 'theme', 'platforms', 'platform-details', 'grievances'];
 
 const Settings = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -845,7 +846,7 @@ const Settings = () => {
         <div className="min-w-0 shrink-0">
           <h1 className="text-xl font-heading font-bold tracking-tight leading-none">Settings</h1>
           <p className="text-[11px] text-muted-foreground mt-0.5 hidden sm:block">
-            Risk bands, viral toggle, platforms, templates, and theme
+            Risk bands, viral toggle, platforms, branding, templates, and theme
           </p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap ml-auto">
@@ -880,6 +881,7 @@ const Settings = () => {
           {[
             { value: 'general', label: 'Alerts' },
             ...(user?.role === 'admin' ? [{ value: 'platforms', label: 'Platforms' }] : []),
+            ...(user?.role === 'admin' ? [{ value: 'platform-details', label: 'Platform Details' }] : []),
             { value: 'templates', label: 'Report Templates' },
             { value: 'policies', label: 'Policy Manager' },
             { value: 'grievances', label: 'Grievances' },
@@ -1168,6 +1170,12 @@ const Settings = () => {
         {user?.role === 'admin' && (
           <TabsContent value="platforms" className="space-y-4 mt-0">
             <PlatformsTab />
+          </TabsContent>
+        )}
+
+        {user?.role === 'admin' && (
+          <TabsContent value="platform-details" className="space-y-4 mt-0">
+            <PlatformDetailsTab />
           </TabsContent>
         )}
 

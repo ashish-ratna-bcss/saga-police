@@ -173,7 +173,7 @@ const AuditLogs = () => {
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(24);
         doc.setFont('helvetica', 'bold');
-        doc.text('BLURA - SAGA', 20, 20);
+        doc.text('Bengaluru Police', 20, 20);
         
         doc.setFontSize(12);
         doc.setFont('helvetica', 'normal');
@@ -243,7 +243,7 @@ const AuditLogs = () => {
             doc.setFontSize(8);
             doc.setTextColor(255, 255, 255);
             doc.text(`Page ${doc.internal.getNumberOfPages()}`, 20, pageHeight - 4);
-            doc.text('BLURA - SAGA SYSTEM', pageSize.width - 20, pageHeight - 4, { align: 'right' });
+            doc.text('Bengaluru Police', pageSize.width - 20, pageHeight - 4, { align: 'right' });
           }
         });
 

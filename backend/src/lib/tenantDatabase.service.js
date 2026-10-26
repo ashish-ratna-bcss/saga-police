@@ -2,7 +2,7 @@ const mainPrisma = require('../../prisma/client');
 
 /** Single deployment database. Loops that used to walk every force run once. */
 const APP_DB_NAME = 'bengaluru';
-const APP_NAME = 'Bengaluru Police Saga';
+const APP_NAME = 'Bengaluru Police';
 
 /**
  * Operational client. Always the main DATABASE_URL client.

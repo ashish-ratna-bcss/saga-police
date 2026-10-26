@@ -324,7 +324,7 @@ const Login = () => {
                   <span className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 shadow-sm shadow-black/20">
                     <img
                       src="/blura_saga_logo.jpg"
-                      alt="Bengaluru Police Saga"
+                      alt="Bengaluru Police"
                       className="h-11 w-auto max-w-[160px] object-contain"
                       onError={(e) => {
                         e.currentTarget.closest('span')?.remove();
@@ -333,18 +333,6 @@ const Login = () => {
                   </span>
                 </div>
               )}
-              <div className="flex items-center gap-3.5">
-                <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/45">
-                  Powered by
-                </span>
-                <span className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 shadow-sm shadow-black/20">
-                  <img
-                    src="/Logo.png"
-                    alt="Blue Cloud Softech Solutions Limited"
-                    className="h-12 w-auto max-w-[200px] object-contain"
-                  />
-                </span>
-              </div>
             </div>
             <p className="text-xs text-white/45">© 2026 {branding.title}</p>
           </div>
@@ -539,7 +527,7 @@ const Login = () => {
                 <span className="inline-flex items-center rounded-md bg-white px-2 py-1 shadow-sm shadow-black/20">
                   <img
                     src="/blura_saga_logo.jpg"
-                    alt="Bengaluru Police Saga"
+                    alt="Bengaluru Police"
                     className="h-8 w-auto max-w-[120px] object-contain"
                     onError={(e) => {
                       e.currentTarget.closest('span')?.remove();
@@ -548,18 +536,6 @@ const Login = () => {
                 </span>
               </div>
             )}
-            <div className="flex items-center gap-2.5">
-              <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-white/45">
-                Powered by
-              </span>
-              <span className="inline-flex items-center rounded-md bg-white px-2 py-1 shadow-sm shadow-black/20">
-                <img
-                  src="/Logo.png"
-                  alt="Blue Cloud Softech Solutions Limited"
-                  className="h-9 w-auto max-w-[150px] object-contain"
-                />
-              </span>
-            </div>
             <p className="w-full text-xs text-white/45">© 2026 {branding.title}</p>
           </div>
         </section>

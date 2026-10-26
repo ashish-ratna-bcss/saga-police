@@ -27,12 +27,12 @@ const Header = ({ user, sidebarOpen, onToggleSidebar, onLogout }) => {
             src={resolvePublicAssetUrl(
               user?.blurasagalogo || user?.theme_logo || '/blura_saga_logo.jpg'
             )}
-            alt={user?.blurasagatitle || user?.theme_name || 'Bengaluru Police Saga'}
+            alt={user?.blurasagatitle || user?.theme_name || 'Bengaluru Police'}
             className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-cyan-500/50"
           />
           <div className="min-w-0 leading-tight">
             <h1 className="truncate font-heading text-base font-bold tracking-[0.12em] text-white sm:text-xl">
-              {user?.blurasagatitle || user?.theme_name || 'Bengaluru Police Saga'}
+              {user?.blurasagatitle || user?.theme_name || 'Bengaluru Police'}
             </h1>
             <p className="hidden truncate text-[10px] font-semibold uppercase tracking-widest text-white/90 sm:block">
               {user?.blurasagadescription || user?.theme_description || 'Cyber Intelligence Platform'}
@@ -41,12 +41,6 @@ const Header = ({ user, sidebarOpen, onToggleSidebar, onLogout }) => {
         </div>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          <img
-            src="/Logo.png"
-            alt="Blue Cloud Softtech"
-            className="h-8 w-auto object-contain opacity-95 md:h-9"
-          />
-          <div className="mx-1 hidden h-8 w-px bg-white/25 sm:block" aria-hidden />
           <div className="hidden text-right sm:block">
             <div className="max-w-[140px] truncate text-sm font-bold text-white">
               {user?.name}

@@ -74,8 +74,25 @@ const ensureNewsTables = async (prisma) => {
     `CREATE INDEX IF NOT EXISTS idx_news_searches_user ON news_searches (user_id, created_at DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_news_articles_first_seen ON news_articles (first_seen_at DESC)`,
   ];
-  for (const sql of statements) {
-    await prisma.$executeRawUnsafe(sql);
+  // Two News requests on a cold process both run CREATE TABLE IF NOT EXISTS.
+  // Postgres lets both pass the existence check, then one fails with
+  // duplicate key on pg_type (typname = news_articles). The lock makes the
+  // second wait until the first commits, so IF NOT EXISTS is a no-op.
+  const createTables = () => prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(
+      `SELECT pg_advisory_xact_lock(hashtext('ensure_news_tables')::bigint)`
+    );
+    for (const sql of statements) {
+      await tx.$executeRawUnsafe(sql);
+    }
+  }, { maxWait: 10000, timeout: 60000 });
+
+  try {
+    await createTables();
+  } catch (err) {
+    const code = String(err?.meta?.code || '');
+    if (code !== '23505') throw err;
+    await createTables();
   }
   ensuredClients.add(prisma);
 };

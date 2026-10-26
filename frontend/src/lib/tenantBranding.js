@@ -2,7 +2,7 @@ import { resolvePublicAssetUrl } from './publicAssetUrl';
 import { BACKEND_URL } from './backendUrl';
 
 export const DEFAULT_BLURA_SAGA = {
-  title: 'Bengaluru Police Saga',
+  title: 'Bengaluru Police',
   logo: '/blura_saga_logo.jpg',
   description:
     'Next-generation Social Media Observation, Threat Monitoring & Cyber Intelligence Platform — built for real-time situational awareness and rapid investigation.',

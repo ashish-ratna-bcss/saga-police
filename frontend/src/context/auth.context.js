@@ -124,6 +124,15 @@ export const AuthProvider = ({ children }) => {
     return me;
   };
 
+  const updateBranding = async (payload) => {
+    const response = await authApi.updateBranding(payload);
+    const me = response.data;
+    cacheUser(me);
+    setUser(me);
+    applyUserTheme(me);
+    return me;
+  };
+
   const updateThemeColor = async (theme_color) => {
     const response = await authApi.updateThemeColor(theme_color);
     const me = response.data;
@@ -151,6 +160,7 @@ export const AuthProvider = ({ children }) => {
         fetchMe,
         updateUiMode,
         updateThemeColor,
+        updateBranding,
         updatePlatforms,
       }}
     >

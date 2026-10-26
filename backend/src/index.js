@@ -230,7 +230,7 @@ const startServer = async () => {
 
     console.log(`
 ┌─────────────────────────────────────────────────────────────┐
-│              BENGALURU POLICE SAGA                         │
+│              BENGALURU POLICE                             │
 │            PostgreSQL Intelligence API Server               │
 ├─────────────────────────────────────────────────────────────┤
 │  🚀 Server Status  : Online (${HOST}:${PORT})               │

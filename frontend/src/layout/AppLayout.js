@@ -39,7 +39,7 @@ const AppLayout = () => {
 
   useEffect(() => {
     if (user) {
-      const title = user.blurasagatitle || user.theme_name || 'Bengaluru Police Saga';
+      const title = user.blurasagatitle || user.theme_name || 'Bengaluru Police';
       const desc = user.blurasagadescription || user.theme_description || 'Cyber Intelligence Platform';
       document.title = `${title} — ${desc}`;
 

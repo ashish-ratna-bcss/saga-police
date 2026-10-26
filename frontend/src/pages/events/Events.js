@@ -257,7 +257,6 @@ const isMonitoringStarted = (e) => e?.monitoring_status === 'started';
 
 const openPrintableReport = ({ event, stats, content, alerts }) => {
   const safe = (v) => (v === null || v === undefined ? '' : String(v));
-  const companyLogoUrl = `${window.location.origin}/Logo.png`;
   const policeLogoUrl = `${window.location.origin}/appolicelogo.png`;
 
 
@@ -296,7 +295,6 @@ const openPrintableReport = ({ event, stats, content, alerts }) => {
     <button onclick="window.close()" style="padding:10px 20px; border:1px solid #ddd; border-radius:8px; background:#fff; cursor:pointer;">Close</button>
   </div>
   <div class="header">
-    <img class="logo" src="${companyLogoUrl}" alt="Logo" />
     <div class="titleBlock">
       <h1>Event Intelligence Report</h1>
       <p class="sub">${safe(event?.name)} &bull; Generated: ${new Date().toLocaleString('en-IN', { dateStyle: 'long', timeStyle: 'short' })}</p>
@@ -407,7 +405,6 @@ const buildReportRows = ({ calendarEvents, events }) => {
 
 const openPrintableEventsList = ({ events, calendarEvents }) => {
   const rows = buildReportRows({ calendarEvents, events });
-  const companyLogoUrl = `${window.location.origin}/Logo.png`;
   const policeLogoUrl = `${window.location.origin}/appolicelogo.png`;
   const generatedAt = new Date().toLocaleString('en-IN', { dateStyle: 'long', timeStyle: 'short' });
   const html = `<!doctype html>
@@ -443,7 +440,6 @@ const openPrintableEventsList = ({ events, calendarEvents }) => {
     <button onclick="window.close()" style="padding:10px 20px; border:1px solid #ddd; border-radius:8px; background:#fff; cursor:pointer;">Close</button>
   </div>
   <div class="header">
-    <img class="logo" src="${companyLogoUrl}" alt="Logo" />
     <div class="title">
       <h1>Events Report</h1>
       <div class="sub">Report Generated: ${generatedAt}</div>

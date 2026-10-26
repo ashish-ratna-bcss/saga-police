@@ -6,6 +6,8 @@ const { generateToken, findUserWithRole } = require('./auth.service');
 const { createAuthCookie, deleteAuthCookie, readAuthCookie } = require('../../config/cookies');
 const { sidebarForUser, PAGE_CATALOG } = require('./access_features');
 const { toPublicUser } = require('../user/user.utils');
+const { buildApplicationDetails, readApplicationDetails } = require('../user/user.application');
+const { applyLogoFields } = require('../user/user.service');
 const {
   findActiveSession,
   createSession,
@@ -206,7 +208,7 @@ const getMe = async (req, res) => {
     ui_mode: user.ui_mode === 'dark' ? 'dark' : 'light',
     theme_color: user.theme_color || 'linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)',
     theme_config: user.theme_config || {},
-    blurasagatitle: user.blurasagatitle || 'BLURA SAGA',
+    blurasagatitle: user.blurasagatitle || 'Bengaluru Police',
     blurasagadescription: user.blurasagadescription || 'Cyber Intelligence Platform',
     blurasagalogo: user.blurasagalogo || '/blura_saga_logo.jpg',
     allowed_pages: user.allowed_pages || [],
@@ -304,6 +306,74 @@ const updateMyThemeColor = async (req, res) => {
       resourceId: userId,
       oldData: { theme_color: existingTc },
       newData: { theme_color: themePayload },
+    });
+
+    return res.status(200).json(meResponse(updated, updated.roles));
+  } catch (error) {
+    return res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
+/**
+ * Admin edits the platform name, description, and logo (Settings → Platform Details).
+ * Login branding reads the same admin row.
+ */
+const updateMyBranding = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Not authorized' });
+    }
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ message: 'Only an administrator can change platform details' });
+    }
+
+    const title = req.body?.title != null ? String(req.body.title).trim().slice(0, 120) : undefined;
+    const description = req.body?.description != null ? String(req.body.description).trim().slice(0, 400) : undefined;
+    if (!title) {
+      return res.status(400).json({ message: 'Title is required' });
+    }
+
+    const currentUser = await prisma.users.findUnique({
+      where: { id: userId },
+      include: { roles: true },
+    });
+    if (!currentUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const data = {
+      application_details: buildApplicationDetails(
+        currentUser.application_details,
+        { title, description: description ?? '' },
+        readApplicationDetails(currentUser)
+      ),
+    };
+
+    if (req.body?.logo !== undefined && req.body.logo !== null) {
+      const logoResult = applyLogoFields(data, req.body.logo);
+      if (!logoResult.ok) {
+        return res.status(400).json({ message: logoResult.message });
+      }
+    }
+
+    const updated = await prisma.users.update({
+      where: { id: userId },
+      data,
+      include: { roles: true },
+    });
+
+    await createAuditLog({
+      req,
+      user: req.user,
+      action: 'update',
+      resourceType: 'branding',
+      resourceId: userId,
+      newData: {
+        title: data.application_details.title,
+        description: data.application_details.description,
+        logo_changed: req.body?.logo !== undefined && req.body.logo !== null,
+      },
     });
 
     return res.status(200).json(meResponse(updated, updated.roles));
@@ -438,6 +508,7 @@ module.exports = {
   getSetupStatus,
   updateMyUiMode,
   updateMyThemeColor,
+  updateMyBranding,
   updateMyPlatforms,
   changePassword,
 };
