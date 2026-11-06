@@ -14,6 +14,7 @@ const resolveLogoUrl = (user, creator = null) => {
   if (user?.logo_mime || user?.logo_data) {
     return publicLogoUrl({
       port: user.port,
+      userId: user.id,
       username: user.username,
       updatedAt: user.updated_at,
     });
@@ -22,6 +23,7 @@ const resolveLogoUrl = (user, creator = null) => {
   if (creator && (creator.logo_mime || creator.logo_data)) {
     return publicLogoUrl({
       port: creator.port,
+      userId: creator.id,
       username: creator.username,
       updatedAt: creator.updated_at,
     });

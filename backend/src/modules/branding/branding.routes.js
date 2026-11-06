@@ -37,6 +37,45 @@ const findByPort = async (port) => {
   });
 };
 
+const findByUserId = async (rawId) => {
+  const id = Number(rawId);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  return prisma.users.findUnique({
+    where: { id },
+    select: BRANDING_SELECT,
+  });
+};
+
+/** Username alone is not unique across tenants — prefer port / tenant frontend port. */
+const findByUsername = async (rawUsername, { port } = {}) => {
+  const username = String(rawUsername || '').trim().toLowerCase();
+  if (!username) return null;
+
+  const tenantPort = parsePort(port) || parsePort(process.env.TENANT_FRONTEND_PORT);
+  if (tenantPort) {
+    const admin = await findByPort(tenantPort);
+    if (admin?.db_name) {
+      const scoped = await prisma.users.findFirst({
+        where: {
+          username: { equals: username, mode: 'insensitive' },
+          OR: [
+            { id: admin.id },
+            { created_by: admin.id },
+            { db_name: admin.db_name },
+          ],
+        },
+        select: BRANDING_SELECT,
+      });
+      if (scoped) return scoped;
+    }
+  }
+
+  return prisma.users.findFirst({
+    where: { username: { equals: username, mode: 'insensitive' } },
+    select: BRANDING_SELECT,
+  });
+};
+
 const findByHost = async (host) => {
   const h = String(host || '')
     .trim()
@@ -87,18 +126,17 @@ const toBrandingPayload = (user) => {
 router.get('/', async (req, res) => {
   try {
     let user = null;
-    if (req.query.port) {
+    if (req.query.userId) {
+      user = await findByUserId(req.query.userId);
+    }
+    if (!user && req.query.port) {
       user = await findByPort(req.query.port);
     }
     if (!user && req.query.host) {
       user = await findByHost(req.query.host);
     }
     if (!user && req.query.username) {
-      const username = String(req.query.username).trim().toLowerCase();
-      user = await prisma.users.findFirst({
-        where: { username: { equals: username, mode: 'insensitive' } },
-        select: BRANDING_SELECT,
-      });
+      user = await findByUsername(req.query.username, { port: req.query.port });
     }
 
     if (!user) return res.json(DEFAULT);
@@ -112,24 +150,21 @@ router.get('/', async (req, res) => {
 /**
  * Public logo stream — no auth required.
  * GET /api/branding/logo?port=3002
+ * GET /api/branding/logo?userId=20
  */
 router.get('/logo', async (req, res) => {
   try {
     let user = null;
-    if (req.query.port) {
+    if (req.query.userId) {
+      user = await findByUserId(req.query.userId);
+    }
+    if (!user && req.query.port) {
       user = await findByPort(req.query.port);
     }
     if (!user && req.query.username) {
-      const username = String(req.query.username).trim().toLowerCase();
-      user = await prisma.users.findFirst({
-        where: { username: { equals: username, mode: 'insensitive' } },
-        select: {
-          logo_data: true,
-          logo_mime: true,
-          updated_at: true,
-        },
-      });
-    } else if (user) {
+      user = await findByUsername(req.query.username, { port: req.query.port });
+    }
+    if (user) {
       user = await prisma.users.findUnique({
         where: { id: user.id },
         select: { logo_data: true, logo_mime: true, updated_at: true },
