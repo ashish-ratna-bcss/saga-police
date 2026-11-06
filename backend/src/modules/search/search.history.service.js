@@ -8,21 +8,35 @@ const searchHistoryAllowedPlatforms = () => [
 ];
 
 const ensureSearchHistoryTable = async (prisma) => {
-  await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS search_history (
-      id BIGSERIAL PRIMARY KEY,
-      user_id INTEGER,
-      query TEXT NOT NULL,
-      platform TEXT,
-      results_text TEXT,
-      meta JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS idx_search_history_user
-    ON search_history (user_id, created_at DESC)
-  `);
+  // Same cold-start race as news_articles: concurrent CREATE TABLE IF NOT EXISTS
+  // can collide on pg_type. Serialize with an advisory transaction lock.
+  const create = () => prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(
+      `SELECT pg_advisory_xact_lock(hashtext('ensure_search_history')::bigint)`
+    );
+    await tx.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS search_history (
+        id BIGSERIAL PRIMARY KEY,
+        user_id INTEGER,
+        query TEXT NOT NULL,
+        platform TEXT,
+        results_text TEXT,
+        meta JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await tx.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS idx_search_history_user
+      ON search_history (user_id, created_at DESC)
+    `);
+  }, { maxWait: 10000, timeout: 60000 });
+
+  try {
+    await create();
+  } catch (err) {
+    if (String(err?.meta?.code || '') !== '23505') throw err;
+    await create();
+  }
 };
 
 const buildResultsSearchText = (results) => {
