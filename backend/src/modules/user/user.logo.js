@@ -72,11 +72,15 @@ const parseLogoInput = (raw) => {
   return { kind: 'invalid', message: 'Logo must be an uploaded image (data URL)' };
 };
 
-/** Prefer port-based logo URL for login branding */
-const publicLogoUrl = ({ port, username, updatedAt } = {}) => {
+/** Prefer port-based logo URL for login branding; use userId when usernames can collide across tenants. */
+const publicLogoUrl = ({ port, userId, username, updatedAt } = {}) => {
   const v = updatedAt ? `v=${encodeURIComponent(new Date(updatedAt).getTime())}` : '';
   if (port) {
     return `/api/branding/logo?port=${encodeURIComponent(port)}${v ? `&${v}` : ''}`;
+  }
+  const id = Number(userId);
+  if (Number.isInteger(id) && id > 0) {
+    return `/api/branding/logo?userId=${encodeURIComponent(id)}${v ? `&${v}` : ''}`;
   }
   if (username) {
     return `/api/branding/logo?username=${encodeURIComponent(username)}${v ? `&${v}` : ''}`;
