@@ -136,10 +136,13 @@ async function ensureOpsSchema(prisma) {
         DROP CONSTRAINT social_media_accounts_platform_id_handle_key;
       END IF;
       IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
+        SELECT 1 FROM pg_constraint
         WHERE conname = 'social_media_accounts_platform_id_handle_type_key'
+      ) AND NOT EXISTS (
+        SELECT 1 FROM pg_class
+        WHERE relname = 'social_media_accounts_platform_id_handle_type_key'
       ) THEN
-        ALTER TABLE social_media_accounts 
+        ALTER TABLE social_media_accounts
         ADD CONSTRAINT social_media_accounts_platform_id_handle_type_key UNIQUE (platform_id, handle, type);
       END IF;
     END $$;
