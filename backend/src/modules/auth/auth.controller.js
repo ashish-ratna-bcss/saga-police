@@ -19,6 +19,7 @@ const { ensureOpsSchema } = require('../../../prisma/ensureOpsSchema');
 const jwt = require('jsonwebtoken');
 const { getJwtSecret } = require('../../config/env');
 const logger = require('../../lib/logger');
+const { parsePort, readApplicationDetails } = require('../user/user.application');
 
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 
@@ -31,6 +32,70 @@ const meResponse = (user, role) => {
   };
 };
 
+const TENANT_ADMIN_SELECT = {
+  id: true,
+  db_name: true,
+  username: true,
+  port: true,
+  application_details: true,
+};
+
+/** Resolve which force/app this login belongs to (port from body, PM2 env, or host). */
+const resolveLoginTenant = async (req) => {
+  const port =
+    parsePort(req.body?.port) ||
+    parsePort(process.env.TENANT_FRONTEND_PORT) ||
+    parsePort(req.query?.port);
+  if (port) {
+    return prisma.users.findFirst({
+      where: { port },
+      select: TENANT_ADMIN_SELECT,
+    });
+  }
+
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '')
+    .split(',')[0]
+    .trim()
+    .toLowerCase()
+    .replace(/:\d+$/, '')
+    .replace(/\.$/, '');
+  if (!host || host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+    return null;
+  }
+
+  const candidates = await prisma.users.findMany({
+    where: { port: { not: null }, application_details: { not: null } },
+    select: TENANT_ADMIN_SELECT,
+    take: 200,
+  });
+  return (
+    candidates.find((u) => {
+      const domains = readApplicationDetails(u).domains || [];
+      return domains.includes(host);
+    }) || null
+  );
+};
+
+const findLoginUser = async (username, req) => {
+  const tenant = await resolveLoginTenant(req);
+  if (tenant?.db_name) {
+    const scoped = await findUserWithRole({
+      username,
+      OR: [
+        { id: tenant.id },
+        { created_by: tenant.id },
+        { db_name: tenant.db_name },
+      ],
+    });
+    if (scoped) return scoped;
+    // Superadmin can still sign in on any tenant site.
+    const global = await findUserWithRole({ username });
+    if (global?.roles?.slug === 'superadmin') return global;
+    return null;
+  }
+  return findUserWithRole({ username });
+};
+
 const login = async (req, res) => {
   try {
     const validated = validateLogin(req.body || {});
@@ -39,7 +104,7 @@ const login = async (req, res) => {
     }
 
     const { username, password, force } = validated.data;
-    const user = await findUserWithRole({ username });
+    const user = await findLoginUser(username, req);
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }

@@ -55,6 +55,8 @@ const apps = (sitesConfig.sites || [])
         NODE_ENV: 'production',
         HOST: bind,
         PORT: port,
+        TENANT_ADMIN: admin,
+        TENANT_FRONTEND_PORT: String(frontendPort),
         CORS_ORIGINS: `http://${serverIp}:${frontendPort},http://localhost:${frontendPort}${site.domain ? `,https://${site.domain},http://${site.domain}` : ''}`,
       },
       out_file: path.join(logsDir, `${admin}-out.log`),

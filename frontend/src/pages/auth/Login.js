@@ -154,7 +154,7 @@ const Login = () => {
     setLoading(true);
     setSessionConflict(null);
     try {
-      const userData = await login(username, password);
+      const userData = await login(username, password, { port: branding?.port });
       finishLogin(userData);
     } catch (error) {
       if (error.response?.status === 409 && error.response?.data?.code === 'SESSION_ACTIVE') {
@@ -168,7 +168,7 @@ const Login = () => {
   const handleForceLogin = async () => {
     setLoading(true);
     try {
-      const userData = await login(username, password, { force: true });
+      const userData = await login(username, password, { force: true, port: branding?.port });
       setSessionConflict(null);
       finishLogin(userData);
     } catch {

@@ -80,9 +80,9 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, []);
 
-  const login = async (username, password, { force = false } = {}) => {
+  const login = async (username, password, { force = false, port = null } = {}) => {
     try {
-      const loginRes = await authApi.login(username, password, { force });
+      const loginRes = await authApi.login(username, password, { force, port });
       if (loginRes.data?.ui_mode || loginRes.data?.theme_color) {
         applyUserTheme({
           ui_mode: loginRes.data.ui_mode,
