@@ -161,7 +161,21 @@ const createUserAccount = async (actor, body) => {
   }
 
   const assignedRole = await resolveAssignableRole(actor.role, roleSlug);
-  const exists = await prisma.users.findFirst({ where: { OR: [{ email }, { username }] } });
+
+  let actorUser = null;
+  if (actor?.id) {
+    actorUser = await prisma.users.findUnique({ where: { id: actor.id } });
+  }
+
+  // End-users are unique within their admin tenant (db_name). Admin accounts stay
+  // globally unique so two forces cannot claim the same admin login.
+  const scopeDbName = actorUser?.db_name || actor?.db_name || null;
+  const exists = await prisma.users.findFirst({
+    where:
+      assignedRole.slug === ROLE_SLUGS.USER && scopeDbName
+        ? { db_name: scopeDbName, OR: [{ email }, { username }] }
+        : { OR: [{ email }, { username }] },
+  });
   if (exists) {
     const err = new Error('User already exists');
     err.status = 400;
@@ -173,11 +187,6 @@ const createUserAccount = async (actor, body) => {
   }
 
   const hashedPassword = await bcrypt.hash(password, await bcrypt.genSalt(10));
-
-  let actorUser = null;
-  if (actor?.id) {
-    actorUser = await prisma.users.findUnique({ where: { id: actor.id } });
-  }
   const actorApp = readApplicationDetails(actorUser || {});
   const creatorColor =
     (typeof actorUser?.theme_color === 'object' && actorUser?.theme_color?.value) ||

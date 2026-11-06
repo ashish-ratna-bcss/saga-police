@@ -24,8 +24,9 @@ model roles {
 model users {
   id                 Int      @id @default(autoincrement())
   name               String
-  username           String   @unique
-  email              String   @unique
+  /// Unique per tenant (db_name), so each force can reuse the same login name.
+  username           String
+  email              String
   password           String
   role_id            Int
   created_by         Int?
@@ -53,6 +54,9 @@ model users {
   creator            users?   @relation("user_creator", fields: [created_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
   created_users      users[]  @relation("user_creator")
   auth_sessions      auth_sessions[]
+
+  @@unique([username, db_name])
+  @@unique([email, db_name])
 }
 
 /// One active device session per account (single-device login).
