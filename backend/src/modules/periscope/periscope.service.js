@@ -12,26 +12,38 @@ function resolvePrisma(db) {
 async function ensureTable(db) {
   const prisma = resolvePrisma(db);
   try {
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS social_media_periscope_reports (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        report_date DATE NOT NULL,
-        day_of_week VARCHAR(20) NOT NULL,
-        title VARCHAR(255) NOT NULL,
-        organization VARCHAR(255) NOT NULL DEFAULT '',
-        status VARCHAR(50) NOT NULL DEFAULT 'draft',
-        programmes JSONB NOT NULL DEFAULT '[]'::jsonb,
-        abstract JSONB NOT NULL DEFAULT '[]'::jsonb,
-        notes TEXT NULL,
-        created_by VARCHAR(100) NULL,
-        created_at TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT periscope_reports_date_key UNIQUE (report_date)
-      )
-    `);
-    await prisma.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS periscope_reports_date_idx ON social_media_periscope_reports (report_date DESC)
-    `);
+    const create = () => prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `SELECT pg_advisory_xact_lock(hashtext('ensure_periscope_reports')::bigint)`
+      );
+      await tx.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS social_media_periscope_reports (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          report_date DATE NOT NULL,
+          day_of_week VARCHAR(20) NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          organization VARCHAR(255) NOT NULL DEFAULT '',
+          status VARCHAR(50) NOT NULL DEFAULT 'draft',
+          programmes JSONB NOT NULL DEFAULT '[]'::jsonb,
+          abstract JSONB NOT NULL DEFAULT '[]'::jsonb,
+          notes TEXT NULL,
+          created_by VARCHAR(100) NULL,
+          created_at TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT periscope_reports_date_key UNIQUE (report_date)
+        )
+      `);
+      await tx.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS periscope_reports_date_idx ON social_media_periscope_reports (report_date DESC)
+      `);
+    }, { maxWait: 10000, timeout: 60000 });
+
+    try {
+      await create();
+    } catch (err) {
+      if (String(err?.meta?.code || '') !== '23505') throw err;
+      await create();
+    }
   } catch (err) {
     logger.warn(`[PeriscopeService] ensureTable error (ignorable if exists): ${err.message}`);
   }
