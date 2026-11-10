@@ -1743,7 +1743,7 @@ const OperationsDashboard = () => {
       </div>
 
       {/* 6. OPERATIONAL TRIAGE & QUICK OSINT LAUNCHPAD */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* GRIEVANCE TRIAGE */}
         <div className="rounded-xl border border-border/70 bg-card p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
           <div>
@@ -1775,50 +1775,6 @@ const OperationsDashboard = () => {
               <div className="flex items-center justify-between p-2 rounded-lg bg-muted/20 border border-border/40 text-xs">
                 <span className="text-muted-foreground font-medium">Successfully Resolved</span>
                 <span className="font-bold tabular-nums text-emerald-500">{grievReports.resolved_count || 0}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* PERISCOPE SITUATION REPORT SUMMARY */}
-        <div className="rounded-xl border border-border/70 bg-card p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between gap-2 mb-2.5 pb-2 border-b border-border/60">
-              <div className="flex items-center gap-1.5">
-                <Compass className="h-3.5 w-3.5 text-blue-500" />
-                <h3 className="text-xs font-heading font-bold uppercase tracking-wider text-foreground">
-                  Periscope DSR Situation
-                </h3>
-              </div>
-              <Link to="/periscope" className="text-[11px] font-bold text-primary hover:underline">
-                Open DSR →
-              </Link>
-            </div>
-
-            <div className="space-y-2">
-              <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/20 text-xs">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-bold text-foreground">Daily Intelligence Feed</span>
-                  <span className="text-[10px] font-bold text-blue-500 uppercase">Special Branch</span>
-                </div>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  Official Special Branch Daily Situation Report tracking VIP schedules, political rallies, sensitive zones and bandhs.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1">
-                  <Link to="/periscope">
-                    <Compass className="h-3.5 w-3.5 text-blue-500" />
-                    <span>View Today's DSR</span>
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1">
-                  <Link to="/events">
-                    <CalendarDays className="h-3.5 w-3.5 text-emerald-500" />
-                    <span>Event Probes</span>
-                  </Link>
-                </Button>
               </div>
             </div>
           </div>

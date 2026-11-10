@@ -200,7 +200,7 @@ const dashboard = {
         {
           type: 'p',
           text:
-            'The **Tactical OSINT Launchpad** card holds shortcut buttons, including **Global Search**, **POI Watchlist**, **Profile Catalog**, **Analytics Hub** and **Web Intel**. The **Event Probes** button opens Events.',
+            'The **Tactical OSINT Launchpad** card holds shortcut buttons, including **Global Search**, **POI Watchlist**, **Profile Catalog**, **Analytics Hub** and **Web Intel**.',
         },
       ],
     },
