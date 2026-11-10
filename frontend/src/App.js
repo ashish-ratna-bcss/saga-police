@@ -12,7 +12,6 @@ const Dashboard = lazy(() => import('./pages/dashboard/Dashboard'));
 const SocialProfiles = lazy(() => import('./pages/profiles/SocialProfiles'));
 const AnalyticsHub = lazy(() => import('./pages/analytics/AnalyticsHub'));
 const SocialProfileDetail = lazy(() => import('./pages/profiles/SocialProfileDetail'));
-const ContentFeed = lazy(() => import('./pages/monitors/ContentFeed'));
 const YouTubeMonitor = lazy(() => import('./pages/monitors/YouTubeMonitor'));
 const XMonitor = lazy(() => import('./pages/monitors/XMonitor'));
 const FacebookMonitor = lazy(() => import('./pages/monitors/FacebookMonitor'));
@@ -84,7 +83,7 @@ function App() {
               <Route path="social-profiles" element={<SocialProfiles />} />
               <Route path="analytics-hub" element={<AnalyticsHub />} />
               <Route path="social-profiles/:id" element={<SocialProfileDetail />} />
-              <Route path="content" element={<ContentFeed />} />
+              <Route path="content" element={<Navigate to="/analytics-hub" replace />} />
               <Route path="youtube-monitor" element={<YouTubeMonitor />} />
               <Route path="x-monitor" element={<XMonitor />} />
               <Route path="facebook-monitor" element={<FacebookMonitor />} />

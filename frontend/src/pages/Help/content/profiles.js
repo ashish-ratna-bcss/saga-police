@@ -215,7 +215,7 @@ const profiles = {
       groupBlurb: 'Platform pages that show collected content',
       icon: 'Radio',
       title: 'Platform monitors',
-      blurb: 'X, Facebook, Instagram, YouTube and the Content Feed.',
+      blurb: 'X, Facebook, Instagram and YouTube.',
       blocks: [
         {
           type: 'p',
@@ -230,7 +230,6 @@ const profiles = {
             ['Facebook monitor', 'Add Page (Single or Bulk Import), Scan Now, Export. Tabs: Posts and Risk Analytics.'],
             ['Instagram monitor', 'Add Source, Scan All Profiles. Open a profile for Posts, Stories and Risk Analytics.'],
             ['YouTube monitor', 'Channel content and analysis for monitored channels.'],
-            ['Content Feed', 'Live content from all sources, with a platform filter and Refresh.'],
           ],
         },
         {
