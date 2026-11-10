@@ -8,7 +8,7 @@
 const axios = require('axios');
 const env = require('./blugate.telegram.env');
 const { TELEGRAM_ENDPOINTS } = require('./blugate.telegram.endpoints');
-const { authFromPlatformRow, describeProviderError } = require('../blugate.http');
+const { authFromPlatformRow, describeProviderError, gatewayClientStatus } = require('../blugate.http');
 
 const callTelegramApi = async (endpointKey, payload = {}, auth = null) => {
   const endpoint = TELEGRAM_ENDPOINTS[endpointKey];
@@ -73,7 +73,7 @@ const callTelegramApi = async (endpointKey, payload = {}, auth = null) => {
           : `Telegram ${endpointKey} HTTP ${status || '?'}: ${err.message}`) + sent + noKeys
       );
       enriched.response = err.response;
-      enriched.status = status;
+      enriched.status = gatewayClientStatus(status);
       enriched.providerCode = provider?.error?.code || provider?.code || null;
       enriched.code = err.code;
       throw enriched;

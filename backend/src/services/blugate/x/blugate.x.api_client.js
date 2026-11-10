@@ -10,6 +10,7 @@
 const axios = require('axios');
 const env = require('./blugate.x.env');
 const { X_ENDPOINTS } = require('./blugate.x.endpoints');
+const { gatewayClientStatus } = require('../blugate.http');
 const { decryptPlatformSecret } = require('../../../lib/platformSecrets');
 
 /** Build auth from a platforms row (encrypted or plaintext). */
@@ -60,7 +61,7 @@ const formatAxiosError = (err, endpointKey) => {
       ? `Blugate X ${endpointKey} HTTP ${status}: ${detail}`
       : `Blugate X ${endpointKey}: ${detail}`
   );
-  enriched.status = status || 502;
+  enriched.status = gatewayClientStatus(status) || 502;
   enriched.response = err.response;
   enriched.code = err.code;
   return enriched;

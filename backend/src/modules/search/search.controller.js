@@ -1,4 +1,5 @@
 const logger = require('../../lib/logger');
+const { gatewayClientStatus } = require('../../services/blugate/blugate.http');
 const { searchProfiles, searchContent, listConfiguredPlatforms } = require('./search.service');
 const {
   saveSearchHistory,
@@ -25,7 +26,7 @@ const handleProviderError = (res, error, fallbackMessage) => {
     });
   }
   if (status === 400 || status === 401 || status === 403 || status === 404) {
-    return res.status(status === 404 ? 502 : status).json({
+    return res.status(status === 404 ? 502 : gatewayClientStatus(status)).json({
       error: error.message || fallbackMessage,
     });
   }
