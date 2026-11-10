@@ -1096,10 +1096,7 @@ const OperationsDashboard = () => {
         </Link>
       </div>
 
-      {/* 3. PERISCOPE LIVE DSR SITUATION SCROLLING FEED */}
-      <PeriscopeScrollingTicker />
-
-      {/* 4. DUAL INTELLIGENCE COMMAND STAGE (8 COLS + 4 COLS) */}
+      {/* 3. DUAL INTELLIGENCE COMMAND STAGE (8 COLS + 4 COLS) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 min-w-0">
         {/* LEFT (8 COLS): TELEMETRY DISCOVERY VELOCITY AREA CHART */}
         <div className="lg:col-span-8 min-w-0 rounded-xl border border-border/70 bg-card p-3.5 sm:p-4 shadow-xs flex flex-col justify-between overflow-hidden">
@@ -1287,7 +1284,7 @@ const OperationsDashboard = () => {
         </div>
       </div>
 
-      {/* 5. 3-LEVEL STRATEGIC DIAGNOSTICS (3 STRIP CARDS) */}
+      {/* 4. 3-LEVEL STRATEGIC DIAGNOSTICS (3 STRIP CARDS) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* 1. PUBLIC SENTIMENT INDEX */}
         <div className="rounded-xl border border-border/70 bg-card p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
@@ -1533,7 +1530,7 @@ const OperationsDashboard = () => {
         </div>
       </div>
 
-      {/* 6. OPERATIONAL ACTION GRID (TARGET PROFILES WATCHLIST + VIRAL NARRATIVES) */}
+      {/* 5. OPERATIONAL ACTION GRID (TARGET PROFILES WATCHLIST + VIRAL NARRATIVES) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 min-w-0">
         {/* LEFT (6 COLS): TARGET PROFILES WATCHLIST */}
         <div className="lg:col-span-6 min-w-0 rounded-xl border border-border/70 bg-card p-3.5 sm:p-4 shadow-xs overflow-hidden">
@@ -1745,7 +1742,7 @@ const OperationsDashboard = () => {
         </div>
       </div>
 
-      {/* 7. OPERATIONAL TRIAGE & QUICK OSINT LAUNCHPAD */}
+      {/* 6. OPERATIONAL TRIAGE & QUICK OSINT LAUNCHPAD */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* GRIEVANCE TRIAGE */}
         <div className="rounded-xl border border-border/70 bg-card p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
@@ -1880,6 +1877,9 @@ const OperationsDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* 7. PERISCOPE LIVE DSR SITUATION SCROLLING FEED (kept at the bottom so an empty schedule does not push the analytics down) */}
+      <PeriscopeScrollingTicker />
     </div>
   );
 };
