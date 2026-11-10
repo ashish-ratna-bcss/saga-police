@@ -104,7 +104,7 @@ const dashboard = {
             ['**Surveillance Fleet**', 'Profiles being actively monitored, out of the total target profiles.', 'Social Profiles'],
             ['**Monitored Events**', 'Events that are currently live, out of all events.', 'Events'],
             ['**Citizen Grievances**', 'Open grievances. The line under it counts those escalated to an intermediary.', 'Grievances'],
-            ['**Captured Telemetry**', 'Posts collected in the chosen time range.', 'Content'],
+            ['**Captured Telemetry**', 'Posts collected in the chosen time range.', 'Analytics Hub'],
           ],
         },
       ],

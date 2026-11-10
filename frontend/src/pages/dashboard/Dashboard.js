@@ -1073,7 +1073,7 @@ const OperationsDashboard = () => {
         </Link>
 
         <Link
-          to="/content"
+          to="/analytics-hub"
           className="group flex flex-col justify-between p-3.5 rounded-xl border border-border/70 bg-card hover:border-indigo-500/50 hover:shadow-md transition-all cursor-pointer col-span-2 sm:col-span-1"
         >
           <div className="flex items-center justify-between gap-1 mb-2">
