@@ -6,7 +6,7 @@
 const axios = require('axios');
 const env = require('./blugate.reddit.env');
 const { REDDIT_ENDPOINTS } = require('./blugate.reddit.endpoints');
-const { authFromPlatformRow, describeProviderError } = require('../blugate.http');
+const { authFromPlatformRow, describeProviderError, gatewayClientStatus } = require('../blugate.http');
 
 const callRedditApi = async (endpointKey, payload = {}, auth = null) => {
   const endpoint = REDDIT_ENDPOINTS[endpointKey];
@@ -83,7 +83,7 @@ const callRedditApi = async (endpointKey, payload = {}, auth = null) => {
           noKeys
       );
       enriched.response = err.response;
-      enriched.status = status;
+      enriched.status = gatewayClientStatus(status);
       enriched.providerCode = provider?.error?.code || provider?.code || null;
       enriched.code = err.code;
       throw enriched;

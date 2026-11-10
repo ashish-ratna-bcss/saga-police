@@ -90,6 +90,13 @@ const describeProviderError = (data) => {
   return String(data);
 };
 
+/**
+ * Status to hand back to the browser for a failed gateway call. A gateway 401 means our
+ * BluGate key was rejected, not that the user's session expired, so it must not reach the
+ * frontend as 401: apiHandler treats any 401 as "log out" and reloads to /login.
+ */
+const gatewayClientStatus = (status) => (status === 401 ? 502 : status);
+
 const formatAxiosError = (err, label, endpointKey) => {
   const status = err.response?.status;
   const data = err.response?.data;
@@ -108,7 +115,7 @@ const formatAxiosError = (err, label, endpointKey) => {
       ? `Blugate ${label} ${endpointKey} HTTP ${status}: ${detail}`
       : `Blugate ${label} ${endpointKey}: ${detail}`
   );
-  enriched.status = status || 502;
+  enriched.status = gatewayClientStatus(status) || 502;
   enriched.response = err.response;
   enriched.code = err.code;
   return enriched;
@@ -187,6 +194,7 @@ module.exports = {
   normalizeBaseUrl,
   resolveGatewayBaseUrl,
   describeProviderError,
+  gatewayClientStatus,
   authFromPlatformRow,
   blugateRequest,
 };
