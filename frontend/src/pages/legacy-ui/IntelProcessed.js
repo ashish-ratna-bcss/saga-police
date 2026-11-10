@@ -183,7 +183,7 @@ const IntelProcessed = () => {
                   Refresh
                 </Button>
                 <Button size="sm" asChild>
-                  <Link to="/content">View All Content</Link>
+                  <Link to="/analytics-hub">View Analytics Hub</Link>
                 </Button>
               </div>
             </div>
