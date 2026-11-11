@@ -1524,9 +1524,22 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   const factPlaceRegion = new Map((analysis?.facts?.places || []).map((x) => [foldGeo(x.name), foldGeo(x.region || '')]));
   const outsideRegionPlace = (name) => { const r = factPlaceRegion.get(foldGeo(name)); const rn = foldGeo(regionName); return !!(r && rn && !r.includes(rn) && !foldGeo(name).includes(rn)); };
+  // A place in an activity must be a real place: one the posts named or the place list knows. The name of the case or of a
+  // region's division, which the model sometimes puts in the "where" field, is not a place and is left out.
+  const realPlace = (name) => {
+    if (factPlaceRegion.has(foldGeo(name))) return true;
+    try { return Boolean(require('../../../services/SummaryLLM/geo.service').lookupPlace(name, '', '')); } catch (e) { return true; }
+  };
+  const cleanPlaces = (a) => {
+    const all = bp.activityPlaces(a);
+    const keep = all.filter(realPlace);
+    const use = keep.length ? keep : all.slice(0, 3);
+    return { ...a, places: use, place: use.join(', ') };
+  };
   const factActs = (analysis?.facts?.activities || []).filter((a) => !a.outside && !(regionOnly && a.place && outsideRegionPlace(a.place)))
     .map((a) => (regionOnly ? { ...a, posts: (a.posts || []).filter((n) => inNs.has(Number(n))) } : a))
-    .filter((a) => !regionOnly || a.posts.length || a.carried);
+    .filter((a) => !regionOnly || a.posts.length || a.carried)
+    .map(cleanPlaces);
   const outsideFactNames = Array.from(factPlaceRegion.keys()).filter((n) => outsideRegionPlace(n));
   const STATUS_TEXT = { denied: 'police permission refused or declared unlawful', permitted: 'permission granted', held: 'has taken place', called_off: 'called off', announced: 'announced' };
   // A past activity that no post reports as held, called off or refused says "not verified", so its outcome is never left blank.
@@ -1641,7 +1654,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   const changeLogSection = () => {
     if (!sameBasis || !haveFacts) return '';
     const dayTz = (iso) => (iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: REPORT_TZ }) : '');
-    const prevActs = (prevRep.activities || []).filter((a) => !(regionOnly && a.place && outsideRegionPlace(a.place)));
+    const prevActs = (prevRep.activities || []).filter((a) => !(regionOnly && a.place && outsideRegionPlace(a.place))).map(cleanPlaces);
     const lines = bp.buildChangeLog({
       L, and: andW,
       prev: { ...prevRep, activities: prevActs },
@@ -2188,7 +2201,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       event, tenant, windowStr, period: presentationPeriod, dateStr, total, sent, sentTotal, engTotal, ev: scopeEv, riskParts, platformEntries, kws,
       classification: hq?.classification || '',
       coverage: { collected: n0(stats.relevant_posts_count) || ev.length, inRegion: scoped ? inEv.length : null, region: event.location || '', unrelated: n0(stats.unrelated_posts_count), duplicates: n0(stats.duplicate_posts_merged), register: ev.length },
-      analysis, places, authors, threatLevel: threatLevelVal, rationale: computedRationale, bottomLine: bl, narrativesToWatch, actions: planned, notKnown: analysis?.notKnown || [], stats,
+      analysis, places, authors, threatLevel: threatLevelVal, rationale: computedRationale, bottomLine: bl, narrativesToWatch, actions: planned.map((a) => ({ ...a, byLabel: byText(a) })), story: { rows: timelineRows, detentionNs: detPosts }, notKnown: analysis?.notKnown || [], stats,
       counts: {
         violenceConfirmed: violenceAcc > 1 ? violenceN : 0, violenceMentioned: violenceAcc > 1 ? 0 : violenceN, alleged: allegedN, detentions: detentionN,
         calls: callN, mobilising: mobN, highRisk: highRiskN,
