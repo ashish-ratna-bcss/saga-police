@@ -616,3 +616,98 @@ test('keyword language choice: a script that was not chosen is removed, even if 
   assert.deepEqual(applyLanguageChoice(t, { wantEnglish: false, onlyEnglish: false, codes: ['hi'] }), { hashtags: ['#जेपीएससी'], keywords: ['पेपर लीक'] });
   assert.deepEqual(applyLanguageChoice(t, { wantEnglish: true, onlyEnglish: false, codes: null }), t);   // all languages: nothing removed
 });
+
+test('an event title is not an organiser, and "Place,Region" is one place', () => {
+  const by = new Map([[1, post({ text: 'Gumla Bandh on 6 Nov, Jharkhand BJP ST wing called it in Gumla', postedAt: '2026-11-05' })]]);
+  const r = parseFacts('{"p":[{"n":1,"k":"bandh","d":"2026-11-06","o":"Gumla Bandh","w":"Gumla","pl":[{"n":"Gumla,Jharkhand","in":"","a":0},{"n":"Gumla","in":"Jharkhand, India","a":0}]}]}', by, extractJson);
+  assert.strictEqual(r[1].organiser, '');                                       // "Gumla Bandh" is the event's name, not who called it
+  assert.deepStrictEqual(r[1].places.map((p) => p.name), ['Gumla']);            // one place, not two spellings
+  assert.strictEqual(r[1].places[0].region, 'Jharkhand');
+  const ok = parseFacts('{"p":[{"n":1,"k":"bandh","d":"2026-11-06","o":"Jharkhand BJP ST wing","w":"Gumla"}]}', by, extractJson);
+  assert.strictEqual(ok[1].organiser, 'Jharkhand BJP ST wing');                 // a real group is kept
+});
+
+test('normalizeFactNames cleans facts saved earlier: merged places, no event-title organiser, safe to repeat', () => {
+  const { normalizeFactNames } = require('../src/services/SummaryLLM/eventFacts');
+  const facts = {
+    places: [
+      { name: 'Gumla', region: 'Jharkhand, India', mentioned: 6, active: 1, posts: [3, 9] },
+      { name: 'Gumla,Jharkhand', region: '', mentioned: 2, active: 0, posts: [3, 20] },
+      { name: 'Ranchi,Jharkhand', region: '', mentioned: 6, active: 0, posts: [5] },
+    ],
+    byPost: { 3: { places: ['Gumla', 'Gumla,Jharkhand'], active: [] } },
+    organisers: [{ name: 'Gumla Bandh', count: 1 }, { name: 'Babulal Marandi', count: 2 }],
+    activities: [
+      { date: '2026-11-06', kind: 'bandh', organiser: 'Gumla Bandh', place: 'Gumla,Jharkhand', posts: [3] },
+      { date: '2026-11-18', kind: 'bandh', organiser: 'Jharkhand BJP ST wing', place: 'Ranchi,Lohardaga,Gumla', posts: [20] },
+    ],
+  };
+  const n = normalizeFactNames(facts);
+  assert.deepStrictEqual(n.places.map((p) => [p.name, p.mentioned]), [['Gumla', 8], ['Ranchi', 6]]);
+  assert.deepStrictEqual(n.byPost[3].places, ['Gumla']);
+  assert.strictEqual(n.activities[0].organiser, '');
+  assert.strictEqual(n.activities[0].place, 'Gumla, Jharkhand');
+  assert.strictEqual(n.activities[1].organiser, 'Jharkhand BJP ST wing');
+  assert.strictEqual(n.activities[1].place, 'Ranchi, Lohardaga, Gumla');
+  assert.deepStrictEqual(n.organisers.map((o) => o.name), ['Babulal Marandi']);
+  assert.deepStrictEqual(normalizeFactNames(n), n);
+  assert.strictEqual(facts.places.length, 3);                                   // the saved facts themselves are not changed
+});
+
+test('a past activity with no reported outcome says "not verified"; a reported one keeps its status; an upcoming one is left alone', () => {
+  const sm = { event: { name: 'E', location: 'Odisha' }, generated_at: '2026-11-10T09:00:00Z', stats: {}, evidence_traceability: [] };
+  const a = { bottomLine: 'x', facts: { places: [], byPost: {}, calls: { count: 0, posts: [] }, violence: { count: 0, posts: [] }, accounts: [], activities: [
+    { date: '2026-11-06', kind: 'bandh', place: 'Gumla', subject: 'justice', statuses: {}, posts: [3] },
+    { date: '2026-11-07', kind: 'protest', place: 'Topchanchi', subject: 'CBI probe', statuses: { held: 2 }, posts: [151] },
+    { date: '2026-11-18', kind: 'bandh', place: 'Ranchi', subject: 'justice', statuses: { announced: 1 }, posts: [20] },
+  ] } };
+  const html = buildReportHtml({ summary: sm, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false });
+  assert.ok(/Bandh at Gumla[^<]*; not verified/.test(html));
+  assert.ok(/Protest at Topchanchi[^<]*; has taken place/.test(html) && !/Topchanchi[^<]*not verified/.test(html));
+  const upcoming = (html.match(/Bandh at Ranchi[^<]*/) || [''])[0];
+  assert.ok(upcoming && !/not verified|has taken place/.test(upcoming));
+});
+
+test('a long timeline line is shortened before its status, never losing it', () => {
+  const sm = { event: { name: 'E', location: 'Odisha' }, generated_at: '2026-11-10T09:00:00Z', stats: {}, evidence_traceability: [] };
+  const long = 'Bokaro, Giridih, Ramgarh, Pakur, Chaibasa, Godda, Sahebganj, Dumka, Deoghar, Hazaribagh, Chatra, Koderma';
+  const a = { bottomLine: 'x', facts: { places: [], byPost: {}, calls: { count: 0, posts: [] }, violence: { count: 0, posts: [] }, accounts: [], activities: [
+    { date: '2026-11-07', kind: 'rally', place: long, subject: 'arrest of the killers and a CBI probe into the death', statuses: {}, posts: [45] },
+  ] } };
+  const html = buildReportHtml({ summary: sm, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false });
+  assert.ok(/Rally at Bokaro[^<]*…; not verified/.test(html));
+});
+
+test('the closing "risk" line names the same level as the first page, and "high-risk posts" counts are left alone', () => {
+  const sm = { event: { name: 'E', location: 'Odisha' }, generated_at: '2026-11-10T09:00:00Z', stats: {}, evidence_traceability: [] };
+  const closing = 'CONFIRMED\nA rally was held on 7 Nov.\n\nRISK\nMedium. The risk level is Medium because the situation involves ongoing protests, but no violence is reported. There are no high-risk posts.';
+  const a = { bottomLine: 'x', closingSummary: closing, facts: { places: [], byPost: {}, calls: { count: 0, posts: [] }, violence: { count: 0, posts: [] }, accounts: [], activities: [] } };
+  const html = buildReportHtml({ summary: sm, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false });
+  assert.ok(/Low\. The risk level is Low because the situation involves ongoing protests/.test(html));
+  assert.ok(!/Medium\. The risk level/.test(html) && /no high-risk posts/.test(html));
+});
+
+test('a location report keeps the closing summary in its four boxes, and its risk line matches the first page', () => {
+  const p = require('../src/services/SummaryLLM/eventSummary.prompt');
+  const closing = p.parseClosing(JSON.stringify({
+    confirmed: ['A rally was held on 7 Nov 2026 in several districts.'],
+    unverified: ['The exact organisers are not confirmed.', 'The number of participants is unknown.'],
+    next: ['Verify the outcome of the rally.'],
+    risk: ['Medium. The risk level is Medium because the situation involves ongoing protests, but no confirmed violence has been reported.'],
+  }));
+  const a = { ...mixedAnalysis, closingSummary: closing };
+  const html = buildReportHtml({ summary: mixed, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false, regionOnly: true });
+  const boxes = html.slice(html.indexOf('class="sumgrid"'));
+  assert.strictEqual((boxes.match(/class="sumbox"/g) || []).length, 4);          // Confirmed, Not yet verified, Next steps, Risk reassessed
+  assert.ok(/Risk reassessed/.test(boxes) && /Not yet verified/.test(boxes));
+  assert.ok(/Low\. The risk level is Low because/.test(boxes) && !/Medium\./.test(boxes));
+});
+
+test('a closing summary that is already well formed is left exactly as it is', () => {
+  const sm = { event: { name: 'E', location: 'Odisha' }, generated_at: '2026-11-10T09:00:00Z', stats: {}, evidence_traceability: [] };
+  const closing = 'CONFIRMED\n- A rally was held.\n\nNOT VERIFIED\n- Turnout is unknown.\n\nNEXT STEPS\n- Verify the outcome.\n\nRISK\n- Low. The risk level is Low because no post calls for action.';
+  const a = { bottomLine: 'x', closingSummary: closing, facts: { places: [], byPost: {}, calls: { count: 0, posts: [] }, violence: { count: 0, posts: [] }, accounts: [], activities: [] } };
+  const html = buildReportHtml({ summary: sm, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false });
+  assert.strictEqual((html.slice(html.indexOf('class="sumgrid"')).match(/class="sumbox"/g) || []).length, 4);
+  assert.ok(/A rally was held\./.test(html) && /Turnout is unknown\./.test(html));
+});
