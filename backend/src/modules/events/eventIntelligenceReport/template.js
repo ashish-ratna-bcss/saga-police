@@ -8,6 +8,8 @@ const { esc } = require('./render');
 const { classifyEvidence } = require('./scope');
 const { buildPresentationBody, PRESENTATION_CSS } = require('./presentation');
 const { normalizeFactNames } = require('../../../services/SummaryLLM/eventFacts');
+const bp = require('../../../services/SummaryLLM/briefPlan');
+const { closingLevel } = require('../../../services/SummaryLLM/eventSummary.prompt');
 
 /**
  * Bundled fonts (./fonts). Only the scripts that actually appear in a report are embedded,
@@ -440,6 +442,26 @@ b{font-weight:700}
 .chips>div{background:${BG};border-radius:3px;padding:1.5mm 2.2mm}
 .chips .ck{font-size:5.9pt;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
 .chips .cv{font-size:7.4pt;font-weight:700;color:${INK};margin-top:.3mm}
+/* Risk box: surveillance line, reasons, what would change the level */
+.surv{font-size:8pt;margin:0 0 1.4mm;color:${INK}}
+.sv{display:inline-block;font-weight:700;color:#fff;border-radius:2px;padding:.1mm 1.8mm;margin-left:1mm}.sv-enhanced{background:${ACCENT}}.sv-baseline{background:${NW}}
+.why-h{font-size:7.8pt;color:${INK};margin:0 0 .8mm}
+.why-ul{margin:0 0 1.8mm;padding-left:3.6mm}.why-ul li{font-size:7.5pt;line-height:1.38;color:#334155;margin:0 0 .5mm}
+.rf{display:grid;grid-template-columns:1fr 1fr;gap:2mm;margin:0 0 1.8mm}.rf.one{grid-template-columns:1fr}
+.rf>div{background:${BG};border-radius:3px;padding:1.4mm 2.2mm}.rf h5{margin:0 0 .6mm;font-size:6.2pt;text-transform:uppercase;letter-spacing:.05em}
+.rf .up h5{color:#B42318}.rf .down h5{color:#1B7A4E}
+.rf ul{margin:0;padding-left:3mm}.rf li{font-size:7pt;line-height:1.33;color:#334155}
+.defs{font-size:7pt;color:#475569;line-height:1.38}.defs .dn{color:#64748b;font-style:italic}
+/* Actions and timeline tables */
+table.acts td.n{font-weight:700;color:${NAVY};text-align:center}
+table.acts td .ad{margin-top:.5mm;line-height:1.38}
+table.acts td.by{font-weight:700;color:${INK}}
+table.acts td.lk,table.tl-tbl td.lk{font-size:6.6pt}
+table.tl-tbl td.dt{font-weight:700;color:${NAVY};white-space:nowrap}
+.st{display:inline-block;font-size:6.2pt;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#fff;border-radius:2px;padding:.2mm 1.6mm;white-space:nowrap}
+.st-c{background:#1B7A4E}.st-r{background:#C45C26}.st-n{background:#6B7C8A}
+.cp-row.one{grid-template-columns:1fr}
+.chlog .bul li{font-size:7.6pt}
 
 /* Headline numbers: one strip */
 .rpill{font-size:6pt;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:8px;padding:.25mm 1.8mm;white-space:nowrap}
@@ -1500,6 +1522,26 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   const threatDesc = computedRationale;
 
+  const factPlaceRegion = new Map((analysis?.facts?.places || []).map((x) => [foldGeo(x.name), foldGeo(x.region || '')]));
+  const outsideRegionPlace = (name) => { const r = factPlaceRegion.get(foldGeo(name)); const rn = foldGeo(regionName); return !!(r && rn && !r.includes(rn) && !foldGeo(name).includes(rn)); };
+  const factActs = (analysis?.facts?.activities || []).filter((a) => !a.outside && !(regionOnly && a.place && outsideRegionPlace(a.place)))
+    .map((a) => (regionOnly ? { ...a, posts: (a.posts || []).filter((n) => inNs.has(Number(n))) } : a))
+    .filter((a) => !regionOnly || a.posts.length || a.carried);
+  const outsideFactNames = Array.from(factPlaceRegion.keys()).filter((n) => outsideRegionPlace(n));
+  const STATUS_TEXT = { denied: 'police permission refused or declared unlawful', permitted: 'permission granted', held: 'has taken place', called_off: 'called off', announced: 'announced' };
+  // A past activity that no post reports as held, called off or refused says "not verified", so its outcome is never left blank.
+  let todayIso = '';
+  try { todayIso = new Date(generated).toLocaleDateString('en-CA', { timeZone: REPORT_TZ }); } catch (e) { todayIso = ''; }
+  const needsStatus = (a) => Boolean(todayIso && a.date && String(a.date) < todayIso);
+  const actLine = (a) => {
+    const kind = L(String(a.kind || 'activity').replace(/^./, (c) => c.toUpperCase()));
+    const total = Object.values(a.statuses || {}).reduce((x, y) => x + y, 0);
+    const solid = (k, n) => k !== 'denied' || n >= 3 || n * 2 >= total;   // a refusal is shown only when several posts, or most of them, say so
+    const st = Object.entries(a.statuses || {}).filter(([k, n]) => k !== 'announced' && solid(k, n)).sort((x, y) => y[1] - x[1]).map(([k]) => STATUS_TEXT[k]).filter(Boolean)[0];
+    const announced = (a.statuses || {}).announced ? ` (${L('organiser says it will go ahead')})` : '';
+    return `${kind}${a.organiser ? ` ${L('called by')} ${a.organiser}` : ''}${a.place ? ` ${L('at')} ${a.place}` : ''}${a.subject ? ` — ${L('about')}: ${a.subject}` : a.subject === '' ? ` — ${L('reason not stated in the posts')}` : ''}${st ? `; ${L(st)}${st === STATUS_TEXT.denied ? announced : ''}` : needsStatus(a) ? `; ${L('not verified')}` : ''}`;
+  };
+
   const keyDates = (analysis?.keyDates || []).length
     ? analysis.keyDates
     : (analysis?.activities || []).map((a) => ({
@@ -1525,6 +1567,95 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
         posts: c.posts,
       })).slice(0, 4);
 
+  // ---- Plan: the status of each activity, the risk box, the actions and the change log. Everything below is computed from
+  // the counted facts above; the model writes none of it, so the first page, the actions and the summary cannot disagree.
+  const andW = L('and');
+  const evByN = new Map(ev.map((e) => [e.n, e]));
+  const { upcoming: upActs, past: pastActs } = bp.splitActivities(factActs, todayIso);
+  const lastUpcoming = upActs.length ? upActs[upActs.length - 1].date : '';
+  const timelineRows = haveFacts ? bp.buildTimeline({ L, acts: factActs, todayIso, and: andW, max: 6 }) : [];
+  const ratedHigh = scopeEv.filter((e) => ['critical', 'high'].includes(String(e.risk_level || '').toLowerCase()));
+  const detRaw = analysis?.facts?.detentions || {};
+  const detPosts = regionPosts(detRaw.posts);
+  // Who was held and where, from the post itself; when the post does not say, its own words are quoted rather than guessed.
+  const detentionDetails = detPosts.slice(0, 2).map((n) => {
+    const d = (detRaw.details || []).find((x) => x.n === n) || {};
+    const e = evByN.get(n);
+    const place = d.place || (e ? (e.specific[0] || e.places[0] || '') : '');
+    return { n, who: d.who || '', place, text: !d.who && !place && e ? e.text : '' };
+  });
+  const riskBox = haveFacts ? bp.buildRiskBox({
+    L, level: threatLevelVal, todayIso, upcoming: upActs, and: andW,
+    c: { haveFacts, onSite: visits.length, mobilising: mobN, calls: callN, violence: violenceN, alleged: allegedN, detentions: detentionN, high: highRiskN, medium: n0(riskCounts.medium) },
+    refs: {
+      onSite: visits.map((e) => e.n), mobilising: regionPosts(analysis.facts.mobilising?.posts), calls: regionPosts(analysis.facts.calls?.posts),
+      violence: regionPosts(analysis.facts.violence?.posts), alleged: regionPosts(analysis.facts.alleged?.posts),
+    },
+    highPosts: ratedHigh.slice(0, 3).map((e) => ({ n: e.n, place: e.specific[0] || e.places[0] || '' })),
+    detentionDetails,
+  }) : null;
+
+  const platTop = platformEntries.slice(0, 2).map(([k, v]) => ({ name: platLabel(k), n: n0(v) }));
+  const priorityAccts = highWatchList.filter((p) => p.tier === 'priority').slice(0, 3)
+    .map((p) => ({ name: p.author, platform: platLabel(p.platform), posts: (p.posts || []).filter((n) => !regionOnly || inNs.has(n)) }));
+  // The report this one replaced: accounts it flagged stay on the watch list, and the change log compares with it.
+  const prevRep = summary?.stats?.previous_report || null;
+  const sameBasis = Boolean(prevRep && (prevRep.timeframe || 'full') === (stats.timeframe || 'full'));
+  const seenAuthors = new Set(Object.values(authors).map((a) => String(a.author).toLowerCase()));
+  const retainedAccts = sameBasis ? (prevRep.accounts || []).filter((a) => !seenAuthors.has(String(a.author).toLowerCase())).map((a) => a.author) : [];
+  const watchClaims = narrativesToWatch.slice(0, 3).filter((n) => n && n.narrative).map((n) => ({ text: n.narrative, posts: regionPosts(n.posts) }));
+  const recentPast = pastActs.filter((a) => !bp.isCalledOff(a) && (!todayIso || a.date >= bp.addDays(todayIso, -21))).slice(-5);
+  const derivedActs = haveFacts ? bp.deriveActions({
+    L, todayIso, units: hq?.units || [], and: andW, upcoming: upActs, past: recentPast, detentionPosts: detPosts,
+    platforms: platTop, total: scoped ? inEv.length : total, priorityAccounts: priorityAccts, retainedAccounts: retainedAccts,
+    narratives: watchClaims, callPosts: regionPosts(analysis.facts.calls?.posts), level: threatLevelVal,
+  }) : [];
+  const planned = bp.planActions({ derived: derivedActs, model: dedupeActions((analysis?.actions || []).slice(0, 10)), todayIso, lastUpcoming, cap: 10 });
+
+  const upperFirst = (s) => { const t = String(s || '').trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : ''; };
+  const byText = (a) => (a.by === 'daily'
+    ? (a.byUntil ? L('Daily until {date}', { date: bp.dayLabel(a.byUntil) }) : L('Daily'))
+    : (a.by ? bp.dayLabel(a.by) : '—'));
+  const postCell = (ns) => {
+    const list = Array.from(new Set(ns || []));
+    list.sort((a, b) => a - b);
+    return `${list.slice(0, 6).map((n) => `[Post #${n}]`).join(' ')}${list.length > 6 ? ` +${list.length - 6}` : ''}`;
+  };
+  // Actions as one table: what, who, by when, what would make it urgent, and the posts behind it.
+  const actTable = (list, start = 0) => (list.length ? `<table class="acts">
+    <colgroup><col style="width:4%"><col style="width:36%"><col style="width:13%"><col style="width:10%"><col style="width:25%"><col style="width:12%"></colgroup>
+    <thead><tr><th>#</th><th>${esc(L('Action'))}</th><th>${esc(L('Owner'))}</th><th>${esc(L('By'))}</th><th>${esc(L('Escalate if'))}</th><th>${esc(L('Posts'))}</th></tr></thead>
+    <tbody>${list.map((a, i) => `<tr><td class="n">${start + i + 1}</td><td><b>${esc(a.title)}</b><div class="ad">${esc(a.derived ? a.doText : clip(a.doText, 230))}</div></td><td>${esc(a.owner || '—')}</td><td class="by">${esc(byText(a))}</td><td>${esc(upperFirst(a.escalate) || '—')}</td><td class="lk">${postCell(a.posts)}</td></tr>`).join('')}</tbody>
+  </table>` : '');
+
+  // Every activity with its status. Confirmed / Reported / Not verified; the number of posts is never read as turnout.
+  const ST_CLASS = { Confirmed: 'st-c', Reported: 'st-r', 'Not verified': 'st-n' };
+  const timelineTable = () => `<table class="tl-tbl">
+    <colgroup><col style="width:8%"><col style="width:25%"><col style="width:15%"><col style="width:11%"><col style="width:25%"><col style="width:16%"></colgroup>
+    <thead><tr><th>${esc(L('Date'))}</th><th>${esc(L('Event and place'))}</th><th>${esc(L('Organiser'))}</th><th>${esc(L('Status'))}</th><th>${esc(L('Outcome and turnout'))}</th><th>${esc(L('Posts'))}</th></tr></thead>
+    <tbody>${timelineRows.map((r) => `<tr><td class="dt">${esc(r.dateLabel)}</td><td><b>${esc(upperFirst(r.kind))}</b>${r.placeText ? ` — ${esc(clip(r.placeText, 90))}` : ''}${r.carried ? `<div class="sm">${esc(L('restored from the previous report'))}</div>` : ''}</td><td>${esc(r.organiser || L('Not stated in the posts'))}</td><td><span class="st ${ST_CLASS[r.status]}">${esc(r.statusLabel)}</span></td><td>${esc(r.outcome)}</td><td class="lk">${r.posts.length ? postCell(r.posts) : esc(L('see the previous report'))}</td></tr>`).join('')}</tbody>
+  </table>
+  <p class="cp-note">${esc(L('Confirmed: two or more news outlets report it held. Reported: posts only, no official source. Not verified: no post says if it took place. Post counts are not turnout.'))}</p>`;
+
+  // What changed since the previous report; empty when there is none to compare with.
+  const changeLogSection = () => {
+    if (!sameBasis || !haveFacts) return '';
+    const dayTz = (iso) => (iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: REPORT_TZ }) : '');
+    const prevActs = (prevRep.activities || []).filter((a) => !(regionOnly && a.place && outsideRegionPlace(a.place)));
+    const lines = bp.buildChangeLog({
+      L, and: andW,
+      prev: { ...prevRep, activities: prevActs },
+      cur: {
+        posts: n0(stats.total_unique_posts || stats.total_media_count), level: closingLevel({ facts: analysis.facts, stats }), activities: factActs,
+        accounts: (analysis.facts.accounts || []).map((a) => a.author), narratives: narrativesToWatch.map((n) => n.narrative).filter(Boolean),
+      },
+      prevDate: dayTz(prevRep.generated_at), curDate: dayTz(generated.toISOString()),
+    });
+    return lines.length ? `
+  ${secHead(L('Changes since the previous report'))}
+  <div class="cp-box chlog"><ul class="bul">${lines.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '';
+  };
+
   const watchHtml = narrativesToWatch.length
     ? `<div class="watch-box">
         <h4>Narratives to Watch & Misinformation Flags</h4>
@@ -1544,6 +1675,28 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   const levelKey = /crit/i.test(threatLevelVal) ? 'crit' : /high/i.test(threatLevelVal) ? 'high' : /med/i.test(threatLevelVal) ? 'med' : 'low';
   const narrativeCount = narrativesToWatch.length;
+  // First-page risk box: the level, what the posts show, what would change it, and the difference between a call to act and mobilising.
+  const surveillanceText = riskBox
+    ? (riskBox.surveillance.mode === 'enhanced'
+      ? (riskBox.surveillance.until ? L('Enhanced, until {date}', { date: bp.dayLabel(riskBox.surveillance.until) }) : L('Enhanced'))
+      : L('Baseline monitoring'))
+    : '';
+  const miniList = (items) => `<ul>${items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`;
+  const riseFallHtml = riskBox && (riskBox.rise || riskBox.fall)
+    ? `<div class="rf${riskBox.rise && riskBox.fall ? '' : ' one'}">${riskBox.rise ? `<div class="up"><h5>${esc(L('Risk would rise to {level} if:', { level: L(riskBox.rise.level) }))}</h5>${miniList(riskBox.rise.items)}</div>` : ''}${riskBox.fall ? `<div class="down"><h5>${esc(L('Risk would fall to {level} if:', { level: L(riskBox.fall.level) }))}</h5>${miniList(riskBox.fall.items)}</div>` : ''}</div>`
+    : '';
+  const riskExplainHtml = riskBox
+    ? `<p class="surv"><b>${esc(L('Surveillance priority'))}:</b> <span class="sv sv-${riskBox.surveillance.mode}">${esc(surveillanceText)}</span></p>
+      <div class="why-h"><b>${esc(L('Why this Risk Level:'))}</b> ${esc(L('Rated {level} because:', { level: L(threatLevelVal) }))}</div>
+      <ul class="why-ul">${riskBox.because.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+      ${riseFallHtml}
+      <div class="defs">${riskBox.defs.map((d, i) => `<div${i ? ' class="dn"' : ''}>${esc(d)}</div>`).join('')}</div>`
+    : `<p class="why"><b>Why this Risk Level:</b> ${esc(threatDesc)}</p>
+      <div class="chips">
+        <div><div class="ck">Mobilization & Agitation</div><div class="cv" style="color:${highRiskCount > 0 ? '#B42318' : INK}">${visits.length > 0 ? `${fmt(visits.length)} post${visits.length === 1 ? '' : 's'} report people on site` : 'No call to act found'}</div>${onSiteRefs ? `<div class="sm" style="margin-top:.6mm">${onSiteRefs}</div>` : ''}</div>
+        <div><div class="ck">Narratives to Watch</div><div class="cv">${esc(plural(narrativeCount, '{n} narrative flagged', '{n} narratives flagged'))}</div></div>
+        <div><div class="ck">Surveillance Priority</div><div class="cv" style="color:${threatBorderColor}">${topFlaggedProfiles.length > 0 ? `${topFlaggedProfiles.length} priority account(s)` : 'Baseline Monitoring'}</div></div>
+      </div>`;
   const assessHtml = `
   <div class="assess">
     <div class="lvl lvl-${levelKey}">
@@ -1553,12 +1706,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     </div>
     <div class="assess-body">
       ${analysis?.bottomLine ? `<p class="lead"><b>Bottom line:</b> ${esc(String(analysis.bottomLine).replace(/(\d+%\s+(?:of\s+(?:the\s+)?posts\s+)?(?:are|is)\s+)critical\b/gi, '$1negative'))}</p>` : ''}
-      <p class="why"><b>Why this Risk Level:</b> ${esc(threatDesc)}</p>
-      <div class="chips">
-        <div><div class="ck">Mobilization & Agitation</div><div class="cv" style="color:${highRiskCount > 0 ? '#B42318' : INK}">${visits.length > 0 ? `${fmt(visits.length)} post${visits.length === 1 ? '' : 's'} report people on site` : 'No call to act found'}</div>${onSiteRefs ? `<div class="sm" style="margin-top:.6mm">${onSiteRefs}</div>` : ''}</div>
-        <div><div class="ck">Narratives to Watch</div><div class="cv">${esc(plural(narrativeCount, '{n} narrative flagged', '{n} narratives flagged'))}</div></div>
-        <div><div class="ck">Surveillance Priority</div><div class="cv" style="color:${threatBorderColor}">${topFlaggedProfiles.length > 0 ? `${topFlaggedProfiles.length} priority account(s)` : 'Baseline Monitoring'}</div></div>
-      </div>
+      ${riskExplainHtml}
     </div>
   </div>`;
 
@@ -1567,7 +1715,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     <div><div class="n">${scoped ? fmt(inEv.length) : fmt(total)}</div><div class="l">Posts analysed</div></div>
     <div><div class="n">${fmt(engTotal)}</div><div class="l">Interactions (likes, shares, comments)</div></div>
     <div><div class="n">${haveFacts ? fmt(callN) : '—'}</div><div class="l">Posts calling people to act</div>${haveFacts && mobN ? `<div class="l" style="text-transform:none;letter-spacing:0;margin-top:.4mm">${fmt(mobN)} report mobilising</div>` : ''}</div>
-    <div><div class="n">${haveFacts ? fmt(violenceAcc > 1 ? violenceN : 0) : '—'}</div><div class="l">Violence confirmed</div>${haveFacts && (violenceAcc <= 1 && violenceN || allegedN || detentionN || mobN) ? `<div class="l" style="text-transform:none;letter-spacing:0;margin-top:.4mm">${[violenceAcc <= 1 && violenceN ? `${fmt(violenceN)} mentioned` : '', allegedN ? `${fmt(allegedN)} alleged` : '', detentionN ? `${fmt(detentionN)} arrests` : ''].filter(Boolean).join(' · ')}</div>` : ''}</div>
+    <div><div class="n">${haveFacts ? fmt(violenceAcc > 1 ? violenceN : 0) : '—'}</div><div class="l">Violence confirmed</div>${haveFacts && (violenceAcc <= 1 && violenceN || allegedN || detentionN || mobN) ? `<div class="l" style="text-transform:none;letter-spacing:0;margin-top:.4mm">${[violenceAcc <= 1 && violenceN ? `${fmt(violenceN)} mentioned` : '', allegedN ? `${fmt(allegedN)} alleged` : '', detentionN ? `${fmt(detentionN)} arrest${detentionN === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ')}</div>` : ''}</div>
     <div><div class="n">${fmt(highRiskN)}</div><div class="l">High / critical risk</div></div>
     <div><div class="n">${fmt(places.length)}</div><div class="l">Places covered</div></div>
   </div>`;
@@ -1741,27 +1889,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   const recommendedSection = () => `
   ${secHead('Recommended Actions')}
-  ${actions.length ? `<div class="cp-acts">${actions.map((a, i) => actCardHtml(a, i)).join('')}</div>` : '<p class="sm">Maintain standard baseline monitoring. No immediate operational escalation required at this stage.</p>'}`;
-
-  const factPlaceRegion = new Map((analysis?.facts?.places || []).map((x) => [foldGeo(x.name), foldGeo(x.region || '')]));
-  const outsideRegionPlace = (name) => { const r = factPlaceRegion.get(foldGeo(name)); const rn = foldGeo(regionName); return !!(r && rn && !r.includes(rn) && !foldGeo(name).includes(rn)); };
-  const factActs = (analysis?.facts?.activities || []).filter((a) => !a.outside && !(regionOnly && a.place && outsideRegionPlace(a.place)))
-    .map((a) => (regionOnly ? { ...a, posts: (a.posts || []).filter((n) => inNs.has(Number(n))) } : a))
-    .filter((a) => !regionOnly || a.posts.length);
-  const outsideFactNames = Array.from(factPlaceRegion.keys()).filter((n) => outsideRegionPlace(n));
-  const STATUS_TEXT = { denied: 'police permission refused or declared unlawful', permitted: 'permission granted', held: 'has taken place', called_off: 'called off', announced: 'announced' };
-  // A past activity that no post reports as held, called off or refused says "not verified", so its outcome is never left blank.
-  let todayIso = '';
-  try { todayIso = new Date(generated).toLocaleDateString('en-CA', { timeZone: REPORT_TZ }); } catch (e) { todayIso = ''; }
-  const needsStatus = (a) => Boolean(todayIso && a.date && String(a.date) < todayIso);
-  const actLine = (a) => {
-    const kind = L(String(a.kind || 'activity').replace(/^./, (c) => c.toUpperCase()));
-    const total = Object.values(a.statuses || {}).reduce((x, y) => x + y, 0);
-    const solid = (k, n) => k !== 'denied' || n >= 3 || n * 2 >= total;   // a refusal is shown only when several posts, or most of them, say so
-    const st = Object.entries(a.statuses || {}).filter(([k, n]) => k !== 'announced' && solid(k, n)).sort((x, y) => y[1] - x[1]).map(([k]) => STATUS_TEXT[k]).filter(Boolean)[0];
-    const announced = (a.statuses || {}).announced ? ` (${L('organiser says it will go ahead')})` : '';
-    return `${kind}${a.organiser ? ` ${L('called by')} ${a.organiser}` : ''}${a.place ? ` ${L('at')} ${a.place}` : ''}${a.subject ? ` — ${L('about')}: ${a.subject}` : a.subject === '' ? ` — ${L('reason not stated in the posts')}` : ''}${st ? `; ${L(st)}${st === STATUS_TEXT.denied ? announced : ''}` : needsStatus(a) ? `; ${L('not verified')}` : ''}`;
-  };
+  ${planned.length ? actTable(planned) : '<p class="sm">Maintain standard baseline monitoring. No immediate operational escalation required at this stage.</p>'}`;
 
   // Public order block built from the counted facts, so the level, what is confirmed and what is not can never disagree.
   const publicOrderHtml = () => {
@@ -1930,8 +2058,49 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   const closingSection = () => {
     const text = relabelClosing(String(analysis?.closingSummary || '').trim());
-    if (!text) return '';
+    const labelled = /^(CONFIRMED|NOT VERIFIED|NEXT STEPS|RISK)\s*$/m.test(text);
+    // With counted facts the summary is built from them (statuses, next steps, risk), so it matches the first page and the actions.
+    // The model's wording is used only for what the posts establish and what is not verified.
+    if (!text && !haveFacts) return '';
     const noPlan = (para) => para.split(/(?<=[.!?])\s+/).filter((x) => !(regionOnly && outsideFactNames.length && nameMatcher(outsideFactNames)(x))).filter((x) => !/\b(police|authorities|administration)\b[^.]{0,40}\b(plan|plans|planned|intend|intends|are monitoring|will monitor)\b/i.test(x)).join(' ');
+    const parseBlocks = () => text.split(/\n{2,}/).map((b) => {
+      const lines = b.split('\n').map((x) => x.trim()).filter(Boolean);
+      const head = lines.shift();
+      return { head, items: lines.map((x) => noPlan(x.replace(/^[-*•]\s*/, ''))).filter(Boolean) };
+    }).filter((b) => b.items.length);
+    const sumHead = () => `<div class="sec"><span class="no">${secNo()}</span><span class="nm">${esc(L('Summary'))}</span></div>`;
+
+    if (haveFacts && (labelled || !text)) {
+      const blocks = labelled ? parseBlocks() : [];
+      const fromModel = (head, n) => ((blocks.find((b) => b.head === head) || {}).items || []).slice(0, n);
+      const what = (r) => `${r.dateLabel} ${r.kind}${r.placeText ? ` ${L('at')} ${clip(r.placeText, 60)}` : ''}`;
+      // Events the posts report go in the first box; events whose outcome no post reports are one line in the second.
+      const statusLines = timelineRows.filter((r) => r.status !== 'Not verified').slice(0, 4).map((r) => `${what(r)}: ${r.statusLabel} (${r.note}).${r.posts.length ? ` ${r.posts.slice(0, 3).map((n) => `[Post #${n}]`).join(' ')}` : ''}`);
+      const unverifiedEvents = timelineRows.filter((r) => r.status === 'Not verified');
+      const unverifiedLine = unverifiedEvents.length ? L('No post reports the outcome of: {list}.', { list: bp.joinList(unverifiedEvents.slice(0, 4).map(what), andW) }) : '';
+      const last = upActs.length ? upActs[upActs.length - 1] : null;
+      const steps = [
+        last
+          ? L('Re-run this report on {date} to record the outcome of the {date2} {kind}: turnout, disruptions and arrests.', { date: bp.dayLabel(bp.addDays(last.date, 1)), date2: bp.dayLabel(last.date), kind: L(last.kind || 'activity') })
+          : L('Re-run this report when new posts arrive, to check whether the situation has changed.'),
+        L('The next report should keep all earlier events and accounts, or list any removed in the change log.'),
+      ];
+      const riskItems = [
+        L('Rated {level} because {reason}.', { level: L(threatLevelVal), reason: levelReason }),
+        riskBox && (riskBox.rise || riskBox.fall) ? L('What would raise or lower it is listed in the risk box on the first page.') : '',
+      ].filter(Boolean);
+      const boxes = [
+        ['Confirmed or reported', '#1B7A4E', statusLines.length ? statusLines : fromModel('CONFIRMED', 2)],
+        ['Not yet verified', '#C45C26', [unverifiedLine, ...fromModel('NOT VERIFIED', 2)].filter(Boolean)],
+        ['Next steps', NAVY, steps],
+        ['Risk level', '#B42318', riskItems],
+      ].filter((b) => b[2].length);
+      return `
+  ${sumHead()}
+  <div class="sumgrid">${boxes.map(([title, color, items]) => `<div class="sumbox" style="border-top-color:${color}"><h4 style="color:${color}">${esc(L(title))}</h4><ul>${items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>`).join('')}</div>`;
+    }
+
+    // Older reports without counted facts keep the model's closing text as it is.
     // The level on the first page is computed from the counted facts. The model's closing "risk" line must name that same level,
     // so one brief never says Low on page 1 and Medium on page 3. Only a level stated as the risk level is changed, never a count such as "high-risk posts".
     const lvl = String(threatLevelVal || '');
@@ -1939,13 +2108,8 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       ? x.replace(/^(Critical|High|Medium|Low)\b/i, lvl)
         .replace(/\b(risk(?:\s+level)?\s+(?:is|remains|stays|stands at|is now|is rated|reassessed(?:\s+(?:as|to))?)\s+)(Critical|High|Medium|Low)\b/gi, `$1${lvl}`)
       : x);
-    const labelled = /^(CONFIRMED|NOT VERIFIED|NEXT STEPS|RISK)\s*$/m.test(text);
     if (labelled) {
-      const blocks = text.split(/\n{2,}/).map((b) => {
-        const lines = b.split('\n').map((x) => x.trim()).filter(Boolean);
-        const head = lines.shift();
-        return { head, items: lines.map((x) => noPlan(x.replace(/^[-*•]\s*/, ''))).filter(Boolean).map((x) => (head === 'RISK' ? alignLevel(x) : x)) };
-      }).filter((b) => b.items.length);
+      const blocks = parseBlocks().map((b) => (b.head === 'RISK' ? { ...b, items: b.items.map(alignLevel) } : b));
       const META = {
         CONFIRMED: { t: 'Confirmed', c: '#1B7A4E' },
         'NOT VERIFIED': { t: 'Not yet verified', c: '#C45C26' },
@@ -1953,63 +2117,62 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
         RISK: { t: 'Risk reassessed', c: '#B42318' },
       };
       return `
-  <div class="sec"><span class="no">${secNo()}</span><span class="nm">${esc(L('Summary'))}</span></div>
+  ${sumHead()}
   <div class="sumgrid">${blocks.map((b) => { const m = META[b.head] || { t: b.head, c: NAVY }; return `<div class="sumbox" style="border-top-color:${m.c}"><h4 style="color:${m.c}">${esc(L(m.t))}</h4><ul>${b.items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>`; }).join('')}</div>`;
     }
     const paras = text.split(/\n{2,}/).map((x) => noPlan(x.trim())).filter(Boolean);
     return `
-  <div class="sec"><span class="no">${secNo()}</span><span class="nm">${esc(L('Summary'))}</span></div>
+  ${sumHead()}
   <div class="closing">${paras.map((x) => `<p>${esc(x)}</p>`).join('')}</div>`;
   };
 
-  // Specific Event Location Summary: two pages, visual first. Same facts as the other reports, laid out as boards and charts.
+  // Specific Event Location Summary: visual first. Same facts as the other reports, laid out as boards and charts.
   const compactBody = () => {
     const kd = (factActs.length ? factActs.map((a) => ({ date: a.date, event: actLine(a), posts: a.posts })) : keyDates.filter((k) => !k.outside)).slice(0, 5);
-    const dayLabel = (d) => { const t = parseDateMs(d); return t ? new Date(t).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: REPORT_TZ }) : esc(clip(String(d || ''), 12)); };
-    const timeline = kd.length
-      ? `<div class="cp-tl">${kd.map((k) => `<div class="it"><span class="dt">${dayLabel(k.date)}</span><span class="kd">${esc(clipStatus(String(k.event || k.what || '').replace(/^\d{4}-\d{2}-\d{2}:?\s*/, ''), 150))}</span>${k.posts?.length ? `<span class="lk">${esc(k.posts.slice(0, 5).map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</div>`).join('')}</div>`
-      : `<p class="sm">${esc(L('No dated activity is named in the posts.'))}</p>`;
+    const dayLbl = (d) => { const t = parseDateMs(d); return t ? new Date(t).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: REPORT_TZ }) : esc(clip(String(d || ''), 12)); };
+    const timeline = timelineRows.length
+      ? timelineTable()
+      : kd.length
+        ? `<div class="cp-tl">${kd.map((k) => `<div class="it"><span class="dt">${dayLbl(k.date)}</span><span class="kd">${esc(clipStatus(String(k.event || k.what || '').replace(/^\d{4}-\d{2}-\d{2}:?\s*/, ''), 150))}</span>${k.posts?.length ? `<span class="lk">${esc(k.posts.slice(0, 5).map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</div>`).join('')}</div>`
+        : `<p class="sm">${esc(L('No dated activity is named in the posts.'))}</p>`;
     const topPlaces = places.slice(0, 5);
     const pMax = Math.max(1, ...topPlaces.map((x) => x.count));
     const placeBars = topPlaces.length
       ? topPlaces.map((x) => `<div class="cp-pl"><span class="pn">${esc(x.name)}</span><span class="pb"><i style="width:${Math.max(10, (100 * x.count) / pMax)}%"></i></span><span class="pv">${fmt(x.count)}</span><span class="pk">${(x.posts || []).slice(0, 3).map((n) => `[Post #${n}]`).join(' ')}</span></div>`).join('')
       : `<p class="sm">${esc(L('No specific place inside the region is named in the posts.'))}</p>`;
-    const card = (a, i) => actCardHtml(a, i);
-    const first = actions.slice(0, 2);
-    const more = actions.slice(2, 5);
-    const actCards = first.length
-      ? `<div class="cp-acts">${first.map(card).join('')}</div>`
-      : `<p class="sm">${esc(L('Maintain standard baseline monitoring.'))}</p>`;
-    const moreCards = () => (more.length ? `${secHead('Further Actions')}<div class="cp-acts">${more.map((a, i) => card(a, i + 2)).join('')}</div>` : '');
+    const priority = planned.slice(0, 3);
+    const further = planned.slice(3, 7);
+    const actsHtml = priority.length ? actTable(priority, 0) : `<p class="sm">${esc(L('Maintain standard baseline monitoring.'))}</p>`;
+    const furtherHtml = () => (further.length ? `${secHead(L('Further actions'))}${actTable(further, 3)}` : '');
     const rb = riskParts.map((x) => `<div style="background:${x.c}"><div class="n">${fmt(x.v)}</div><div class="l">${esc(L(x.k))}</div></div>`).join('');
     const reach = acctList.slice().sort((a, b) => (b.inter || 0) - (a.inter || 0)).slice(0, 5);
     const rMax = Math.max(1, ...reach.map((a) => a.inter || 0));
     const reachBars = reach.map((a) => hbar(a.author, a.inter || 0, rMax, TIER_DOT[a.tier] || BAR, `${a.posts.length} ${L(a.posts.length === 1 ? 'post' : 'posts')}`, L('interactions'))).join('');
     const watch = narrativesToWatch.slice(0, 3);
     const unknown = (analysis?.notKnown || []).slice(0, 3);
+    const fcIdx = planned.slice(0, 7).findIndex((a) => a.key === 'factcheck');
+    const handling = fcIdx >= 0 ? `<p class="cp-note"><b>${esc(L('Handling'))}:</b> ${esc(L('check against official records, give the PRO a factual line, and follow responsible-reporting norms (action {n}).', { n: fcIdx + 1 }))}</p>` : '';
     return `
   ${kstripHtml}
-  <div class="cp-row">
-    <div class="cp-box"><h4>${esc(L('What is happening and when'))}</h4>${timeline}</div>
-    <div class="cp-box"><h4>${esc(L('Where posts place it'))}</h4>${placeBars}<p class="cp-note">${esc(L('People reported on site'))}: <b>${fmt(visits.length)}</b> ${visits.slice(0, 6).map((e) => `[Post #${e.n}]`).join(' ')}</p></div>
-  </div>
-  ${secHead('What To Do')}
-  ${actCards}
-  ${moreCards()}
+  ${secHead(L('What to do (priority)'))}
+  ${actsHtml}
+  <div class="cp-row one"><div class="cp-box"><h4>${esc(L('What is happening and when'))}</h4>${timeline}</div></div>
+  ${furtherHtml()}
   ${secHead('How Serious It Is')}
   <div class="cp-row">
     <div class="cp-box"><h4>${esc(L('Risk of the posts'))}</h4><div class="cp-big">${rb}</div>${stackBar(riskParts, false)}<p class="cp-note">${esc(L('Risk comes from calls to act, violence or a high-risk rating. Tone is shown separately.'))}</p></div>
     <div class="cp-box"><h4>${esc(L('Tone of the posts'))}</h4><div class="donutwrap">${donutSvg(briefSent, pct(sent.negative, sentTotal), 'Negative')}<div class="trows">${briefSent.map((x) => `<div class="trow tone"><span class="tl"><i style="background:${x.c}"></i><span>${esc(L(x.k))} ${fmt(x.v)} (${pct(x.v, sentTotal)})</span></span></div>`).join('')}</div></div></div>
   </div>
   <div class="cp-row">
+    <div class="cp-box"><h4>${esc(L('Where posts place it'))}</h4>${placeBars}<p class="cp-note">${esc(L('People reported on site'))}: <b>${fmt(visits.length)}</b> ${visits.slice(0, 6).map((e) => `[Post #${e.n}]`).join(' ')}</p></div>
     <div class="cp-box"><h4>${esc(L('Posts per day'))}</h4>${timelineChart(scoped ? dailySeries(inEv) : kwa?.timeline_overall)}</div>
-    <div class="cp-box"><h4>${esc(L('Where it is posted'))}</h4>${platformBars || ''}</div>
   </div>
   <div class="cp-row">
     <div class="cp-box"><h4>${esc(L('Largest reach'))}</h4>${reachBars || `<p class="sm">${esc(L('No accounts in this set.'))}</p>`}<p class="cp-note">${Object.entries(TIER_WORD).map(([t, w]) => `<span style="color:${TIER_DOT[t]}">●</span> ${esc(L(w))}`).join(' &nbsp; ')}</p></div>
-    <div class="cp-box"><h4>${esc(L('Watch and verify'))}</h4>${watch.length ? `<ul class="bul">${watch.map((n) => `<li><b>${esc(clip(n.narrative, 80))}</b>${n.riskNote ? `: ${esc(clip(n.riskNote, 90))}` : ''}${n.posts?.length ? ` <span class="sm">${esc(n.posts.slice(0, 4).map((p) => `[Post #${p}]`).join(' '))}</span>` : ''}</li>`).join('')}</ul>` : `<p class="sm">${esc(L('No narrative flagged.'))}</p>`}${unknown.length ? `<p class="cp-note"><b>${esc(L('Not known'))}:</b> ${unknown.map((u) => esc(clip(String(typeof u === 'string' ? u : (u.text || u.item || '')).replace(/[.\s]+$/, ''), 90))).join('; ')}</p>` : ''}</div>
+    <div class="cp-box"><h4>${esc(L('Watch and verify'))}</h4>${watch.length ? `<ul class="bul">${watch.map((n) => `<li><b>${esc(clip(n.narrative, 80))}</b>${n.riskNote ? `: ${esc(clip(n.riskNote, 90))}` : ''}${n.posts?.length ? ` <span class="sm">${esc(n.posts.slice(0, 4).map((p) => `[Post #${p}]`).join(' '))}</span>` : ''} <span class="st st-n">${esc(L('Not verified'))}</span></li>`).join('')}</ul>${handling}` : `<p class="sm">${esc(L('No narrative flagged.'))}</p>`}${unknown.length ? `<p class="cp-note"><b>${esc(L('Not known'))}:</b> ${unknown.map((u) => esc(clip(String(typeof u === 'string' ? u : (u.text || u.item || '')).replace(/[.\s]+$/, ''), 90))).join('; ')}</p>` : ''}</div>
   </div>
-  ${closingSection()}`;
+  ${closingSection()}
+  ${changeLogSection()}`;
   };
 
   const presentationPeriod = (() => {
@@ -2025,7 +2188,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       event, tenant, windowStr, period: presentationPeriod, dateStr, total, sent, sentTotal, engTotal, ev: scopeEv, riskParts, platformEntries, kws,
       classification: hq?.classification || '',
       coverage: { collected: n0(stats.relevant_posts_count) || ev.length, inRegion: scoped ? inEv.length : null, region: event.location || '', unrelated: n0(stats.unrelated_posts_count), duplicates: n0(stats.duplicate_posts_merged), register: ev.length },
-      analysis, places, authors, threatLevel: threatLevelVal, rationale: computedRationale, bottomLine: bl, narrativesToWatch, actions, notKnown: analysis?.notKnown || [], stats,
+      analysis, places, authors, threatLevel: threatLevelVal, rationale: computedRationale, bottomLine: bl, narrativesToWatch, actions: planned, notKnown: analysis?.notKnown || [], stats,
       counts: {
         violenceConfirmed: violenceAcc > 1 ? violenceN : 0, violenceMentioned: violenceAcc > 1 ? 0 : violenceN, alleged: allegedN, detentions: detentionN,
         calls: callN, mobilising: mobN, highRisk: highRiskN,
@@ -2072,6 +2235,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${accountsSection()}
   ${reactionSection()}
   ${closingSection()}
+  ${changeLogSection()}
   ${evidenceSection()}`}
 </section>
 `;
