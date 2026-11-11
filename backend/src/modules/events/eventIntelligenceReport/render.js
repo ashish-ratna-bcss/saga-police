@@ -45,6 +45,18 @@ const renderHtmlToPdf = async (html, opts = {}) => {
   }
 };
 
+// A row of slide cards whose text still overflows gets one smaller text scale, shared by the row, so nothing is cut off and the cards stay alike.
+const fitCards = (page) => page.evaluate(() => {
+  document.querySelectorAll('.cols3').forEach((row) => {
+    const cards = Array.from(row.querySelectorAll('.card'));
+    let s = 1;
+    while (s > 0.7 && cards.some((c) => c.scrollHeight > c.clientHeight + 1)) {
+      s = Math.round((s - 0.04) * 100) / 100;
+      cards.forEach((c) => c.style.setProperty('--s', s));
+    }
+  });
+});
+
 const renderNow = async (html, { footerLabel = '', presentation = false } = {}) => {
   const browser = await getBrowser();
   const page = await browser.newPage();
@@ -54,6 +66,7 @@ const renderNow = async (html, { footerLabel = '', presentation = false } = {}) 
     await page.evaluate(async () => {
       if (document.fonts && document.fonts.ready) await document.fonts.ready;
     });
+    if (presentation) await fitCards(page);
     const footer = `<div style="width:100%;font-size:7px;color:#8792A6;font-family:Arial,sans-serif;padding:0 11mm;display:flex;justify-content:space-between;">
       <span>${esc(footerLabel)}</span><span>Page <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`;
     if (presentation) {
@@ -76,4 +89,4 @@ const renderNow = async (html, { footerLabel = '', presentation = false } = {}) 
   }
 };
 
-module.exports = { renderHtmlToPdf, esc, __test: { MAX_CONCURRENT } };
+module.exports = { renderHtmlToPdf, esc, __test: { MAX_CONCURRENT, fitCards } };
