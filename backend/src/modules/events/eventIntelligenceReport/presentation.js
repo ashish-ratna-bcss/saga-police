@@ -3,6 +3,8 @@
  * big numbers, plain sentences). Everything shown is computed from the event's own data; no tenant, place or topic is named here.
  */
 
+const bp = require('../../../services/SummaryLLM/briefPlan');
+
 const SLIDE_W = 1280;
 const SLIDE_H = 720;
 
@@ -53,7 +55,7 @@ body{font-family:'Lato','Liberation Sans','Helvetica Neue',Arial,sans-serif;colo
 .card p b{color:${COLORS.navy}}
 .card .esc{display:block;margin-top:6px;font-size:16px;color:#7A1F1F}
 .small{font-size:15px;color:#5B6880}
-.chartcol{display:flex;gap:14px;align-items:flex-end;height:360px;border-bottom:2px solid #D5DCE8;padding:0 6px}
+.chartcol{display:flex;gap:14px;align-items:flex-end;height:290px;border-bottom:2px solid #D5DCE8;padding:0 6px}
 .chartcol .b{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%}
 .chartcol .b i{display:block;width:100%;background:${COLORS.blue};border-radius:4px 4px 0 0}
 .chartcol .b.pk i{background:${COLORS.red}}
@@ -61,17 +63,18 @@ body{font-family:'Lato','Liberation Sans','Helvetica Neue',Arial,sans-serif;colo
 .chartlab{display:flex;gap:14px;padding:0 6px;margin-top:8px}
 .chartlab span{flex:1;text-align:center;font-size:18px;color:#3A4866}
 .split{display:grid;grid-template-columns:1.55fr 1fr;gap:32px}
-.phase{border-radius:16px;color:#fff;padding:20px 24px;margin:0 0 18px}
-.phase h4{margin:0 0 8px;font-size:23px}.phase p{margin:0;font-size:18px;line-height:1.4}
+.phase{border-radius:16px;color:#fff;padding:14px 20px;margin:0 0 12px}
+.phase h4{margin:0 0 6px;font-size:21px}.phase p{margin:0;font-size:17px;line-height:1.38}.phase p.s{margin-top:5px;font-size:15px;opacity:.95}
 .phase.a{background:${COLORS.teal}}.phase.b{background:${COLORS.orange}}.phase.c{background:${COLORS.red}}
-.tone{display:grid;grid-template-columns:230px 1fr;align-items:center;gap:20px;margin:0 0 54px}
+.tone{display:grid;grid-template-columns:230px 1fr;align-items:center;gap:20px;margin:0 0 16px}
 .tone .lab{text-align:right;font-size:24px;color:#2B3957}
-.tone .bar{display:flex;height:138px;border-radius:6px;overflow:hidden;width:760px}
-.tone .bar div{display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px}
+.tone .bar{display:flex;height:56px;border-radius:6px;overflow:hidden;width:760px}
+.tone .bar div{display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px}
 .legend2{display:flex;gap:28px;justify-content:center;font-size:21px;margin-top:6px}
 .legend2 i{display:inline-block;width:16px;height:16px;margin-right:8px;vertical-align:-2px}
 .hb{display:grid;grid-template-columns:300px 1fr 70px;gap:14px;align-items:center;margin:0 0 15px;font-size:20px}
 .hb .nm{text-align:right;color:#2B3957;line-height:1.15}
+.hb .nm small{display:block;font-size:15px;color:#6B7A99;margin-top:2px}
 .hb .tr{height:34px;background:#F1F4F9;border-radius:4px}
 .hb .fl{height:100%;border-radius:4px}
 .hb .v{font-weight:700;color:${COLORS.ink}}
@@ -93,6 +96,16 @@ table.n td{font-size:20px;line-height:1.45}
 .donutbox svg{width:330px;height:330px}
 .lg{font-size:21px;line-height:1.9}
 .lg i{display:inline-block;width:18px;height:18px;margin-right:10px;vertical-align:-2px;border-radius:3px}
+.card .it{margin:0 0 12px;padding:0 0 11px;border-bottom:1px solid #D5DEEE}
+.card .it:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0}
+.card .it .t{font-size:19px;font-weight:700;color:${COLORS.navy};line-height:1.25}
+.card .it .m{font-size:15px;color:#5B6880;margin-top:2px}
+.card .it .d{font-size:17px;line-height:1.4;color:#2B3957;margin-top:4px}
+.card .it .e{font-size:15px;line-height:1.35;color:#7A1F1F;margin-top:5px}
+.pl{display:grid;grid-template-columns:200px 1fr 1fr;gap:18px;align-items:center;margin:0 0 8px;font-size:19px}
+.pl.hd{font-size:15px;color:#5B6880;margin:0 0 6px}
+.pl .nm{text-align:right;color:#2B3957}
+.pl .tr{display:flex;align-items:center;gap:10px;height:28px}.pl .fl{height:100%;border-radius:4px}.pl .v{font-weight:700;font-size:17px;color:${COLORS.ink}}
 `;
 
 const slide = (cls, inner, { tenant, mark, no }) => `<section class="slide ${cls}">${inner}<div class="foot"><span>${tenant}${mark ? ` | ${mark}` : ''}</span><span>${no || ''}</span></div></section>`;
@@ -104,7 +117,7 @@ const buildPresentationBody = (ctx) => {
   const {
     esc, fmt, pct, clip, L, donutSvg, platLabel, platColor,
     event, tenant, windowStr: windowFull, period, dateStr, total, sent, sentTotal, engTotal, ev, riskParts, platformEntries, kws,
-    analysis, places, authors, threatLevel, rationale, coverage, bottomLine, counts, narrativesToWatch, actions, notKnown, stats,
+    analysis, places, authors, threatLevel, rationale, coverage, bottomLine, counts, narrativesToWatch, actions, story, notKnown, stats,
   } = ctx;
   const t = esc(tenant);
   const windowStr = period || windowFull;
@@ -126,6 +139,25 @@ const buildPresentationBody = (ctx) => {
   };
   const pc = (a, b) => (b > 0 ? Math.round((1000 * a) / b) / 10 : 0);
   const posts = (ev || []).filter((e) => e.posted_at);
+
+  // Events with their status, from the counted facts (empty for an older report without facts): the slides say what the posts report happened.
+  const rows = (story && story.rows) || [];
+  const detNs = new Set((story && story.detentionNs) || []);
+  const evByNo = new Map((ev || []).map((e) => [e.n, e]));
+  const upperFirst = (s) => { const x = String(s || '').trim(); return x ? x.charAt(0).toUpperCase() + x.slice(1) : ''; };
+  const endDot = (s) => (/[.!?]$/.test(String(s || '')) ? String(s) : `${s}.`);
+  const andW = L('and');
+  const shortPlaces = (r) => ((r.places || []).length > 3 ? `${r.places.slice(0, 3).join(', ')} ${andW} ${L('{n} more places', { n: r.places.length - 3 })}` : r.placeText || '');
+  // "Bandh called by Group at Town A"
+  const rowWhat = (r) => `${upperFirst(r.kind)}${r.organiser ? ` ${L('called by')} ${r.organiser}` : ''}${shortPlaces(r) ? ` ${L('at')} ${shortPlaces(r)}` : ''}`;
+  const rowStory = (r) => bp.outcomeLine({ L, row: r, arrests: (r.posts || []).some((n) => detNs.has(n)) });
+  const quoteOf = (text, max = 100) => {
+    const t = String(text || '').replace(/https?:\/\/\S+/g, '').replace(/[#@]\S+/g, '').replace(/\s+/g, ' ').trim();
+    if (!t) return '';
+    return t.length <= max ? `“${t}”` : `“${t.slice(0, max).replace(/\s+\S*$/, '')}…”`;
+  };
+  // The post about an event that drew the most interactions: what the posts themselves say about it.
+  const topPostOf = (r) => (r.posts || []).map((n) => evByNo.get(n)).filter(Boolean).sort((a, b) => (Number(b.inter) || 0) - (Number(a.inter) || 0))[0] || null;
 
   // Tone shares: posts from the full counts; engagement from the posts listed in the evidence register.
   const engBy = { positive: 0, neutral: 0, negative: 0 };
@@ -149,11 +181,17 @@ const buildPresentationBody = (ctx) => {
 
   // ---- 2. In short
   const points = [];
-  if (bottomLine) points.push({ c: COLORS.blue, tx: esc(whole(bottomLine, 330)) });
+  if (bottomLine) points.push({ c: COLORS.blue, tx: esc(whole(noCite(bottomLine), 330)) });
   if (engSum > 0) points.push({ c: COLORS.orange, tx: esc(L('Negative posts are {a}% of posts and draw {b}% of the engagement.', { a: negPostPct, b: negEngPct })) });
   points.push({ c: COLORS.purple, tx: `${esc(L('Risk level'))}: <b>${esc(L(threatLevel))}</b>. ${esc(whole(rationale, 260))}` });
   const dates = (analysis?.keyDates || []).filter((k) => !k.outside).slice(0, 1);
-  if (dates.length) points.push({ c: COLORS.green, tx: `${esc(dates[0].date || '')}: ${esc(whole(dates[0].event || '', 200))}` });
+  if (rows.length) {
+    // The first event, with what the posts say happened at it and the post that drew the most reaction.
+    const r = rows[0];
+    const top = topPostOf(r);
+    const q = top ? quoteOf(top.text, 95) : '';
+    points.push({ c: COLORS.green, tx: `${esc(r.date)}: ${esc(endDot(rowWhat(r)))} ${esc(rowStory(r))}${q ? ` ${esc(L('A post says:'))} ${esc(q)}` : ''}` });
+  } else if (dates.length) points.push({ c: COLORS.green, tx: `${esc(dates[0].date || '')}: ${esc(whole(dates[0].event || '', 200))}` });
   const s2 = `<h2>${esc(L('In short'))}</h2>
     <div class="row4">
       <div class="tile or"><div class="n">${fmt(total)}</div><div class="l">${esc(L('public posts'))}</div></div>
@@ -164,26 +202,33 @@ const buildPresentationBody = (ctx) => {
     ${points.slice(0, 4).map((p, i) => `<div class="point"><div class="num" style="background:${p.c}">${i + 1}</div><div class="tx">${p.tx}</div></div>`).join('')}`;
 
   // ---- 3. Recommended actions
-  const claimLines = (narrativesToWatch || []).slice(0, 2).map((n) => `<p><b>${esc(whole(noCite(n.narrative), 110))}</b><br>${esc(whole(noCite(n.riskNote), 130))}</p>`).join('')
+  // Each card item: a bold title, a grey line for who and by when, the plain instruction, and what would make it urgent.
+  const claimItems = (narrativesToWatch || []).slice(0, 2).map((n) => `<div class="it"><div class="t">${esc(whole(noCite(n.narrative), 90))}</div><div class="d">${esc(whole(noCite(n.riskNote), 130))}</div></div>`).join('')
     || `<p>${esc(L('No claim needs checking in this window.'))}</p>`;
-  const actLines = (actions || []).slice(0, 2).map((a) => {
+  const headOf = (t) => { const x = String(t || ''); const i = x.indexOf(': '); return i >= 25 && i <= 130 ? `${x.slice(0, i)}.` : x; };
+  const toDo = (actions || []).filter((a) => a.key !== 'verify').slice(0, 2);   // checking past events is shown below, as what happened
+  const actItems = toDo.map((a) => {
     const parts = String(a.action || '').split(/\s+[—–]\s+/);
     const m = String(a.detail || '').match(/\s*(Escalate if[^]*?)$/i);
-    const doText = noCite(m ? String(a.detail).slice(0, m.index) : a.detail);
-    return `<p><b>${esc(parts[0])}</b>${parts[1] ? ` · ${esc(parts[1])}` : ''}<br>${esc(whole(doText, 120))}${m ? `<span class="esc">${esc(whole(noCite(m[1]), 110))}</span>` : ''}</p>`;
+    const title = a.title || parts[0];
+    const owner = a.owner || parts.slice(1).join(' — ');
+    const doText = noCite(a.doText || (m ? String(a.detail).slice(0, m.index) : a.detail));
+    const esc2 = noCite(a.escalate || (m ? m[1].replace(/^Escalate if\s*/i, '') : '')).replace(/[.\s]+$/, '');
+    const meta = [owner, a.byLabel && a.byLabel !== '—' ? `${L('By')} ${a.byLabel}` : ''].filter(Boolean).join(' · ');
+    return `<div class="it"><div class="t">${esc(title)}</div>${meta ? `<div class="m">${esc(meta)}</div>` : ''}<div class="d">${esc(whole(headOf(doText), 130))}</div>${esc2 ? `<div class="e"><b>${esc(L('Escalate if'))}</b> ${esc(whole(esc2, 110).replace(/[.]$/, ''))}</div>` : ''}</div>`;
   }).join('') || `<p>${esc(L('Maintain standard baseline monitoring.'))}</p>`;
-  const watch = [];
-  watch.push(L('Violence: {a} confirmed, {b} mentioned, {c} alleged or warned.', { a: counts.violenceConfirmed, b: counts.violenceMentioned, c: counts.alleged }));
-  if (counts.detentions) watch.push(nPosts(counts.detentions, '{n} post reports arrests, detentions or a refused permission.', '{n} posts report arrests, detentions or a refused permission.'));
-  (notKnown || []).slice(0, 2).forEach((x) => watch.push(noCite(String(typeof x === 'string' ? x : (x.text || x.item || '')).replace(/[.\s]+$/, ''))));
+  // What the posts say happened at each past event, roughly and shortly (no counts).
+  const pastRows = rows.filter((r) => !r.upcoming).slice(-4);
+  const pastItems = pastRows.map((r) => `<div class="it"><div class="t">${esc(r.dateLabel)} · ${esc(upperFirst(r.kind))}${shortPlaces(r) ? `, ${esc(shortPlaces(r))}` : ''}</div><div class="d">${r.organiser ? `${esc(L('Called by {organiser}.', { organiser: r.organiser }))} ` : ''}${esc(rowStory(r))}</div></div>`).join('');
+  const nextItems = (notKnown || []).slice(0, 2).map((x) => noCite(String(typeof x === 'string' ? x : (x.text || x.item || '')).replace(/[.\s]+$/, ''))).filter(Boolean).map((x) => `<div class="it"><div class="d">${esc(whole(x, 150))}</div></div>`).join('');
   const hasClaims = (narrativesToWatch || []).length > 0;
-  const hasActs = (actions || []).length > 0;
+  const hasActs = toDo.length > 0;
   const cards3 = [
-    hasClaims ? `<div class="card"><h3>${esc(L('Claims to verify and answer'))}</h3>${claimLines}</div>` : '',
-    hasActs ? `<div class="card o"><h3>${esc(L('What to do first'))}</h3>${actLines}</div>` : '',
-    `<div class="card g"><h3>${esc(L('What to watch next'))}</h3>${watch.filter(Boolean).map((w) => `<p>${esc(whole(w, 190))}</p>`).join('')}</div>`,
+    hasClaims ? `<div class="card"><h3>${esc(L('Claims to verify and answer'))}</h3>${claimItems}</div>` : '',
+    hasActs ? `<div class="card o"><h3>${esc(L('What to do first'))}</h3>${actItems}</div>` : '',
+    pastItems ? `<div class="card g"><h3>${esc(L('What happened at past events'))}</h3>${pastItems}</div>` : (nextItems ? `<div class="card g"><h3>${esc(L('What to watch next'))}</h3>${nextItems}</div>` : ''),
   ].filter(Boolean);
-  const s3 = `<h2>${esc(L('Recommended actions'))}</h2><div class="cols3" style="grid-template-columns:repeat(${cards3.length},1fr)">${cards3.join('')}</div>${hasActs ? '' : `<p class="small" style="margin-top:22px">${esc(L('Maintain standard baseline monitoring.'))}</p>`}`;
+  const s3 = cards3.length ? `<h2>${esc(L('Recommended actions'))}</h2><div class="cols3" style="grid-template-columns:repeat(${cards3.length},1fr)">${cards3.join('')}</div>${hasActs ? '' : `<p class="small" style="margin-top:22px">${esc(L('Maintain standard baseline monitoring.'))}</p>`}` : '';
 
   // ---- 4. How the conversation built up
   const byDay = {};
@@ -196,29 +241,81 @@ const buildPresentationBody = (ctx) => {
   const maxDay = Math.max(1, ...days.map((d) => byDay[d].n));
   const peakDay = days.reduce((b, d) => (byDay[d].n > (byDay[b]?.n || 0) ? d : b), days[0]);
   const dayLab = (d) => { const x = new Date(`${d}T00:00:00Z`); return `${x.getUTCDate()} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][x.getUTCMonth()]}`; };
-  const phaseOf = (list, cls, title) => {
+  // Old reports without events keep the numbers; otherwise each phase says which events fell in it and which places the posts name.
+  const phaseNumbers = (list, cls, title) => {
     if (!list.length) return '';
     const ns = list.map((d) => byDay[d].n); const ng = list.map((d) => pc(byDay[d].neg, byDay[d].n));
     return `<div class="phase ${cls}"><h4>${esc(title)}</h4><p>${esc(dayLab(list[0]))}${list.length > 1 ? ` ${esc(L('to'))} ${esc(dayLab(list[list.length - 1]))}` : ''}: ${Math.min(...ns)}${Math.min(...ns) !== Math.max(...ns) ? ` ${esc(L('to'))} ${Math.max(...ns)}` : ''} ${esc(L('posts a day'))}, ${Math.round(Math.min(...ng))}% ${Math.round(Math.min(...ng)) !== Math.round(Math.max(...ng)) ? `${esc(L('to'))} ${Math.round(Math.max(...ng))}% ` : ''}${esc(L('negative'))}.</p></div>`;
   };
+  const placesIn = (from, to) => {
+    const counts = {};
+    posts.filter((e) => { const d = String(e.posted_at).slice(0, 10); return d >= from && d <= to; })
+      .forEach((e) => ((e.specific && e.specific.length ? e.specific : e.places) || []).forEach((p) => { counts[p] = (counts[p] || 0) + 1; }));
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([p]) => p);
+  };
+  const phaseStory = (list, cls, title) => {
+    if (!list.length) return '';
+    const from = list[0]; const to = list[list.length - 1];
+    const events = rows.filter((r) => r.date >= from && r.date <= to).slice(0, 2);
+    const top = placesIn(from, to);
+    const first = byDay[from]; const last = byDay[to];
+    const volume = list.length < 2 ? '' : last.n >= first.n * 1.3 ? L('Daily posts rose.') : last.n <= first.n * 0.7 ? L('Daily posts fell.') : L('Daily posts held steady.');
+    const negDiff = pc(last.neg, last.n) - pc(first.neg, first.n);
+    const tone = list.length < 2 ? '' : negDiff >= 10 ? L('More posts were critical.') : negDiff <= -10 ? L('Fewer posts were critical.') : '';
+    const evText = events.length
+      ? events.map((r) => `${r.dateLabel}: ${upperFirst(r.kind)}${shortPlaces(r) ? ` ${L('at')} ${shortPlaces(r)}` : ''}.`).join(' ')
+      : L('No dated event is named in the posts for these days.');
+    const trend = [volume, tone].filter(Boolean).join(' ');
+    return `<div class="phase ${cls}"><h4>${esc(title)} · ${esc(dayLab(from))}${list.length > 1 ? `–${esc(dayLab(to))}` : ''}</h4><p>${esc(evText)}</p>${top.length ? `<p class="s">${esc(L('Most named: {list}.', { list: top.join(', ') }))}</p>` : ''}${trend ? `<p class="s">${esc(trend)}</p>` : ''}</div>`;
+  };
+  const phaseOf = rows.length ? phaseStory : phaseNumbers;
   const pi = days.indexOf(peakDay);
   const risingFrom = days.findIndex((d) => byDay[d].n >= 0.4 * maxDay);
   const early = days.slice(0, Math.max(0, Math.min(risingFrom < 0 ? pi : risingFrom, pi)));
   const rise = days.slice(early.length, pi);
   const peak = days.slice(pi);
+  // What the chart shows for the officer: how the busiest day relates to the events, and what is next.
+  const finding = (() => {
+    if (!rows.length || !peakDay) return '';
+    const dayGap = (r) => Math.round((Date.parse(`${peakDay}T00:00:00Z`) - Date.parse(`${r.date}T00:00:00Z`)) / 86400000);
+    const near = rows.find((r) => !r.upcoming && (dayGap(r) === 0 || dayGap(r) === 1));
+    const what = (r) => `${r.kind}${shortPlaces(r) ? ` ${L('at')} ${shortPlaces(r)}` : ''}`;
+    const out = [];
+    if (near) out.push(dayGap(near) === 0 ? L('The busiest day was {date}, the day of the {what}.', { date: dayLab(peakDay), what: what(near) }) : L('The busiest day was {date}, one day after the {what}.', { date: dayLab(peakDay), what: what(near) }));
+    else out.push(L('The busiest day was {date}; the posts name no event on that day.', { date: dayLab(peakDay) }));
+    const topPeak = placesIn(peakDay, peakDay)[0];
+    if (topPeak) out.push(L('Most posts that day name {place}.', { place: topPeak }));
+    const next = rows.find((r) => r.upcoming);
+    if (next) out.push(L('Next: the {what} on {date}.', { what: what(next), date: next.dateLabel }));
+    return `<div class="info" style="margin-top:14px"><h3>${esc(L('What this shows'))}</h3><p>${esc(out.join(' '))}</p></div>`;
+  })();
   const s4 = `<h2>${esc(L('How the conversation built up'))}</h2><div class="split"><div>
       <div class="small" style="font-weight:700;margin-bottom:10px">${esc(L('Posts per day'))}</div>
       ${days.length ? `<div class="chartcol">${days.map((d) => `<div class="b${d === peakDay ? ' pk' : ''}"><span>${byDay[d].n}</span><i style="height:${Math.max(3, (100 * byDay[d].n) / maxDay)}%"></i></div>`).join('')}</div>
-      <div class="chartlab">${days.map((d) => `<span>${esc(dayLab(d))}</span>`).join('')}</div>` : `<p class="small">${esc(L('No daily series in this window.'))}</p>`}
+      <div class="chartlab">${days.map((d) => `<span>${esc(dayLab(d))}</span>`).join('')}</div>${finding}` : `<p class="small">${esc(L('No daily series in this window.'))}</p>`}
     </div><div>${phaseOf(early, 'a', L('Early phase'))}${phaseOf(rise, 'b', L('Escalation'))}${phaseOf(peak, 'c', L('Peak and after'))}</div></div>`;
 
-  // ---- 5. Share of posts vs engagement
+  // ---- 5. Share of posts vs engagement, and the split by platform
   const tone = (a, b, c, tot) => [[a, COLORS.red], [b, COLORS.grey], [c, COLORS.green]].map(([v, col]) => `<div style="width:${tot > 0 ? (100 * v) / tot : 0}%;background:${col}">${tot > 0 && (100 * v) / tot >= 6 ? `${pc(v, tot)}%` : ''}</div>`).join('');
+  // Every platform: its share of the posts and of the interactions, so it is clear which one draws the reaction.
+  const interBy = {};
+  (ev || []).forEach((e) => { const p = e.plat || 'other'; interBy[p] = (interBy[p] || 0) + (Number(e.inter) || 0); });
+  const interSum = Object.values(interBy).reduce((a, b) => a + b, 0);
+  const shown = (platformEntries || []).slice(0, 5);
+  const platRows = shown.map(([k, v]) => ({ name: platLabel(k), posts: pc(Number(v), total), eng: interSum > 0 ? pc(interBy[k] || 0, interSum) : 0 }));
+  const rest = (platformEntries || []).slice(5);
+  if (rest.length) platRows.push({ name: L('Other platforms'), posts: pc(rest.reduce((s, [, v]) => s + Number(v), 0), total), eng: interSum > 0 ? pc(rest.reduce((s, [k]) => s + (interBy[k] || 0), 0), interSum) : 0 });
+  const maxShare = Math.max(1, ...platRows.flatMap((p) => [p.posts, p.eng]));
+  const plBar = (v, col) => `<div class="tr"><div class="fl" style="width:${Math.max(1, (v / maxShare) * 78)}%;background:${col}"></div><span class="v">${v}%</span></div>`;
+  const platBlock = platRows.length > 1 ? `<div class="small" style="font-weight:700;margin:6px 0 8px">${esc(L('By platform'))}</div>
+    <div class="pl hd"><span></span><span>${esc(L('Share of posts'))}</span><span>${esc(L('Share of engagement'))}</span></div>
+    ${platRows.map((p) => `<div class="pl"><div class="nm">${esc(p.name)}</div>${plBar(p.posts, COLORS.blue)}${interSum > 0 ? plBar(p.eng, COLORS.orange) : '<div></div>'}</div>`).join('')}` : '';
   const s5 = `<h2>${esc(L('Where the engagement goes'))}</h2>
     <div class="tone"><div class="lab">${esc(L('Share of posts'))}</div><div class="bar">${tone(sent.negative, sent.neutral, sent.positive, sentTotal)}</div></div>
     <div class="tone"><div class="lab">${esc(L('Share of engagement'))}</div><div class="bar">${engSum > 0 ? tone(engBy.negative, engBy.neutral, engBy.positive, engSum) : ''}</div></div>
     <div class="legend2"><span><i style="background:${COLORS.red}"></i>${esc(L('Negative'))}</span><span><i style="background:${COLORS.grey}"></i>${esc(L('Neutral'))}</span><span><i style="background:${COLORS.green}"></i>${esc(L('Positive'))}</span></div>
-    <p class="small" style="margin-top:26px">${esc(L('Engagement is counted over the {n} posts analysed in this deck.', { n: fmt((ev || []).length) }))}</p>`;
+    <div style="margin-top:18px">${platBlock}</div>
+    <p class="small" style="margin-top:12px">${esc(L('Engagement is counted over the {n} posts analysed in this deck.', { n: fmt((ev || []).length) }))}</p>`;
 
   // ---- 6. What the posts are about
   const topKw = (kws || []).slice(0, 7);
@@ -265,8 +362,8 @@ const buildPresentationBody = (ctx) => {
   const mostNeg = platList.slice().sort((a, b) => b[1].neg / b[1].n - a[1].neg / a[1].n)[0];
   const topPlat = platformEntries[0];
   const s8 = `<h2>${esc(L('A few accounts set the tone'))}</h2><div class="split"><div>
-      <div class="small" style="font-weight:700;margin-bottom:12px">${esc(L('Interactions (likes, shares, comments), top accounts'))}</div>
-      ${topAcc.map((a) => `<div class="hb"><div class="nm">${esc(clip(a.author, 26))}, ${esc(platLabel(a.platform))}</div><div class="tr"><div class="fl" style="width:${(100 * (a.inter || 0)) / aMax}%;background:${COLORS.blue}"></div></div><div class="v">${compact(a.inter || 0)}</div></div>`).join('') || `<p class="small">${esc(L('No accounts in this set.'))}</p>`}
+      <div class="small" style="font-weight:700;margin-bottom:12px">${esc(L('Likes, shares and comments on the posts collected, top accounts'))}</div>
+      ${topAcc.map((a) => `<div class="hb"><div class="nm">${esc(clip(a.author, 26))}, ${esc(platLabel(a.platform))}<small>${esc(L(a.count === 1 ? '{n} post' : '{n} posts', { n: a.count }))}</small></div><div class="tr"><div class="fl" style="width:${(100 * (a.inter || 0)) / aMax}%;background:${COLORS.blue}"></div></div><div class="v">${compact(a.inter || 0)}</div></div>`).join('') || `<p class="small">${esc(L('No accounts in this set.'))}</p>`}
     </div><div>
       ${topPlat ? `<div class="big" style="background:${COLORS.orange}"><div class="n">${pc(Number(topPlat[1]), total).toFixed(0)}%</div><div class="l">${esc(L('of posts are on {p}', { p: platLabel(topPlat[0]) }))}</div></div>` : ''}
       ${bestReach ? `<div class="big" style="background:${COLORS.purple}"><div class="n" style="font-size:52px">${esc(platLabel(bestReach[0]))}</div><div class="l">${esc(L('has the strongest reach per post'))}</div></div>` : ''}
@@ -315,7 +412,7 @@ const buildPresentationBody = (ctx) => {
     <tr><td>${esc(L('Engagement'))}</td><td>${esc(L('Interactions are likes, shares and comments. Views are not added in. Engagement shares are counted over the {n} posts analysed here.', { n: fmt((ev || []).length) }))}</td></tr></table>`;
 
   // A slide with nothing to show (no claim to check) is left out instead of printing an empty page.
-  const slides = [s1, s2, hasClaims || hasActs ? s3 : '', s4, s5, s6, s7, s8, claimBars.length ? s9 : '', s10, s11, s12].filter(Boolean);
+  const slides = [s1, s2, s3, s4, s5, s6, s7, s8, claimBars.length ? s9 : '', s10, s11, s12].filter(Boolean);
   return slides.map((inner, i) => slide(i === 0 ? 'title' : '', inner, { tenant: t, mark: esc(ctx.classification || ''), no: i === 0 ? '' : String(i + 1) })).join('');
 };
 

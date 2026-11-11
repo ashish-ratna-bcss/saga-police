@@ -20,6 +20,10 @@ const isIso = (s) => ISO.test(String(s || ''));
 const addDays = (iso, n) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
 const dayLabel = (iso) => (isIso(iso) ? `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]}` : String(iso || ''));
 const joinList = (arr, and = 'and') => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} ${and} ${arr[arr.length - 1]}`);
+/** "A, B and C"; more than six places become "A, B, C, D, E and 3 more places". */
+const placePhrase = (list, and = 'and', L = plainL) => (list.length > 6
+  ? `${list.slice(0, 5).join(', ')} ${and} ${L('{n} more places', { n: fmtN(list.length - 5) })}`
+  : joinList(list, and));
 const refStr = (ns, max = 6) => Array.from(new Set(ns || [])).sort((a, b) => a - b).slice(0, max).map((n) => `[Post #${n}]`).join(' ');
 // A sentence with its posts in brackets: "11 posts report people on site (#15 #19)."
 const withRefs = (sentence, ns, max = 4) => (ns && ns.length ? `${String(sentence).replace(/\.$/, '')} (${refStr(ns, max)}).` : sentence);
@@ -108,7 +112,7 @@ const buildRiskBox = ({ L = plainL, level, todayIso, upcoming = [], and = 'and',
 
   upcoming.slice(0, 2).forEach((a) => {
     const places = activityPlaces(a);
-    const where = places.length ? ` ${L(places.length > 1 ? 'across {places}' : 'in {places}', { places: joinList(places, and) })}` : '';
+    const where = places.length ? ` ${L(places.length > 1 ? 'across {places}' : 'in {places}', { places: placePhrase(places, and, L) })}` : '';
     const vars = { kind: L(a.kind || 'activity'), organiser: a.organiser, date: dayLabel(a.date), where };
     const line = a.organiser ? L('A {kind} is called by {organiser} for {date}{where}.', vars) : L('A {kind} is planned for {date}{where}.', vars);
     because.push(withRefs(line, a.posts, 4));
@@ -207,11 +211,25 @@ const buildTimeline = ({ L = plainL, acts = [], todayIso, and = 'and', max = 8 }
   else if (status === 'Not verified') note = L('no post reports the outcome');
   else note = `${plural(L, support, '{n} post', '{n} posts')}; ${L('no official source')}`;
   return {
-    date: a.date, dateLabel: dayLabel(a.date), kind: L(a.kind || 'activity'), kindKey: a.kind, organiser: a.organiser || '', places, placeText: joinList(places, and) || a.place || '',
+    date: a.date, dateLabel: dayLabel(a.date), kind: L(a.kind || 'activity'), kindKey: a.kind, organiser: a.organiser || '', places, placeText: placePhrase(places, and, L) || a.place || '',
+    outcomeKey: out, confirmedBy: Number(a.confirmedBy || 0), support,
     status, statusLabel: L(status), outcome: `${outcome}${out === 'held' ? `; ${L('turnout not verified')}` : ''}`, note,
     posts: a.posts || [], carried: Boolean(a.carried), subject: a.subject || '', upcoming: !past,
   };
 });
+
+/** What the posts say happened at one activity, in one short sentence. `arrests`: a post about it reports arrests or detentions. */
+const outcomeLine = ({ L = plainL, row, arrests = false }) => {
+  let s; let withArrests = false;
+  if (row.upcoming) s = L('Planned; it has not taken place yet.');
+  else if (row.status === 'Confirmed') s = L('Reported as held by {n} news outlets.', { n: fmtN(row.confirmedBy) });
+  else if (row.outcomeKey === 'held') s = L('Posts say it took place.');
+  else if (row.outcomeKey === 'called_off') s = L('Posts say it was called off.');
+  else if (row.outcomeKey === 'denied') s = L('Posts say police refused permission or declared it unlawful.');
+  else if (row.outcomeKey === 'permitted') s = L('Posts say permission was granted.');
+  else if (arrests) { s = L('Arrests or detentions are reported; no post says more.'); withArrests = true; } else s = L('No post says what happened.');
+  return arrests && !row.upcoming && !withArrests ? `${s} ${L('Arrests or detentions are reported.')}` : s;
+};
 
 /* ------------------------------------------------------------------ ACTIONS -------------------------------------- */
 const unitFor = (units, re, fallback) => (units || []).find((u) => re.test(u)) || fallback;
@@ -250,7 +268,7 @@ const deriveActions = ({ L = plainL, todayIso, units = [], and = 'and', upcoming
       title: L('{date} {kind} readiness', { date, kind }),
       owner: district,
       doText: places.length
-        ? L('Prepare a plan for {places}: deployment at key public places, markets and highways, and quick-response teams.', { places: joinList(places, and) })
+        ? L('Prepare a plan for {places}: deployment at key public places, markets and highways, and quick-response teams.', { places: placePhrase(places, and, L) })
         : L('Prepare a plan for the {kind}: deployment at key public places, markets and highways, and quick-response teams.', { kind }),
       escalate: places.length > 1
         ? L('a blockade or forced-shutdown call appears, or posts show coordination across places')
@@ -301,7 +319,7 @@ const deriveActions = ({ L = plainL, todayIso, units = [], and = 'and', upcoming
       title: L('Traffic and essential services on {date}', { date: dayLabel(a.date) }),
       owner: traffic,
       doText: places.length
-        ? L('Keep public transport, emergency access and essential services running in {places}, with diversions agreed in advance.', { places: joinList(places, and) })
+        ? L('Keep public transport, emergency access and essential services running in {places}, with diversions agreed in advance.', { places: placePhrase(places, and, L) })
         : L('Keep public transport, emergency access and essential services running, with diversions agreed in advance.'),
       escalate: L('critical services are disrupted at any location'),
       by: deadlineBefore(todayIso, a.date, 2), posts: (a.posts || []).slice(0, 8),
@@ -485,7 +503,7 @@ const buildChangeLog = ({ L = plainL, prev, cur, prevDate, curDate, and = 'and' 
 };
 
 module.exports = {
-  DEFAULT_UNITS, plainL, dayLabel, dateList, joinList, addDays, deadlineBefore, activityPlaces, isCalledOff, dominantStatus, activityStatus,
+  DEFAULT_UNITS, plainL, dayLabel, dateList, joinList, placePhrase, outcomeLine, addDays, deadlineBefore, activityPlaces, isCalledOff, dominantStatus, activityStatus,
   splitActivities, nextLevel, lowerLevel, surveillanceOf, buildRiskBox, buildTimeline, deriveActions, planActions, guessTheme,
   sameActivity, snapshotFromRow, restoreActivities, buildChangeLog,
 };

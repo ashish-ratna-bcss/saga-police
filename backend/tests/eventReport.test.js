@@ -975,3 +975,59 @@ test('every fixed sentence the brief plan can print is in the label list, so oth
   const page = Array.from(used).filter((s) => s.startsWith('seen:')).map((s) => s.slice(5)).filter((s) => /[A-Za-z]/.test(s) && !EN.includes(s));
   assert.deepStrictEqual(page, []);
 });
+
+test('a long list of places is shortened by whole names, and the outcome sentence never states a turnout', () => {
+  assert.strictEqual(bp.placePhrase(['A', 'B', 'C'], 'and'), 'A, B and C');
+  assert.strictEqual(bp.placePhrase(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], 'and'), 'A, B, C, D, E and 3 more places');
+  const row = (o) => ({ upcoming: false, status: 'Reported', outcomeKey: '', confirmedBy: 0, ...o });
+  assert.strictEqual(bp.outcomeLine({ row: row({ upcoming: true }) }), 'Planned; it has not taken place yet.');
+  assert.strictEqual(bp.outcomeLine({ row: row({ status: 'Confirmed', confirmedBy: 2, outcomeKey: 'held' }) }), 'Reported as held by 2 news outlets.');
+  assert.strictEqual(bp.outcomeLine({ row: row({ outcomeKey: 'held' }) }), 'Posts say it took place.');
+  assert.strictEqual(bp.outcomeLine({ row: row({ outcomeKey: 'called_off' }) }), 'Posts say it was called off.');
+  assert.strictEqual(bp.outcomeLine({ row: row({ status: 'Not verified' }) }), 'No post says what happened.');
+  assert.strictEqual(bp.outcomeLine({ row: row({ status: 'Not verified' }), arrests: true }), 'Arrests or detentions are reported; no post says more.');
+  assert.strictEqual(bp.outcomeLine({ row: row({ outcomeKey: 'held' }), arrests: true }), 'Posts say it took place. Arrests or detentions are reported.');
+});
+
+test('the name of the case or of a division in an activity\'s "where" field is not printed as a place', () => {
+  const f = briefFixture();
+  f.analysis.facts.places.push({ name: 'Town B', region: 'Region One, India', mentioned: 2, active: 0, posts: [1] });
+  f.analysis.facts.activities = [{ date: '2026-11-18', kind: 'bandh', organiser: 'Group Unit', place: 'Town A, Town B, The Case Title and southern division', statuses: { announced: 2 }, posts: [1, 24], support: 2 }];
+  const html = buildReportHtml({ summary: f.summary, keywordData: null, tenantName: 'x', analysis: f.analysis, headquarters: null, includeEvidence: false, regionOnly: true, compact: true });
+  assert.match(html, /Prepare a plan for Town A and Town B:/);
+  assert.ok(!/Case Title|southern division/.test(html));
+});
+
+const slidesOf = (o = {}) => { const f = briefFixture(o); return buildReportHtml({ summary: f.summary, keywordData: null, tenantName: 'x', analysis: o.noFacts ? { bottomLine: 'x', narrativesToWatch: f.analysis.narrativesToWatch, actions: [{ action: 'Plan — District Police', detail: 'Do it. Escalate if it grows.', posts: [] }] } : f.analysis, headquarters: null, includeEvidence: false, regionOnly: true, presentation: true }); };
+
+test('slides: what happened at each event, what the posts show, and the split by platform, instead of counts alone', () => {
+  const html = slidesOf();
+  // In short: the first event keeps its line and says what the posts report happened, with the post that drew the most reaction
+  assert.match(html, /6 Nov 2026: Bandh called by Local committee at Town A\. No post says what happened\. A post says: “Post 3/);
+  // Recommended actions: no "verify past events" card item, no counts; the past events are told one by one
+  const s3 = html.slice(html.indexOf('Recommended actions'), html.indexOf('How the conversation built up'));
+  assert.ok(!/Verify past events/.test(s3) && !/Violence: \d/.test(s3) && !/What to watch next/.test(s3));
+  assert.match(s3, /What happened at past events/);
+  assert.match(s3, /7 Nov · Rally, Town A<\/div><div class="d">Reported as held by 2 news outlets\./);
+  assert.match(s3, /<div class="e"><b>Escalate if<\/b> a blockade or forced-shutdown call appears/);
+  assert.match(s3, /18 Nov bandh readiness<\/div><div class="m">District Police \/ SHO · By 15 Nov/);
+  // How the conversation built up: events and places in each phase, and what the chart shows
+  assert.match(html, /What this shows<\/h3><p>The busiest day was 8 Nov, one day after the rally at Town A\./);
+  assert.match(html, /Most named: /);
+  // Where the engagement goes: every platform
+  const s5 = html.slice(html.indexOf('Where the engagement goes'), html.indexOf('What the posts are about'));
+  assert.match(s5, /By platform/);
+  assert.ok(/<div class="nm">X<\/div>/.test(s5) && /<div class="nm">Facebook<\/div>/.test(s5));
+  // Top accounts: the interaction total is shown with the number of posts it comes from
+  const s8 = html.slice(html.indexOf('A few accounts set the tone'));
+  assert.match(s8, /Likes, shares and comments on the posts collected, top accounts/);
+  assert.match(s8, /<small>\d+ posts?<\/small>/);
+});
+
+test('slides for an older report without counted facts still print every slide, with the earlier wording', () => {
+  const html = slidesOf({ noFacts: true });
+  assert.match(html, /How the conversation built up/);
+  assert.match(html, /Recommended actions/);
+  assert.ok(!/What this shows/.test(html));
+  assert.match(html, /posts a day/);
+});
