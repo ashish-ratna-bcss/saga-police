@@ -48,9 +48,9 @@ body{font-family:'Lato','Liberation Sans','Helvetica Neue',Arial,sans-serif;colo
 .point .num{flex:none;width:64px;height:64px;border-radius:50%;color:#fff;font-weight:700;font-size:26px;display:flex;align-items:center;justify-content:center;font-family:'Lora',Georgia,serif}
 .point .tx{flex:1}
 .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
-.card{background:${COLORS.card};border-radius:18px;padding:24px 26px;border-top:7px solid ${COLORS.blue};height:500px;overflow:hidden}
+.card{background:${COLORS.card};border-radius:18px;padding:24px 26px;border-top:7px solid ${COLORS.blue};height:530px;overflow:hidden}
 .card.o{border-top-color:${COLORS.orange}}.card.g{border-top-color:${COLORS.green}}.card.r{border-top-color:${COLORS.red}}.card.t{border-top-color:${COLORS.teal}}
-.card h3{margin:0 0 14px;font-size:27px;color:${COLORS.navy};line-height:1.2}
+.card h3{margin:0 0 14px;font-size:calc(27px * var(--s,1));color:${COLORS.navy};line-height:1.2}
 .card p{margin:0 0 12px;font-size:18px;line-height:1.38;color:#2B3957}
 .card p b{color:${COLORS.navy}}
 .card .esc{display:block;margin-top:6px;font-size:16px;color:#7A1F1F}
@@ -98,10 +98,10 @@ table.n td{font-size:20px;line-height:1.45}
 .lg i{display:inline-block;width:18px;height:18px;margin-right:10px;vertical-align:-2px;border-radius:3px}
 .card .it{margin:0 0 12px;padding:0 0 11px;border-bottom:1px solid #D5DEEE}
 .card .it:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0}
-.card .it .t{font-size:19px;font-weight:700;color:${COLORS.navy};line-height:1.25}
-.card .it .m{font-size:15px;color:#5B6880;margin-top:2px}
-.card .it .d{font-size:17px;line-height:1.4;color:#2B3957;margin-top:4px}
-.card .it .e{font-size:15px;line-height:1.35;color:#7A1F1F;margin-top:5px}
+.card .it .t{font-size:calc(20px * var(--s,1));font-weight:700;color:${COLORS.navy};line-height:1.25}
+.card .it .m{font-size:calc(16px * var(--s,1));color:#5B6880;margin-top:2px}
+.card .it .d{font-size:calc(18px * var(--s,1));line-height:1.4;color:#2B3957;margin-top:4px}
+.card .it .e{font-size:calc(16px * var(--s,1));line-height:1.35;color:#7A1F1F;margin-top:5px}
 .pl{display:grid;grid-template-columns:200px 1fr 1fr;gap:18px;align-items:center;margin:0 0 8px;font-size:19px}
 .pl.hd{font-size:15px;color:#5B6880;margin:0 0 6px}
 .pl .nm{text-align:right;color:#2B3957}
@@ -228,7 +228,9 @@ const buildPresentationBody = (ctx) => {
     hasActs ? `<div class="card o"><h3>${esc(L('What to do first'))}</h3>${actItems}</div>` : '',
     pastItems ? `<div class="card g"><h3>${esc(L('What happened at past events'))}</h3>${pastItems}</div>` : (nextItems ? `<div class="card g"><h3>${esc(L('What to watch next'))}</h3>${nextItems}</div>` : ''),
   ].filter(Boolean);
-  const s3 = cards3.length ? `<h2>${esc(L('Recommended actions'))}</h2><div class="cols3" style="grid-template-columns:repeat(${cards3.length},1fr)">${cards3.join('')}</div>${hasActs ? '' : `<p class="small" style="margin-top:22px">${esc(L('Maintain standard baseline monitoring.'))}</p>`}` : '';
+  // The past-events card holds the most text, so it gets the widest column; the cards shrink their text together when one still overflows (render.js).
+  const colsOf = cards3.length === 3 && pastItems ? '0.85fr 1fr 1.25fr' : `repeat(${cards3.length},1fr)`;
+  const s3 = cards3.length ? `<h2>${esc(L('Recommended actions'))}</h2><div class="cols3" style="grid-template-columns:${colsOf}">${cards3.join('')}</div>${hasActs ? '' : `<p class="small" style="margin-top:22px">${esc(L('Maintain standard baseline monitoring.'))}</p>`}` : '';
 
   // ---- 4. How the conversation built up
   const byDay = {};
