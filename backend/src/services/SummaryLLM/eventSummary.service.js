@@ -14,6 +14,7 @@ const { cleanText } = require('./styleLint');
 const { getTenantProfile } = require('../../modules/events/eventIntelligenceReport/tenantProfile');
 const { resolvePlace } = require('./geo.service');
 const { FACTS_SYSTEM, buildFactsUserContext, parseFacts, aggregateFacts, factsPackText } = require('./eventFacts');
+const { snapshotFromRow, restoreActivities } = require('./briefPlan');
 const {
   TARGET_ENTITIES,
   parseSentiment,
@@ -439,6 +440,13 @@ const generateEventSummary = async (
     throw err;
   }
 
+  // The report this one replaces, kept as a small snapshot: the new report restores earlier events and shows what changed.
+  let prevSnapshot = null;
+  try {
+    const prevRow = await prisma.social_media_event_summaries.findUnique({ where: { event_id: numericId } });
+    if (prevRow) prevSnapshot = snapshotFromRow(prevRow, closingLevel);
+  } catch (e) { logger.warn(`[SummaryLLM] Previous report snapshot skipped: ${e.message}`); }
+
   // Keywords list
   let keywordsList = [];
   try {
@@ -741,6 +749,9 @@ const generateEventSummary = async (
     let facts = null;
     const factsMap = {};
     const byNoFacts = new Map(analysed.map((x) => [postNo(x), x]));
+    // Post numbers change between runs; the previous report's posts are found again by id or link.
+    const idToNo = new Map();
+    analysed.forEach((x) => { const n = postNo(x); if (x.id != null) idToNo.set(String(x.id), n); if (x.url) idToNo.set(String(x.url), n); });
     const foldW = (t) => String(t || '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
     const eventWords = foldW(event.location).split(' ').filter((w) => w.length > 2);
     const eventCountry = (() => {
@@ -773,6 +784,7 @@ const generateEventSummary = async (
         });
       });
       const out = aggregateFacts(factsMap, byNoFacts, regionOf);
+      if (prevSnapshot) out.activities = restoreActivities(out.activities, prevSnapshot, idToNo, { timeframe });   // an earlier event is not lost because the latest posts no longer mention it
       out.read = Object.keys(factsMap).length;
       out.eventCountry = eventCountry;
       return out;
@@ -948,7 +960,7 @@ const generateEventSummary = async (
           return !g || !g.country || g.country === facts.eventCountry;
         };
         const usable = facts.activities.filter(sameCountry);      // a gathering in another country is not this event's activity
-        const inRegion = usable.filter((a) => !a.outside).slice(0, 6);
+        const inRegion = usable.filter((a) => !a.outside).slice(0, 8);
         const elsewhere = usable.filter((a) => a.outside).slice(0, 3);
         if (inRegion.length || elsewhere.length) {
           structuredReport.keyDates = [...inRegion, ...elsewhere].map((a) => ({
@@ -1082,6 +1094,7 @@ ${Object.entries(platformCounts).map(([p, count]) => `- **${p.toUpperCase()}**: 
 
   // The structured report (narratives, claims, findings...) came from the same LLM call; saved with the summary in stats JSON.
   if (structuredReport) result.stats.structured_report = structuredReport;
+  if (prevSnapshot) result.stats.previous_report = prevSnapshot;
 
   // 6. Cache the result so re-opening the dialog is instant until new posts arrive. A cancelled report is never saved.
   throwIfCancelled();

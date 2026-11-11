@@ -678,13 +678,14 @@ test('a long timeline line is shortened before its status, never losing it', () 
   assert.ok(/Rally at Bokaro[^<]*…; not verified/.test(html));
 });
 
-test('the closing "risk" line names the same level as the first page, and "high-risk posts" counts are left alone', () => {
+test('the summary risk box states the first-page level from the counted facts, not the model\'s own wording', () => {
   const sm = { event: { name: 'E', location: 'Odisha' }, generated_at: '2026-11-10T09:00:00Z', stats: {}, evidence_traceability: [] };
   const closing = 'CONFIRMED\nA rally was held on 7 Nov.\n\nRISK\nMedium. The risk level is Medium because the situation involves ongoing protests, but no violence is reported. There are no high-risk posts.';
   const a = { bottomLine: 'x', closingSummary: closing, facts: { places: [], byPost: {}, calls: { count: 0, posts: [] }, violence: { count: 0, posts: [] }, accounts: [], activities: [] } };
   const html = buildReportHtml({ summary: sm, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false });
-  assert.ok(/Low\. The risk level is Low because the situation involves ongoing protests/.test(html));
-  assert.ok(!/Medium\. The risk level/.test(html) && /no high-risk posts/.test(html));
+  const boxes = html.slice(html.indexOf('class="sumgrid"'));
+  assert.ok(/Rated Low because/.test(boxes) && !/Medium\. The risk level/.test(boxes));
+  assert.ok(/A rally was held on 7 Nov\./.test(boxes));     // what the posts establish still comes from the model
 });
 
 test('a location report keeps the closing summary in its four boxes, and its risk line matches the first page', () => {
@@ -699,8 +700,8 @@ test('a location report keeps the closing summary in its four boxes, and its ris
   const html = buildReportHtml({ summary: mixed, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false, regionOnly: true });
   const boxes = html.slice(html.indexOf('class="sumgrid"'));
   assert.strictEqual((boxes.match(/class="sumbox"/g) || []).length, 4);          // Confirmed, Not yet verified, Next steps, Risk reassessed
-  assert.ok(/Risk reassessed/.test(boxes) && /Not yet verified/.test(boxes));
-  assert.ok(/Low\. The risk level is Low because/.test(boxes) && !/Medium\./.test(boxes));
+  assert.ok(/Risk level/.test(boxes) && /Not yet verified/.test(boxes) && /Confirmed or reported/.test(boxes));
+  assert.ok(/Rated Low because/.test(boxes) && !/Medium\./.test(boxes));
 });
 
 test('a closing summary that is already well formed is left exactly as it is', () => {
@@ -710,4 +711,267 @@ test('a closing summary that is already well formed is left exactly as it is', (
   const html = buildReportHtml({ summary: sm, keywordData: null, tenantName: 'odisha', analysis: a, headquarters: null, includeEvidence: false });
   assert.strictEqual((html.slice(html.indexOf('class="sumgrid"')).match(/class="sumbox"/g) || []).length, 4);
   assert.ok(/A rally was held\./.test(html) && /Turnout is unknown\./.test(html));
+});
+
+/* ------------------------------------------------ brief plan: statuses, risk box, actions, history ------------------ */
+const bp = require('../src/services/SummaryLLM/briefPlan');
+const { splitPlaces } = require('../src/services/SummaryLLM/eventFacts');
+
+// A small brief for any event: one planned activity in several places, two past ones, one arrest, three mobilising posts.
+const briefFixture = (o = {}) => {
+  const evidence = Array.from({ length: 30 }, (_, i) => i + 1).map((n) => evRow(n, {
+    platform: n % 2 ? 'x' : 'facebook',
+    ...(n === 5 ? { risk_level: 'high', sentiment: 'negative' } : {}),
+    ...(n >= 6 && n <= 14 ? { risk_level: 'medium' } : {}),
+    posted_at: '2026-11-08T10:00:00Z',
+  }));
+  const onSite = Array.from({ length: 11 }, (_, i) => 15 + i);
+  const summary = {
+    event: { name: 'Sample event', location: o.location || 'Region One' }, generated_at: '2026-11-11T05:00:00Z',
+    stats: { total_unique_posts: 88, sentiment_counts: { positive: 3, neutral: 55, negative: 30 }, platform_counts: { x: 37, facebook: 36, reddit: 15 }, risk_counts: { critical: 0, high: 1, medium: 9, low: 78 }, timeframe: 'full', ...(o.stats || {}) },
+    evidence_traceability: evidence,
+  };
+  const place = o.place || 'Town A';
+  const analysis = {
+    bottomLine: 'A bandh is called. [Post #1]',
+    actions: o.actions || [],
+    narrativesToWatch: o.narratives || [{ narrative: 'Claim about the cause', riskNote: 'No official finding in the posts', posts: [18] }],
+    facts: {
+      places: [{ name: place, region: `${o.location || 'Region One'}, India`, mentioned: 10, active: 11, posts: onSite }],
+      byPost: Object.fromEntries([...Array.from({ length: 30 }, (_, i) => [i + 1, { places: [place], active: [] }]), ...onSite.map((n) => [n, { places: [place], active: [place] }])]),
+      calls: { count: 1, posts: [24] }, violence: { count: 0, posts: [] }, alleged: { count: 0, posts: [] },
+      mobilising: { count: 3, posts: [10, 11, 12] }, detentions: { count: 1, posts: [9], details: [{ n: 9, who: 'party workers', place }] },
+      accounts: [{ author: 'Group Unit', platform: 'facebook', role: 'organisation', calls: 1, violence: 0, eng: 900, posts: [1, 24], roles: {} }],
+      activities: o.activities || [
+        { date: '2026-11-06', kind: 'bandh', organiser: 'Local committee', place, places: [place], statuses: {}, confirmedBy: 0, posts: [3], support: 1 },
+        { date: '2026-11-07', kind: 'rally', organiser: '', place: `${place}`, places: [place], statuses: { held: 2 }, confirmedBy: 2, posts: [4, 15], support: 2 },
+        { date: '2026-11-18', kind: 'bandh', organiser: 'Group Unit', place: 'Town A, Town B and Town C', statuses: { announced: 2 }, confirmedBy: 0, posts: [1, 24], support: 2 },
+      ],
+    },
+  };
+  return { summary, analysis };
+};
+const brief = (o = {}, opts = {}) => { const f = briefFixture(o); return buildReportHtml({ summary: f.summary, keywordData: null, tenantName: 'x', analysis: f.analysis, headquarters: null, includeEvidence: false, regionOnly: true, compact: true, ...opts }); };
+
+test('an activity names every place of its phrase, detentions keep who and where, and news outlets are counted', () => {
+  assert.deepStrictEqual(splitPlaces('Town A, Town B and Town C'), ['Town A', 'Town B', 'Town C']);
+  assert.deepStrictEqual(splitPlaces('five districts'), []);
+  assert.deepStrictEqual(splitPlaces('Brandon Anderson'), ['Brandon Anderson']);   // "and" inside a word is not a separator
+  const by = new Map([[1, post({ author: 'News A', text: 'party workers held at Town A', postedAt: '2026-11-08' })], [2, post({ author: 'News B', text: 'rally held in Town A', postedAt: '2026-11-08' })], [3, post({ author: 'Unit', text: 'rally in Town A', postedAt: '2026-11-08' })]]);
+  const r = parseFacts('{"p":[{"n":1,"k":"rally","d":"2026-11-07","w":"Town A","a":1,"h":"party workers","t":"held","r":"m","pl":[{"n":"Town A","in":"Region One, India","a":1}]},{"n":2,"k":"rally","d":"2026-11-07","w":"Town A","t":"held","r":"m"},{"n":3,"k":"rally","d":"2026-11-07","w":"Town A","h":"nobody said","a":1}]}', by, extractJson);
+  assert.strictEqual(r[1].held, 'party workers');
+  assert.strictEqual(r[3].held, '');                                   // not in the post, so not kept
+  const f = aggregateFacts(r, by);
+  assert.deepStrictEqual(f.detentions.details[0], { n: 1, who: 'party workers', place: 'Town A' });
+  assert.strictEqual(f.activities[0].confirmedBy, 2);                  // two different news outlets report it held
+  assert.deepStrictEqual(f.activities[0].places, ['Town A']);
+});
+
+test('activity status: Confirmed needs two news outlets, Reported is posts only, Not verified is a past date nobody reports on', () => {
+  const today = '2026-11-11';
+  assert.strictEqual(bp.activityStatus({ date: '2026-11-07', statuses: { held: 2 }, confirmedBy: 2 }, today), 'Confirmed');
+  assert.strictEqual(bp.activityStatus({ date: '2026-11-07', statuses: { held: 2 }, confirmedBy: 1 }, today), 'Reported');
+  assert.strictEqual(bp.activityStatus({ date: '2026-11-07', statuses: { called_off: 1 } }, today), 'Reported');
+  assert.strictEqual(bp.activityStatus({ date: '2026-11-07', statuses: { announced: 3 } }, today), 'Not verified');
+  assert.strictEqual(bp.activityStatus({ date: '2026-11-18', statuses: { announced: 2 } }, today), 'Reported');   // never Confirmed before it happens
+  const rows = bp.buildTimeline({ acts: briefFixture().analysis.facts.activities, todayIso: today });
+  assert.deepStrictEqual(rows.map((r) => r.status), ['Not verified', 'Confirmed', 'Reported']);
+  assert.match(rows[1].outcome, /turnout not verified/);               // posts are never read as turnout
+  assert.deepStrictEqual(rows[2].places, ['Town A', 'Town B', 'Town C']);
+});
+
+test('risk box: reasons with posts, what would raise or lower the level, calls to act apart from mobilising', () => {
+  const f = briefFixture().analysis.facts;
+  const { upcoming } = bp.splitActivities(f.activities, '2026-11-11');
+  const box = bp.buildRiskBox({
+    level: 'Medium', todayIso: '2026-11-11', upcoming,
+    c: { haveFacts: true, onSite: 11, mobilising: 3, calls: 1, violence: 0, alleged: 0, detentions: 1, high: 1, medium: 9 },
+    refs: { onSite: [23, 19, 15], mobilising: [10, 11, 12], calls: [24] }, highPosts: [{ n: 5, place: 'Town A' }],
+    detentionDetails: [{ n: 9, who: 'party workers', place: 'Town A' }],
+  });
+  assert.deepStrictEqual(box.surveillance, { mode: 'enhanced', until: '2026-11-18' });
+  const text = box.because.join('\n');
+  assert.match(text, /A bandh is called by Group Unit for 18 Nov across Town A, Town B and Town C \(\[Post #1\] \[Post #24\]\)\./);
+  assert.match(text, /11 posts report people on site \(\[Post #15\] \[Post #19\] \[Post #23\]\)\. 3 posts report a group mobilising/);
+  assert.match(text, /1 post is rated high risk \(\[Post #5\], Town A\), and 9 more are rated medium risk\./);
+  assert.match(text, /1 post reports arrests or detentions; these are not violence\. \(party workers, Town A \[Post #9\]\)/);
+  assert.match(text, /No post confirms violence or damage\./);
+  assert.match(text, /Criticism of leaders or authorities is negative tone, not a risk signal\./);
+  assert.strictEqual(box.rise.level, 'High');
+  assert.ok(box.rise.items.some((x) => /blockade or forced shutdown on or before 18 Nov/.test(x)) && box.rise.items.some((x) => /detained at bandh locations/.test(x)));
+  assert.strictEqual(box.fall.level, 'Low');
+  assert.ok(box.fall.items.some((x) => /bandh is withdrawn or postponed/.test(x)));
+  assert.match(box.defs[0], /Calls to act: 1 post\. \[Post #24\]/);
+  assert.match(box.defs[0], /Mobilising: 3 posts\. \[Post #10\] \[Post #11\] \[Post #12\]/);
+  // nothing planned and nothing found: baseline, and the box only says what would raise it
+  const calm = bp.buildRiskBox({ level: 'Low', todayIso: '2026-11-11', upcoming: [], c: { haveFacts: true }, refs: {} });
+  assert.strictEqual(calm.surveillance.mode, 'baseline');
+  assert.strictEqual(calm.fall, null);
+  assert.strictEqual(calm.rise.level, 'Medium');
+});
+
+test('actions: owner, deadline, escalation and posts; the platform count adds up; a generic model action is not kept next to the exact one', () => {
+  const f = briefFixture().analysis.facts;
+  const today = '2026-11-11';
+  const { upcoming, past } = bp.splitActivities(f.activities, today);
+  const derived = bp.deriveActions({
+    todayIso: today, units: ['District Police / SHO', 'Traffic Police', 'Cyber Cell', 'PRO / Fact-Check Cell'], upcoming, past, detentionPosts: [9],
+    platforms: [{ name: 'X', n: 37 }, { name: 'Facebook', n: 36 }], total: 88, priorityAccounts: [{ name: 'Group Unit', platform: 'Facebook', posts: [1, 24] }],
+    narratives: [{ text: 'Claim about the cause', posts: [93] }], callPosts: [24], level: 'Medium',
+  });
+  const by = Object.fromEntries(derived.map((a) => [a.key, a]));
+  assert.strictEqual(by.readiness.by, '2026-11-15');                   // three days before the 18th
+  assert.strictEqual(by.traffic.by, '2026-11-16');                     // two days before
+  assert.strictEqual(by.verify.by, '2026-11-13');
+  assert.strictEqual(by.factcheck.by, '2026-11-13');
+  assert.strictEqual(by.digital.by, 'daily');
+  assert.strictEqual(by.digital.byUntil, '2026-11-18');
+  assert.match(by.digital.doText, /X 37 \+ Facebook 36 = 73 of 88 posts/);
+  assert.match(by.digital.doText, /@Group Unit \(Facebook\)/);
+  assert.match(by.verify.doText, /on 6 and 7 Nov/);
+  assert.match(by.readiness.doText, /Town A, Town B and Town C/);
+  assert.ok(derived.every((a) => a.owner && a.escalate && a.title && a.posts.length));
+  const model = [
+    { action: 'Fact-check the claims about the protests — PRO', detail: 'Check the claims in circulation. Escalate if they spread.', posts: [18] },
+    { theme: 'j', action: 'Track the official position — PRO / Fact-Check Cell', detail: 'Record any official statement and prepare a holding line. Escalate if it contradicts claims.', by: '2026-11-14', posts: [20] },
+    { theme: 'c', action: 'Community outreach — District Police / SHO', detail: 'Listen to groups and record demands. Escalate if tension rises.', posts: [3] },
+  ];
+  const list = bp.planActions({ derived, model, todayIso: today, lastUpcoming: '2026-11-18' });
+  assert.deepStrictEqual(list.map((a) => a.key), ['readiness', 'verify', 'j', 'digital', 'traffic', 'c', 'factcheck']);
+  assert.strictEqual(list[2].by, '2026-11-14');
+  assert.strictEqual(list[5].by, '2026-11-15');                        // outreach: three days before the 18th when the model gave no date
+  assert.ok(!list.some((a) => /Fact-check the claims about the protests/.test(a.title)));
+  assert.ok(list.every((a) => /—/.test(a.action) && /Escalate if/.test(a.detail)));   // the older fields stay, for the slides
+  // nothing is planned: no readiness or traffic action, checks only for what has passed
+  const quiet = bp.deriveActions({ todayIso: today, upcoming: [], past, detentionPosts: [], platforms: [{ name: 'X', n: 5 }], total: 5, level: 'Low' });
+  assert.deepStrictEqual(quiet.map((a) => a.key), ['verify']);
+});
+
+test('history: the previous report is kept by post id, earlier events come back, and post numbers are matched to this run', () => {
+  const rowPosts = [evRow(1, { id: 'a1', url: 'https://x/1' }), evRow(2, { id: 'a2', url: 'https://x/2' }), evRow(3, { id: 'a3', url: 'https://x/3' })];
+  const row = {
+    generated_at: new Date('2026-11-10T09:00:00Z'), evidence_traceability: rowPosts,
+    stats: { timeframe: 'full', total_unique_posts: 61, risk_counts: {}, structured_report: { narrativesToWatch: [{ narrative: 'Claim about the cause' }], facts: {
+      calls: { count: 0 }, violence: { count: 0 }, accounts: [{ author: 'oldwatch', platform: 'x', calls: 1, violence: 0 }],
+      activities: [
+        { date: '2026-11-06', kind: 'bandh', organiser: 'Local committee', place: 'Town A', statuses: {}, posts: [3], support: 1 },
+        { date: '2026-11-07', kind: 'rally', organiser: '', place: 'Town A, Town B', statuses: { held: 1 }, posts: [1, 2], support: 2 },
+        { date: '2026-11-20', kind: 'protest', outside: true, place: 'Elsewhere', posts: [2] },
+      ],
+    } } },
+  };
+  const snap = bp.snapshotFromRow(row, require('../src/services/SummaryLLM/eventSummary.prompt').closingLevel);
+  assert.strictEqual(snap.posts, 61);
+  assert.strictEqual(snap.level, 'Low');
+  assert.strictEqual(snap.activities.length, 2);                       // the outside-region activity is not carried
+  assert.deepStrictEqual(snap.activities[1].places, ['Town A', 'Town B']);
+  assert.deepStrictEqual(snap.activities[0].refs.map((r) => r.id), ['a3']);
+  assert.strictEqual(bp.snapshotFromRow({ stats: {} }), null);
+  // this run numbers the same posts differently, and no longer finds the 6th
+  const idToNo = new Map([['a1', 40], ['https://x/1', 40], ['a2', 41], ['https://x/2', 41]]);
+  const now = [{ date: '2026-11-07', kind: 'rally', place: 'Town A', posts: [40], support: 1 }];
+  const out = bp.restoreActivities(now, snap, idToNo, { timeframe: 'full' });
+  assert.strictEqual(out.length, 2);
+  assert.strictEqual(out[0].date, '2026-11-06');
+  assert.strictEqual(out[0].carried, true);
+  assert.deepStrictEqual(out[0].posts, []);                            // its post is not in this run's list
+  assert.strictEqual(out[0].organiser, 'Local committee');
+  assert.deepStrictEqual(out[1].posts, [40]);                          // the one found again is left as this run read it
+  assert.strictEqual(bp.restoreActivities(out, snap, idToNo).length, 2);   // safe to repeat
+  assert.strictEqual(bp.restoreActivities(now, snap, idToNo, { timeframe: '7d' }).length, 1);   // another time window is not mixed in
+  // the carried posts survive another run through the snapshot
+  const again = bp.snapshotFromRow({ ...row, stats: { ...row.stats, structured_report: { facts: { ...row.stats.structured_report.facts, activities: out } } } }, require('../src/services/SummaryLLM/eventSummary.prompt').closingLevel);
+  assert.deepStrictEqual(again.activities[0].refs.map((r) => r.id), ['a3']);
+});
+
+test('change log: counts, level, restored and new events, organiser and place changes, accounts, claims', () => {
+  const prev = { posts: 61, level: 'Low', activities: [
+    { date: '2026-11-06', kind: 'bandh', organiser: 'Old group', place: 'Town A', places: ['Town A'] },
+    { date: '2026-11-07', kind: 'rally', organiser: 'Old group', place: 'Town B', places: ['Town B'] },
+  ], accounts: [{ author: 'oldwatch' }, { author: 'Group Unit' }], narratives: ['Claim about the cause', 'Another old claim from last week'] };
+  const cur = { posts: 88, level: 'Medium', activities: [
+    { date: '2026-11-06', kind: 'bandh', organiser: 'Old group', place: 'Town A', places: ['Town A'], carried: true },
+    { date: '2026-11-07', kind: 'rally', organiser: 'New group', place: 'Town B', places: ['Town B'] },
+    { date: '2026-11-18', kind: 'bandh', organiser: 'New group', place: 'Town C', places: ['Town C'] },
+  ], accounts: ['Group Unit'], narratives: ['Claim about the cause'] };
+  const lines = bp.buildChangeLog({ prev, cur, prevDate: '10 Nov', curDate: '11 Nov' });
+  const text = lines.join('\n');
+  assert.match(lines[0], /Previous report: 10 Nov, 61 posts\. This report: 11 Nov, 88 posts \(27 more\)\./);
+  assert.match(text, /Risk assessment changed from Low to Medium\./);
+  assert.match(text, /Restored from the previous report \(not found in the latest posts\): 6 Nov bandh at Town A\./);
+  assert.match(text, /New since the previous report: 18 Nov bandh at Town C\./);
+  assert.match(text, /Organiser of the 7 Nov rally changed from Old group to New group\./);
+  assert.match(text, /Places newly named: Town C\./);
+  assert.match(text, /not seen in this run \(kept on the watch list\): @oldwatch\./);
+  assert.match(text, /Not verified \(no official source in the posts\): “Claim about the cause”\./);
+  assert.match(text, /no post repeats now: “Another old claim from last week”/);
+  assert.deepStrictEqual(bp.buildChangeLog({ prev: null, cur }), []);
+  const same = bp.buildChangeLog({ prev: { ...prev, posts: 88, level: 'Medium', activities: [] }, cur: { ...cur, activities: [] }, prevDate: 'a', curDate: 'b' });
+  assert.ok(/unchanged/.test(same[0]) && /No event was added, restored or removed\./.test(same.join('\n')));
+});
+
+test('location brief: risk box, priority and further actions in a table, event statuses, summary and change log, in page order', () => {
+  const html = brief({ stats: { previous_report: { generated_at: '2026-11-10T09:00:00Z', timeframe: 'full', posts: 61, level: 'Low', activities: [], accounts: [], narratives: [] } } }, {});
+  assert.match(html, /Surveillance priority:<\/b> <span class="sv sv-enhanced">Enhanced, until 18 Nov/);
+  assert.match(html, /Why this Risk Level:<\/b> Rated Medium because:/);
+  assert.match(html, /Risk would rise to High if:/);
+  assert.match(html, /Calls to act: 1 post\./);
+  assert.ok(html.indexOf('What to do (priority)') < html.indexOf('What is happening and when') && html.indexOf('What is happening and when') < html.indexOf('Further actions'));
+  assert.match(html, /<span class="no">01\.<\/span><span class="nm">What to do \(priority\)/);        // sections are numbered in the order they appear
+  assert.match(html, /<span class="no">02\.<\/span><span class="nm">Further actions/);
+  assert.match(html, /<th>Owner<\/th><th>By<\/th><th>Escalate if<\/th>/);
+  assert.match(html, /18 Nov bandh readiness/);
+  assert.match(html, /<td class="by">15 Nov<\/td>/);
+  assert.match(html, /(X|Facebook) 15 \+ (X|Facebook) 15 = 30 of 30 posts/);
+  assert.match(html, /<span class="st st-n">Not verified<\/span>/);
+  assert.match(html, /<span class="st st-c">Confirmed<\/span>/);
+  assert.match(html, /<span class="st st-r">Reported<\/span>/);
+  assert.match(html, /Confirmed or reported/);
+  assert.match(html, /Re-run this report on 19 Nov to record the outcome of the 18 Nov bandh/);
+  assert.match(html, /Changes since the previous report/);
+  assert.match(html, /Handling:<\/b> check against official records/);
+  const sum = html.slice(html.indexOf('class="sumgrid"'));
+  assert.strictEqual((sum.match(/class="sumbox"/g) || []).length >= 3, true);
+  // no earlier report: no change log
+  assert.ok(!/Changes since the previous report/.test(brief()));
+});
+
+test('the brief names nothing of its own: another region, event and agency give another report with no leftover names', () => {
+  const html = brief({ location: 'Region Two', place: 'Village Q', narratives: [{ narrative: 'Rumour about an audit', riskNote: 'No official statement', posts: [18] }] });
+  assert.match(html, /Village Q/);
+  assert.ok(!/Jharkhand|Ranchi|Gumla|CBI|BJP|Odisha|Bhubaneswar/.test(html));
+  assert.ok(!/manager/i.test(html));
+});
+
+test('a calm event gets a baseline box and only the checks it needs', () => {
+  const html = brief({ activities: [{ date: '2026-11-05', kind: 'rally', organiser: 'Group Unit', place: 'Town A', places: ['Town A'], statuses: { held: 1 }, confirmedBy: 0, posts: [4], support: 1 }] });
+  assert.ok(!/18 Nov/.test(html) && !/readiness/.test(html) && !/Traffic and essential services/.test(html));
+  assert.match(html, /Verify past events/);
+});
+
+test('an older report without counted facts still prints its own risk text and actions', () => {
+  const sm = { event: { name: 'E', location: 'Odisha' }, generated_at: '2026-11-10T09:00:00Z', stats: {}, evidence_traceability: [] };
+  const html = buildReportHtml({ summary: sm, keywordData: null, tenantName: 'x', analysis: { bottomLine: 'x', actions: [{ action: 'Plan — District Police', detail: 'Do it. Escalate if it grows.', posts: [] }] }, headquarters: null, includeEvidence: false, compact: true, regionOnly: true });
+  assert.match(html, /Why this Risk Level:<\/b>/);
+  assert.match(html, /<b>Plan<\/b>/);
+});
+
+test('every fixed sentence the brief plan can print is in the label list, so other languages translate it', () => {
+  const fs = require('node:fs');
+  const EN = require('../src/modules/events/eventIntelligenceReport/i18n/en.json');
+  const src = fs.readFileSync(require.resolve('../src/services/SummaryLLM/briefPlan.js'), 'utf8');
+  const Q = "'((?:[^'\\\\]|\\\\.)*)'";
+  const used = new Set();
+  let m;
+  const a = new RegExp(`\\bL\\(\\s*${Q}`, 'g'); while ((m = a.exec(src))) used.add(m[1].replace(/\\'/g, "'"));
+  const b = new RegExp(`\\bL\\(\\s*[^'()]*\\?\\s*${Q}\\s*:\\s*${Q}`, 'g'); while ((m = b.exec(src))) { used.add(m[1]); used.add(m[2]); }
+  const c = new RegExp(`plural\\(L,\\s*[^,]+,\\s*${Q},\\s*${Q}`, 'g'); while ((m = c.exec(src))) { used.add(m[1]); used.add(m[2]); }
+  const missing = Array.from(used).filter((s) => /[A-Za-z]/.test(s) && !EN.includes(s));
+  assert.deepStrictEqual(missing, []);
+  // and the words the page itself adds
+  const labels = new Proxy({}, { get: (t, k) => { if (typeof k === 'string') used.add(`seen:${k}`); return undefined; } });
+  const f = briefFixture();
+  buildReportHtml({ summary: f.summary, keywordData: null, tenantName: 'x', analysis: f.analysis, headquarters: null, includeEvidence: false, regionOnly: true, compact: true, labels });
+  const page = Array.from(used).filter((s) => s.startsWith('seen:')).map((s) => s.slice(5)).filter((s) => /[A-Za-z]/.test(s) && !EN.includes(s));
+  assert.deepStrictEqual(page, []);
 });

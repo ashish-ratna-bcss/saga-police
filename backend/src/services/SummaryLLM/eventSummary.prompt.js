@@ -510,19 +510,20 @@ const reportToMarkdown = (r, eventName) => {
 const ACTION_THEMES = `Cover each of these where the facts give a reason, one action per theme, and skip a theme when nothing supports it:
  a) Ground deployment: for each planned or reported activity INSIDE the event region, name the date, the place and the unit. When one activity covers several places or districts, name every one of them in the action.
  b) Traffic, essential services and public transport on the days named.
- c) Liaison with the organisers or local leaders named (who to contact, to agree route, timing and peaceful conduct).
+ c) Liaison and community outreach: the organisers, local leaders or community groups named (who to contact, to agree route, timing and peaceful conduct; listen to them, record their grievances and demands, and share the police position only on matters within police jurisdiction).
  d) Legal and permissions: permission status, notices, prohibitory orders, records to keep, only where the facts show a need.
  e) Cyber / OSINT: the named accounts, hashtags and claims to track, and what to capture as evidence.
  f) Fact-check and public messaging: the named claim or rumour, who answers it, through which channel.
  g) Intelligence sharing with neighbouring districts or other units about activity elsewhere that may reach the region.
  h) Contingency: reserve force, quick-reaction team and escalation steps, each tied to a trigger.
- i) Review after the event: what to collect and report back.`;
+ i) Review after the event: what to collect and report back.
+ j) Official position: where the posts say an agency, court, government body or other authority is investigating, deciding or has promised something, record its official statements and prepare a factual holding line for media queries. Never present a claim made in a post as an official development.`;
 
 const buildActionsSystem = (ctx) => `You advise ${audienceOf(ctx)} on what to do next. Using ONLY the facts given, write 6 to 10 recommended actions.
 ${ACTION_THEMES}
-Each action has: WHO acts (choose from: ${unitsOf(ctx)}), WHAT exactly they do, WHERE or on WHICH account, hashtag or claim, WHY (the fact that justifies it), and one sentence that starts "Escalate if" and names the trigger.
+Each action has: WHO acts (choose from: ${unitsOf(ctx)}), WHAT exactly they do, WHERE or on WHICH account, hashtag or claim, WHY (the fact that justifies it), a deadline "by" (a date YYYY-MM-DD between TODAY and the date of the activity it prepares for; for a check on something that has passed, within 3 days of TODAY), and one sentence that starts "Escalate if" and names the trigger.
 Rules: TIME RULE: TODAY is given in the facts. For an activity dated before today, never tell the police to prepare for it, deploy for it or ensure services on that day; write actions that CHECK WHAT HAPPENED (outcome, turnout, arrests, disruptions, damage) and monitor anything that continues; give one such check for every past activity whose outcome no post reports. Only an activity dated today or later may be prepared for. Use only dates, places, accounts, organisers and claims that appear in the facts; never invent any. Some actions are ALREADY LISTED: write actions ONLY for themes they do not already cover, and at most ONE action per theme. If a theme is already covered, skip it. No generic advice such as "monitor the situation". Plain, direct sentences. Cite the post numbers given with the facts, as numbers in "posts".
-Return ONLY JSON on one line: {"actions":[{"theme":"b","action":"Short title — Lead unit","detail":"2-3 sentences ending with the Escalate if sentence","posts":[12]}]} where theme is the letter a-i of the theme above.`;
+Return ONLY JSON on one line: {"actions":[{"theme":"b","action":"Short title — Lead unit","detail":"2-3 sentences ending with the Escalate if sentence","by":"2026-10-07","posts":[12]}]} where theme is the letter a-j of the theme above. Name the exact claim, account or place; never write "fact-check the claims" without naming one.`;
 
 const buildActionsContext = ({ report, facts, event, today, existing }) => {
   const L = [];
@@ -530,7 +531,7 @@ const buildActionsContext = ({ report, facts, event, today, existing }) => {
   if (report?.bottomLine) L.push(`SITUATION: ${report.bottomLine}`);
   if (report?.publicOrder) L.push(`PUBLIC ORDER: ${report.publicOrder}`);
   const acts = (facts?.activities || []).filter((a) => !a.outside).slice(0, 8);
-  if (acts.length) L.push('ACTIVITIES IN THE REGION:\n' + acts.map((a) => `- ${a.date} ${a.kind}${a.organiser ? ` called by ${a.organiser}` : ''}${a.place ? ` at ${a.place}` : ''} (posts ${a.posts.join(',')})`).join('\n'));
+  if (acts.length) L.push('ACTIVITIES IN THE REGION:\n' + acts.map((a) => `- ${a.date} ${a.kind}${a.organiser ? ` called by ${a.organiser}` : ''}${a.place ? ` at ${a.place}` : ''}${a.posts && a.posts.length ? ` (posts ${a.posts.join(',')})` : ''}`).join('\n'));
   const elsewhere = (facts?.activities || []).filter((a) => a.outside).slice(0, 4);
   if (elsewhere.length) L.push('ACTIVITY OUTSIDE THE REGION (context only):\n' + elsewhere.map((a) => `- ${a.date} ${a.kind}${a.place ? ` at ${a.place}` : ''}`).join('\n'));
   const places = (facts?.places || []).filter((p) => p.region && p.active).slice(0, 8);
@@ -555,6 +556,7 @@ const parseMoreActions = (raw, validNumbers) => {
     theme: one(a.theme, 1).toLowerCase(),
     action: one(a.action, 200),
     detail: one(a.detail, 800),
+    by: /^\d{4}-\d{2}-\d{2}$/.test(one(a.by, 10)) ? one(a.by, 10) : '',
     posts: (Array.isArray(a.posts) ? a.posts : []).map(Number).filter((n) => validNumbers.has(n)).slice(0, 8),
   })).filter((a) => a.action && a.detail.length > 30);
 };
@@ -671,6 +673,7 @@ const parseClosing = (raw) => {
 };
 
 module.exports = {
+  DEFAULT_UNITS,
   buildClosingSystem, buildClosingContext, parseClosing, closingLevel, checkClosing,
   buildActionsSystem, buildActionsContext, parseMoreActions, mergeActions,
   buildSystemPrompt, buildUserContext, RETRY_MESSAGE, RETRY_SHORTER_MESSAGE, parseLLMReport, reportToMarkdown,

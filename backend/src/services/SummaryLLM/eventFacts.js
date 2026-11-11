@@ -6,7 +6,7 @@
 
 const FACTS_SYSTEM = `You extract facts from social-media posts for an event analyst. Each line is: number|posted YYYY-MM-DD|@author|text.
 Return ONLY compact JSON on ONE line (no spaces, no line breaks), one entry for EVERY post number given. Leave out any field that is empty or 0:
-{"p":[{"n":12,"k":"bandh","d":"2026-10-08","o":"organiser","s":"demand or reason","w":"place","c":1,"v":0,"x":0,"a":0,"m":0,"t":"denied","r":"m","pl":[{"n":"CityName","in":"State, Country","a":1}]}]}
+{"p":[{"n":12,"k":"bandh","d":"2026-10-08","o":"organiser","s":"demand or reason","w":"place","c":1,"v":0,"x":0,"a":0,"h":"","m":0,"t":"denied","r":"m","pl":[{"n":"CityName","in":"State, Country","a":1}]}]}
 - k: what the post is about: bandh | rally | protest | meeting | notice | campaign | visit | violence | other. Use bandh only when the post itself says bandh, shutdown or strike; a march, sit-in, demonstration or protest at a site is protest.
 - d: the date the activity takes place, as YYYY-MM-DD. Work it out from the post date ("tomorrow", "8th", "next Friday"). Leave "" if the post gives no date. NEVER use the posting date unless the post says the activity happens that day.
 - o: the group or person that ORGANISES or CALLS the activity, exactly as the post names it. "" if not stated. A party that stays away from, opposes or only comments on the activity is NOT its organiser; a post that says "A has called a bandh, B stays away" has organiser A. The organiser must be a NAMED group, party, organisation or person; never a generic word such as "protesters", "people", "the public", "demonstrators" or "citizens" (leave o empty instead).
@@ -16,6 +16,7 @@ Return ONLY compact JSON on ONE line (no spaces, no line breaks), one entry for 
 - v: 1 only if the post reports or threatens violence, arson, clashes or damage that is part of THIS event's own activity. Riots, attacks or damage in another country or about another story are 0. A police case or FIR alone is 0. Arrests, detentions, preventive custody, a ban or a police warning are 0 unless the post also reports clashes, stone-pelting, arson, injury or damage.
 - x: 1 if the post only ALLEGES, WARNS OF or PREDICTS violence or disruption that has not been reported as happening (for example "stone-pelting may be planned", "a violence warning"). A post with v=1 has x=0.
 - a: 1 if the post reports arrests, detentions, preventive custody, a ban, prohibitory orders or a police refusal of permission about this activity.
+- h: only when a=1 and the post says who was held (for example "party workers", "10 students"), at most 8 words, exactly as the post says it. "" if it does not say.
 - t: status of the activity as the post reports it: announced | permitted | denied (ONLY when police or an authority refused permission, banned it or declared it unlawful; a party staying away or opposing it is NOT denied) | held (it has happened) | called_off. "" if not stated.
 - m: 1 if the post (any author, including news) reports that a group is preparing, mobilising or asking its workers or the public to turn out for the activity. This is NOT the same as c: c is only for the author's own call.
 - e: 0 ONLY if the post is clearly NOT about the monitored event or its subject (for example an exam guide, a travel story, a routine government camp, an advertisement that merely shares a place name). Leave e out when the post is about the event, its organisers, its demands or its effects.
@@ -51,6 +52,20 @@ const tidy = (s) => String(s || '').replace(/\s+/g, ' ').trim();
 const splitPlace = (rawName, rawRegion = '') => {
   const parts = String(rawName || '').split(',').map(tidy).filter(Boolean);
   return { name: (parts[0] || '').slice(0, 60), region: (tidy(rawRegion) || parts.slice(1).join(', ')).slice(0, 80) };
+};
+
+// An activity can name several places in one phrase ("Ranchi, Gumla and Khunti"). Each is a place of its own; a
+// phrase that only counts them ("five districts") is not.
+const COUNT_PHRASE = /^(?:all\s+)?(?:[\p{L}\p{N}]+\s+)?(?:districts?|cities|towns|places|areas|blocks)$/iu;
+const splitPlaces = (text) => {
+  const seen = new Set();
+  return String(text || '').split(/\s*(?:,|;|\/|&|\band\b)\s*/i).map(tidy).filter((x) => {
+    if (!x || x.length > 60 || COUNT_PHRASE.test(x)) return false;
+    const k = fold(x);
+    if (!k || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  }).slice(0, 8);
 };
 
 // Words that only name the kind of activity. An "organiser" made of these and a place ("Gumla Bandh") is the
@@ -129,6 +144,7 @@ const parseFacts = (raw, byNo, extractJson) => {
       relevant: f.e === undefined || Number(f.e) !== 0,
       alleged: Number(f.x) === 1 && Number(f.v) !== 1,
       detention: Number(f.a) === 1,
+      held: Number(f.a) === 1 && supported(tidy(f.h).slice(0, 80), hay) ? tidy(f.h).slice(0, 80) : '',
       status: STATUS.has(String(f.t || '').toLowerCase()) ? String(f.t).toLowerCase() : '',
       role: ROLES[String(f.r || '').toLowerCase()] || '',
     };
@@ -149,7 +165,7 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
   const placeMap = new Map();
   const byPost = {};
   let calls = 0; let violence = 0; let callsOut = 0; let violenceOut = 0;
-  const allegedPosts = []; const detentionPosts = []; const mobilisingPosts = []; const violenceAuthors = new Set();
+  const allegedPosts = []; const detentionPosts = []; const detentionDetails = []; const mobilisingPosts = []; const violenceAuthors = new Set();
   const callPosts = []; const violencePosts = []; const callOutPosts = []; const violenceOutPosts = [];
 
   Object.entries(factsMap).forEach(([nStr, f]) => {
@@ -166,7 +182,11 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
     if (ownViolence) { violence += 1; violencePosts.push(n); violenceAuthors.add(String(post?.author || n).toLowerCase()); }
     if (f.alleged && where !== 'out') allegedPosts.push(n);
     if (f.mobilising && where !== 'out') mobilisingPosts.push(n);
-    if (f.detention && where !== 'out') detentionPosts.push(n);
+    if (f.detention && where !== 'out') {
+      detentionPosts.push(n);
+      const at = (f.places || []).find((pl) => pl.active) || (f.places || [])[0];
+      if (detentionDetails.length < 6) detentionDetails.push({ n, who: f.held || '', place: (at && at.name) || f.place || '' });
+    }
     (f.places || []).forEach((pl) => {
       const key = fold(pl.name);
       const e = placeMap.get(key) || { name: pl.name, region: pl.region, mentioned: 0, active: 0, posts: [] };
@@ -188,7 +208,8 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
     }
     if (!ACTIVITY_KINDS.has(f.kind) || !f.date) return;
     const k = `${f.date}|${f.kind}`;
-    const d = dated.get(k) || { date: f.date, kind: f.kind, posts: [], organisers: new Map(), places: new Map(), subjects: new Map(), statuses: new Map(), outside: 0 };
+    const d = dated.get(k) || { date: f.date, kind: f.kind, posts: [], organisers: new Map(), places: new Map(), subjects: new Map(), statuses: new Map(), outside: 0, heldBy: new Set() };
+    if (f.status === 'held' && f.role === 'media') d.heldBy.add(String(post?.author || n).toLowerCase());   // distinct news outlets that report it as held
     d.posts.push(n);
     if (where === 'out') d.outside += 1;
     if (f.organiser) { const ok = fold(f.organiser); const cur = d.organisers.get(ok) || { name: f.organiser, n: 0, forms: new Map() }; cur.n += 1; cur.forms.set(f.organiser, (cur.forms.get(f.organiser) || 0) + 1); cur.name = Array.from(cur.forms.entries()).sort((a, b) => b[1] - a[1])[0][0]; d.organisers.set(ok, cur); }
@@ -202,7 +223,12 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
   const top = (m) => Array.from(m.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
   const topOrg = (m) => Array.from(m.values()).sort((a, b) => b.n - a.n)[0]?.name || '';
   const activities = Array.from(dated.values())
-    .map((d) => ({ date: d.date, kind: d.kind, organiser: topOrg(d.organisers), place: top(d.places), subject: top(d.subjects), statuses: Object.fromEntries(d.statuses), posts: d.posts.slice(0, 8), support: d.posts.length, outside: d.outside > 0 && d.outside === d.posts.length }))
+    .map((d) => ({
+      date: d.date, kind: d.kind, organiser: topOrg(d.organisers), place: top(d.places),
+      places: splitPlaces(Array.from(d.places.entries()).sort((a, b) => b[1] - a[1]).map(([name]) => name).join(', ')),
+      subject: top(d.subjects), statuses: Object.fromEntries(d.statuses), confirmedBy: d.heldBy.size,
+      posts: d.posts.slice(0, 8), support: d.posts.length, outside: d.outside > 0 && d.outside === d.posts.length,
+    }))
     .sort((a, b) => a.date.localeCompare(b.date));
   return {
     activities,
@@ -212,7 +238,7 @@ const aggregateFacts = (factsMap, byNo, regionOf = () => 'unknown') => {
     violence: { count: violence, accounts: violenceAuthors.size, posts: violencePosts.slice(0, 10) },
     mobilising: { count: mobilisingPosts.length, posts: mobilisingPosts.slice(0, 10) },
     alleged: { count: allegedPosts.length, posts: allegedPosts.slice(0, 10) },
-    detentions: { count: detentionPosts.length, posts: detentionPosts.slice(0, 10) },
+    detentions: { count: detentionPosts.length, posts: detentionPosts.slice(0, 10), details: detentionDetails },
     byPost,
     callsOutside: { count: callsOut, posts: callOutPosts.slice(0, 10) },
     violenceOutside: { count: violenceOut, posts: violenceOutPosts.slice(0, 10) },
@@ -233,7 +259,7 @@ const factsPackText = (facts, today) => {
   };
   const lines = [];
   facts.activities.filter((a) => !a.outside).slice(0, 10).forEach((a) => lines.push(
-    `FACT ${day(a.date)} ${a.kind}${a.organiser ? ` called by ${a.organiser}` : ''}${a.place ? ` at ${a.place}` : ''}${a.subject ? ` about: ${a.subject}` : ''}${a.statuses && Object.keys(a.statuses).length ? ` [status in posts: ${Object.entries(a.statuses).map(([k, v]) => `${k} x${v}`).join(', ')}]` : ''} — ${a.support} post(s) ${a.posts.map((p) => `[Post #${p}]`).join(' ')}`));
+    `FACT ${day(a.date)} ${a.kind}${a.organiser ? ` called by ${a.organiser}` : ''}${a.place ? ` at ${a.place}` : ''}${a.subject ? ` about: ${a.subject}` : ''}${a.statuses && Object.keys(a.statuses).length ? ` [status in posts: ${Object.entries(a.statuses).map(([k, v]) => `${k} x${v}`).join(', ')}]` : ''} — ${a.carried ? 'from the earlier report' : `${a.support} post(s) ${a.posts.map((p) => `[Post #${p}]`).join(' ')}`}`));
   facts.activities.filter((a) => a.outside).slice(0, 4).forEach((a) => lines.push(
     `FACT (OUTSIDE the event region, mention only as context) ${day(a.date)} ${a.kind}${a.place ? ` at ${a.place}` : ''} — ${a.support} post(s)`));
   if (facts.calls.count) lines.push(`FACT ${facts.calls.count} post(s) call people to join or act ${facts.calls.posts.map((p) => `[Post #${p}]`).join(' ')}`);
@@ -280,6 +306,7 @@ const normalizeFactNames = (facts) => {
   const activities = (facts.activities || []).map((a) => ({
     ...a,
     place: spaced(a.place),
+    ...(Array.isArray(a.places) ? { places: a.places.map(spaced).filter(Boolean) } : {}),
     organiser: a.organiser && !isEventLabel(a.organiser, [a.place, ...placeTexts]) ? a.organiser : '',
   }));
   const organisers = (facts.organisers || []).filter((o) => !isEventLabel(o.name, placeTexts));
@@ -295,4 +322,4 @@ const normalizeFactNames = (facts) => {
 module.exports = {
   salvageEntries,
   fold, FACTS_SYSTEM, buildFactsUserContext, parseFacts, aggregateFacts, factsPackText,
-  splitPlace, isEventLabel, normalizeFactNames };
+  splitPlace, splitPlaces, isEventLabel, normalizeFactNames };
