@@ -44,6 +44,30 @@ const supported = (value, haystacks) => {
   return haystacks.some((h) => { const f = ` ${fold(h)} `; return words.every((w) => f.includes(w)); });
 };
 
+const tidy = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+
+// The model sometimes writes a place as "Gumla,Jharkhand". The name is the first part and the rest is its region,
+// so the same place is not counted twice under two spellings.
+const splitPlace = (rawName, rawRegion = '') => {
+  const parts = String(rawName || '').split(',').map(tidy).filter(Boolean);
+  return { name: (parts[0] || '').slice(0, 60), region: (tidy(rawRegion) || parts.slice(1).join(', ')).slice(0, 80) };
+};
+
+// Words that only name the kind of activity. An "organiser" made of these and a place ("Gumla Bandh") is the
+// event's title, not a group that called it.
+const ACTIVITY_WORDS = new Set([
+  'bandh', 'band', 'bundh', 'bandha', 'rally', 'protest', 'dharna', 'dharana', 'andolan', 'shutdown', 'strike', 'march', 'yatra', 'sabha',
+  'call', 'appeal', 'for', 'against', 'the', 'of', 'in', 'and',
+  'बंद', 'बन्द', 'रैली', 'धरना', 'प्रदर्शन', 'आंदोलन', 'आन्दोलन',
+]);
+
+const isEventLabel = (organiser, placeTexts = []) => {
+  const words = fold(organiser).split(' ').filter(Boolean);
+  if (!words.length) return true;
+  const placeWords = new Set(placeTexts.flatMap((t) => fold(t).split(' ')).filter(Boolean));
+  return words.every((w) => ACTIVITY_WORDS.has(w) || placeWords.has(w));
+};
+
 /** Reads one reply. Returns { [n]: fact } for valid post numbers (already validated against `byNo`), or null if unusable. */
 /** If the reply was cut off, keep every complete {...} entry that has a post number. */
 const salvageEntries = (raw) => {
@@ -81,16 +105,22 @@ const parseFacts = (raw, byNo, extractJson) => {
     const place = String(f.w || '').replace(/\s+/g, ' ').trim().slice(0, 80);
     const postedDay = post.postedAt ? new Date(post.postedAt).toISOString().slice(0, 10) : '';
     const notYet = Boolean(date && postedDay && postedDay < date);   // a post written before the activity cannot report people already there
+    const seenPlace = new Set();
     const pl = (Array.isArray(f.pl) ? f.pl : []).map((x) => ({
-      name: String(x?.n || '').replace(/\s+/g, ' ').trim().slice(0, 60),
-      region: String(x?.in || '').replace(/\s+/g, ' ').trim().slice(0, 80),
+      ...splitPlace(x?.n, x?.in),
       active: Number(x?.a) === 1 && !notYet,
-    })).filter((x) => x.name && supported(x.name, hay)).slice(0, 6);
+    })).filter((x) => {
+      if (!x.name || !supported(x.name, hay)) return false;
+      const key = fold(x.name);
+      if (seenPlace.has(key)) return false;
+      seenPlace.add(key);
+      return true;
+    }).slice(0, 6);
     out[n] = {
       places: pl,
       kind: KINDS.has(kind) ? kind : 'other',
       date,
-      organiser: supported(organiser, hay) ? organiser : '',
+      organiser: supported(organiser, hay) && !isEventLabel(organiser, [place, ...pl.flatMap((x) => [x.name, x.region])]) ? organiser : '',
       place: supported(place, hay) ? place : '',
       subject,
       call: Number(f.c) === 1,
@@ -217,6 +247,52 @@ const factsPackText = (facts, today) => {
   return lines.join('\n');
 };
 
+/**
+ * The same cleanup the parser now applies, for facts that were saved before it did: one spelling per place
+ * ("Gumla,Jharkhand" is "Gumla"), and no activity whose "organiser" is only its own title and place ("Gumla Bandh").
+ * Safe to run on facts that are already clean.
+ */
+const normalizeFactNames = (facts) => {
+  if (!facts || typeof facts !== 'object') return facts;
+  const merged = new Map();
+  (facts.places || []).forEach((p) => {
+    const { name, region } = splitPlace(p.name, p.region);
+    if (!name) return;
+    const key = fold(name);
+    const cur = merged.get(key);
+    if (!cur) { merged.set(key, { ...p, name, region, posts: [...(p.posts || [])] }); return; }
+    cur.mentioned = (Number(cur.mentioned) || 0) + (Number(p.mentioned) || 0);
+    cur.active = (Number(cur.active) || 0) + (Number(p.active) || 0);
+    if (!cur.region && region) cur.region = region;
+    cur.posts = Array.from(new Set([...cur.posts, ...(p.posts || [])])).slice(0, 6);
+  });
+  const places = Array.from(merged.values()).sort((a, b) => (b.active - a.active) || (b.mentioned - a.mentioned));
+  const nameOf = (n) => splitPlace(n).name;
+  const uniq = (arr) => Array.from(new Set((arr || []).map(nameOf).filter(Boolean)));
+  // A list is rewritten only where the post had one: the report reads a missing "active" list differently from an empty one.
+  const byPost = Object.fromEntries(Object.entries(facts.byPost || {}).map(([n, v]) => [n, {
+    ...v,
+    ...(Array.isArray(v?.places) ? { places: uniq(v.places) } : {}),
+    ...(Array.isArray(v?.active) ? { active: uniq(v.active) } : {}),
+  }]));
+  const placeTexts = places.flatMap((p) => [p.name, p.region]);
+  const spaced = (s) => String(s || '').replace(/\s*,\s*/g, ', ').trim();
+  const activities = (facts.activities || []).map((a) => ({
+    ...a,
+    place: spaced(a.place),
+    organiser: a.organiser && !isEventLabel(a.organiser, [a.place, ...placeTexts]) ? a.organiser : '',
+  }));
+  const organisers = (facts.organisers || []).filter((o) => !isEventLabel(o.name, placeTexts));
+  return {
+    ...facts,
+    ...(facts.places ? { places } : {}),
+    ...(facts.byPost ? { byPost } : {}),
+    ...(facts.activities ? { activities } : {}),
+    ...(facts.organisers ? { organisers } : {}),
+  };
+};
+
 module.exports = {
   salvageEntries,
-  fold, FACTS_SYSTEM, buildFactsUserContext, parseFacts, aggregateFacts, factsPackText };
+  fold, FACTS_SYSTEM, buildFactsUserContext, parseFacts, aggregateFacts, factsPackText,
+  splitPlace, isEventLabel, normalizeFactNames };

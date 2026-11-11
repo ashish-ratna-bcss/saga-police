@@ -7,6 +7,7 @@ const path = require('path');
 const { esc } = require('./render');
 const { classifyEvidence } = require('./scope');
 const { buildPresentationBody, PRESENTATION_CSS } = require('./presentation');
+const { normalizeFactNames } = require('../../../services/SummaryLLM/eventFacts');
 
 /**
  * Bundled fonts (./fonts). Only the scripts that actually appear in a report are embedded,
@@ -88,6 +89,13 @@ const clip = (s, n = 160) => {
     .replace(/\s+/g, ' ')
     .trim();
   return t.length > n ? `${t.slice(0, n - 1)}…` : t;
+};
+// Like clip, but a trailing "; status" part is kept whole, so a long line is shortened before its status and never loses it.
+const clipStatus = (s, n = 160) => {
+  const t = String(s || '').replace(/\s+/g, ' ').trim();
+  if (t.length <= n) return t;
+  const i = t.lastIndexOf('; ');
+  return i > 0 && t.length - i <= 60 ? `${clip(t.slice(0, i), n - (t.length - i))}${t.slice(i)}` : clip(t, n);
 };
 const shortAuthor = (a) => {
   const s = String(a || 'unknown');
@@ -846,7 +854,11 @@ const plainDates = (html) => String(html)
 
 /** A closing summary whose line breaks were lost ("CONFIRMED - a - b NOT VERIFIED - c ...") is put back into its labelled sections. */
 const relabelClosing = (t) => {
-  if (/^(CONFIRMED|NOT VERIFIED|NEXT STEPS|RISK)\s*$/m.test(t)) return t;
+  // Well formed only when EVERY label is on its own line. The first label can survive alone while the others are run into the
+  // text (the region filter joins sentences with spaces), and that case must be repaired too.
+  const ownLine = (t.match(/^(CONFIRMED|NOT VERIFIED|NEXT STEPS|RISK)\s*$/gm) || []).length;
+  const anywhere = (t.match(/\b(CONFIRMED|NOT VERIFIED|NEXT STEPS|RISK)\b/g) || []).length;
+  if (ownLine && ownLine === anywhere) return t;
   const re = /\b(CONFIRMED|NOT VERIFIED|NEXT STEPS|RISK)\b\s*:?\s*/g;
   const marks = [];
   let m;
@@ -864,6 +876,9 @@ const dedupeActions = (list) => { const seen = new Set(); return list.filter((a)
 
 const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquarters, includeEvidence = true, labels = null, regionOnly = false, compact = false, presentation = false }) => {
   setReportTz(headquarters?.timezone);
+  // Facts saved before the parser merged place spellings and dropped event titles used as organisers are cleaned here,
+  // so every section below reads the same places and organisers.
+  if (analysis?.facts) analysis = { ...analysis, facts: normalizeFactNames(analysis.facts) };
   // Fixed wording that carries a value (a region, a count) goes through the label map here, because the post-build
   // translation only replaces text that is exactly one label. {placeholders} are kept by the translator.
   const L = (en, vars = {}) => String((labels && labels[en]) || en).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
@@ -1735,13 +1750,17 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     .filter((a) => !regionOnly || a.posts.length);
   const outsideFactNames = Array.from(factPlaceRegion.keys()).filter((n) => outsideRegionPlace(n));
   const STATUS_TEXT = { denied: 'police permission refused or declared unlawful', permitted: 'permission granted', held: 'has taken place', called_off: 'called off', announced: 'announced' };
+  // A past activity that no post reports as held, called off or refused says "not verified", so its outcome is never left blank.
+  let todayIso = '';
+  try { todayIso = new Date(generated).toLocaleDateString('en-CA', { timeZone: REPORT_TZ }); } catch (e) { todayIso = ''; }
+  const needsStatus = (a) => Boolean(todayIso && a.date && String(a.date) < todayIso);
   const actLine = (a) => {
     const kind = L(String(a.kind || 'activity').replace(/^./, (c) => c.toUpperCase()));
     const total = Object.values(a.statuses || {}).reduce((x, y) => x + y, 0);
     const solid = (k, n) => k !== 'denied' || n >= 3 || n * 2 >= total;   // a refusal is shown only when several posts, or most of them, say so
     const st = Object.entries(a.statuses || {}).filter(([k, n]) => k !== 'announced' && solid(k, n)).sort((x, y) => y[1] - x[1]).map(([k]) => STATUS_TEXT[k]).filter(Boolean)[0];
     const announced = (a.statuses || {}).announced ? ` (${L('organiser says it will go ahead')})` : '';
-    return `${kind}${a.organiser ? ` ${L('called by')} ${a.organiser}` : ''}${a.place ? ` ${L('at')} ${a.place}` : ''}${a.subject ? ` — ${L('about')}: ${a.subject}` : a.subject === '' ? ` — ${L('reason not stated in the posts')}` : ''}${st ? `; ${L(st)}${st === STATUS_TEXT.denied ? announced : ''}` : ''}`;
+    return `${kind}${a.organiser ? ` ${L('called by')} ${a.organiser}` : ''}${a.place ? ` ${L('at')} ${a.place}` : ''}${a.subject ? ` — ${L('about')}: ${a.subject}` : a.subject === '' ? ` — ${L('reason not stated in the posts')}` : ''}${st ? `; ${L(st)}${st === STATUS_TEXT.denied ? announced : ''}` : needsStatus(a) ? `; ${L('not verified')}` : ''}`;
   };
 
   // Public order block built from the counted facts, so the level, what is confirmed and what is not can never disagree.
@@ -1749,7 +1768,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     const kds = (factActs.length ? factActs.map((a) => ({ date: a.date, event: actLine(a), posts: a.posts })) : keyDates.filter((k) => !k.outside)).slice(0, 4);
     const plain = (t) => String(t || '').replace(/^\d{4}-\d{2}-\d{2}:?\s*/, '');
     const happening = kds.length
-      ? kds.map((k) => `<li>${esc(String(k.date || ''))}: ${esc(clip(plain(k.event || k.what), 100))}${k.posts?.length ? ` <span class="sm">${esc(k.posts.slice(0, 5).map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')
+      ? kds.map((k) => `<li>${esc(String(k.date || ''))}: ${esc(clipStatus(plain(k.event || k.what), 100))}${k.posts?.length ? ` <span class="sm">${esc(k.posts.slice(0, 5).map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</li>`).join('')
       : `<li>${esc(L('No dated activity is named in the posts.'))}</li>`;
     const notShown = [
       haveFacts && callN === 0 ? L('No post calls people to join a bandh, blockade or gathering in its own words.') : '',
@@ -1913,12 +1932,19 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     const text = relabelClosing(String(analysis?.closingSummary || '').trim());
     if (!text) return '';
     const noPlan = (para) => para.split(/(?<=[.!?])\s+/).filter((x) => !(regionOnly && outsideFactNames.length && nameMatcher(outsideFactNames)(x))).filter((x) => !/\b(police|authorities|administration)\b[^.]{0,40}\b(plan|plans|planned|intend|intends|are monitoring|will monitor)\b/i.test(x)).join(' ');
+    // The level on the first page is computed from the counted facts. The model's closing "risk" line must name that same level,
+    // so one brief never says Low on page 1 and Medium on page 3. Only a level stated as the risk level is changed, never a count such as "high-risk posts".
+    const lvl = String(threatLevelVal || '');
+    const alignLevel = (x) => (/^(Critical|High|Medium|Low)$/i.test(lvl)
+      ? x.replace(/^(Critical|High|Medium|Low)\b/i, lvl)
+        .replace(/\b(risk(?:\s+level)?\s+(?:is|remains|stays|stands at|is now|is rated|reassessed(?:\s+(?:as|to))?)\s+)(Critical|High|Medium|Low)\b/gi, `$1${lvl}`)
+      : x);
     const labelled = /^(CONFIRMED|NOT VERIFIED|NEXT STEPS|RISK)\s*$/m.test(text);
     if (labelled) {
       const blocks = text.split(/\n{2,}/).map((b) => {
         const lines = b.split('\n').map((x) => x.trim()).filter(Boolean);
         const head = lines.shift();
-        return { head, items: lines.map((x) => noPlan(x.replace(/^[-*•]\s*/, ''))).filter(Boolean) };
+        return { head, items: lines.map((x) => noPlan(x.replace(/^[-*•]\s*/, ''))).filter(Boolean).map((x) => (head === 'RISK' ? alignLevel(x) : x)) };
       }).filter((b) => b.items.length);
       const META = {
         CONFIRMED: { t: 'Confirmed', c: '#1B7A4E' },
@@ -1941,7 +1967,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     const kd = (factActs.length ? factActs.map((a) => ({ date: a.date, event: actLine(a), posts: a.posts })) : keyDates.filter((k) => !k.outside)).slice(0, 5);
     const dayLabel = (d) => { const t = parseDateMs(d); return t ? new Date(t).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: REPORT_TZ }) : esc(clip(String(d || ''), 12)); };
     const timeline = kd.length
-      ? `<div class="cp-tl">${kd.map((k) => `<div class="it"><span class="dt">${dayLabel(k.date)}</span><span class="kd">${esc(clip(String(k.event || k.what || '').replace(/^\d{4}-\d{2}-\d{2}:?\s*/, ''), 150))}</span>${k.posts?.length ? `<span class="lk">${esc(k.posts.slice(0, 5).map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</div>`).join('')}</div>`
+      ? `<div class="cp-tl">${kd.map((k) => `<div class="it"><span class="dt">${dayLabel(k.date)}</span><span class="kd">${esc(clipStatus(String(k.event || k.what || '').replace(/^\d{4}-\d{2}-\d{2}:?\s*/, ''), 150))}</span>${k.posts?.length ? `<span class="lk">${esc(k.posts.slice(0, 5).map((n) => `[Post #${n}]`).join(' '))}</span>` : ''}</div>`).join('')}</div>`
       : `<p class="sm">${esc(L('No dated activity is named in the posts.'))}</p>`;
     const topPlaces = places.slice(0, 5);
     const pMax = Math.max(1, ...topPlaces.map((x) => x.count));
