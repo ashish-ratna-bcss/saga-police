@@ -420,6 +420,7 @@ b{font-weight:700}
 .hero .meta>span{padding:2.4mm 3mm 3mm 0;font-size:6.4pt;letter-spacing:.08em;color:#8FA6BD;text-transform:uppercase}
 .hero .meta>span+span{padding-left:3mm;border-left:.6px solid #2F5272}
 .hero .meta i{font-style:normal;display:block}
+.prep{font-size:7pt;color:#5B6880;margin:0 0 3mm}.prep b{color:#14305A}
 .hero .meta b{display:block;color:#fff;font-size:8.6pt;letter-spacing:0;text-transform:none;margin-top:.7mm;line-height:1.3}
 
 .addr{display:flex;align-items:center;gap:5mm;border:.6px solid ${LINE};border-left:3px solid ${NAVY};border-radius:3px;background:#fff;padding:2.2mm 3.2mm;margin:0 0 3.5mm}
@@ -869,6 +870,25 @@ const regionFilter = (analysis, outsideNs, outsideNames) => {
   };
 };
 
+// The period a report covers ends on the day it is prepared: it cannot cover days that have not happened yet. The rest of the
+// event's window is "continued monitoring". Days are calendar days in the report timezone, shown as "5 Nov 2026".
+const PLATFORM_NAME = 'BLURASAGA';
+const showDay = (day) => new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const nextDay = (day) => { const d = new Date(`${day}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); };
+const reportPeriod = (stats, generated, tz) => {
+  const s = stats || {};
+  const dayIn = (v) => { const d = v ? new Date(v) : null; return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('en-CA', { timeZone: tz }) : ''; };
+  const given = s.from_date && s.to_date;
+  const start = given ? String(s.from_date).slice(0, 10) : dayIn(s.effective_start || s.date_range?.start);
+  const end = given ? String(s.to_date).slice(0, 10) : dayIn(s.effective_end || s.date_range?.end);
+  if (!start || !end) return { text: '', continued: '' };
+  const today = dayIn(generated);
+  const open = Boolean(today) && end > today;
+  const shownEnd = open ? (today < start ? start : today) : end;
+  const full = !s.timeframe || s.timeframe === 'full';
+  return { text: `${showDay(start)} to ${showDay(shownEnd)}`, continued: open && full && today >= start ? `${showDay(nextDay(today))} to ${showDay(end)}` : '' };
+};
+
 // Dates written as 2026-10-08 are shown as "8 Oct 2026" so nobody reads day and month the wrong way round.
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const plainDates = (html) => String(html)
@@ -940,6 +960,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   const tenant = cleanTenant(tenantName);
   const hq = headquarters || null;
+  const preparedBy = L('{platform} platform for {force}', { platform: PLATFORM_NAME, force: hq?.force && hq.official ? hq.force : tenant });
   const hqHtml = hq
     ? `<div class="addr">
         <div class="l">ADDRESSED TO STATE HEADQUARTERS</div>
@@ -2188,17 +2209,12 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   ${changeLogSection()}`;
   };
 
-  const presentationPeriod = (() => {
-    const fmtDay = (d, tz) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: tz });
-    if (stats.from_date && stats.to_date) return `${fmtDay(`${String(stats.from_date).slice(0, 10)}T12:00:00Z`, 'UTC')} to ${fmtDay(`${String(stats.to_date).slice(0, 10)}T12:00:00Z`, 'UTC')}`;
-    const a = stats.effective_start || stats.date_range?.start; const b = stats.effective_end || stats.date_range?.end;
-    return a && b ? `${fmtDay(a, 'UTC')} to ${fmtDay(b, 'UTC')}` : '';
-  })();
+  const period = reportPeriod(stats, generated, REPORT_TZ);
   if (presentation) {
     const bl = analysis?.bottomLine ? String(analysis.bottomLine).replace(/(\d+%\s+(?:of\s+(?:the\s+)?posts\s+)?(?:are|is)\s+)critical\b/gi, '$1negative') : '';
     const slides = buildPresentationBody({
       esc, fmt, pct, clip, L, donutSvg, platLabel, platColor,
-      event, tenant, windowStr, period: presentationPeriod, dateStr, total, sent, sentTotal, engTotal, ev: scopeEv, riskParts, platformEntries, kws,
+      event, tenant, windowStr, period: period.text, continued: period.continued, preparedBy, dateStr, total, sent, sentTotal, engTotal, ev: scopeEv, riskParts, platformEntries, kws,
       classification: hq?.classification || '',
       coverage: { collected: n0(stats.relevant_posts_count) || ev.length, inRegion: scoped ? inEv.length : null, region: event.location || '', unrelated: n0(stats.unrelated_posts_count), duplicates: n0(stats.duplicate_posts_merged), register: ev.length },
       analysis, places, authors, threatLevel: threatLevelVal, rationale: computedRationale, bottomLine: bl, narrativesToWatch, actions: planned.map((a) => ({ ...a, byLabel: byText(a) })), story: { rows: timelineRows, detentionNs: detPosts }, notKnown: analysis?.notKnown || [], stats,
@@ -2223,7 +2239,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
     <h1>${esc(event.name || 'Event')}</h1>
     <div class="sub">${esc(event.location || 'Location not specified')} · ${includeEvidence ? 'Detailed intelligence brief with complete evidence register' : 'Executive action summary and tactical intelligence brief'}</div>
     <div class="meta">
-      <span><i>Monitoring window</i><b>${esc(windowStr)}</b></span>
+      <span><i>Monitoring window</i><b>${esc(!stats.timeframe || stats.timeframe === 'full' ? (period.text || windowStr) : windowStr)}${period.continued ? `<br>${esc(L('Monitoring continues'))} ${esc(period.continued)}` : ''}</b></span>
       <span><i>Generated</i><b>${esc(dateStr)}</b></span>
       <span><i>Posts analysed</i><b>${(() => {
         // Large events are read in detail on a sample: say so, so the number is not mistaken for the whole event.
@@ -2234,6 +2250,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
       <span><i>Report format</i><b>${includeEvidence ? (regionOnly ? `${esc(regionName)} Full Report (with evidence)` : 'Full Report (with evidence)') : compact ? `${esc(regionName)} Location Summary` : regionOnly ? `${esc(regionName)} Executive Summary` : 'Executive Summary'}</b></span>
     </div>
   </header>
+  <div class="prep">${esc(L('Prepared'))} ${esc(dateStr)} ${esc(L('by'))} <b>${esc(preparedBy)}</b></div>
   ${hqHtml}
   ${assessHtml}
   ${compact ? compactBody() : `${kstripHtml}
@@ -2266,4 +2283,4 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
   return `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>${fontFacesFor(printable)}${CSS}</style></head><body>${printable}</body></html>`;
 };
 
-module.exports = { buildReportHtml, fontFacesFor, FONT_STACK, regionFilter };
+module.exports = { buildReportHtml, fontFacesFor, FONT_STACK, regionFilter, reportPeriod };

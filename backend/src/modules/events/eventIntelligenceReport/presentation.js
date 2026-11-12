@@ -78,9 +78,17 @@ body{font-family:'Lato','Liberation Sans','Helvetica Neue',Arial,sans-serif;colo
 .hb .tr{height:34px;background:#F1F4F9;border-radius:4px}
 .hb .fl{height:100%;border-radius:4px}
 .hb .v{font-weight:700;color:${COLORS.ink}}
+.hb.cnt{grid-template-columns:300px 1fr 130px}
+.hb .v small{display:block;font-weight:400;font-size:15px;color:#5B6880;line-height:1.2}
 .big{border-radius:18px;color:#fff;text-align:center;padding:30px 20px;margin:0 0 20px}
 .big .n{font-family:'Lora',Georgia,serif;font-size:80px;font-weight:700;line-height:1}
 .big .l{font-size:20px;margin-top:10px;line-height:1.3}
+.big.sm{padding:18px 16px;margin:0 0 16px}.big.sm .n{font-size:60px}.big.sm .l{font-size:18px;margin-top:6px}
+.kr-h{font-size:18px;font-weight:700;color:${COLORS.navy};margin:0 0 8px}
+.kr{margin:0 0 11px;font-size:16px;color:#2B3957;line-height:1.3}
+.kr .h{font-size:18px;font-weight:700;color:${COLORS.navy}}.kr .h span{font-weight:400;color:#5B6880;font-size:16px}
+.kr .mb{display:flex;height:10px;border-radius:5px;overflow:hidden;margin:4px 0 3px}
+.kr .p{color:#5B6880;font-size:15px}
 .info{background:${COLORS.card};border-radius:18px;padding:18px 24px;margin:0 0 14px}
 .info h3{margin:0 0 8px;font-size:25px;color:${COLORS.navy}}
 .info p{margin:0;font-size:18px;line-height:1.4;color:#2B3957}
@@ -116,7 +124,7 @@ const slide = (cls, inner, { tenant, mark, no }) => `<section class="slide ${cls
 const buildPresentationBody = (ctx) => {
   const {
     esc, fmt, pct, clip, L, donutSvg, platLabel, platColor,
-    event, tenant, windowStr: windowFull, period, dateStr, total, sent, sentTotal, engTotal, ev, riskParts, platformEntries, kws,
+    event, tenant, windowStr: windowFull, period, continued, preparedBy, dateStr, total, sent, sentTotal, engTotal, ev, riskParts, platformEntries, kws,
     analysis, places, authors, threatLevel, rationale, coverage, bottomLine, counts, narrativesToWatch, actions, story, notKnown, stats,
   } = ctx;
   const t = esc(tenant);
@@ -170,7 +178,7 @@ const buildPresentationBody = (ctx) => {
   // ---- 1. Title
   const s1 = `
     <div class="left"><h1>${esc(L('Situation assessment and way forward'))}</h1><div class="sub">${esc(event.name || '')}${event.location ? ` · ${esc(event.location)}` : ''}</div>
-      <div class="meta">${esc(L('Monitoring period'))} ${esc(windowStr)}<br>${esc(L('Prepared'))} ${esc(dateStr)} ${esc(L('by'))} ${t}</div></div>
+      <div class="meta">${esc(L('Monitoring period'))} ${esc(windowStr)}<br>${continued ? `${esc(L('Monitoring continues'))} ${esc(continued)}<br>` : ''}${esc(L('Prepared'))} ${esc(dateStr)} ${esc(L('by'))} ${esc(preparedBy || tenant)}</div></div>
     <div class="tiles">
       <div class="tile or"><div class="n">${fmt(total)}</div><div class="l">${esc(L('public posts read'))}</div></div>
       <div class="tile bl"><div class="n">${compact(engTotal)}</div><div class="l">${esc(L('engagements'))}</div></div>
@@ -323,17 +331,36 @@ const buildPresentationBody = (ctx) => {
   const topKw = (kws || []).slice(0, 7);
   const kMax = Math.max(1, ...topKw.map((k) => Number(k.total_posts) || 0));
   const kTot = (kws || []).reduce((s, k) => s + (Number(k.total_posts) || 0), 0);
+  // What the main keywords are used for: the posts that carry each one, their tone, and the topics those posts belong to.
+  // Shares are of that keyword's own posts among the posts listed in this deck.
+  const kwFold = (s) => String(s || '').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, '');
+  const topics = (analysis && analysis.narratives) || [];
+  const kwReads = topKw.map((k) => {
+    const key = kwFold(k.keyword);
+    const hits = key.length >= 3 ? (ev || []).filter((e) => kwFold(e.text).includes(key)) : [];
+    if (hits.length < 3) return null;
+    const neg = hits.filter((e) => e.sentK === 'negative').length;
+    const pos = hits.filter((e) => e.sentK === 'positive').length;
+    const about = topics.map((t) => ({ title: String(t.title || '').trim(), k: hits.filter((e) => (t.posts || []).includes(e.n)).length }))
+      .filter((t) => t.title && t.k > 0).sort((a, b) => b.k - a.k).slice(0, 2);
+    return { name: k.keyword, n: hits.length, tone: [neg, hits.length - neg - pos, pos], about };
+  }).filter(Boolean).slice(0, 3);
+  const pcOf = (v, n) => Math.round((100 * v) / n);
+  const kwBlock = kwReads.length ? `<div class="kr-h">${esc(L('What people say with these keywords'))}</div>${kwReads.map((r) => `<div class="kr"><div class="h">${esc(clip(r.name, 30))}<span> · ${esc(L(r.n === 1 ? '{n} post read in detail' : '{n} posts read in detail', { n: r.n }))}</span></div>
+      <div class="mb">${r.tone.map((v, i) => `<div style="width:${pcOf(v, r.n)}%;background:${[COLORS.red, COLORS.grey, COLORS.green][i]}"></div>`).join('')}</div>
+      <div class="p">${esc(L('Negative'))} ${pcOf(r.tone[0], r.n)}% · ${esc(L('Neutral'))} ${pcOf(r.tone[1], r.n)}% · ${esc(L('Positive'))} ${pcOf(r.tone[2], r.n)}%</div>
+      ${r.about.length ? `<div>${esc(L('Mostly about'))}: ${r.about.map((a) => `${esc(clip(a.title, 40))} (${pcOf(a.k, r.n)}%)`).join('; ')}</div>` : ''}</div>`).join('')}` : '';
   const s6 = `<h2>${esc(L('What the posts are about'))}</h2><div class="split"><div>
       <div class="small" style="font-weight:700;margin-bottom:12px">${esc(L('Posts per keyword (a post can carry several)'))}</div>
       ${topKw.map((k, i) => `<div class="hb"><div class="nm">${esc(clip(k.keyword, 34))}</div><div class="tr"><div class="fl" style="width:${(100 * (Number(k.total_posts) || 0)) / kMax}%;background:${i === 0 ? COLORS.red : COLORS.grey}"></div></div><div class="v">${fmt(k.total_posts)}</div></div>`).join('') || `<p class="small">${esc(L('No keyword split for this event.'))}</p>`}
-    </div><div>${topKw[0] ? `<div class="big" style="background:${COLORS.red}"><div class="n">${pc(Number(topKw[0].total_posts) || 0, kTot)}%</div><div class="l">${esc(L('of keyword matches are on "{k}"', { k: clip(topKw[0].keyword, 40) }))}</div></div>` : ''}</div></div>`;
+    </div><div>${topKw[0] ? `<div class="big${kwBlock ? ' sm' : ''}" style="background:${COLORS.red}"><div class="n">${pc(Number(topKw[0].total_posts) || 0, kTot)}%</div><div class="l">${esc(L('of keyword matches are on "{k}"', { k: clip(topKw[0].keyword, 40) }))}</div></div>` : ''}${kwBlock}</div></div>`;
 
   // ---- 7. Where it is concentrated + language
   const placeRows = (places || []).slice(0, 6).map((p) => {
     const mine = (ev || []).filter((e) => (e.places || []).some((x) => String(x).toLowerCase() === String(p.name).toLowerCase()));
     const neg = mine.filter((e) => e.sentK === 'negative').length;
-    return { name: p.name, n: mine.length || p.count || 0, negPct: mine.length ? pc(neg, mine.length) : 0 };
-  }).sort((a, b) => b.negPct - a.negPct);
+    return { name: p.name, n: mine.length || p.count || 0, read: mine.length, neg, small: mine.length < 3, negPct: mine.length ? pc(neg, mine.length) : 0 };
+  }).sort((a, b) => (a.small - b.small) || (b.negPct - a.negPct));   // places with enough posts first
   const scriptOf = (ch) => (/[ऀ-ॿ]/.test(ch) ? 'Devanagari' : /[଀-୿]/.test(ch) ? 'Odia' : /[ঀ-৿]/.test(ch) ? 'Bengali' : /[஀-௿]/.test(ch) ? 'Tamil' : /[ఀ-౿]/.test(ch) ? 'Telugu' : /[ಀ-೿]/.test(ch) ? 'Kannada' : /[ഀ-ൿ]/.test(ch) ? 'Malayalam' : /[઀-૿]/.test(ch) ? 'Gujarati' : /[਀-੿]/.test(ch) ? 'Gurmukhi' : /[؀-ۿ]/.test(ch) ? 'Arabic' : /[A-Za-z]/.test(ch) ? 'Roman' : '');
   const scriptCount = {};
   (ev || []).forEach((e) => {
@@ -345,13 +372,16 @@ const buildPresentationBody = (ctx) => {
     scriptCount[key] = (scriptCount[key] || 0) + 1;
   });
   const scriptTot = Object.values(scriptCount).reduce((a, b) => a + b, 0);
-  const scriptLine = Object.entries(scriptCount).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${esc(L(k))} ${pc(v, scriptTot).toFixed(0)}%`).join(' · ');
-  const s7 = !placeRows.length ? `<h2>${esc(L('Language of the conversation'))}</h2><div class="info"><h3>${esc(L('Language'))}</h3><p>${scriptLine} ${esc(L('of posts. Respond in these scripts at a minimum.'))}</p></div><p class="small">${esc(L('No specific place is named in the posts.'))}</p>` : `<h2>${esc(L('Where the conversation is concentrated'))}</h2><div class="split"><div>
+  // A script is not a language: Roman letters carry English and also Hindi typed in English letters, so they are named that way.
+  const scriptName = (k) => (k === 'Roman' ? L('Roman letters (English, or Hindi typed in English)') : k === 'Mixed' ? L('Mixed scripts') : L(k));
+  const scriptLine = Object.entries(scriptCount).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${esc(scriptName(k))} ${pc(v, scriptTot).toFixed(0)}% (${esc(L(v === 1 ? '{n} post' : '{n} posts', { n: v }))})`).join('<br>');
+  const langNote = esc(L('Share of posts by the script they are written in. Respond in these scripts at a minimum.'));
+  const s7 = !placeRows.length ? `<h2>${esc(L('Language of the conversation'))}</h2><div class="info"><h3>${esc(L('Language'))}</h3><p>${scriptLine}<br><span class="small">${langNote}</span></p></div><p class="small">${esc(L('No specific place is named in the posts.'))}</p>` : `<h2>${esc(L('Where the conversation is concentrated'))}</h2><div class="split"><div>
       <div class="small" style="font-weight:700;margin-bottom:12px">${placeRows.some((x) => x.negPct > 0) ? esc(L('Share of posts negative, by place named (overall {p}%)', { p: Math.round(negPostPct) })) : esc(L('Posts by place named'))}</div>
-      ${placeRows.map((p) => { const byCount = !placeRows.some((x) => x.negPct > 0); const mx = Math.max(1, ...placeRows.map((x) => x.n)); return `<div class="hb"><div class="nm">${esc(clip(p.name, 28))}</div><div class="tr"><div class="fl" style="width:${byCount ? Math.max(3, (100 * p.n) / mx) : Math.max(1, p.negPct)}%;background:${!byCount && p.negPct > negPostPct ? COLORS.red : COLORS.blue}"></div></div><div class="v">${byCount ? p.n : `${p.negPct}%`}</div></div>`; }).join('') || `<p class="small">${esc(L('No specific place is named in the posts.'))}</p>`}
+      ${placeRows.map((p) => { const byCount = !placeRows.some((x) => x.negPct > 0); const mx = Math.max(1, ...placeRows.map((x) => x.n)); return `<div class="hb${byCount ? '' : ' cnt'}"><div class="nm">${esc(clip(p.name, 28))}</div><div class="tr"><div class="fl" style="width:${byCount ? Math.max(3, (100 * p.n) / mx) : Math.max(1, p.negPct)}%;background:${!byCount && p.negPct > negPostPct && !p.small ? COLORS.red : p.small && !byCount ? COLORS.grey : COLORS.blue}"></div></div><div class="v">${byCount ? p.n : p.read ? `${Math.round(p.negPct)}%<small>${esc(L(p.read === 1 ? '{neg} of {n} post' : '{neg} of {n} posts', { neg: p.neg, n: p.read }))}</small>` : '—'}</div></div>`; }).join('') + (!placeRows.some((x) => x.negPct > 0) || !placeRows.some((x) => x.small) ? '' : `<p class="small" style="margin-top:6px">${esc(L('Grey: named in fewer than 3 posts, too few to compare.'))}</p>`) || `<p class="small">${esc(L('No specific place is named in the posts.'))}</p>`}
     </div><div>
       ${placeRows[0] ? `<div class="info"><h3>${esc(placeRows.slice().sort((a, b) => b.n - a.n)[0].name)}</h3><p>${esc(L('Named in {n} of the posts listed.', { n: placeRows.slice().sort((a, b) => b.n - a.n)[0].n }))}</p></div>` : ''}
-      ${scriptLine ? `<div class="info"><h3>${esc(L('Language'))}</h3><p>${scriptLine} ${esc(L('of posts. Respond in these scripts at a minimum.'))}</p></div>` : ''}
+      ${scriptLine ? `<div class="info"><h3>${esc(L('Language'))}</h3><p>${scriptLine}<br><span class="small">${langNote}</span></p></div>` : ''}
     </div></div>`;
 
   // ---- 8. A few accounts set the tone
@@ -415,7 +445,7 @@ const buildPresentationBody = (ctx) => {
 
   // A slide with nothing to show (no claim to check) is left out instead of printing an empty page.
   const slides = [s1, s2, s3, s4, s5, s6, s7, s8, claimBars.length ? s9 : '', s10, s11, s12].filter(Boolean);
-  return slides.map((inner, i) => slide(i === 0 ? 'title' : '', inner, { tenant: t, mark: esc(ctx.classification || ''), no: i === 0 ? '' : String(i + 1) })).join('');
+  return slides.map((inner, i) => slide(i === 0 ? 'title' : '', inner, { tenant: esc(preparedBy || tenant), mark: esc(ctx.classification || ''), no: i === 0 ? '' : String(i + 1) })).join('');
 };
 
 module.exports = { buildPresentationBody, PRESENTATION_CSS: CSS, SLIDE_W, SLIDE_H };

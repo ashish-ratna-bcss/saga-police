@@ -487,5 +487,17 @@
  "Posts by place named",
  "{n} other stored posts were set aside as unrelated.",
  "{n} repeated copies were merged.",
- "Likes, shares and comments on the posts collected, top accounts"
+ "Likes, shares and comments on the posts collected, top accounts",
+ "Monitoring continues",
+ "{platform} platform for {force}",
+ "What people say with these keywords",
+ "Mostly about",
+ "{n} post read in detail",
+ "{n} posts read in detail",
+ "Roman letters (English, or Hindi typed in English)",
+ "Mixed scripts",
+ "Share of posts by the script they are written in. Respond in these scripts at a minimum.",
+ "Grey: named in fewer than 3 posts, too few to compare.",
+ "{neg} of {n} post",
+ "{neg} of {n} posts"
 ]

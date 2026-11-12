@@ -1031,3 +1031,53 @@ test('slides for an older report without counted facts still print every slide, 
   assert.ok(!/What this shows/.test(html));
   assert.match(html, /posts a day/);
 });
+
+test('the monitoring period ends on the day the report is prepared; the rest of the event window is continued monitoring', () => {
+  const { reportPeriod } = require('../src/modules/events/eventIntelligenceReport/template');
+  const full = { timeframe: 'full', effective_start: '2026-11-04T18:30:00.000Z', effective_end: '2026-11-30T18:29:59.999Z' };
+  assert.deepStrictEqual(reportPeriod(full, '2026-11-11T05:00:00Z', 'Asia/Kolkata'), { text: '5 Nov 2026 to 11 Nov 2026', continued: '12 Nov 2026 to 30 Nov 2026' });
+  // the same event opened a day later moves both dates with it
+  assert.deepStrictEqual(reportPeriod(full, '2026-11-12T05:00:00Z', 'Asia/Kolkata'), { text: '5 Nov 2026 to 12 Nov 2026', continued: '13 Nov 2026 to 30 Nov 2026' });
+  // after the event has ended nothing is left to continue
+  assert.deepStrictEqual(reportPeriod(full, '2026-12-02T05:00:00Z', 'Asia/Kolkata'), { text: '5 Nov 2026 to 30 Nov 2026', continued: '' });
+  // a chosen range is capped at the preparation day, and carries no "continued" line
+  assert.deepStrictEqual(reportPeriod({ timeframe: 'custom', from_date: '2026-11-05', to_date: '2026-11-30' }, '2026-11-11T05:00:00Z', 'Asia/Kolkata'), { text: '5 Nov 2026 to 11 Nov 2026', continued: '' });
+  assert.deepStrictEqual(reportPeriod({}, '2026-11-11T05:00:00Z', 'Asia/Kolkata'), { text: '', continued: '' });
+});
+
+test('slides: what people say with the main keywords, with the tone and the topics as percentages of the posts that carry each one', () => {
+  const f = briefFixture();
+  f.analysis.narratives = [{ title: 'Topic A', posts: Array.from({ length: 10 }, (_, i) => i + 1) }, { title: 'Topic B', posts: Array.from({ length: 20 }, (_, i) => i + 11) }];
+  const kw = { keywords: [{ keyword: '#Post', total_posts: 30 }, { keyword: 'Nowhere', total_posts: 9 }] };
+  const html = buildReportHtml({ summary: f.summary, keywordData: kw, tenantName: 'x', analysis: f.analysis, headquarters: null, includeEvidence: false, regionOnly: true, presentation: true });
+  const s6 = html.slice(html.indexOf('What the posts are about'), html.indexOf('Where the conversation is concentrated'));
+  assert.match(s6, /What people say with these keywords/);
+  assert.match(s6, /#Post<span> · \d+ posts read in detail<\/span>/);
+  assert.match(s6, /Negative \d+% · Neutral \d+% · Positive \d+%/);
+  assert.match(s6, /Mostly about: Topic [AB] \(\d+%\)/);
+  // a keyword that no listed post carries is not given a reading
+  assert.ok(!/Nowhere<span>/.test(s6));
+});
+
+test('slides: every place percentage shows the posts behind it, and the language box names scripts, not languages', () => {
+  const html = slidesOf();
+  const s7 = html.slice(html.indexOf('Where the conversation is concentrated'), html.indexOf('A few accounts set the tone'));
+  assert.match(s7, /<div class="v">\d+%<small>\d+ of \d+ posts?<\/small><\/div>/);
+  // Roman letters are English or Hindi typed in English letters, so the slide never calls them a language
+  assert.match(s7, /Roman letters \(English, or Hindi typed in English\) \d+% \(\d+ posts?\)/);
+  assert.ok(!/>Roman \d+%/.test(s7) && !/ Roman \d+%/.test(s7));
+});
+
+test('the cover says who prepared the report and what period it covers, in the slides and in the PDF brief', () => {
+  const f = briefFixture({ stats: { effective_start: '2026-11-04T18:30:00.000Z', effective_end: '2026-11-30T18:29:59.999Z' } });
+  const hq = { force: 'Sample Police', head: 'Director General of Police', addressLine: 'HQ', official: true, timezone: 'Asia/Kolkata', units: [] };
+  const args = { summary: f.summary, keywordData: null, tenantName: 'x', analysis: f.analysis, headquarters: hq, includeEvidence: false, regionOnly: true };
+  const slides = buildReportHtml({ ...args, presentation: true });
+  assert.match(slides, /Monitoring period 5 Nov 2026 to 11 Nov 2026<br>Monitoring continues 12 Nov 2026 to 30 Nov 2026<br>Prepared 11 Nov 2026 by BLURASAGA platform for Sample Police/);
+  assert.ok(!/Monitoring period 5 Nov 2026 to 30 Nov 2026/.test(slides));
+  // every slide's footer carries the same line, not just the force name
+  assert.strictEqual((slides.match(/<div class="foot"><span>BLURASAGA platform for Sample Police/g) || []).length, (slides.match(/<section class="slide/g) || []).length);
+  const brief = buildReportHtml({ ...args, compact: true });
+  assert.match(brief, /Prepared 11 Nov 2026 by <b>BLURASAGA platform for Sample Police<\/b>/);
+  assert.match(brief, /Monitoring continues 12 Nov 2026 to 30 Nov 2026/);
+});
