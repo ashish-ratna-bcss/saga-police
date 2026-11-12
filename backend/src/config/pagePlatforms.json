@@ -214,6 +214,7 @@
       "x",
       "youtube",
       "facebook",
+      "instagram",
       "telegram"
     ],
     "endpoints": [
@@ -223,7 +224,7 @@
         "controller": "modules/search/search.controller.js",
         "function": "listPlatformsHandler",
         "description": "List platforms configured and available for live search lookup",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram"]
       },
       {
         "method": "GET",
@@ -231,7 +232,7 @@
         "controller": "modules/search/search.controller.js",
         "function": "searchProfilesHandler",
         "description": "Search public user profiles and channels across social networks",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram"]
       },
       {
         "method": "GET",
@@ -239,7 +240,7 @@
         "controller": "modules/search/search.controller.js",
         "function": "searchContentHandler",
         "description": "Search live posts and content by keyword across social networks",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram"]
       },
       {
         "method": "GET",
@@ -247,7 +248,7 @@
         "controller": "modules/search/search.controller.js",
         "function": "glanceSearchHandler",
         "description": "Quick glance preview search across multiple platforms simultaneously",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram"]
       },
       {
         "method": "POST",
@@ -255,7 +256,7 @@
         "controller": "modules/search/search.controller.js",
         "function": "saveHistoryHandler",
         "description": "Save search query to tenant history log",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram"]
       },
       {
         "method": "GET",
@@ -263,7 +264,7 @@
         "controller": "modules/search/search.controller.js",
         "function": "listHistoryHandler",
         "description": "List past cross-platform searches performed by tenant users",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram"]
       },
       {
         "method": "GET",
@@ -271,7 +272,7 @@
         "controller": "modules/social-profiles/socialProfile.controller.js",
         "function": "listPlatforms",
         "description": "Retrieve platforms available for global search filtering",
-        "platforms": ["x", "youtube", "facebook", "telegram"]
+        "platforms": ["x", "youtube", "facebook", "instagram", "telegram"]
       }
     ]
   },
