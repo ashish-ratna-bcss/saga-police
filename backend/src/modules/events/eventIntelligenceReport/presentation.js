@@ -335,21 +335,24 @@ const buildPresentationBody = (ctx) => {
   // Shares are of that keyword's own posts among the posts listed in this deck.
   const kwFold = (s) => String(s || '').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, '');
   const topics = (analysis && analysis.narratives) || [];
+  const seenKw = new Set();   // "Nisha Bhagat" and "#NishaBhagat" are one keyword here, so they get one reading
   const kwReads = topKw.map((k) => {
     const key = kwFold(k.keyword);
+    if (seenKw.has(key)) return null;
+    seenKw.add(key);
     const hits = key.length >= 3 ? (ev || []).filter((e) => kwFold(e.text).includes(key)) : [];
     if (hits.length < 3) return null;
     const neg = hits.filter((e) => e.sentK === 'negative').length;
     const pos = hits.filter((e) => e.sentK === 'positive').length;
     const about = topics.map((t) => ({ title: String(t.title || '').trim(), k: hits.filter((e) => (t.posts || []).includes(e.n)).length }))
-      .filter((t) => t.title && t.k > 0).sort((a, b) => b.k - a.k).slice(0, 2);
+      .filter((t) => t.title && t.k > 0).sort((a, b) => b.k - a.k).filter((t, i) => i === 0 || t.k / hits.length >= 0.25).slice(0, 2);
     return { name: k.keyword, n: hits.length, tone: [neg, hits.length - neg - pos, pos], about };
   }).filter(Boolean).slice(0, 3);
   const pcOf = (v, n) => Math.round((100 * v) / n);
   const kwBlock = kwReads.length ? `<div class="kr-h">${esc(L('What people say with these keywords'))}</div>${kwReads.map((r) => `<div class="kr"><div class="h">${esc(clip(r.name, 30))}<span> · ${esc(L(r.n === 1 ? '{n} post read in detail' : '{n} posts read in detail', { n: r.n }))}</span></div>
       <div class="mb">${r.tone.map((v, i) => `<div style="width:${pcOf(v, r.n)}%;background:${[COLORS.red, COLORS.grey, COLORS.green][i]}"></div>`).join('')}</div>
       <div class="p">${esc(L('Negative'))} ${pcOf(r.tone[0], r.n)}% · ${esc(L('Neutral'))} ${pcOf(r.tone[1], r.n)}% · ${esc(L('Positive'))} ${pcOf(r.tone[2], r.n)}%</div>
-      ${r.about.length ? `<div>${esc(L('Mostly about'))}: ${r.about.map((a) => `${esc(clip(a.title, 40))} (${pcOf(a.k, r.n)}%)`).join('; ')}</div>` : ''}</div>`).join('')}` : '';
+      ${r.about.length ? `<div>${esc(L('Mostly about'))}: ${r.about.map((a) => esc(clip(a.title, 40))).join('; ')}</div>` : ''}</div>`).join('')}` : '';
   const s6 = `<h2>${esc(L('What the posts are about'))}</h2><div class="split"><div>
       <div class="small" style="font-weight:700;margin-bottom:12px">${esc(L('Posts per keyword (a post can carry several)'))}</div>
       ${topKw.map((k, i) => `<div class="hb"><div class="nm">${esc(clip(k.keyword, 34))}</div><div class="tr"><div class="fl" style="width:${(100 * (Number(k.total_posts) || 0)) / kMax}%;background:${i === 0 ? COLORS.red : COLORS.grey}"></div></div><div class="v">${fmt(k.total_posts)}</div></div>`).join('') || `<p class="small">${esc(L('No keyword split for this event.'))}</p>`}
