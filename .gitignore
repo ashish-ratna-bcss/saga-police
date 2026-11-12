@@ -29,3 +29,6 @@ generated-event-reports/
 .claude/
 .claudecode/
 .agent/
+
+# Local run notes
+run.txt
