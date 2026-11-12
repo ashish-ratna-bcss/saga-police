@@ -1,6 +1,6 @@
 const axios = require('axios');
 
-const SCRAPE_API_URL = String(process.env.SCRAPE_API_URL || 'http://100.49.109.96:8000/scrape').replace(/\/+$/, '');
+const SCRAPE_API_URL = String(process.env.SCRAPE_API_URL || 'http://127.0.0.1:8000/scrape').replace(/\/+$/, '');
 
 const DEFAULT_TIMEOUT_MS = Math.max(5000, Number(process.env.SCRAPE_TIMEOUT_MS) || 60_000);
 const LONG_TIMEOUT_MS = Math.max(DEFAULT_TIMEOUT_MS, Number(process.env.SCRAPE_LONG_TIMEOUT_MS) || 120_000);

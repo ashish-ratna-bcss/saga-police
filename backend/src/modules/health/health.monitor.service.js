@@ -203,7 +203,12 @@ const checkSystemHealth = async (db) => {
       ),
       pingService(process.env.MEDIA_ANALYZER_URL, '/health'),
       pingService(process.env.RAG_API_URL, '/api/rag/health'),
-      pingService(process.env.BLUWEB_API_URL, '/health/ready'),
+      pingService(
+        process.env.BLUWEB_API_URL || process.env.SCRAPE_API_URL,
+        String(process.env.BLUWEB_API_URL || '').includes('/scrape')
+          ? '/health/ready'
+          : '/scrape/health/ready'
+      ),
       checkTelegram(db),
       checkReddit(),
       checkBlugateGlobal(db),

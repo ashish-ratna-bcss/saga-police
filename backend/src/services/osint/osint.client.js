@@ -1,6 +1,6 @@
 const axios = require('axios');
 
-const OSINT_API_URL = String(process.env.OSINT_API_URL || 'http://100.49.109.96:8000/osint').replace(/\/+$/, '');
+const OSINT_API_URL = String(process.env.OSINT_API_URL || 'http://127.0.0.1:8000/osint').replace(/\/+$/, '');
 
 const DEFAULT_TIMEOUT_MS = Math.max(5000, Number(process.env.OSINT_TIMEOUT_MS) || 60_000);
 const LONG_TIMEOUT_MS = Math.max(DEFAULT_TIMEOUT_MS, Number(process.env.OSINT_LONG_TIMEOUT_MS) || 300_000); // 5 mins for investigations
