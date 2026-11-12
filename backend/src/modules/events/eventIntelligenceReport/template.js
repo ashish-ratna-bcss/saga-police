@@ -873,6 +873,13 @@ const regionFilter = (analysis, outsideNs, outsideNames) => {
 // The period a report covers ends on the day it is prepared: it cannot cover days that have not happened yet. The rest of the
 // event's window is "continued monitoring". Days are calendar days in the report timezone, shown as "5 Nov 2026".
 const PLATFORM_NAME = 'BLURASAGA';
+// The force as printed after "BLURASAGA platform for": "JHARKHAND" becomes "Jharkhand Police"; a name that already says Police (or Agency, Force...) is kept.
+const forceName = (raw) => {
+  const name = String(raw || '').replace(/s+/g, ' ').trim();
+  if (!name) return '';
+  const cased = name === name.toUpperCase() ? name.split(' ').map((w) => (w.length > 3 ? w.charAt(0) + w.slice(1).toLowerCase() : w)).join(' ') : name;
+  return /police|agency|force|platform|department/i.test(cased) ? cased : `${cased} Police`;
+};
 const showDay = (day) => new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 const nextDay = (day) => { const d = new Date(`${day}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); };
 const reportPeriod = (stats, generated, tz) => {
@@ -960,7 +967,7 @@ const buildReportHtml = ({ summary, keywordData, tenantName, analysis, headquart
 
   const tenant = cleanTenant(tenantName);
   const hq = headquarters || null;
-  const preparedBy = L('{platform} platform for {force}', { platform: PLATFORM_NAME, force: hq?.force && hq.official ? hq.force : tenant });
+  const preparedBy = L('{platform} platform for {force}', { platform: PLATFORM_NAME, force: forceName(hq?.force && hq.official ? hq.force : tenant) });
   const hqHtml = hq
     ? `<div class="addr">
         <div class="l">ADDRESSED TO STATE HEADQUARTERS</div>

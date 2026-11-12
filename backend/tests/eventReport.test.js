@@ -1054,7 +1054,12 @@ test('slides: what people say with the main keywords, with the tone and the topi
   assert.match(s6, /What people say with these keywords/);
   assert.match(s6, /#Post<span> · \d+ posts read in detail<\/span>/);
   assert.match(s6, /Negative \d+% · Neutral \d+% · Positive \d+%/);
-  assert.match(s6, /Mostly about: Topic [AB] \(\d+%\)/);
+  assert.match(s6, /Mostly about: Topic [AB]/);
+  // the topics are named without a percentage (a keyword whose posts all sit in one topic would read 100%)
+  assert.ok(!/Mostly about: [^<]*\(\d+%\)/.test(s6));
+  // "#Post" and "Post" are one keyword: one reading, not two
+  const withDup = buildReportHtml({ summary: f.summary, keywordData: { keywords: [{ keyword: '#Post', total_posts: 30 }, { keyword: 'Post', total_posts: 30 }] }, tenantName: 'x', analysis: f.analysis, headquarters: null, includeEvidence: false, regionOnly: true, presentation: true });
+  assert.strictEqual((withDup.match(/ read in detail<\/span>/g) || []).length, 1);
   // a keyword that no listed post carries is not given a reading
   assert.ok(!/Nowhere<span>/.test(s6));
 });
@@ -1075,6 +1080,10 @@ test('the cover says who prepared the report and what period it covers, in the s
   const slides = buildReportHtml({ ...args, presentation: true });
   assert.match(slides, /Monitoring period 5 Nov 2026 to 11 Nov 2026<br>Monitoring continues 12 Nov 2026 to 30 Nov 2026<br>Prepared 11 Nov 2026 by BLURASAGA platform for Sample Police/);
   assert.ok(!/Monitoring period 5 Nov 2026 to 30 Nov 2026/.test(slides));
+  // a force saved as just its name is printed with "Police"; one that already says Police is left as it is
+  const bare = buildReportHtml({ ...args, headquarters: { ...hq, force: 'JHARKHAND' }, presentation: true });
+  assert.match(bare, /by BLURASAGA platform for Jharkhand Police/);
+  assert.ok(!/platform for JHARKHAND/.test(bare) && !/Police Police/.test(bare));
   // every slide's footer carries the same line, not just the force name
   assert.strictEqual((slides.match(/<div class="foot"><span>BLURASAGA platform for Sample Police/g) || []).length, (slides.match(/<section class="slide/g) || []).length);
   const brief = buildReportHtml({ ...args, compact: true });
