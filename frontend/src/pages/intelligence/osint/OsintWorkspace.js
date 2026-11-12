@@ -13,8 +13,15 @@ import { toast } from 'sonner';
 const HISTORY_KEY = 'osint_runs_v2';
 const MAX_RUNS = 30;
 
-const errMsg = (err, fallback) =>
-  err.response?.data?.detail || err.response?.data?.error?.message || fallback;
+const errMsg = (err, fallback) => {
+  const data = err.response?.data;
+  const details = data?.error?.details || data?.details;
+  if (Array.isArray(details) && details[0]?.msg) {
+    const loc = Array.isArray(details[0].loc) ? details[0].loc.filter((x) => x !== 'body').join('.') : '';
+    return loc ? `${details[0].msg} (${loc})` : details[0].msg;
+  }
+  return data?.detail || data?.error?.message || data?.message || fallback;
+};
 const loadHistory = () => {
   try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch { return []; }
 };
@@ -25,8 +32,9 @@ const MODES = [
   { value: 'phone', label: 'Phone lookup', icon: Phone, group: 'lookup', placeholder: 'Enter phone number with country code' },
   { value: 'email', label: 'Email lookup', icon: Mail, group: 'lookup', placeholder: 'Enter email address' },
   { value: 'username', label: 'Username lookup', icon: User, group: 'lookup', placeholder: 'Enter username' },
-  { value: 'general', label: 'Investigation · General', icon: Radar, group: 'investigation' },
-  { value: 'deep', label: 'Investigation · Deep', icon: Radar, group: 'investigation' },
+  // API modes are quick | standard | deep — "general" maps to standard in osint.api.js
+  { value: 'general', label: 'Investigation · Standard', icon: Radar, group: 'investigation', placeholder: 'Subject, domain or identifier to investigate' },
+  { value: 'deep', label: 'Investigation · Deep', icon: Radar, group: 'investigation', placeholder: 'Subject, domain or identifier to investigate' },
 ];
 const modeOf = (v) => MODES.find((m) => m.value === v) || MODES[MODES.length - 2];
 
@@ -44,7 +52,15 @@ const STATUS = {
   running: { dot: 'bg-amber-500 animate-pulse', cls: 'text-amber-600 border-amber-500/30 bg-amber-500/10' },
 };
 const statusKey = (s) => (STATUS[s] ? s : 'running');
-const isRunning = (r) => r.group === 'investigation' && !['completed', 'failed'].includes(r.status);
+const TERMINAL = new Set(['completed', 'failed', 'partial', 'cancelled', 'unavailable']);
+const SUCCESS = new Set(['completed', 'partial']);
+const isRunning = (r) => r.group === 'investigation' && !TERMINAL.has(r.status);
+const progressFromStatus = (s) => {
+  const j = s?.jobs;
+  if (!j?.total) return SUCCESS.has(s?.status) ? 100 : (s?.status === 'running' ? 15 : 5);
+  const done = (j.completed || 0) + (j.failed || 0) + (j.unavailable || 0) + (j.cancelled || 0);
+  return Math.min(100, Math.round((done / j.total) * 100));
+};
 
 const StatusBadge = ({ status }) => {
   const k = statusKey(status);
@@ -284,11 +300,13 @@ const OsintWorkspace = () => {
         if (!isRunning(r)) continue;
         try {
           const s = await osintApi.getInvestigationStatus(r.id);
-          patch(r.id, { status: s.status, progress: s.progress || 0 });
-          if (s.status === 'completed') {
+          patch(r.id, { status: s.status, progress: progressFromStatus(s) });
+          if (SUCCESS.has(s.status)) {
             toast.success(`Investigation completed: ${r.target}`);
-            patch(r.id, { result: await osintApi.getInvestigation(r.id) });
-          } else if (s.status === 'failed') toast.error(`Investigation failed: ${r.target}`);
+            patch(r.id, { result: await osintApi.getInvestigation(r.id), progress: 100 });
+          } else if (s.status === 'failed' || s.status === 'cancelled' || s.status === 'unavailable') {
+            toast.error(`Investigation failed: ${r.target}`);
+          }
         } catch (e) { console.error(e); }
       }
     }, 5000);
