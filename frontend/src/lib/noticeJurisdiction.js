@@ -1,6 +1,7 @@
 /**
  * Official-notice jurisdiction copy — derived from tenant branding / admin profile.
- * Prefer application_details.notice overrides; else infer from name/title/port/username.
+ * Prefer application_details.notice overrides; else host → port → title hints → presets.
+ * Never use a personal login name (e.g. "Nandeep") as the government/state label.
  */
 
 const TITLE_CASE = (s) =>
@@ -29,34 +30,28 @@ const base = ({ government, department, unit, city, state, address, email, mobil
   };
 };
 
-/** Known tenant presets (port / username / name hints). */
+/** Known tenant presets (host / port / username / title hints). */
 const PRESETS = {
   delhi: base({
     government: 'Government of NCT of Delhi',
     unit: 'IT Cell, Delhi Police',
     city: 'Delhi',
     state: 'Delhi',
-    address:
-      'IT Cell, Delhi Police Headquarters,\n' +
-      'Delhi, India',
+    address: 'IT Cell, Delhi Police Headquarters,\nDelhi, India',
   }),
   odisha: base({
     government: 'Government of Odisha',
     unit: 'IT Cell, Odisha Police',
     city: 'Bhubaneswar',
     state: 'Odisha',
-    address:
-      'IT Cell, Odisha Police Headquarters,\n' +
-      'Bhubaneswar, Odisha, India',
+    address: 'IT Cell, Odisha Police Headquarters,\nBhubaneswar, Odisha, India',
   }),
   uttarakhand: base({
     government: 'Government of Uttarakhand',
     unit: 'IT Cell, Uttarakhand Police',
     city: 'Dehradun',
     state: 'Uttarakhand',
-    address:
-      'IT Cell, Uttarakhand Police Headquarters,\n' +
-      'Dehradun, Uttarakhand, India',
+    address: 'IT Cell, Uttarakhand Police Headquarters,\nDehradun, Uttarakhand, India',
   }),
   telangana: base({
     government: 'Government of Telangana',
@@ -71,38 +66,119 @@ const PRESETS = {
     email: 'smu-hyderabad@tspolice.gov.in',
     mobile: '8712660777',
   }),
+  jharkhand: base({
+    government: 'Government of Jharkhand',
+    unit: 'IT Cell, Jharkhand Police',
+    city: 'Ranchi',
+    state: 'Jharkhand',
+    address: 'IT Cell, Jharkhand Police Headquarters,\nRanchi, Jharkhand, India',
+  }),
+  andhra: base({
+    government: 'Government of Andhra Pradesh',
+    unit: 'IT Cell, Andhra Pradesh Police',
+    city: 'Amaravati',
+    state: 'Andhra Pradesh',
+    address:
+      'IT Cell, Andhra Pradesh Police Headquarters,\nAmaravati, Andhra Pradesh, India',
+  }),
 };
 
-/** Host / port from the page wins over whoever is logged in (cross-tenant cookie mistakes). */
+/**
+ * Live multi-tenant sites (deploy/sites.json) + known aliases.
+ * Host / frontend_port win over whoever is logged in.
+ */
+const SITE_HINTS = [
+  { key: 'odisha', ports: [3000], hosts: ['odisha'], tokens: ['odisha'] },
+  { key: 'delhi', ports: [3001], hosts: ['delhi', 'delhipolice'], tokens: ['delhi', 'delhipolice'] },
+  {
+    key: 'uttarakhand',
+    ports: [3002],
+    hosts: ['uttarakhand', 'ukpolice'],
+    tokens: ['uttarakhand', 'ukpolice'],
+  },
+  // test (3003) — no police preset; falls back to org title
+  {
+    key: 'jharkhand',
+    ports: [3004],
+    hosts: ['jharkhand', 'jharkhandpolice'],
+    tokens: ['jharkhand', 'jharkhandpolice'],
+  },
+  {
+    key: 'andhra',
+    ports: [3005],
+    hosts: ['andhra', 'andhrapradesh', 'appolice'],
+    tokens: ['andhra', 'andhrapradesh', 'amaravati', 'vizag', 'visakhapatnam'],
+  },
+  {
+    key: 'telangana',
+    ports: [],
+    hosts: ['telangana', 'hyderabad', 'tspolice'],
+    tokens: ['telangana', 'hyderabad', 'tspolice'],
+  },
+];
+
+const matchHint = (haystack, { hosts, tokens }) => {
+  const h = String(haystack || '').toLowerCase();
+  if (!h) return false;
+  return [...(hosts || []), ...(tokens || [])].some((t) => h.includes(String(t).toLowerCase()));
+};
+
+/** Host from the page wins over whoever is logged in (cross-tenant cookie mistakes). */
 const detectKeyFromHost = (host = '') => {
   const h = String(host || '').toLowerCase();
   if (!h) return null;
-  if (h.includes('delhi')) return 'delhi';
-  if (h.includes('uttarakhand') || h.includes('ukpolice')) return 'uttarakhand';
-  if (h.includes('odisha')) return 'odisha';
-  if (h.includes('telangana') || h.includes('hyderabad')) return 'telangana';
+  for (const hint of SITE_HINTS) {
+    if (matchHint(h, hint)) return hint.key;
+  }
   return null;
 };
 
 const detectKeyFromUser = (user = {}) => {
   const ad = user.application_details || {};
+  const port = Number(user.port);
+  for (const hint of SITE_HINTS) {
+    if (hint.ports.includes(port)) return hint.key;
+  }
+
   const blob = [
     user.username,
     user.name,
     user.full_name,
     ad.title,
     ad.application_name,
+    user.db_name,
     ...(Array.isArray(ad.domains) ? ad.domains : []),
   ]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
 
-  if (user.port === 3001 || /\bdelhi\b/.test(blob)) return 'delhi';
-  if (user.port === 3002 || /\buttarakhand\b/.test(blob)) return 'uttarakhand';
-  if (user.port === 3000 || /\bodisha\b/.test(blob)) return 'odisha';
-  if (/\btelangana\b|\bhyderabad\b/.test(blob)) return 'telangana';
+  for (const hint of SITE_HINTS) {
+    if (matchHint(blob, hint)) return hint.key;
+  }
   return null;
+};
+
+/** Prefer tenant/org title over personal login name (e.g. "Nandeep"). */
+const orgLabelFromUser = (user = {}) => {
+  const ad = user.application_details || {};
+  const strip = (raw) =>
+    String(raw || '')
+      .replace(/\b(blura\s*saga|police|digital\s*intelligence\s*platform)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  for (const raw of [ad.title, ad.application_name]) {
+    const cleaned = strip(raw);
+    if (cleaned) return cleaned;
+  }
+
+  // Only use personal display name when no org title exists and it looks institutional
+  for (const raw of [user.name, user.full_name]) {
+    const cleaned = strip(raw);
+    if (cleaned && cleaned.split(' ').length > 1) return cleaned;
+  }
+  return '';
 };
 
 const detectKey = (user = {}) => {
@@ -145,16 +221,13 @@ export function resolveNoticeJurisdiction(user = {}) {
   const key = detectKey(user);
   const preset = (key && PRESETS[key]) || null;
 
-  // Infer city/state from admin display name when no preset (e.g. "Delhi Police")
+  // Infer city/state from tenant title when no preset — never from a personal login name alone
   let inferredCity = '';
   let inferredState = '';
-  const nm = String(user.name || user.full_name || '').trim();
+  const nm = orgLabelFromUser(user);
   if (nm) {
-    const cleaned = nm.replace(/\bpolice\b/gi, '').trim();
-    if (cleaned) {
-      inferredState = TITLE_CASE(cleaned);
-      inferredCity = TITLE_CASE(cleaned);
-    }
+    inferredState = TITLE_CASE(nm);
+    inferredCity = TITLE_CASE(nm);
   }
 
   const fallback = base({
@@ -185,7 +258,6 @@ export function buildNoticeDefaults(user, { platform, operator, sectionsList, po
   const sections = sectionsList || '505, 353, 153A, 196';
   const when = postDateStr || 'recent date';
   const why = intent || 'circulation of sensitive content';
-  const site = domain || 'www.x.com';
 
   const addressLines = [j.address];
   if (j.mobile) addressLines[addressLines.length - 1] += `, Mobile No: ${j.mobile}`;
