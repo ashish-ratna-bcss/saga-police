@@ -3,6 +3,9 @@
  * API workers and EventScheduler ticks do not hit:
  *   ERROR: tuple concurrently updated
  *   ERROR: trigger "..." already exists
+ *
+ * Must use a transaction + pg_advisory_xact_lock: Prisma connection pooling
+ * means session-level pg_advisory_lock/unlock can run on different connections.
  */
 
 const SCHEMA_LOCK_KEY = 87201401;
@@ -19,17 +22,23 @@ const isConcurrentCatalogError = (err) => {
   );
 };
 
+/**
+ * Hold an advisory lock for the duration of fn on a single connection.
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {(tx: any) => Promise<any>} fn
+ */
 async function withTenantSchemaLock(prisma, fn) {
-  await prisma.$executeRawUnsafe(`SELECT pg_advisory_lock(${SCHEMA_LOCK_KEY})`);
-  try {
-    return await fn();
-  } finally {
-    await prisma.$executeRawUnsafe(`SELECT pg_advisory_unlock(${SCHEMA_LOCK_KEY})`);
-  }
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(${SCHEMA_LOCK_KEY})`);
+      return fn(tx);
+    },
+    { maxWait: 30_000, timeout: 180_000 }
+  );
 }
 
 /** Retry whole ensure pass when another session raced catalog updates. */
-async function withTenantSchemaLockRetry(prisma, fn, { attempts = 5 } = {}) {
+async function withTenantSchemaLockRetry(prisma, fn, { attempts = 8 } = {}) {
   let lastErr;
   for (let i = 1; i <= attempts; i += 1) {
     try {
@@ -37,7 +46,7 @@ async function withTenantSchemaLockRetry(prisma, fn, { attempts = 5 } = {}) {
     } catch (err) {
       lastErr = err;
       if (!isConcurrentCatalogError(err) || i === attempts) throw err;
-      await new Promise((r) => setTimeout(r, 50 * i * i));
+      await new Promise((r) => setTimeout(r, 75 * i * i));
     }
   }
   throw lastErr;
