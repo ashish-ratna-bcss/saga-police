@@ -1,6 +1,6 @@
 /**
  * Tenant-scoped semantic (+ hybrid) retrieval over embeddings.chunks.
- * Uses in-DB embed_text — same MiniLM model as the indexing pipeline.
+ * One parameterized path — no per-intent hardcoded SQL branches.
  */
 
 const DEFAULT_BACKEND = 'embed_anything';
@@ -37,7 +37,6 @@ async function retrieveChunks(prisma, question, opts = {}) {
     : null;
   const keyword = opts.keyword ? String(opts.keyword).trim().slice(0, 120) : null;
 
-  // Vector search
   const vectorRows = await prisma.$queryRawUnsafe(
     `
     WITH q AS (
@@ -121,9 +120,7 @@ async function retrieveChunks(prisma, question, opts = {}) {
     .slice(0, topK);
 }
 
-/**
- * Safe aggregate helpers for exact count questions (no free-form SQL).
- */
+/** Safe aggregates for count questions (parameterized — no free-form SQL). */
 async function countPostsInRange(prisma, { dateFrom, dateTo, keyword } = {}) {
   const from = dateFrom ? new Date(dateFrom) : null;
   const to = dateTo ? new Date(dateTo) : null;

@@ -1,12 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
-import DOMPurify from 'dompurify';
 import {
   Bot,
-  ChevronDown,
-  ChevronUp,
   Copy,
+  ExternalLink,
   Loader2,
   Menu,
   MessageSquarePlus,
@@ -14,7 +11,6 @@ import {
   RefreshCw,
   Send,
   Trash2,
-  ExternalLink,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -23,123 +19,68 @@ import { Button } from '../../components/ui/button';
 import { cn } from '../../lib/utils';
 
 const SUGGESTIONS = [
-  'What are the major events reported recently?',
-  'Find posts related to protests or rallies',
+  'Latest posts',
   'Summarize recent alerts',
-  'How many social media posts are in the database?',
+  'Find posts about protests',
+  'How many posts are in the database?',
 ];
 
-const HTML_PURIFY = {
-  ADD_TAGS: ['style'],
-  ADD_ATTR: ['target', 'rel', 'class', 'style'],
-  FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'link', 'meta'],
-  FORBID_ATTR: [/^on/i],
-  ALLOW_DATA_ATTR: false,
+const platformTone = (platform) => {
+  const p = String(platform || '').toLowerCase();
+  if (p.includes('you')) return 'bg-red-50 text-red-700 ring-red-100';
+  if (p.includes('twit') || p.includes('x')) return 'bg-sky-50 text-sky-700 ring-sky-100';
+  if (p.includes('face')) return 'bg-indigo-50 text-indigo-700 ring-indigo-100';
+  if (p.includes('insta')) return 'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-100';
+  return 'bg-slate-100 text-slate-700 ring-slate-200';
 };
 
-/** Prefer LLM-authored HTML view; fall back to markdown / legacy ui JSON. */
-function parseAssistantContent(raw) {
-  const text = String(raw || '');
-  const htmlMatch = text.match(/```html\s*([\s\S]*?)```/i);
-  if (htmlMatch) {
-    const preface = text.replace(htmlMatch[0], '').trim();
-    return { html: htmlMatch[1].trim(), markdown: preface, uiCards: [] };
+const formatWhen = (value) => {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString(undefined, {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+/** Strip old LLM HTML dumps / tags so they never blow up layout. */
+const safeText = (raw) =>
+  String(raw || '')
+    .replace(/```html[\s\S]*?```/gi, '')
+    .replace(/```ui[\s\S]*?```/gi, '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 420);
+
+const cleanTitle = (text) =>
+  safeText(text)
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/#\w+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+function resolveView(message) {
+  const text = String(message.content || '');
+  // Never show record cards under error / support replies
+  if (/uuid|prisma|executeRawUnsafe|invalid input syntax|database query/i.test(text)) {
+    return { layout: 'text' };
   }
-  const uiMatch = text.match(/```ui\s*([\s\S]*?)```/i);
-  if (uiMatch) {
-    let uiCards = [];
-    try {
-      const parsed = JSON.parse(uiMatch[1].trim());
-      uiCards = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
-    } catch {
-      uiCards = [];
-    }
-    return { html: '', markdown: text.replace(uiMatch[0], '').trim(), uiCards };
+  const fromApi = message.view || message.token_usage?.view;
+  if (fromApi?.layout === 'text') return fromApi;
+  if (fromApi?.layout && (fromApi.items?.length || fromApi.stats?.length)) return fromApi;
+  const sources = message.sources || [];
+  if (sources.length && fromApi?.layout && fromApi.layout !== 'text') {
+    return { layout: fromApi.layout || 'cards', title: 'Results', items: sources };
   }
-  return { html: '', markdown: text.trim(), uiCards: [] };
-}
-
-function LlmHtmlView({ html }) {
-  const iframeRef = useRef(null);
-  const clean = useMemo(
-    () =>
-      DOMPurify.sanitize(html || '', {
-        ...HTML_PURIFY,
-        WHOLE_DOCUMENT: false,
-      }),
-    [html]
-  );
-
-  const srcDoc = useMemo(
-    () => `<!DOCTYPE html>
-<html><head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<base target="_blank" rel="noopener noreferrer"/>
-<style>
-  html,body{margin:0;padding:0;background:transparent;overflow:hidden;}
-  body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
-  a{color:#2563eb}
-  img{max-width:100%;height:auto;border-radius:12px}
-</style>
-</head><body>${clean}</body></html>`,
-    [clean]
-  );
-
-  useEffect(() => {
-    const iframe = iframeRef.current;
-    if (!iframe) return undefined;
-
-    const resize = () => {
-      try {
-        const doc = iframe.contentDocument;
-        if (!doc?.body) return;
-        const h = Math.max(doc.body.scrollHeight, doc.documentElement?.scrollHeight || 0);
-        if (h > 0) iframe.style.height = `${h + 4}px`;
-      } catch {
-        /* ignore */
-      }
-    };
-
-    const onLoad = () => {
-      resize();
-      try {
-        const doc = iframe.contentDocument;
-        if (!doc) return;
-        const mo = new MutationObserver(resize);
-        mo.observe(doc.body, { childList: true, subtree: true, attributes: true });
-        iframe._mo = mo;
-      } catch {
-        /* ignore */
-      }
-    };
-
-    iframe.addEventListener('load', onLoad);
-    const tick = window.setInterval(resize, 400);
-    resize();
-    return () => {
-      iframe.removeEventListener('load', onLoad);
-      window.clearInterval(tick);
-      try {
-        iframe._mo?.disconnect();
-      } catch {
-        /* ignore */
-      }
-    };
-  }, [srcDoc]);
-
-  if (!clean) return null;
-
-  return (
-    <iframe
-      ref={iframeRef}
-      title="AI designed view"
-      sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-      srcDoc={srcDoc}
-      className="w-full rounded-xl border-0 bg-transparent"
-      style={{ minHeight: 80, width: '100%' }}
-    />
-  );
+  // Don't invent cards from stale sources when view says text / missing
+  if (fromApi?.layout === 'stats' && fromApi.stats?.length) return fromApi;
+  return { layout: 'text' };
 }
 
 export default function AiAssistant() {
@@ -154,14 +95,18 @@ export default function AiAssistant() {
   const [dateTo, setDateTo] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const bottomRef = useRef(null);
+  const listRef = useRef(null);
 
-  const scrollToBottom = () => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  // Scroll only the message list — never the whole page / never grow layout
+  const scrollListToBottom = useCallback(() => {
+    const el = listRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, []);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, streamingText]);
+    scrollListToBottom();
+  }, [messages.length, sending, scrollListToBottom]);
 
   const refreshConversations = useCallback(async () => {
     setLoadingList(true);
@@ -182,7 +127,12 @@ export default function AiAssistant() {
   const loadMessages = async (id) => {
     try {
       const data = await aiAssistantApi.listMessages(id);
-      setMessages(data.messages || []);
+      const msgs = (data.messages || []).map((m) => ({
+        ...m,
+        view: m.view || m.token_usage?.view,
+        content: safeText(m.content),
+      }));
+      setMessages(msgs);
       setActiveId(id);
       setSidebarOpen(false);
     } catch (err) {
@@ -225,9 +175,7 @@ export default function AiAssistant() {
     if (title == null || !String(title).trim()) return;
     try {
       const data = await aiAssistantApi.renameConversation(id, title.trim());
-      setConversations((prev) =>
-        prev.map((c) => (c.id === id ? data.conversation : c))
-      );
+      setConversations((prev) => prev.map((c) => (c.id === id ? data.conversation : c)));
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Rename failed');
     }
@@ -240,6 +188,24 @@ export default function AiAssistant() {
     setConversations((prev) => [conv, ...prev]);
     setActiveId(conv.id);
     return conv.id;
+  };
+
+  const appendDone = (userMsg, assistantMsg, sources, view) => {
+    setStreamingText('');
+    setMessages((prev) => {
+      const withoutTmp = prev.filter((m) => !String(m.id).startsWith('tmp-user-'));
+      return [
+        ...withoutTmp,
+        userMsg,
+        {
+          ...assistantMsg,
+          content: safeText(assistantMsg?.content),
+          sources: sources || assistantMsg?.sources || [],
+          view: view || assistantMsg?.view || assistantMsg?.token_usage?.view,
+        },
+      ];
+    });
+    refreshConversations();
   };
 
   const handleSend = async (textOverride) => {
@@ -277,42 +243,22 @@ export default function AiAssistant() {
       await aiAssistantApi.sendMessageStream(convId, body, (event, data) => {
         if (event === 'delta' && data?.text) {
           assembled += data.text;
-          setStreamingText(assembled);
+          // Never stream raw HTML into the UI (causes layout blowups)
+          if (!/```html|<style/i.test(assembled)) {
+            setStreamingText(safeText(assembled).slice(0, 280));
+          } else {
+            setStreamingText('Preparing results…');
+          }
         }
         if (event === 'done') {
-          const assistant = data.assistantMessage;
-          const userMsg = data.userMessage;
-          setStreamingText('');
-          setMessages((prev) => {
-            const withoutTmp = prev.filter((m) => m.id !== optimisticUser.id);
-            return [
-              ...withoutTmp,
-              userMsg,
-              { ...assistant, sources: data.sources || assistant?.sources || [] },
-            ];
-          });
-          refreshConversations();
+          appendDone(data.userMessage, data.assistantMessage, data.sources, data.view);
         }
-        if (event === 'error') {
-          toast.error(data?.message || 'Chat error');
-        }
+        if (event === 'error') toast.error(data?.message || 'Chat error');
       });
     } catch (err) {
       try {
         const result = await aiAssistantApi.sendMessage(convId, body);
-        setStreamingText('');
-        setMessages((prev) => {
-          const withoutTmp = prev.filter((m) => m.id !== optimisticUser.id);
-          return [
-            ...withoutTmp,
-            result.userMessage,
-            {
-              ...result.assistantMessage,
-              sources: result.sources || result.assistantMessage?.sources || [],
-            },
-          ];
-        });
-        refreshConversations();
+        appendDone(result.userMessage, result.assistantMessage, result.sources, result.view);
       } catch (err2) {
         toast.error(err2?.response?.data?.message || err.message || 'Chat failed');
         setMessages((prev) => prev.filter((m) => m.id !== optimisticUser.id));
@@ -339,12 +285,15 @@ export default function AiAssistant() {
       const result = await aiAssistantApi.regenerate(activeId, messageId);
       setMessages((prev) => {
         const idx = prev.findIndex((m) => m.id === messageId);
-        if (idx < 0) return [...prev, result.assistantMessage];
-        const next = [...prev];
-        next[idx] = {
+        const nextMsg = {
           ...result.assistantMessage,
+          content: safeText(result.assistantMessage?.content),
           sources: result.sources || result.assistantMessage?.sources || [],
+          view: result.view || result.assistantMessage?.view,
         };
+        if (idx < 0) return [...prev, nextMsg];
+        const next = [...prev];
+        next[idx] = nextMsg;
         return next;
       });
     } catch (err) {
@@ -354,41 +303,32 @@ export default function AiAssistant() {
     }
   };
 
-  const handleClear = async () => {
-    if (!activeId) return;
-    await handleDelete(activeId);
-  };
-
-  const HistoryList = (
+  const HistoryPane = (
     <>
-      <div className="flex items-center justify-between gap-2 border-b border-border p-3">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <Bot className="h-4 w-4" />
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900 text-white">
+            <Bot className="h-4 w-4" />
+          </span>
           AI Assistant
         </div>
         <div className="flex items-center gap-1">
           <Button size="sm" variant="secondary" onClick={handleNewChat} title="New chat">
             <MessageSquarePlus className="h-4 w-4" />
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="md:hidden"
-            onClick={() => setSidebarOpen(false)}
-            aria-label="Close"
-          >
+          <Button size="sm" variant="ghost" className="md:hidden" onClick={() => setSidebarOpen(false)}>
             <X className="h-4 w-4" />
           </Button>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {loadingList && (
-          <div className="flex justify-center py-6 text-muted-foreground">
+          <div className="flex justify-center py-8 text-slate-400">
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
         )}
         {!loadingList && conversations.length === 0 && (
-          <p className="px-2 py-4 text-xs text-muted-foreground">No chats yet.</p>
+          <p className="px-2 py-6 text-center text-xs text-slate-400">Start a new chat</p>
         )}
         {conversations.map((c) => (
           <div
@@ -398,26 +338,16 @@ export default function AiAssistant() {
             onClick={() => loadMessages(c.id)}
             onKeyDown={(e) => e.key === 'Enter' && loadMessages(c.id)}
             className={cn(
-              'group mb-1 flex cursor-pointer items-start gap-1 rounded-lg px-2 py-2 text-left text-sm transition-colors',
-              activeId === c.id ? 'bg-primary/10 text-foreground' : 'hover:bg-muted'
+              'group mb-1 flex cursor-pointer items-start gap-1 rounded-xl px-2.5 py-2 text-left text-sm transition',
+              activeId === c.id ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
             )}
           >
             <span className="line-clamp-2 flex-1 text-xs leading-snug">{c.title}</span>
-            <button
-              type="button"
-              className="opacity-0 group-hover:opacity-100"
-              onClick={(e) => handleRename(c.id, e)}
-              aria-label="Rename"
-            >
-              <Pencil className="h-3 w-3 text-muted-foreground" />
+            <button type="button" className="opacity-0 group-hover:opacity-100" onClick={(e) => handleRename(c.id, e)}>
+              <Pencil className="h-3 w-3" />
             </button>
-            <button
-              type="button"
-              className="opacity-0 group-hover:opacity-100"
-              onClick={(e) => handleDelete(c.id, e)}
-              aria-label="Delete"
-            >
-              <Trash2 className="h-3 w-3 text-muted-foreground" />
+            <button type="button" className="opacity-0 group-hover:opacity-100" onClick={(e) => handleDelete(c.id, e)}>
+              <Trash2 className="h-3 w-3" />
             </button>
           </div>
         ))}
@@ -426,116 +356,108 @@ export default function AiAssistant() {
   );
 
   return (
-    <div className="relative flex h-[calc(100dvh-6.5rem)] min-h-[420px] overflow-hidden rounded-xl border border-border bg-background md:h-[calc(100vh-7rem)]">
-      {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-muted/30 md:flex">
-        {HistoryList}
+    <div className="relative flex h-[calc(100dvh-6.5rem)] min-h-[440px] max-h-[calc(100dvh-6.5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-sm md:h-[calc(100vh-7rem)] md:max-h-[calc(100vh-7rem)]">
+      <aside className="hidden w-[15.5rem] shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white md:flex">
+        {HistoryPane}
       </aside>
 
-      {/* Mobile drawer */}
       {sidebarOpen && (
         <div className="absolute inset-0 z-30 flex md:hidden">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/40"
-            aria-label="Close sidebar"
-            onClick={() => setSidebarOpen(false)}
-          />
-          <aside className="relative z-10 flex h-full w-[min(18rem,85vw)] flex-col border-r border-border bg-background shadow-xl">
-            {HistoryList}
+          <button type="button" className="absolute inset-0 bg-slate-900/40" onClick={() => setSidebarOpen(false)} aria-label="Close" />
+          <aside className="relative z-10 flex h-full w-[min(17rem,88vw)] flex-col overflow-hidden bg-white shadow-2xl">
+            {HistoryPane}
           </aside>
         </div>
       )}
 
-      <section className="flex min-w-0 flex-1 flex-col">
-        <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2 sm:px-4">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="md:hidden"
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Open chats"
-          >
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-3 py-2.5 sm:px-4">
+          <Button size="sm" variant="ghost" className="md:hidden" onClick={() => setSidebarOpen(true)}>
             <Menu className="h-4 w-4" />
           </Button>
-          <label className="flex items-center gap-1 text-xs text-muted-foreground">
+          <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
             From
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="rounded border border-border bg-background px-2 py-1 text-xs"
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
             />
           </label>
-          <label className="flex items-center gap-1 text-xs text-muted-foreground">
+          <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
             To
             <input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="rounded border border-border bg-background px-2 py-1 text-xs"
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
             />
           </label>
           {activeId && (
-            <Button size="sm" variant="ghost" className="ml-auto text-xs" onClick={handleClear}>
+            <button
+              type="button"
+              className="ml-auto text-xs font-medium text-slate-500 hover:text-slate-800"
+              onClick={() => handleDelete(activeId)}
+            >
               Clear chat
-            </Button>
+            </button>
           )}
-        </div>
+        </header>
 
-        <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3 sm:space-y-4 sm:px-4 sm:py-4">
-          {messages.length === 0 && !streamingText && (
-            <div className="mx-auto max-w-xl px-1 py-8 text-center sm:py-10">
-              <Bot className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-              <h2 className="text-base font-semibold sm:text-lg">Ask about your tenant data</h2>
-              <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-                Answers use your records. Sources appear only when the answer cites them.
-              </p>
-              <div className="mt-5 flex flex-col gap-2 sm:mt-6 sm:flex-row sm:flex-wrap sm:justify-center">
-                {SUGGESTIONS.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => handleSend(s)}
-                    className="rounded-full border border-border bg-muted/40 px-3 py-2 text-left text-xs hover:bg-muted sm:py-1.5"
-                  >
-                    {s}
-                  </button>
-                ))}
+        <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-5">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+            {messages.length === 0 && !streamingText && (
+              <div className="rounded-3xl border border-slate-200 bg-white px-5 py-10 text-center shadow-sm">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                  <Bot className="h-6 w-6" />
+                </div>
+                <h2 className="text-lg font-semibold text-slate-900">Ask about your records</h2>
+                <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
+                  Layout adapts to your question — counts as stats, lists as cards, chat as plain text.
+                </p>
+                <div className="mt-6 grid gap-2 sm:grid-cols-2">
+                  {SUGGESTIONS.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => handleSend(s)}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-left text-sm text-slate-700 hover:bg-white"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {messages.map((m) => (
-            <MessageBubble
-              key={m.id}
-              message={m}
-              onCopy={() => handleCopy(m.content)}
-              onRegenerate={
-                m.role === 'assistant' ? () => handleRegenerate(m.id) : undefined
-              }
-            />
-          ))}
+            {messages.map((m) => (
+              <MessageBlock
+                key={m.id}
+                message={m}
+                onCopy={() => handleCopy(safeText(m.content))}
+                onRegenerate={m.role === 'assistant' ? () => handleRegenerate(m.id) : undefined}
+              />
+            ))}
 
-          {streamingText && (
-            <div className="flex justify-start">
-              <div className="w-full max-w-[min(100%,52rem)] rounded-2xl bg-muted/80 px-3 py-2.5 text-sm sm:px-4 sm:py-3">
-                <AssistantBody content={streamingText} streaming />
+            {streamingText && (
+              <div className="w-fit max-w-[85%] rounded-2xl rounded-bl-md bg-white px-4 py-3 text-sm text-slate-700 shadow-sm ring-1 ring-slate-200">
+                {streamingText}
+                <span className="ml-1 inline-block h-3 w-1 animate-pulse bg-slate-400 align-middle" />
               </div>
-            </div>
-          )}
+            )}
 
-          {sending && !streamingText && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Drafting an answer…
-            </div>
-          )}
-          <div ref={bottomRef} />
+            {sending && !streamingText && (
+              <div className="inline-flex w-fit items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs text-slate-500 shadow-sm ring-1 ring-slate-200">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Working…
+              </div>
+            )}
+            <div ref={bottomRef} className="h-px w-full shrink-0" />
+          </div>
         </div>
 
         <form
-          className="border-t border-border p-2 sm:p-3"
+          className="shrink-0 border-t border-slate-200 bg-white px-3 py-3 sm:px-5"
           onSubmit={(e) => {
             e.preventDefault();
             handleSend();
@@ -552,11 +474,15 @@ export default function AiAssistant() {
                 }
               }}
               rows={2}
-              placeholder="Ask a question about your records…"
-              className="min-h-[44px] flex-1 resize-none rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+              placeholder="Ask about posts, alerts, counts…"
+              className="min-h-[48px] max-h-32 flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-300 focus:bg-white focus:ring-2 focus:ring-slate-200"
               disabled={sending}
             />
-            <Button type="submit" disabled={sending || !input.trim()} className="h-11 w-11 shrink-0">
+            <Button
+              type="submit"
+              disabled={sending || !input.trim()}
+              className="h-12 w-12 shrink-0 rounded-2xl bg-slate-900 hover:bg-slate-800"
+            >
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
@@ -566,164 +492,156 @@ export default function AiAssistant() {
   );
 }
 
-function AssistantBody({ content, streaming }) {
-  const { html, markdown, uiCards } = useMemo(() => parseAssistantContent(content), [content]);
-
-  // While streaming an incomplete ```html fence, show a light preview instead of broken markup
-  const streamingHtmlIncomplete =
-    streaming && /```html/i.test(content || '') && !/```html[\s\S]*```/i.test(content || '');
-
-  if (html && !streamingHtmlIncomplete) {
+function MessageBlock({ message, onCopy, onRegenerate }) {
+  const isUser = message.role === 'user';
+  if (isUser) {
     return (
-      <div className="space-y-2">
-        {markdown ? (
-          <div className="text-sm text-muted-foreground">
-            <ReactMarkdown>{markdown}</ReactMarkdown>
+      <div className="flex justify-end">
+        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-slate-900 px-4 py-2.5 text-sm leading-relaxed text-white sm:max-w-[70%]">
+          {safeText(message.content)}
+        </div>
+      </div>
+    );
+  }
+
+  const view = resolveView(message);
+  const text = safeText(message.content);
+
+  return (
+    <div className="space-y-3">
+      {text && (
+        <div className="w-fit max-w-[92%] rounded-2xl rounded-bl-md bg-white px-4 py-3 text-sm leading-relaxed text-slate-700 shadow-sm ring-1 ring-slate-200">
+          <p>{text}</p>
+          <div className="mt-2 flex flex-wrap gap-3 border-t border-slate-100 pt-2">
+            <button type="button" onClick={onCopy} className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-slate-700">
+              <Copy className="h-3 w-3" /> Copy
+            </button>
+            {onRegenerate && (
+              <button type="button" onClick={onRegenerate} className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-slate-700">
+                <RefreshCw className="h-3 w-3" /> Regenerate
+              </button>
+            )}
           </div>
-        ) : null}
-        <LlmHtmlView html={html} />
+        </div>
+      )}
+      <AdaptiveView view={view} />
+    </div>
+  );
+}
+
+function AdaptiveView({ view }) {
+  if (!view || view.layout === 'text') return null;
+
+  if (view.layout === 'stats' && view.stats?.length) {
+    return (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {view.stats.map((s) => (
+          <div key={s.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{s.label}</div>
+            <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{Number(s.value).toLocaleString()}</div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const items = view.items || [];
+  if (!items.length) return null;
+
+  if (view.layout === 'feed') {
+    return (
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          {view.title || 'Feed'}
+        </div>
+        <ul className="divide-y divide-slate-100">
+          {items.map((s, i) => (
+            <li key={s.id || `${s.source_id}-${i}`} className="px-4 py-3">
+              <ResultRow source={s} index={i} />
+            </li>
+          ))}
+        </ul>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
-      {uiCards.length > 0 && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {uiCards.map((card, i) => (
-            <div
-              key={`${card.label || card.type || 'card'}-${i}`}
-              className="rounded-xl border border-border/70 bg-background/80 px-3 py-2"
-            >
-              <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                {card.label || card.type || 'Metric'}
-              </div>
-              <div className="mt-0.5 text-lg font-semibold tabular-nums sm:text-xl">
-                {card.value ?? '—'}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      {streamingHtmlIncomplete ? (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Designing a custom view…
-        </div>
-      ) : markdown ? (
-        <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-ul:my-2 prose-li:my-0.5 prose-headings:mb-2 prose-headings:mt-3">
-          <ReactMarkdown>{markdown}</ReactMarkdown>
-          {streaming && (
-            <span className="ml-1 inline-block h-4 w-1 animate-pulse bg-foreground/60 align-middle" />
-          )}
-        </div>
-      ) : streaming ? (
-        <span className="inline-block h-4 w-1 animate-pulse bg-foreground/60" />
-      ) : null}
+    <div className="grid gap-3 sm:grid-cols-2">
+      {items.map((s, i) => (
+        <ResultCard key={s.id || `${s.source_id}-${i}`} source={s} index={i} />
+      ))}
     </div>
   );
 }
 
-function MessageBubble({ message, onCopy, onRegenerate }) {
-  const isUser = message.role === 'user';
-  const sources = message.sources || [];
-  const [sourcesOpen, setSourcesOpen] = useState(false);
-
+function ResultRow({ source, index }) {
+  const meta = source.metadata || {};
+  const title = cleanTitle(meta.title) || cleanTitle(source.excerpt) || `${source.source_table} #${source.source_id}`;
+  const when = formatWhen(meta.published_at);
+  const platform = meta.platform || 'record';
   return (
-    <div className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
-      <div
-        className={cn(
-          'rounded-2xl px-3 py-2.5 text-sm sm:px-4 sm:py-3',
-          isUser
-            ? 'max-w-[90%] bg-primary text-primary-foreground sm:max-w-[75%]'
-            : 'w-full max-w-[min(100%,52rem)] bg-muted/80'
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0">
+        <div className="mb-1 flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-semibold text-slate-400">[{index + 1}]</span>
+          <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ring-1', platformTone(platform))}>
+            {platform}
+          </span>
+          {when && <span className="text-[11px] text-slate-400">{when}</span>}
+        </div>
+        <p className="line-clamp-2 text-sm font-medium text-slate-900">{title}</p>
+      </div>
+      <div className="flex shrink-0 gap-2">
+        {meta.url && (
+          <a href={meta.url} target="_blank" rel="noreferrer" className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-medium text-white">
+            Open
+          </a>
         )}
-      >
-        {isUser ? (
-          <div className="whitespace-pre-wrap leading-relaxed">{message.content}</div>
-        ) : (
-          <AssistantBody content={message.content} />
-        )}
-
-        {!isUser && (
-          <div className="mt-2 flex flex-wrap gap-2 border-t border-border/40 pt-2">
-            <button
-              type="button"
-              onClick={onCopy}
-              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-            >
-              <Copy className="h-3 w-3" /> Copy
-            </button>
-            {onRegenerate && (
-              <button
-                type="button"
-                onClick={onRegenerate}
-                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-              >
-                <RefreshCw className="h-3 w-3" /> Regenerate
-              </button>
-            )}
-          </div>
-        )}
-
-        {!isUser && sources.length > 0 && (
-          <div className="mt-2 border-t border-border/40 pt-2">
-            <button
-              type="button"
-              onClick={() => setSourcesOpen((v) => !v)}
-              className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
-            >
-              Sources ({sources.length})
-              {sourcesOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            </button>
-            {sourcesOpen && (
-              <div className="mt-2 space-y-2">
-                {sources.map((s, i) => {
-                  const meta = s.metadata || {};
-                  const href = meta.href;
-                  return (
-                    <div
-                      key={s.id || `${s.source_table}-${s.source_id}-${i}`}
-                      className="rounded-lg border border-border/60 bg-background/60 px-2.5 py-2 text-xs"
-                    >
-                      <div className="font-medium break-words">
-                        [{i + 1}] {meta.title || `${s.source_table} #${s.source_id}`}
-                      </div>
-                      <div className="mt-0.5 text-muted-foreground">
-                        {s.source_table}
-                        {meta.platform ? ` · ${meta.platform}` : ''}
-                        {meta.published_at
-                          ? ` · ${new Date(meta.published_at).toLocaleDateString()}`
-                          : ''}
-                      </div>
-                      {s.excerpt && (
-                        <p className="mt-1 line-clamp-3 text-muted-foreground">{s.excerpt}</p>
-                      )}
-                      <div className="mt-1 flex flex-wrap gap-2">
-                        {meta.url && (
-                          <a
-                            href={meta.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-primary hover:underline"
-                          >
-                            Original <ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
-                        {href && (
-                          <Link to={href} className="text-primary hover:underline">
-                            Open in app
-                          </Link>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+        {meta.href && (
+          <Link to={meta.href} className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700">
+            In app
+          </Link>
         )}
       </div>
     </div>
+  );
+}
+
+function ResultCard({ source, index }) {
+  const meta = source.metadata || {};
+  const title = cleanTitle(meta.title) || cleanTitle(source.excerpt) || `${source.source_table} #${source.source_id}`;
+  const when = formatWhen(meta.published_at);
+  const platform = meta.platform || source.source_table?.replace(/^social_media_/, '') || 'record';
+  const excerpt = cleanTitle(source.excerpt || '').slice(0, 140);
+
+  return (
+    <article className="flex flex-col rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <span className="rounded-md bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white">[{index + 1}]</span>
+        <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ring-1', platformTone(platform))}>
+          {platform}
+        </span>
+        {when && <span className="text-[11px] text-slate-400">{when}</span>}
+      </div>
+      <h3 className="line-clamp-3 text-sm font-semibold leading-snug text-slate-900">{title}</h3>
+      {excerpt && excerpt !== title && <p className="mt-1.5 line-clamp-2 text-xs text-slate-500">{excerpt}</p>}
+      <div className="mt-auto flex flex-wrap gap-2 pt-3">
+        {meta.url && (
+          <a
+            href={meta.url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-medium text-white"
+          >
+            Open <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
+        {meta.href && (
+          <Link to={meta.href} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700">
+            In app
+          </Link>
+        )}
+      </div>
+    </article>
   );
 }
