@@ -16,7 +16,10 @@ const { withTenantSchemaLockRetry } = require('./schemaLock');
  */
 async function ensureOpsSchema(prisma, opts = {}) {
   if (!opts.locked) {
-    return withTenantSchemaLockRetry(prisma, () => ensureOpsSchema(prisma, { locked: true }));
+    // Use the transactional client so advisory lock + DDL share one connection.
+    return withTenantSchemaLockRetry(prisma, (tx) =>
+      ensureOpsSchema(tx, { locked: true })
+    );
   }
 
   await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);

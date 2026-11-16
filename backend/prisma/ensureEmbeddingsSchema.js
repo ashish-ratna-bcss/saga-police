@@ -177,8 +177,9 @@ async function ensureEmbeddingsTriggers(prisma) {
  */
 async function ensureEmbeddingsSchema(prisma, opts = {}) {
   if (!opts.locked) {
-    return withTenantSchemaLockRetry(prisma, () =>
-      ensureEmbeddingsSchema(prisma, { locked: true })
+    // Use the transactional client so advisory lock + DDL share one connection.
+    return withTenantSchemaLockRetry(prisma, (tx) =>
+      ensureEmbeddingsSchema(tx, { locked: true })
     );
   }
 
