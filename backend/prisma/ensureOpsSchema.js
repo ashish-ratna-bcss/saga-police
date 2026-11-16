@@ -619,6 +619,18 @@ async function ensureOpsSchema(prisma, opts = {}) {
 
   // AI embeddings store — same on every tenant; safe to re-run.
   await ensureEmbeddingsSchema(prisma, { locked: true });
+
+  // Ensure pg_cron drain exists for this tenant DB (idempotent; no-op if already scheduled).
+  try {
+    const rows = await prisma.$queryRawUnsafe(`SELECT current_database() AS db`);
+    const dbName = rows?.[0]?.db;
+    if (dbName) {
+      const { ensureEmbeddingsCronSchedule } = require('../src/lib/tenantDatabase.service');
+      await ensureEmbeddingsCronSchedule(dbName);
+    }
+  } catch (err) {
+    console.warn(`[embeddings] cron hook skipped: ${err.message}`);
+  }
 }
 
 module.exports = {
