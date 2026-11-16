@@ -164,6 +164,7 @@ async function provisionAdminDatabase(adminId, meta = {}) {
 
     const tenantPrisma = getTenantPrisma(dbName);
     await ensureTenantSchema(tenantPrisma);
+    await ensureEmbeddingsCronSchedule(dbName);
 
     console.log(`[multi-tenant] Database "${dbName}" provisioned successfully!`);
     return dbName;
@@ -180,6 +181,46 @@ async function provisionAdminDatabase(adminId, meta = {}) {
 async function ensureTenantSchema(prisma) {
   // ensureOpsSchema already runs ensureEmbeddingsSchema under one advisory lock.
   await ensureOpsSchema(prisma);
+  try {
+    const rows = await prisma.$queryRawUnsafe(`SELECT current_database() AS db`);
+    const dbName = rows?.[0]?.db;
+    if (dbName) await ensureEmbeddingsCronSchedule(dbName);
+  } catch (err) {
+    console.warn(`[embeddings] cron ensure skipped: ${err.message}`);
+  }
+}
+
+/**
+ * Register pg_cron drain for a tenant DB (runs in main cron database).
+ * Idempotent — safe on every ensure/provision.
+ */
+async function ensureEmbeddingsCronSchedule(dbName) {
+  if (!dbName || dbName === getMainDatabaseName()) return;
+  const jobName = `emb_${String(dbName).replace(/[^a-zA-Z0-9_]/g, '_').slice(-48)}`;
+  try {
+    await mainPrisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pg_cron`);
+    const existing = await mainPrisma.$queryRawUnsafe(
+      `SELECT jobid FROM cron.job
+       WHERE database = $1
+         AND command LIKE '%embeddings.process_pending_jobs%'
+       LIMIT 1`,
+      dbName
+    );
+    if (existing?.length) return;
+    await mainPrisma.$queryRawUnsafe(
+      `SELECT cron.schedule_in_database(
+         $1,
+         '* * * * *',
+         'SELECT embeddings.process_pending_jobs(50)',
+         $2
+       )`,
+      jobName,
+      dbName
+    );
+    console.log(`[embeddings] scheduled pg_cron drain for ${dbName}`);
+  } catch (err) {
+    console.warn(`[embeddings] could not schedule cron for ${dbName}: ${err.message}`);
+  }
 }
 
 /**
@@ -255,6 +296,7 @@ module.exports = {
   getMainDatabaseName,
   parseDatabaseNameFromUrl,
   ensureTenantSchema,
+  ensureEmbeddingsCronSchedule,
   listTenantDbNames,
   forEachTenant,
   resolveTenantName,
