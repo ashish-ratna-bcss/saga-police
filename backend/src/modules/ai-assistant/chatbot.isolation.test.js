@@ -47,6 +47,13 @@ test('inferModuleFocus routes alerts vs posts', () => {
   assert.equal(inferModuleFocus('summarize recent posts'), 'posts');
 });
 
+test('extractKeyword ignores pure count phrasing', () => {
+  const { extractKeyword } = require('./chatbot.service');
+  assert.equal(extractKeyword('How many posts are in the database?'), null);
+  assert.equal(extractKeyword('how many posts today'), null);
+  assert.equal(extractKeyword('posts about protest'), 'protest');
+});
+
 test('filterCitedSources keeps only [n] citations', () => {
   const enriched = [{ id: 1 }, { id: 2 }, { id: 3 }];
   assert.deepEqual(
