@@ -36,13 +36,28 @@ function extractKeyword(question) {
   const q = String(question || '');
   const quoted = q.match(/"([^"]{2,80})"/);
   if (quoted) return quoted[1];
+  // "about X" / "related to X" — only then treat remaining words as a content filter
+  const about = q.match(/\b(?:about|related to|mentioning|containing|with keyword)\s+(.+)$/i);
+  const source = about ? about[1] : q;
+  // Pure count / browse questions should not invent a keyword filter
+  if (
+    !about &&
+    /\b(how many|count|number of|total)\b/i.test(q) &&
+    !/\b(about|related to|mentioning|containing)\b/i.test(q)
+  ) {
+    return null;
+  }
   const stop = new Set([
     'what', 'which', 'when', 'where', 'show', 'find', 'about', 'related', 'the', 'and', 'for',
     'from', 'this', 'that', 'with', 'have', 'were', 'been', 'into', 'over', 'last', 'month',
     'week', 'days', 'how', 'many', 'please', 'give', 'summary', 'summarize', 'today',
     'yesterday', 'total', 'posts', 'alerts', 'count', 'number', 'high', 'low', 'medium',
+    'database', 'system', 'records', 'record', 'data', 'there', 'here', 'available',
+    'currently', 'present', 'existing', 'entire', 'whole', 'overall', 'everything',
+    'events', 'event', 'grievances', 'grievance', 'news', 'contents', 'content',
+    'latest', 'recent', 'list', 'give', 'tell', 'me',
   ]);
-  const tokens = q
+  const tokens = String(source)
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, ' ')
     .split(/\s+/)
@@ -526,4 +541,5 @@ module.exports = {
   applyRelativeDates,
   summarizeAnswer,
   buildView,
+  extractKeyword,
 };
