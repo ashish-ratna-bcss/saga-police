@@ -478,6 +478,69 @@ async function ensureEmbeddingsDbProcessor(prisma) {
     END
     $fn$
   `);
+
+  // One-shot / re-runnable: enqueue upsert for every row in source tables.
+  await prisma.$executeRawUnsafe(`
+    CREATE OR REPLACE FUNCTION embeddings.backfill_all()
+    RETURNS bigint
+    LANGUAGE plpgsql
+    AS $fn$
+    DECLARE
+      n bigint := 0;
+      r record;
+    BEGIN
+      IF to_regclass('public.social_media_posts') IS NOT NULL THEN
+        FOR r IN SELECT id::text AS sid FROM social_media_posts LOOP
+          PERFORM embeddings.enqueue_job('social_media_posts', r.sid, 'upsert');
+          n := n + 1;
+        END LOOP;
+      END IF;
+      IF to_regclass('public.social_media_alerts') IS NOT NULL THEN
+        FOR r IN SELECT id::text AS sid FROM social_media_alerts LOOP
+          PERFORM embeddings.enqueue_job('social_media_alerts', r.sid, 'upsert');
+          n := n + 1;
+        END LOOP;
+      END IF;
+      IF to_regclass('public.social_media_grievances') IS NOT NULL THEN
+        FOR r IN SELECT id::text AS sid FROM social_media_grievances LOOP
+          PERFORM embeddings.enqueue_job('social_media_grievances', r.sid, 'upsert');
+          n := n + 1;
+        END LOOP;
+      END IF;
+      IF to_regclass('public.social_media_grievance_reports') IS NOT NULL THEN
+        FOR r IN SELECT id::text AS sid FROM social_media_grievance_reports LOOP
+          PERFORM embeddings.enqueue_job('social_media_grievance_reports', r.sid, 'upsert');
+          n := n + 1;
+        END LOOP;
+      END IF;
+      IF to_regclass('public.social_media_events') IS NOT NULL THEN
+        FOR r IN SELECT id::text AS sid FROM social_media_events LOOP
+          PERFORM embeddings.enqueue_job('social_media_events', r.sid, 'upsert');
+          n := n + 1;
+        END LOOP;
+      END IF;
+      IF to_regclass('public.social_media_event_summaries') IS NOT NULL THEN
+        FOR r IN SELECT id::text AS sid FROM social_media_event_summaries LOOP
+          PERFORM embeddings.enqueue_job('social_media_event_summaries', r.sid, 'upsert');
+          n := n + 1;
+        END LOOP;
+      END IF;
+      IF to_regclass('public.social_media_periscope_reports') IS NOT NULL THEN
+        FOR r IN SELECT id::text AS sid FROM social_media_periscope_reports LOOP
+          PERFORM embeddings.enqueue_job('social_media_periscope_reports', r.sid, 'upsert');
+          n := n + 1;
+        END LOOP;
+      END IF;
+      IF to_regclass('public.news_articles') IS NOT NULL THEN
+        FOR r IN SELECT article_id::text AS sid FROM news_articles LOOP
+          PERFORM embeddings.enqueue_job('news_articles', r.sid, 'upsert');
+          n := n + 1;
+        END LOOP;
+      END IF;
+      RETURN n;
+    END
+    $fn$
+  `);
 }
 
 module.exports = {
