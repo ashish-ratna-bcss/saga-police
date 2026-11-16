@@ -61,6 +61,9 @@ app.set('trust proxy', 1);
 app.use(
   helmet({
     contentSecurityPolicy: false,
+    // Framing allowlist is nginx CSP frame-ancestors (deploy/sites.json). Disable
+    // Helmet's default X-Frame-Options: SAMEORIGIN so it cannot block authorized embeds.
+    frameguard: false,
     // Allow <img src="http://localhost:5005/..."> from CRA ports :3000/:3001/:3002
     crossOriginResourcePolicy: { policy: 'cross-origin' },
     crossOriginEmbedderPolicy: false,
