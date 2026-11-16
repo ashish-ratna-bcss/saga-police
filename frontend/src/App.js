@@ -51,6 +51,7 @@ const EventsReport = lazy(() => import('./pages/events/EventsReport'));
 const SystemHealth = lazy(() => import('./pages/admin/SystemHealth'));
 const BlugateBilling = lazy(() => import('./pages/admin/BlugateBilling'));
 const InitialSetupWizard = lazy(() => import('./pages/setup/InitialSetupWizard'));
+const AiAssistant = lazy(() => import('./pages/ai-assistant/AiAssistant'));
 
 // Loading fallback
 const PageLoader = () => (
@@ -121,6 +122,7 @@ function App() {
 
               <Route path="system-health" element={<SystemHealth />} />
               <Route path="blugate-billing" element={<BlugateBilling />} />
+              <Route path="ai-assistant" element={<AiAssistant />} />
 
               <Route path="events-report" element={<EventsReport />} />
               <Route path="help" element={<HelpGuide />} />
