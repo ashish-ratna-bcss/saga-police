@@ -2,7 +2,11 @@
  * Shared operational DDL for tenant DBs (and optional main-DB ops bootstrap).
  * Keep in sync with ops models in schema.prisma (not roles/users — those stay on main).
  * Schema only — no seed INSERTs.
+ *
+ * Also ensures embeddings.* (documents / chunks / jobs) for future AI retrieval.
  */
+
+const { ensureEmbeddingsSchema } = require('./ensureEmbeddingsSchema');
 
 /**
  * Create enums + ops tables on the given Prisma client.
@@ -592,6 +596,9 @@ async function ensureOpsSchema(prisma) {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+
+  // AI embeddings store — same on every tenant; safe to re-run.
+  await ensureEmbeddingsSchema(prisma);
 }
 
 module.exports = {
