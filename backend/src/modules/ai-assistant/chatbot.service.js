@@ -47,12 +47,25 @@ function extractKeyword(question) {
   return tokens.slice(0, 3).join(' ') || null;
 }
 
+/** Small-talk shortcut (aligned with RAG_pipline_saga) — skip retrieval. */
 function isChitchat(question) {
   const q = String(question || '').trim().toLowerCase();
-  if (!q || q.length > 80) return false;
-  return /^(hi|hello|hey|yo|thanks|thank you|ok|okay|good morning|good evening|good afternoon|namaste|hola)[\s!.?]*$/i.test(
+  if (!q || q.length > 60) return false;
+  return /^(h+i+|h+e+l+l*o+|h+e+y+|hola|yo|namaste|namaskar|good\s*(morning|afternoon|evening|night)|thanks?|thank\s*you|thx|ty|ok(ay)?|cool|bye|goodbye|how\s*are\s*you|what\s*can\s*you\s*do|who\s*are\s*you|help)[\s!.?]*$/i.test(
     q
   );
+}
+
+function smalltalkReply(question) {
+  const q = String(question || '').trim().toLowerCase();
+  if (/thanks?|thank\s*you|thx|ty/.test(q)) {
+    return "You're welcome! Ask about alerts, posts, events, or grievances in this tenant.";
+  }
+  if (/bye|goodbye|good\s*night/.test(q)) return 'Goodbye.';
+  if (/who\s*are\s*you|what\s*can\s*you\s*do|help/.test(q)) {
+    return "I'm BluraSaga AI Assistant. I answer from this tenant's indexed records — alerts, posts, events, grievances, and related reports. Try: \"high risk alerts\", \"posts about protests\", or \"how many posts today\".";
+  }
+  return "Hello! I'm BluraSaga AI Assistant. Ask me about alerts, posts, events, or grievances in your data.";
 }
 
 function isMetaOrErrorPaste(question) {
@@ -112,32 +125,18 @@ function mapSources(enriched) {
   }));
 }
 
+/** Strip HTML fences only — keep analyst Markdown (RAG_pipline_saga style). */
 function summarizeAnswer(answer, sourceCount) {
   let text = String(answer || '')
     .replace(/```html[\s\S]*?```/gi, '')
     .replace(/```ui[\s\S]*?```/gi, '')
-    .replace(/```[\s\S]*?```/g, '')
     .trim();
   if (!text) {
     return sourceCount
       ? `Here ${sourceCount === 1 ? 'is' : 'are'} ${sourceCount} result${sourceCount === 1 ? '' : 's'}.`
       : '';
   }
-  if (sourceCount > 0) {
-    const firstPara = text.split(/\n\s*\n/)[0] || text;
-    text = firstPara
-      .split('\n')
-      .filter((line) => !/^\s*(\*\*|[-*]|\d+\.)/.test(line))
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    if (text.length > 220) {
-      const m = text.slice(0, 220).match(/^[\s\S]{20,200}?[.!?](?=\s|$)/);
-      text = (m ? m[0] : text.slice(0, 180)).trim();
-      if (!/[.!?]$/.test(text)) text = `${text}…`;
-    }
-  }
-  return text.slice(0, 400);
+  return text.slice(0, 8000);
 }
 
 async function buildAnalytics(prisma, question, filters) {
@@ -184,8 +183,29 @@ async function runRagTurn(prisma, question, filters, prior, opts = {}) {
   const metaPaste = isMetaOrErrorPaste(question);
   const countOnly = looksLikeCountQuestion(question);
 
+  // Small-talk: canned reply, no retrieval (RAG_pipline_saga pattern)
+  if (chitchat) {
+    return {
+      answer: smalltalkReply(question),
+      modelName: null,
+      usage: {},
+      sourcesForStore: [],
+      view: { layout: 'text' },
+    };
+  }
+  if (metaPaste) {
+    return {
+      answer:
+        'That looks like a system error paste, not a data question. Ask about alerts, posts, events, or grievances.',
+      modelName: null,
+      usage: {},
+      sourcesForStore: [],
+      view: { layout: 'text' },
+    };
+  }
+
   let chunks = [];
-  if (!chitchat && !metaPaste && !countOnly) {
+  if (!countOnly) {
     try {
       chunks = await retrieveChunks(prisma, question, filters);
     } catch {
@@ -207,7 +227,7 @@ async function runRagTurn(prisma, question, filters, prior, opts = {}) {
     }
   }
 
-  const analytics = chitchat || metaPaste ? null : await buildAnalytics(prisma, question, filters);
+  const analytics = await buildAnalytics(prisma, question, filters);
   const messages = buildMessages(question, chunks, prior, {
     analyticsNote: analytics?.note || null,
   });
@@ -223,11 +243,7 @@ async function runRagTurn(prisma, question, filters, prior, opts = {}) {
     llmResult.content ||
     (chunks.length
       ? 'I found related records but could not generate a summary. Please try again.'
-      : chitchat
-        ? 'Hello! How can I help you with your records today?'
-        : metaPaste
-          ? 'That looks like a system error paste, not a data question. Ask about your records (posts, alerts, events).'
-          : 'I could not find relevant records in this tenant database for that question.');
+      : 'I could not find relevant records in this tenant database for that question.');
 
   let modelName = llmResult.model;
   try {
@@ -237,7 +253,7 @@ async function runRagTurn(prisma, question, filters, prior, opts = {}) {
   }
 
   let sourcesForStore = [];
-  if (!chitchat && !metaPaste && chunks.length) {
+  if (chunks.length) {
     const mapped = mapSources(chunks);
     const cited = filterCitedSources(rawAnswer, mapped);
     sourcesForStore = cited.length ? cited : mapped;
