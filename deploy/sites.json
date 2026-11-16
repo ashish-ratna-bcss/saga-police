@@ -5,7 +5,8 @@
   "vllm_upstream": "127.0.0.1:8080",
   "frame_ancestors": [
     "'self'",
-    "https://*.blurasaga.com"
+    "https://*.blurasaga.com",
+    "https://garuda.accessgenie.in"
   ],
   "sites": [
     {
