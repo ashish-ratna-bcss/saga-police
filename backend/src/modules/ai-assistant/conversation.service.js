@@ -129,14 +129,21 @@ async function addMessage(prisma, conversationId, { role, content, modelName = n
   return rows[0];
 }
 
+const isUuid = (v) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(v || '')
+  );
+
 async function addMessageSources(prisma, messageId, sources = []) {
   for (const s of sources) {
+    // Browse/latest rows may use synthetic ids like "latest-8042" — not UUIDs.
+    const chunkId = isUuid(s.chunk_id) ? String(s.chunk_id) : null;
     await prisma.$executeRawUnsafe(
       `INSERT INTO chatbot_message_sources
          (message_id, chunk_id, source_table, source_id, similarity_score, excerpt, metadata)
        VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7::jsonb)`,
       messageId,
-      s.chunk_id || null,
+      chunkId,
       s.source_table,
       String(s.source_id),
       s.similarity_score ?? null,

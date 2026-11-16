@@ -93,6 +93,7 @@ const sendMessage = async (req, res) => {
         userMessage: result.userMessage,
         assistantMessage: result.assistantMessage,
         sources: result.sources,
+        view: result.view,
       });
       return res.end();
     }

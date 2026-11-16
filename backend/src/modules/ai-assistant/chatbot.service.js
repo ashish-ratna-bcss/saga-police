@@ -1,5 +1,10 @@
 const conversation = require('./conversation.service');
-const { retrieveChunks, looksLikeCountQuestion, countPostsInRange, countAlertsInRange } = require('./retrieval.service');
+const {
+  retrieveChunks,
+  looksLikeCountQuestion,
+  countPostsInRange,
+  countAlertsInRange,
+} = require('./retrieval.service');
 const { buildMessages } = require('./context-builder.service');
 const { complete, completeStream, getLLMConfig } = require('./llm.service');
 const { enrichSources, sourceHref } = require('./source-formatter.service');
@@ -26,10 +31,14 @@ function assertRateLimit(userId) {
 
 function extractKeyword(question) {
   const q = String(question || '');
-  // crude keyword for hybrid: quoted phrase or notable tokens
   const quoted = q.match(/"([^"]{2,80})"/);
   if (quoted) return quoted[1];
-  const stop = new Set(['what', 'which', 'when', 'where', 'show', 'find', 'about', 'related', 'the', 'and', 'for', 'from', 'this', 'that', 'with', 'have', 'were', 'been', 'into', 'over', 'last', 'month', 'week', 'days', 'how', 'many', 'please', 'give', 'summary', 'summarize', 'today', 'yesterday', 'total', 'posts', 'alerts', 'count', 'number']);
+  const stop = new Set([
+    'what', 'which', 'when', 'where', 'show', 'find', 'about', 'related', 'the', 'and', 'for',
+    'from', 'this', 'that', 'with', 'have', 'were', 'been', 'into', 'over', 'last', 'month',
+    'week', 'days', 'how', 'many', 'please', 'give', 'summary', 'summarize', 'today',
+    'yesterday', 'total', 'posts', 'alerts', 'count', 'number', 'high', 'low', 'medium',
+  ]);
   const tokens = q
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, ' ')
@@ -38,7 +47,6 @@ function extractKeyword(question) {
   return tokens.slice(0, 3).join(' ') || null;
 }
 
-/** Greetings / small-talk — skip retrieval and sources. */
 function isChitchat(question) {
   const q = String(question || '').trim().toLowerCase();
   if (!q || q.length > 80) return false;
@@ -47,7 +55,13 @@ function isChitchat(question) {
   );
 }
 
-/** Infer relative date filters from phrasing when UI dates are empty. */
+function isMetaOrErrorPaste(question) {
+  return /prisma\.\$|executeRawUnsafe|invalid input syntax for type uuid|P2024|Timed out fetching a new connection|connection pool|Raw query failed|stack trace|TypeError:|ReferenceError:/i.test(
+    String(question || '')
+  );
+}
+
+/** Soft date filters from phrasing when UI dates are empty — still one retrieval path. */
 function applyRelativeDates(question, filters) {
   const out = { ...filters };
   if (out.dateFrom || out.dateTo) return out;
@@ -80,7 +94,6 @@ function applyRelativeDates(question, filters) {
   return out;
 }
 
-/** Keep only chunks the model actually cited as [n]. */
 function filterCitedSources(answer, enriched) {
   const cites = new Set(
     [...String(answer || '').matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1]))
@@ -99,7 +112,35 @@ function mapSources(enriched) {
   }));
 }
 
-async function buildAnalyticsNote(prisma, question, filters) {
+function summarizeAnswer(answer, sourceCount) {
+  let text = String(answer || '')
+    .replace(/```html[\s\S]*?```/gi, '')
+    .replace(/```ui[\s\S]*?```/gi, '')
+    .replace(/```[\s\S]*?```/g, '')
+    .trim();
+  if (!text) {
+    return sourceCount
+      ? `Here ${sourceCount === 1 ? 'is' : 'are'} ${sourceCount} result${sourceCount === 1 ? '' : 's'}.`
+      : '';
+  }
+  if (sourceCount > 0) {
+    const firstPara = text.split(/\n\s*\n/)[0] || text;
+    text = firstPara
+      .split('\n')
+      .filter((line) => !/^\s*(\*\*|[-*]|\d+\.)/.test(line))
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (text.length > 220) {
+      const m = text.slice(0, 220).match(/^[\s\S]{20,200}?[.!?](?=\s|$)/);
+      text = (m ? m[0] : text.slice(0, 180)).trim();
+      if (!/[.!?]$/.test(text)) text = `${text}…`;
+    }
+  }
+  return text.slice(0, 400);
+}
+
+async function buildAnalytics(prisma, question, filters) {
   if (!looksLikeCountQuestion(question)) return null;
   try {
     const posts = await countPostsInRange(prisma, {
@@ -111,16 +152,111 @@ async function buildAnalyticsNote(prisma, question, filters) {
       dateFrom: filters.dateFrom,
       dateTo: filters.dateTo,
     });
-    return `social_media_posts matching filters: ${posts}; social_media_alerts in range: ${alerts}.`;
+    return {
+      posts,
+      alerts,
+      note: `social_media_posts matching filters: ${posts}; social_media_alerts in range: ${alerts}.`,
+    };
   } catch {
     return null;
   }
 }
 
+function buildView(question, sources, analytics) {
+  if (analytics && looksLikeCountQuestion(question)) {
+    return {
+      layout: 'stats',
+      title: 'Counts',
+      stats: [
+        { label: 'Posts', value: analytics.posts },
+        { label: 'Alerts', value: analytics.alerts },
+      ],
+    };
+  }
+  if (sources?.length) {
+    return { layout: 'cards', title: 'Matching records', items: sources };
+  }
+  return { layout: 'text' };
+}
+
+async function runRagTurn(prisma, question, filters, prior, opts = {}) {
+  const chitchat = isChitchat(question);
+  const metaPaste = isMetaOrErrorPaste(question);
+  const countOnly = looksLikeCountQuestion(question);
+
+  let chunks = [];
+  if (!chitchat && !metaPaste && !countOnly) {
+    try {
+      chunks = await retrieveChunks(prisma, question, filters);
+    } catch {
+      chunks = [];
+    }
+  }
+
+  if (chunks.length) {
+    try {
+      chunks = await enrichSources(prisma, chunks);
+      chunks = chunks.map((c) => ({
+        ...c,
+        content: c.excerpt || c.content,
+        excerpt: c.excerpt || String(c.content || '').slice(0, 400),
+        metadata: c.metadata || {},
+      }));
+    } catch {
+      /* keep raw */
+    }
+  }
+
+  const analytics = chitchat || metaPaste ? null : await buildAnalytics(prisma, question, filters);
+  const messages = buildMessages(question, chunks, prior, {
+    analyticsNote: analytics?.note || null,
+  });
+
+  let llmResult;
+  if (typeof opts.onDelta === 'function') {
+    llmResult = await completeStream(messages, opts.onDelta);
+  } else {
+    llmResult = await complete(messages);
+  }
+
+  const rawAnswer =
+    llmResult.content ||
+    (chunks.length
+      ? 'I found related records but could not generate a summary. Please try again.'
+      : chitchat
+        ? 'Hello! How can I help you with your records today?'
+        : metaPaste
+          ? 'That looks like a system error paste, not a data question. Ask about your records (posts, alerts, events).'
+          : 'I could not find relevant records in this tenant database for that question.');
+
+  let modelName = llmResult.model;
+  try {
+    modelName = modelName || getLLMConfig().model;
+  } catch {
+    /* ignore */
+  }
+
+  let sourcesForStore = [];
+  if (!chitchat && !metaPaste && chunks.length) {
+    const mapped = mapSources(chunks);
+    const cited = filterCitedSources(rawAnswer, mapped);
+    sourcesForStore = cited.length ? cited : mapped;
+  }
+
+  const answer = summarizeAnswer(rawAnswer, sourcesForStore.length);
+  const view = buildView(question, sourcesForStore, analytics);
+
+  return {
+    answer,
+    modelName,
+    usage: llmResult.usage || {},
+    sourcesForStore,
+    view,
+  };
+}
+
 /**
  * Full RAG turn: persist user msg, retrieve, LLM, persist assistant + sources.
- * @param {object} opts
- * @param {(delta: string) => void} [opts.onDelta]
  */
 async function sendMessage(prisma, userId, conversationId, body, opts = {}) {
   assertRateLimit(userId);
@@ -144,7 +280,7 @@ async function sendMessage(prisma, userId, conversationId, body, opts = {}) {
     throw err;
   }
 
-  let filters = applyRelativeDates(content, {
+  const filters = applyRelativeDates(content, {
     topK: body.topK,
     dateFrom: body.dateFrom || null,
     dateTo: body.dateTo || null,
@@ -157,90 +293,37 @@ async function sendMessage(prisma, userId, conversationId, body, opts = {}) {
     content,
   });
 
-  // Auto-title from first user message
   if (!conv.title || conv.title === 'New chat') {
-    await conversation.renameConversation(
-      prisma,
-      userId,
-      conversationId,
-      content.slice(0, 80)
-    );
+    await conversation.renameConversation(prisma, userId, conversationId, content.slice(0, 80));
   }
 
   const history = await conversation.recentTurns(prisma, conversationId, 8);
-  // history includes the user message we just added — drop last for builder (we pass question separately)
   const prior = history.slice(0, -1);
 
-  const chitchat = isChitchat(content);
-  const countOnly = looksLikeCountQuestion(content);
-
-  let chunks = [];
-  if (!chitchat && !countOnly) {
-    try {
-      chunks = await retrieveChunks(prisma, content, filters);
-    } catch {
-      chunks = [];
-    }
-  }
-  if (chunks.length) {
-    try {
-      chunks = await enrichSources(prisma, chunks);
-      chunks = chunks.map((c) => ({
-        ...c,
-        content: c.excerpt || c.content,
-        metadata: c.metadata || {},
-      }));
-    } catch {
-      /* keep raw chunks */
-    }
-  }
-
-  const analyticsNote = chitchat
-    ? null
-    : await buildAnalyticsNote(prisma, content, filters);
-  const messages = buildMessages(content, chunks, prior, { analyticsNote });
-
-  let llmResult;
-  if (typeof opts.onDelta === 'function') {
-    llmResult = await completeStream(messages, opts.onDelta);
-  } else {
-    llmResult = await complete(messages);
-  }
-
-  const answer =
-    llmResult.content ||
-    (chunks.length
-      ? 'I found related records but could not generate a summary. Please try again.'
-      : chitchat
-        ? 'Hello! How can I help you with your records today?'
-        : 'I could not find relevant records in this tenant database for that question.');
-
-  let modelName = llmResult.model;
-  try {
-    modelName = modelName || getLLMConfig().model;
-  } catch {
-    /* ignore */
-  }
+  const { answer, modelName, usage, sourcesForStore, view } = await runRagTurn(
+    prisma,
+    content,
+    filters,
+    prior,
+    opts
+  );
 
   const assistantMsg = await conversation.addMessage(prisma, conversationId, {
     role: 'assistant',
     content: answer,
     modelName,
-    tokenUsage: llmResult.usage || {},
+    tokenUsage: { ...usage, view },
   });
 
-  let sourcesForStore = [];
-  if (!chitchat && chunks.length) {
-    sourcesForStore = filterCitedSources(answer, mapSources(chunks));
-    if (sourcesForStore.length) {
-      await conversation.addMessageSources(prisma, assistantMsg.id, sourcesForStore);
-    }
+  if (sourcesForStore.length) {
+    await conversation.addMessageSources(prisma, assistantMsg.id, sourcesForStore);
   }
 
   return {
     userMessage: userMsg,
-    assistantMessage: { ...assistantMsg, sources: sourcesForStore },
+    assistantMessage: { ...assistantMsg, sources: sourcesForStore, view },
     sources: sourcesForStore,
+    view,
   };
 }
 
@@ -252,7 +335,6 @@ async function regenerate(prisma, userId, conversationId, messageId, opts = {}) 
     throw err;
   }
 
-  // Find preceding user message
   const listed = await conversation.listMessages(prisma, userId, conversationId);
   const msgs = listed?.messages || [];
   const idx = msgs.findIndex((m) => String(m.id) === String(messageId));
@@ -270,74 +352,35 @@ async function regenerate(prisma, userId, conversationId, messageId, opts = {}) 
   }
 
   await conversation.deleteMessage(prisma, messageId);
-
-  // Re-run without duplicating the user message: temporarily add then... better path:
-  // call send internals with skipUserPersist — for simplicity, delete last user too if consecutive, then resend.
-  // Simpler: invoke retrieval+LLM and insert only assistant (reuse last user text).
   assertRateLimit(userId);
+
   const filters = applyRelativeDates(userContent, {
     keyword: extractKeyword(userContent),
   });
   const history = await conversation.recentTurns(prisma, conversationId, 8);
-  const chitchat = isChitchat(userContent);
-  const countOnly = looksLikeCountQuestion(userContent);
-  let chunks = [];
-  if (!chitchat && !countOnly) {
-    try {
-      chunks = await retrieveChunks(prisma, userContent, filters);
-    } catch {
-      chunks = [];
-    }
-  }
-  if (chunks.length) {
-    try {
-      chunks = await enrichSources(prisma, chunks);
-      chunks = chunks.map((c) => ({
-        ...c,
-        content: c.excerpt || c.content,
-        metadata: c.metadata || {},
-      }));
-    } catch {
-      /* keep raw */
-    }
-  }
-  const analyticsNote = chitchat
-    ? null
-    : await buildAnalyticsNote(prisma, userContent, filters);
-  const messages = buildMessages(userContent, chunks, history, { analyticsNote });
 
-  let llmResult;
-  if (typeof opts.onDelta === 'function') {
-    llmResult = await completeStream(messages, opts.onDelta);
-  } else {
-    llmResult = await complete(messages);
-  }
-
-  const answer = llmResult.content || 'Could not regenerate a response.';
-  let modelName = llmResult.model;
-  try {
-    modelName = modelName || getLLMConfig().model;
-  } catch {
-    /* ignore */
-  }
+  const { answer, modelName, usage, sourcesForStore, view } = await runRagTurn(
+    prisma,
+    userContent,
+    filters,
+    history,
+    opts
+  );
 
   const assistantMsg = await conversation.addMessage(prisma, conversationId, {
     role: 'assistant',
     content: answer,
     modelName,
-    tokenUsage: llmResult.usage || {},
+    tokenUsage: { ...usage, view },
   });
-  let sourcesForStore = [];
-  if (!chitchat && chunks.length) {
-    sourcesForStore = filterCitedSources(answer, mapSources(chunks));
-    if (sourcesForStore.length) {
-      await conversation.addMessageSources(prisma, assistantMsg.id, sourcesForStore);
-    }
+  if (sourcesForStore.length) {
+    await conversation.addMessageSources(prisma, assistantMsg.id, sourcesForStore);
   }
 
   return {
-    assistantMessage: { ...assistantMsg, sources: sourcesForStore },
+    assistantMessage: { ...assistantMsg, sources: sourcesForStore, view },
     sources: sourcesForStore,
+    view,
   };
 }
 
@@ -348,4 +391,6 @@ module.exports = {
   isChitchat,
   filterCitedSources,
   applyRelativeDates,
+  summarizeAnswer,
+  buildView,
 };
