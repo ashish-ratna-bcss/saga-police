@@ -7,12 +7,97 @@
  */
 
 const { ensureEmbeddingsSchema } = require('./ensureEmbeddingsSchema');
+const { withTenantSchemaLockRetry } = require('./schemaLock');
+
+/** Once per Prisma client instance — EventScheduler/requests must not re-run DDL. */
+const ensuredClients = new WeakMap();
+/** After a failed/busy ensure, skip retries briefly so we do not pile AccessExclusive waits. */
+const ensureCooldownUntil = new WeakMap();
+const ENSURE_FAIL_COOLDOWN_MS = 30_000;
+
+const IDENT = /^[a-z_][a-z0-9_]*$/;
+
+/**
+ * Skip ALTER when the column already exists. ADD COLUMN IF NOT EXISTS still
+ * takes ACCESS EXCLUSIVE and, once queued, blocks every read on that table
+ * for as long as embeddings.process_pending_jobs holds its own lock.
+ * Identifiers are code constants only (never user input).
+ */
+async function addColumnIfMissing(prisma, table, column, typeSql) {
+  if (!IDENT.test(table) || !IDENT.test(column)) {
+    throw new Error(`unsafe identifier: ${table}.${column}`);
+  }
+  const rows = await prisma.$queryRawUnsafe(
+    `SELECT 1 AS ok
+     FROM pg_attribute a
+     JOIN pg_class c ON c.oid = a.attrelid
+     JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = 'public'
+       AND c.relname = '${table}'
+       AND a.attname = '${column}'
+       AND a.attnum > 0
+       AND NOT a.attisdropped
+     LIMIT 1`
+  );
+  if (Array.isArray(rows) && rows.length > 0) return;
+
+  // NOWAIT: fail immediately instead of joining the lock queue. A queued
+  // AccessExclusive blocks new reads even while it is still waiting.
+  try {
+    await prisma.$executeRawUnsafe(
+      `LOCK TABLE ${table} IN ACCESS EXCLUSIVE MODE NOWAIT`
+    );
+  } catch (err) {
+    const msg = String(err?.message || err);
+    if (/could not obtain lock|lock not available|55P03/i.test(msg)) {
+      const busy = new Error(`schema ensure skipped alter ${table}.${column}: table busy`);
+      busy.code = '55P03';
+      throw busy;
+    }
+    throw err;
+  }
+  await prisma.$executeRawUnsafe(
+    `ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${column} ${typeSql}`
+  );
+}
+
+async function createIndexIfMissing(prisma, indexName, createSql) {
+  const rows = await prisma.$queryRawUnsafe(
+    `SELECT 1 AS ok FROM pg_class WHERE relkind = 'i' AND relname = $1 LIMIT 1`,
+    indexName
+  );
+  if (Array.isArray(rows) && rows.length > 0) return;
+  await prisma.$executeRawUnsafe(createSql);
+}
 
 /**
  * Create enums + ops tables on the given Prisma client.
  * @param {import('../src/generated/tenant-client').PrismaClient} prisma
+ * @param {{ locked?: boolean, force?: boolean }} [opts] pass locked:true when caller already holds schema lock
  */
-async function ensureOpsSchema(prisma) {
+async function ensureOpsSchema(prisma, opts = {}) {
+  if (!opts.locked) {
+    if (!opts.force) {
+      const existing = ensuredClients.get(prisma);
+      if (existing) return existing;
+      const coolUntil = ensureCooldownUntil.get(prisma) || 0;
+      if (Date.now() < coolUntil) return;
+    }
+    const run = withTenantSchemaLockRetry(prisma, (tx) =>
+      ensureOpsSchema(tx, { locked: true })
+    ).catch((err) => {
+      ensuredClients.delete(prisma);
+      ensureCooldownUntil.set(prisma, Date.now() + ENSURE_FAIL_COOLDOWN_MS);
+      throw err;
+    });
+    ensuredClients.set(prisma, run);
+    return run;
+  }
+
+  // Fail fast on lock waits — never sit behind process_pending_jobs holding AccessExclusive.
+  await prisma.$executeRawUnsafe(`SET LOCAL lock_timeout = '2s'`);
+  await prisma.$executeRawUnsafe(`SET LOCAL statement_timeout = '45s'`);
+
   await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
 
   await prisma.$executeRawUnsafe(`
@@ -58,24 +143,12 @@ async function ensureOpsSchema(prisma) {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE platforms ADD COLUMN IF NOT EXISTS blugate_client_key TEXT NULL
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE platforms ADD COLUMN IF NOT EXISTS api_key TEXT NULL
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE platforms ADD COLUMN IF NOT EXISTS low_threshold INTEGER NOT NULL DEFAULT 100
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE platforms ADD COLUMN IF NOT EXISTS medium_threshold INTEGER NOT NULL DEFAULT 500
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE platforms ADD COLUMN IF NOT EXISTS high_threshold INTEGER NOT NULL DEFAULT 1000
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE platforms ADD COLUMN IF NOT EXISTS time_window_minutes INTEGER NOT NULL DEFAULT 60
-  `);
+  await addColumnIfMissing(prisma, 'platforms', 'blugate_client_key', 'TEXT NULL');
+  await addColumnIfMissing(prisma, 'platforms', 'api_key', 'TEXT NULL');
+  await addColumnIfMissing(prisma, 'platforms', 'low_threshold', 'INTEGER NOT NULL DEFAULT 100');
+  await addColumnIfMissing(prisma, 'platforms', 'medium_threshold', 'INTEGER NOT NULL DEFAULT 500');
+  await addColumnIfMissing(prisma, 'platforms', 'high_threshold', 'INTEGER NOT NULL DEFAULT 1000');
+  await addColumnIfMissing(prisma, 'platforms', 'time_window_minutes', 'INTEGER NOT NULL DEFAULT 60');
   // One-time copy from legacy alert_thresholds (if that table still exists).
   await prisma.$executeRawUnsafe(`
     DO $$
@@ -113,22 +186,15 @@ async function ensureOpsSchema(prisma) {
       CONSTRAINT social_media_accounts_platform_id_handle_type_key UNIQUE (platform_id, handle, type)
     )
   `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_accounts
-    ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'profile'
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_accounts
-    ADD COLUMN IF NOT EXISTS poll_interval_minutes INTEGER NOT NULL DEFAULT 30
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_accounts
-    ADD COLUMN IF NOT EXISTS last_fetched_at TIMESTAMPTZ NULL
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_accounts
-    ADD COLUMN IF NOT EXISTS last_fetched_history JSONB NOT NULL DEFAULT '[]'::jsonb
-  `);
+  await addColumnIfMissing(prisma, 'social_media_accounts', 'type', `TEXT NOT NULL DEFAULT 'profile'`);
+  await addColumnIfMissing(prisma, 'social_media_accounts', 'poll_interval_minutes', 'INTEGER NOT NULL DEFAULT 30');
+  await addColumnIfMissing(prisma, 'social_media_accounts', 'last_fetched_at', 'TIMESTAMPTZ NULL');
+  await addColumnIfMissing(
+    prisma,
+    'social_media_accounts',
+    'last_fetched_history',
+    `JSONB NOT NULL DEFAULT '[]'::jsonb`
+  );
   await prisma.$executeRawUnsafe(`
     DO $$
     BEGIN
@@ -178,15 +244,19 @@ async function ensureOpsSchema(prisma) {
     )
   `);
 
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_posts
-      ADD COLUMN IF NOT EXISTS image_analysis JSONB NOT NULL DEFAULT '{}'::jsonb
-  `);
+  await addColumnIfMissing(
+    prisma,
+    'social_media_posts',
+    'image_analysis',
+    `JSONB NOT NULL DEFAULT '{}'::jsonb`
+  );
 
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS social_media_posts_analysis_status_posted_at_idx
-    ON social_media_posts (analysis_status, posted_at, fetched_at, id)
-  `);
+  await createIndexIfMissing(
+    prisma,
+    'social_media_posts_analysis_status_posted_at_idx',
+    `CREATE INDEX IF NOT EXISTS social_media_posts_analysis_status_posted_at_idx
+     ON social_media_posts (analysis_status, posted_at, fetched_at, id)`
+  );
 
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS social_media_alerts (
@@ -215,15 +285,19 @@ async function ensureOpsSchema(prisma) {
     )
   `);
 
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_alerts
-      ADD COLUMN IF NOT EXISTS image_analysis JSONB NOT NULL DEFAULT '{}'::jsonb
-  `);
+  await addColumnIfMissing(
+    prisma,
+    'social_media_alerts',
+    'image_analysis',
+    `JSONB NOT NULL DEFAULT '{}'::jsonb`
+  );
 
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS social_media_alerts_status_posted_at_id_idx
-    ON social_media_alerts (status, posted_at DESC NULLS LAST, id DESC)
-  `);
+  await createIndexIfMissing(
+    prisma,
+    'social_media_alerts_status_posted_at_id_idx',
+    `CREATE INDEX IF NOT EXISTS social_media_alerts_status_posted_at_id_idx
+     ON social_media_alerts (status, posted_at DESC NULLS LAST, id DESC)`
+  );
 
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS social_media_grievances (
@@ -291,9 +365,7 @@ async function ensureOpsSchema(prisma) {
     )
   `);
 
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_grievance_reports ADD COLUMN IF NOT EXISTS pdf_base64 TEXT;
-  `);
+  await addColumnIfMissing(prisma, 'social_media_grievance_reports', 'pdf_base64', 'TEXT');
 
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS social_media_grievance_contacts (
@@ -386,38 +458,39 @@ async function ensureOpsSchema(prisma) {
     EXCEPTION WHEN duplicate_object THEN NULL;
     END $$;
   `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_event_media
-      ADD COLUMN IF NOT EXISTS analysis_status analysis_status_enum NOT NULL DEFAULT 'pending'
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_event_media
-      ADD COLUMN IF NOT EXISTS analysis_result JSONB NULL
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_event_media
-      ADD COLUMN IF NOT EXISTS analysis_error TEXT NULL
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_event_media
-      ADD COLUMN IF NOT EXISTS analysis_attempts INTEGER NOT NULL DEFAULT 0
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_event_media
-      ADD COLUMN IF NOT EXISTS analyzed_at TIMESTAMPTZ NULL
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_event_media
-      ADD COLUMN IF NOT EXISTS image_analysis JSONB NOT NULL DEFAULT '{}'::jsonb
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS social_media_event_media_analysis_status_fetched_at_idx
-    ON social_media_event_media (analysis_status, fetched_at)
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS social_media_event_media_analysis_status_posted_at_idx
-    ON social_media_event_media (analysis_status, posted_at, fetched_at, id)
-  `);
+  await addColumnIfMissing(
+    prisma,
+    'social_media_event_media',
+    'analysis_status',
+    `analysis_status_enum NOT NULL DEFAULT 'pending'`
+  );
+  await addColumnIfMissing(prisma, 'social_media_event_media', 'analysis_result', `JSONB NULL`);
+  await addColumnIfMissing(prisma, 'social_media_event_media', 'analysis_error', `TEXT NULL`);
+  await addColumnIfMissing(
+    prisma,
+    'social_media_event_media',
+    'analysis_attempts',
+    `INTEGER NOT NULL DEFAULT 0`
+  );
+  await addColumnIfMissing(prisma, 'social_media_event_media', 'analyzed_at', `TIMESTAMPTZ NULL`);
+  await addColumnIfMissing(
+    prisma,
+    'social_media_event_media',
+    'image_analysis',
+    `JSONB NOT NULL DEFAULT '{}'::jsonb`
+  );
+  await createIndexIfMissing(
+    prisma,
+    'social_media_event_media_analysis_status_fetched_at_idx',
+    `CREATE INDEX IF NOT EXISTS social_media_event_media_analysis_status_fetched_at_idx
+     ON social_media_event_media (analysis_status, fetched_at)`
+  );
+  await createIndexIfMissing(
+    prisma,
+    'social_media_event_media_analysis_status_posted_at_idx',
+    `CREATE INDEX IF NOT EXISTS social_media_event_media_analysis_status_posted_at_idx
+     ON social_media_event_media (analysis_status, posted_at, fetched_at, id)`
+  );
 
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS social_media_event_summaries (
@@ -443,12 +516,8 @@ async function ensureOpsSchema(prisma) {
       CONSTRAINT social_media_event_summaries_event_id_key UNIQUE (event_id)
     )
   `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_event_summaries ADD COLUMN IF NOT EXISTS generated_by_id INTEGER;
-  `);
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE social_media_event_summaries ADD COLUMN IF NOT EXISTS generated_by_name TEXT;
-  `);
+  await addColumnIfMissing(prisma, 'social_media_event_summaries', 'generated_by_id', 'INTEGER');
+  await addColumnIfMissing(prisma, 'social_media_event_summaries', 'generated_by_name', 'TEXT');
   await prisma.$executeRawUnsafe(`
     CREATE INDEX IF NOT EXISTS social_media_event_summaries_event_id_idx
     ON social_media_event_summaries (event_id)
@@ -570,17 +639,17 @@ async function ensureOpsSchema(prisma) {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
-  for (const col of [
-    'app_slug VARCHAR(80) NULL',
-    'name VARCHAR(120) NULL',
-    'blugate_id VARCHAR(40) NULL',
-    'version VARCHAR(40) NULL',
-    'health VARCHAR(40) NULL',
-    'endpoint_count INTEGER NULL',
-    'change VARCHAR(30) NULL',
-    'first_seen_at TIMESTAMPTZ NULL',
+  for (const [column, typeSql] of [
+    ['app_slug', 'VARCHAR(80) NULL'],
+    ['name', 'VARCHAR(120) NULL'],
+    ['blugate_id', 'VARCHAR(40) NULL'],
+    ['version', 'VARCHAR(40) NULL'],
+    ['health', 'VARCHAR(40) NULL'],
+    ['endpoint_count', 'INTEGER NULL'],
+    ['change', 'VARCHAR(30) NULL'],
+    ['first_seen_at', 'TIMESTAMPTZ NULL'],
   ]) {
-    await prisma.$executeRawUnsafe(`ALTER TABLE blugate_platform_meta ADD COLUMN IF NOT EXISTS ${col}`);
+    await addColumnIfMissing(prisma, 'blugate_platform_meta', column, typeSql);
   }
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS custom_endpoints (
@@ -598,7 +667,19 @@ async function ensureOpsSchema(prisma) {
   `);
 
   // AI embeddings store — same on every tenant; safe to re-run.
-  await ensureEmbeddingsSchema(prisma);
+  await ensureEmbeddingsSchema(prisma, { locked: true });
+
+  // Ensure pg_cron drain exists for this tenant DB (idempotent; no-op if already scheduled).
+  try {
+    const rows = await prisma.$queryRawUnsafe(`SELECT current_database() AS db`);
+    const dbName = rows?.[0]?.db;
+    if (dbName) {
+      const { ensureEmbeddingsCronSchedule } = require('../src/lib/tenantDatabase.service');
+      await ensureEmbeddingsCronSchedule(dbName);
+    }
+  } catch (err) {
+    console.warn(`[embeddings] cron hook skipped: ${err.message}`);
+  }
 }
 
 module.exports = {

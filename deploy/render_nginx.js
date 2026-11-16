@@ -169,14 +169,68 @@ function proxyBlock(upstream, indent = '        ', longTimeout = false) {
   return lines.join('\n');
 }
 
-function appLocations({ bind, backendPort, webRoot }) {
+/**
+ * CSP frame-ancestors allowlist. Never emits `*` / ALLOW-FROM.
+ * Sources: global sites.json.frame_ancestors + optional per-site frame_ancestors.
+ * Always includes 'self'. Invalid / empty entries are dropped.
+ */
+function normalizeFrameAncestors(...lists) {
+  const seen = new Set();
+  const out = [];
+  const push = (raw) => {
+    const v = String(raw || '').trim();
+    if (!v) return;
+    const lower = v.toLowerCase();
+    if (lower === '*' || lower === "'*'" || lower === 'allow-from') return;
+    if (seen.has(v)) return;
+    seen.add(v);
+    out.push(v);
+  };
+  push("'self'");
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) push(item);
+  }
+  return out;
+}
+
+/** https://host for every configured tenant domain (+ aliases). */
+function tenantOriginAncestors(data) {
+  const origins = [];
+  for (const s of data?.sites || []) {
+    const names = Array.isArray(s.domain_names) && s.domain_names.length
+      ? s.domain_names
+      : [s.domain, ...(s.domain_aliases || [])].filter(Boolean);
+    for (const name of names) {
+      const host = String(name || '').trim().toLowerCase();
+      if (!host || host.includes('/') || host.includes(' ')) continue;
+      origins.push(`https://${host}`);
+    }
+  }
+  return origins;
+}
+
+function frameAncestorsCsp(data, site = {}) {
+  // All tenants share one allowlist: explicit config + every tenant HTTPS origin
+  // + scheme-wildcard for blurasaga.com parents. Never emits bare *.
+  const ancestors = normalizeFrameAncestors(
+    data?.frame_ancestors,
+    site?.frame_ancestors,
+    tenantOriginAncestors(data),
+    ['https://*.blurasaga.com']
+  );
+  return `frame-ancestors ${ancestors.join(' ')};`;
+}
+
+function appLocations({ bind, backendPort, webRoot, frameAncestorsCspValue }) {
   const loc = proxyBlock(`http://${bind}:${backendPort}`);
   return `    root ${webRoot};
     index index.html;
     client_max_body_size 50m;
 
     add_header X-Content-Type-Options nosniff always;
-    add_header X-Frame-Options SAMEORIGIN always;
+    # Prefer CSP frame-ancestors over obsolete X-Frame-Options (no DENY/SAMEORIGIN/ALLOW-FROM).
+    add_header Content-Security-Policy "${frameAncestorsCspValue}" always;
     add_header Referrer-Policy strict-origin-when-cross-origin always;
 
     location /api/ {
@@ -190,6 +244,10 @@ ${loc}
     location /static/ {
         expires 7d;
         add_header Cache-Control "public, immutable";
+        # Re-declare security headers: nginx drops parent add_header when location sets any.
+        add_header X-Content-Type-Options nosniff always;
+        add_header Content-Security-Policy "${frameAncestorsCspValue}" always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
         try_files $uri =404;
     }
 
@@ -212,6 +270,7 @@ function serverBlock({
   defaultServer = false,
   sslCertificate = '',
   sslCertificateKey = '',
+  frameAncestorsCspValue = "frame-ancestors 'self';",
 }) {
   const listenFlag = defaultServer ? ' default_server' : '';
   const isSsl = Boolean(sslCertificate && sslCertificateKey);
@@ -231,11 +290,14 @@ function serverBlock({
       '    ssl_session_timeout 1d;',
       '    ssl_session_cache shared:SSL:10m;',
       '    ssl_protocols TLSv1.2 TLSv1.3;',
+      // HSTS only here. Other security headers come from appLocations.
+      // Note: /static/ re-declares them (nginx does not inherit parent add_header
+      // into a location that sets its own).
       '    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;',
     ];
   }
 
-  const body = appLocations({ bind, backendPort, webRoot });
+  const body = appLocations({ bind, backendPort, webRoot, frameAncestorsCspValue });
   return `server {
 ${listenLines.join('\n')}
     server_name ${serverName};
@@ -262,11 +324,18 @@ function httpRedirectBlock(domain) {
 }`;
 }
 
-function httpDomainBlock({ domain, webRoot, bind, backendPort, forceHttps }) {
+function httpDomainBlock({
+  domain,
+  webRoot,
+  bind,
+  backendPort,
+  forceHttps,
+  frameAncestorsCspValue = "frame-ancestors 'self';",
+}) {
   if (forceHttps) {
     return httpRedirectBlock(domain);
   }
-  const body = appLocations({ bind, backendPort, webRoot });
+  const body = appLocations({ bind, backendPort, webRoot, frameAncestorsCspValue });
   return `server {
     listen 80;
     listen [::]:80;
@@ -328,6 +397,7 @@ function render(data, webRoot) {
 
     parts.push(`# --- ${admin}  UI :${frontendPort}  API ${bind}:${backendPort} ---`);
     const serverName = ip !== '_' ? ip : '_';
+    const frameAncestorsCspValue = frameAncestorsCsp(data, s);
 
     parts.push(
       serverBlock({
@@ -336,6 +406,7 @@ function render(data, webRoot) {
         webRoot,
         bind,
         backendPort,
+        frameAncestorsCspValue,
       })
     );
 
@@ -348,6 +419,7 @@ function render(data, webRoot) {
           bind,
           backendPort,
           forceHttps: Boolean(cert && key && s.force_https),
+          frameAncestorsCspValue,
         })
       );
 
@@ -361,6 +433,7 @@ function render(data, webRoot) {
             backendPort,
             sslCertificate: cert,
             sslCertificateKey: key,
+            frameAncestorsCspValue,
           })
         );
       }

@@ -5,18 +5,21 @@
  *   embeddings.chunks     — N vectors per document (long text → many chunks)
  *   embeddings.jobs       — async upsert / delete / reindex queue
  *
- * DB-level automation: AFTER INSERT/UPDATE/DELETE triggers on whitelisted content
- * tables only enqueue rows into embeddings.jobs (never call embedding APIs from Postgres).
- * A worker must process jobs → documents/chunks.
+ * DB-level automation:
+ *   1) AFTER INSERT/UPDATE/DELETE triggers enqueue embeddings.jobs
+ *   2) embeddings.process_pending_jobs() runs inside Postgres via pg_gembed
+ *      (embed_text) — scheduled by pg_cron, no Node worker required.
  *
  * Created on tenant provision and whenever ensureOpsSchema runs.
- * Vector width: EMBEDDING_DIMENSIONS (default 1536). Set before first create;
- * changing later needs a deliberate reindex migration (column is fixed-width).
+ * Vector width: EMBEDDING_DIMENSIONS (default 384 for MiniLM / pg_gembed).
+ * Changing later needs a deliberate reindex migration (column is fixed-width).
  *
- * Requires pgvector (extension "vector") on the Postgres instance.
+ * Requires pgvector + pg_gembed on the Postgres instance.
  */
 
-const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
+const DEFAULT_EMBEDDING_DIMENSIONS = 384;
+const DEFAULT_EMBED_BACKEND = 'embed_anything';
+const DEFAULT_EMBED_MODEL = 'sentence-transformers/all-MiniLM-L6-v2';
 
 /** Content tables that feed AI search — not config/meta tables. */
 const EMBEDDING_SOURCE_TRIGGERS = [
@@ -29,6 +32,8 @@ const EMBEDDING_SOURCE_TRIGGERS = [
   { table: 'social_media_periscope_reports', pk: 'id' },
   { table: 'news_articles', pk: 'article_id' },
 ];
+
+const { withTenantSchemaLockRetry } = require('./schemaLock');
 
 const embeddingDimensions = () => {
   const n = Number.parseInt(String(process.env.EMBEDDING_DIMENSIONS || ''), 10);
@@ -150,26 +155,49 @@ async function ensureEmbeddingsTriggers(prisma) {
     if (!exists[0]?.ok) continue;
 
     const triggerName = `embeddings_enqueue_${table}`;
-    await prisma.$executeRawUnsafe(
-      `DROP TRIGGER IF EXISTS ${triggerName} ON public.${table}`
-    );
+    // Create only if missing — avoids DROP/CREATE races across API workers.
     await prisma.$executeRawUnsafe(`
-      CREATE TRIGGER ${triggerName}
-        AFTER INSERT OR UPDATE OR DELETE ON public.${table}
-        FOR EACH ROW
-        EXECUTE FUNCTION embeddings.trg_enqueue('${pk}')
+      DO $trig$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_trigger
+          WHERE tgname = '${triggerName}' AND NOT tgisinternal
+        ) THEN
+          CREATE TRIGGER ${triggerName}
+            AFTER INSERT OR UPDATE OR DELETE ON public.${table}
+            FOR EACH ROW
+            EXECUTE FUNCTION embeddings.trg_enqueue('${pk}');
+        END IF;
+      END
+      $trig$;
     `);
   }
 }
 
 /**
  * @param {import('@prisma/client').PrismaClient | import('../src/generated/tenant-client').PrismaClient} prisma
+ * @param {{ locked?: boolean }} [opts]
  */
-async function ensureEmbeddingsSchema(prisma) {
+async function ensureEmbeddingsSchema(prisma, opts = {}) {
+  if (!opts.locked) {
+    // Use the transactional client so advisory lock + DDL share one connection.
+    return withTenantSchemaLockRetry(prisma, (tx) =>
+      ensureEmbeddingsSchema(tx, { locked: true })
+    );
+  }
+
   const dims = embeddingDimensions();
 
   await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS vector`);
   await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
+  try {
+    await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pg_gembed`);
+  } catch (err) {
+    console.warn(
+      `[embeddings] pg_gembed not available (${err?.message || err}). ` +
+        `Jobs will enqueue but will not embed until the extension is installed.`
+    );
+  }
   await prisma.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS embeddings`);
 
   await prisma.$executeRawUnsafe(`
@@ -304,6 +332,7 @@ async function ensureEmbeddingsSchema(prisma) {
   `);
 
   await ensureEmbeddingsTriggers(prisma);
+  await ensureEmbeddingsDbProcessor(prisma);
 
   return {
     schema: 'embeddings',
@@ -312,10 +341,215 @@ async function ensureEmbeddingsSchema(prisma) {
   };
 }
 
+/**
+ * In-database job drain using pg_gembed.embed_text (no external worker).
+ * @param {import('@prisma/client').PrismaClient | import('../src/generated/tenant-client').PrismaClient} prisma
+ */
+async function ensureEmbeddingsDbProcessor(prisma) {
+  const backend = String(process.env.EMBEDDING_BACKEND || DEFAULT_EMBED_BACKEND).replace(/'/g, "''");
+  const model = String(process.env.EMBEDDING_MODEL || DEFAULT_EMBED_MODEL).replace(/'/g, "''");
+
+  await prisma.$executeRawUnsafe(`
+    CREATE OR REPLACE FUNCTION embeddings.extract_source_text(p_table text, p_id text)
+    RETURNS text
+    LANGUAGE plpgsql
+    STABLE
+    AS $fn$
+    DECLARE
+      t text;
+    BEGIN
+      IF p_table = 'social_media_posts' THEN
+        EXECUTE 'SELECT left(coalesce(text, ''''), 8000) FROM social_media_posts WHERE id = $1::bigint'
+          INTO t USING p_id;
+      ELSIF p_table = 'social_media_alerts' THEN
+        EXECUTE $q$SELECT left(coalesce(title,'') || E'\\n' || coalesce(summary,'') || E'\\n' || coalesce(content,''), 8000)
+                   FROM social_media_alerts WHERE id = $1::bigint$q$ INTO t USING p_id;
+      ELSIF p_table = 'social_media_grievances' THEN
+        EXECUTE $q$SELECT left(coalesce(text,'') || E'\\n' || coalesce(complaint_text,''), 8000)
+                   FROM social_media_grievances WHERE id = $1::bigint$q$ INTO t USING p_id;
+      ELSIF p_table = 'social_media_grievance_reports' THEN
+        EXECUTE $q$SELECT left(coalesce(title,'') || E'\\n' || coalesce(summary,'') || E'\\n' || coalesce(body,''), 8000)
+                   FROM social_media_grievance_reports WHERE id = $1::uuid$q$ INTO t USING p_id;
+      ELSIF p_table = 'social_media_events' THEN
+        EXECUTE $q$SELECT left(coalesce(name,'') || E'\\n' || coalesce(description,''), 8000)
+                   FROM social_media_events WHERE id = $1::bigint$q$ INTO t USING p_id;
+      ELSIF p_table = 'social_media_event_summaries' THEN
+        EXECUTE $q$SELECT left(coalesce(summary,'') || E'\\n' || coalesce(content,''), 8000)
+                   FROM social_media_event_summaries WHERE id = $1::bigint$q$ INTO t USING p_id;
+      ELSIF p_table = 'social_media_periscope_reports' THEN
+        EXECUTE $q$SELECT left(coalesce(title,'') || E'\\n' || coalesce(summary,'') || coalesce(content,''), 8000)
+                   FROM social_media_periscope_reports WHERE id = $1::bigint$q$ INTO t USING p_id;
+      ELSIF p_table = 'news_articles' THEN
+        EXECUTE $q$SELECT left(coalesce(title,'') || E'\\n' || coalesce(content,''), 8000)
+                   FROM news_articles WHERE article_id = $1$q$ INTO t USING p_id;
+      ELSE
+        t := NULL;
+      END IF;
+      RETURN nullif(btrim(coalesce(t, '')), '');
+    EXCEPTION WHEN undefined_table OR undefined_column OR invalid_text_representation THEN
+      RETURN NULL;
+    END
+    $fn$
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE OR REPLACE FUNCTION embeddings.process_pending_jobs(p_limit int DEFAULT 25)
+    RETURNS integer
+    LANGUAGE plpgsql
+    AS $fn$
+    DECLARE
+      r record;
+      processed int := 0;
+      txt text;
+      emb vector;
+      doc_id uuid;
+      backend text := '${backend}';
+      model text := '${model}';
+    BEGIN
+      IF to_regprocedure('embed_text(text,text,text)') IS NULL THEN
+        RAISE EXCEPTION 'pg_gembed embed_text() is not installed';
+      END IF;
+
+      FOR r IN
+        SELECT id, source_table, source_id, op, attempts, max_attempts
+        FROM embeddings.jobs
+        WHERE status = 'pending' AND run_after <= NOW()
+        ORDER BY priority ASC, id ASC
+        FOR UPDATE SKIP LOCKED
+        LIMIT greatest(1, least(p_limit, 200))
+      LOOP
+        BEGIN
+          UPDATE embeddings.jobs
+             SET status = 'running', attempts = attempts + 1
+           WHERE id = r.id;
+
+          IF r.op = 'delete' THEN
+            UPDATE embeddings.documents
+               SET status = 'deleted', updated_at = NOW()
+             WHERE source_table = r.source_table AND source_id = r.source_id;
+            DELETE FROM embeddings.chunks
+             WHERE source_table = r.source_table AND source_id = r.source_id;
+          ELSE
+            txt := embeddings.extract_source_text(r.source_table, r.source_id);
+            IF txt IS NULL THEN
+              UPDATE embeddings.jobs
+                 SET status = 'done', processed_at = NOW(), last_error = 'empty/missing source text'
+               WHERE id = r.id;
+              processed := processed + 1;
+              CONTINUE;
+            END IF;
+
+            emb := embed_text(backend, model, txt);
+
+            INSERT INTO embeddings.documents AS d
+              (source_table, source_id, content_hash, status, chunk_count, model, indexed_at, updated_at)
+            VALUES (
+              r.source_table, r.source_id, md5(txt), 'active', 1, model, NOW(), NOW()
+            )
+            ON CONFLICT (source_table, source_id) DO UPDATE
+              SET content_hash = EXCLUDED.content_hash,
+                  status = 'active',
+                  chunk_count = 1,
+                  model = EXCLUDED.model,
+                  indexed_at = NOW(),
+                  updated_at = NOW()
+            RETURNING id INTO doc_id;
+
+            DELETE FROM embeddings.chunks WHERE document_id = doc_id;
+            INSERT INTO embeddings.chunks
+              (document_id, source_table, source_id, chunk_index, content, content_hash, embedding, token_count)
+            VALUES
+              (doc_id, r.source_table, r.source_id, 0, txt, md5(txt), emb, length(txt));
+          END IF;
+
+          UPDATE embeddings.jobs
+             SET status = 'done', processed_at = NOW(), last_error = NULL
+           WHERE id = r.id;
+          processed := processed + 1;
+        EXCEPTION WHEN OTHERS THEN
+          UPDATE embeddings.jobs
+             SET status = CASE WHEN r.attempts + 1 >= r.max_attempts THEN 'dead' ELSE 'pending' END,
+                 run_after = NOW() + make_interval(secs => least(3600, power(2, r.attempts)::int * 5)),
+                 last_error = left(SQLERRM, 2000)
+           WHERE id = r.id;
+        END;
+      END LOOP;
+      RETURN processed;
+    END
+    $fn$
+  `);
+
+  // One-shot / re-runnable: enqueue upsert for every row in source tables.
+  await prisma.$executeRawUnsafe(`
+    CREATE OR REPLACE FUNCTION embeddings.backfill_all()
+    RETURNS bigint
+    LANGUAGE plpgsql
+    AS $fn$
+    DECLARE
+      n bigint := 0;
+      r record;
+    BEGIN
+      IF to_regclass('public.social_media_posts') IS NOT NULL THEN
+        FOR r IN SELECT id::text AS sid FROM social_media_posts LOOP
+          PERFORM embeddings.enqueue_job('social_media_posts', r.sid, 'upsert');
+          n := n + 1;
+        END LOOP;
+      END IF;
+      IF to_regclass('public.social_media_alerts') IS NOT NULL THEN
+        FOR r IN SELECT id::text AS sid FROM social_media_alerts LOOP
+          PERFORM embeddings.enqueue_job('social_media_alerts', r.sid, 'upsert');
+          n := n + 1;
+        END LOOP;
+      END IF;
+      IF to_regclass('public.social_media_grievances') IS NOT NULL THEN
+        FOR r IN SELECT id::text AS sid FROM social_media_grievances LOOP
+          PERFORM embeddings.enqueue_job('social_media_grievances', r.sid, 'upsert');
+          n := n + 1;
+        END LOOP;
+      END IF;
+      IF to_regclass('public.social_media_grievance_reports') IS NOT NULL THEN
+        FOR r IN SELECT id::text AS sid FROM social_media_grievance_reports LOOP
+          PERFORM embeddings.enqueue_job('social_media_grievance_reports', r.sid, 'upsert');
+          n := n + 1;
+        END LOOP;
+      END IF;
+      IF to_regclass('public.social_media_events') IS NOT NULL THEN
+        FOR r IN SELECT id::text AS sid FROM social_media_events LOOP
+          PERFORM embeddings.enqueue_job('social_media_events', r.sid, 'upsert');
+          n := n + 1;
+        END LOOP;
+      END IF;
+      IF to_regclass('public.social_media_event_summaries') IS NOT NULL THEN
+        FOR r IN SELECT id::text AS sid FROM social_media_event_summaries LOOP
+          PERFORM embeddings.enqueue_job('social_media_event_summaries', r.sid, 'upsert');
+          n := n + 1;
+        END LOOP;
+      END IF;
+      IF to_regclass('public.social_media_periscope_reports') IS NOT NULL THEN
+        FOR r IN SELECT id::text AS sid FROM social_media_periscope_reports LOOP
+          PERFORM embeddings.enqueue_job('social_media_periscope_reports', r.sid, 'upsert');
+          n := n + 1;
+        END LOOP;
+      END IF;
+      IF to_regclass('public.news_articles') IS NOT NULL THEN
+        FOR r IN SELECT article_id::text AS sid FROM news_articles LOOP
+          PERFORM embeddings.enqueue_job('news_articles', r.sid, 'upsert');
+          n := n + 1;
+        END LOOP;
+      END IF;
+      RETURN n;
+    END
+    $fn$
+  `);
+}
+
 module.exports = {
   ensureEmbeddingsSchema,
   ensureEmbeddingsTriggers,
+  ensureEmbeddingsDbProcessor,
   embeddingDimensions,
   DEFAULT_EMBEDDING_DIMENSIONS,
+  DEFAULT_EMBED_BACKEND,
+  DEFAULT_EMBED_MODEL,
   EMBEDDING_SOURCE_TRIGGERS,
 };

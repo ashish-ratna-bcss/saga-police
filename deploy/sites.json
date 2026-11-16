@@ -3,6 +3,10 @@
   "web_root": "/home/ubuntu/blurasaga/frontend/build",
   "backend_bind": "127.0.0.1",
   "vllm_upstream": "127.0.0.1:8080",
+  "frame_ancestors": [
+    "'self'",
+    "https://*.blurasaga.com"
+  ],
   "sites": [
     {
       "admin": "odisha",
