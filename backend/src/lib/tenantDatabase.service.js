@@ -1,7 +1,6 @@
 const mainPrisma = require('../../prisma/client');
 const { PrismaClient: TenantPrismaClient, createTenantPrisma } = require('../../prisma/tenantClient');
 const { ensureOpsSchema } = require('../../prisma/ensureOpsSchema');
-const { ensureEmbeddingsSchema } = require('../../prisma/ensureEmbeddingsSchema');
 const { readApplicationDetails } = require('../modules/user/user.application');
 
 // Map to cache tenant PrismaClient instances per dbName
@@ -179,10 +178,8 @@ async function provisionAdminDatabase(adminId, meta = {}) {
 }
 
 async function ensureTenantSchema(prisma) {
-  // ensureOpsSchema also calls ensureEmbeddingsSchema; keep an explicit call so
-  // provision stays correct even if ops/embeddings wiring changes later.
+  // ensureOpsSchema already runs ensureEmbeddingsSchema under one advisory lock.
   await ensureOpsSchema(prisma);
-  await ensureEmbeddingsSchema(prisma);
 }
 
 /**

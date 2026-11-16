@@ -30,6 +30,8 @@ const EMBEDDING_SOURCE_TRIGGERS = [
   { table: 'news_articles', pk: 'article_id' },
 ];
 
+const { withTenantSchemaLockRetry } = require('./schemaLock');
+
 const embeddingDimensions = () => {
   const n = Number.parseInt(String(process.env.EMBEDDING_DIMENSIONS || ''), 10);
   if (Number.isFinite(n) && n >= 32 && n <= 8192) return n;
@@ -150,22 +152,36 @@ async function ensureEmbeddingsTriggers(prisma) {
     if (!exists[0]?.ok) continue;
 
     const triggerName = `embeddings_enqueue_${table}`;
-    await prisma.$executeRawUnsafe(
-      `DROP TRIGGER IF EXISTS ${triggerName} ON public.${table}`
-    );
+    // Create only if missing — avoids DROP/CREATE races across API workers.
     await prisma.$executeRawUnsafe(`
-      CREATE TRIGGER ${triggerName}
-        AFTER INSERT OR UPDATE OR DELETE ON public.${table}
-        FOR EACH ROW
-        EXECUTE FUNCTION embeddings.trg_enqueue('${pk}')
+      DO $trig$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_trigger
+          WHERE tgname = '${triggerName}' AND NOT tgisinternal
+        ) THEN
+          CREATE TRIGGER ${triggerName}
+            AFTER INSERT OR UPDATE OR DELETE ON public.${table}
+            FOR EACH ROW
+            EXECUTE FUNCTION embeddings.trg_enqueue('${pk}');
+        END IF;
+      END
+      $trig$;
     `);
   }
 }
 
 /**
  * @param {import('@prisma/client').PrismaClient | import('../src/generated/tenant-client').PrismaClient} prisma
+ * @param {{ locked?: boolean }} [opts]
  */
-async function ensureEmbeddingsSchema(prisma) {
+async function ensureEmbeddingsSchema(prisma, opts = {}) {
+  if (!opts.locked) {
+    return withTenantSchemaLockRetry(prisma, () =>
+      ensureEmbeddingsSchema(prisma, { locked: true })
+    );
+  }
+
   const dims = embeddingDimensions();
 
   await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS vector`);

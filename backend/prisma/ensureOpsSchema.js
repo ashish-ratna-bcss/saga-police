@@ -7,12 +7,18 @@
  */
 
 const { ensureEmbeddingsSchema } = require('./ensureEmbeddingsSchema');
+const { withTenantSchemaLockRetry } = require('./schemaLock');
 
 /**
  * Create enums + ops tables on the given Prisma client.
  * @param {import('../src/generated/tenant-client').PrismaClient} prisma
+ * @param {{ locked?: boolean }} [opts] pass locked:true when caller already holds schema lock
  */
-async function ensureOpsSchema(prisma) {
+async function ensureOpsSchema(prisma, opts = {}) {
+  if (!opts.locked) {
+    return withTenantSchemaLockRetry(prisma, () => ensureOpsSchema(prisma, { locked: true }));
+  }
+
   await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
 
   await prisma.$executeRawUnsafe(`
@@ -598,7 +604,7 @@ async function ensureOpsSchema(prisma) {
   `);
 
   // AI embeddings store — same on every tenant; safe to re-run.
-  await ensureEmbeddingsSchema(prisma);
+  await ensureEmbeddingsSchema(prisma, { locked: true });
 }
 
 module.exports = {
