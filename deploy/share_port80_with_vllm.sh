@@ -9,7 +9,7 @@ export PUPPETEER_SKIP_DOWNLOAD=1
 export NODE_ENV=production
 
 APP_DIR=/home/ubuntu/blurasaga
-VLLM_DIR=/data/vllm-server
+VLLM_DIR=/mnt/data-migration/vllm-server
 NGINX_SITE=blurasaga
 
 echo "==> Patch vLLM gateway publish to 127.0.0.1:8080"
