@@ -5,6 +5,10 @@
  *   embeddings.chunks     — N vectors per document (long text → many chunks)
  *   embeddings.jobs       — async upsert / delete / reindex queue
  *
+ * DB-level automation: AFTER INSERT/UPDATE/DELETE triggers on whitelisted content
+ * tables only enqueue rows into embeddings.jobs (never call embedding APIs from Postgres).
+ * A worker must process jobs → documents/chunks.
+ *
  * Created on tenant provision and whenever ensureOpsSchema runs.
  * Vector width: EMBEDDING_DIMENSIONS (default 1536). Set before first create;
  * changing later needs a deliberate reindex migration (column is fixed-width).
@@ -14,11 +18,149 @@
 
 const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
 
+/** Content tables that feed AI search — not config/meta tables. */
+const EMBEDDING_SOURCE_TRIGGERS = [
+  { table: 'social_media_posts', pk: 'id' },
+  { table: 'social_media_alerts', pk: 'id' },
+  { table: 'social_media_grievances', pk: 'id' },
+  { table: 'social_media_grievance_reports', pk: 'id' },
+  { table: 'social_media_events', pk: 'id' },
+  { table: 'social_media_event_summaries', pk: 'id' },
+  { table: 'social_media_periscope_reports', pk: 'id' },
+  { table: 'news_articles', pk: 'article_id' },
+];
+
 const embeddingDimensions = () => {
   const n = Number.parseInt(String(process.env.EMBEDDING_DIMENSIONS || ''), 10);
   if (Number.isFinite(n) && n >= 32 && n <= 8192) return n;
   return DEFAULT_EMBEDDING_DIMENSIONS;
 };
+
+/**
+ * Thin DB triggers + enqueue helpers. Idempotent.
+ * @param {import('@prisma/client').PrismaClient | import('../src/generated/tenant-client').PrismaClient} prisma
+ */
+async function ensureEmbeddingsTriggers(prisma) {
+  // Drop volatile / high-churn keys so like-count updates do not spam the job queue.
+  await prisma.$executeRawUnsafe(`
+    CREATE OR REPLACE FUNCTION embeddings.row_fingerprint(r jsonb)
+    RETURNS jsonb
+    LANGUAGE sql
+    IMMUTABLE
+    AS $fn$
+      SELECT r
+        - 'engagement'
+        - 'updated_at'
+        - 'created_at'
+        - 'analysis_status'
+        - 'sentiment'
+        - 'status_history'
+        - 'seen_count'
+        - 'last_seen_at'
+        - 'detected_at'
+        - 'first_seen_at'
+        - 'posted_at'
+        - 'shared_at'
+        - 'action_taken_at'
+        - 'closed_at'
+        - 'escalated_at'
+        - 'pdf_base64'
+        - 'meta'
+    $fn$
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE OR REPLACE FUNCTION embeddings.enqueue_job(
+      p_source_table text,
+      p_source_id text,
+      p_op text
+    ) RETURNS void
+    LANGUAGE plpgsql
+    AS $fn$
+    BEGIN
+      IF p_source_id IS NULL OR btrim(p_source_id) = '' THEN
+        RETURN;
+      END IF;
+
+      IF p_op = 'delete' THEN
+        UPDATE embeddings.jobs
+           SET status = 'done',
+               processed_at = NOW(),
+               last_error = 'superseded by delete'
+         WHERE source_table = p_source_table
+           AND source_id = p_source_id
+           AND status = 'pending'
+           AND op IN ('upsert', 'reindex');
+      END IF;
+
+      INSERT INTO embeddings.jobs (source_table, source_id, op)
+      VALUES (p_source_table, p_source_id, p_op)
+      ON CONFLICT (source_table, source_id, op) WHERE (status = 'pending')
+      DO NOTHING;
+    END;
+    $fn$
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE OR REPLACE FUNCTION embeddings.trg_enqueue()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $fn$
+    DECLARE
+      pk_col text := COALESCE(NULLIF(TG_ARGV[0], ''), 'id');
+      sid text;
+    BEGIN
+      IF TG_OP = 'DELETE' THEN
+        EXECUTE format('SELECT ($1).%I::text', pk_col) INTO sid USING OLD;
+        PERFORM embeddings.enqueue_job(TG_TABLE_NAME, sid, 'delete');
+        RETURN OLD;
+      END IF;
+
+      EXECUTE format('SELECT ($1).%I::text', pk_col) INTO sid USING NEW;
+
+      IF TG_OP = 'UPDATE'
+         AND embeddings.row_fingerprint(to_jsonb(OLD))
+           = embeddings.row_fingerprint(to_jsonb(NEW)) THEN
+        RETURN NEW;
+      END IF;
+
+      PERFORM embeddings.enqueue_job(TG_TABLE_NAME, sid, 'upsert');
+      RETURN NEW;
+    END;
+    $fn$
+  `);
+
+  // Partial unique index enables ON CONFLICT coalescing of pending jobs.
+  await prisma.$executeRawUnsafe(`
+    CREATE UNIQUE INDEX IF NOT EXISTS embeddings_jobs_pending_uniq
+      ON embeddings.jobs (source_table, source_id, op)
+      WHERE status = 'pending'
+  `);
+
+  for (const { table, pk } of EMBEDDING_SOURCE_TRIGGERS) {
+    // Whitelist-only names — never interpolate user input here.
+    const exists = await prisma.$queryRawUnsafe(`
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name = '${table}'
+      ) AS ok
+    `);
+    if (!exists[0]?.ok) continue;
+
+    const triggerName = `embeddings_enqueue_${table}`;
+    await prisma.$executeRawUnsafe(
+      `DROP TRIGGER IF EXISTS ${triggerName} ON public.${table}`
+    );
+    await prisma.$executeRawUnsafe(`
+      CREATE TRIGGER ${triggerName}
+        AFTER INSERT OR UPDATE OR DELETE ON public.${table}
+        FOR EACH ROW
+        EXECUTE FUNCTION embeddings.trg_enqueue('${pk}')
+    `);
+  }
+}
 
 /**
  * @param {import('@prisma/client').PrismaClient | import('../src/generated/tenant-client').PrismaClient} prisma
@@ -161,11 +303,19 @@ async function ensureEmbeddingsSchema(prisma) {
       ON embeddings.jobs (source_table, source_id)
   `);
 
-  return { schema: 'embeddings', dimensions: dims };
+  await ensureEmbeddingsTriggers(prisma);
+
+  return {
+    schema: 'embeddings',
+    dimensions: dims,
+    triggerTables: EMBEDDING_SOURCE_TRIGGERS.map((t) => t.table),
+  };
 }
 
 module.exports = {
   ensureEmbeddingsSchema,
+  ensureEmbeddingsTriggers,
   embeddingDimensions,
   DEFAULT_EMBEDDING_DIMENSIONS,
+  EMBEDDING_SOURCE_TRIGGERS,
 };
