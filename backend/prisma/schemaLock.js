@@ -33,7 +33,8 @@ async function withTenantSchemaLock(prisma, fn) {
       await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(${SCHEMA_LOCK_KEY})`);
       return fn(tx);
     },
-    { maxWait: 30_000, timeout: 180_000 }
+    // Keep short: callers memoize success so this should only run once per process.
+    { maxWait: 20_000, timeout: 90_000 }
   );
 }
 

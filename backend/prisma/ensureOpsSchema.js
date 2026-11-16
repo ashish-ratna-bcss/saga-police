@@ -9,17 +9,28 @@
 const { ensureEmbeddingsSchema } = require('./ensureEmbeddingsSchema');
 const { withTenantSchemaLockRetry } = require('./schemaLock');
 
+/** Once per Prisma client instance — EventScheduler/requests must not re-run DDL. */
+const ensuredClients = new WeakMap();
+
 /**
  * Create enums + ops tables on the given Prisma client.
  * @param {import('../src/generated/tenant-client').PrismaClient} prisma
- * @param {{ locked?: boolean }} [opts] pass locked:true when caller already holds schema lock
+ * @param {{ locked?: boolean, force?: boolean }} [opts] pass locked:true when caller already holds schema lock
  */
 async function ensureOpsSchema(prisma, opts = {}) {
   if (!opts.locked) {
-    // Use the transactional client so advisory lock + DDL share one connection.
-    return withTenantSchemaLockRetry(prisma, (tx) =>
+    if (!opts.force) {
+      const existing = ensuredClients.get(prisma);
+      if (existing) return existing;
+    }
+    const run = withTenantSchemaLockRetry(prisma, (tx) =>
       ensureOpsSchema(tx, { locked: true })
-    );
+    ).catch((err) => {
+      ensuredClients.delete(prisma);
+      throw err;
+    });
+    ensuredClients.set(prisma, run);
+    return run;
   }
 
   await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
