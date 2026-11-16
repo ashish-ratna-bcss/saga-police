@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
 import {
   Bot,
   Copy,
@@ -27,11 +28,11 @@ const SUGGESTIONS = [
 
 const platformTone = (platform) => {
   const p = String(platform || '').toLowerCase();
-  if (p.includes('you')) return 'bg-red-50 text-red-700 ring-red-100';
-  if (p.includes('twit') || p.includes('x')) return 'bg-sky-50 text-sky-700 ring-sky-100';
-  if (p.includes('face')) return 'bg-indigo-50 text-indigo-700 ring-indigo-100';
-  if (p.includes('insta')) return 'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-100';
-  return 'bg-slate-100 text-slate-700 ring-slate-200';
+  if (p.includes('you')) return 'bg-red-500/10 text-red-700 dark:text-red-300 ring-red-500/20';
+  if (p.includes('twit') || p.includes('x')) return 'bg-sky-500/10 text-sky-700 dark:text-sky-300 ring-sky-500/20';
+  if (p.includes('face')) return 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 ring-indigo-500/20';
+  if (p.includes('insta')) return 'bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300 ring-fuchsia-500/20';
+  return 'bg-muted text-muted-foreground ring-border';
 };
 
 const formatWhen = (value) => {
@@ -46,39 +47,60 @@ const formatWhen = (value) => {
   });
 };
 
-/** Strip old LLM HTML dumps / tags so they never blow up layout. */
 const safeText = (raw) =>
   String(raw || '')
     .replace(/```html[\s\S]*?```/gi, '')
     .replace(/```ui[\s\S]*?```/gi, '')
-    .replace(/```[\s\S]*?```/g, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 420);
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .trim();
 
 const cleanTitle = (text) =>
-  safeText(text)
+  String(text || '')
     .replace(/https?:\/\/\S+/g, '')
     .replace(/#\w+/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 
+/** Theme-token markdown (no @tailwindcss/typography — matches EventSummaryBrief style). */
+const mdComponents = {
+  p: ({ children }) => <p className="my-2 text-sm leading-relaxed text-foreground">{children}</p>,
+  ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5 text-sm text-foreground">{children}</ul>,
+  ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5 text-sm text-foreground">{children}</ol>,
+  li: ({ children }) => <li className="leading-relaxed text-foreground">{children}</li>,
+  strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+  em: ({ children }) => <em className="italic text-foreground/90">{children}</em>,
+  h1: ({ children }) => <h3 className="mb-1 mt-3 text-base font-semibold text-foreground">{children}</h3>,
+  h2: ({ children }) => <h3 className="mb-1 mt-3 text-base font-semibold text-foreground">{children}</h3>,
+  h3: ({ children }) => <h3 className="mb-1 mt-3 text-sm font-semibold text-foreground">{children}</h3>,
+  a: ({ href, children }) => (
+    <a href={href} target="_blank" rel="noreferrer" className="font-medium text-primary underline underline-offset-2">
+      {children}
+    </a>
+  ),
+  code: ({ children }) => (
+    <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px] text-foreground">{children}</code>
+  ),
+  pre: ({ children }) => (
+    <pre className="my-2 overflow-x-auto rounded-lg border border-border bg-muted/50 p-2 text-xs text-foreground">{children}</pre>
+  ),
+  blockquote: ({ children }) => (
+    <blockquote className="my-2 border-l-2 border-border pl-3 text-sm text-muted-foreground">{children}</blockquote>
+  ),
+};
+
+function MarkdownBody({ children }) {
+  return <ReactMarkdown components={mdComponents}>{children}</ReactMarkdown>;
+}
+
 function resolveView(message) {
   const text = String(message.content || '');
-  // Never show record cards under error / support replies
   if (/uuid|prisma|executeRawUnsafe|invalid input syntax|database query/i.test(text)) {
     return { layout: 'text' };
   }
   const fromApi = message.view || message.token_usage?.view;
   if (fromApi?.layout === 'text') return fromApi;
   if (fromApi?.layout && (fromApi.items?.length || fromApi.stats?.length)) return fromApi;
-  const sources = message.sources || [];
-  if (sources.length && fromApi?.layout && fromApi.layout !== 'text') {
-    return { layout: fromApi.layout || 'cards', title: 'Results', items: sources };
-  }
-  // Don't invent cards from stale sources when view says text / missing
   if (fromApi?.layout === 'stats' && fromApi.stats?.length) return fromApi;
   return { layout: 'text' };
 }
@@ -94,10 +116,8 @@ export default function AiAssistant() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const bottomRef = useRef(null);
   const listRef = useRef(null);
 
-  // Scroll only the message list — never the whole page / never grow layout
   const scrollListToBottom = useCallback(() => {
     const el = listRef.current;
     if (!el) return;
@@ -243,11 +263,10 @@ export default function AiAssistant() {
       await aiAssistantApi.sendMessageStream(convId, body, (event, data) => {
         if (event === 'delta' && data?.text) {
           assembled += data.text;
-          // Never stream raw HTML into the UI (causes layout blowups)
           if (!/```html|<style/i.test(assembled)) {
-            setStreamingText(safeText(assembled).slice(0, 280));
+            setStreamingText(assembled.slice(0, 4000));
           } else {
-            setStreamingText('Preparing results…');
+            setStreamingText('Preparing answer…');
           }
         }
         if (event === 'done') {
@@ -305,9 +324,9 @@ export default function AiAssistant() {
 
   const HistoryPane = (
     <>
-      <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900 text-white">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Bot className="h-4 w-4" />
           </span>
           AI Assistant
@@ -323,12 +342,12 @@ export default function AiAssistant() {
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {loadingList && (
-          <div className="flex justify-center py-8 text-slate-400">
+          <div className="flex justify-center py-8 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
         )}
         {!loadingList && conversations.length === 0 && (
-          <p className="px-2 py-6 text-center text-xs text-slate-400">Start a new chat</p>
+          <p className="px-2 py-6 text-center text-xs text-muted-foreground">Start a new chat</p>
         )}
         {conversations.map((c) => (
           <div
@@ -339,7 +358,9 @@ export default function AiAssistant() {
             onKeyDown={(e) => e.key === 'Enter' && loadMessages(c.id)}
             className={cn(
               'group mb-1 flex cursor-pointer items-start gap-1 rounded-xl px-2.5 py-2 text-left text-sm transition',
-              activeId === c.id ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+              activeId === c.id
+                ? 'bg-primary text-primary-foreground'
+                : 'text-foreground hover:bg-muted'
             )}
           >
             <span className="line-clamp-2 flex-1 text-xs leading-snug">{c.title}</span>
@@ -356,47 +377,47 @@ export default function AiAssistant() {
   );
 
   return (
-    <div className="relative flex h-[calc(100dvh-6.5rem)] min-h-[440px] max-h-[calc(100dvh-6.5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-sm md:h-[calc(100vh-7rem)] md:max-h-[calc(100vh-7rem)]">
-      <aside className="hidden w-[15.5rem] shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white md:flex">
+    <div className="relative flex h-[calc(100dvh-6.5rem)] min-h-[440px] max-h-[calc(100dvh-6.5rem)] overflow-hidden rounded-2xl border border-border bg-background shadow-sm md:h-[calc(100vh-7rem)] md:max-h-[calc(100vh-7rem)]">
+      <aside className="hidden w-[15.5rem] shrink-0 flex-col overflow-hidden border-r border-border bg-card md:flex">
         {HistoryPane}
       </aside>
 
       {sidebarOpen && (
         <div className="absolute inset-0 z-30 flex md:hidden">
-          <button type="button" className="absolute inset-0 bg-slate-900/40" onClick={() => setSidebarOpen(false)} aria-label="Close" />
-          <aside className="relative z-10 flex h-full w-[min(17rem,88vw)] flex-col overflow-hidden bg-white shadow-2xl">
+          <button type="button" className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} aria-label="Close" />
+          <aside className="relative z-10 flex h-full w-[min(17rem,88vw)] flex-col overflow-hidden bg-card shadow-2xl">
             {HistoryPane}
           </aside>
         </div>
       )}
 
-      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-3 py-2.5 sm:px-4">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-muted/20">
+        <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-card/80 px-3 py-2.5 backdrop-blur sm:px-4">
           <Button size="sm" variant="ghost" className="md:hidden" onClick={() => setSidebarOpen(true)}>
             <Menu className="h-4 w-4" />
           </Button>
-          <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+          <label className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
             From
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+              className="rounded-lg border border-border bg-background px-2 py-1 text-xs text-foreground"
             />
           </label>
-          <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+          <label className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
             To
             <input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+              className="rounded-lg border border-border bg-background px-2 py-1 text-xs text-foreground"
             />
           </label>
           {activeId && (
             <button
               type="button"
-              className="ml-auto text-xs font-medium text-slate-500 hover:text-slate-800"
+              className="ml-auto text-xs font-medium text-muted-foreground hover:text-foreground"
               onClick={() => handleDelete(activeId)}
             >
               Clear chat
@@ -407,13 +428,13 @@ export default function AiAssistant() {
         <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-5">
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
             {messages.length === 0 && !streamingText && (
-              <div className="rounded-3xl border border-slate-200 bg-white px-5 py-10 text-center shadow-sm">
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white">
+              <div className="rounded-3xl border border-border bg-card px-5 py-10 text-center shadow-sm">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
                   <Bot className="h-6 w-6" />
                 </div>
-                <h2 className="text-lg font-semibold text-slate-900">Ask about your records</h2>
-                <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
-                  Layout adapts to your question — counts as stats, lists as cards, chat as plain text.
+                <h2 className="text-lg font-semibold text-foreground">Ask about your records</h2>
+                <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+                  Answers use this tenant’s indexed alerts, posts, events, and related records — same RAG style as the SOC-EYE pipeline.
                 </p>
                 <div className="mt-6 grid gap-2 sm:grid-cols-2">
                   {SUGGESTIONS.map((s) => (
@@ -421,7 +442,7 @@ export default function AiAssistant() {
                       key={s}
                       type="button"
                       onClick={() => handleSend(s)}
-                      className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-left text-sm text-slate-700 hover:bg-white"
+                      className="rounded-2xl border border-border bg-muted/40 px-3 py-3 text-left text-sm text-foreground hover:bg-muted"
                     >
                       {s}
                     </button>
@@ -440,24 +461,22 @@ export default function AiAssistant() {
             ))}
 
             {streamingText && (
-              <div className="w-fit max-w-[85%] rounded-2xl rounded-bl-md bg-white px-4 py-3 text-sm text-slate-700 shadow-sm ring-1 ring-slate-200">
-                {streamingText}
-                <span className="ml-1 inline-block h-3 w-1 animate-pulse bg-slate-400 align-middle" />
+              <div className="w-fit max-w-[92%] rounded-2xl rounded-bl-md bg-card px-4 py-3 text-sm text-foreground shadow-sm ring-1 ring-border">
+                <MarkdownBody>{streamingText}</MarkdownBody>
               </div>
             )}
 
             {sending && !streamingText && (
-              <div className="inline-flex w-fit items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs text-slate-500 shadow-sm ring-1 ring-slate-200">
+              <div className="inline-flex w-fit items-center gap-2 rounded-full bg-card px-3 py-1.5 text-xs text-muted-foreground shadow-sm ring-1 ring-border">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 Working…
               </div>
             )}
-            <div ref={bottomRef} className="h-px w-full shrink-0" />
           </div>
         </div>
 
         <form
-          className="shrink-0 border-t border-slate-200 bg-white px-3 py-3 sm:px-5"
+          className="shrink-0 border-t border-border bg-card px-3 py-3 sm:px-5"
           onSubmit={(e) => {
             e.preventDefault();
             handleSend();
@@ -474,15 +493,11 @@ export default function AiAssistant() {
                 }
               }}
               rows={2}
-              placeholder="Ask about posts, alerts, counts…"
-              className="min-h-[48px] max-h-32 flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-300 focus:bg-white focus:ring-2 focus:ring-slate-200"
+              placeholder="Ask about alerts, posts, events…"
+              className="min-h-[48px] max-h-32 flex-1 resize-none rounded-2xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
               disabled={sending}
             />
-            <Button
-              type="submit"
-              disabled={sending || !input.trim()}
-              className="h-12 w-12 shrink-0 rounded-2xl bg-slate-900 hover:bg-slate-800"
-            >
+            <Button type="submit" disabled={sending || !input.trim()} className="h-12 w-12 shrink-0 rounded-2xl">
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
@@ -497,7 +512,7 @@ function MessageBlock({ message, onCopy, onRegenerate }) {
   if (isUser) {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-slate-900 px-4 py-2.5 text-sm leading-relaxed text-white sm:max-w-[70%]">
+        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm leading-relaxed text-primary-foreground sm:max-w-[70%]">
           {safeText(message.content)}
         </div>
       </div>
@@ -510,14 +525,14 @@ function MessageBlock({ message, onCopy, onRegenerate }) {
   return (
     <div className="space-y-3">
       {text && (
-        <div className="w-fit max-w-[92%] rounded-2xl rounded-bl-md bg-white px-4 py-3 text-sm leading-relaxed text-slate-700 shadow-sm ring-1 ring-slate-200">
-          <p>{text}</p>
-          <div className="mt-2 flex flex-wrap gap-3 border-t border-slate-100 pt-2">
-            <button type="button" onClick={onCopy} className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-slate-700">
+        <div className="w-fit max-w-[92%] rounded-2xl rounded-bl-md bg-card px-4 py-3 text-sm leading-relaxed text-foreground shadow-sm ring-1 ring-border">
+          <MarkdownBody>{text}</MarkdownBody>
+          <div className="mt-2 flex flex-wrap gap-3 border-t border-border pt-2">
+            <button type="button" onClick={onCopy} className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground">
               <Copy className="h-3 w-3" /> Copy
             </button>
             {onRegenerate && (
-              <button type="button" onClick={onRegenerate} className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-slate-700">
+              <button type="button" onClick={onRegenerate} className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground">
                 <RefreshCw className="h-3 w-3" /> Regenerate
               </button>
             )}
@@ -536,9 +551,9 @@ function AdaptiveView({ view }) {
     return (
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {view.stats.map((s) => (
-          <div key={s.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{s.label}</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{Number(s.value).toLocaleString()}</div>
+          <div key={s.label} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{s.label}</div>
+            <div className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{Number(s.value).toLocaleString()}</div>
           </div>
         ))}
       </div>
@@ -547,23 +562,6 @@ function AdaptiveView({ view }) {
 
   const items = view.items || [];
   if (!items.length) return null;
-
-  if (view.layout === 'feed') {
-    return (
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
-          {view.title || 'Feed'}
-        </div>
-        <ul className="divide-y divide-slate-100">
-          {items.map((s, i) => (
-            <li key={s.id || `${s.source_id}-${i}`} className="px-4 py-3">
-              <ResultRow source={s} index={i} />
-            </li>
-          ))}
-        </ul>
-      </div>
-    );
-  }
 
   return (
     <div className="grid gap-3 sm:grid-cols-2">
@@ -574,70 +572,43 @@ function AdaptiveView({ view }) {
   );
 }
 
-function ResultRow({ source, index }) {
-  const meta = source.metadata || {};
-  const title = cleanTitle(meta.title) || cleanTitle(source.excerpt) || `${source.source_table} #${source.source_id}`;
-  const when = formatWhen(meta.published_at);
-  const platform = meta.platform || 'record';
-  return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-      <div className="min-w-0">
-        <div className="mb-1 flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-semibold text-slate-400">[{index + 1}]</span>
-          <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ring-1', platformTone(platform))}>
-            {platform}
-          </span>
-          {when && <span className="text-[11px] text-slate-400">{when}</span>}
-        </div>
-        <p className="line-clamp-2 text-sm font-medium text-slate-900">{title}</p>
-      </div>
-      <div className="flex shrink-0 gap-2">
-        {meta.url && (
-          <a href={meta.url} target="_blank" rel="noreferrer" className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-medium text-white">
-            Open
-          </a>
-        )}
-        {meta.href && (
-          <Link to={meta.href} className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700">
-            In app
-          </Link>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function ResultCard({ source, index }) {
   const meta = source.metadata || {};
   const title = cleanTitle(meta.title) || cleanTitle(source.excerpt) || `${source.source_table} #${source.source_id}`;
   const when = formatWhen(meta.published_at);
   const platform = meta.platform || source.source_table?.replace(/^social_media_/, '') || 'record';
   const excerpt = cleanTitle(source.excerpt || '').slice(0, 140);
+  const risk = meta.risk_level;
 
   return (
-    <article className="flex flex-col rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
+    <article className="flex flex-col rounded-2xl border border-border bg-card p-3.5 shadow-sm">
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
-        <span className="rounded-md bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white">[{index + 1}]</span>
+        <span className="rounded-md bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">[{index + 1}]</span>
         <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ring-1', platformTone(platform))}>
           {platform}
         </span>
-        {when && <span className="text-[11px] text-slate-400">{when}</span>}
+        {risk && (
+          <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-destructive ring-1 ring-destructive/20">
+            {risk}
+          </span>
+        )}
+        {when && <span className="text-[11px] text-muted-foreground">{when}</span>}
       </div>
-      <h3 className="line-clamp-3 text-sm font-semibold leading-snug text-slate-900">{title}</h3>
-      {excerpt && excerpt !== title && <p className="mt-1.5 line-clamp-2 text-xs text-slate-500">{excerpt}</p>}
+      <h3 className="line-clamp-3 text-sm font-semibold leading-snug text-foreground">{title}</h3>
+      {excerpt && excerpt !== title && <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">{excerpt}</p>}
       <div className="mt-auto flex flex-wrap gap-2 pt-3">
         {meta.url && (
           <a
             href={meta.url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-medium text-white"
+            className="inline-flex items-center gap-1 rounded-xl bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
           >
             Open <ExternalLink className="h-3 w-3" />
           </a>
         )}
         {meta.href && (
-          <Link to={meta.href} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700">
+          <Link to={meta.href} className="rounded-xl border border-border bg-muted/50 px-3 py-1.5 text-xs font-medium text-foreground">
             In app
           </Link>
         )}
