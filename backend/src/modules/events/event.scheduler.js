@@ -1,5 +1,4 @@
 const { listTenantDbNames, getTenantPrisma } = require('../../lib/tenantDatabase.service');
-const { ensureOpsSchema } = require('../../../prisma/ensureOpsSchema');
 const { scanEventOnce } = require('./event.scan.service');
 const { eventPublicationWindow } = require('./event.utils');
 const logger = require('../../lib/logger');
@@ -85,7 +84,6 @@ const tick = async () => {
     for (const dbName of dbNames) {
       const tenantPrisma = getTenantPrisma(dbName);
       try {
-        await ensureOpsSchema(tenantPrisma);
         const active = await tenantPrisma.social_media_events.findMany({
           where: { monitoring_status: 'started' },
           orderBy: { id: 'asc' },
