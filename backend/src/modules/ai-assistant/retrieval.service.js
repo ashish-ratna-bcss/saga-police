@@ -112,14 +112,40 @@ async function retrieveChunks(prisma, question, opts = {}) {
     const rows = await listGrievances(prisma, { dateFrom, dateTo, limit: topK, keyword: searchKw });
     if (rows.length) return rows;
   }
+  // Latest/recent posts: live SQL first (do not depend on embed_text).
+  if (
+    focus === 'posts' &&
+    (/\b(latest|recent|newest|new)\b/i.test(q) ||
+      /\b(list|show)\b.*\bposts?\b/i.test(q) ||
+      /^\s*(posts?|contents?)\s*$/i.test(q))
+  ) {
+    const rows = await listPosts(prisma, { dateFrom, dateTo, limit: topK, keyword: searchKw });
+    if (rows.length) return rows;
+  }
 
-  return retrieveFromEmbeddings(prisma, q, {
+  const embedded = await retrieveFromEmbeddings(prisma, q, {
     topK,
     dateFrom,
     dateTo,
     tables,
-    keyword,
+    keyword: searchKw,
   });
+  if (embedded.length) return embedded;
+
+  // Fallback when embeddings fail or return nothing
+  if (focus === 'posts') {
+    return listPosts(prisma, { dateFrom, dateTo, limit: topK, keyword: searchKw });
+  }
+  if (focus === 'alerts') {
+    return listAlerts(prisma, {
+      dateFrom,
+      dateTo,
+      riskLevel: risk,
+      limit: topK,
+      keyword: searchKw,
+    });
+  }
+  return [];
 }
 
 async function retrieveFromEmbeddings(prisma, question, { topK, dateFrom, dateTo, tables, keyword }) {
@@ -261,6 +287,60 @@ async function retrieveFromEmbeddings(prisma, question, { topK, dateFrom, dateTo
   return [...byId.values()]
     .sort((a, b) => a.similarity_score - b.similarity_score)
     .slice(0, topK);
+}
+
+async function listPosts(prisma, { dateFrom, dateTo, limit = 8, keyword } = {}) {
+  const from = isoOrNull(dateFrom);
+  const to = isoOrNull(dateTo);
+  const kw = keyword && keyword.length >= 3 ? `%${keyword.slice(0, 80)}%` : null;
+  try {
+    const rows = await prisma.$queryRawUnsafe(
+      `
+      SELECT
+        id,
+        platform,
+        coalesce(posted_at, fetched_at) AS published_at,
+        url,
+        left(coalesce(text, ''), 500) AS body,
+        left(coalesce(text, ''), 120) AS title
+      FROM social_media_posts
+      WHERE ($1::timestamptz IS NULL OR coalesce(posted_at, fetched_at) >= $1::timestamptz)
+        AND ($2::timestamptz IS NULL OR coalesce(posted_at, fetched_at) <= $2::timestamptz)
+        AND ($3::text IS NULL OR coalesce(text, '') ILIKE $3)
+      ORDER BY coalesce(posted_at, fetched_at) DESC NULLS LAST
+      LIMIT $4
+      `,
+      from,
+      to,
+      kw,
+      Math.min(20, Math.max(1, limit))
+    );
+    return (rows || []).map((r) => ({
+      chunk_id: null,
+      document_id: null,
+      source_table: 'social_media_posts',
+      source_id: String(r.id),
+      content: [
+        r.title,
+        r.platform ? `platform: ${r.platform}` : null,
+        r.published_at ? `date: ${r.published_at}` : null,
+        r.url ? `url: ${r.url}` : null,
+        r.body,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      chunk_index: 0,
+      similarity_score: 0,
+      _meta: {
+        title: r.title,
+        platform: r.platform,
+        published_at: r.published_at,
+        url: r.url,
+      },
+    }));
+  } catch {
+    return [];
+  }
 }
 
 async function listAlerts(prisma, { dateFrom, dateTo, riskLevel, limit = 8, keyword } = {}) {
@@ -447,6 +527,7 @@ const looksLikeCountQuestion = (q) =>
 module.exports = {
   retrieveChunks,
   retrieveFromEmbeddings,
+  listPosts,
   listAlerts,
   listEvents,
   listGrievances,

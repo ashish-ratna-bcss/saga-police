@@ -55,7 +55,7 @@ function extractKeyword(question) {
     'database', 'system', 'records', 'record', 'data', 'there', 'here', 'available',
     'currently', 'present', 'existing', 'entire', 'whole', 'overall', 'everything',
     'events', 'event', 'grievances', 'grievance', 'news', 'contents', 'content',
-    'latest', 'recent', 'list', 'give', 'tell', 'me',
+    'latest', 'recent', 'list', 'give', 'tell', 'me', 'page', 'pages', 'toal', 'totl',
   ]);
   const tokens = String(source)
     .toLowerCase()
