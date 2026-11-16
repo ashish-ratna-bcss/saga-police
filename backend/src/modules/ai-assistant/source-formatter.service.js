@@ -40,8 +40,9 @@ async function lookupSource(prisma, table, id) {
   }
   if (table === 'social_media_alerts') {
     const rows = await prisma.$queryRawUnsafe(
-      `SELECT coalesce(title, left(coalesce(summary,''), 120)) AS title,
-              platform, coalesce(posted_at, created_at) AS published_at, url
+      `SELECT title,
+              platform, risk_level, coalesce(posted_at, created_at) AS published_at,
+              content_url AS url
        FROM social_media_alerts WHERE id = $1::bigint LIMIT 1`,
       id
     );
@@ -49,8 +50,8 @@ async function lookupSource(prisma, table, id) {
   }
   if (table === 'social_media_grievances') {
     const rows = await prisma.$queryRawUnsafe(
-      `SELECT left(coalesce(text, complaint_text, ''), 120) AS title,
-              platform, posted_at AS published_at, url
+      `SELECT left(coalesce(text, ''), 120) AS title,
+              platform, posted_at AS published_at, content_url AS url
        FROM social_media_grievances WHERE id = $1::bigint LIMIT 1`,
       id
     );

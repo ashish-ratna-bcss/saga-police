@@ -434,7 +434,7 @@ export default function AiAssistant() {
                 </div>
                 <h2 className="text-lg font-semibold text-foreground">Ask about your records</h2>
                 <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-                  Answers use this tenant’s indexed alerts, posts, events, and related records — same RAG style as the SOC-EYE pipeline.
+                  Ask in plain language — alerts, posts, events, or grievances. I’ll answer clearly and show matching cards below.
                 </p>
                 <div className="mt-6 grid gap-2 sm:grid-cols-2">
                   {SUGGESTIONS.map((s) => (

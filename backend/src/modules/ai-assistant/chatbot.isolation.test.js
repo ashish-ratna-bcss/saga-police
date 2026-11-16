@@ -4,7 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { sanitizeChunk } = require('./context-builder.service');
-const { looksLikeCountQuestion } = require('./retrieval.service');
+const { looksLikeCountQuestion, inferModuleFocus } = require('./retrieval.service');
 const { sourceHref } = require('./source-formatter.service');
 const { isChitchat, filterCitedSources } = require('./chatbot.service');
 
@@ -38,6 +38,13 @@ test('tenant is never taken from chat body — controller uses req.user only', (
 test('chitchat skips retrieval path', () => {
   assert.equal(isChitchat('hi'), true);
   assert.equal(isChitchat('today total posts'), false);
+});
+
+test('inferModuleFocus routes alerts vs posts', () => {
+  assert.equal(inferModuleFocus('latest alerts'), 'alerts');
+  assert.equal(inferModuleFocus('high risk alerts'), 'alerts');
+  assert.equal(inferModuleFocus('how many posts today'), 'posts');
+  assert.equal(inferModuleFocus('summarize recent posts'), 'posts');
 });
 
 test('filterCitedSources keeps only [n] citations', () => {

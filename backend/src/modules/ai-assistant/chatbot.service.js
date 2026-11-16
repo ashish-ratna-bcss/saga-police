@@ -4,6 +4,9 @@ const {
   looksLikeCountQuestion,
   countPostsInRange,
   countAlertsInRange,
+  inferModuleFocus,
+  inferRiskLevel,
+  listAlerts,
 } = require('./retrieval.service');
 const { buildMessages } = require('./context-builder.service');
 const { complete, completeStream, getLLMConfig } = require('./llm.service');
@@ -59,13 +62,29 @@ function isChitchat(question) {
 function smalltalkReply(question) {
   const q = String(question || '').trim().toLowerCase();
   if (/thanks?|thank\s*you|thx|ty/.test(q)) {
-    return "You're welcome! Ask about alerts, posts, events, or grievances in this tenant.";
+    return "You're welcome! Want to check alerts, posts, or events next?";
   }
-  if (/bye|goodbye|good\s*night/.test(q)) return 'Goodbye.';
+  if (/bye|goodbye|good\s*night/.test(q)) return 'Take care — ask anytime.';
   if (/who\s*are\s*you|what\s*can\s*you\s*do|help/.test(q)) {
-    return "I'm BluraSaga AI Assistant. I answer from this tenant's indexed records — alerts, posts, events, grievances, and related reports. Try: \"high risk alerts\", \"posts about protests\", or \"how many posts today\".";
+    return 'I can look up alerts, posts, events, and grievances for you. Try: “high risk alerts”, “latest posts”, or “how many posts today”.';
   }
-  return "Hello! I'm BluraSaga AI Assistant. Ask me about alerts, posts, events, or grievances in your data.";
+  return 'Hi! Ask me about alerts, posts, events, or grievances — for example “latest alerts” or “how many posts today”.';
+}
+
+function dateRangeLabel(filters) {
+  if (!filters?.dateFrom && !filters?.dateTo) return 'all time';
+  const from = filters.dateFrom ? new Date(filters.dateFrom) : null;
+  const to = filters.dateTo ? new Date(filters.dateTo) : null;
+  const sameDay =
+    from &&
+    to &&
+    from.toDateString() === to.toDateString();
+  if (sameDay) {
+    return `on ${from.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  }
+  const a = from ? from.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '…';
+  const b = to ? to.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '…';
+  return `${a} – ${b}`;
 }
 
 function isMetaOrErrorPaste(question) {
@@ -142,19 +161,48 @@ function summarizeAnswer(answer, sourceCount) {
 async function buildAnalytics(prisma, question, filters) {
   if (!looksLikeCountQuestion(question)) return null;
   try {
+    const focus = inferModuleFocus(question);
+    const risk = inferRiskLevel(question);
+    const range = dateRangeLabel(filters);
     const posts = await countPostsInRange(prisma, {
       dateFrom: filters.dateFrom,
       dateTo: filters.dateTo,
-      keyword: extractKeyword(question),
+      keyword: focus === 'posts' ? extractKeyword(question) : null,
     });
     const alerts = await countAlertsInRange(prisma, {
       dateFrom: filters.dateFrom,
       dateTo: filters.dateTo,
+      riskLevel: focus === 'alerts' ? risk : null,
     });
+    const highAlerts =
+      focus === 'alerts' && risk === 'high'
+        ? alerts
+        : await countAlertsInRange(prisma, {
+            dateFrom: filters.dateFrom,
+            dateTo: filters.dateTo,
+            riskLevel: 'high',
+          });
+
+    let note;
+    if (focus === 'alerts') {
+      note =
+        risk === 'high'
+          ? `HIGH-risk alerts ${range}: ${alerts}. (Exact count — use this number.)`
+          : `Alerts ${range}: ${alerts}. Of these, HIGH-risk: ${highAlerts}. (Exact counts — use these numbers.)`;
+    } else if (focus === 'posts') {
+      note = `Posts ${range}: ${posts}. (Exact count — use this number.)`;
+    } else {
+      note = `Posts ${range}: ${posts}. Alerts ${range}: ${alerts} (HIGH-risk: ${highAlerts}). (Exact counts — use these numbers.)`;
+    }
+
     return {
       posts,
       alerts,
-      note: `social_media_posts matching filters: ${posts}; social_media_alerts in range: ${alerts}.`,
+      highAlerts,
+      focus,
+      risk,
+      range,
+      note,
     };
   } catch {
     return null;
@@ -162,28 +210,83 @@ async function buildAnalytics(prisma, question, filters) {
 }
 
 function buildView(question, sources, analytics) {
+  const focus = inferModuleFocus(question);
   if (analytics && looksLikeCountQuestion(question)) {
-    return {
-      layout: 'stats',
-      title: 'Counts',
-      stats: [
-        { label: 'Posts', value: analytics.posts },
-        { label: 'Alerts', value: analytics.alerts },
-      ],
-    };
+    const stats = [];
+    if (focus === 'alerts') {
+      stats.push({
+        label: analytics.risk === 'high' ? 'High-risk alerts' : 'Alerts',
+        value: analytics.alerts,
+      });
+      if (analytics.risk !== 'high') {
+        stats.push({ label: 'High-risk', value: analytics.highAlerts });
+      }
+    } else if (focus === 'posts') {
+      stats.push({ label: 'Posts', value: analytics.posts });
+    } else {
+      stats.push({ label: 'Posts', value: analytics.posts });
+      stats.push({ label: 'Alerts', value: analytics.alerts });
+    }
+    return { layout: 'stats', title: `Counts (${analytics.range || 'all time'})`, stats };
   }
   if (sources?.length) {
-    return { layout: 'cards', title: 'Matching records', items: sources };
+    const title =
+      focus === 'alerts'
+        ? 'Alerts'
+        : focus === 'events'
+          ? 'Events'
+          : focus === 'grievances'
+            ? 'Grievances'
+            : focus === 'posts'
+              ? 'Posts'
+              : 'Results';
+    return { layout: 'cards', title, items: sources };
   }
   return { layout: 'text' };
+}
+
+function normalizeChunks(chunks) {
+  return (chunks || []).map((c) => {
+    const meta = { ...(c.metadata || {}), ...(c._meta || {}) };
+    const excerpt = c.excerpt || String(c.content || '').slice(0, 400);
+    return {
+      ...c,
+      content: excerpt,
+      excerpt,
+      metadata: meta,
+    };
+  });
+}
+
+function filterSourcesForFocus(sources, question, answer) {
+  const focus = inferModuleFocus(question);
+  let list = sources || [];
+  if (focus === 'alerts') {
+    list = list.filter((s) => s.source_table === 'social_media_alerts');
+  } else if (focus === 'posts') {
+    list = list.filter((s) => s.source_table === 'social_media_posts');
+  } else if (focus === 'events') {
+    list = list.filter((s) => s.source_table === 'social_media_events');
+  } else if (focus === 'grievances') {
+    list = list.filter((s) => s.source_table === 'social_media_grievances');
+  }
+
+  const denied = /\b(no matching|couldn'?t find|no alerts|no high-risk|none found|no results)\b/i.test(
+    String(answer || '')
+  );
+  if (denied && !list.length) return [];
+
+  const cited = filterCitedSources(answer, list);
+  if (cited.length) return cited;
+  return list;
 }
 
 async function runRagTurn(prisma, question, filters, prior, opts = {}) {
   const chitchat = isChitchat(question);
   const metaPaste = isMetaOrErrorPaste(question);
-  const countOnly = looksLikeCountQuestion(question);
+  const isCount = looksLikeCountQuestion(question);
+  const focus = inferModuleFocus(question);
 
-  // Small-talk: canned reply, no retrieval (RAG_pipline_saga pattern)
   if (chitchat) {
     return {
       answer: smalltalkReply(question),
@@ -196,7 +299,7 @@ async function runRagTurn(prisma, question, filters, prior, opts = {}) {
   if (metaPaste) {
     return {
       answer:
-        'That looks like a system error paste, not a data question. Ask about alerts, posts, events, or grievances.',
+        'That looks like an error message, not a question. Try asking about alerts, posts, events, or grievances.',
       modelName: null,
       usage: {},
       sourcesForStore: [],
@@ -205,25 +308,33 @@ async function runRagTurn(prisma, question, filters, prior, opts = {}) {
   }
 
   let chunks = [];
-  if (!countOnly) {
-    try {
+  try {
+    if (isCount && focus === 'alerts') {
+      // Counts + a few sample alerts so the answer can list examples
+      chunks = await listAlerts(prisma, {
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        riskLevel: inferRiskLevel(question),
+        limit: 5,
+      });
+    } else if (!isCount || focus === 'posts' || !focus) {
       chunks = await retrieveChunks(prisma, question, filters);
-    } catch {
-      chunks = [];
     }
+  } catch {
+    chunks = [];
   }
 
   if (chunks.length) {
     try {
-      chunks = await enrichSources(prisma, chunks);
-      chunks = chunks.map((c) => ({
-        ...c,
-        content: c.excerpt || c.content,
-        excerpt: c.excerpt || String(c.content || '').slice(0, 400),
-        metadata: c.metadata || {},
-      }));
+      const withMeta = chunks.filter((c) => c._meta);
+      const needEnrich = chunks.filter((c) => !c._meta);
+      const enriched = needEnrich.length ? await enrichSources(prisma, needEnrich) : [];
+      chunks = normalizeChunks([
+        ...withMeta,
+        ...enriched,
+      ]);
     } catch {
-      /* keep raw */
+      chunks = normalizeChunks(chunks);
     }
   }
 
@@ -239,11 +350,19 @@ async function runRagTurn(prisma, question, filters, prior, opts = {}) {
     llmResult = await complete(messages);
   }
 
-  const rawAnswer =
+  let rawAnswer =
     llmResult.content ||
     (chunks.length
-      ? 'I found related records but could not generate a summary. Please try again.'
-      : 'I could not find relevant records in this tenant database for that question.');
+      ? 'Here are the matching records I found.'
+      : analytics
+        ? `I counted the records for you (${analytics.range}).`
+        : 'I couldn’t find matching records. Try a broader question, or ask about posts or alerts.');
+
+  // Strip model jargon if it slips through
+  rawAnswer = String(rawAnswer)
+    .replace(/\b(based on the (context|records) provided|in the current context|retrieved chunks|tenant database)\b/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 
   let modelName = llmResult.model;
   try {
@@ -254,9 +373,7 @@ async function runRagTurn(prisma, question, filters, prior, opts = {}) {
 
   let sourcesForStore = [];
   if (chunks.length) {
-    const mapped = mapSources(chunks);
-    const cited = filterCitedSources(rawAnswer, mapped);
-    sourcesForStore = cited.length ? cited : mapped;
+    sourcesForStore = filterSourcesForFocus(mapSources(chunks), question, rawAnswer);
   }
 
   const answer = summarizeAnswer(rawAnswer, sourcesForStore.length);
