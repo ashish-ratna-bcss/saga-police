@@ -35,11 +35,14 @@ const cookieName = (req) => {
 
 const cookieOptions = (req) => {
   const crossSite = String(process.env.COOKIE_CROSS_SITE || '').toLowerCase() === 'true';
-  const secure = crossSite || isHttpsRequest(req);
+  // SameSite=None requires Secure — only use that on real HTTPS.
+  // HTTP tenants (e.g. http://IP:3006) must get SameSite=Lax + Secure=false
+  // or the browser silently drops the auth cookie → "Not authorized, no token".
+  const secure = isHttpsRequest(req);
   return {
     httpOnly: true,
     secure,
-    sameSite: crossSite ? 'none' : 'lax',
+    sameSite: crossSite && secure ? 'none' : 'lax',
     path: '/',
   };
 };
