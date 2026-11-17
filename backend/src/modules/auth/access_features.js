@@ -31,8 +31,7 @@ const PLATFORM_CATALOG = require('../../lib/platformCatalog').PLATFORM_SLUGS;
 const SUPERADMIN_PAGE_PATHS = [
   '/dashboard',
   '/users-management',
-  '/system-health',
-  '/blugate-billing',
+  '/audit-logs',
   '/help',
 ];
 

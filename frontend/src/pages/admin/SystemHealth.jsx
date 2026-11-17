@@ -471,6 +471,11 @@ const SystemHealth = () => {
           <h1 className="text-base font-bold leading-none tracking-tight">System Health</h1>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
             Three layers: infrastructure, AI services and platforms
+            {healthData?.platform_tenant ? (
+              <span className="ml-1">
+                · platforms via {String(healthData.platform_tenant).split('_')[1] || healthData.platform_tenant}
+              </span>
+            ) : null}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">

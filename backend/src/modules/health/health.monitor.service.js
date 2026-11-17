@@ -191,7 +191,44 @@ const checkBlugateGlobal = async (db) => {
   }
 };
 
+/**
+ * Superadmin has no tenant DB. BluGate keys live per-tenant, so pick the first
+ * tenant that has credentials configured and use that for platform probes.
+ */
+const resolveHealthTenantDb = async (db) => {
+  if (db) return { db, tenantDbName: null };
+  try {
+    const {
+      listTenantDbNames,
+      getTenantPrisma,
+    } = require('../../lib/tenantDatabase.service');
+    const names = await listTenantDbNames();
+    for (const name of names) {
+      const tp = getTenantPrisma(name);
+      if (!tp?.platforms?.findFirst) continue;
+      try {
+        const row = await tp.platforms.findFirst({
+          where: {
+            api_key: { not: null },
+            blugate_client_key: { not: null },
+          },
+          select: { id: true, slug: true },
+        });
+        if (row) return { db: tp, tenantDbName: name };
+      } catch {
+        // skip broken / empty tenant
+      }
+    }
+  } catch {
+    // ignore — fall through to null
+  }
+  return { db: null, tenantDbName: null };
+};
+
 const checkSystemHealth = async (db) => {
+  const resolved = await resolveHealthTenantDb(db);
+  const healthDb = resolved.db;
+
   // Run probes in parallel — sequential pings were ~12s when hosts were unreachable.
   const [postgres, llm, sentiment, mediaAnalyzer, ragApi, bluweb, telegram, reddit, blugate] =
     await Promise.all([
@@ -209,9 +246,9 @@ const checkSystemHealth = async (db) => {
           ? '/health/ready'
           : '/scrape/health/ready'
       ),
-      checkTelegram(db),
+      checkTelegram(healthDb),
       checkReddit(),
-      checkBlugateGlobal(db),
+      checkBlugateGlobal(healthDb),
     ]);
 
   // RapidAPI quota trackers removed — Blugate providers do not expose key quotas here.
@@ -239,6 +276,8 @@ const checkSystemHealth = async (db) => {
 
   return {
     timestamp: new Date().toISOString(),
+    /** When set, platform probes used this tenant's BluGate credentials (superadmin). */
+    platform_tenant: resolved.tenantDbName || null,
     postgres,
     services: {
       llm,
