@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   CalendarDays,
   AlertTriangle,
@@ -19,6 +19,11 @@ import {
   BookOpen,
   ChevronRight,
   X,
+  LogIn,
+  ScrollText,
+  Building2,
+  CheckCircle2,
+  UserPlus,
 } from 'lucide-react';
 import HelpArticle from './HelpArticle';
 import gettingStarted from './content/getting-started';
@@ -36,9 +41,11 @@ import analysisTools from './content/analysis-tools';
 import platforms from './content/platforms';
 import settings from './content/settings';
 import admin from './content/admin';
+import superadminGuide from './content/superadmin';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { cn } from '../../lib/utils';
+import { useAuth } from '../../context/auth.context';
 
 const ICONS = {
   CalendarDays,
@@ -56,9 +63,14 @@ const ICONS = {
   Wrench,
   Plug,
   ShieldCheck,
+  LogIn,
+  ScrollText,
+  Building2,
+  CheckCircle2,
+  UserPlus,
 };
 
-const ARTICLES = [
+const TENANT_ARTICLES = [
   gettingStarted,
   dashboard,
   alerts,
@@ -75,6 +87,8 @@ const ARTICLES = [
   settings,
   admin,
 ];
+
+const SUPERADMIN_ARTICLES = [superadminGuide];
 
 const sectionText = (section) => {
   const out = [section.title];
@@ -114,10 +128,20 @@ const groupSections = (article) => {
 };
 
 const HelpGuide = () => {
+  const { user } = useAuth();
+  const isSuper = user?.role === 'superadmin';
+  const ARTICLES = isSuper ? SUPERADMIN_ARTICLES : TENANT_ARTICLES;
+
   const [activeId, setActiveId] = useState(ARTICLES[0]?.id);
   const [query, setQuery] = useState('');
   const [focus, setFocus] = useState(null);
   const jump = (id) => setFocus({ id, seq: Date.now() });
+
+  useEffect(() => {
+    setActiveId(ARTICLES[0]?.id);
+    setQuery('');
+    setFocus(null);
+  }, [isSuper]);
 
   const article = ARTICLES.find((a) => a.id === activeId) || ARTICLES[0];
   const q = query.trim().toLowerCase();
@@ -138,7 +162,7 @@ const HelpGuide = () => {
       }
     }
     return found;
-  }, [q]);
+  }, [q, ARTICLES]);
 
   const goTo = (articleId, sectionId) => {
     setActiveId(articleId);
@@ -156,7 +180,9 @@ const HelpGuide = () => {
         <div className="min-w-0 shrink-0">
           <h1 className="text-xl font-heading font-bold tracking-tight leading-none">Help</h1>
           <p className="text-[11px] text-muted-foreground mt-0.5 hidden sm:block">
-            Platform guide — modules, workflows, and screenshots
+            {isSuper
+              ? 'Superadmin console — users, audit, and how tenants work'
+              : 'Platform guide — modules, workflows, and screenshots'}
           </p>
         </div>
 
