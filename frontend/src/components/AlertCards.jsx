@@ -2671,6 +2671,9 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
 /* ── Frequent Engagers Panel (top-bar dialog) ── */
 export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monitoredHandles = [] }) => {
     const [analyses, setAnalyses] = useState([]);
+    const [selectedProfileId, setSelectedProfileId] = useState(null);
+    const [days, setDays] = useState(30);
+    const [platformFilter, setPlatformFilter] = useState('all');
     const [loading, setLoading] = useState(false);
     const [selectedHandle, setSelectedHandle] = useState(null);
     const [selectedAnalysis, setSelectedAnalysis] = useState(null);
@@ -2691,56 +2694,67 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
 
     const handleAddSource = (rt) => {
         if (!onAddSource) return;
-        onAddSource({ platform: 'x', identifier: rt.handle, display_name: rt.name || rt.handle, category: 'unknown' });
+        const platform = (rt.platforms && rt.platforms[0]) || 'x';
+        const identifier = platform === 'x' || platform === 'instagram'
+            ? rt.handle
+            : (rt.profile_urls?.[platform] || rt.handle);
+        if (!identifier) return;
+        onAddSource({ platform, identifier, display_name: rt.name || rt.handle, category: 'unknown' });
     };
 
-    const retriggerAnalysis = async (handle) => {
-        try {
-            toast.loading(`Loading engagers for @${handle}…`, { id: `eng-${handle}` });
-            const res = await api.get(`/alerts/engagers/${encodeURIComponent(handle)}`, {
-                params: { period_days: 30, store: 'catalog' },
-            });
-            toast.success(`Found ${res.data?.unique_retweeters || 0} engagers`, { id: `eng-${handle}` });
-            openDetail(handle, res.data);
-        } catch {
-            toast.error('Failed to load engagers', { id: `eng-${handle}` });
-        }
+    const engagerHref = (rt) => {
+        const plat = (rt.platforms && rt.platforms[0]) || 'x';
+        return rt.profile_urls?.[plat] || (rt.handle ? `https://x.com/${rt.handle}` : null);
     };
 
     const loadAnalyses = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/alerts/engagers', { params: { store: 'catalog' } });
+            const res = await api.get('/alerts/engagers-db');
             setAnalyses(res.data?.analyses || []);
         } catch { setAnalyses([]); }
         finally { setLoading(false); }
     };
 
-    const openDetail = async (handle, preloaded = null) => {
-        setSelectedHandle(handle);
-        setDetailLoading(true);
-        setActiveTab('hierarchy');
-        setEngagerPage(1);
-        setRetweetSearch('');
+    const fetchDetail = async (profileId, nextDays, nextPlatform, { quiet = false } = {}) => {
+        if (!quiet) setDetailLoading(true);
         try {
-            if (preloaded) {
-                setSelectedAnalysis(preloaded);
-            } else {
-                const res = await api.get(`/alerts/engagers/${encodeURIComponent(handle)}`, {
-                    params: { period_days: 30, store: 'catalog' },
-                });
-                setSelectedAnalysis(res.data);
-            }
+            const params = { period_days: nextDays };
+            if (nextPlatform && nextPlatform !== 'all') params.platforms = nextPlatform;
+            const res = await api.get(`/alerts/engagers-db/${encodeURIComponent(profileId)}`, { params });
+            setSelectedAnalysis(res.data);
         } catch {
             setSelectedAnalysis(null);
             toast.error('Failed to load engagers');
         } finally { setDetailLoading(false); }
     };
 
+    const openDetail = (handle, profileId) => {
+        setSelectedHandle(handle);
+        setSelectedProfileId(profileId);
+        setActiveTab('hierarchy');
+        setEngagerPage(1);
+        setRetweetSearch('');
+        setPlatformFilter('all');
+        fetchDetail(profileId, days, 'all');
+    };
+
+    const changeDays = (value) => {
+        setDays(value);
+        setEngagerPage(1);
+        if (selectedProfileId) fetchDetail(selectedProfileId, value, platformFilter, { quiet: true });
+    };
+
+    const changePlatform = (value) => {
+        setPlatformFilter(value);
+        setEngagerPage(1);
+        if (selectedProfileId) fetchDetail(selectedProfileId, days, value, { quiet: true });
+    };
+
     const goBack = () => {
         setSelectedHandle(null);
+        setSelectedProfileId(null);
         setSelectedAnalysis(null);
-        loadAnalyses();
     };
 
     // Live list — no background job polling
@@ -2748,6 +2762,7 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
         if (open) {
             loadAnalyses();
             setSelectedHandle(null);
+            setSelectedProfileId(null);
             setSelectedAnalysis(null);
             setListSearch('');
             setListPage(1);
@@ -2796,7 +2811,7 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                 <div className="min-w-0">
                                     <h2 className="text-sm font-semibold">Frequent Engagers</h2>
                                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                                        Who repeatedly retweets analyzed X accounts
+                                        Who keeps engaging with your monitored accounts across X, Facebook and Instagram (from saved data)
                                     </p>
                                 </div>
                                 {analyses.length > 0 && (
@@ -2832,9 +2847,9 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                 ) : analyses.length === 0 ? (
                                     <div className="py-12 px-4 text-center text-muted-foreground">
                                         <Users className="h-8 w-8 mx-auto mb-2 opacity-25" />
-                                        <p className="text-sm">No analyses yet</p>
+                                        <p className="text-sm">No monitored accounts with saved posts yet</p>
                                         <p className="text-[11px] mt-1">
-                                            Use the engagers action on an X alert card to start.
+                                            Add accounts to monitoring and let them collect posts first.
                                         </p>
                                     </div>
                                 ) : filteredAnalyses.length === 0 ? (
@@ -2849,8 +2864,8 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                             return (
                                                 <button
                                                     type="button"
-                                                    key={a.id || a._id || a.handle_lower || a.handle}
-                                                    onClick={() => openDetail(a.handle)}
+                                                    key={a.profile_id}
+                                                    onClick={() => openDetail(a.handle, a.profile_id)}
                                                     className="w-full text-left rounded-lg border bg-card px-3 py-2.5 transition-colors hover:border-primary/40 hover:bg-accent/40 cursor-pointer"
                                                 >
                                                     <div className="flex items-start gap-2.5">
@@ -2869,13 +2884,13 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                                                         <p className="text-[11px] text-muted-foreground truncate">{a.display_name}</p>
                                                                     )}
                                                                 </div>
-                                                                <span className="shrink-0 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-                                                                    Live
+                                                                <span className="shrink-0 text-[10px] font-medium text-muted-foreground">
+                                                                    {(a.platforms || []).map((pl) => pl.platform).filter((v, i, arr) => v && arr.indexOf(v) === i).join(' · ')}
                                                                 </span>
                                                             </div>
 
                                                             <p className="text-[11px] text-muted-foreground mt-1">
-                                                                {a.tweets_analyzed || 0} catalog posts · click to load retweet profiles live
+                                                                {a.tweets_analyzed || 0} saved posts · click to see who engages
                                                             </p>
 
                                                             {rowEngagers.length > 0 ? (
@@ -2974,7 +2989,7 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                     )}
                                     <div>
                                         <h2 className="text-sm font-semibold">@{selectedHandle}</h2>
-                                        {analysis && <p className="text-[10px] text-muted-foreground">{analysis.tweets_analyzed} tweets · {analysis.unique_retweeters} engagers · {analysis.period_days}-day window</p>}
+                                        {analysis && <p className="text-[10px] text-muted-foreground">{analysis.display_name} · {analysis.tweets_analyzed} posts · {analysis.unique_retweeters} engagers · {analysis.period_days}-day window</p>}
                                     </div>
                                 </div>
                             </div>
@@ -2998,7 +3013,7 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                             sourceHandle={selectedHandle}
                                             sourceName={sourceLabel}
                                             sourceAvatar={sourceAvatar}
-                                            topRetweeters={engagers.slice(0, 8).map(e => ({ ...e, tweet_count: e.tweets_retweeted }))}
+                                            topRetweeters={engagers.slice(0, 8).map(e => ({ ...e, handle: e.handle || e.name || 'unknown', tweet_count: e.tweets_retweeted }))}
                                             totalRetweeters={analysis.unique_retweeters || 0}
                                             onNodeClick={handleAddSource}
                                             isMonitored={isMonitored}
@@ -3036,6 +3051,20 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                                 )}
                                             </div>
                                         </div>
+                                        <div className="flex items-center gap-1 flex-wrap pb-1">
+                                            {['all', ...Array.from(new Set([...Object.keys(analysis.posts_by_platform || {}), ...Object.keys(analysis.found_by_platform || {})])).filter((pl) => ['x', 'facebook', 'instagram'].includes(pl))].map((pl) => (
+                                                <button key={pl} type="button" onClick={() => changePlatform(pl)}
+                                                    className={`px-2 py-0.5 rounded-full border text-[10px] font-medium capitalize transition-colors ${platformFilter === pl ? 'bg-primary text-primary-foreground border-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+                                                    {pl === 'all' ? 'All platforms' : pl === 'x' ? 'X' : pl}
+                                                    {pl !== 'all' && analysis.found_by_platform?.[pl] != null ? ` · ${analysis.found_by_platform[pl]}` : ''}
+                                                </button>
+                                            ))}
+                                            <div className="flex-1" />
+                                            <select value={days} onChange={(e) => changeDays(Number(e.target.value))}
+                                                className="text-[10px] rounded border bg-background px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary">
+                                                {[7, 30, 90, 180, 365].map((d) => <option key={d} value={d}>Last {d} days</option>)}
+                                            </select>
+                                        </div>
                                         {searchTerm && <div className="text-[9px] text-muted-foreground">{filteredEngagers.length} result{filteredEngagers.length !== 1 ? 's' : ''}</div>}
                                     </div>
 
@@ -3048,20 +3077,20 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                                     <div className="space-y-2">
                                                         {filteredEngagers.length === 0 ? (
                                                             <div className="h-32 flex items-center justify-center text-xs text-muted-foreground">
-                                                                {searchTerm ? 'No engagers match your search.' : 'No retweeters found.'}
+                                                                {searchTerm ? 'No engagers match your search.' : 'No saved reactions found for this account in this period.'}
                                                             </div>
                                                         ) : (<>
                                                             <div className="border rounded-lg overflow-hidden">
                                                                 <table className="w-full table-fixed text-[11px]">
                                                                     <colgroup>
-                                                                        <col style={{ width: '55%' }} />
-                                                                        <col style={{ width: '25%' }} />
+                                                                        <col style={{ width: '48%' }} />
+                                                                        <col style={{ width: '32%' }} />
                                                                         <col style={{ width: '20%' }} />
                                                                     </colgroup>
                                                                     <thead className="bg-muted/50">
                                                                         <tr>
                                                                             <th className="text-left px-2 py-1.5 font-semibold">Engager</th>
-                                                                            <th className="text-center px-2 py-1.5 font-semibold">Retweeted</th>
+                                                                            <th className="text-center px-2 py-1.5 font-semibold">Engagements</th>
                                                                             <th className="text-center px-2 py-1.5 font-semibold">Monitor</th>
                                                                         </tr>
                                                                     </thead>
@@ -3070,7 +3099,7 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                                                             const already = isMonitored(rt.handle);
                                                                             const freq = rt.frequency || 'one-time';
                                                                             return (
-                                                                                <tr key={rt.handle} className={`border-t transition-colors ${FREQ_ROW_COLORS[freq] || ''}`}>
+                                                                                <tr key={rt.handle || rt.user_id || rt.name} className={`border-t transition-colors ${FREQ_ROW_COLORS[freq] || ''}`}>
                                                                                     <td className="px-2 py-1.5 align-middle">
                                                                                         <div className="flex items-center gap-1.5">
                                                                                             {rt.avatar ? (
@@ -3081,15 +3110,27 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                                                                                 </div>
                                                                                             )}
                                                                                             <div className="flex flex-col min-w-0">
-                                                                                                <a href={`https://x.com/${rt.handle}`} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline text-[11px] break-all leading-tight">@{rt.handle}</a>
-                                                                                                {rt.name && rt.name !== rt.handle && <span className="text-[9px] text-muted-foreground leading-tight truncate">{rt.name}</span>}
+                                                                                                <a href={engagerHref(rt) || undefined} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline text-[11px] break-all leading-tight">{rt.handle ? `@${rt.handle}` : (rt.name || 'Unknown')}</a>
+                                                                                                {rt.handle && rt.name && rt.name !== rt.handle && <span className="text-[9px] text-muted-foreground leading-tight truncate">{rt.name}</span>}
                                                                                             </div>
                                                                                             {rt.verified && <CheckCircle2 className="h-2.5 w-2.5 text-blue-500 shrink-0" />}
                                                                                         </div>
                                                                                     </td>
                                                                                     <td className="px-2 py-1.5 text-center align-middle">
-                                                                                        <span className="font-bold">{rt.tweets_retweeted}</span>
-                                                                                        <span className="text-[9px] text-muted-foreground"> / {analysis.tweets_analyzed}</span>
+                                                                                        <span className="font-bold">{rt.total ?? rt.tweets_retweeted}</span>
+                                                                                        <div className="text-[9px] text-muted-foreground leading-tight">
+                                                                                            {Object.entries(rt.by_platform || {}).map(([pl, n]) => `${pl === 'x' ? 'X' : pl} ${n}`).join(' · ')}
+                                                                                        </div>
+                                                                                        <div className="text-[9px] text-muted-foreground leading-tight">
+                                                                                            {Object.entries(rt.by_kind || {}).map(([k, n]) => `${k} ${n}`).join(' · ')}
+                                                                                        </div>
+                                                                                        {Array.isArray(rt.links) && rt.links.length > 0 && (
+                                                                                            <div className="text-[9px] leading-tight">
+                                                                                                {rt.links.map((l, i) => (
+                                                                                                    <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline mr-1" title={`${l.platform} post`}>{i + 1}</a>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        )}
                                                                                     </td>
                                                                                     <td className="px-2 py-1.5 text-center align-middle">
                                                                                         {onAddSource && !already ? (
@@ -3123,6 +3164,7 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                     </ScrollArea>
 
                                     <div className="flex items-center gap-3 px-3 py-1.5 border-t border-border bg-muted/10 shrink-0 flex-wrap">
+                                        {analysis.note && <span className="w-full text-[9px] text-muted-foreground">{analysis.note}</span>}
                                         {FREQ_LEGEND.map(f => (
                                             <div key={f.key} className="flex items-center gap-1">
                                                 <div className={`w-2.5 h-2.5 rounded-sm ${f.color}`} />
