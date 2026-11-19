@@ -35,7 +35,7 @@ router.get('/to-english', authorize(), limiter, async (req, res) => {
   if (!text) return res.json({ english: '' });
   if (!/^[a-z]{2,3}$/.test(lang) || lang === 'en') return res.json({ english: '' });
 
-  const key = `v3|${lang}|${text}`;
+  const key = `v2|${lang}|${text}`;
   if (cache.has(key)) {
     const hit = cache.get(key);
     cache.delete(key);
@@ -52,17 +52,17 @@ router.get('/to-english', authorize(), limiter, async (req, res) => {
           content:
             `/no_think\nYou are a precise ${langName}-to-English dictionary for a search box. ` +
             'Give the literal, most common dictionary meaning of the text. ' +
-            'Give exactly ONE English word or short phrase: the single most common meaning. ' +
+            'If a word has two or three clearly different common meanings, list them separated by " / ". ' +
             'Do not paraphrase, do not generalise (e.g. a "hymn" is not a "prayer"), do not add explanations, quotes or notes. ' +
             'If it is a person or place name, give its English spelling. ' +
-            'Examples (Telugu): "కీర్తన" -> "hymn"; "ప్రభుత్వం" -> "government"; "నిరసన" -> "protest". ' +
+            'Examples (Telugu): "కీర్తన" -> "hymn / devotional song / praise"; "ప్రభుత్వం" -> "government"; "నిరసన" -> "protest". ' +
             'Reply with ONLY the English text. If the input is already English or meaningless, reply with exactly the input.',
         },
         { role: 'user', content: `${langName}: ${text}` },
       ],
       { temperature: 0, maxTokens: 60 }
     );
-    const english = out.content.replace(/<think>[\s\S]*?<\/think>/g, '').split('\n')[0].split(' / ')[0].trim().slice(0, 200);
+    const english = out.content.replace(/<think>[\s\S]*?<\/think>/g, '').split('\n')[0].trim().slice(0, 200);
     cache.set(key, english);
     if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
     return res.json({ english });
