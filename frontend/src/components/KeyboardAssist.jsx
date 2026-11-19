@@ -245,9 +245,8 @@ function Assist({ input, lang }) {
             </button>
           </div>
           {showTranslation && (
-            <div className="mb-1.5 flex flex-col rounded bg-muted px-2 py-1">
-              <span className="text-sm font-medium text-foreground">{value.trim()}</span>
-              <span className="text-[11px] text-muted-foreground">{translation || (tStatus === 'loading' ? 'translating…' : '—')}</span>
+            <div className="mb-1.5 rounded bg-muted px-2 py-1 text-[11px] text-muted-foreground">
+              <span className="font-medium text-foreground">{translation || (tStatus === 'loading' ? 'translating…' : '—')}</span>
             </div>
           )}
           <div className="max-h-56 space-y-1.5 overflow-y-auto">
@@ -282,11 +281,16 @@ function Assist({ input, lang }) {
           dir={language.rtl ? 'rtl' : 'ltr'}
         >
           {showTranslation && (
-            <li className="flex flex-col border-b px-3 pb-1 pt-0.5">
-              <span className="text-sm font-medium text-foreground">{value.trim()}</span>
-              <span className="text-[11px] text-muted-foreground">
-                {translation || (tStatus === 'loading' ? 'translating…' : tStatus === 'unavailable' ? 'translation unavailable' : '—')}
-              </span>
+            <li className="border-b px-3 pb-1 text-[11px] text-muted-foreground">
+              {translation ? (
+                <span className="text-sm font-medium text-foreground">{translation}</span>
+              ) : tStatus === 'loading' ? (
+                'translating…'
+              ) : tStatus === 'unavailable' ? (
+                'translation unavailable'
+              ) : (
+                '—'
+              )}
             </li>
           )}
           {suggestions.map((s) => (
