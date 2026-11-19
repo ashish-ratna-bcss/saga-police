@@ -342,6 +342,32 @@ export function composeKey(code, before, key) {
   return code === 'ko' ? composeHangul(before, key) : before + key;
 }
 
+const LATIN_LANGS = new Set(['en', 'es', 'fr', 'de', 'pt', 'it', 'tr']);
+/** Non-Latin languages: Latin letters are not accepted in their search bars. */
+export const blocksLatin = (code) => !LATIN_LANGS.has(code);
+
+/** Instant English meaning for words found in the built-in keyword list. */
+export function lookupEnglish(code, text) {
+  const col = COLS[code];
+  const extra = EXTRA_KEYWORDS[code];
+  if (!col && !extra) return '';
+  const native = KEYWORD_TABLE.map((row, i) => [col ? row[col] : extra[i], row[0]]);
+  const words = String(text || '').trim().split(/\s+/).filter(Boolean);
+  const out = [];
+  let i = 0;
+  while (i < words.length) {
+    let hit = null;
+    for (let n = Math.min(3, words.length - i); n >= 1 && !hit; n--) {
+      const phrase = words.slice(i, i + n).join(' ');
+      const m = native.find(([nat]) => nat === phrase);
+      if (m) { hit = [m[1], n]; }
+    }
+    if (hit) { out.push(hit[0]); i += hit[1]; } else { out.push(words[i]); i += 1; }
+  }
+  const joined = out.join(' ');
+  return joined === text.trim() ? '' : joined;
+}
+
 export const getLanguage = (code) =>
   KEYBOARD_LANGUAGES.find((l) => l.code === code) || KEYBOARD_LANGUAGES[0];
 

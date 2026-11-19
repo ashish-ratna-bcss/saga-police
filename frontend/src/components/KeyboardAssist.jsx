@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Keyboard, Delete } from 'lucide-react';
 import api from '../lib/api';
-import { composeKey, getLanguage, suggestKeywords, useKeyboardLanguage } from '../lib/keyboardLanguages';
+import { blocksLatin, composeKey, getLanguage, lookupEnglish, suggestKeywords, useKeyboardLanguage } from '../lib/keyboardLanguages';
 
 /**
  * Adds a keyboard icon to every search/filter input in the app.
@@ -42,8 +42,11 @@ function Assist({ input, lang }) {
   const [value, setValue] = useState(input.value);
   const [pos, setPos] = useState(null);
   const [translation, setTranslation] = useState('');
+  const [tStatus, setTStatus] = useState('idle'); // idle | loading | done | unavailable
   const wrapRef = useRef(null);
   const language = getLanguage(lang);
+  const langRef = useRef(lang);
+  langRef.current = lang;
 
   const measure = useCallback(() => {
     if (!input.isConnected || input.offsetWidth === 0 || input.offsetHeight === 0) {
@@ -66,6 +69,24 @@ function Assist({ input, lang }) {
     const onFocus = () => { setFocused(true); measure(); };
     const onBlur = () => setFocused(false);
     const onInput = () => setValue(input.value);
+    const strict = () =>
+      blocksLatin(langRef.current) &&
+      !input.hasAttribute('data-allow-any-language') &&
+      !/url|link/i.test(input.getAttribute('placeholder') || '');
+    const onBeforeInput = (e) => {
+      if (e.isComposing || !strict() || typeof e.data !== 'string') return;
+      if (/[A-Za-z]/.test(e.data)) {
+        e.preventDefault();
+        const clean = e.data.replace(/[A-Za-z]/g, '');
+        if (clean) {
+          const v = input.value;
+          const s = input.selectionStart ?? v.length;
+          const en = input.selectionEnd ?? v.length;
+          writeValue(input, v.slice(0, s) + clean + v.slice(en), s + clean.length);
+        }
+      }
+    };
+    input.addEventListener('beforeinput', onBeforeInput);
     input.addEventListener('focus', onFocus);
     input.addEventListener('blur', onBlur);
     input.addEventListener('input', onInput);
@@ -78,6 +99,7 @@ function Assist({ input, lang }) {
       input.removeEventListener('focus', onFocus);
       input.removeEventListener('blur', onBlur);
       input.removeEventListener('input', onInput);
+      input.removeEventListener('beforeinput', onBeforeInput);
       input.style.paddingRight = prevPad;
       window.clearInterval(poll);
     };
@@ -97,23 +119,33 @@ function Assist({ input, lang }) {
     };
   }, [open, input]);
 
-  // English translation of everything typed (any language, via the backend LLM)
+  // English meaning of everything typed: instant from the keyword list, then refined by the backend LLM
   useEffect(() => {
     const text = value.trim();
-    if (lang === 'en' || text.length < 2 || !(focused || open)) {
+    if (lang === 'en' || text.length < 1 || !(focused || open)) {
       setTranslation('');
+      setTStatus('idle');
       return undefined;
     }
+    const local = lookupEnglish(lang, text);
+    setTranslation(local);
+    setTStatus(local ? 'done' : 'loading');
     let cancelled = false;
     const t = window.setTimeout(async () => {
       try {
         const res = await api.get('/translate/to-english', { params: { text, lang } });
         const english = String(res.data?.english || '').trim();
-        if (!cancelled) setTranslation(english.toLowerCase() === text.toLowerCase() ? '' : english);
+        if (cancelled) return;
+        if (english && english.toLowerCase() !== text.toLowerCase()) {
+          setTranslation(english);
+          setTStatus('done');
+        } else {
+          setTStatus(local ? 'done' : res.data?.unavailable ? 'unavailable' : 'same');
+        }
       } catch {
-        if (!cancelled) setTranslation('');
+        if (!cancelled) setTStatus(local ? 'done' : 'unavailable');
       }
-    }, 450);
+    }, 400);
     return () => {
       cancelled = true;
       window.clearTimeout(t);
@@ -154,7 +186,8 @@ function Assist({ input, lang }) {
 
   const lastToken = value.slice(0, input.selectionStart ?? value.length).split(/\s+/).pop();
   const suggestions = focused && !open ? suggestKeywords(lang, lastToken) : [];
-  const showPanel = focused && !open && (suggestions.length > 0 || translation);
+  const showTranslation = lang !== 'en' && value.trim().length > 0 && tStatus !== 'idle';
+  const showPanel = focused && !open && (suggestions.length > 0 || showTranslation);
   const panelTop = pos.top + pos.height + 4;
   const panelLeft = Math.max(pos.left, 0);
 
@@ -191,9 +224,9 @@ function Assist({ input, lang }) {
               <Delete className="h-3 w-3" /> Back
             </button>
           </div>
-          {translation && (
+          {showTranslation && (
             <div className="mb-1.5 rounded bg-muted px-2 py-1 text-[11px] text-muted-foreground">
-              English: <span className="font-medium text-foreground">{translation}</span>
+              English: <span className="font-medium text-foreground">{translation || (tStatus === 'loading' ? 'translating…' : '—')}</span>
             </div>
           )}
           <div className="max-h-56 space-y-1.5 overflow-y-auto">
@@ -227,9 +260,18 @@ function Assist({ input, lang }) {
           className="overflow-hidden rounded-md border bg-popover py-1 text-popover-foreground shadow-lg"
           dir={language.rtl ? 'rtl' : 'ltr'}
         >
-          {translation && (
+          {showTranslation && (
             <li className="border-b px-3 pb-1 text-[11px] text-muted-foreground">
-              English: <span className="font-medium text-foreground">{translation}</span>
+              English:{' '}
+              {translation ? (
+                <span className="font-medium text-foreground">{translation}</span>
+              ) : tStatus === 'loading' ? (
+                'translating…'
+              ) : tStatus === 'unavailable' ? (
+                'translation unavailable'
+              ) : (
+                'no change'
+              )}
             </li>
           )}
           {suggestions.map((s) => (
