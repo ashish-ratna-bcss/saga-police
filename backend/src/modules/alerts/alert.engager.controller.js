@@ -4,6 +4,7 @@ const {
   analyzeHandleLive,
   normalizeHandle,
 } = require('./alert.engager.service');
+const { listProfiles, analyzeProfileFromDb } = require('./alert.engager.db.service');
 
 /** GET /alerts/engagers — catalog X accounts with posts (live list, no Mongo). */
 const listEngagers = async (req, res) => {
@@ -54,7 +55,39 @@ const postEngagersForHandle = async (req, res) => {
   }
 };
 
+/** GET /alerts/engagers-db — profiles with stored posts (database only). */
+const listEngagerProfiles = async (req, res) => {
+  try {
+    const analyses = await listProfiles({ db: req.tenantPrisma });
+    return res.status(200).json({ analyses, live: false });
+  } catch (error) {
+    logger.error('[AlertsEngagers] db list failed:', error);
+    return res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
+/** GET /alerts/engagers-db/:profileId — combined engagers from stored posts (no external APIs). */
+const getEngagersFromDb = async (req, res) => {
+  try {
+    const platforms = String(req.query.platforms || '')
+      .split(',')
+      .map((p) => p.trim().toLowerCase())
+      .filter(Boolean);
+    const analysis = await analyzeProfileFromDb(req.params.profileId, {
+      periodDays: req.query.period_days,
+      platforms,
+      db: req.tenantPrisma,
+    });
+    return res.status(200).json(analysis);
+  } catch (error) {
+    logger.error('[AlertsEngagers] db analyze failed:', error);
+    return res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
 module.exports = {
+  listEngagerProfiles,
+  getEngagersFromDb,
   listEngagers,
   getEngagersForHandle,
   postEngagersForHandle,
