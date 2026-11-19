@@ -279,6 +279,10 @@ async function ensureUserThemeColumns(prisma) {
     ALTER COLUMN ui_mode SET DEFAULT 'light'
   `);
   await prisma.$executeRawUnsafe(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS keyboard_language TEXT NOT NULL DEFAULT 'en'
+  `);
+  await prisma.$executeRawUnsafe(`
     DO $$
     BEGIN
       IF NOT EXISTS (

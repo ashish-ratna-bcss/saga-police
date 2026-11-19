@@ -3,6 +3,7 @@ import { authApi } from '../api/auth.api';
 import { toast } from 'sonner';
 import { sessionCache, AUTH_ME_CACHE_KEY } from '../lib/sessionCache';
 import { applyThemeColor } from '../lib/theme';
+import { hydrateKeyboardLanguage } from '../lib/keyboardLanguages';
 
 import { resolvePublicAssetUrl } from '../lib/publicAssetUrl';
 
@@ -47,6 +48,10 @@ const cacheUser = (me) => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => sessionCache.get(AUTH_ME_CACHE_KEY));
   const [loading, setLoading] = useState(!sessionCache.get(AUTH_ME_CACHE_KEY));
+
+  useEffect(() => {
+    hydrateKeyboardLanguage(user?.keyboard_language);
+  }, [user?.keyboard_language]);
 
   const fetchMe = async ({ bypassCache = false } = {}) => {
     if (!bypassCache) {
@@ -124,6 +129,15 @@ export const AuthProvider = ({ children }) => {
     return me;
   };
 
+  const updateKeyboardLanguage = async (keyboard_language) => {
+    const response = await authApi.updateKeyboardLanguage(keyboard_language);
+    const me = response.data;
+    cacheUser(me);
+    setUser(me);
+    hydrateKeyboardLanguage(me.keyboard_language);
+    return me;
+  };
+
   const updateThemeColor = async (theme_color) => {
     const response = await authApi.updateThemeColor(theme_color);
     const me = response.data;
@@ -151,6 +165,7 @@ export const AuthProvider = ({ children }) => {
         fetchMe,
         updateUiMode,
         updateThemeColor,
+        updateKeyboardLanguage,
         updatePlatforms,
       }}
     >

@@ -39,6 +39,8 @@ model users {
   max_profiles       Int?
   max_users          Int?
   ui_mode            String   @default("light")
+  /// Search-bar keyboard language (ISO code). Shared by every user of the same tenant (db_name).
+  keyboard_language  String   @default("en")
   /// Visual theme only (gradient / hex). Branding lives in application_details + logo_*.
   theme_color        Json     @default("{\"type\":\"gradient\",\"value\":\"linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)\",\"primary_hex\":\"#38bdf8\"}")
   /// Login branding: { title, description, application_name, domains[] }

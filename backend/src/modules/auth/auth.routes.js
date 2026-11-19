@@ -6,6 +6,7 @@ const {
   getSetupStatus,
   updateMyUiMode,
   updateMyThemeColor,
+  updateMyKeyboardLanguage,
   updateMyPlatforms,
   changePassword,
 } = require('./auth.controller');
@@ -18,6 +19,7 @@ router.post('/logout', logout);
 router.get('/me', authorize(), getMe);
 router.get('/setup-status', authorize(), getSetupStatus);
 router.patch('/me/ui-mode', authorize(), updateMyUiMode);
+router.patch('/me/keyboard-language', authorize(), updateMyKeyboardLanguage);
 router.patch('/me/theme-color', authorize(), updateMyThemeColor);
 router.patch('/me/platforms', authorize(), updateMyPlatforms);
 router.patch('/me/password', authorize(), changePassword);

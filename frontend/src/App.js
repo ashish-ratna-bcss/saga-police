@@ -60,12 +60,14 @@ const PageLoader = () => (
   </div>
 );
 
+import KeyboardAssist from './components/KeyboardAssist';
 import './App.css';
 
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <KeyboardAssist />
         <Toaster position="top-right" expand={true} richColors closeButton duration={1000} />
         <Suspense fallback={<PageLoader />}>
           <Routes>

@@ -330,6 +330,42 @@ const updateMyUiMode = async (req, res) => {
   }
 };
 
+/** Tenant-wide: every user sharing this db_name gets the same keyboard language. */
+const updateMyKeyboardLanguage = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Not authorized' });
+    }
+    const code = String(req.body?.keyboard_language || '').trim();
+    if (!/^[a-z]{2,3}$/.test(code)) {
+      return res.status(400).json({ message: 'keyboard_language must be a language code like "en" or "te"' });
+    }
+
+    const dbName = req.user?.db_name || null;
+    const old = req.user?.keyboard_language || 'en';
+    await prisma.users.updateMany({
+      where: dbName ? { db_name: dbName } : { id: userId },
+      data: { keyboard_language: code },
+    });
+    const updated = await prisma.users.findUnique({ where: { id: userId }, include: { roles: true } });
+
+    await createAuditLog({
+      req,
+      user: req.user,
+      action: 'update',
+      resourceType: 'keyboard_language',
+      resourceId: userId,
+      oldData: { keyboard_language: old },
+      newData: { keyboard_language: code },
+    });
+
+    return res.status(200).json(meResponse(updated, updated.roles));
+  } catch (error) {
+    return res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
 const updateMyThemeColor = async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -517,6 +553,7 @@ module.exports = {
   getSetupStatus,
   updateMyUiMode,
   updateMyThemeColor,
+  updateMyKeyboardLanguage,
   updateMyPlatforms,
   changePassword,
 };
