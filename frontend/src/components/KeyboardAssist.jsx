@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Keyboard, Delete } from 'lucide-react';
 import api from '../lib/api';
-import { blocksLatin, composeKey, getLanguage, lookupEnglish, suggestKeywords, useKeyboardLanguage } from '../lib/keyboardLanguages';
+import { supportsTransliteration, transliterate } from '../lib/transliterate';
+import { composeKey, getLanguage, lookupEnglish, suggestKeywords, useKeyboardLanguage } from '../lib/keyboardLanguages';
 
 /**
  * Adds a keyboard icon to every search/filter input in the app.
@@ -69,21 +70,40 @@ function Assist({ input, lang }) {
     const onFocus = () => { setFocused(true); measure(); };
     const onBlur = () => setFocused(false);
     const onInput = () => setValue(input.value);
-    const strict = () =>
-      blocksLatin(langRef.current) &&
-      !input.hasAttribute('data-allow-any-language') &&
-      !/url|link/i.test(input.getAttribute('placeholder') || '');
+    // Phonetic typing: Latin letters from a normal keyboard become the selected script.
+    // st tracks the Latin letters of the word being typed and where its output sits.
+    const st = { buf: '', start: 0, outLen: 0, expected: null, caret: -1 };
+    const reset = () => { st.buf = ''; st.expected = null; };
+    const apply = (v, start, removeLen, out) => {
+      const next = v.slice(0, start) + out + v.slice(start + removeLen);
+      writeValue(input, next, start + out.length);
+      st.start = start;
+      st.outLen = out.length;
+      st.expected = next;
+      st.caret = start + out.length;
+    };
     const onBeforeInput = (e) => {
-      if (e.isComposing || !strict() || typeof e.data !== 'string') return;
-      if (/[A-Za-z]/.test(e.data)) {
+      const code = langRef.current;
+      if (e.isComposing || !supportsTransliteration(code) || input.hasAttribute('data-allow-any-language')
+        || /url|link/i.test(input.getAttribute('placeholder') || '')) { reset(); return; }
+      const v = input.value;
+      const s = input.selectionStart ?? v.length;
+      const en = input.selectionEnd ?? v.length;
+      const continuing = st.buf && v === st.expected && s === en && s === st.caret;
+      if (e.inputType === 'insertText' && typeof e.data === 'string' && /^[A-Za-z]$/.test(e.data)) {
         e.preventDefault();
-        const clean = e.data.replace(/[A-Za-z]/g, '');
-        if (clean) {
-          const v = input.value;
-          const s = input.selectionStart ?? v.length;
-          const en = input.selectionEnd ?? v.length;
-          writeValue(input, v.slice(0, s) + clean + v.slice(en), s + clean.length);
-        }
+        if (!continuing) { st.buf = ''; st.outLen = en - s; st.start = s; }
+        st.buf += e.data;
+        apply(v, st.start, continuing ? st.outLen : en - s, transliterate(code, st.buf));
+      } else if (e.inputType === 'deleteContentBackward' && continuing) {
+        e.preventDefault();
+        st.buf = st.buf.slice(0, -1);
+        const out = st.buf ? transliterate(code, st.buf) : '';
+        const len = st.outLen;
+        apply(v, st.start, len, out);
+        if (!st.buf) reset();
+      } else {
+        reset();
       }
     };
     input.addEventListener('beforeinput', onBeforeInput);

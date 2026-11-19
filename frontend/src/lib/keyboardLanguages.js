@@ -342,10 +342,6 @@ export function composeKey(code, before, key) {
   return code === 'ko' ? composeHangul(before, key) : before + key;
 }
 
-const LATIN_LANGS = new Set(['en', 'es', 'fr', 'de', 'pt', 'it', 'tr']);
-/** Non-Latin languages: Latin letters are not accepted in their search bars. */
-export const blocksLatin = (code) => !LATIN_LANGS.has(code);
-
 /** Instant English meaning for words found in the built-in keyword list. */
 export function lookupEnglish(code, text) {
   const col = COLS[code];

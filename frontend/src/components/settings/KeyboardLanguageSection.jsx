@@ -33,8 +33,8 @@ export default function KeyboardLanguageSection() {
           <div>
             <h3 className="text-sm font-semibold leading-none">Keyboard Language</h3>
             <p className="text-[11px] text-muted-foreground mt-1">
-              Pick the language for this tenant. Every search bar gets a keyboard icon with keys in that language, and
-              suggestions show the English translation.
+              Pick the language for this tenant. In every search bar, type with a normal English keyboard and it is converted
+              to that language as you type (e.g. "raamu" → రాము). The keyboard icon gives on-screen keys, and the English meaning is shown below.
             </p>
           </div>
         </div>
