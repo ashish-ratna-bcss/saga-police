@@ -154,7 +154,7 @@ function Assist({ input, lang }) {
     const t = window.setTimeout(async () => {
       try {
         const res = await api.get('/translate/to-english', { params: { text, lang } });
-        const english = String(res.data?.english || '').trim();
+        const english = String(res.data?.english || '').split(' / ')[0].trim();
         if (cancelled) return;
         if (english && english.toLowerCase() !== text.toLowerCase()) {
           setTranslation(english);
@@ -246,7 +246,7 @@ function Assist({ input, lang }) {
           </div>
           {showTranslation && (
             <div className="mb-1.5 rounded bg-muted px-2 py-1 text-[11px] text-muted-foreground">
-              English: <span className="font-medium text-foreground">{translation || (tStatus === 'loading' ? 'translating…' : '—')}</span>
+              <span className="font-medium text-foreground">{translation || (tStatus === 'loading' ? 'translating…' : '—')}</span>
             </div>
           )}
           <div className="max-h-56 space-y-1.5 overflow-y-auto">
@@ -282,15 +282,14 @@ function Assist({ input, lang }) {
         >
           {showTranslation && (
             <li className="border-b px-3 pb-1 text-[11px] text-muted-foreground">
-              English:{' '}
               {translation ? (
-                <span className="font-medium text-foreground">{translation}</span>
+                <span className="text-sm font-medium text-foreground">{translation}</span>
               ) : tStatus === 'loading' ? (
                 'translating…'
               ) : tStatus === 'unavailable' ? (
                 'translation unavailable'
               ) : (
-                'no change'
+                '—'
               )}
             </li>
           )}
@@ -302,7 +301,7 @@ function Assist({ input, lang }) {
                 className="flex w-full flex-col items-start px-3 py-1 text-left hover:bg-muted"
               >
                 <span className="text-sm">{s.text}</span>
-                {s.english && <span className="text-[11px] text-muted-foreground">English: {s.english}</span>}
+                {s.english && <span className="text-[11px] text-muted-foreground">{s.english}</span>}
               </button>
             </li>
           ))}
