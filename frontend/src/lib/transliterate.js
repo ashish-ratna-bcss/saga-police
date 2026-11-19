@@ -94,8 +94,12 @@ const SIMPLE = {
   ar: fold(`kh:خ sh:ش gh:غ th:ث dh:ذ a:ا b:ب t:ت j:ج H:ح d:د r:ر z:ز s:س S:ص D:ض T:ط Z:ظ f:ف q:ق k:ك l:ل m:م n:ن h:ه w:و y:ي c:ك p:ب v:ف g:ج x:كس e:ي i:ي o:و u:و`),
   ur: fold(`kh:خ sh:ش gh:غ zh:ژ ch:چ th:ث dh:ذ a:ا b:ب p:پ t:ت T:ٹ j:ج H:ح d:د D:ڈ r:ر R:ڑ z:ز s:س S:ص f:ف q:ق k:ک g:گ l:ل m:م n:ن N:ں h:ہ w:و y:ی v:و c:چ x:کس e:ے i:ی o:و u:و`),
   fa: fold(`kh:خ sh:ش gh:ق zh:ژ ch:چ th:ث a:ا b:ب p:پ t:ت j:ج H:ح d:د r:ر z:ز s:س S:ص f:ف q:ق k:ک g:گ l:ل m:م n:ن h:ه w:و v:و y:ی c:چ x:کس e:ی i:ی o:و u:و`),
+  ka: fold(`sh:შ ch:ჩ zh:ჟ ts:ც dz:ძ kh:ხ gh:ღ a:ა b:ბ g:გ d:დ e:ე v:ვ z:ზ t:თ i:ი k:კ l:ლ m:მ n:ნ o:ო p:პ r:რ s:ს u:უ f:ფ q:ქ j:ჯ h:ჰ c:ც w:ვ x:ხ y:ი T:ტ P:ფ K:ყ`),
+  hy: fold(`sh:շ ch:չ zh:ժ ts:ց dz:ձ kh:խ gh:ղ a:ա b:բ g:գ d:դ e:ե z:զ t:տ i:ի l:լ m:մ y:յ n:ն o:ո p:պ j:ջ r:ր s:ս v:վ u:ու f:ֆ k:կ h:հ c:ծ w:վ x:խ q:ք`),
   he: fold(`ts:צ sh:ש ch:ח a:א b:ב v:ו w:ו g:ג d:ד h:ה z:ז x:ח t:ט y:י k:כ l:ל m:מ n:נ s:ס o:ע p:פ q:ק r:ר T:ת c:כ f:פ j:ג e:א i:י u:ו`),
 };
+
+SIMPLE.uk = { ...SIMPLE.ru, ye: 'є', yi: 'ї', y: 'и', i: 'і', h: 'г', g: 'ґ', e: 'е' };
 
 function simple(table, buf) {
   let out = '';
@@ -170,11 +174,22 @@ function korean(buf) {
 
 /* ───────────── public API ───────────── */
 
-export const supportsTransliteration = (code) =>
-  Boolean(INDIC_OFFSET[code] || code === 'ta' || code === 'hi' || code === 'mr' || code === 'ne' || SIMPLE[code] || code === 'ja' || code === 'ko');
+/** Languages that share another language's typing rules. */
+const ALIAS = {
+  mai: 'hi', kok: 'hi', doi: 'hi', brx: 'hi', as: 'bn',
+  ps: 'ur', sd: 'ur', ks: 'ur', ku: 'ur',
+  bg: 'ru', sr: 'ru', mn: 'ru',
+};
+const eff = (code) => ALIAS[code] || code;
 
-export function transliterate(code, roman) {
-  if (!supportsTransliteration(code)) return null;
+export const supportsTransliteration = (raw) => {
+  const code = eff(raw);
+  return Boolean(INDIC_OFFSET[code] || code === 'ta' || code === 'hi' || code === 'mr' || code === 'ne' || SIMPLE[code] || code === 'ja' || code === 'ko');
+};
+
+export function transliterate(raw, roman) {
+  if (!supportsTransliteration(raw)) return null;
+  const code = eff(raw);
   if (code === 'ja') return japanese(roman);
   if (code === 'ko') return korean(roman);
   if (SIMPLE[code]) return simple(SIMPLE[code], roman);

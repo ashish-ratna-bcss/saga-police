@@ -9,6 +9,7 @@ export default function KeyboardLanguageSection() {
   const code = useKeyboardLanguage();
   const { updateKeyboardLanguage } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [q, setQ] = useState('');
   const setCode = async (next) => {
     if (next === code || saving) return;
     setSaving(true);
@@ -39,8 +40,19 @@ export default function KeyboardLanguageSection() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-          {KEYBOARD_LANGUAGES.map((l) => {
+        <input
+          data-no-keyboard
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={`Find a language (${KEYBOARD_LANGUAGES.length} available)`}
+          className="h-8 w-full max-w-xs rounded-md border bg-transparent px-3 text-xs"
+        />
+
+        <div className="grid max-h-[22rem] grid-cols-2 overflow-y-auto gap-2 sm:grid-cols-4 lg:grid-cols-6">
+          {KEYBOARD_LANGUAGES.filter((l) => {
+            const n = q.trim().toLowerCase();
+            return !n || l.label.toLowerCase().includes(n) || l.native.toLowerCase().includes(n) || l.code === n;
+          }).map((l) => {
             const selected = l.code === code;
             return (
               <button

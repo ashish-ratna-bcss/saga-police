@@ -3,6 +3,14 @@ import { useSyncExternalStore } from 'react';
 /** Keyboard languages + keyword suggestions for search bars. */
 
 const split = (s) => s.split(/\s+/).filter(Boolean);
+function unicodeRange(from, to, re = /\p{L}/u) {
+  const out = [];
+  for (let c = from; c <= to; c++) {
+    const ch = String.fromCodePoint(c);
+    if (re.test(ch)) out.push(ch);
+  }
+  return out;
+}
 function split2(s) { return s.split('|'); }
 
 export const KEYBOARD_LANGUAGES = [
@@ -224,6 +232,154 @@ export const KEYBOARD_LANGUAGES = [
       { title: 'Hiragana', keys: split('あ い う え お か き く け こ さ し す せ そ た ち つ て と な に ぬ ね の は ひ ふ へ ほ ま み む め も や ゆ よ ら り る れ ろ わ を ん') },
       { title: 'Katakana', keys: split('ア イ ウ エ オ カ キ ク ケ コ サ シ ス セ ソ タ チ ツ テ ト ナ ニ ヌ ネ ノ ハ ヒ フ ヘ ホ マ ミ ム メ モ ヤ ユ ヨ ラ リ ル レ ロ ワ ヲ ン ー') },
       { title: 'Marks', keys: split('゛ ゜'), sign: true },
+    ],
+  },
+  // ── more Latin-script languages ──
+  ...[
+    ['nl', 'Dutch', 'Nederlands', 'Zoeken', 'ë ï é è ó ü á'],
+    ['pl', 'Polish', 'Polski', 'Szukaj', 'ą ć ę ł ń ó ś ź ż'],
+    ['vi', 'Vietnamese', 'Tiếng Việt', 'Tìm kiếm', 'à á ả ã ạ ă ằ ắ ẳ ẵ ặ â ầ ấ ẩ ẫ ậ đ è é ẻ ẽ ẹ ê ề ế ể ễ ệ ì í ỉ ĩ ị ò ó ỏ õ ọ ô ồ ố ổ ỗ ộ ơ ờ ớ ở ỡ ợ ù ú ủ ũ ụ ư ừ ứ ử ữ ự ỳ ý ỷ ỹ ỵ'],
+    ['id', 'Indonesian', 'Bahasa Indonesia', 'Cari', ''],
+    ['ms', 'Malay', 'Bahasa Melayu', 'Cari', ''],
+    ['sw', 'Swahili', 'Kiswahili', 'Tafuta', ''],
+    ['tl', 'Tagalog', 'Tagalog', 'Maghanap', 'ñ'],
+    ['sv', 'Swedish', 'Svenska', 'Sök', 'å ä ö'],
+    ['cs', 'Czech', 'Čeština', 'Hledat', 'á č ď é ě í ň ó ř š ť ú ů ý ž'],
+    ['ro', 'Romanian', 'Română', 'Căutare', 'ă â î ș ț'],
+    ['hu', 'Hungarian', 'Magyar', 'Keresés', 'á é í ó ö ő ú ü ű'],
+    ['fi', 'Finnish', 'Suomi', 'Haku', 'ä ö å'],
+    ['no', 'Norwegian', 'Norsk', 'Søk', 'æ ø å'],
+    ['da', 'Danish', 'Dansk', 'Søg', 'æ ø å'],
+    ['ha', 'Hausa', 'Hausa', 'Bincika', 'ɓ ɗ ƙ ƴ'],
+  ].map(([code, label, native, sample, accents]) => ({
+    code, label, native, sample,
+    rows: [
+      { title: 'Letters', keys: split('a b c d e f g h i j k l m n o p q r s t u v w x y z') },
+      ...(accents ? [{ title: 'Accents', keys: split(accents) }] : []),
+      { title: 'Digits', keys: split('0 1 2 3 4 5 6 7 8 9') },
+    ],
+  })),
+  // ── Cyrillic ──
+  ...[
+    ['uk', 'Ukrainian', 'Українська', 'Пошук', 'а б в г ґ д е є ж з и і ї й к л м н о п р с т у ф х ц ч ш щ ь ю я'],
+    ['bg', 'Bulgarian', 'Български', 'Търсене', 'а б в г д е ж з и й к л м н о п р с т у ф х ц ч ш щ ъ ь ю я'],
+    ['sr', 'Serbian', 'Српски', 'Претрага', 'а б в г д ђ е ж з и ј к л љ м н њ о п р с т ћ у ф х ц ч џ ш'],
+    ['mn', 'Mongolian', 'Монгол', 'Хайх', 'а б в г д е ё ж з и й к л м н о ө п р с т у ү ф х ц ч ш щ ъ ы ь э ю я'],
+  ].map(([code, label, native, sample, letters]) => ({
+    code, label, native, sample,
+    rows: [
+      { title: 'Letters', keys: split(letters) },
+      { title: 'Digits', keys: split('0 1 2 3 4 5 6 7 8 9') },
+    ],
+  })),
+  // ── Arabic-script languages ──
+  ...[
+    ['ku', 'Kurdish (Sorani)', 'کوردی', 'گەڕان', 'ئ ا ب پ ت ج چ ح خ د ر ڕ ز ژ س ش ع غ ف ڤ ق ک گ ل ڵ م ن ه ە و ۆ ی ێ'],
+    ['ps', 'Pashto', 'پښتو', 'لټون', 'ا ب پ ت ټ ث ج چ څ ځ ح خ د ډ ذ ر ړ ز ژ ږ س ش ښ ص ض ط ظ ع غ ف ق ک ګ ل م ن ڼ ه و ی ې ي ۍ ئ'],
+    ['sd', 'Sindhi', 'سنڌي', 'ڳولا', 'ا ب ٻ ڀ ت ٽ ٿ ث ج ڄ ڃ چ ڇ ح خ د ڌ ڏ ڊ ذ ر ڙ ز س ش ص ض ط ظ ع غ ف ڦ ق ڪ ک گ ڳ ڱ ل م ن ڻ ه و ي'],
+    ['ks', 'Kashmiri', 'کٲشُر', 'ژھارو', 'ا ب پ ت ٹ ث ج چ ح خ د ڈ ذ ر ڑ ز ژ س ش ص ض ط ظ ع غ ف ق ک گ ل م ن ه ھ و ی ے ٲ ۆ ۄ'],
+  ].map(([code, label, native, sample, letters]) => ({
+    code, label, native, sample, rtl: true,
+    rows: [
+      { title: 'Letters', keys: split(letters) },
+      { title: 'Marks', keys: split('َ ُ ِ ً ٌ ٍ ّ ْ'), sign: true },
+      { title: 'Digits', keys: split('۰ ۱ ۲ ۳ ۴ ۵ ۶ ۷ ۸ ۹') },
+    ],
+  })),
+  // ── Devanagari-script languages (same layout as Hindi) ──
+  ...[
+    ['mai', 'Maithili', 'मैथिली', 'खोजू'],
+    ['kok', 'Konkani', 'कोंकणी', 'सोदचें'],
+    ['doi', 'Dogri', 'डोगरी', 'खोज'],
+    ['brx', 'Bodo', 'बर’', 'खोजा'],
+  ].map(([code, label, native, sample]) => ({
+    code, label, native, sample,
+    rows: [
+      { title: 'Vowels', keys: split('अ आ इ ई उ ऊ ऋ ए ऐ ओ औ अं अः') },
+      { title: 'Vowel signs', keys: split('ा ि ी ु ू ृ े ै ो ौ ं ः ् ँ'), sign: true },
+      { title: 'Consonants', keys: split('क ख ग घ ङ च छ ज झ ञ ट ठ ड ढ ण त थ द ध न प फ ब भ म य र ल व श ष स ह ळ') },
+      { title: 'Digits', keys: split('० १ २ ३ ४ ५ ६ ७ ८ ९') },
+    ],
+  })),
+  {
+    code: 'as', label: 'Assamese', native: 'অসমীয়া', sample: 'সন্ধান',
+    rows: [
+      { title: 'Vowels', keys: split('অ আ ই ঈ উ ঊ ঋ এ ঐ ও ঔ ং ঃ ঁ') },
+      { title: 'Vowel signs', keys: split('া ি ী ু ূ ৃ ে ৈ ো ৌ ্'), sign: true },
+      { title: 'Consonants', keys: split('ক খ গ ঘ ঙ চ ছ জ ঝ ঞ ট ঠ ড ঢ ণ ত থ দ ধ ন প ফ ব ভ ম য ৰ ল ৱ শ ষ স হ ক্ষ') },
+      { title: 'Digits', keys: split('০ ১ ২ ৩ ৪ ৫ ৬ ৭ ৮ ৯') },
+    ],
+  },
+  // ── Other scripts ──
+  {
+    code: 'my', label: 'Burmese', native: 'မြန်မာ', sample: 'ရှာဖွေရန်',
+    rows: [
+      { title: 'Consonants', keys: split('က ခ ဂ ဃ င စ ဆ ဇ ဈ ည ဋ ဌ ဍ ဎ ဏ တ ထ ဒ ဓ န ပ ဖ ဗ ဘ မ ယ ရ လ ဝ သ ဟ ဠ အ') },
+      { title: 'Vowels', keys: split('ဣ ဤ ဥ ဦ ဧ ဩ ဪ') },
+      { title: 'Signs', keys: split('ာ ါ ိ ီ ု ူ ေ ဲ ံ ့ း ် ျ ြ ွ ှ'), sign: true },
+      { title: 'Digits', keys: split('၀ ၁ ၂ ၃ ၄ ၅ ၆ ၇ ၈ ၉') },
+    ],
+  },
+  {
+    code: 'km', label: 'Khmer', native: 'ខ្មែរ', sample: 'ស្វែងរក',
+    rows: [
+      { title: 'Consonants', keys: split('ក ខ គ ឃ ង ច ឆ ជ ឈ ញ ដ ឋ ឌ ឍ ណ ត ថ ទ ធ ន ប ផ ព ភ ម យ រ ល វ ស ហ ឡ អ') },
+      { title: 'Vowels', keys: split('ឥ ឦ ឧ ឩ ឪ ឫ ឬ ឭ ឮ ឯ ឰ ឱ ឲ ឳ') },
+      { title: 'Signs', keys: split('ា ិ ី ឹ ឺ ុ ូ ួ ើ ឿ ៀ េ ែ ៃ ោ ៅ ំ ះ ៉ ៊ ់ ៍ ្'), sign: true },
+      { title: 'Digits', keys: split('០ ១ ២ ៣ ៤ ៥ ៦ ៧ ៨ ៩') },
+    ],
+  },
+  {
+    code: 'lo', label: 'Lao', native: 'ລາວ', sample: 'ຄົ້ນຫາ',
+    rows: [
+      { title: 'Consonants', keys: split('ກ ຂ ຄ ງ ຈ ສ ຊ ຍ ດ ຕ ຖ ທ ນ ບ ປ ຜ ຝ ພ ຟ ມ ຢ ຣ ລ ວ ຫ ອ ຮ') },
+      { title: 'Vowels', keys: split('ະ າ ຳ ເ ແ ໂ ໃ ໄ') },
+      { title: 'Marks', keys: split('ັ ິ ີ ຶ ື ຸ ູ ົ ຼ ່ ້ ໊ ໋ ໌'), sign: true },
+      { title: 'Digits', keys: split('໐ ໑ ໒ ໓ ໔ ໕ ໖ ໗ ໘ ໙') },
+    ],
+  },
+  {
+    code: 'bo', label: 'Tibetan', native: 'བོད་ཡིག', sample: 'འཚོལ།',
+    rows: [
+      { title: 'Consonants', keys: split('ཀ ཁ ག ང ཅ ཆ ཇ ཉ ཏ ཐ ད ན པ ཕ བ མ ཙ ཚ ཛ ཝ ཞ ཟ འ ཡ ར ལ ཤ ས ཧ ཨ') },
+      { title: 'Vowel signs', keys: split('ི ུ ེ ོ'), sign: true },
+      { title: 'Punctuation', keys: split('་ །') },
+      { title: 'Digits', keys: split('༠ ༡ ༢ ༣ ༤ ༥ ༦ ༧ ༨ ༩') },
+    ],
+  },
+  {
+    code: 'ka', label: 'Georgian', native: 'ქართული', sample: 'ძებნა',
+    rows: [
+      { title: 'Letters', keys: split('ა ბ გ დ ე ვ ზ თ ი კ ლ მ ნ ო პ ჟ რ ს ტ უ ფ ქ ღ ყ შ ჩ ც ძ წ ჭ ხ ჯ ჰ') },
+      { title: 'Digits', keys: split('0 1 2 3 4 5 6 7 8 9') },
+    ],
+  },
+  {
+    code: 'hy', label: 'Armenian', native: 'Հայերեն', sample: 'Որոնել',
+    rows: [
+      { title: 'Letters', keys: split('ա բ գ դ ե զ է ը թ ժ ի լ խ ծ կ հ ձ ղ ճ մ յ ն շ ո չ պ ջ ռ ս վ տ ր ց ւ փ ք օ ֆ') },
+      { title: 'Digits', keys: split('0 1 2 3 4 5 6 7 8 9') },
+    ],
+  },
+  {
+    code: 'am', label: 'Amharic', native: 'አማርኛ', sample: 'ፈልግ',
+    rows: [
+      { title: 'Syllables', keys: unicodeRange(0x1200, 0x135a) },
+      { title: 'Digits', keys: split('0 1 2 3 4 5 6 7 8 9') },
+    ],
+  },
+  {
+    code: 'sat', label: 'Santali (Ol Chiki)', native: 'ᱥᱟᱱᱛᱟᱲᱤ', sample: 'ᱥᱮᱸᱫᱽᱨᱟ',
+    rows: [
+      { title: 'Letters', keys: unicodeRange(0x1c5a, 0x1c7d) },
+      { title: 'Digits', keys: unicodeRange(0x1c50, 0x1c59, /\p{N}/u) },
+    ],
+  },
+  {
+    code: 'mni', label: 'Manipuri (Meitei Mayek)', native: 'ꯃꯤꯇꯩꯂꯣꯟ', sample: 'ꯊꯤꯕ',
+    rows: [
+      { title: 'Letters', keys: unicodeRange(0xabc0, 0xabe2) },
+      { title: 'Digits', keys: unicodeRange(0xabf0, 0xabf9, /\p{N}/u) },
     ],
   },
 ];
