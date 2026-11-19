@@ -22,6 +22,7 @@ import { cn } from '../../lib/utils';
 import { socialProfilesApi } from '../../api/socialProfiles.api';
 import GrievancesTab from './GrievancesTab';
 import { BlugateConnectCard, BlugatePlatformsTable, CustomEndpointsCard } from './PlatformIntegrations';
+import KeyboardLanguageSection from '../../components/settings/KeyboardLanguageSection';
 import AlertKeywordsSection from '../../components/settings/AlertKeywordsSection';
 import RiskLevelsCard, { riskLevelsValid } from '../../components/settings/RiskLevelsCard';
 import ViralAlertsCard, { viralAlertsValid } from '../../components/settings/ViralAlertsCard';
@@ -445,7 +446,7 @@ const PlaceholderSidebar = ({ onClose }) => {
 let _settingsCache = null;
 let _settingsCacheTime = 0;
 const SETTINGS_CACHE_TTL = 60_000; // 1 minute
-const VALID_TABS = ['general', 'templates', 'policies', 'theme', 'platforms', 'grievances'];
+const VALID_TABS = ['general', 'templates', 'policies', 'theme', 'platforms', 'grievances', 'keyboard'];
 
 const Settings = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -884,6 +885,7 @@ const Settings = () => {
             { value: 'policies', label: 'Policy Manager' },
             { value: 'grievances', label: 'Grievances' },
             { value: 'theme', label: 'Theme' },
+            { value: 'keyboard', label: 'Keyboard' },
           ].map((tab) => (
             <TabsTrigger
               key={tab.value}
@@ -1159,6 +1161,10 @@ const Settings = () => {
 
         <TabsContent value="policies" className="mt-0">
           <PolicyManager />
+        </TabsContent>
+
+        <TabsContent value="keyboard" className="space-y-4 mt-0">
+          <KeyboardLanguageSection />
         </TabsContent>
 
         <TabsContent value="theme" className="space-y-4 mt-0">

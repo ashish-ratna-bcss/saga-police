@@ -17,6 +17,9 @@ export const authApi = {
   updateUiMode: (ui_mode) =>
     apiHandler.patch('/me/ui-mode', { ui_mode }),
 
+  updateKeyboardLanguage: (keyboard_language) =>
+    apiHandler.patch('/me/keyboard-language', { keyboard_language }),
+
   updateThemeColor: (theme_color) =>
     apiHandler.patch('/me/theme-color', { theme_color }),
 

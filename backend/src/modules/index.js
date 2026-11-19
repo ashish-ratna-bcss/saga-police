@@ -34,6 +34,7 @@ const { scrapeRoutes } = require('./scrape');
 const { newsRoutes } = require('./news');
 const { searchRoutes } = require('./search');
 const { aiAssistantRoutes } = require('./ai-assistant');
+const { translateRoutes } = require('./translate/translate.routes');
 const { mediaRoutes } = require('./media');
 const { brandingRoutes } = require('./branding/branding.routes');
 const { auditRoutes } = require('./audit/audit.routes');
@@ -98,6 +99,7 @@ router.use('/scrape', scrapeRoutes);
 router.use('/news', newsRoutes);
 router.use('/search', searchRoutes);
 router.use('/ai-assistant', aiAssistantRoutes);
+router.use('/translate', translateRoutes);
 
 module.exports = {
   router,

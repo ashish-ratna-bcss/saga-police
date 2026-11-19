@@ -33,6 +33,7 @@ const USER_LIST_SELECT = {
   max_profiles: true,
   max_users: true,
   ui_mode: true,
+  keyboard_language: true,
   theme_color: true,
   application_details: true,
   port: true,

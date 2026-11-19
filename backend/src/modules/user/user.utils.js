@@ -52,6 +52,7 @@ const toPublicUser = (user, role, { creator = null } = {}) => {
     created_by: user.created_by ?? null,
     port: user.port ?? null,
     ui_mode: user.ui_mode === 'dark' ? 'dark' : 'light',
+    keyboard_language: user.keyboard_language || 'en',
     theme_color: extractThemeColor(user.theme_color),
     application_details: app,
     blurasagatitle: app.title,
