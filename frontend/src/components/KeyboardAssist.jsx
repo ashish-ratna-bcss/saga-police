@@ -14,7 +14,7 @@ import { composeKey, getLanguage, lookupEnglish, suggestKeywords, useKeyboardLan
  * Opt out with data-no-keyboard on an input.
  */
 
-const SEARCH_RE = /search|filter|find/i;
+const SEARCH_RE = /search|filter|find|keyword|query/i;
 const SKIP_TYPES = new Set(['password', 'email', 'number', 'date', 'file', 'checkbox', 'radio', 'hidden', 'range', 'color', 'time', 'tel']);
 
 const isSearchInput = (el) => {
@@ -23,7 +23,10 @@ const isSearchInput = (el) => {
   const type = (el.getAttribute('type') || 'text').toLowerCase();
   if (SKIP_TYPES.has(type)) return false;
   if (el.readOnly || el.disabled) return false;
-  return type === 'search' || SEARCH_RE.test(el.getAttribute('placeholder') || '');
+  if (type === 'search' || el.getAttribute('role') === 'searchbox' || el.inputMode === 'search') return true;
+  if (el.enterKeyHint === 'search' || el.closest('[role="search"], form[role="search"]')) return true;
+  return [el.getAttribute('placeholder'), el.getAttribute('aria-label'), el.getAttribute('name'), el.id]
+    .some((v) => SEARCH_RE.test(v || ''));
 };
 
 /** Set a React-controlled input's value and notify React. */
@@ -54,11 +57,26 @@ function Assist({ input, lang }) {
       setPos(null);
       return;
     }
+    // Controls overlaid on the right of the input (e.g. a "Search" button): keep the icon left of them.
+    let inset = 0;
+    const parent = input.parentElement;
+    if (parent) {
+      const ir = input.getBoundingClientRect();
+      let limit = ir.right;
+      Array.from(parent.children).forEach((el) => {
+        if (el === input || el.hasAttribute('data-keyboard-assist')) return;
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0 && r.left > ir.left + ir.width / 2 && r.left < limit
+          && r.top < ir.bottom && r.bottom > ir.top) limit = r.left;
+      });
+      inset = Math.max(0, Math.round(ir.right - limit));
+    }
     setPos({
       left: input.offsetLeft,
       top: input.offsetTop,
       width: input.offsetWidth,
       height: input.offsetHeight,
+      inset,
     });
   }, [input]);
 
@@ -206,7 +224,8 @@ function Assist({ input, lang }) {
 
   const lastToken = value.slice(0, input.selectionStart ?? value.length).split(/\s+/).pop();
   const suggestions = focused && !open ? suggestKeywords(lang, lastToken) : [];
-  const showTranslation = lang !== 'en' && value.trim().length > 0 && tStatus !== 'idle';
+  const showTranslation = lang !== 'en' && value.trim().length > 0
+    && (tStatus === 'loading' || (tStatus === 'done' && Boolean(translation)));
   const showPanel = focused && !open && (suggestions.length > 0 || showTranslation);
   const panelTop = pos.top + pos.height + 4;
   const panelLeft = Math.max(pos.left, 0);
@@ -221,7 +240,7 @@ function Assist({ input, lang }) {
         onClick={() => { measure(); setOpen((o) => !o); }}
         style={{
           position: 'absolute',
-          left: pos.left + pos.width - 28,
+          left: pos.left + pos.width - 28 - (pos.inset || 0),
           top: pos.top + (pos.height - 22) / 2,
           width: 22,
           height: 22,
