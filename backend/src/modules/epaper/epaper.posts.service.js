@@ -132,6 +132,15 @@ const toRow = (hit, full) => {
   };
 };
 
+/** A row worth keeping: has text, and is not the service's "[read failed …]" placeholder. */
+const READ_FAILED_RE = /^\s*\[read failed/i;
+const usableRow = (r) => {
+  const headline = (r.headline || '').trim();
+  const body = (r.body || '').trim();
+  if (READ_FAILED_RE.test(headline) || READ_FAILED_RE.test(body)) return false;
+  return Boolean(headline || body);
+};
+
 const upsertRows = async (prisma, rows, userId) => {
   let added = 0;
   const saved = [];
@@ -266,7 +275,7 @@ const fetchAndSave = async ({ db, userId, paper, dateFrom, dateTo, category, q, 
       }
     }
     return toRow(hit, full ? { body: full.body, byline: full.byline, dateline: full.dateline, lang: full.lang || hit.lang } : null);
-  })).filter(Boolean);
+  })).filter(Boolean).filter(usableRow);
 
   const { added, ids } = await upsertRows(prisma, rows, userId);
   let results = [];
@@ -381,8 +390,8 @@ const importJob = async ({ prisma, userId, jobId, fromPage, toPage }) => {
       .filter(Boolean);
   }
 
-  // Unread fragments (no headline and no text) are not posts.
-  rows = rows.filter((r) => (r.headline || '').trim() || (r.body || '').trim());
+  // Unread fragments and failed reads are not posts.
+  rows = rows.filter(usableRow);
   const { added, ids } = await upsertRows(prisma, rows, userId);
   return { found: rows.length, saved: rows.length, added, updated: rows.length - added, ids };
 };
@@ -428,7 +437,14 @@ const extractStatus = async ({ db, userId, jobId, fromPage, toPage }) => {
       summary.ids.map(String)
     );
   }
-  return { ...progress, found: summary.found, saved: summary.saved, added: summary.added, updated: summary.updated, results };
+  let reason = '';
+  if (summary.saved === 0) {
+    const health = await callService('/api/health').catch(() => null);
+    if (health && (health.vlm_ok === false || health.ocr_ok === false)) {
+      reason = 'The page-reading service (OCR and vision model) is offline, so the text on this page could not be read.';
+    }
+  }
+  return { ...progress, found: summary.found, saved: summary.saved, added: summary.added, updated: summary.updated, results, reason };
 };
 
 module.exports = { ensureTable, listPosts, getPost, fetchAndSave, startExtract, extractStatus, upsertRows, toRow };
