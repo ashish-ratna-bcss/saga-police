@@ -71,4 +71,55 @@ router.get('/to-english', authorize(), limiter, async (req, res) => {
   }
 });
 
+const ARTICLE_MAX_CHARS = 6000;
+const articleCache = new Map();
+
+/**
+ * POST /api/translate/article  { text, lang? }
+ * A whole news article → faithful English translation plus a short summary.
+ * (POST because articles are long; /api/translate is excluded from audit logging so article text
+ * is not copied into audit_logs.)
+ */
+router.post('/article', authorize(), rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many translation requests' },
+}), async (req, res) => {
+  const text = String(req.body?.text || '').trim().slice(0, ARTICLE_MAX_CHARS);
+  const lang = String(req.body?.lang || '').trim().toLowerCase();
+  if (!text) return res.json({ english: '', summary: '' });
+
+  const key = `a|${lang}|${text.length}|${text.slice(0, 80)}|${text.slice(-80)}`;
+  if (articleCache.has(key)) return res.json({ ...articleCache.get(key), cached: true });
+
+  const langName = LANG_NAMES[lang] || (lang ? lang : 'the original language');
+  try {
+    const out = await complete(
+      [
+        {
+          role: 'system',
+          content:
+            'You translate newspaper articles into English for police analysts. Translate faithfully: keep names, places, numbers, ranks and quotes exact; do not add or remove facts. '
+            + 'Reply in exactly this format and nothing else:\nTRANSLATION:\n<full English translation>\nSUMMARY:\n<two sentences in English>\n'
+            + 'If the text is already English, copy it into TRANSLATION unchanged.',
+        },
+        { role: 'user', content: `Language: ${langName}\n\n${text}` },
+      ],
+      { temperature: 0, maxTokens: 2200 }
+    );
+    const raw = out.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+    const m = raw.match(/TRANSLATION:\s*([\s\S]*?)\s*SUMMARY:\s*([\s\S]*)$/i);
+    const result = m
+      ? { english: m[1].trim(), summary: m[2].trim() }
+      : { english: raw.replace(/^TRANSLATION:\s*/i, '').trim(), summary: '' };
+    articleCache.set(key, result);
+    if (articleCache.size > 300) articleCache.delete(articleCache.keys().next().value);
+    return res.json(result);
+  } catch (error) {
+    return res.json({ english: '', summary: '', unavailable: true });
+  }
+});
+
 module.exports = { translateRoutes: router };

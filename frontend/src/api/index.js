@@ -12,6 +12,7 @@ export { default as eventsApi } from './events.api';
 export { scrapeApi } from './scrape.api';
 export { osintApi } from './osint.api';
 export { newsApi } from './news.api';
+export { epaperApi } from './epaper.api';
 export { aiAssistantApi } from './aiAssistant.api';
 
 export { default } from './apiHandler';

@@ -1,8 +1,9 @@
 {
   "ip": "100.49.109.96",
-  "web_root": "/mnt/data-migration/apps/blurasaga/frontend/build",
+  "web_root": "/data-migration/apps/blurasaga/frontend/build",
   "backend_bind": "127.0.0.1",
   "vllm_upstream": "127.0.0.1:8080",
+  "epaper_upstream": "127.0.0.1:8088",
   "frame_ancestors": [
     "'self'",
     "https://*.blurasaga.com",

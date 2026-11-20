@@ -31,6 +31,7 @@ const periscopeRoutes = require('./periscope/periscope.routes');
 const { uploadRoutes } = require('./uploads');
 
 const { scrapeRoutes } = require('./scrape');
+const { epaperRoutes } = require('./epaper');
 const { newsRoutes } = require('./news');
 const { searchRoutes } = require('./search');
 const { aiAssistantRoutes } = require('./ai-assistant');
@@ -96,6 +97,7 @@ router.use('/templates', templatesRoutes);
 
 router.use('/osint', osintRoutes);
 router.use('/scrape', scrapeRoutes);
+router.use('/epaper', epaperRoutes);
 router.use('/news', newsRoutes);
 router.use('/search', searchRoutes);
 router.use('/ai-assistant', aiAssistantRoutes);

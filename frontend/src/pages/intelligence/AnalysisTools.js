@@ -1,12 +1,13 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Globe, Newspaper, Radar } from 'lucide-react';
+import { BookOpen, Globe, Newspaper, Radar } from 'lucide-react';
 
 // Add a module here and a matching <Route> in App.js to extend the workbench.
 export const ANALYSIS_MODULES = [
   { to: '/analysis-tools/scrape', label: 'Scrape', desc: 'Crawl and extract web content', icon: Globe },
   { to: '/analysis-tools/osint', label: 'OSINT', desc: 'Investigations and identifier lookups', icon: Radar },
   { to: '/analysis-tools/news', label: 'News', desc: 'Live articles from news sources', icon: Newspaper },
+  { to: '/analysis-tools/epaper', label: 'E-Paper', desc: 'Newspaper briefing, search and translation', icon: BookOpen },
 ];
 
 const AnalysisTools = () => (
@@ -14,7 +15,7 @@ const AnalysisTools = () => (
     <aside className="shrink-0 md:w-56 border-b md:border-b-0 md:border-r border-border bg-card">
       <div className="hidden md:block px-3 pt-3 pb-2">
         <h1 className="text-base font-heading font-bold tracking-tight leading-none">Analysis Tools</h1>
-        <p className="text-[11px] text-muted-foreground mt-1">Module tools · Scrape / OSINT / News / Web / Alerts · Events</p>
+        <p className="text-[11px] text-muted-foreground mt-1">Module tools · Scrape / OSINT / News / E-Paper</p>
       </div>
       <nav className="flex md:flex-col gap-1 p-2 overflow-x-auto no-scrollbar">
         {ANALYSIS_MODULES.map(({ to, label, desc, icon: Icon }) => (
