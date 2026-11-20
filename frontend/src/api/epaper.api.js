@@ -96,6 +96,14 @@ export const epaperApi = {
   fetchPosts: async (payload) =>
     (await apiHandler.post('/epaper/posts/fetch', payload, { timeout: 180000 })).data,
 
+  /** Start reading a page / range / whole paper from the catalogue. Returns { job_id, kind }. */
+  extractPosts: async (payload) =>
+    (await apiHandler.post('/epaper/posts/extract', payload)).data,
+
+  /** Progress; once finished the posts are saved and returned in `results`. */
+  extractStatus: async (jobId, params = {}) =>
+    (await apiHandler.get(`/epaper/posts/extract/${encodeURIComponent(jobId)}`, { params })).data,
+
   categoryTree: async () =>
     (await apiHandler.get('/epaper/api/categories/tree')).data,
 

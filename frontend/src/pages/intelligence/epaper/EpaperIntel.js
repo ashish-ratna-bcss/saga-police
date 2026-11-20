@@ -255,113 +255,237 @@ const AllPostsTab = ({ refreshKey, onOpen }) => {
 
 /* ---------- Tab 2: fetch posts ---------- */
 
-const FALLBACK_CATEGORIES = ['crime', 'investigation', 'policing', 'security', 'traffic', 'court', 'politics', 'civic', 'business', 'education', 'health', 'sports', 'entertainment', 'accident', 'environment', 'agriculture', 'technology', 'religion', 'world', 'other'];
+const SCOPES = [
+  ['page', 'One page'],
+  ['range', 'Page range'],
+  ['whole', 'Whole paper'],
+];
+
+const Field = ({ title, children }) => (
+  <label className="block space-y-1 text-xs font-medium">{title}{children}</label>
+);
 
 const FetchTab = ({ onSaved, onOpen }) => {
   const [papers, setPapers] = useState([]);
-  const [cats, setCats] = useState(FALLBACK_CATEGORIES);
-  const [paper, setPaper] = useState(ALL);
-  const [category, setCategory] = useState(ALL);
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [q, setQ] = useState('');
-  const [limit, setLimit] = useState('100');
-  const [busy, setBusy] = useState(false);
-  const [res, setRes] = useState(null);
+  const [states, setStates] = useState([]);
+  const [state, setState] = useState(ALL);
+  const [host, setHost] = useState('');
+  const [editions, setEditions] = useState([]);
+  const [editionsLoading, setEditionsLoading] = useState(false);
+  const [titleId, setTitleId] = useState('');
+  const [dates, setDates] = useState([]);
+  const [datesLoading, setDatesLoading] = useState(false);
+  const [date, setDate] = useState('');
+  const [scope, setScope] = useState('page');
+  const [pageNo, setPageNo] = useState('1');
+  const [fromPage, setFromPage] = useState('1');
+  const [toPage, setToPage] = useState('8');
+  const [withText, setWithText] = useState(true);
+  const [starting, setStarting] = useState(false);
+  const [job, setJob] = useState(null); // latest status from the server
   const [error, setError] = useState('');
-  const [ran, setRan] = useState('');
 
   useEffect(() => {
-    epaperApi.papers().then((p) => setPapers(Array.isArray(p) ? p : [])).catch(() => setPapers([]));
-    epaperApi.categoryTree().then((t) => { if (Array.isArray(t?.parents) && t.parents.length) setCats(t.parents); }).catch(() => {});
+    Promise.all([epaperApi.papers().catch(() => []), epaperApi.beats().catch(() => [])]).then(([p, b]) => {
+      const list = Array.isArray(p) ? p : [];
+      setPapers(list);
+      const names = {};
+      (Array.isArray(b) ? b : []).forEach((x) => { if (x.state_code) names[x.state_code] = x.state; });
+      const codes = [...new Set(list.flatMap((x) => x.states || []))];
+      setStates(codes.map((c) => ({ code: c, name: names[c] || c })).sort((m, n) => m.name.localeCompare(n.name)));
+    });
   }, []);
+
+  const shownPapers = useMemo(
+    () => papers.filter((p) => state === ALL || p.national || (p.states || []).includes(state)),
+    [papers, state]
+  );
+
+  // paper -> editions
+  useEffect(() => {
+    setEditions([]); setTitleId(''); setDates([]); setDate('');
+    if (!host) return undefined;
+    let off = false;
+    setEditionsLoading(true);
+    epaperApi.editions(host)
+      .then((e) => { if (!off) setEditions(Array.isArray(e) ? e : []); })
+      .catch((e) => { if (!off) toast.error(errMsg(e, 'Could not load editions')); })
+      .finally(() => { if (!off) setEditionsLoading(false); });
+    return () => { off = true; };
+  }, [host]);
+
+  // edition -> dates
+  useEffect(() => {
+    setDates([]); setDate('');
+    if (!host || !titleId) return undefined;
+    let off = false;
+    setDatesLoading(true);
+    epaperApi.dates(host, titleId)
+      .then((d) => { if (!off) setDates(Array.isArray(d) ? d : []); })
+      .catch((e) => { if (!off) toast.error(errMsg(e, 'Could not load dates')); })
+      .finally(() => { if (!off) setDatesLoading(false); });
+    return () => { off = true; };
+  }, [host, titleId]);
+
+  const running = job && (job.status === 'queued' || job.status === 'running');
+
+  // poll the started job until it finishes
+  const jobId = job?.job_id;
+  useEffect(() => {
+    if (!jobId || !running) return undefined;
+    let off = false;
+    const tick = async () => {
+      try {
+        const st = await epaperApi.extractStatus(jobId, scope === 'range' ? { from_page: fromPage, to_page: toPage } : {});
+        if (off) return;
+        setJob(st);
+        if (st.status === 'done') {
+          if (st.saved > 0) { toast.success(`${st.saved} post${st.saved === 1 ? '' : 's'} saved (${st.added} new)`); onSaved(); }
+        } else if (st.status === 'error') {
+          setError(st.error || 'The page could not be read');
+        }
+      } catch (e) {
+        if (!off) { setError(errMsg(e, 'Lost contact with the E-Paper service')); setJob((j) => (j ? { ...j, status: 'error' } : j)); }
+      }
+    };
+    const timer = window.setInterval(tick, 3000);
+    return () => { off = true; window.clearInterval(timer); };
+  }, [jobId, running]); // eslint-disable-line
+
+  const edition = editions.find((e) => String(e.id) === String(titleId));
+  const canFetch = host && titleId && date && !starting && !running;
 
   const submit = async (e) => {
     e.preventDefault();
-    setBusy(true);
+    setStarting(true);
     setError('');
+    setJob(null);
     try {
-      const out = await epaperApi.fetchPosts({
-        ...(paper !== ALL ? { paper } : {}),
-        ...(category !== ALL ? { category } : {}),
-        ...(from ? { date_from: from } : {}),
-        ...(to ? { date_to: to } : {}),
-        ...(q.trim() ? { q: q.trim() } : {}),
-        limit: Number(limit),
+      const out = await epaperApi.extractPosts({
+        host,
+        title_id: titleId,
+        date,
+        edition: edition?.name || '',
+        scope,
+        page_no: Number(pageNo) || 1,
+        from_page: Number(fromPage) || 1,
+        to_page: Number(toPage) || 1,
+        with_text: withText,
       });
-      setRes(out);
-      setRan(q.trim());
-      if (out.saved > 0) {
-        toast.success(`${out.saved} post${out.saved === 1 ? '' : 's'} saved (${out.added} new)`);
-        onSaved();
-      }
+      setJob({ job_id: out.job_id, status: 'queued', stage: 'starting', kind: out.kind });
     } catch (err) {
-      setRes(null);
-      setError(errMsg(err, 'Could not fetch posts'));
+      setError(errMsg(err, 'Could not start the fetch'));
     } finally {
-      setBusy(false);
+      setStarting(false);
     }
   };
 
-  const words = useMemo(() => ran.split(/\s+/).filter(Boolean), [ran]);
+  const numberInput = (value, set, label) => (
+    <Input type="number" min={1} max={200} value={value} onChange={(e) => set(e.target.value)} className="h-9 text-xs" aria-label={label} />
+  );
 
   return (
     <div className="space-y-4">
-      <form onSubmit={submit} className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-3">
-        <label className="space-y-1 text-xs font-medium">Newspaper
-          <Select value={paper} onValueChange={setPaper}>
-            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Newspaper" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL} className="text-xs">Any newspaper</SelectItem>
-              {papers.map((p) => <SelectItem key={p.name} value={p.name} className="text-xs">{p.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </label>
-        <label className="space-y-1 text-xs font-medium">From date
-          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 text-xs" />
-        </label>
-        <label className="space-y-1 text-xs font-medium">To date
-          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 text-xs" />
-        </label>
-        <label className="space-y-1 text-xs font-medium">Category
-          <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Category" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL} className="text-xs">Any category</SelectItem>
-              {cats.map((c) => <SelectItem key={c} value={c} className="text-xs">{label(c)}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </label>
-        <label className="space-y-1 text-xs font-medium">Keyword (optional)
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search keyword, name or place" className="h-9 text-xs" />
-        </label>
-        <label className="space-y-1 text-xs font-medium">How many
-          <Select value={limit} onValueChange={setLimit}>
-            <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {['25', '50', '100', '200'].map((n) => <SelectItem key={n} value={n} className="text-xs">Up to {n} posts</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </label>
-        <div className="sm:col-span-2 lg:col-span-3">
-          <Button type="submit" className="h-9 gap-1.5 text-xs" disabled={busy}>
-            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-            {busy ? 'Fetching…' : 'Search and fetch'}
+      <form onSubmit={submit} className="space-y-4 rounded-xl border border-border bg-card p-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Field title="State">
+            <Select value={state} onValueChange={(v) => { setState(v); setHost(''); }}>
+              <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="State" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL} className="text-xs">All states</SelectItem>
+                {states.map((s) => <SelectItem key={s.code} value={s.code} className="text-xs">{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field title="Newspaper">
+            <Select value={host} onValueChange={setHost}>
+              <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select…" /></SelectTrigger>
+              <SelectContent>
+                {shownPapers.map((p) => <SelectItem key={p.host} value={p.host} className="text-xs">{p.name} ({p.lang})</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field title="Edition">
+            <Select value={titleId} onValueChange={setTitleId} disabled={!host || editionsLoading}>
+              <SelectTrigger className="h-9 text-xs"><SelectValue placeholder={!host ? 'Pick a newspaper' : editionsLoading ? 'Loading…' : 'Select…'} /></SelectTrigger>
+              <SelectContent>
+                {editions.map((x) => <SelectItem key={x.id} value={String(x.id)} className="text-xs">{x.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field title="Date">
+            <Select value={date} onValueChange={setDate} disabled={!titleId || datesLoading}>
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue placeholder={!titleId ? 'Pick an edition' : datesLoading ? 'Loading…' : dates.length ? 'Select…' : 'No free issues'} />
+              </SelectTrigger>
+              <SelectContent>
+                {dates.map((d) => <SelectItem key={d.date} value={d.date} className="text-xs">{fmtDate(d.date)}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="space-y-1">
+            <p className="text-xs font-medium">How much</p>
+            <div className="flex gap-1">
+              {SCOPES.map(([id, text]) => (
+                <button key={id} type="button" onClick={() => setScope(id)} aria-pressed={scope === id}
+                  className={`rounded-md border px-3 py-1.5 text-xs font-medium ${scope === id ? 'border-primary bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                  {text}
+                </button>
+              ))}
+            </div>
+          </div>
+          {scope === 'page' && <Field title="Page"><div className="w-24">{numberInput(pageNo, setPageNo, 'Page number')}</div></Field>}
+          {scope === 'range' && (
+            <>
+              <Field title="From page"><div className="w-24">{numberInput(fromPage, setFromPage, 'From page')}</div></Field>
+              <Field title="To page"><div className="w-24">{numberInput(toPage, setToPage, 'To page')}</div></Field>
+            </>
+          )}
+        </div>
+
+        {scope !== 'page' && (
+          <p className="text-[11px] text-muted-foreground">Each page is read in turn, roughly a minute per page. Pages already held are skipped.</p>
+        )}
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <label className="flex items-start gap-2 text-xs">
+            <input type="checkbox" checked={withText} onChange={(e) => setWithText(e.target.checked)} className="mt-0.5" />
+            <span>Read full article text<span className="block text-[11px] text-muted-foreground">Needed for categories and search (slower)</span></span>
+          </label>
+          <Button type="submit" className="h-9 gap-1.5 text-xs" disabled={!canFetch}>
+            {starting || running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            {starting ? 'Starting…' : running ? 'Fetching…' : 'Fetch posts'}
           </Button>
         </div>
       </form>
 
       {error && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-400">{error}</p>}
 
-      {res && (
-        res.found === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">No posts found for these filters.</p>
+      {running && (
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-xs">
+          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+          <div>
+            <p className="font-semibold">Reading {job.paper || 'the paper'}{job.edition ? ` · ${job.edition}` : ''}</p>
+            <p className="text-muted-foreground">
+              {job.stage || 'working'}
+              {job.n_pages ? ` · page ${Math.min(job.pages_done + 1, job.n_pages)} of ${job.n_pages}` : ''}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {job?.status === 'done' && (
+        job.saved === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">The page was read but no posts came out of it.</p>
         ) : (
           <>
             <p className="text-xs text-muted-foreground">
-              Found {res.found} · saved {res.saved} to the database ({res.added} new, {res.updated} already there)
+              {job.saved} post{job.saved === 1 ? '' : 's'} saved to the database ({job.added} new, {job.updated} already there)
             </p>
-            <div className="space-y-2">{res.results.map((p) => <PostCard key={p.id} post={p} words={words} onOpen={onOpen} />)}</div>
+            <div className="space-y-2">{(job.results || []).map((p) => <PostCard key={p.id} post={p} onOpen={onOpen} />)}</div>
           </>
         )
       )}

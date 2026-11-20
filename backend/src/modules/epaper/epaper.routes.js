@@ -51,6 +51,43 @@ router.get('/posts/:id', async (req, res) => {
   }
 });
 
+/** Start reading a page, page range or whole paper from the catalogue. Returns the job id to poll. */
+router.post('/posts/extract', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const out = await postsService.startExtract({
+      host: b.host,
+      titleId: b.title_id,
+      date: b.date,
+      edition: b.edition,
+      scope: ['page', 'range', 'whole'].includes(b.scope) ? b.scope : 'page',
+      pageNo: b.page_no,
+      fromPage: b.from_page,
+      toPage: b.to_page,
+      withText: b.with_text !== false,
+    });
+    return res.json(out);
+  } catch (error) {
+    return postsError(res, error, 'could not start the fetch');
+  }
+});
+
+/** Progress of a started fetch. When it finishes, its posts are saved (once) and returned. */
+router.get('/posts/extract/:jobId', async (req, res) => {
+  try {
+    const out = await postsService.extractStatus({
+      db: req.tenantPrisma,
+      userId: req.user?.id,
+      jobId: req.params.jobId,
+      fromPage: req.query.from_page,
+      toPage: req.query.to_page,
+    });
+    return res.json(out);
+  } catch (error) {
+    return postsError(res, error, 'could not read the fetch progress');
+  }
+});
+
 /** Fetch posts from the E-Paper service for the chosen filters, save them all, return them. */
 router.post('/posts/fetch', async (req, res) => {
   try {

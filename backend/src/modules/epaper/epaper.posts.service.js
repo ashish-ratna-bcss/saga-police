@@ -280,4 +280,155 @@ const fetchAndSave = async ({ db, userId, paper, dateFrom, dateTo, category, q, 
   return { found: hits.length, saved: rows.length, added, updated: rows.length - added, results };
 };
 
-module.exports = { ensureTable, listPosts, getPost, fetchAndSave, upsertRows, toRow };
+
+/* ───────────── Extract a page / edition from the catalogue, then save what it produced ───────────── */
+
+const postService = async (path, body) => {
+  const response = await forward({ method: 'POST', path, body });
+  const parsed = decode(response);
+  if (response.status >= 400) {
+    const err = new Error(
+      (parsed && (parsed.detail || parsed.error?.message || parsed.error)) || `E-Paper service returned ${response.status}`
+    );
+    err.status = response.status === 400 ? 400 : 502;
+    throw err;
+  }
+  return parsed;
+};
+
+const int = (v, min, max, fallback) => {
+  const n = Number.parseInt(v, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+};
+
+/** Start reading a page (or a page range / whole paper). Returns the service job id. */
+const startExtract = async ({ host, titleId, date, edition, scope = 'page', pageNo, fromPage, toPage, withText = true }) => {
+  const h = cleanText(host, 120);
+  const t = cleanText(titleId, 60);
+  if (!h || !/^[a-z0-9.-]+$/i.test(h)) {
+    const err = new Error('Pick a newspaper');
+    err.status = 400;
+    throw err;
+  }
+  if (!t) {
+    const err = new Error('Pick an edition');
+    err.status = 400;
+    throw err;
+  }
+  if (!cleanDate(date)) {
+    const err = new Error('Pick a date');
+    err.status = 400;
+    throw err;
+  }
+  const common = { host: h, title_id: t, date, edition: cleanText(edition, 120) };
+  if (scope === 'page') {
+    const out = await postService('/api/jobs/fetch', { ...common, page_no: int(pageNo, 1, 200, 1), with_text: Boolean(withText) });
+    return { job_id: out.job_id, kind: 'page' };
+  }
+  const range = scope === 'range'
+    ? { from_page: int(fromPage, 1, 200, 1), to_page: int(toPage, 1, 200, int(fromPage, 1, 200, 1)) }
+    : {};
+  const out = await postService('/api/jobs/ingest', { ...common, ...range });
+  return { job_id: out.job_id, kind: 'edition' };
+};
+
+const JOB_ID_RE = /^[a-f0-9]{6,32}$/i;
+const imported = new Map(); // job id -> summary (so polling does not re-import)
+
+const importJob = async ({ prisma, userId, jobId, fromPage, toPage }) => {
+  const data = await callService(`/api/jobs/${jobId}`);
+  const job = data?.job || {};
+  const papers = await callService('/api/papers').catch(() => []);
+  const lang = (Array.isArray(papers) ? papers : []).find((p) => p.name === job.paper)?.lang || null;
+
+  let rows = [];
+  const jobArticles = Array.isArray(data?.articles) ? data.articles : [];
+
+  if (job.kind === 'edition' || !jobArticles.length) {
+    // Range / whole-paper runs file their articles in the archive: pull them back by paper and day.
+    let hits = [];
+    for (let page = 1; page <= MAX_BROWSE_PAGES * 4; page += 1) {
+      const out = await callService('/api/browse', { paper: job.paper, date: job.date, page, per_page: 100 });
+      const got = Array.isArray(out?.results) ? out.results : [];
+      hits = hits.concat(got);
+      if (page >= (out?.pages || 1) || got.length === 0) break;
+    }
+    if (job.edition) hits = hits.filter((h) => !h.edition || h.edition === job.edition);
+    if (fromPage || toPage) {
+      const lo = fromPage || 1;
+      const hi = toPage || 9999;
+      hits = hits.filter((h) => !h.page_number || (h.page_number >= lo && h.page_number <= hi));
+    }
+    rows = (await mapPool(hits, ENRICH_CONCURRENCY, async (hit) => {
+      let full = null;
+      if (hit.uid) {
+        try { full = (await callService(`/api/article/${encodeURIComponent(hit.uid)}`))?.article || null; } catch { full = null; }
+      }
+      return toRow(hit, full ? { body: full.body, byline: full.byline, dateline: full.dateline, lang: full.lang || hit.lang } : null);
+    })).filter(Boolean);
+  } else {
+    rows = jobArticles
+      .map((a) => toRow({
+        ...a,
+        paper: job.paper,
+        edition: job.edition,
+        date: job.date,
+        page_number: job.page_no,
+        job_id: job.id,
+        lang: a.lang || lang,
+      }, null))
+      .filter(Boolean);
+  }
+
+  // Unread fragments (no headline and no text) are not posts.
+  rows = rows.filter((r) => (r.headline || '').trim() || (r.body || '').trim());
+  const { added, ids } = await upsertRows(prisma, rows, userId);
+  return { found: rows.length, saved: rows.length, added, updated: rows.length - added, ids };
+};
+
+/** Progress of a started job; when it has finished, saves its posts (once) and returns them. */
+const extractStatus = async ({ db, userId, jobId, fromPage, toPage }) => {
+  const prisma = dbOf(db);
+  await ensureTable(prisma);
+  if (!JOB_ID_RE.test(String(jobId || ''))) {
+    const err = new Error('Invalid job id');
+    err.status = 400;
+    throw err;
+  }
+  const data = await callService(`/api/jobs/${jobId}`);
+  const job = data?.job || {};
+  const progress = {
+    job_id: jobId,
+    status: job.status || 'queued',
+    stage: job.stage || '',
+    kind: job.kind || 'page',
+    n_pages: job.n_pages || 0,
+    pages_done: job.pages_done || 0,
+    pages_failed: job.pages_failed || 0,
+    pages_skipped: job.pages_skipped || 0,
+    paper: job.paper || '',
+    edition: job.edition || '',
+    date: job.date || '',
+  };
+  if (job.status === 'error') return { ...progress, error: job.error || 'The page could not be read' };
+  if (job.status !== 'done') return progress;
+
+  let summary = imported.get(jobId);
+  if (!summary) {
+    summary = await importJob({ prisma, userId, jobId, fromPage: int(fromPage, 0, 200, 0), toPage: int(toPage, 0, 200, 0) });
+    imported.set(jobId, summary);
+    if (imported.size > 60) imported.delete(imported.keys().next().value);
+  }
+  let results = [];
+  if (summary.ids.length) {
+    results = await prisma.$queryRawUnsafe(
+      `SELECT ${SELECT_COLS} FROM epaper_posts WHERE id = ANY($1::text[]::bigint[])
+       ORDER BY page_number ASC NULLS LAST, id ASC`,
+      summary.ids.map(String)
+    );
+  }
+  return { ...progress, found: summary.found, saved: summary.saved, added: summary.added, updated: summary.updated, results };
+};
+
+module.exports = { ensureTable, listPosts, getPost, fetchAndSave, startExtract, extractStatus, upsertRows, toRow };
