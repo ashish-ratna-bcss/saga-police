@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { readCatalogUrlFilters, matchPlatformSlug } from './catalogUrlFilters';
 import {
   Search, Plus, Pencil, Trash2, Loader2, PlayCircle, StopCircle,
   Twitter, Facebook, Instagram, Youtube, Globe2, Square, History, BarChart3, Download, Timer,
@@ -365,8 +366,10 @@ const SocialProfiles = () => {
   const [profiles, setProfiles] = useState([]);
   const [stats, setStats] = useState({ total: 0, active: 0, paused: 0, byPlatform: {} });
   const [loading, setLoading] = useState(true);
-  const [platformTab, setPlatformTab] = useState('all');
-  const [query, setQuery] = useState('');
+  // A link can open the catalog on one platform or with a search already typed
+  // (/social-profiles?platform=youtube, ?search=handle). Read once on open; the analyst can change both.
+  const [platformTab, setPlatformTab] = useState(() => readCatalogUrlFilters(location.search).platform || 'all');
+  const [query, setQuery] = useState(() => readCatalogUrlFilters(location.search).query);
   const [statusFilter, setStatusFilter] = useState('all');
 
   const [profileOpen, setProfileOpen] = useState(false);
@@ -454,6 +457,15 @@ const SocialProfiles = () => {
     const t = setTimeout(() => loadProfiles(), query ? 300 : 0);
     return () => clearTimeout(t);
   }, [loadProfiles, query]);
+
+  // The platforms load after the page opens. If a link asked for one that is spelled differently
+  // (twitter / x) use the configured spelling; if it is not configured here at all, fall back to "All"
+  // instead of leaving the analyst on an empty list with no tab selected.
+  useEffect(() => {
+    if (platformTab === 'all' || platforms.length === 0) return;
+    if (platforms.some((p) => p.slug === platformTab)) return;
+    setPlatformTab(matchPlatformSlug(platformTab, platforms) || 'all');
+  }, [platforms, platformTab]);
 
   const [editingProfileId, setEditingProfileId] = useState(null);
   const [editingSiblingIds, setEditingSiblingIds] = useState([]);

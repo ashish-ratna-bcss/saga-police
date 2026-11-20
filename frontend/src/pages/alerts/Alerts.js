@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { readAlertsUrlFilters } from './alertsUrlFilters';
 import api from '../../lib/api';
 import { AlertService } from '../../api';
 import { AlertTriangle, CheckCircle, Flag, XCircle, Zap, Activity, MessageSquare, Filter, ExternalLink, Search, Calendar, Download, Loader2, ArrowUpCircle, Plus, LayoutGrid, LayoutList, Users, X, Sparkles, Trash2, Pencil } from 'lucide-react';
@@ -89,10 +90,12 @@ export default function Alerts() {
   const [viewMode, setViewMode] = useState('grid');
   const [alertCategory, setAlertCategory] = useState('all'); // legacy — mirrors active exclusive dim
   // Applied Risk/Virality filters — drive fetch/cache; only changed via Apply Filters.
-  const [riskFilter, setRiskFilter] = useState('all'); // 'all' | 'low' | 'medium' | 'high'
+  // Risk can be preset by a link (e.g. the dashboard's Threat Vector Radar card: ?risk=high). It is read
+  // once when the page opens, so the analyst can still change or clear it afterwards.
+  const [riskFilter, setRiskFilter] = useState(() => readAlertsUrlFilters(searchParams).risk); // 'all' | 'low' | 'medium' | 'high'
   const [viralityFilter, setViralityFilter] = useState('all'); // 'all' | 'low' | 'medium' | 'high'
   // Draft Risk/Virality dropdown values — local UI state only, independent of each other.
-  const [draftRiskFilter, setDraftRiskFilter] = useState('all');
+  const [draftRiskFilter, setDraftRiskFilter] = useState(() => readAlertsUrlFilters(searchParams).risk);
   const [draftViralityFilter, setDraftViralityFilter] = useState('all');
 
   const applyRiskViralityFilters = useCallback(() => {
@@ -160,6 +163,9 @@ export default function Alerts() {
   const [keywordBusyId, setKeywordBusyId] = useState(null);
   const [sourceCategoryFilter, setSourceCategoryFilter] = useState('all');
   const [dateRange, setDateRange] = useState(() => {
+    // A link (dashboard card) can ask for the period it counted: ?range=24h|7d|30d|all.
+    const fromUrl = readAlertsUrlFilters(searchParams).dateRange;
+    if (fromUrl) return fromUrl;
     const toYmd = (d) => {
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, '0');

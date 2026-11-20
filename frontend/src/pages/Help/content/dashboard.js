@@ -100,7 +100,7 @@ const dashboard = {
           type: 'table',
           head: ['Card', 'Number shown', 'Opens'],
           rows: [
-            ['**Threat Vector Radar**', 'High / Critical open alerts. The line under it counts alerts still unacknowledged in the queue.', 'Alerts'],
+            ['**Threat Vector Radar**', 'High / Critical open alerts. The line under it counts alerts still unacknowledged in the queue. Click it to open Alerts already filtered to high risk, for the period and platform you picked at the top.', 'Alerts'],
             ['**Surveillance Fleet**', 'Profiles being actively monitored, out of the total target profiles.', 'Social Profiles'],
             ['**Monitored Events**', 'Events that are currently live, out of all events.', 'Events'],
             ['**Citizen Grievances**', 'Open grievances. The line under it counts those escalated to an intermediary.', 'Grievances'],
@@ -200,7 +200,7 @@ const dashboard = {
         {
           type: 'p',
           text:
-            'The **Tactical OSINT Launchpad** card holds shortcut buttons, including **Global Search**, **POI Watchlist**, **Profile Catalog**, **Analytics Hub** and **Web Intel**.',
+            'The **Tactical OSINT Launchpad** card holds shortcut buttons, including **Global Search**, **POI Watchlist**, **Profile Catalog**, **Analytics Hub** and **Dial 100 Police**.',
         },
       ],
     },
