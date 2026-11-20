@@ -667,6 +667,8 @@ const EventKeywordsFields = ({
         location: String(location).trim(),
         description: String(description).trim(),
         languages: allPicked ? ['all'] : languages,
+        include_social: true,
+        search_engine: 'all',
       });
       const hashtags = Array.isArray(res?.data?.hashtags)
         ? res.data.hashtags.map((t) => String(t || '').trim()).filter(Boolean)
@@ -733,7 +735,7 @@ const EventKeywordsFields = ({
                   disabled={!canGenerate || generating}
                   title={
                     canGenerate
-                      ? 'Suggests keywords and hashtags from the event name, location and description'
+                      ? 'Suggests keywords and hashtags via Wigolo /event-terms, derived entities, and local news'
                       : 'Fill Event Name, Location, and Description first'
                   }
                   className={cn(

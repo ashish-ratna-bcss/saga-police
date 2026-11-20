@@ -46,9 +46,15 @@ function buildTenantConnectionString(dbName) {
   try {
     const urlObj = new URL(mainUrl);
     urlObj.pathname = `/${dbName}`;
+    // Tenant DBs use public schema; main registry may use multitenancy_saga.
+    urlObj.searchParams.set('schema', 'public');
     return urlObj.toString();
   } catch (err) {
-    return mainUrl.replace(/\/([a-zA-Z0-9_\-]+)(\?|$)/, `/${dbName}$2`);
+    const swapped = mainUrl.replace(/\/([a-zA-Z0-9_\-]+)(\?|$)/, `/${dbName}$2`);
+    if (/([?&])schema=/.test(swapped)) {
+      return swapped.replace(/([?&])schema=[^&]*/, '$1schema=public');
+    }
+    return swapped.includes('?') ? `${swapped}&schema=public` : `${swapped}?schema=public`;
   }
 }
 

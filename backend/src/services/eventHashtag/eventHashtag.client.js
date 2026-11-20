@@ -30,9 +30,21 @@ const pickBody = (payload = {}) => {
   const wantAll = chosenSet.has('all');
   const others = wantAll ? ['all'] : [...chosenSet].filter((c) => c !== 'en');
   const body = { event, location, description, languages: others.length ? others : ['en'] };
-  Object.defineProperty(body, '_choice', { value: { wantEnglish: wantAll || chosenSet.has('en'), onlyEnglish: !wantAll && !others.length, codes: wantAll ? null : others }, enumerable: false });
-  if (payload.include_social != null) body.include_social = Boolean(payload.include_social);
-  if (payload.search_engine != null) body.search_engine = String(payload.search_engine);
+  Object.defineProperty(body, '_choice', {
+    value: {
+      wantEnglish: wantAll || chosenSet.has('en'),
+      onlyEnglish: !wantAll && !others.length,
+      codes: wantAll ? null : others,
+    },
+    enumerable: false,
+  });
+
+  // Wigolo-only flag (no BluGate). ON by default so /event-terms may use its web corpus.
+  const includeSocial =
+    payload.include_social == null ? true : Boolean(payload.include_social);
+  body.include_social = includeSocial;
+  body.search_engine = String(payload.search_engine || 'all');
+
   if (payload.max_keywords != null) body.max_keywords = Number(payload.max_keywords);
   if (payload.max_hashtags != null) body.max_hashtags = Number(payload.max_hashtags);
   return body;
@@ -77,7 +89,7 @@ const { curateEventTerms } = require('./eventHashtag.curator');
 
 /**
  * POST /event-terms — hashtags + keywords for event Keywords field.
- * Candidate terms are filtered deterministically (no LLM) for event relevance.
+ * Pipeline (no BluGate): Wigolo /event-terms → derived + local news_articles → quality curation → optional LLM re-rank.
  */
 const generateEventTerms = async (payload, { db } = {}) => {
   const body = pickBody(payload);
@@ -96,44 +108,90 @@ const generateEventTerms = async (payload, { db } = {}) => {
     throw err;
   }
   if (res.status >= 400) forwardError(res);
-  
+
   const rawTerms = {
     hashtags: Array.isArray(res.data?.hashtags) ? res.data.hashtags : [],
     keywords: Array.isArray(res.data?.keywords) ? res.data.keywords : [],
   };
 
   const choice = body._choice || { wantEnglish: true, onlyEnglish: false };
-  const curated = await curateEventTerms(db, body, rawTerms, { acceptOtherScripts: !choice.onlyEnglish });
+  const curated = await curateEventTerms(db, body, rawTerms, {
+    acceptOtherScripts: !choice.onlyEnglish,
+    includeSocial: body.include_social,
+    maxHashtags: body.max_hashtags || 24,
+    maxKeywords: body.max_keywords || 24,
+  });
+
   return applyLanguageChoice(curated, choice);
 };
 
 /** True when the term has letters outside the Latin script (Hindi, Odia, Bengali ...), also inside a mixed term. */
 const hasOtherScript = (term) => /\p{L}/u.test(String(term || '').replace(/\p{Script=Latin}/gu, ''));
 
-/**
- * Applies the English choice: English terms are the ones written only in Latin letters.
- * English unticked removes them; English only keeps nothing else.
- */
 // Writing system of each generator language code (Hindi and Marathi share Devanagari).
-const SCRIPT_OF_CODE = { or: 'Oriya', ta: 'Tamil', te: 'Telugu', kn: 'Kannada', ml: 'Malayalam', mr: 'Devanagari', hi: 'Devanagari', gu: 'Gujarati', bn: 'Bengali', pa: 'Gurmukhi' };
-const SCRIPT_RE = Object.fromEntries(Object.values(SCRIPT_OF_CODE).map((n) => [n, new RegExp(`\\p{Script=${n}}`, 'u')]));
+const SCRIPT_OF_CODE = {
+  or: 'Oriya',
+  ta: 'Tamil',
+  te: 'Telugu',
+  kn: 'Kannada',
+  ml: 'Malayalam',
+  mr: 'Devanagari',
+  hi: 'Devanagari',
+  gu: 'Gujarati',
+  bn: 'Bengali',
+  pa: 'Gurmukhi',
+};
+const SCRIPT_RE = Object.fromEntries(
+  Object.values(SCRIPT_OF_CODE).map((n) => [n, new RegExp(`\\p{Script=${n}}`, 'u')])
+);
 
 /** True when every non-Latin letter of the term is in one of the chosen scripts. */
-const onlyChosenScripts = (term, scripts) => [...String(term || '')].every((ch) => {
-  if (!/\p{L}/u.test(ch) || /\p{Script=Latin}/u.test(ch)) return true;
-  return scripts.some((n) => SCRIPT_RE[n] && SCRIPT_RE[n].test(ch));
-});
+const onlyChosenScripts = (term, scripts) =>
+  [...String(term || '')].every((ch) => {
+    if (!/\p{L}/u.test(ch) || /\p{Script=Latin}/u.test(ch)) return true;
+    return scripts.some((n) => SCRIPT_RE[n] && SCRIPT_RE[n].test(ch));
+  });
 
+/**
+ * Applies the English choice to string lists and tagged items.
+ */
 const applyLanguageChoice = (terms, { wantEnglish = true, onlyEnglish = false, codes = null } = {}) => {
-  const scripts = Array.isArray(codes) ? [...new Set(codes.map((c) => SCRIPT_OF_CODE[c]).filter(Boolean))] : null;
+  const scripts = Array.isArray(codes)
+    ? [...new Set(codes.map((c) => SCRIPT_OF_CODE[c]).filter(Boolean))]
+    : null;
   const keep = (t) => {
     if (onlyEnglish) return !hasOtherScript(t);
     if (!wantEnglish && !hasOtherScript(t)) return false;
-    // The generator always adds the location's own language; terms in a script that was not chosen are removed.
     if (scripts && scripts.length && !onlyChosenScripts(t, scripts)) return false;
     return true;
   };
-  return { hashtags: (terms.hashtags || []).filter(keep), keywords: (terms.keywords || []).filter(keep) };
+
+  const filterItems = (list) =>
+    (list || []).filter((item) => keep(item?.term || item));
+
+  const hasTaggedItems =
+    Array.isArray(terms.items?.keywords) || Array.isArray(terms.items?.hashtags);
+
+  if (!hasTaggedItems) {
+    // Legacy shape used by unit tests / older callers.
+    return {
+      hashtags: (terms.hashtags || []).filter(keep),
+      keywords: (terms.keywords || []).filter(keep),
+    };
+  }
+
+  const keywordsItems = filterItems(terms.items?.keywords);
+  const hashtagsItems = filterItems(terms.items?.hashtags);
+
+  return {
+    hashtags: hashtagsItems.map((i) => i.term),
+    keywords: keywordsItems.map((i) => i.term),
+    items: {
+      hashtags: hashtagsItems,
+      keywords: keywordsItems,
+    },
+    meta: terms.meta || {},
+  };
 };
 
 module.exports = {
