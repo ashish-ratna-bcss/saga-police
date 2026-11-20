@@ -39,7 +39,7 @@ curl -s http://127.0.0.1:2001/health
   "event": "CJP Demand - Education Minister's Resignation",
   "location": "Odisha",
   "description": "Campaign demanding resignation over textbook / education issues.",
-  "include_social": false,
+  "include_social": true,
   "search_engine": "all",
   "max_hashtags": 30,
   "max_keywords": 30
@@ -51,10 +51,12 @@ curl -s http://127.0.0.1:2001/health
 | `event` | yes | Event name / topic |
 | `location` | yes | Place / state |
 | `description` | yes | Short context |
-| `include_social` | no | default `false` |
+| `include_social` | no | default `true` (Wigolo flag only; no BluGate) |
 | `search_engine` | no | default `"all"` |
 | `max_hashtags` | no | cap hashtag list |
 | `max_keywords` | no | cap keyword list |
+
+App-side pipeline after Wigolo (no BluGate): internal derived entity terms, local `news_articles` enrichment, fragment filtering, quality ranking, optional LLM re-rank. Response includes `items[].source` (`event` / `derived` / `web` / `news`) and `meta`.
 
 ### Success — `200`
 

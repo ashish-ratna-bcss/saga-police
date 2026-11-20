@@ -188,7 +188,15 @@ async function ensureEmbeddingsSchema(prisma, opts = {}) {
 
   const dims = embeddingDimensions();
 
-  await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS vector`);
+  try {
+    await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS vector`);
+  } catch (err) {
+    console.warn(
+      `[embeddings] pgvector not available (${err?.message || err}). ` +
+        `Skipping embeddings schema — install the vector extension to enable AI retrieval.`
+    );
+    return;
+  }
   await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
   try {
     await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pg_gembed`);
