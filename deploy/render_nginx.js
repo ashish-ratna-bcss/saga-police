@@ -149,6 +149,13 @@ function loadSites(filePath) {
   }
   data.vllm_upstream = vllm;
 
+  const epaper = String(data.epaper_upstream || '').trim();
+  if (epaper && !UPSTREAM_RE.test(epaper)) {
+    console.error(`Error: Invalid epaper_upstream: ${JSON.stringify(epaper)}`);
+    process.exit(1);
+  }
+  data.epaper_upstream = epaper;
+
   return data;
 }
 
@@ -222,7 +229,28 @@ function frameAncestorsCsp(data, site = {}) {
   return `frame-ancestors ${ancestors.join(' ')};`;
 }
 
-function appLocations({ bind, backendPort, webRoot, frameAncestorsCspValue }) {
+function epaperLocation(upstream) {
+  if (!upstream) return '';
+  // Strip /epaper prefix so the upstream (root-mounted SPA + /api) keeps working.
+  // Frontend assets/API calls must be built with base `/epaper/` (see e-paper vite config).
+  const loc = proxyBlock(`http://${upstream}/`, '        ', true);
+  return `
+    location = /epaper {
+        return 301 /epaper/;
+    }
+
+    location /epaper/ {
+        client_max_body_size 100m;
+${loc}
+        # Allow embedding inside Tools → E-Paper (same origin).
+        proxy_hide_header X-Frame-Options;
+        proxy_hide_header Content-Security-Policy;
+        add_header Content-Security-Policy "frame-ancestors 'self';" always;
+    }
+`;
+}
+
+function appLocations({ bind, backendPort, webRoot, frameAncestorsCspValue, epaperUpstream = '' }) {
   const loc = proxyBlock(`http://${bind}:${backendPort}`);
   return `    root ${webRoot};
     index index.html;
@@ -232,7 +260,7 @@ function appLocations({ bind, backendPort, webRoot, frameAncestorsCspValue }) {
     # Prefer CSP frame-ancestors over obsolete X-Frame-Options (no DENY/SAMEORIGIN/ALLOW-FROM).
     add_header Content-Security-Policy "${frameAncestorsCspValue}" always;
     add_header Referrer-Policy strict-origin-when-cross-origin always;
-
+${epaperLocation(epaperUpstream)}
     location /api/ {
 ${loc}
     }
@@ -271,6 +299,7 @@ function serverBlock({
   sslCertificate = '',
   sslCertificateKey = '',
   frameAncestorsCspValue = "frame-ancestors 'self';",
+  epaperUpstream = '',
 }) {
   const listenFlag = defaultServer ? ' default_server' : '';
   const isSsl = Boolean(sslCertificate && sslCertificateKey);
@@ -297,7 +326,7 @@ function serverBlock({
     ];
   }
 
-  const body = appLocations({ bind, backendPort, webRoot, frameAncestorsCspValue });
+  const body = appLocations({ bind, backendPort, webRoot, frameAncestorsCspValue, epaperUpstream });
   return `server {
 ${listenLines.join('\n')}
     server_name ${serverName};
@@ -331,11 +360,12 @@ function httpDomainBlock({
   backendPort,
   forceHttps,
   frameAncestorsCspValue = "frame-ancestors 'self';",
+  epaperUpstream = '',
 }) {
   if (forceHttps) {
     return httpRedirectBlock(domain);
   }
-  const body = appLocations({ bind, backendPort, webRoot, frameAncestorsCspValue });
+  const body = appLocations({ bind, backendPort, webRoot, frameAncestorsCspValue, epaperUpstream });
   return `server {
     listen 80;
     listen [::]:80;
@@ -399,6 +429,8 @@ function render(data, webRoot) {
     const serverName = ip !== '_' ? ip : '_';
     const frameAncestorsCspValue = frameAncestorsCsp(data, s);
 
+    const epaperUpstream = data.epaper_upstream || '';
+
     parts.push(
       serverBlock({
         listen: String(frontendPort),
@@ -407,6 +439,7 @@ function render(data, webRoot) {
         bind,
         backendPort,
         frameAncestorsCspValue,
+        epaperUpstream,
       })
     );
 
@@ -420,6 +453,7 @@ function render(data, webRoot) {
           backendPort,
           forceHttps: Boolean(cert && key && s.force_https),
           frameAncestorsCspValue,
+          epaperUpstream,
         })
       );
 
@@ -434,6 +468,7 @@ function render(data, webRoot) {
             sslCertificate: cert,
             sslCertificateKey: key,
             frameAncestorsCspValue,
+            epaperUpstream,
           })
         );
       }
@@ -471,6 +506,9 @@ function main() {
   console.log(`Wrote ${outPath} (${data.sites.length} site(s))`);
   if (data.vllm_upstream) {
     console.log(`  vLLM default :80 → http://${data.vllm_upstream}/`);
+  }
+  if (data.epaper_upstream) {
+    console.log(`  E-Paper /epaper/ → http://${data.epaper_upstream}/`);
   }
   for (const s of data.sites) {
     let extra = s.domain ? `  domain=${s.domain}` : '  (set domain later)';

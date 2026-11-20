@@ -160,6 +160,7 @@ const SKIP_PREFIXES = [
   '/api/branding',
   '/api/health',
   '/api/audit',
+  '/api/translate',
 ];
 
 const shouldSkipAuditPath = (path) => {
