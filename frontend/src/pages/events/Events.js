@@ -3644,6 +3644,7 @@ const Events = () => {
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Suggested keywords</Label>
               <Input
+                data-keyboard
                 placeholder="e.g. Republic Day, parade, 26 January"
                 value={hcpForm.keywords}
                 onChange={(e) => setHcpForm({ ...hcpForm, keywords: e.target.value })}

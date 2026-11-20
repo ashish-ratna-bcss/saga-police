@@ -1491,6 +1491,7 @@ const GlobalSearch = () => {
                             <div className="relative flex-1 min-w-0">
                                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
+                                    data-keyboard
                                     placeholder="Enter suspect name, handle (e.g. @odishapolice), channel ID, or organization…"
                                     className="pl-10 pr-9 bg-background border-border text-xs sm:text-sm rounded-lg h-10 transition-all font-normal placeholder:text-muted-foreground/70"
                                     value={query}

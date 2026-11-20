@@ -23,6 +23,7 @@ const isSearchInput = (el) => {
   const type = (el.getAttribute('type') || 'text').toLowerCase();
   if (SKIP_TYPES.has(type)) return false;
   if (el.readOnly || el.disabled) return false;
+  if (el.hasAttribute('data-keyboard')) return true;
   if (type === 'search' || el.getAttribute('role') === 'searchbox' || el.inputMode === 'search') return true;
   if (el.enterKeyHint === 'search' || el.closest('[role="search"], form[role="search"]')) return true;
   return [el.getAttribute('placeholder'), el.getAttribute('aria-label'), el.getAttribute('name'), el.id]
@@ -109,6 +110,7 @@ function Assist({ input, lang }) {
       const en = input.selectionEnd ?? v.length;
       const continuing = st.buf && v === st.expected && s === en && s === st.caret;
       if (e.inputType === 'insertText' && typeof e.data === 'string' && /^[A-Za-z]$/.test(e.data)) {
+        if (!continuing && /^(@|#?https?|www\.)/i.test(v.slice(0, s).split(/\s/).pop())) { reset(); return; }
         e.preventDefault();
         if (!continuing) { st.buf = ''; st.outLen = en - s; st.start = s; }
         st.buf += e.data;
