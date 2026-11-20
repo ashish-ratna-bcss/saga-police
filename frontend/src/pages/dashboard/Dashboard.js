@@ -982,8 +982,10 @@ const OperationsDashboard = () => {
       {/* 2. 5 CORE OPERATIONS KPI CARDS */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
         <Link
-          // Opens Alerts on high-risk only, for the same period and platform the card counted.
-          to={buildAlertsLink({ risk: 'high', range, platform })}
+          // Opens Alerts on high-risk only, for the exact window and platform the card counted. The window
+          // is the server's own (overview.from/to/range), not the button pressed: "All" is currently served
+          // as 7 days, and the card must link to whatever it actually counted.
+          to={buildAlertsLink({ risk: 'high', range: overview.range || range, platform, from: overview.from, to: overview.to })}
           className="group flex flex-col justify-between p-3.5 rounded-xl border border-border/70 bg-card hover:border-rose-500/50 hover:shadow-md transition-all cursor-pointer"
         >
           <div className="flex items-center justify-between gap-1 mb-2">

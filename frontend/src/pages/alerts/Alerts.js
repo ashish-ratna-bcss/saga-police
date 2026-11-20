@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { readAlertsUrlFilters } from './alertsUrlFilters';
+import { readAlertsUrlFilters, describeRaisedWindow } from './alertsUrlFilters';
 import api from '../../lib/api';
 import { AlertService } from '../../api';
 import { AlertTriangle, CheckCircle, Flag, XCircle, Zap, Activity, MessageSquare, Filter, ExternalLink, Search, Calendar, Download, Loader2, ArrowUpCircle, Plus, LayoutGrid, LayoutList, Users, X, Sparkles, Trash2, Pencil } from 'lucide-react';
@@ -96,6 +96,10 @@ export default function Alerts() {
   const [viralityFilter, setViralityFilter] = useState('all'); // 'all' | 'low' | 'medium' | 'high'
   // Draft Risk/Virality dropdown values — local UI state only, independent of each other.
   const [draftRiskFilter, setDraftRiskFilter] = useState(() => readAlertsUrlFilters(searchParams).risk);
+  // Set by a dashboard link: only alerts RAISED inside this exact window, i.e. exactly what the card counted.
+  // (The From/To dates below filter by when the POST was published, which is a different thing.)
+  // Cleared by the chip, by Reset, or as soon as the analyst picks their own dates.
+  const [raisedWindow, setRaisedWindow] = useState(() => readAlertsUrlFilters(searchParams).raisedWindow);
   const [draftViralityFilter, setDraftViralityFilter] = useState('all');
 
   const applyRiskViralityFilters = useCallback(() => {
@@ -108,6 +112,7 @@ export default function Alerts() {
     setDraftViralityFilter('all');
     setRiskFilter('all');
     setViralityFilter('all');
+    setRaisedWindow(null);
   }, []);
   const [totalResults, setTotalResults] = useState(0);
   const [alertStats, setAlertStats] = useState(null);
@@ -412,6 +417,8 @@ export default function Alerts() {
   }, []);
 
   const handleDateRangeChange = useCallback((field, value) => {
+    // Picking your own dates replaces the dashboard's "raised in..." window.
+    setRaisedWindow(null);
     setDateRange((prev) => {
       const next = {
         ...prev,
@@ -459,10 +466,11 @@ export default function Alerts() {
       'sourceCat', sourceCategoryFilter,
       'start', dateRange.start || '',
       'end', dateRange.end || '',
+      'raised', raisedWindow?.from || '', raisedWindow?.to || '',
       'igContent', instagramContentFilter,
       'igStories', instagramStoriesStatusFilter
     ].join('|');
-  }, [activeTab, riskFilter, viralityFilter, debouncedSearchQuery, platformFilter, keywordFilter, sourceCategoryFilter, dateRange.start, dateRange.end, instagramContentFilter, instagramStoriesStatusFilter]);
+  }, [activeTab, riskFilter, viralityFilter, debouncedSearchQuery, platformFilter, keywordFilter, sourceCategoryFilter, dateRange.start, dateRange.end, raisedWindow, instagramContentFilter, instagramStoriesStatusFilter]);
 
   const readCache = useCallback((key) => {
     try {
@@ -599,7 +607,7 @@ export default function Alerts() {
       setTotalResults(0);
       setLoading(true);
     }
-  }, [activeTab, riskFilter, viralityFilter, debouncedSearchQuery, platformFilter, keywordFilter, sourceCategoryFilter, dateRange, buildCacheKey, readCache, hasAnyAlertFeature]);
+  }, [activeTab, riskFilter, viralityFilter, debouncedSearchQuery, platformFilter, keywordFilter, sourceCategoryFilter, dateRange, raisedWindow, buildCacheKey, readCache, hasAnyAlertFeature]);
 
   useEffect(() => {
     if (platformFilter !== 'instagram') {
@@ -766,6 +774,8 @@ export default function Alerts() {
         category: sourceCategoryFilter !== 'all' ? sourceCategoryFilter : undefined,
         startDate: dateRange.start || undefined,
         endDate: dateRange.end || undefined,
+        createdFrom: raisedWindow?.from || undefined,
+        createdTo: raisedWindow?.to || undefined,
         keyword: keywordFilter !== 'all' ? keywordFilter : undefined
       };
 
@@ -853,7 +863,7 @@ export default function Alerts() {
         isFetchingRef.current = false;
       }
     }
-  }, [activeTab, debouncedSearchQuery, platformFilter, keywordFilter, riskFilter, viralityFilter, dateRange, sourceCategoryFilter, buildCacheKey, writeCache, hasAnyAlertFeature, visibleStatusTabs, isInstagramStoryView]);
+  }, [activeTab, debouncedSearchQuery, platformFilter, keywordFilter, riskFilter, viralityFilter, dateRange, raisedWindow, sourceCategoryFilter, buildCacheKey, writeCache, hasAnyAlertFeature, visibleStatusTabs, isInstagramStoryView]);
 
   const fetchCapturedStories = useCallback(async () => {
     const requestId = ++capturedStoriesReqIdRef.current;
@@ -1279,6 +1289,8 @@ export default function Alerts() {
         category: sourceCategoryFilter !== 'all' ? sourceCategoryFilter : undefined,
         startDate: dateRange.start || undefined,
         endDate: dateRange.end || undefined,
+        createdFrom: raisedWindow?.from || undefined,
+        createdTo: raisedWindow?.to || undefined,
         keyword: keywordFilter !== 'all' ? keywordFilter : undefined
       };
 
@@ -1296,7 +1308,7 @@ export default function Alerts() {
     } catch (error) {
       console.error('Failed to fetch alert stats:', error);
     }
-  }, [debouncedSearchQuery, platformFilter, keywordFilter, riskFilter, viralityFilter, dateRange, sourceCategoryFilter]);
+  }, [debouncedSearchQuery, platformFilter, keywordFilter, riskFilter, viralityFilter, dateRange, raisedWindow, sourceCategoryFilter]);
 
   // Initial load or Filter change
   // Debounce Search Query - but skip if it's a URL (for investigation)
@@ -1311,7 +1323,7 @@ export default function Alerts() {
   // Fetch Logic Triggered by Filters (Debounced Search, Tab Switch, etc.)
   useEffect(() => {
     if (!hasAnyAlertFeature) return;
-    const key = `${activeTab}|${riskFilter}|${viralityFilter}|${debouncedSearchQuery}|${platformFilter}|${keywordFilter}|${sourceCategoryFilter}|${dateRange.start}|${dateRange.end}`;
+    const key = `${activeTab}|${riskFilter}|${viralityFilter}|${debouncedSearchQuery}|${platformFilter}|${keywordFilter}|${sourceCategoryFilter}|${dateRange.start}|${dateRange.end}|${raisedWindow?.from || ''}|${raisedWindow?.to || ''}`;
     const keyChanged = lastFetchKeyRef.current !== key;
 
     // Always update the key ref so transitions are detected correctly
@@ -1328,7 +1340,7 @@ export default function Alerts() {
       fetchAlerts(false);
       fetchAlertStats();
     }
-  }, [activeTab, riskFilter, viralityFilter, debouncedSearchQuery, platformFilter, keywordFilter, dateRange, sourceCategoryFilter, fetchAlerts, fetchAlertStats, hasAnyAlertFeature, isInstagramStoryView]);
+  }, [activeTab, riskFilter, viralityFilter, debouncedSearchQuery, platformFilter, keywordFilter, dateRange, raisedWindow, sourceCategoryFilter, fetchAlerts, fetchAlertStats, hasAnyAlertFeature, isInstagramStoryView]);
 
   useEffect(() => {
     markAllRead();
@@ -1388,6 +1400,9 @@ export default function Alerts() {
         platform: platformFilter !== 'all' ? platformFilter : undefined,
         category: sourceCategoryFilter !== 'all' ? sourceCategoryFilter : undefined,
         search: debouncedSearchQuery || undefined,
+        // With a fixed raised window the poll sees the same set, so it never reports phantom "new" alerts.
+        createdFrom: raisedWindow?.from || undefined,
+        createdTo: raisedWindow?.to || undefined,
         keyword: keywordFilter !== 'all' ? keywordFilter : undefined
       };
 
@@ -1428,7 +1443,7 @@ export default function Alerts() {
     } catch (e) {
       console.error("Polling error:", e); // Silent fail
     }
-  }, [activeTab, platformFilter, debouncedSearchQuery, riskFilter, viralityFilter, keywordFilter, sourceCategoryFilter, hasAnyAlertFeature, isInstagramStoryView]);
+  }, [activeTab, platformFilter, debouncedSearchQuery, riskFilter, viralityFilter, keywordFilter, sourceCategoryFilter, raisedWindow, hasAnyAlertFeature, isInstagramStoryView]);
 
   // Scroll Anchoring Effect
   React.useLayoutEffect(() => {
@@ -2583,6 +2598,17 @@ export default function Alerts() {
                   <strong className="text-foreground">{totalCount.toLocaleString()}</strong> total{' '}
                   <strong className="text-foreground">{activeTabLabel}</strong> alerts
                   {activeKeyword ? <> matching <strong className="text-foreground">"{activeKeyword}"</strong></> : null}
+                  {raisedWindow ? (
+                    <button
+                      type="button"
+                      onClick={() => setRaisedWindow(null)}
+                      title="Show alerts for every date again"
+                      className="ml-2 inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 px-2 py-0.5 text-[10px] font-medium text-foreground hover:bg-muted"
+                    >
+                      Raised in the {describeRaisedWindow(raisedWindow)}, as counted on the dashboard
+                      <XCircle className="h-3 w-3" />
+                    </button>
+                  ) : null}
                 </>
               );
             })()}
