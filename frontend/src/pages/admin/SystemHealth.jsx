@@ -122,9 +122,11 @@ const asStatus = (s) => (okLike(s) ? 'online' : s === 'degraded' || s === 'quota
  * One row per platform BluGate lists. Telegram and Reddit are checked against the services that really
  * serve them (Reddit is not part of BluGate for this account), so their state is the real one.
  */
+const HIDDEN_PLATFORMS = new Set(['reddit', 'whatsapp']);
+
 const buildPlatforms = (svc) => {
   const listed = Array.isArray(svc.blugate?.health?.platforms) ? svc.blugate.health.platforms : [];
-  const items = listed.map((p) => {
+  const items = listed.filter((p) => !HIDDEN_PLATFORMS.has(String(p.slug || p.name || '').toLowerCase())).map((p) => {
     const slug = String(p.slug || p.name || '').toLowerCase();
     const granted = p.accessGranted !== false;
     const health = String(p.health || p.status || '').toLowerCase();
@@ -149,14 +151,6 @@ const buildPlatforms = (svc) => {
       status: asStatus(t.status),
       latency: t.latency,
       note: t.error ? String(t.error) : t.connected || t.authorized ? 'Service up. Session connected' : 'Service up. Session not signed in',
-    });
-  }
-  if (svc.reddit) {
-    const r = svc.reddit;
-    upsert('reddit', {
-      status: asStatus(r.status),
-      latency: r.latency,
-      note: r.error ? String(r.error) : r.mode === 'login' ? 'Signed in to Reddit' : 'Public feed only. About 1 search per minute, shared',
     });
   }
   const rank = { online: 0, degraded: 1, offline: 2, noaccess: 3 };
