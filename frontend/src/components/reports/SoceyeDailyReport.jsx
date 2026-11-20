@@ -572,6 +572,7 @@ const AskAiAboutReport = ({ report, windowHours }) => {
       </div>
       <div className="border-t border-slate-100 p-2 flex gap-2">
         <input
+          data-keyboard
           type="text"
           value={q}
           onChange={(e) => setQ(e.target.value)}

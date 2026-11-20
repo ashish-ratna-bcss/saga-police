@@ -289,7 +289,7 @@ const FilterBar = ({ filters, setFilters, onApply, options, facetsDisabled, load
         <MultiSelect key={f.key} label={f.label} icon={f.icon} value={filters[f.key]} options={options[f.key]}
           disabled={facetsDisabled} onChange={(v) => onApply({ [f.key]: v })} />
       ))}
-      <Input value={filters.location} onChange={(e) => setFilters({ ...filters, location: e.target.value })}
+      <Input data-keyboard value={filters.location} onChange={(e) => setFilters({ ...filters, location: e.target.value })}
         placeholder="Location" title="Matched against the article's district, location or state. Comma-separate for several."
         className="h-8 w-32 text-xs" />
       {children}

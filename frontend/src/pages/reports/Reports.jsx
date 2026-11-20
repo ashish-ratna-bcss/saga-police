@@ -245,6 +245,7 @@ const FormalReportsCatalog = () => {
         <div className="relative w-[180px] sm:w-52">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
+            data-keyboard
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="SN, user, handle…"
