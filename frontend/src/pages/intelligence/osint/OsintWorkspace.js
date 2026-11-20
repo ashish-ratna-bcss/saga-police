@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { osintApi } from '../../../api';
 import { toast } from 'sonner';
+import { normalizeResult } from './osintShape';
 
 const HISTORY_KEY = 'osint_runs_v2';
 const MAX_RUNS = 30;
@@ -49,6 +50,10 @@ const timeAgo = (ts) => {
 const STATUS = {
   completed: { dot: 'bg-emerald-500', cls: 'text-emerald-600 border-emerald-500/30 bg-emerald-500/10' },
   failed: { dot: 'bg-red-500', cls: 'text-red-600 border-red-500/30 bg-red-500/10' },
+  // Finished with results, but at least one source was unavailable. Not "running", so no pulse.
+  partial: { dot: 'bg-amber-500', cls: 'text-amber-600 border-amber-500/30 bg-amber-500/10' },
+  unavailable: { dot: 'bg-red-500', cls: 'text-red-600 border-red-500/30 bg-red-500/10' },
+  cancelled: { dot: 'bg-gray-400', cls: 'text-muted-foreground border-border bg-muted/40' },
   running: { dot: 'bg-amber-500 animate-pulse', cls: 'text-amber-600 border-amber-500/30 bg-amber-500/10' },
 };
 const statusKey = (s) => (STATUS[s] ? s : 'running');
@@ -87,22 +92,32 @@ const Label = ({ children, count }) => (
 
 /* ---------- relationship graph ---------- */
 
-const nodeName = (x) => (typeof x === 'string' ? x : x?.name || x?.id || '');
-
+/**
+ * `entities` / `relationships` come from normalizeResult(): entities are { label, type },
+ * relationships are { source, target, type } already resolved to readable names.
+ */
 const Graph = ({ center, entities = [], relationships = [] }) => {
-  const { nodes, edges } = useMemo(() => {
+  const { nodes, edges, typeOf } = useMemo(() => {
+    const key = (s) => String(s).toLowerCase();
+    const centerKey = key(center);
+    // The investigated subject is also one of the entities; treat it as the centre, not a second node.
+    const canon = (s) => (key(s) === centerKey ? center : String(s));
+    const typeOf = new Map();
     const names = new Set();
-    entities.forEach((e) => nodeName(e) && names.add(nodeName(e)));
-    relationships.forEach((r) => { if (r.source) names.add(String(r.source)); if (r.target) names.add(String(r.target)); });
-    names.delete(center);
+    entities.forEach((e) => {
+      if (e.label && key(e.label) !== centerKey) { names.add(e.label); typeOf.set(e.label, e.type); }
+    });
+    relationships.forEach((r) => {
+      [r.source, r.target].forEach((x) => { if (x && key(x) !== centerKey) names.add(String(x)); });
+    });
     const list = [...names].slice(0, 16);
     const es = relationships
       .filter((r) => r.source && r.target)
-      .map((r) => [String(r.source), String(r.target), r.type])
+      .map((r) => [canon(r.source), canon(r.target), r.type])
       .filter(([a, b]) => (a === center || list.includes(a)) && (b === center || list.includes(b)));
     const linked = new Set(es.flatMap(([a, b]) => [a, b]));
     list.forEach((n) => { if (!linked.has(n)) es.push([center, n, null]); });
-    return { nodes: list, edges: es };
+    return { nodes: list, edges: es, typeOf };
   }, [center, entities, relationships]);
 
   const W = 560, H = 300, cx = W / 2, cy = H / 2, R = 108;
@@ -111,7 +126,7 @@ const Graph = ({ center, entities = [], relationships = [] }) => {
     const a = (i / Math.max(nodes.length, 1)) * Math.PI * 2 - Math.PI / 2;
     pos[n] = [cx + R * 1.55 * Math.cos(a), cy + R * Math.sin(a)];
   });
-  const clip = (s) => (s.length > 18 ? `${s.slice(0, 17)}…` : s);
+  const clip = (s, max = 22) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Relationship graph">
@@ -123,12 +138,13 @@ const Graph = ({ center, entities = [], relationships = [] }) => {
       ))}
       {nodes.map((n) => (
         <g key={n}>
+          <title>{typeOf.get(n) ? `${n} · ${typeOf.get(n)}` : n}</title>
           <circle cx={pos[n][0]} cy={pos[n][1]} r="8" className="fill-primary/20 stroke-primary" strokeWidth="1.5" />
           <text x={pos[n][0]} y={pos[n][1] + 21} textAnchor="middle" className="fill-foreground" fontSize="10">{clip(n)}</text>
         </g>
       ))}
       <circle cx={cx} cy={cy} r="15" className="fill-primary stroke-primary" />
-      <text x={cx} y={cy + 30} textAnchor="middle" className="fill-foreground" fontSize="11" fontWeight="600">{clip(center)}</text>
+      <text x={cx} y={cy + 30} textAnchor="middle" className="fill-foreground" fontSize="11" fontWeight="600">{clip(center, 30)}</text>
     </svg>
   );
 };
@@ -163,13 +179,34 @@ const Tile = ({ icon: Icon, label, value }) => (
 
 const Empty = ({ children }) => <p className="text-xs text-muted-foreground py-8 text-center">{children}</p>;
 
+const SOURCE_TONE = {
+  completed: 'bg-emerald-500',
+  running: 'bg-amber-500 animate-pulse',
+  failed: 'bg-red-500',
+  unavailable: 'bg-red-500',
+  cancelled: 'bg-gray-400',
+};
+const sourceName = (n) => String(n).replace(/_/g, ' ');
+
+/** One source the investigation tried, with its outcome. Hover shows the reason when it was unavailable. */
+const SourceChip = ({ source: s }) => (
+  <span title={s.error || s.status} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-[11px]">
+    <span className={`h-1.5 w-1.5 rounded-full ${SOURCE_TONE[s.status] || 'bg-gray-400'}`} />
+    <span className="font-semibold capitalize">{sourceName(s.name)}</span>
+    <span className="text-muted-foreground">
+      {s.status === 'completed' ? `${s.count} result${s.count === 1 ? '' : 's'}` : s.status}
+    </span>
+  </span>
+);
+
 const Report = ({ run }) => {
   const [tab, setTab] = useState('overview');
   useEffect(() => setTab('overview'), [run.id]);
   const d = run.result;
+  const view = useMemo(() => normalizeResult(d), [d]);
   const isInv = run.group === 'investigation';
   const tabs = isInv
-    ? [['overview', 'Overview'], ['entities', 'Entities'], ['relationships', 'Relationships'], ['evidence', 'Evidence'], ['raw', 'Raw']]
+    ? [['overview', 'Overview'], ['entities', 'Entities'], ['relationships', 'Relationships'], ['evidence', 'Evidence'], ['sources', 'Sources'], ['raw', 'Raw']]
     : [['overview', 'Overview'], ['sources', 'Sources'], ['raw', 'Raw']];
   const valid = d?.evidence?.[0]?.raw_metadata?.is_valid;
   const title = d?.normalized_identifier || run.target;
@@ -219,9 +256,17 @@ const Report = ({ run }) => {
                 <Tile key={l} icon={I} label={l} value={n} />
               ))}
             </div>
+            {view.sources.length > 0 && (
+              <div className="rounded-lg border border-border bg-background p-2.5 space-y-1.5">
+                <Label count={view.sources.length}>Sources searched</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {view.sources.map((s, i) => <SourceChip key={`${s.name}${i}`} source={s} />)}
+                </div>
+              </div>
+            )}
             <div className="rounded-lg border border-border bg-background p-2">
               <Label>Relationship graph</Label>
-              <Graph center={run.target} entities={d.entities} relationships={d.relationships} />
+              <Graph center={title} entities={view.entities} relationships={view.relationships} />
             </div>
           </>
         )}
@@ -239,25 +284,45 @@ const Report = ({ run }) => {
           </>
         )}
 
-        {tab === 'entities' && (d?.entities?.length
-          ? <div className="flex flex-wrap gap-1.5">{d.entities.map((e, i) => <span key={i} className="rounded-md border border-border bg-muted/40 px-2 py-1 text-xs">{nodeName(e) || JSON.stringify(e)}</span>)}</div>
+        {tab === 'entities' && (view.entities.length
+          ? <div className="flex flex-wrap gap-1.5">{view.entities.map((e, i) => (
+            <span key={e.id || i} className="rounded-md border border-border bg-muted/40 px-2 py-1 text-xs">
+              {e.label || '—'}
+              {e.type && <span className="ml-1.5 text-[10px] text-muted-foreground capitalize">{e.type}</span>}
+            </span>))}</div>
           : <Empty>No entities found.</Empty>)}
 
-        {tab === 'relationships' && (d?.relationships?.length
+        {tab === 'relationships' && (view.relationships.length
           ? <div className="rounded-lg border border-border overflow-hidden"><table className="w-full text-xs"><tbody>
-            {d.relationships.map((r, i) => (
+            {view.relationships.map((r, i) => (
               <tr key={i} className="border-b border-border last:border-0">
                 <td className="px-3 py-2 font-medium">{r.source}</td><td className="text-muted-foreground">→</td>
-                <td className="px-3 py-2 font-medium">{r.target}</td><td className="px-3 py-2 text-right text-muted-foreground">{r.type}</td>
+                <td className="px-3 py-2 font-medium">{r.target}</td><td className="px-3 py-2 text-right text-muted-foreground capitalize">{r.type}</td>
               </tr>))}
           </tbody></table></div>
           : <Empty>No relationships found.</Empty>)}
 
-        {tab === 'evidence' && (d?.evidence?.length
-          ? <ul className="space-y-1.5">{d.evidence.map((ev, i) => <li key={i} className="rounded-lg border border-border px-3 py-2 text-xs">{ev.description || JSON.stringify(ev)}</li>)}</ul>
+        {tab === 'evidence' && (view.evidence.length
+          ? <ul className="space-y-1.5">{view.evidence.map((ev, i) => (
+            <li key={i} className="rounded-lg border border-border px-3 py-2 text-xs flex flex-wrap items-center gap-x-2 gap-y-1">
+              <Badge variant="outline" className="text-[10px] capitalize">{sourceName(ev.source)}</Badge>
+              <span className="font-medium break-all">{ev.finding || '—'}</span>
+              {ev.url && <a href={ev.url} target="_blank" rel="noopener noreferrer" className="ml-auto text-primary hover:underline">Open source</a>}
+            </li>))}</ul>
           : <Empty>No evidence recorded.</Empty>)}
 
-        {tab === 'sources' && (d?.evidence?.length
+        {tab === 'sources' && isInv && (view.sources.length
+          ? <div className="rounded-lg border border-border overflow-hidden"><table className="w-full text-xs"><tbody>
+            {view.sources.map((s, i) => (
+              <tr key={`${s.name}${i}`} className="border-b border-border last:border-0 align-top">
+                <td className="px-3 py-2 font-medium capitalize">{sourceName(s.name)}</td>
+                <td className="px-3 py-2"><StatusBadge status={s.status} /></td>
+                <td className="px-3 py-2 text-muted-foreground">{s.error || `${s.count} result${s.count === 1 ? '' : 's'}`}</td>
+              </tr>))}
+          </tbody></table></div>
+          : <Empty>No sources were queried.</Empty>)}
+
+        {tab === 'sources' && !isInv && (d?.evidence?.length
           ? <div className="rounded-lg border border-border overflow-hidden"><table className="w-full text-xs"><tbody>
             {d.evidence.map((ev, i) => (
               <tr key={i} className="border-b border-border last:border-0">
@@ -318,7 +383,7 @@ const OsintWorkspace = () => {
   const selected = runs.find((r) => r.id === selectedId) || null;
   const counts = {
     total: runs.length, running: runs.filter(isRunning).length,
-    done: runs.filter((r) => r.status === 'completed').length, failed: runs.filter((r) => r.status === 'failed').length,
+    done: runs.filter((r) => SUCCESS.has(r.status)).length, failed: runs.filter((r) => r.status === 'failed').length,
   };
 
   const submit = async (e) => {
