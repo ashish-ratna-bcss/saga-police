@@ -479,7 +479,7 @@ const Settings = () => {
   const [editingHtml, setEditingHtml] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
   const tabFromUrl = searchParams.get('tab');
-  const initialTab = VALID_TABS.includes(tabFromUrl) ? tabFromUrl : 'general';
+  const initialTab = VALID_TABS.includes(tabFromUrl) && (tabFromUrl !== 'keyboard' || user?.role === 'admin') ? tabFromUrl : 'general';
   const [activeTab, setActiveTab] = useState(initialTab);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -536,7 +536,7 @@ const Settings = () => {
   // Single source of truth: activeTab always follows the URL (covers clicks + back/forward)
   useEffect(() => {
     const tabFromUrl = searchParams.get('tab');
-    if (tabFromUrl && !VALID_TABS.includes(tabFromUrl)) {
+    if (tabFromUrl && (!VALID_TABS.includes(tabFromUrl) || (tabFromUrl === 'keyboard' && user?.role !== 'admin'))) {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.set('tab', 'general');
@@ -547,7 +547,7 @@ const Settings = () => {
     if (tabFromUrl && VALID_TABS.includes(tabFromUrl) && tabFromUrl !== activeTab) {
       setActiveTab(tabFromUrl);
     }
-  }, [searchParams, activeTab, setSearchParams]);
+  }, [searchParams, activeTab, setSearchParams, user?.role]);
 
   // Warn on browser/tab close
   useEffect(() => {
@@ -885,7 +885,7 @@ const Settings = () => {
             { value: 'policies', label: 'Policy Manager' },
             { value: 'grievances', label: 'Grievances' },
             { value: 'theme', label: 'Theme' },
-            { value: 'keyboard', label: 'Keyboard' },
+            ...(user?.role === 'admin' ? [{ value: 'keyboard', label: 'Keyboard' }] : []),
           ].map((tab) => (
             <TabsTrigger
               key={tab.value}
@@ -1163,9 +1163,11 @@ const Settings = () => {
           <PolicyManager />
         </TabsContent>
 
-        <TabsContent value="keyboard" className="space-y-4 mt-0">
-          <KeyboardLanguageSection />
-        </TabsContent>
+        {user?.role === 'admin' && (
+          <TabsContent value="keyboard" className="space-y-4 mt-0">
+            <KeyboardLanguageSection />
+          </TabsContent>
+        )}
 
         <TabsContent value="theme" className="space-y-4 mt-0">
           <ThemeTab />
