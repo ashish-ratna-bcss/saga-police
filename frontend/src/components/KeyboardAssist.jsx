@@ -49,6 +49,8 @@ function Assist({ input, lang }) {
   const [translation, setTranslation] = useState('');
   const [tStatus, setTStatus] = useState('idle'); // idle | loading | done | unavailable
   const wrapRef = useRef(null);
+  const floatRef = useRef(null);
+  const [fpos, setFpos] = useState(null);
   const language = getLanguage(lang);
   const langRef = useRef(lang);
   langRef.current = lang;
@@ -72,6 +74,12 @@ function Assist({ input, lang }) {
       });
       inset = Math.max(0, Math.round(ir.right - limit));
     }
+    // Popups live outside the input's (possibly overflow:hidden) container, so position them in viewport terms.
+    if (floatRef.current) {
+      const origin = floatRef.current.getBoundingClientRect();
+      const ir = input.getBoundingClientRect();
+      setFpos({ left: ir.left - origin.left, top: ir.bottom - origin.top + 4, viewLeft: ir.left });
+    }
     setPos({
       left: input.offsetLeft,
       top: input.offsetTop,
@@ -86,6 +94,7 @@ function Assist({ input, lang }) {
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
     ro?.observe(input);
     window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
     const onFocus = () => { setFocused(true); measure(); };
     const onBlur = () => setFocused(false);
     const onInput = () => setValue(input.value);
@@ -136,6 +145,7 @@ function Assist({ input, lang }) {
     return () => {
       ro?.disconnect();
       window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
       input.removeEventListener('focus', onFocus);
       input.removeEventListener('blur', onBlur);
       input.removeEventListener('input', onInput);
@@ -148,7 +158,7 @@ function Assist({ input, lang }) {
   useEffect(() => {
     if (!open) return undefined;
     const onDown = (e) => {
-      if (!wrapRef.current?.contains(e.target) && e.target !== input) setOpen(false);
+      if (!wrapRef.current?.contains(e.target) && !floatRef.current?.contains(e.target) && e.target !== input) setOpen(false);
     };
     const onKey = (e) => e.key === 'Escape' && setOpen(false);
     document.addEventListener('mousedown', onDown, true);
@@ -229,11 +239,17 @@ function Assist({ input, lang }) {
   const showTranslation = lang !== 'en' && value.trim().length > 0
     && (tStatus === 'loading' || (tStatus === 'done' && Boolean(translation)));
   const showPanel = focused && !open && (suggestions.length > 0 || showTranslation);
-  const panelTop = pos.top + pos.height + 4;
-  const panelLeft = Math.max(pos.left, 0);
+  const keysWidth = Math.min(Math.max(pos.width, 300), 380);
+  const panelTop = fpos ? fpos.top : 0;
+  const overflowRight = fpos ? Math.max(0, fpos.viewLeft + keysWidth - (window.innerWidth - 8)) : 0;
+  const panelLeft = fpos ? fpos.left - overflowRight : 0;
+  const host = input.closest('[role="dialog"]') || document.body;
+  const stopBlur = (e) => { if (e.target.tagName !== 'INPUT') e.preventDefault(); };
 
-  return createPortal(
-    <div ref={wrapRef} data-keyboard-assist onMouseDown={(e) => { if (e.target.tagName !== 'INPUT') e.preventDefault(); }}>
+  return (
+    <>
+      {createPortal(
+    <div ref={wrapRef} data-keyboard-assist onMouseDown={stopBlur}>
       <button
         type="button"
         tabIndex={-1}
@@ -253,9 +269,15 @@ function Assist({ input, lang }) {
         <Keyboard className="h-3.5 w-3.5" />
       </button>
 
+    </div>,
+        input.parentElement
+      )}
+      {createPortal(
+        <div ref={floatRef} data-keyboard-assist onMouseDown={stopBlur}
+          style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0, zIndex: 2147483000 }}>
       {open && (
         <div
-          style={{ position: 'absolute', left: panelLeft, top: panelTop, zIndex: 300, width: Math.min(Math.max(pos.width, 300), 380) }}
+          style={{ position: 'absolute', left: panelLeft, top: panelTop, zIndex: 300, width: keysWidth }}
           className="rounded-md border bg-popover p-2 text-popover-foreground shadow-lg"
           dir={language.rtl ? 'rtl' : 'ltr'}
         >
@@ -329,8 +351,10 @@ function Assist({ input, lang }) {
           ))}
         </ul>
       )}
-    </div>,
-    input.parentElement
+        </div>,
+        host
+      )}
+    </>
   );
 }
 
