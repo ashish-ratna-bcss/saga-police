@@ -104,7 +104,7 @@ function Assist({ input, lang }) {
     const onBeforeInput = (e) => {
       const code = langRef.current;
       if (e.isComposing || !supportsTransliteration(code) || input.hasAttribute('data-allow-any-language')
-        || /url|link/i.test(input.getAttribute('placeholder') || '')) { reset(); return; }
+        || ((ph) => /url|link/i.test(ph) && !/search|filter|find/i.test(ph))(input.getAttribute('placeholder') || '')) { reset(); return; }
       const v = input.value;
       const s = input.selectionStart ?? v.length;
       const en = input.selectionEnd ?? v.length;
