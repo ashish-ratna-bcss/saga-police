@@ -337,9 +337,10 @@ const Login = () => {
                 <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/45">
                   Powered by
                 </span>
-                <span className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 shadow-sm shadow-black/20">
+                {/* White logo: it sits straight on the dark panel, not on a white chip. */}
+                <span className="inline-flex items-center">
                   <img
-                    src="/Logo.png"
+                    src="/bcssl_white_logo.png"
                     alt="Blue Cloud Softech Solutions Limited"
                     className="h-12 w-auto max-w-[200px] object-contain"
                   />
@@ -552,9 +553,9 @@ const Login = () => {
               <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-white/45">
                 Powered by
               </span>
-              <span className="inline-flex items-center rounded-md bg-white px-2 py-1 shadow-sm shadow-black/20">
+              <span className="inline-flex items-center">
                 <img
-                  src="/Logo.png"
+                  src="/bcssl_white_logo.png"
                   alt="Blue Cloud Softech Solutions Limited"
                   className="h-9 w-auto max-w-[150px] object-contain"
                 />

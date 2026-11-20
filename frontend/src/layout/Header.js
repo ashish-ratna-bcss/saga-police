@@ -42,8 +42,8 @@ const Header = ({ user, sidebarOpen, onToggleSidebar, onLogout }) => {
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <img
-            src="/Logo.png"
-            alt="Blue Cloud Softtech"
+            src="/bcssl_white_logo.png"
+            alt="Blue Cloud Softech Solutions Limited"
             className="h-8 w-auto object-contain opacity-95 md:h-9"
           />
           <div className="mx-1 hidden h-8 w-px bg-white/25 sm:block" aria-hidden />
