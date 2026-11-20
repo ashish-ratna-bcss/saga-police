@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { buildAlertsLink } from '../alerts/alertsUrlFilters';
 import {
   Activity,
   AlertTriangle,
@@ -981,7 +982,8 @@ const OperationsDashboard = () => {
       {/* 2. 5 CORE OPERATIONS KPI CARDS */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
         <Link
-          to="/alerts"
+          // Opens Alerts on high-risk only, for the same period and platform the card counted.
+          to={buildAlertsLink({ risk: 'high', range, platform })}
           className="group flex flex-col justify-between p-3.5 rounded-xl border border-border/70 bg-card hover:border-rose-500/50 hover:shadow-md transition-all cursor-pointer"
         >
           <div className="flex items-center justify-between gap-1 mb-2">
@@ -1815,12 +1817,6 @@ const OperationsDashboard = () => {
                 <Link to="/analytics-hub">
                   <BarChart3 className="h-3.5 w-3.5 text-indigo-400" />
                   <span>Analytics Hub</span>
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="sm" className="h-8 justify-start text-xs gap-1.5">
-                <Link to="/web-intelligence">
-                  <Globe className="h-3.5 w-3.5 text-sky-500" />
-                  <span>Web Intel</span>
                 </Link>
               </Button>
               <Button asChild variant="outline" size="sm" className="h-8 justify-start text-xs gap-1.5">
