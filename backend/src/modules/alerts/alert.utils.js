@@ -286,6 +286,13 @@ const hydrateCatalogAlert = (row) => {
   });
 };
 
+/** A valid ISO date-time string as a Date, otherwise null (so a bad value is ignored, never an error). */
+const parseIsoDateTime = (value) => {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const d = new Date(value.trim());
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
 const buildWhere = (query = {}) => {
   const {
     status,
@@ -296,6 +303,8 @@ const buildWhere = (query = {}) => {
     platform,
     startDate,
     endDate,
+    createdFrom,
+    createdTo,
     alert_type,
     keyword,
   } = query;
@@ -333,6 +342,17 @@ const buildWhere = (query = {}) => {
     where.posted_at = {};
     if (startDate) where.posted_at.gte = new Date(`${startDate}T00:00:00.000Z`);
     if (endDate) where.posted_at.lte = new Date(`${endDate}T23:59:59.999Z`);
+  }
+
+  // Alerts RAISED inside an exact time window. startDate/endDate above filter by when the POST was
+  // published; the dashboard's Threat Vector Radar counts alerts by when they were raised, so its link
+  // asks for that same window here (an alert raised this week about an older post is still counted).
+  const raisedFrom = parseIsoDateTime(createdFrom);
+  const raisedTo = parseIsoDateTime(createdTo);
+  if (raisedFrom || raisedTo) {
+    where.created_at = {};
+    if (raisedFrom) where.created_at.gte = raisedFrom;
+    if (raisedTo) where.created_at.lte = raisedTo;
   }
 
   const and = [];
