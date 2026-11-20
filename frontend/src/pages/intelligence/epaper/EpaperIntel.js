@@ -479,7 +479,12 @@ const FetchTab = ({ onSaved, onOpen }) => {
 
       {job?.status === 'done' && (
         job.saved === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">The page was read but no posts came out of it.</p>
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-4 text-center text-sm text-amber-800 dark:text-amber-300">
+            <p className="font-semibold">No posts could be read from this page</p>
+            <p className="mx-auto mt-1 max-w-lg text-xs opacity-90">
+              {job.reason || 'The page had no readable articles. Try another page or date.'}
+            </p>
+          </div>
         ) : (
           <>
             <p className="text-xs text-muted-foreground">
