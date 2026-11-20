@@ -21,6 +21,11 @@ export const scrapeApi = {
     const response = await apiHandler.get(`/scrape/api/v1/crawls/${crawlId}`);
     return response.data;
   },
+  // Every page the crawl visited: { url, depth, status, fetch_strategy, http_status, document_id, error }
+  getCrawlPages: async (crawlId) => {
+    const response = await apiHandler.get(`/scrape/api/v1/crawls/${crawlId}/pages`);
+    return response.data;
+  },
 
   // Search
   instantSearch: async (query) => {
@@ -34,9 +39,20 @@ export const scrapeApi = {
     return response.data;
   },
 
+  // One version of a document; `content` is the extracted page text.
+  getDocumentVersion: async (documentId, version) => {
+    const response = await apiHandler.get(`/scrape/api/v1/documents/${documentId}/versions/${version}`);
+    return response.data;
+  },
+
   // Entities
   getEntities: async (params = {}) => {
     const response = await apiHandler.get('/scrape/api/v1/entities', { params });
+    return response.data;
+  },
+  // Which documents an entity appears in: { entity_id, document_ids }
+  getEntityDocuments: async (entityId) => {
+    const response = await apiHandler.get(`/scrape/api/v1/entities/${entityId}/documents`);
     return response.data;
   },
 

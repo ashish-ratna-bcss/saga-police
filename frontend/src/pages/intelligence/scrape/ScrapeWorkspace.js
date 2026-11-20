@@ -6,10 +6,15 @@ import { Checkbox } from '../../../components/ui/checkbox';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '../../../components/ui/sheet';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/table';
 import {
-  Globe, Search, Loader2, Play, Trash2, ArrowUpRight, Map, FileText, AlertTriangle, Layers, Zap, Database, Activity, RefreshCw
+  // `Map` is the lucide icon here, so it is renamed: the plain name would hide JavaScript's built-in Map.
+  Globe, Search, Loader2, Play, Trash2, ArrowUpRight, Map as MapIcon, FileText, Zap, Database, Activity, RefreshCw
 } from 'lucide-react';
 import { scrapeApi } from '../../../api';
 import { toast } from 'sonner';
+import { StatTiles, CollectedPages, EntitiesFound, PagesTable } from './CrawlFindings';
+import {
+  crawlProgress, normalizePages, normalizeDocuments, entitiesForCrawl, groupByType, entitiesByDocument,
+} from './scrapeShape';
 
 const HISTORY_KEY = 'scrape_runs_v1';
 const MAX_RUNS = 30;
@@ -22,7 +27,7 @@ const loadHistory = () => {
 
 const MODES = [
   { value: 'crawl', label: 'Crawl a site', icon: Globe, placeholder: 'https://example.com', cta: 'Start crawl', short: 'Crawl' },
-  { value: 'preflight', label: 'Preflight check', icon: Map, placeholder: 'https://example.com', cta: 'Run preflight', short: 'Preflight' },
+  { value: 'preflight', label: 'Preflight check', icon: MapIcon, placeholder: 'https://example.com', cta: 'Run preflight', short: 'Preflight' },
   { value: 'search', label: 'Instant search', icon: Search, placeholder: 'Enter search query', cta: 'Search', short: 'Search' },
 ];
 const modeOf = (v) => MODES.find((m) => m.value === v) || MODES[0];
@@ -69,18 +74,6 @@ const Label = ({ children, count }) => (
   </div>
 );
 
-const Tile = ({ icon: Icon, label, value, tone }) => (
-  <div className="flex items-center gap-2.5 rounded-lg border border-border bg-background p-2.5">
-    <span className={`h-8 w-8 shrink-0 rounded-md flex items-center justify-center ${tone === 'red' ? 'bg-red-500/10 text-red-500' : 'bg-primary/10 text-primary'}`}>
-      <Icon className="h-4 w-4" />
-    </span>
-    <div className="min-w-0">
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="text-sm font-semibold tabular-nums break-words">{value}</p>
-    </div>
-  </div>
-);
-
 const Empty = ({ children }) => <p className="text-xs text-muted-foreground py-8 text-center">{children}</p>;
 
 const searchResults = (d) => {
@@ -97,13 +90,79 @@ const flatRows = (obj) =>
 
 const Report = ({ run }) => {
   const [tab, setTab] = useState('overview');
-  useEffect(() => setTab('overview'), [run.id]);
+  const [det, setDet] = useState({ status: 'idle' });
+  const [texts, setTexts] = useState({});
+  const requested = useRef(new Set());
+  useEffect(() => { setTab('overview'); setTexts({}); requested.current = new Set(); }, [run.id]);
   const d = run.result;
   const M = modeOf(run.kind);
   const results = run.kind === 'search' ? searchResults(d) : null;
-  const tabs = [['overview', run.kind === 'search' ? 'Results' : 'Overview'], ['raw', 'Raw']];
-  const pct = run.status === 'completed' ? 100
-    : Math.min(99, Math.round(((d?.pages_crawled || 0) / Math.max(run.options?.max_pages || 1, 1)) * 100));
+  const isCrawl = run.kind === 'crawl';
+  const done = isCrawl && run.status === 'completed';
+  const tabs = isCrawl
+    ? [['overview', 'Overview'], ['pages', 'Pages visited'], ['raw', 'Raw']]
+    : [['overview', run.kind === 'search' ? 'Results' : 'Overview'], ['raw', 'Raw']];
+  const pct = run.status === 'completed' ? 100 : crawlProgress(d, run.options?.max_pages);
+
+  // A finished crawl: load what it collected (pages visited, extracted documents, entities found on them).
+  useEffect(() => {
+    if (!done) { setDet({ status: 'idle' }); return undefined; }
+    let cancelled = false;
+    setDet({ status: 'loading', entStatus: 'idle' });
+    (async () => {
+      try {
+        const [crawl, pagesRes, docsRes] = await Promise.all([
+          scrapeApi.getCrawlStatus(run.id),
+          scrapeApi.getCrawlPages(run.id).catch(() => []),
+          scrapeApi.getDocuments({ crawl_id: run.id, limit: 200 }),
+        ]);
+        if (cancelled) return;
+        const documents = normalizeDocuments(pickList(docsRes));
+        setDet({ status: 'ok', crawl, pages: normalizePages(pickList(pagesRes)), documents, entities: [], entStatus: documents.length ? 'loading' : 'ok' });
+        if (!documents.length) return;
+
+        // The document records do not list their entities, so ask each entity where it appears.
+        const all = pickList(await scrapeApi.getEntities({ limit: 200 }).catch(() => []));
+        const links = new Map();
+        let next = 0;
+        const worker = async () => {
+          while (next < all.length) {
+            const e = all[next]; next += 1;
+            const id = e.entity_id ?? e.id;
+            try {
+              const r = await scrapeApi.getEntityDocuments(id);
+              links.set(id, Array.isArray(r?.document_ids) ? r.document_ids : []);
+            } catch { /* one entity failing must not hide the rest */ }
+          }
+        };
+        await Promise.all(Array.from({ length: 6 }, worker));
+        if (cancelled) return;
+        setDet((s) => ({ ...s, entities: entitiesForCrawl(all, links, documents), entStatus: 'ok' }));
+      } catch (err) {
+        console.error('[scrape] could not load crawl details', err);
+        if (!cancelled) setDet({ status: 'error', message: errMsg(err, 'Could not load what the crawl collected.') });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [done, run.id]);
+
+  const loadText = useCallback(async (doc) => {
+    if (requested.current.has(doc.id)) return;
+    requested.current.add(doc.id);
+    setTexts((t) => ({ ...t, [doc.id]: { status: 'loading' } }));
+    try {
+      const v = await scrapeApi.getDocumentVersion(doc.id, doc.version);
+      setTexts((t) => ({ ...t, [doc.id]: { status: 'ok', content: String(v?.content ?? '').trim() } }));
+    } catch (err) {
+      requested.current.delete(doc.id);
+      setTexts((t) => ({ ...t, [doc.id]: { status: 'error', message: errMsg(err, 'Could not load the page text.') } }));
+    }
+  }, []);
+
+  const groups = useMemo(() => groupByType(det.entities || []), [det.entities]);
+  const entsByDoc = useMemo(() => entitiesByDocument(det.entities || []), [det.entities]);
+  const loadingDet = det.status === 'idle' || det.status === 'loading';
+  const crawl = det.crawl || d;
 
   return (
     <div className="flex flex-col min-h-0 h-full">
@@ -137,15 +196,22 @@ const Report = ({ run }) => {
                 </div>
               </div>
             )}
-            <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
-              <Tile icon={FileText} label="Pages crawled" value={d?.pages_crawled || 0} />
-              <Tile icon={AlertTriangle} label="Errors" value={d?.error_count || 0} tone={d?.error_count ? 'red' : undefined} />
-              <Tile icon={Layers} label="Max depth" value={run.options?.max_depth ?? '—'} />
-              <Tile icon={Globe} label="Max pages" value={run.options?.max_pages ?? '—'} />
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              {run.options?.same_domain_only ? 'Restricted to the same domain.' : 'Follows links to other domains.'}
-            </p>
+            <StatTiles crawl={crawl} options={run.options} />
+            {run.status === 'failed' && <p className="text-xs text-red-600">{crawl?.error || 'This crawl failed.'}</p>}
+            {done && (
+              <>
+                <CollectedPages
+                  documents={det.documents || []}
+                  entitiesByDoc={entsByDoc}
+                  texts={texts}
+                  onExpand={loadText}
+                  loading={loadingDet}
+                  error={det.status === 'error' ? det.message : null}
+                  wasEmpty={!(crawl?.statistics?.pages_fetched > 0)}
+                />
+                <EntitiesFound groups={groups} status={det.entStatus} />
+              </>
+            )}
           </>
         )}
 
@@ -169,6 +235,10 @@ const Report = ({ run }) => {
               {(r.snippet || r.description) && <p className="text-xs text-muted-foreground mt-1">{r.snippet || r.description}</p>}
             </div>))}</div>
           : <Empty>No results returned.</Empty>)}
+
+        {tab === 'pages' && isCrawl && (done
+          ? <PagesTable pages={det.pages || []} loading={loadingDet} />
+          : <Empty>{run.status === 'failed' ? 'This crawl failed before any page was recorded.' : 'Pages appear here once the crawl has finished.'}</Empty>)}
 
         {tab === 'raw' && (
           <pre className="rounded-lg bg-gray-950 p-3 overflow-x-auto text-gray-300 font-mono text-[11px] leading-relaxed">{JSON.stringify(d || run, null, 2)}</pre>
@@ -458,7 +528,7 @@ const ScrapeWorkspace = () => {
             {viewRuns.length === 0 && <p className="p-6 text-xs text-muted-foreground text-center">Nothing yet. {mode === 'search' ? 'Enter a query above.' : 'Enter a URL above.'}</p>}
             {viewRuns.map((r) => {
               const RM = modeOf(r.kind);
-              const pct = r.status === 'completed' ? 100 : Math.min(99, Math.round(((r.result?.pages_crawled || 0) / Math.max(r.options?.max_pages || 1, 1)) * 100));
+              const pct = r.status === 'completed' ? 100 : crawlProgress(r.result, r.options?.max_pages);
               return (
                 <div key={r.id} onClick={() => setSelectedId(r.id)}
                   className={`group px-3 py-2 cursor-pointer border-b border-border last:border-0 ${selectedId === r.id ? 'bg-primary/10' : 'hover:bg-accent/50'}`}>
