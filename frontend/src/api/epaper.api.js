@@ -88,6 +88,17 @@ export const epaperApi = {
     return (await apiHandler.post('/epaper/api/jobs/upload', fd)).data;
   },
 
+  /** Posts saved in this tenant's database. */
+  posts: async (params = {}) =>
+    (await apiHandler.get('/epaper/posts', { params })).data,
+
+  /** Fetch posts from the service for these filters, save them all, return them. */
+  fetchPosts: async (payload) =>
+    (await apiHandler.post('/epaper/posts/fetch', payload, { timeout: 180000 })).data,
+
+  categoryTree: async () =>
+    (await apiHandler.get('/epaper/api/categories/tree')).data,
+
   article: async (uid) =>
     (await apiHandler.get(`/epaper/api/article/${encodeURIComponent(uid)}`)).data,
 

@@ -3,6 +3,7 @@ const multer = require('multer');
 const logger = require('../../lib/logger');
 const { authorize } = require('../../middleware/auth.middleware');
 const { forward, uploadPage, EPAPER_URL } = require('../../services/epaper');
+const postsService = require('./epaper.posts.service');
 
 const router = express.Router();
 const upload = multer({
@@ -11,6 +12,64 @@ const upload = multer({
 });
 
 router.use(authorize());
+
+// ── Posts saved in this tenant's database (any signed-in user) ─────────────
+const postsError = (res, error, fallback) => {
+  logger.error(`[E-Paper] ${fallback}:`, error.message);
+  if (error.code === 'EPAPER_NOT_CONFIGURED') {
+    return res.status(503).json({ error: { code: error.code, message: 'E-Paper is not configured' } });
+  }
+  if (error.code === 'NO_TENANT_DB') return res.status(400).json({ message: error.message });
+  return res.status(error.status || 500).json({ message: error.message || fallback });
+};
+
+router.get('/posts', async (req, res) => {
+  try {
+    const out = await postsService.listPosts({
+      db: req.tenantPrisma,
+      q: req.query.q,
+      paper: req.query.paper,
+      category: req.query.category,
+      dateFrom: req.query.date_from,
+      dateTo: req.query.date_to,
+      page: req.query.page,
+      perPage: req.query.per_page,
+    });
+    return res.json(out);
+  } catch (error) {
+    return postsError(res, error, 'could not list posts');
+  }
+});
+
+router.get('/posts/:id', async (req, res) => {
+  try {
+    const post = await postsService.getPost({ db: req.tenantPrisma, id: req.params.id });
+    if (!post) return res.status(404).json({ message: 'Post not found' });
+    return res.json(post);
+  } catch (error) {
+    return postsError(res, error, 'could not load post');
+  }
+});
+
+/** Fetch posts from the E-Paper service for the chosen filters, save them all, return them. */
+router.post('/posts/fetch', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const out = await postsService.fetchAndSave({
+      db: req.tenantPrisma,
+      userId: req.user?.id,
+      paper: b.paper,
+      dateFrom: b.date_from,
+      dateTo: b.date_to,
+      category: b.category,
+      q: b.q,
+      limit: b.limit,
+    });
+    return res.json(out);
+  } catch (error) {
+    return postsError(res, error, 'could not fetch posts');
+  }
+});
 
 // Reading the corpus is open to any signed-in user; anything that changes it
 // (upload, collect, sources, categories, deleting jobs) is admin-only.
