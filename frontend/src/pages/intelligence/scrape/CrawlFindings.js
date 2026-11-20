@@ -14,16 +14,26 @@ const Label = ({ children, count }) => (
 );
 
 const Tile = ({ icon: Icon, label, value, tone }) => (
-  <div className="flex items-center gap-2.5 rounded-lg border border-border bg-background p-2.5">
-    <span className={`h-8 w-8 shrink-0 rounded-md flex items-center justify-center ${tone === 'red' ? 'bg-red-500/10 text-red-500' : 'bg-primary/10 text-primary'}`}>
-      <Icon className="h-4 w-4" />
+  <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-background p-2">
+    <span className={`h-7 w-7 shrink-0 rounded-md flex items-center justify-center ${tone === 'red' ? 'bg-red-500/10 text-red-500' : 'bg-primary/10 text-primary'}`}>
+      <Icon className="h-3.5 w-3.5" />
     </span>
     <div className="min-w-0">
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="text-sm font-semibold tabular-nums break-words">{value}</p>
+      <p className="text-[10px] uppercase leading-tight tracking-wider text-muted-foreground">{label}</p>
+      {/* A number or "1m 07s" must stay on one line; the label above is what wraps. */}
+      <p className="text-sm font-semibold tabular-nums whitespace-nowrap">{value}</p>
     </div>
   </div>
 );
+
+// The tiles follow the width of the report pane, not of the window (the pane is much narrower than
+// the window because of the sidebar and run list). Six in a row when there is room, otherwise as many
+// as fit at 9rem each, down to one. No horizontal scrolling at any width.
+export const STAT_GRID_STYLE = {
+  display: 'grid',
+  gap: '0.5rem',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(max(9rem, calc((100% - 2.5rem) / 6)), 1fr))',
+};
 
 const Note = ({ children }) => <p className="text-xs text-muted-foreground py-4 text-center">{children}</p>;
 
@@ -35,13 +45,13 @@ export const StatTiles = ({ crawl, options }) => {
   const pages = options?.max_pages ?? crawl?.max_pages;
   return (
     <>
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
+      <div style={STAT_GRID_STYLE}>
         <Tile icon={FileText} label="Pages fetched" value={st.pagesFetched} />
         <Tile icon={Layers} label="Pages extracted" value={st.pagesExtracted} />
         <Tile icon={AlertTriangle} label="Failed" value={st.pagesFailed} tone={st.pagesFailed ? 'red' : undefined} />
         <Tile icon={Link2} label="Links found" value={st.linksFound} />
         <Tile icon={Clock} label="Time taken" value={st.durationMs ? formatDuration(st.durationMs) : '—'} />
-        <Tile icon={HardDrive} label="Downloaded" value={st.bytes ? formatBytes(st.bytes) : '—'} />
+        <Tile icon={HardDrive} label="Data size" value={st.bytes ? formatBytes(st.bytes) : '—'} />
       </div>
       <p className="text-[11px] text-muted-foreground">
         {depth != null ? `Followed links up to ${depth} deep` : 'Followed links'}
@@ -76,7 +86,7 @@ const DocumentCard = ({ doc, entities = [], text, onExpand }) => {
           <p className="text-[10px] text-muted-foreground truncate">{pathOf(doc.url)}</p>
         </div>
         {doc.pageType && <Badge variant="outline" className="text-[10px] capitalize">{doc.pageType}</Badge>}
-        {entities.length > 0 && <span className="text-[10px] text-muted-foreground tabular-nums">{entities.length} entities</span>}
+        {entities.length > 0 && <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap">{entities.length} {entities.length === 1 ? 'entity' : 'entities'}</span>}
       </summary>
       <div className="px-3 pb-3 space-y-2.5 border-t border-border pt-2.5">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">

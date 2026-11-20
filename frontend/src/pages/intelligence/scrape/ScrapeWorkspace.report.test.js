@@ -81,6 +81,13 @@ describe('Scrape page: a finished crawl', () => {
     expect(text()).toMatch(/Links found\s*606/);
     expect(text()).toContain('1.4 MB');
     expect(text()).toContain('1m 07s');
+    expect(text()).toMatch(/Data size\s*1\.4 MB/);
+  });
+
+  test('entity counts are grammatical', () => {
+    expect(text()).toContain('1 entity');
+    expect(text()).toContain('2 entities');
+    expect(text()).not.toContain('1 entities');
   });
 
   test('lists what was collected, with page type', () => {
