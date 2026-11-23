@@ -27,6 +27,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '../../components/ui/alert-dialog';
 import { cn } from '../../lib/utils';
+import { publicText } from '../../lib/publicError';
 
 const ICONS = {
   Twitter,
@@ -266,8 +267,8 @@ const buildMonitoringHistory = (logs = [], monitoringStatus) => {
         stoppedAt: entry.at,
         durationMs: startAt != null && stopAt != null ? stopAt - startAt : null,
         state: 'done',
-        startMessage: openStart.message,
-        stopMessage: entry.message,
+        startMessage: publicText(openStart.message),
+        stopMessage: publicText(entry.message),
       });
       openStart = null;
     }
@@ -282,7 +283,7 @@ const buildMonitoringHistory = (logs = [], monitoringStatus) => {
       stoppedAt: null,
       durationMs: startAt != null ? now - startAt : null,
       state: monitoringStatus === 'started' ? 'running' : 'incomplete',
-      startMessage: openStart.message,
+      startMessage: publicText(openStart.message),
       stopMessage: null,
     });
   }

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { BACKEND_URL } from '../lib/backendUrl';
 import { sessionCache, AUTH_ME_CACHE_KEY } from '../lib/sessionCache';
+import { cleanAxiosError } from '../lib/publicError';
 
 export { BACKEND_URL };
 
@@ -22,6 +23,10 @@ apiHandler.interceptors.response.use(
   (response) => response,
   (error) => {
     const url = error?.config?.url || '';
+    // Operator screens (health, integrations, BluGate) keep the real detail; everything else gets plain text.
+    if (!/^\/?(health|integrations|blugate|audit)(\/|$|\?)/.test(url.replace(/^https?:\/\/[^/]+\/api/, ''))) {
+      cleanAxiosError(error);
+    }
     const isUploadRequest = url.includes('/uploads/cloudinary');
     const isAuthCheck =
       url.includes('/me') && !url.includes('/me/permissions') && !url.includes('/users');

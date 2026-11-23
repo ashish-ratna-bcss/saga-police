@@ -39,6 +39,7 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import KeywordAnalysisDialog from './KeywordAnalysisDialog';
 import EventSummaryDialog from './EventSummaryDialog';
+import { publicText } from '../../lib/publicError';
 
 
 /* ── helpers ─────────────────────────────────────────── */
@@ -205,8 +206,8 @@ const buildMonitoringHistory = (logs = [], monitoringStatus) => {
         stoppedAt: entry.at,
         durationMs: startAt != null && stopAt != null ? stopAt - startAt : null,
         state: 'done',
-        startMessage: openStart.message,
-        stopMessage: entry.message,
+        startMessage: publicText(openStart.message),
+        stopMessage: publicText(entry.message),
       });
       openStart = null;
     }
@@ -221,7 +222,7 @@ const buildMonitoringHistory = (logs = [], monitoringStatus) => {
       stoppedAt: null,
       durationMs: startAt != null ? now - startAt : null,
       state: monitoringStatus === 'started' ? 'running' : 'incomplete',
-      startMessage: openStart.message,
+      startMessage: publicText(openStart.message),
       stopMessage: null,
     });
   }

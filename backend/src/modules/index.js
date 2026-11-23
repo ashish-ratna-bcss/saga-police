@@ -41,6 +41,7 @@ const { brandingRoutes } = require('./branding/branding.routes');
 const { auditRoutes } = require('./audit/audit.routes');
 const { authorize } = require('../middleware/auth.middleware');
 const { auditMutationMiddleware } = require('../lib/audit');
+const { publicErrorMiddleware } = require('../lib/publicError');
 const { getMyPermissions, getAllPages } = require('./user/user.controller');
 const { ROLE_SLUGS } = require('./role/role.utils');
 const { roleRoutes } = require('./role');
@@ -56,6 +57,9 @@ router.use('/branding', brandingRoutes);
 
 // Log every mutating request (theme, users, settings, …) into tenant audit_logs
 router.use(auditMutationMiddleware);
+
+// Keep provider / system internals out of anything a person sees (details stay in the log)
+router.use(publicErrorMiddleware);
 
 router.use(authRoutes);
 
