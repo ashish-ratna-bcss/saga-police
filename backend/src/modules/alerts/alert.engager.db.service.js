@@ -47,6 +47,17 @@ const frequencyOf = (n, totalPosts) => {
   return 'one-time';
 };
 
+/**
+ * Facebook profile-picture links are signed and carry their expiry (`oe=` hex unix time).
+ * An expired link only returns 403, so drop it and let the screen show the person's initial.
+ */
+const freshAvatar = (url) => {
+  if (!url) return null;
+  const m = String(url).match(/[?&]oe=([0-9a-f]+)/i);
+  if (m && Number.parseInt(m[1], 16) * 1000 < Date.now()) return null;
+  return url;
+};
+
 /** Slug from a facebook.com/<slug> URL when it is a real vanity name (else null). */
 const facebookSlug = (url) => {
   const m = String(url || '').match(/facebook\.com\/([A-Za-z0-9._-]+)\/?(?:\?|$)/);
@@ -184,7 +195,8 @@ const FB_SQL = `
 SELECT c->'author'->>'id' AS eid,
        max(c->'author'->>'name') AS name,
        max(c->'author'->>'url') AS profile_url,
-       max(c->'author'->>'profile_image_url') AS avatar,
+       (array_agg(c->'author'->>'profile_image_url' ORDER BY p.posted_at DESC)
+          FILTER (WHERE c->'author'->>'profile_image_url' IS NOT NULL))[1] AS avatar,
        count(*)::int AS events,
        count(DISTINCT p.id)::int AS n,
        min(p.posted_at) AS first_at, max(p.posted_at) AS last_at,
@@ -350,7 +362,7 @@ const analyzeProfileFromDb = async (profileId, { periodDays = 30, platforms = nu
         last_at: r.last_at,
         urls: r.urls,
         name: r.name,
-        avatar: r.avatar,
+        avatar: freshAvatar(r.avatar),
         profileUrl: r.profile_url,
       });
     }

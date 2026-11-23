@@ -2088,6 +2088,37 @@ const URLCard = ({ card }) => {
 const getNodeColor = () => '#f65959';
 
 /* ── SVG Radial Tree ── */
+// Round avatar that shows the person's initial when the picture is missing or has expired
+// (Facebook profile-picture links are signed and stop working after a few days).
+const InitialAvatar = ({ src, name, className = '' }) => {
+    const [failed, setFailed] = useState(false);
+    useEffect(() => { setFailed(false); }, [src]);
+    if (!src || failed) {
+        return (
+            <div className={`${className} bg-muted flex items-center justify-center font-bold text-muted-foreground`}>
+                {(name || '?').trim()[0]?.toUpperCase() || '?'}
+            </div>
+        );
+    }
+    return <img src={src} alt="" referrerPolicy="no-referrer" className={className} onError={() => setFailed(true)} />;
+};
+
+// Same idea for a node in the network map (SVG).
+const TreeNodeAvatar = ({ id, cx, cy, r, src, initial }) => {
+    const [failed, setFailed] = useState(false);
+    useEffect(() => { setFailed(false); }, [src]);
+    if (!src || failed) {
+        return <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="central" fontSize="14" fontWeight="700" fill="#374151">{initial}</text>;
+    }
+    return (
+        <>
+            <clipPath id={id}><circle cx={cx} cy={cy} r={r - 1} /></clipPath>
+            <image href={src} x={cx - r + 1} y={cy - r + 1} width={(r - 1) * 2} height={(r - 1) * 2} clipPath={`url(#${id})`}
+                preserveAspectRatio="xMidYMid slice" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
+        </>
+    );
+};
+
 const RetweetTree = ({ sourceHandle, sourceName, sourceAvatar, topRetweeters, totalRetweeters, onNodeClick, isMonitored }) => {
     const W = 580, H = 440;
     const cx = W / 2, cy = H / 2 - 10;
@@ -2153,14 +2184,7 @@ const RetweetTree = ({ sourceHandle, sourceName, sourceAvatar, topRetweeters, to
                             {/* bg */}
                             <circle cx={nx} cy={ny} r={NODE_R} fill="white" stroke="#e5e7eb" strokeWidth="1" filter="url(#nShadow)" />
                             {/* avatar / initial */}
-                            {rt.avatar ? (
-                                <>
-                                    <clipPath id={`cr-${i}`}><circle cx={nx} cy={ny} r={NODE_R - 1} /></clipPath>
-                                    <image href={rt.avatar} x={nx - NODE_R + 1} y={ny - NODE_R + 1} width={(NODE_R - 1) * 2} height={(NODE_R - 1) * 2} clipPath={`url(#cr-${i})`} />
-                                </>
-                            ) : (
-                                <text x={nx} y={ny + 1} textAnchor="middle" dominantBaseline="central" fontSize="14" fontWeight="700" fill="#374151">{init}</text>
-                            )}
+                            <TreeNodeAvatar id={`cr-${i}`} cx={nx} cy={ny} r={NODE_R} src={rt.avatar} initial={init} />
                             {/* tweet count badge top-right */}
                             <circle cx={nx + NODE_R - 3} cy={ny - NODE_R + 3} r="10" fill={c} stroke="white" strokeWidth="1.5" />
                             <text x={nx + NODE_R - 3} y={ny - NODE_R + 4} textAnchor="middle" dominantBaseline="central" fontSize="8" fontWeight="700" fill="white">{rt.tweet_count}</text>
@@ -3102,13 +3126,7 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                                                                 <tr key={rt.handle || rt.user_id || rt.name} className={`border-t transition-colors ${FREQ_ROW_COLORS[freq] || ''}`}>
                                                                                     <td className="px-2 py-1.5 align-middle">
                                                                                         <div className="flex items-center gap-1.5">
-                                                                                            {rt.avatar ? (
-                                                                                                <img src={rt.avatar} alt="" className="h-5 w-5 rounded-full object-cover shrink-0" />
-                                                                                            ) : (
-                                                                                                <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-[8px] font-bold shrink-0">
-                                                                                                    {(rt.name || rt.handle || '?')[0].toUpperCase()}
-                                                                                                </div>
-                                                                                            )}
+                                                                                            <InitialAvatar src={rt.avatar} name={rt.name || rt.handle} className="h-5 w-5 rounded-full object-cover shrink-0 text-[8px]" />
                                                                                             <div className="flex flex-col min-w-0">
                                                                                                 <a href={engagerHref(rt) || undefined} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline text-[11px] break-all leading-tight">{rt.handle ? `@${rt.handle}` : (rt.name || 'Unknown')}</a>
                                                                                                 {rt.handle && rt.name && rt.name !== rt.handle && <span className="text-[9px] text-muted-foreground leading-tight truncate">{rt.name}</span>}
