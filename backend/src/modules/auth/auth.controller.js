@@ -23,6 +23,30 @@ const { parsePort, readApplicationDetails } = require('../user/user.application'
 
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 
+/**
+ * The keyboard language belongs to the tenant, but it is stored on each user. A user created after the
+ * language was chosen can still hold the English default, so fall back to the tenant's language.
+ */
+const tenantKeyboardLanguage = async (user) => {
+  const own = user?.keyboard_language || 'en';
+  if (own !== 'en' || !user?.db_name) return own;
+  try {
+    const peer = await prisma.users.findFirst({
+      where: { db_name: user.db_name, keyboard_language: { not: 'en' } },
+      select: { keyboard_language: true },
+      orderBy: { id: 'asc' },
+    });
+    const tenantLanguage = peer?.keyboard_language || own;
+    if (tenantLanguage !== own && user.id) {
+      // Save it on the user too, so every screen that reads the stored value agrees from now on.
+      await prisma.users.update({ where: { id: user.id }, data: { keyboard_language: tenantLanguage } }).catch(() => {});
+    }
+    return tenantLanguage;
+  } catch {
+    return own;
+  }
+};
+
 const meResponse = (user, role) => {
   const publicUser = toPublicUser(user, role || user.roles);
   return {
@@ -136,6 +160,7 @@ const login = async (req, res) => {
     }
 
     const publicUser = toPublicUser(user, user.roles, { creator });
+    publicUser.keyboard_language = await tenantKeyboardLanguage(user);
     if (user.db_name) {
       try {
         const tenantPrisma = getTenantPrisma(user.db_name);
@@ -281,6 +306,7 @@ const getMe = async (req, res) => {
     name: user.name,
     username: user.username,
     role: user.role,
+    keyboard_language: await tenantKeyboardLanguage(user),
     ui_mode: user.ui_mode === 'dark' ? 'dark' : 'light',
     theme_color: user.theme_color || 'linear-gradient(135deg, #0f172a 0%, #38bdf8 100%)',
     theme_config: user.theme_config || {},

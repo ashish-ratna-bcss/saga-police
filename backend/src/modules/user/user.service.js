@@ -265,6 +265,14 @@ const createUserAccount = async (actor, body) => {
     createData.logo_mime = actorUser.logo_mime;
   }
 
+  // The keyboard language is a tenant-wide setting: a new user joins the tenant's language
+  // instead of starting on the English default.
+  if (assignedDbName) {
+    const peers = await prisma.users.findMany({ where: { db_name: assignedDbName }, select: { keyboard_language: true } });
+    const tenantLanguage = peers.map((u) => u.keyboard_language).find((code) => code && code !== 'en');
+    if (tenantLanguage) createData.keyboard_language = tenantLanguage;
+  }
+
   const { provisionAdminDatabase } = require('../../lib/tenantDatabase.service');
 
   let user = await prisma.users.create({
