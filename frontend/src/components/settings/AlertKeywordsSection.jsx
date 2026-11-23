@@ -138,6 +138,7 @@ export function AlertKeywordsSection() {
           <div className="relative flex-1 min-w-[220px]">
             <Tag className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
+              data-keyboard
               value={keywordText}
               onChange={(e) => setKeywordText(e.target.value)}
               placeholder={editingId ? 'Edit keyword…' : 'Add keywords, separated by commas (e.g. extortion, riot, threat)'}
@@ -161,7 +162,7 @@ export function AlertKeywordsSection() {
         {keywords.length > 8 && (
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search keywords…" className="h-8 pl-8 text-xs" />
+            <Input data-keyboard value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search keywords…" className="h-8 pl-8 text-xs" />
           </div>
         )}
 
