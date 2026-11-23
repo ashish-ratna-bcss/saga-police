@@ -15,6 +15,7 @@ const { startScheduler: startCatalogMonitoringScheduler } = require('./services/
 const { startScheduler: startMediaPostAnalysisScheduler } = require('./services/media_post_analysis');
 const { startScheduler: startEventScheduler } = require('./modules/events');
 const { startScheduler: startEpaperScheduler } = require('./modules/epaper');
+const { startScheduler: startProfileReportScheduler } = require('./modules/profile-report');
 const prisma = require('../prisma/client');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
@@ -208,6 +209,7 @@ const startServer = async () => {
   startMediaPostAnalysisScheduler();
   startEventScheduler();
   startEpaperScheduler();
+  startProfileReportScheduler();
 
   const PORT = process.env.PORT || 8000;
   const HOST = process.env.HOST || '0.0.0.0';

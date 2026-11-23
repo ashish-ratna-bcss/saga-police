@@ -468,4 +468,14 @@ const analyzeMediaPost = async (postId, { db, dbName } = {}) => {
   };
 };
 
-module.exports = { analyzeMediaPost };
+module.exports = {
+  analyzeMediaPost,
+  // Shared with Tools → Profile Report, which analyses its own posts one by one without raising alerts.
+  extractFirstImageUrl,
+  extractFirstVideoUrl,
+  hasMediaAnalysis,
+  matchKeywords,
+  loadRiskThresholds,
+  scoreToLevel,
+  MAX_ATTEMPTS,
+};

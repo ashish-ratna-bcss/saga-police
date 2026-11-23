@@ -2,8 +2,7 @@ const dbOf = require('../../lib/dbOf');
 const monitoringSocialMedia = require('../../services/monitoringsocialmedia');
 const { previewProfile } = require('../../services/monitoringsocialmedia/previewProfile');
 const { attachRelevanceToAccounts } = require('./catalogRelevance.service');
-const { attachProfileRelevanceToAccounts } = require('./profileRelevance.service');
-const { attachBehaviorReportFlags } = require('./behaviorReport/behaviorReport.service');
+const { authForPlatform } = require('../../services/blugate/authForPlatform');
 const { listActivePolicies } = require('../settings/settings.service');
 
 const FIELD_TYPES = new Set(['text', 'url']);
@@ -460,11 +459,9 @@ const listProfiles = async (req, res) => {
 
     const countsById = counts.reduce((acc, c) => ({ ...acc, [c.platform_id]: c._count._all }), {});
     const byPlatform = allPlatforms.reduce((acc, p) => ({ ...acc, [p.slug]: countsById[p.id] || 0 }), {});
-    const withRelevance = await attachRelevanceToAccounts(accounts.map(flattenAccount), {
+    const flattened = await attachRelevanceToAccounts(accounts.map(flattenAccount), {
       db: prisma,
     });
-    const withProfileRelevance = await attachProfileRelevanceToAccounts(withRelevance, { db: prisma });
-    const flattened = await attachBehaviorReportFlags(withProfileRelevance, { db: prisma });
 
     res.json({
       profiles: flattened,
@@ -525,10 +522,9 @@ const getProfile = async (req, res) => {
       orderBy: { id: 'asc' },
     });
 
-    const withRelevance = await attachRelevanceToAccounts(siblings.map(flattenAccount), {
+    const flattenedAll = await attachRelevanceToAccounts(siblings.map(flattenAccount), {
       db: prisma,
     });
-    const flattenedAll = await attachProfileRelevanceToAccounts(withRelevance, { db: prisma });
     const current = flattenedAll.find((a) => Number(a.id) === id) || flattenedAll[0];
     if (!current) return res.status(404).json({ error: 'Profile not found' });
 
@@ -1197,39 +1193,12 @@ const bulkToggleStatus = async (req, res) => {
 
 /** Resolve identity + preview for Add/Edit form (does not save posts). */
 const previewProfileIdentity = async (req, res) => {
-  const prisma = dbOf(req.tenantPrisma);
   try {
     const { platform, data } = req.body || {};
     if (!platform) return res.status(400).json({ error: 'platform is required' });
-
-    const platformRow = await resolvePlatform(platform, { db: prisma });
-    if (!platformRow) {
-      return res.status(400).json({ error: 'platform is invalid or not active' });
-    }
-
-    let auth = null;
-    const slug = String(platformRow.slug || '').toLowerCase();
-    if (slug === 'x' || slug === 'twitter') {
-      const { authFromPlatformRow } = require('../../services/blugate/x/blugate.x.api_client');
-      auth = authFromPlatformRow(platformRow);
-    } else if (slug === 'facebook') {
-      const { authFromPlatformRow } = require('../../services/blugate/facebook/blugate.facebook.api_client');
-      auth = authFromPlatformRow(platformRow);
-    } else if (slug === 'instagram') {
-      const { authFromPlatformRow } = require('../../services/blugate/instagram/blugate.instagram.api_client');
-      auth = authFromPlatformRow(platformRow);
-    } else if (slug === 'youtube') {
-      const { authFromPlatformRow } = require('../../services/blugate/youtube/blugate.youtube.api_client');
-      auth = authFromPlatformRow(platformRow);
-    } else if (slug === 'telegram') {
-      const { authFromPlatformRow } = require('../../services/blugate/telegram/blugate.telegram.api_client');
-      auth = authFromPlatformRow(platformRow);
-    } else if (slug === 'reddit') {
-      const { authFromPlatformRow } = require('../../services/blugate/reddit/blugate.reddit.api_client');
-      auth = authFromPlatformRow(platformRow);
-      if (req.tenantDbName) auth.tenantKey = req.tenantDbName;
-    }
-
+    const platformRow = await resolvePlatform(platform, { db: dbOf(req.tenantPrisma) });
+    if (!platformRow) return res.status(400).json({ error: 'platform is invalid or not active' });
+    const auth = authForPlatform(platformRow, { tenantKey: req.tenantDbName });
     const result = await previewProfile(platformRow.slug, data || {}, auth);
     res.json(result);
   } catch (error) {
@@ -1259,4 +1228,7 @@ module.exports = {
   bulkToggleStatus,
   previewProfileIdentity,
   getMonitoringPrerequisites,
+  // Shared with Tools → Profile Report so its Add profile follows exactly the same field rules.
+  resolvePlatform,
+  prepareAccountFields,
 };

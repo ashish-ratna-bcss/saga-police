@@ -3,6 +3,7 @@ const {
   listItems,
   mapFeedItemToUpsert,
   cleanUsername,
+  nextCursorOf,
 } = require('../../blugate/instagram/blugate.instagram.helpers');
 const { waitForSlot, noteRateLimit } = require('./rateLimit');
 
@@ -74,7 +75,43 @@ const fetchInstagramPosts = async (account, auth = null) => {
   };
 };
 
+/**
+ * One page of an account's history, for walking back through all of it (Tools → Profile Report).
+ * Instagram has two feeds, posts then reels, each with its own cursor, so the cursor here is
+ * { feed: 'posts'|'reels', maxId } and the page after the last posts page is the first reels page.
+ * @returns {{ posts: object[], next: {feed: string, maxId: string}|null, apiHits: number, dataPatch: object|null }}
+ */
+const fetchInstagramPostsPage = async (account, { cursor = null, auth = null } = {}) => {
+  const username = resolveUsername(account);
+  if (!username) throw new Error('Instagram account needs a username/handle');
+
+  const feed = cursor?.feed === 'reels' ? 'reels' : 'posts';
+  const maxId = cursor?.maxId || '';
+  let raw;
+  try {
+    raw = await callWithGap(feed === 'reels' ? 'REELS' : 'POSTS', { username, maxId }, auth);
+  } catch (err) {
+    // Plenty of accounts have no reels feed; that must not fail an account whose posts were all collected.
+    if (feed === 'reels' && !isRateError(err)) {
+      console.warn(`[instagram/fetch] reels page skipped for ${username}: ${err.message}`);
+      return { posts: [], next: null, apiHits: 1, dataPatch: null };
+    }
+    throw err;
+  }
+  const kind = feed === 'reels' ? 'reel' : 'post';
+  const posts = listItems(raw).map((node) => mapFeedItemToUpsert(node, account.id, kind)).filter(Boolean);
+
+  const more = nextCursorOf(raw);
+  let next = null;
+  if (more && more !== maxId && posts.length) next = { feed, maxId: more };
+  else if (feed === 'posts') next = { feed: 'reels', maxId: '' };
+
+  const data = account.data && typeof account.data === 'object' ? account.data : {};
+  return { posts, next, apiHits: 1, dataPatch: data.username === username ? null : { ...data, username } };
+};
+
 module.exports = {
   fetchInstagramPosts,
+  fetchInstagramPostsPage,
   resolveUsername,
 };

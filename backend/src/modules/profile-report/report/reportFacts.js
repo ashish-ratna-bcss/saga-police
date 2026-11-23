@@ -67,19 +67,17 @@ const stanceOf = (raw) => {
   return 'neutral';
 };
 
-const raw = (p) => (p.raw_data && typeof p.raw_data === 'object' ? p.raw_data : {});
-/** A repost / share of someone else's content. Only explicit signals: guessing from author names misfires on page URLs. */
-const isShared = (p) => {
-  const r = raw(p);
-  return /^RT @/i.test(String(p.text || '').trim()) ||
-    Boolean(r.is_retweet || r.isRetweet || r.is_repost || r.isRepost || r.is_share || r.retweeted_status || r.retweeted_tweet);
-};
-const isReply = (p) => {
-  const r = raw(p);
-  return Boolean(r.in_reply_to_status_id || r.in_reply_to_tweet_id || r.is_reply || r.isReply) || /^@\w/.test(String(p.text || '').trim());
-};
+/** A repost / share of someone else's content. `kind` is decided when the post is stored; the text check covers older rows. */
+const isShared = (p) => p.kind === 'shared' || /^RT @/i.test(String(p.text || '').trim());
+const isReply = (p) => p.kind === 'reply' || /^@\w/.test(String(p.text || '').trim());
 const hasMedia = (p) => (Array.isArray(p.media_urls) && p.media_urls.length > 0) ||
   /photo|image|video|reel|album|gif/i.test(String(p.media_type || ''));
+
+/** Text read from a post's picture (OCR), or described from its video. */
+const imageTextOf = (img) => {
+  if (!img || typeof img !== 'object' || img.failed) return '';
+  return String(img.full_text || [img.description, img.summary].filter(Boolean).join(' ') || '').replace(/\s+/g, ' ').trim();
+};
 
 const HASHTAG_RE = /#[\p{L}\p{M}\p{N}_]{2,60}/gu;
 const MENTION_RE = /(?:^|[^\w@])@([A-Za-z0-9_.]{2,30})/g;
@@ -129,6 +127,8 @@ const normalisePosts = (posts = [], { timezone = DEFAULT_TZ } = {}) => posts
       at: when,
       local: when ? localParts(when, timezone) : null,
       text,
+      imageText: imageTextOf(p.image_analysis),
+      accountHandle: p.account_handle || '',
       english: analysed && a.english_text && String(a.english_text).trim() !== text ? String(a.english_text).trim() : '',
       language: analysed && a.language ? String(a.language).toLowerCase() : null,
       analysed,
@@ -191,11 +191,11 @@ const attentionLevel = (risk) => {
 /**
  * All the numbers for one profile.
  * @param {object} args
- * @param {object} args.account  { id, handle, display_name, platform, platform_name }
- * @param {Array}  args.rows     normalisePosts() output (oldest first)
- * @param {number} args.totalPosts  posts stored for the account (rows may be the newest N of them)
+ * @param {object} args.account   { id, display_name } of the profile (a single-account profile may also carry handle / platform)
+ * @param {Array}  args.accounts  the profile's platform accounts: { platform, platform_name, handle }
+ * @param {Array}  args.rows      normalisePosts() output (oldest first): every collected post, no cap
  */
-const buildBehaviorFacts = ({ account = {}, rows = [], totalPosts = rows.length, timezone = DEFAULT_TZ, now = new Date() } = {}) => {
+const buildBehaviorFacts = ({ account = {}, accounts = [], rows = [], totalPosts = rows.length, timezone = DEFAULT_TZ, now = new Date() } = {}) => {
   const dated = rows.filter((r) => r.at);
   const analysed = rows.filter((r) => r.analysed);
   const first = dated[0] || null;
@@ -263,6 +263,41 @@ const buildBehaviorFacts = ({ account = {}, rows = [], totalPosts = rows.length,
   const stance = rows.reduce((acc, r) => { acc[r.stance] += 1; return acc; }, { support: 0, oppose: 0, neutral: 0, unknown: 0 });
   const risk = analysed.reduce((acc, r) => { acc[r.riskLevel] = (acc[r.riskLevel] || 0) + 1; return acc; }, { critical: 0, high: 0, medium: 0, low: 0 });
   const riskScores = analysed.map((r) => r.riskScore);
+  const maxRisk = riskScores.reduce((m, n) => (n > m ? n : m), 0);
+
+  // ---- per platform (a profile can combine several accounts)
+  const platformMap = new Map();
+  rows.forEach((r) => {
+    const e = platformMap.get(r.platform) || { platform: r.platform, posts: 0, analysed: 0, negative: 0, high_risk: 0, engagement: 0, first: null, last: null };
+    e.posts += 1;
+    if (r.analysed) e.analysed += 1;
+    if (r.sentiment === 'negative') e.negative += 1;
+    if (r.riskLevel === 'critical' || r.riskLevel === 'high') e.high_risk += 1;
+    e.engagement += r.engagement.score;
+    if (r.local) {
+      if (!e.first || r.local.day < e.first) e.first = r.local.day;
+      if (!e.last || r.local.day > e.last) e.last = r.local.day;
+    }
+    platformMap.set(r.platform, e);
+  });
+  const byPlatform = [...platformMap.values()]
+    .sort((a, b) => b.posts - a.posts)
+    .map((e) => ({
+      platform: e.platform,
+      posts: e.posts,
+      analysed: e.analysed,
+      negative_share: pct(e.negative, e.analysed),
+      high_risk: e.high_risk,
+      avg_engagement: e.posts ? Math.round(e.engagement / e.posts) : 0,
+      first_post: e.first,
+      last_post: e.last,
+    }));
+  const accountList = accounts.map((a) => ({
+    platform: a.platform,
+    platform_name: a.platform_name || a.platform,
+    handle: a.handle,
+    posts: rows.filter((r) => r.platform === a.platform && String(r.accountHandle).toLowerCase() === String(a.handle).toLowerCase()).length,
+  }));
 
   // ---- trend: older half against newer half (needs enough posts to mean anything)
   let trend = null;
@@ -281,10 +316,11 @@ const buildBehaviorFacts = ({ account = {}, rows = [], totalPosts = rows.length,
   return {
     profile: {
       id: account.id ?? null,
-      name: account.display_name || account.handle || '',
-      handle: account.handle || '',
-      platform: account.platform || '',
-      platform_name: account.platform_name || account.platform || '',
+      name: account.display_name || account.handle || accountList[0]?.handle || '',
+      handle: account.handle || accountList.map((a) => a.handle).join(', '),
+      platform: account.platform || (accountList.length > 1 ? 'multiple' : accountList[0]?.platform || ''),
+      platform_name: account.platform_name || accountList.map((a) => a.platform_name).join(', '),
+      accounts: accountList,
     },
     timezone,
     today: localParts(now, timezone).day,
@@ -313,6 +349,7 @@ const buildBehaviorFacts = ({ account = {}, rows = [], totalPosts = rows.length,
       shared: rows.filter((r) => r.shared).length,
       replies: rows.filter((r) => r.reply && !r.shared).length,
       with_media: rows.filter((r) => r.media).length,
+      with_image_text: rows.filter((r) => r.imageText.length > 0).length,
       with_links: rows.filter((r) => r.link).length,
       avg_length: withText.length ? Math.round(withText.reduce((s, r) => s + Array.from(r.text).length, 0) / withText.length) : 0,
       languages: topOf(languages, 6, 'language'),
@@ -329,8 +366,9 @@ const buildBehaviorFacts = ({ account = {}, rows = [], totalPosts = rows.length,
     risk: {
       ...risk,
       avg_score: riskScores.length ? Math.round(riskScores.reduce((s, n) => s + n, 0) / riskScores.length) : 0,
-      max_score: riskScores.length ? Math.max(...riskScores) : 0,
+      max_score: maxRisk,
     },
+    by_platform: byPlatform,
     attention_level: attentionLevel(risk),
     categories: topOf(categories, 8),
     signals: topOf(signals, 8),
@@ -346,12 +384,12 @@ const buildBehaviorFacts = ({ account = {}, rows = [], totalPosts = rows.length,
  * and an even spread across the whole period for the rest.
  */
 const selectEvidence = (rows = [], { max = 40 } = {}) => {
-  const usable = rows.filter((r) => r.text.length >= 3 || r.english.length >= 3);
+  const usable = rows.filter((r) => r.text.length >= 3 || r.english.length >= 3 || r.imageText.length >= 3);
   const picked = new Map();
   const take = (list, n, reason) => {
     for (const r of list) {
       if (picked.size >= max || n <= 0) break;
-      const key = r.id || `${r.at?.getTime()}-${r.text.slice(0, 20)}`;
+      const key = r.id || `${r.at?.getTime()}-${r.text.slice(0, 20)}-${r.imageText.slice(0, 20)}`;
       const had = picked.get(key);
       if (had) { if (!had.reasons.includes(reason)) had.reasons.push(reason); continue; }
       picked.set(key, { row: r, reasons: [reason] });
@@ -366,8 +404,9 @@ const selectEvidence = (rows = [], { max = 40 } = {}) => {
   take([...usable].reverse(), 6, 'recent');
   const room = max - picked.size;
   if (room > 0 && usable.length) {
-    const step = usable.length / room;
-    take(Array.from({ length: room }, (_, i) => usable[Math.min(usable.length - 1, Math.floor(i * step))]), room, 'spread');
+    // Evenly spaced candidates across the whole period, more than needed: some land on posts already picked.
+    const count = Math.min(usable.length, room * 4);
+    take(Array.from({ length: count }, (_, i) => usable[Math.min(usable.length - 1, Math.floor((i * usable.length) / count))]), room, 'spread');
   }
   return [...picked.values()]
     .sort((a, b) => (a.row.at ? a.row.at.getTime() : 0) - (b.row.at ? b.row.at.getTime() : 0))
@@ -379,7 +418,9 @@ const selectEvidence = (rows = [], { max = 40 } = {}) => {
       posted_at: row.at ? row.at.toISOString() : null,
       day: row.local ? row.local.day : null,
       hour: row.local ? row.local.hour : null,
+      account_handle: row.accountHandle,
       text: row.text,
+      image_text: row.imageText,
       english: row.english,
       sentiment: row.sentiment,
       stance: row.stance,

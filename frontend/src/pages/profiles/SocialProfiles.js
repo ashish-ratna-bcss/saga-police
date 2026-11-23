@@ -3,12 +3,11 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { readCatalogUrlFilters, matchPlatformSlug } from './catalogUrlFilters';
 import {
   Search, Plus, Pencil, Trash2, Loader2, PlayCircle, StopCircle,
-  Twitter, Facebook, Instagram, Youtube, Globe2, Square, History, BarChart3, Download, Timer,
-  ChevronDown, User, FileText, CheckCircle, AlertTriangle, BrainCircuit, Lock,
+  Twitter, Facebook, Instagram, Youtube, Globe2, Square, History, BarChart3, Timer,
+  ChevronDown, User, FileText, CheckCircle, AlertTriangle,
 } from 'lucide-react';
-import ProfileBehaviorReportDialog from './ProfileBehaviorReportDialog';
-import { ATTENTION_STYLES, behaviorLockReason, relativeTime } from './behaviorReportFormat';
 import { toast } from 'sonner';
+import ProfileAccountsEditor from '../../components/ProfileAccountsEditor';
 import { socialProfilesApi } from '../../api/socialProfiles.api';
 import { TelegramBrandLogo } from '../../components/PlatformBrandIcon';
 import { Button } from '../../components/ui/button';
@@ -80,11 +79,12 @@ const getRelevanceScore = (row) => {
   return Number.isFinite(score) ? score : null;
 };
 
-const getRelevanceTone = (score) => {
-  if (score == null) return 'muted';
-  if (score >= 80) return 'high';
-  if (score >= 60) return 'medium';
-  return 'low';
+/** The server decides the level (and the wording) from the account's own alerts, so every screen agrees with the numbers. */
+const getRelevanceTone = (relevance) => {
+  if (!Number.isFinite(relevance?.score)) return 'muted';
+  if (relevance.level === 'high') return 'high';
+  if (relevance.level === 'medium') return 'medium';
+  return relevance.level === 'none' ? 'muted' : 'low';
 };
 
 const relevanceToneClasses = {
@@ -97,18 +97,16 @@ const relevanceToneClasses = {
 const ProfileRelevanceBadge = ({ row }) => {
   const relevance = row?.relevance || {};
   const score = getRelevanceScore(row);
-  const tone = getRelevanceTone(score);
+  const tone = getRelevanceTone(relevance);
 
   if (score == null) {
     return <span className="text-[11px] text-muted-foreground">—</span>;
   }
 
-  const level =
-    score >= 80
-      ? { label: 'Highly relevant', hint: 'Frequent or severe alerts generated' }
-      : score >= 60
-        ? { label: 'Moderately relevant', hint: 'Some recent alerts generated' }
-        : { label: 'Low relevance', hint: 'Few or no recent alerts' };
+  const level = {
+    label: relevance.label || 'Relevance',
+    hint: relevance.hint || `Based on alerts in the last ${relevance.window_days || 30} days`,
+  };
 
   return (
     <Popover>
@@ -166,7 +164,9 @@ const ProfileRelevanceBadge = ({ row }) => {
               </div>
             </div>
             <p className="text-[10px] text-muted-foreground mt-3 border-t dark:border-slate-800 pt-2 leading-relaxed">
-              Score is computed based on active alerts over the last 30 days. High risk alerts weigh heavily.
+              From this account&apos;s own alerts in the last {relevance.window_days || 30} days
+              ({relevance.recent_alerts_7d || 0} in the last 7). High and medium alerts add points, newer ones count more,
+              and low-risk alerts add none. A higher share of its {relevance.posts_in_window || 0} posts raising alerts adds more.
             </p>
           </div>
         </div>
@@ -316,8 +316,6 @@ const summarizeFetchHistory = (history = [], monitoringSessions = []) => {
   };
 };
 
-const HIDDEN_FIELD_KEYS = new Set(['page_id', 'user_id', 'channel_id']);
-
 const blankAccountSlot = (slug, platformsList) => {
   const plat = platformsList.find((p) => p.slug === slug);
   const data = {};
@@ -386,7 +384,6 @@ const SocialProfiles = () => {
   });
   const [savingProfile, setSavingProfile] = useState(false);
   const [deleteProfile, setDeleteProfile] = useState(null);
-  const [behaviorRow, setBehaviorRow] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [monitoringId, setMonitoringId] = useState(null);
   const [startingAll, setStartingAll] = useState(false);
@@ -461,20 +458,6 @@ const SocialProfiles = () => {
     const t = setTimeout(() => loadProfiles(), query ? 300 : 0);
     return () => clearTimeout(t);
   }, [loadProfiles, query]);
-
-  // A monitored profile with no posts yet keeps its report button locked; refresh quietly so it
-  // unlocks as soon as monitoring collects the first posts. Stops once every monitored row has posts.
-  const waitingForFirstPosts = useMemo(
-    () => profiles.some((p) => p.monitoring_status === 'started' && !(Number(p.posts_stored) > 0)),
-    [profiles]
-  );
-  useEffect(() => {
-    if (!waitingForFirstPosts) return undefined;
-    const id = setInterval(() => {
-      if (document.visibilityState === 'visible') loadProfiles({ silent: true }).catch(() => {});
-    }, 30000);
-    return () => clearInterval(id);
-  }, [waitingForFirstPosts, loadProfiles]);
 
   // The platforms load after the page opens. If a link asked for one that is spelled differently
   // (twitter / x) use the configured spelling; if it is not configured here at all, fall back to "All"
@@ -1010,7 +993,7 @@ const SocialProfiles = () => {
       </div>
 
         <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto max-h-[calc(100dvh-14rem)]">
-          <table className="text-sm border-collapse w-full" style={{ minWidth: 1200 }}>
+          <table className="text-sm border-collapse w-full" style={{ minWidth: 1080 }}>
             <thead className="sticky top-0 z-10 border-b bg-muted/95 text-left text-[11px] text-muted-foreground">
               <tr>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Profile</th>
@@ -1019,20 +1002,19 @@ const SocialProfiles = () => {
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Details</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Poll</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Monitoring</th>
-                <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Human behaviour</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-3 py-12 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-3 py-12 text-center text-muted-foreground">
                     <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" /> Loading…
                   </td>
                 </tr>
               ) : profiles.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-3 py-12 text-center">
+                  <td colSpan={7} className="px-3 py-12 text-center">
                     <p className="text-sm font-medium text-foreground">No profiles yet</p>
                     <p className="text-xs text-muted-foreground mt-0.5">Add a platform account to start monitoring.</p>
                     <Button size="sm" className="mt-3 h-8 gap-1.5" onClick={openAddProfile}>
@@ -1293,39 +1275,6 @@ const SocialProfiles = () => {
                           </Popover>
                         </div>
                       </td>
-                      <td className="px-2.5 py-2 align-top whitespace-nowrap">
-                        <span title={behaviorLockReason(row) || undefined} className="inline-block">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 gap-1 border-indigo-200 px-2 text-[11px] text-indigo-700 hover:bg-indigo-50 hover:text-indigo-800"
-                            disabled={Boolean(behaviorLockReason(row))}
-                            onClick={() => setBehaviorRow(row)}
-                          >
-                            {behaviorLockReason(row) ? <Lock className="h-3 w-3" /> : <BrainCircuit className="h-3 w-3" />}
-                            {row.behavior_report ? 'View report' : 'Generate report'}
-                          </Button>
-                        </span>
-                        {behaviorLockReason(row) ? (
-                          <p className="mt-1 text-[10px] text-muted-foreground">
-                            {isMonitoring ? 'Waiting for first posts' : 'Start monitoring first'}
-                          </p>
-                        ) : row.behavior_report?.generated_at ? (
-                          <p
-                            className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground"
-                            title={`Attention: ${row.behavior_report.attention_level || '—'}`}
-                          >
-                            <i
-                              className={cn(
-                                'h-1.5 w-1.5 rounded-full',
-                                (ATTENTION_STYLES[row.behavior_report.attention_level] || ATTENTION_STYLES.Low).dot
-                              )}
-                            />
-                            {row.behavior_report.attention_level || 'Low'} · {relativeTime(row.behavior_report.generated_at)}
-                          </p>
-                        ) : null}
-                      </td>
                       <td className="px-2.5 py-2 align-top">
                         <div className="flex justify-end gap-1">
                           <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-[11px]" onClick={() => openEditProfile(row)}>
@@ -1424,171 +1373,15 @@ const SocialProfiles = () => {
                 </div>
               ) : null}
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium">
-                    Platforms
-                    <span className="ml-1.5 font-normal text-muted-foreground">
-                      ({profileForm.accounts.length})
-                    </span>
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 gap-1 px-2.5 text-xs"
-                    onClick={addAccountSlot}
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Add platform
-                  </Button>
-                </div>
-
-                <div className="space-y-2">
-                  {profileForm.accounts.map((account) => {
-                    const plat = platforms.find((p) => p.slug === account.platform);
-                    const fields = (Array.isArray(plat?.fields) ? plat.fields : []).filter(
-                      (f) => !HIDDEN_FIELD_KEYS.has(f.key)
-                    );
-                    const fetched = Boolean(account.preview_data?.fetched_at);
-                    const primaryField = fields[0];
-                    return (
-                      <div
-                        key={account.key}
-                        className={`rounded-lg border p-3 ${fetched ? 'border-emerald-500/25 bg-emerald-500/[0.03]' : 'bg-card'}`}
-                      >
-                        <div className="mb-2 flex items-center gap-2">
-                          <Select
-                            value={account.platform}
-                            onValueChange={(v) => setAccountPlatform(account.key, v)}
-                            disabled={Boolean(account.profileId)}
-                          >
-                            <SelectTrigger className="h-8 w-[140px] text-xs">
-                              <SelectValue placeholder="Platform" />
-                </SelectTrigger>
-                <SelectContent>
-                  {platforms.map((p) => (
-                    <SelectItem key={p.slug} value={p.slug}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-                          {fetched ? (
-                            <Badge
-                              variant="outline"
-                              className="h-5 border-emerald-500/30 bg-emerald-500/10 text-[10px] text-emerald-700"
-                            >
-                              Verified
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="h-5 text-[10px] text-amber-700">
-                              Needs fetch
-                            </Badge>
-                          )}
-                          <div className="flex-1" />
-                          {profileForm.accounts.length > 1 ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-red-600"
-                              onClick={() => removeAccountSlot(account.key)}
-                              title="Remove platform"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          ) : null}
-            </div>
-
-                        {primaryField ? (
-                          <div className="flex gap-2">
-              <Input
-                              className="h-9 flex-1"
-                              type={primaryField.type === 'url' ? 'url' : 'text'}
-                              placeholder={primaryField.placeholder || primaryField.label}
-                              required={primaryField.required}
-                              value={account.data?.[primaryField.key] || ''}
-                              onChange={(e) =>
-                                updateAccount(account.key, {
-                                  data: { ...account.data, [primaryField.key]: e.target.value },
-                                  preview: null,
-                                  preview_data: null,
-                                })
-                              }
-                            />
-                            <Button
-                              type="button"
-                              variant={fetched ? 'outline' : 'default'}
-                              className="h-9 shrink-0 gap-1.5 px-3"
-                              disabled={account.fetching || !fields.length}
-                              onClick={() => fetchAccountPreview(account.key)}
-                            >
-                              {account.fetching ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Download className="h-3.5 w-3.5" />
-                              )}
-                              Fetch
-                            </Button>
-            </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">No fields for this platform.</p>
-                        )}
-
-                        {fields.slice(1).map((field) => (
-              <Input
-                            key={field.key}
-                            className="mt-2 h-9"
-                            type={field.type === 'url' ? 'url' : 'text'}
-                            placeholder={field.placeholder || field.label}
-                            required={field.required}
-                            value={account.data?.[field.key] || ''}
-                            onChange={(e) =>
-                              updateAccount(account.key, {
-                                data: { ...account.data, [field.key]: e.target.value },
-                                preview: null,
-                                preview_data: null,
-                              })
-                            }
-                          />
-                        ))}
-
-                        {account.preview ? (
-                          <div className="mt-2 flex items-center gap-2.5 rounded-md border bg-background/80 px-2.5 py-2">
-                            {account.preview.image ? (
-                              <img
-                                src={account.preview.image}
-                                alt=""
-                                className="h-10 w-10 shrink-0 rounded-full object-cover"
-                                referrerPolicy="no-referrer"
-                              />
-                            ) : (
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] text-muted-foreground">
-                                —
-            </div>
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">{account.preview.name || 'Unknown'}</p>
-                              <p className="truncate text-[11px] text-muted-foreground">
-                                {account.preview.followers != null
-                                  ? `${Number(account.preview.followers).toLocaleString()} followers`
-                                  : account.preview.url || ''}
-                                {account.preview.page_id ||
-                                account.preview.user_id ||
-                                account.preview.channel_id
-                                  ? ` · ${
-                                      account.preview.page_id ||
-                                      account.preview.user_id ||
-                                      account.preview.channel_id
-                                    }`
-                                  : ''}
-                              </p>
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              <ProfileAccountsEditor
+                platforms={platforms}
+                accounts={profileForm.accounts}
+                onAdd={addAccountSlot}
+                onRemove={removeAccountSlot}
+                onPlatformChange={setAccountPlatform}
+                onChange={updateAccount}
+                onFetch={fetchAccountPreview}
+              />
 
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Notes</Label>
@@ -1789,15 +1582,6 @@ const SocialProfiles = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <ProfileBehaviorReportDialog
-        open={Boolean(behaviorRow)}
-        onOpenChange={(next) => { if (!next) setBehaviorRow(null); }}
-        profile={behaviorRow}
-        onReportChange={(accountId, flag) => setProfiles((prev) => prev.map((p) => (
-          p.id === accountId ? { ...p, behavior_report: flag } : p
-        )))}
-      />
     </div>
   );
 };

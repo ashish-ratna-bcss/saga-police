@@ -531,9 +531,9 @@ const SocialProfileDetail = () => {
                     <span
                       className={cn(
                         'block h-full rounded-full',
-                        relevanceScore >= 60
+                        profile?.relevance?.level === 'high'
                           ? 'bg-emerald-500'
-                          : relevanceScore >= 30
+                          : profile?.relevance?.level === 'medium'
                             ? 'bg-amber-500'
                             : 'bg-slate-400'
                       )}

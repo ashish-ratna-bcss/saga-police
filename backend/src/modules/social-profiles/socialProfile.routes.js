@@ -22,13 +22,6 @@ const {
   getMonitoringPrerequisites,
 } = require('./socialProfile.controller');
 
-const {
-  getBehaviorReport,
-  startBehaviorReport,
-  cancelBehaviorReport,
-  getBehaviorReportPdf,
-} = require('./behaviorReport/behaviorReport.controller');
-
 const { authorize } = require('../../middleware/auth.middleware');
 
 /** Social Profiles page + Settings Grievances tab + Grievances page (add/list/remove grievance sources). */
@@ -59,13 +52,6 @@ router.put('/monitoring/stop-all', stopAllMonitoring);
 
 router.put('/:id/monitoring', toggleMonitoring);
 router.get('/:id/posts', listProfilePosts);
-
-// Human behaviour report (AI), same flow as the event report.
-router.get('/:id/behavior-report/report.pdf', getBehaviorReportPdf);
-router.post('/:id/behavior-report/cancel', cancelBehaviorReport);
-router.route('/:id/behavior-report')
-  .get(getBehaviorReport)
-  .post(startBehaviorReport);
 
 router.route('/:id')
   .get(getProfile)

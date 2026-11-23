@@ -1,0 +1,271 @@
+process.env.LLM_BASE_URL = process.env.LLM_BASE_URL || 'http://llm.test/v1';
+
+const test = require('node:test');
+const assert = require('node:assert');
+const { normalisePosts, buildBehaviorFacts, selectEvidence, attentionLevel } = require('../src/modules/profile-report/report/reportFacts');
+const { parseBehaviorReport, fallbackReport, buildUserContext, cleanCites } = require('../src/modules/profile-report/report/reportPrompt');
+const { buildBehaviorReportHtml } = require('../src/modules/profile-report/report/reportPdf');
+const { lockReason } = require('../src/modules/profile-report/report/reportService');
+const { kindOf, cleanDeep, encodeCursor, decodeCursor } = require('../src/modules/profile-report/profileReport.util');
+const { plainFetchError, SUPPORTED_PLATFORMS } = require('../src/modules/profile-report/profileReport.collect');
+const { nextCursorOf } = require('../src/services/blugate/instagram/blugate.instagram.helpers');
+const { computeAccountRelevance } = require('../src/modules/social-profiles/catalogRelevance.service');
+
+const at = (iso) => new Date(iso);
+const post = (id, iso, text, analysis = {}, extra = {}) => ({
+  id: String(id), platform: 'x', url: `https://x.com/a/status/${id}`, text, posted_at: at(iso), fetched_at: at(iso),
+  engagement: { likes: 0, retweets: 0, replies: 0 }, media_urls: [], media_type: null, kind: 'original',
+  analysis_status: analysis.sentiment ? 'done' : 'pending', analysis_result: analysis, image_analysis: null, account_handle: 'ashish', ...extra,
+});
+const A = (sentiment, risk_level = 'low', risk_score = 10, more = {}) => ({ sentiment, risk_level, risk_score, english_text: null, ...more });
+
+const POSTS = [
+  // 18:30 IST on a Monday
+  post(1, '2026-11-02T13:00:00Z', 'Road is broken again #Ranchi @dcranchi', A('negative', 'low', 12, { category: 'civic', stance: 'oppose' }), { engagement: { likes: 40, retweets: 5, replies: 3 } }),
+  post(2, '2026-11-03T13:10:00Z', 'Great work by the traffic police today', A('positive', 'low', 5, { category: 'praise', stance: 'support' })),
+  post(3, '2026-11-05T20:30:00Z', 'Everyone block the highway tomorrow at 10, bandh!', A('negative', 'high', 78, { category: 'protest' })),
+  post(4, '2026-11-06T13:00:00Z', 'RT @news: Budget announced', A('neutral', 'low', 3), { kind: 'shared' }),
+  post(5, '2026-11-07T13:00:00Z', '', {}),                     // no text, not analysed
+  post(6, '2026-11-08T13:00:00Z', 'Pending analysis post', {}),
+  post(7, '2026-11-09T13:00:00Z', 'They will pay for this, burn it down', A('negative', 'critical', 92, { category: 'threat' })),
+  post(8, '2026-11-10T13:00:00Z', 'Another #ranchi pothole', A('negative', 'medium', 40, { category: 'civic' })),
+];
+const ACCOUNTS = [{ platform: 'x', platform_name: 'X (Twitter)', handle: 'ashish' }];
+const facts = (rows = normalisePosts(POSTS, { timezone: 'Asia/Kolkata' }), extra = {}) => buildBehaviorFacts({
+  account: { id: 7, display_name: 'Ashish' }, accounts: ACCOUNTS, rows, timezone: 'Asia/Kolkata', now: at('2026-11-23T06:00:00Z'), ...extra,
+});
+
+test('facts: counts tone, risk, content and rhythm from every collected post', () => {
+  const f = facts();
+  assert.strictEqual(f.coverage.read, 8);
+  assert.strictEqual(f.coverage.analysed, 6, 'posts without analysis are not counted as neutral');
+  assert.deepStrictEqual(f.sentiment, { positive: 1, neutral: 1, negative: 4 });
+  assert.strictEqual(f.risk.critical, 1);
+  assert.strictEqual(f.risk.high, 1);
+  assert.strictEqual(f.attention_level, 'High');
+  assert.strictEqual(f.content.shared, 1, 'kind=shared is a shared post');
+  assert.deepStrictEqual(f.content.hashtags[0], { tag: '#Ranchi', count: 2 }, 'counted case-insensitively, shown as first written');
+  assert.strictEqual(f.cadence.by_hour[18], 7, '13:00 and 13:10 UTC fall in the 18:00 hour in Kolkata');
+  assert.strictEqual(f.cadence.night_posts, 1, '20:30 UTC is 02:00 in Kolkata');
+  assert.strictEqual(f.today, '2026-11-23');
+  assert.ok(f.trend && ['rising', 'falling', 'steady'].includes(f.trend.negativity));
+  assert.strictEqual(f.profile.name, 'Ashish');
+  assert.deepStrictEqual(f.profile.accounts, [{ platform: 'x', platform_name: 'X (Twitter)', handle: 'ashish', posts: 8 }]);
+});
+
+test('facts: a profile on several platforms gets a per-platform breakdown', () => {
+  const fb = (i, iso, text, a) => post(100 + i, iso, text, a, { platform: 'facebook', account_handle: 'ashish.page', engagement: { reactions: 30, comments: 2, shares: 1 } });
+  const rows = normalisePosts([...POSTS, fb(1, '2026-11-04T12:00:00Z', 'Great event', A('positive')), fb(2, '2026-11-05T12:00:00Z', 'Thank you all', A('positive'))], { timezone: 'Asia/Kolkata' });
+  const f = facts(rows, { accounts: [...ACCOUNTS, { platform: 'facebook', platform_name: 'Facebook', handle: 'ashish.page' }] });
+  assert.deepStrictEqual(f.by_platform.map((p) => [p.platform, p.posts]), [['x', 8], ['facebook', 2]]);
+  assert.strictEqual(f.by_platform[1].negative_share, 0);
+  assert.strictEqual(f.by_platform[0].high_risk, 2);
+  assert.deepStrictEqual(f.profile.accounts.map((a) => [a.platform, a.posts]), [['x', 8], ['facebook', 2]]);
+  assert.strictEqual(f.profile.platform, 'multiple');
+  assert.match(buildUserContext({ facts: f, evidence: selectEvidence(rows, { max: 5 }) }), /BY PLATFORM: x: 8 posts.*\| facebook: 2 posts/);
+});
+
+test('facts: text read from images counts, and image-only posts can be evidence', () => {
+  const ocrPost = post(20, '2026-11-11T09:00:00Z', '', A('negative', 'medium', 50), { image_analysis: { full_text: 'Join the rally at Morabadi 10am' }, media_urls: ['media'] });
+  const rows = normalisePosts([...POSTS, ocrPost], { timezone: 'Asia/Kolkata' });
+  const f = facts(rows);
+  assert.strictEqual(f.content.with_image_text, 1);
+  const ev = selectEvidence(rows, { max: 40 });
+  const e = ev.find((x) => x.id === '20');
+  assert.ok(e, 'a post with no text but image text is usable evidence');
+  assert.strictEqual(e.image_text, 'Join the rally at Morabadi 10am');
+  assert.match(buildUserContext({ facts: f, evidence: ev }), /Text: \(no text\)\nImage text: Join the rally at Morabadi 10am/);
+  assert.strictEqual(normalisePosts([post(21, '2026-11-11T09:00:00Z', 'x', {}, { image_analysis: { failed: true, error: 'x' } })])[0].imageText, '', 'a failed OCR contributes nothing');
+});
+
+test('facts: a very large history stays fast and exact (no cap)', () => {
+  const many = Array.from({ length: 30000 }, (_, i) => post(1000 + i, new Date(Date.UTC(2025, 0, 1) + i * 3600e3).toISOString(), `post ${i} #t${i % 7}`, A(i % 5 === 0 ? 'negative' : 'neutral', i % 997 === 0 ? 'high' : 'low', i % 997 === 0 ? 75 : 5)));
+  const t0 = Date.now();
+  const f = facts(normalisePosts(many));
+  assert.strictEqual(f.coverage.read, 30000);
+  assert.strictEqual(f.sentiment.negative, 6000);
+  assert.strictEqual(f.risk.high, 31);
+  assert.ok(Date.now() - t0 < 5000, `took ${Date.now() - t0}ms`);
+  assert.strictEqual(selectEvidence(normalisePosts(many), { max: 40 }).length, 40);
+});
+
+test('attention level comes from risk counts', () => {
+  assert.strictEqual(attentionLevel({ critical: 0, high: 0, medium: 1 }), 'Low');
+  assert.strictEqual(attentionLevel({ critical: 0, high: 0, medium: 2 }), 'Medium');
+  assert.strictEqual(attentionLevel({ critical: 0, high: 1, medium: 0 }), 'Medium');
+  assert.strictEqual(attentionLevel({ critical: 1, high: 0, medium: 0 }), 'High');
+});
+
+test('evidence: serious-risk posts always included, numbered oldest first, capped', () => {
+  const rows = normalisePosts(POSTS);
+  const ev = selectEvidence(rows, { max: 3 });
+  assert.strictEqual(ev.length, 3);
+  assert.deepStrictEqual(ev.map((e) => e.n), [1, 2, 3]);
+  const ids = ev.map((e) => e.id);
+  assert.ok(ids.includes('3') && ids.includes('7'), 'high and critical posts are picked first');
+  assert.ok(ev.every((e, i) => i === 0 || new Date(e.posted_at) >= new Date(ev[i - 1].posted_at)));
+  assert.ok(!ids.includes('5'), 'posts without text are not evidence');
+});
+
+test('parser: keeps only valid citations, normalises labels, forces the computed attention level', () => {
+  const reply = '```json\n' + JSON.stringify({
+    bottom_line: 'Local civic account [Post #2] that turned to calls for a bandh [P9].',
+    account_type: 'individual',
+    account_type_basis: 'Personal tone.',
+    attention_level: 'Low',
+    attention_reason: 'One call to block a highway [P3].',
+    platform_differences: 'X is sharper than Facebook [P3].',
+    behaviour_traits: [{ trait: 'Calls for road blockades', evidence_level: 'observed', detail: 'x', posts: [3, 99, '2'] }],
+    themes: [{ theme: 'Roads', share: 'MAIN theme', detail: 'Potholes.', posts: [1] }],
+    risk_indicators: [
+      { indicator: 'Bandh call', severity: 'high risk', detail: 'Calls to block the highway.', posts: [3] },
+      { indicator: 'Vague worry', severity: 'Low', detail: 'No post.', posts: [] },
+    ],
+    notable_posts: [{ post: 'P3', why: 'Bandh call' }, { post: 42, why: 'not in evidence' }],
+    watch_points: ['#Ranchi'],
+    limitations: ['Only 8 posts.'],
+    unknown_field: 'dropped',
+  }) + '\n```';
+  const r = parseBehaviorReport(reply, { maxN: 5, attentionLevel: 'High' });
+  assert.strictEqual(r.attention_level, 'High', 'the model cannot change the attention level');
+  assert.strictEqual(r.account_type, 'Individual');
+  assert.strictEqual(r.bottom_line, 'Local civic account [P2] that turned to calls for a bandh.');
+  assert.strictEqual(r.platform_differences, 'X is sharper than Facebook [P3].');
+  assert.deepStrictEqual(r.behaviour_traits[0].posts, [3, 2]);
+  assert.strictEqual(r.behaviour_traits[0].evidence_level, 'Observed');
+  assert.strictEqual(r.themes[0].share, 'Main');
+  assert.strictEqual(r.risk_indicators.length, 1, 'a risk indicator with no post behind it is dropped');
+  assert.strictEqual(r.risk_indicators[0].severity, 'High');
+  assert.deepStrictEqual(r.notable_posts, [{ post: 3, why: 'Bandh call' }]);
+  assert.strictEqual(r.unknown_field, undefined);
+});
+
+test('parser: rejects replies without a bottom line or without JSON', () => {
+  assert.throws(() => parseBehaviorReport('{"themes": []}', { maxN: 3 }));
+  assert.throws(() => parseBehaviorReport('I cannot help with that.', { maxN: 3 }));
+  assert.strictEqual(cleanCites('see (P2) and [post 7]', 3), 'see [P2] and');
+});
+
+test('context and fallback carry the computed numbers', () => {
+  const f = facts();
+  const ev = selectEvidence(normalisePosts(POSTS), { max: 10 });
+  const ctx = buildUserContext({ facts: f, evidence: ev });
+  assert.match(ctx, /ATTENTION LEVEL \(decided from risk counts, final\): High/);
+  assert.match(ctx, /SENTIMENT \(analysed posts\): 1 positive, 1 neutral, 4 negative/);
+  assert.match(ctx, /ACCOUNTS: X \(Twitter\) ashish \(8 posts\)/);
+  assert.match(ctx, /\[P1\]/);
+  const fb = fallbackReport(f, ev);
+  assert.strictEqual(fb.attention_level, 'High');
+  assert.ok(fb.risk_indicators.length >= 2);
+  assert.match(fb.bottom_line, /Ashish published 8 posts/);
+  assert.strictEqual(fb.platform_differences, '', 'one platform: nothing to compare');
+});
+
+test('pdf: escapes post text, shows image text, accounts and the per-platform table', () => {
+  const f = facts();
+  f.by_platform = [{ platform: 'x', posts: 8, analysed: 6, negative_share: 67, high_risk: 2, avg_engagement: 9, first_post: '2026-11-02', last_post: '2026-11-10' }, { platform: 'facebook', posts: 2, analysed: 2, negative_share: 0, high_risk: 0, avg_engagement: 31, first_post: '2026-11-04', last_post: '2026-11-05' }];
+  const html = buildBehaviorReportHtml({
+    report: { bottom_line: 'Pattern [P1] <b>x</b>', attention_level: 'Medium', platform_differences: 'X sharper.', notable_posts: [{ post: 1, why: 'Top' }], behaviour_traits: [], themes: [] },
+    facts: { ...f, profile: { ...f.profile, name: 'A <script>' } },
+    evidence: [{ n: 1, platform: 'facebook', text: '<img src=x onerror=alert(1)>', image_text: 'RALLY <b>10am</b>', engagement: {}, posted_at: '2026-11-02T13:00:00Z' }],
+    generated_at: '2026-11-23T06:00:00Z',
+  }, { tenantLabel: 'Test Police' });
+  assert.ok(!html.includes('<script>') && !html.includes('<img src=x') && !html.includes('<b>10am</b>'));
+  assert.match(html, /<span class="cite">P1<\/span>/);
+  assert.match(html, /Evidence: posts cited/);
+  assert.match(html, /Image text: RALLY &lt;b&gt;10am/);
+  assert.match(html, /By platform/);
+  assert.match(html, /<b>Facebook<\/b>/);
+  assert.match(html, /Posts collected/);
+});
+
+test('the report needs at least one analysed post, and says why when it cannot start', () => {
+  assert.match(lockReason(null), /No posts have been collected/);
+  assert.match(lockReason({ posts: 0, done: 0 }), /No posts have been collected/);
+  assert.match(lockReason({ posts: 40, done: 0, waiting: 40 }), /still being analysed/);
+  assert.strictEqual(lockReason({ posts: 40, done: 1 }), '');
+});
+
+/* ------------------------------------------------------------------ collection helpers --------------------- */
+
+test('posts are classified once when stored: shared, reply, quote, original', () => {
+  assert.strictEqual(kindOf({ text: 'RT @a: hi', raw_data: {} }), 'shared');
+  assert.strictEqual(kindOf({ text: 'hi', raw_data: { legacy: { retweeted_status_result: {} } } }), 'shared');
+  assert.strictEqual(kindOf({ text: 'hi', raw_data: { fwd_from: { x: 1 } } }), 'shared', 'a forwarded Telegram message');
+  assert.strictEqual(kindOf({ text: '@b thanks', raw_data: { legacy: { in_reply_to_status_id_str: '9' } } }), 'reply');
+  assert.strictEqual(kindOf({ text: 'look', raw_data: { legacy: { is_quote_status: true } } }), 'quote');
+  assert.strictEqual(kindOf({ text: 'plain', raw_data: { legacy: {} } }), 'original');
+  assert.strictEqual(kindOf({ text: null }), 'original');
+});
+
+test('only platforms with a walkable timeline are collected', () => {
+  assert.deepStrictEqual(SUPPORTED_PLATFORMS, ['x', 'facebook', 'instagram', 'youtube', 'telegram']);
+});
+
+test('instagram: the next-page cursor is found wherever the gateway puts it, and "no more" wins', () => {
+  assert.strictEqual(nextCursorOf({ result: { items: [], end_cursor: 'abc' } }), 'abc');
+  assert.strictEqual(nextCursorOf({ items: [], end_cursor: 'abc' }), 'abc');
+  assert.strictEqual(nextCursorOf({ data: { page_info: { end_cursor: 'p1', has_next_page: true } } }), 'p1');
+  assert.strictEqual(nextCursorOf({ result: { next_max_id: 'm9', items: [] } }), 'm9');
+  assert.strictEqual(nextCursorOf({ result: { items: [], end_cursor: 'zzz', more_available: false } }), null, 'an explicit end overrides a leftover cursor');
+  assert.strictEqual(nextCursorOf({ result: { items: [] } }), null);
+  assert.strictEqual(nextCursorOf(null), null);
+});
+
+test('cursors round-trip (a string stays a string, Instagram\'s object survives)', () => {
+  assert.strictEqual(decodeCursor(encodeCursor('abc==')), 'abc==');
+  assert.deepStrictEqual(decodeCursor(encodeCursor({ feed: 'reels', maxId: '7' })), { feed: 'reels', maxId: '7' });
+  assert.strictEqual(encodeCursor(null), null);
+  assert.strictEqual(decodeCursor(null), null);
+});
+
+test('what people see when a collection stops never contains provider details', () => {
+  const e404 = plainFetchError({ response: { status: 404 }, message: 'Request failed at https://blugate.blurasaga.com/x' }, 0);
+  assert.match(e404, /not found on the platform/);
+  assert.match(plainFetchError({ response: { status: 403 }, message: 'Forbidden' }, 1200), /1,200 posts were saved; Retry continues from there/);
+  assert.match(plainFetchError({ response: { status: 429 }, message: 'rate' }, 0), /limiting requests/);
+  assert.match(plainFetchError(new Error('ECONNRESET 10.0.0.5:8003'), 3), /stopped returning posts/);
+  for (const e of [e404, plainFetchError(new Error('ECONNRESET 10.0.0.5:8003'), 3)]) assert.ok(!/blugate|https?:|10\.0\.0|ECONN/i.test(e), e);
+});
+
+test('stored JSON is made safe for PostgreSQL', () => {
+  assert.deepStrictEqual(cleanDeep({ a: 'x\u0000y', b: [1n, 'ok'], c: new Date('2026-01-01T00:00:00Z') }), { a: 'xy', b: ['1', 'ok'], c: '2026-01-01T00:00:00.000Z' });
+});
+
+/* ------------------------------------------------------------------------ relevance ----------------------- */
+
+const alert = (risk_level, daysAgo) => ({ risk_level, posted_at: new Date(Date.UTC(2026, 10, 23) - daysAgo * 864e5) });
+const NOW = Date.UTC(2026, 10, 23);
+
+test('relevance: the label always matches the data (the old "Few or no recent alerts" on 4 alerts, one high, is gone)', () => {
+  // The case from the screenshot: 1 high, 1 medium, 2 low in 30 days.
+  const r = computeAccountRelevance([alert('high', 3), alert('medium', 10), alert('low', 12), alert('low', 20)], { postCount: 40, now: NOW });
+  assert.strictEqual(r.level, 'medium');
+  assert.strictEqual(r.label, 'Moderately relevant');
+  assert.match(r.hint, /1 high, 1 medium, 2 low in the last 30 days/);
+  assert.strictEqual(r.total_alerts, 4);
+  assert.strictEqual(r.recent_alerts_7d, 1);
+  assert.strictEqual(r.posts_in_window, 40);
+  assert.ok(r.score >= 30 && r.score < 70, `score ${r.score}`);
+});
+
+test('relevance: low-risk alerts add nothing, no alerts is its own level, recent and frequent serious alerts rank high', () => {
+  assert.strictEqual(computeAccountRelevance([], { now: NOW }).level, 'none');
+  assert.strictEqual(computeAccountRelevance([], { now: NOW }).label, 'No recent alerts');
+  const noise = computeAccountRelevance(Array.from({ length: 15 }, () => alert('low', 2)), { postCount: 15, now: NOW });
+  assert.strictEqual(noise.score, 0, 'twelve+ low alerts used to make an account "moderately relevant"');
+  assert.strictEqual(noise.level, 'low');
+  const hot = computeAccountRelevance([alert('high', 1), alert('high', 2), alert('high', 3)], { postCount: 500, now: NOW });
+  assert.strictEqual(hot.level, 'high');
+  assert.ok(hot.score >= 70 && hot.score <= 100);
+});
+
+test('relevance: newer alerts count more, and a quiet account ranks above a busy one with the same alert', () => {
+  const fresh = computeAccountRelevance([alert('high', 2)], { postCount: 10, now: NOW });
+  const old = computeAccountRelevance([alert('high', 25)], { postCount: 10, now: NOW });
+  assert.ok(fresh.score > old.score);
+  const quiet = computeAccountRelevance([alert('high', 2)], { postCount: 10, now: NOW });
+  const busy = computeAccountRelevance([alert('high', 2)], { postCount: 2000, now: NOW });
+  assert.ok(quiet.score > busy.score, `${quiet.score} vs ${busy.score}`);
+  assert.ok(computeAccountRelevance(Array.from({ length: 30 }, () => alert('high', 1)), { postCount: 30, now: NOW }).score <= 100);
+});

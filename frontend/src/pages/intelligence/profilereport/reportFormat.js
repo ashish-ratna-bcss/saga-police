@@ -1,4 +1,4 @@
-/** Small pure helpers for the Human behaviour report (dialog + catalog column). */
+/** Small pure helpers for Tools → Profile Report (list, detail, report dialog). */
 
 export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -8,17 +8,48 @@ export const ATTENTION_STYLES = {
   Low: { pill: 'border-emerald-300 bg-emerald-50 text-emerald-700', border: 'border-l-emerald-500', dot: 'bg-emerald-500' },
 };
 
+const PLATFORMS = { x: 'X', twitter: 'X', facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', telegram: 'Telegram', reddit: 'Reddit' };
+export const platformLabel = (p) => PLATFORMS[String(p || '').toLowerCase()] || p || '';
+
+/** Platforms whose whole timeline can be collected. The server sends its own list; this is the fallback. */
+export const DEFAULT_SUPPORTED_PLATFORMS = ['x', 'facebook', 'instagram', 'youtube', 'telegram'];
+
+/* ----------------------------------------------------------------------------- progress --------------------- */
+
 /**
- * Why the report button is locked for a catalog row, or '' when it can be used.
- * It unlocks once monitoring has collected at least one post; a saved report can always be opened.
+ * Where a profile is: collecting posts, analysing them, or ready.
+ * @returns {{ phase: 'collecting'|'failed'|'analysing'|'ready'|'empty', label: string }}
  */
-export const behaviorLockReason = (row) => {
-  if (!row || row.behavior_report) return '';
-  if (Number(row.posts_stored) > 0) return '';
-  return row.monitoring_status === 'started'
-    ? 'Unlocks when monitoring collects the first posts for this profile.'
-    : 'Start monitoring first. The report unlocks once posts are collected.';
+export const progressOf = (subject) => {
+  const accounts = subject?.accounts || [];
+  const failed = accounts.filter((a) => a.fetch_status === 'failed');
+  if ((subject?.collecting || 0) > 0 || accounts.some((a) => a.fetch_status === 'pending' || a.fetch_status === 'running')) {
+    return { phase: 'collecting', label: 'Collecting posts' };
+  }
+  if (failed.length) return { phase: 'failed', label: failed.length === accounts.length ? 'Collection stopped' : 'Partly collected' };
+  if ((subject?.waiting || 0) > 0) return { phase: 'analysing', label: 'Analysing posts' };
+  if (!subject?.posts) return { phase: 'empty', label: 'No posts found' };
+  return { phase: 'ready', label: 'Ready' };
 };
+
+/** Why the report button is locked, or '' when it can be used: it needs at least one analysed post. */
+export const reportLockReason = (subject) => {
+  if (!subject) return '';
+  if (!subject.posts) return 'No posts have been collected yet. They are being fetched; the report unlocks once the first posts are analysed.';
+  if (!subject.analysed) return 'Posts are still being analysed. The report unlocks once the first posts are analysed.';
+  return '';
+};
+
+/** "1,240 of 5,000" style progress of the analysis. Posts without text are skipped and count as processed. */
+export const analysisProgress = (subject) => {
+  const total = Number(subject?.posts) || 0;
+  const processed = total - (Number(subject?.waiting) || 0);
+  return { total, processed, percent: total ? Math.min(100, Math.round((processed / total) * 100)) : 0 };
+};
+
+export const formatCount = (n) => Number(n || 0).toLocaleString('en-IN');
+
+/* --------------------------------------------------------------------------- the report --------------------- */
 
 /** "Roads [P3] and [P12]." -> ['Roads ', 3, ' and ', 12, '.'] */
 export const splitCites = (text) => {
@@ -36,7 +67,7 @@ export const splitCites = (text) => {
   return out;
 };
 
-const TEXT_FIELDS = ['bottom_line', 'attention_reason', 'account_type_basis', 'tone', 'communication_style', 'posting_pattern', 'influence'];
+const TEXT_FIELDS = ['bottom_line', 'attention_reason', 'account_type_basis', 'tone', 'communication_style', 'posting_pattern', 'platform_differences', 'influence'];
 const LIST_FIELDS = ['behaviour_traits', 'themes', 'targets', 'risk_indicators', 'changes_over_time'];
 
 /** Every post number the report points to: posts arrays, notable posts and inline [P#] citations. */
@@ -68,9 +99,6 @@ export const toneShare = (s = {}) => {
 };
 
 export const hourLabel = (h) => `${String(h).padStart(2, '0')}:00`;
-
-const PLATFORMS = { x: 'X', twitter: 'X', facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', telegram: 'Telegram', reddit: 'Reddit' };
-export const platformLabel = (p) => PLATFORMS[String(p || '').toLowerCase()] || p || '';
 
 export const formatWhen = (iso, timeZone) => {
   const d = new Date(iso);

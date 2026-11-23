@@ -1,5 +1,5 @@
 /**
- * Help content — Analysis Tools (Scrape and OSINT).
+ * Help content — Analysis Tools (Scrape, OSINT and Profile Report).
  * Block types: p | steps | list | table | fields | callout
  */
 
@@ -8,7 +8,7 @@ const analysisTools = {
   title: 'Analysis Tools',
   icon: 'Wrench',
   summary:
-    'Two workbenches under Tools: Scrape to crawl and search websites, and OSINT to look up a phone number, email or username or investigate a subject.',
+    'Workbenches under Tools: Scrape to crawl and search websites, OSINT to look up a phone number, email or username or investigate a subject, and Profile Report to study one profile from all of its posts.',
   sections: [
     {
       id: 'overview',
@@ -20,7 +20,7 @@ const analysisTools = {
       blocks: [
         {
           type: 'p',
-          text: 'Open **Tools** in the sidebar. A rail on the left lists the modules, **Scrape** and **OSINT**. Pick one and its workspace opens on the right.',
+          text: 'Open **Tools** in the sidebar. A rail on the left lists the modules, such as **Scrape**, **OSINT** and **Profile Report**. Pick one and its workspace opens on the right.',
         },
         {
           type: 'p',
@@ -192,6 +192,49 @@ const analysisTools = {
           tone: 'tip',
           title: 'Valid or not',
           text: 'For lookups a green tick beside the title means the identifier was found valid, and a red cross means it was not.',
+        },
+      ],
+    },
+
+    {
+      id: 'profile-report',
+      group: 'Profile Report',
+      groupBlurb: 'Study one profile in full',
+      icon: 'UserSearch',
+      blurb: 'Collect every post of a profile and get an AI behaviour report.',
+      title: 'Profile Report',
+      blocks: [
+        {
+          type: 'p',
+          text: 'Profile Report collects **every post** of a person or page once, saves them in your own workspace, reads the text in their pictures, analyses tone and risk post by post, and writes an AI **behaviour report** from all of it. It is separate from the Profile Catalog: nothing here is monitored and nothing raises alerts.',
+        },
+        {
+          type: 'steps',
+          items: [
+            { text: 'Open **Tools → Profile Report** and click **Add profile**.' },
+            { text: 'Choose the platform, type the account and click **Fetch**. The account is verified and **all of its posts start being collected right away**; the card shows how many so far. Add more platforms for the same person with **Add platform**.' },
+            { text: 'Click **Save**. Closing the window without saving removes what was fetched.' },
+            { text: 'Posts are analysed in the background, newest first. The profile card shows how many are done.' },
+            { text: 'Click **Generate report** once the first posts are analysed. It can be regenerated later to include more.' },
+          ],
+        },
+        {
+          type: 'table',
+          head: ['You see', 'It means'],
+          rows: [
+            ['Collecting posts', 'The platform is being read page by page until its history ends. There is no limit on the number of posts.'],
+            ['Analysing posts', 'Each post is read one at a time: text in images, then tone, risk and stance. A large profile takes a while.'],
+            ['Generate report is locked', 'No post has been analysed yet. It unlocks by itself.'],
+            ['Collection stopped', 'The platform stopped answering. **Retry** continues from the last page saved; nothing is collected twice.'],
+            ['Refresh posts', 'Fetches only posts published since the last fetch.'],
+          ],
+        },
+        {
+          type: 'callout',
+          tone: 'warn',
+          title: 'What the report is, and is not',
+          text:
+            'The numbers (posting hours, tone, risk, engagement) are computed from the saved posts, and every statement in the report cites the posts that show it (the P-numbers link to them). Criticism of the government or police is not treated as a threat. An analyst aid, not a finding: check the original posts before any action. Reddit is not available here because it offers keyword search only, not a user timeline.',
         },
       ],
     },

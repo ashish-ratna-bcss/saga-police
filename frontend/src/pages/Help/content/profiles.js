@@ -170,18 +170,24 @@ const profiles = {
         {
           type: 'p',
           text:
-            'Relevance is a score out of 100 based on recent alerts generated from the account. Click the score to see Recent Alerts split into High Risk, Medium Risk and Low Risk.',
+            'Relevance is a score out of 100 from the alerts raised by this account itself in the last 30 days (it never borrows the alerts of the person\'s other accounts). Click the score to see Recent Alerts split into High Risk, Medium Risk and Low Risk.',
+        },
+        {
+          type: 'p',
+          text:
+            'High alerts add 25 points and medium alerts 10; low-risk alerts add none. Alerts from the last 7 days count in full, the following week three quarters, and older ones half. Up to 20 more points are added when a large share of the account\'s own posts raised a high or medium alert, so a quiet account with a serious alert ranks above a very busy one with the same alert.',
         },
         {
           type: 'table',
           head: ['Score', 'Label'],
           rows: [
-            ['80 and above', 'Highly relevant. Frequent or severe alerts.'],
-            ['60 to 79', 'Moderately relevant. Some recent alerts.'],
-            ['Below 60', 'Low relevance. Few or no recent alerts.'],
+            ['70 and above', 'Highly relevant. Frequent, recent or severe alerts.'],
+            ['30 to 69', 'Moderately relevant. Some recent high or medium alerts.'],
+            ['Below 30', 'Low relevance. Few alerts, or only low-risk ones.'],
+            ['0 with no alerts', 'No recent alerts.'],
           ],
         },
-        { type: 'p', text: 'A dash means no score is available yet.' },
+        { type: 'p', text: 'The label under the score always lists the alert counts it is based on. A dash means no score is available yet.' },
       ],
     },
     {

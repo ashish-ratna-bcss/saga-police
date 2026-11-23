@@ -359,8 +359,37 @@ const fetchXPosts = async (account, auth = null) => {
   };
 };
 
+/**
+ * One page of a user's timeline, for walking back through the whole history (Tools → Profile Report).
+ * Monitoring keeps using fetchXPosts (newest page only).
+ * @param {{ cursor?: string|null, count?: number, auth?: object|null }} [opts]
+ * @returns {{ posts: object[], next: string|null, apiHits: number, dataPatch: object|null }}
+ */
+const fetchXPostsPage = async (account, { cursor = null, count = 40, auth = null } = {}) => {
+  const creds = auth || (account.platforms ? authFromPlatformRow(account.platforms) : null);
+  const { userId, username, apiHits: resolveHits, dataPatch } = await resolveUserId(account.data || {}, creds);
+  const params = { user: userId, count: String(Math.max(5, Math.min(Number(count) || 40, 100))) };
+  if (cursor) params.cursor = cursor;
+  const response = await callWithGap('USER_TWEETS', params, creds);
+  const instructions =
+    response?.result?.timeline?.instructions ||
+    response?.timeline?.instructions ||
+    [];
+  const seen = new Set();
+  const posts = [];
+  for (const raw of collectRawTweets(instructions)) {
+    const mapped = mapXPost(raw, account.id, username);
+    if (!mapped || seen.has(mapped.external_id)) continue;
+    seen.add(mapped.external_id);
+    posts.push(mapped);
+  }
+  const next = response?.cursor?.bottom || null;
+  return { posts, next: next && next !== cursor ? next : null, apiHits: resolveHits + 1, dataPatch };
+};
+
 module.exports = {
   fetchXPosts,
+  fetchXPostsPage,
   mapXPost,
   resolveUserId,
   fetchUserTweetsForEngagerAnalysis,

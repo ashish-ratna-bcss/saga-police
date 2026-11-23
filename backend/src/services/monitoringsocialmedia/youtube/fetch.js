@@ -208,8 +208,71 @@ const fetchYouTubePosts = async (account, auth = null) => {
   }
 };
 
+/**
+ * One page (up to 50 videos) of a channel's uploads, for walking back through the whole channel
+ * (Tools → Profile Report). Adds view / like / comment counts, which playlist items do not carry.
+ * @returns {{ posts: object[], next: string|null, apiHits: number, dataPatch: object|null }}
+ */
+const fetchYouTubePostsPage = async (account, { cursor = null, auth = null } = {}) => {
+  let resolved = await resolveChannel(account.data || {}, auth);
+  let apiHits = resolved.apiHits;
+  let dataPatch = resolved.dataPatch;
+
+  const loadPage = async (playlistId) => {
+    const params = { part: 'snippet,contentDetails', playlistId, maxResults: 50 };
+    if (cursor) params.pageToken = cursor;
+    apiHits += 1;
+    return callWithGap('PLAYLIST_ITEMS_LIST', params, auth);
+  };
+
+  let playlist;
+  try {
+    playlist = await loadPage(resolved.uploadsPlaylistId);
+  } catch (err) {
+    const reason = err?.response?.data?.error?.errors?.[0]?.reason;
+    const msg = String(err?.message || '');
+    const playlistMissing = reason === 'playlistNotFound' || msg.includes('playlistId') || msg.toLowerCase().includes('playlist cannot be found');
+    if (!(playlistMissing && account.data?.uploads_playlist_id)) throw err;
+    // A stale uploads id: drop it, look the channel up again and retry once.
+    const stripped = { ...(account.data || {}) };
+    delete stripped.uploads_playlist_id;
+    resolved = await resolveChannel(stripped, auth);
+    apiHits += resolved.apiHits;
+    dataPatch = resolved.dataPatch;
+    playlist = await loadPage(resolved.uploadsPlaylistId);
+  }
+
+  const seen = new Set();
+  const posts = [];
+  for (const item of Array.isArray(playlist?.items) ? playlist.items : []) {
+    const mapped = mapYouTubePost(item, account.id, resolved.channelMeta);
+    if (!mapped || seen.has(mapped.external_id)) continue;
+    seen.add(mapped.external_id);
+    posts.push(mapped);
+  }
+
+  if (posts.length) {
+    try {
+      apiHits += 1;
+      const stats = await callWithGap('VIDEOS_LIST', { part: 'statistics', id: posts.map((p) => p.external_id).join(','), maxResults: 50 }, auth);
+      const byId = new Map((Array.isArray(stats?.items) ? stats.items : []).map((v) => [String(v.id), v.statistics || {}]));
+      for (const p of posts) {
+        const s = byId.get(p.external_id);
+        if (s) p.engagement = { views: Number(s.viewCount) || 0, likes: Number(s.likeCount) || 0, comments: Number(s.commentCount) || 0 };
+      }
+    } catch (err) {
+      // Counts are a nice-to-have; the videos themselves are what matters.
+      console.warn(`[youtube/fetch] statistics skipped: ${err.message}`);
+    }
+  }
+
+  const next = playlist?.nextPageToken || null;
+  return { posts, next: next && next !== cursor ? next : null, apiHits, dataPatch };
+};
+
 module.exports = {
   fetchYouTubePosts,
+  fetchYouTubePostsPage,
   mapYouTubePost,
   resolveChannel,
   parseChannelRef,

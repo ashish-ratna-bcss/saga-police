@@ -45,6 +45,7 @@ const ScrapeWorkspace = lazy(() => import('./pages/intelligence/scrape/ScrapeWor
 const OsintWorkspace = lazy(() => import('./pages/intelligence/osint/OsintWorkspace'));
 const NewsWorkspace = lazy(() => import('./pages/intelligence/news/NewsWorkspace'));
 const EpaperWorkspace = lazy(() => import('./pages/intelligence/epaper/EpaperIntel'));
+const ProfileReportWorkspace = lazy(() => import('./pages/intelligence/profilereport/ProfileReportWorkspace'));
 
 
 const EventsReport = lazy(() => import('./pages/events/EventsReport'));
@@ -122,6 +123,7 @@ function App() {
                 <Route path="osint" element={<OsintWorkspace />} />
                 <Route path="news" element={<NewsWorkspace />} />
                 <Route path="epaper" element={<EpaperWorkspace />} />
+                <Route path="profile-report" element={<ProfileReportWorkspace />} />
               </Route>
 
               <Route path="system-health" element={<SystemHealth />} />

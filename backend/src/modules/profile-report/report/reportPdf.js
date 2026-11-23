@@ -1,11 +1,11 @@
 /**
- * PROFILE BEHAVIOUR REPORT: the A4 PDF.
+ * PROFILE BEHAVIOUR REPORT (Tools → Profile Report): the A4 PDF.
  * Built from the saved report only (no model call), rendered by the same Puppeteer renderer and
  * Noto fonts as the event report, so Hindi / Odia / other scripts in the evidence print correctly.
  */
 const { fontFacesFor, FONT_STACK } = require('../../events/eventIntelligenceReport/template');
 const { esc } = require('../../events/eventIntelligenceReport/render');
-const { WEEKDAYS } = require('./behaviorFacts');
+const { WEEKDAYS } = require('./reportFacts');
 
 const INK = '#0f172a';
 const MUTED = '#64748b';
@@ -139,7 +139,7 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
 
   const kpi = (k, v, s = '') => `<div class="kpi"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div>${s ? `<div class="s">${esc(s)}</div>` : ''}</div>`;
   const kpis = `<div class="kpis">
-    ${kpi('Posts read', n(cov.read), cov.total_posts > cov.read ? `of ${n(cov.total_posts)} stored` : `${n(cov.analysed)} analysed`)}
+    ${kpi('Posts collected', n(cov.read), `${n(cov.analysed)} analysed`)}
     ${kpi('Period', `${cov.span_days || 0} days`, `${cov.first_post || '?'} → ${cov.last_post || '?'}`)}
     ${kpi('Posts a day', String(cadence.posts_per_day ?? 0), `${n(cadence.active_days)} active days`)}
     ${kpi('Engagement a post', n(f.engagement?.avg_score), `average · median ${n(f.engagement?.median_score)}`)}
@@ -155,6 +155,10 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
     : '<p class="muted">No explicit risk indicator (threat, incitement, call for a bandh or blockade, doxxing) in the posts read.</p>';
   const changes = (r.changes_over_time || []).map((c) => `<li>${rich(c.from)} <b>→</b> ${rich(c.to)}${cites(c.posts)}</li>`).join('');
   const chips = (items, fmt) => (items && items.length ? `<div class="chips">${items.map((x) => `<span>${esc(fmt(x))}</span>`).join('')}</div>` : '<p class="muted">None.</p>');
+
+  const byPlatform = (f.by_platform || []).length > 1
+    ? `${para(r.platform_differences)}<table><tr><th>Platform</th><th>Posts</th><th>Negative</th><th>Serious risk</th><th>Engagement a post</th><th>Period</th></tr>${f.by_platform.map((p) => `<tr><td><b>${esc(platformLabel(p.platform))}</b></td><td>${n(p.posts)}</td><td>${p.negative_share}% of ${n(p.analysed)}</td><td>${n(p.high_risk)}</td><td>${n(p.avg_engagement)}</td><td>${esc(p.first_post || '?')} → ${esc(p.last_post || '?')}</td></tr>`).join('')}</table>`
+    : '';
 
   const pattern = `${para(r.posting_pattern)}
     <div class="grid2">
@@ -181,7 +185,7 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
       <td class="no">P${e.n}</td>
       <td>${esc(e.posted_at ? fmtDateTime(e.posted_at, tz) : 'undated')}<div class="muted">${esc(platformLabel(e.platform))}${e.shared ? ' · shared' : e.reply ? ' · reply' : ''}</div></td>
       <td>${e.sentiment ? `<div>${esc(e.sentiment)}</div>` : '<div class="muted">not analysed</div>'}${e.risk_level ? `<div class="muted">risk ${esc(e.risk_level)} (${n(e.risk_score)})</div>` : ''}<div class="muted">${n(e.engagement?.likes)} likes · ${n(e.engagement?.shares)} shares</div></td>
-      <td>${esc(e.text)}${e.english ? `<div class="en">EN: ${esc(e.english)}</div>` : ''}${notable.has(e.n) ? `<div class="en"><b>Why notable:</b> ${rich((r.notable_posts.find((x) => x.post === e.n) || {}).why)}</div>` : ''}${e.url ? `<div><a href="${esc(e.url)}">${esc(e.url)}</a></div>` : ''}</td>
+      <td>${esc(e.text || '(no text)')}${e.english ? `<div class="en">EN: ${esc(e.english)}</div>` : ''}${e.image_text ? `<div class="en">Image text: ${esc(e.image_text)}</div>` : ''}${notable.has(e.n) ? `<div class="en"><b>Why notable:</b> ${rich((r.notable_posts.find((x) => x.post === e.n) || {}).why)}</div>` : ''}${e.url ? `<div><a href="${esc(e.url)}">${esc(e.url)}</a></div>` : ''}</td>
     </tr>`).join('')}
     </table></section>` : '';
 
@@ -209,6 +213,7 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
   ${section('Tone', `${toneBar(sent)}${para(r.tone)}`)}
   ${section('Who the posts are about', targets)}
   ${section('Communication style', style)}
+  ${section('By platform', byPlatform)}
   ${section('Posting pattern', pattern)}
   ${section('Reach', para(r.influence))}
   ${section('Risk indicators', riskRows)}

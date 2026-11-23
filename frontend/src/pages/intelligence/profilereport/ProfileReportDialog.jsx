@@ -4,17 +4,17 @@ import {
   Loader2, Info, CheckCircle2, CircleDot, Hash, AtSign, X as XIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { socialProfilesApi } from '../../api/socialProfiles.api';
+import { profileReportApi } from '../../../api/profileReport.api';
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
-} from '../../components/ui/dialog';
-import { Button } from '../../components/ui/button';
-import { Progress } from '../../components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
-import { cn } from '../../lib/utils';
+} from '../../../components/ui/dialog';
+import { Button } from '../../../components/ui/button';
+import { Progress } from '../../../components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
+import { cn } from '../../../lib/utils';
 import {
-  ATTENTION_STYLES, citesIn, formatWhen, hourLabel, platformLabel, splitCites, toneShare, WEEKDAYS,
-} from './behaviorReportFormat';
+  ATTENTION_STYLES, analysisProgress, citesIn, formatCount, formatWhen, hourLabel, platformLabel, splitCites, toneShare, WEEKDAYS,
+} from './reportFormat';
 
 const POLL_MS = 3500;
 
@@ -242,7 +242,7 @@ const BehaviourTab = ({ report, facts, onCite }) => {
         <div className="mt-2.5 flex flex-wrap gap-1.5 text-[11px]">
           {[
             ['Original', content.original], ['Shared', content.shared], ['Replies', content.replies],
-            ['Photo / video', content.with_media], ['With links', content.with_links], ['Avg length', `${content.avg_length || 0} chars`],
+            ['Photo / video', content.with_media], ['Text read from images', content.with_image_text], ['With links', content.with_links], ['Avg length', `${content.avg_length || 0} chars`],
           ].map(([k, v]) => (
             <span key={k} className="rounded-full border bg-muted/30 px-2 py-0.5"><span className="text-muted-foreground">{k}</span> <b className="tabular-nums">{v ?? 0}</b></span>
           ))}
@@ -261,8 +261,41 @@ const PatternTab = ({ report, facts, onCite }) => {
   const content = facts.content || {};
   const weeks = cad.weeks || [];
   const weekMax = Math.max(1, ...weeks.map((w) => w.posts));
+  const platforms = facts.by_platform || [];
   return (
     <div className="space-y-3">
+      {platforms.length > 1 ? (
+        <Section title="By platform" hint="Every collected post, per account">
+          {report.platform_differences ? <p className="mb-3 text-xs leading-relaxed"><Rich text={report.platform_differences} onCite={onCite} /></p> : null}
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <th className="py-1.5 pr-3 font-semibold">Platform</th>
+                  <th className="py-1.5 pr-3 font-semibold">Posts</th>
+                  <th className="py-1.5 pr-3 font-semibold">Negative</th>
+                  <th className="py-1.5 pr-3 font-semibold">Serious risk</th>
+                  <th className="py-1.5 pr-3 font-semibold">Engagement a post</th>
+                  <th className="py-1.5 font-semibold">Period</th>
+                </tr>
+              </thead>
+              <tbody>
+                {platforms.map((p) => (
+                  <tr key={p.platform} className="border-b last:border-0">
+                    <td className="py-1.5 pr-3 font-medium">{platformLabel(p.platform)}</td>
+                    <td className="py-1.5 pr-3 tabular-nums">{formatCount(p.posts)}</td>
+                    <td className="py-1.5 pr-3 tabular-nums">{p.negative_share}% <span className="text-muted-foreground">of {formatCount(p.analysed)}</span></td>
+                    <td className={cn('py-1.5 pr-3 tabular-nums', p.high_risk ? 'font-semibold text-rose-600' : '')}>{formatCount(p.high_risk)}</td>
+                    <td className="py-1.5 pr-3 tabular-nums">{formatCount(p.avg_engagement)}</td>
+                    <td className="py-1.5 tabular-nums text-muted-foreground">{p.first_post || '?'} → {p.last_post || '?'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      ) : null}
+
       <Section title="Posting rhythm" hint={`Times in ${facts.timezone || 'local time'}`}>
         {report.posting_pattern ? <p className="mb-3 text-xs leading-relaxed"><Rich text={report.posting_pattern} onCite={onCite} /></p> : null}
         <div className="grid gap-5 md:grid-cols-[2fr_1fr]">
@@ -433,6 +466,7 @@ const EvidenceTab = ({ evidence, report, highlight, timezone }) => {
           </div>
           <p className="mt-1.5 whitespace-pre-line break-words text-[13px] leading-relaxed">{e.text}</p>
           {e.english ? <p className="mt-1 border-l-2 border-sky-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-sky-700">EN</span> {e.english}</p> : null}
+          {e.image_text ? <p className="mt-1 border-l-2 border-violet-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-violet-700">Image text</span> {e.image_text}</p> : null}
           {notable.has(e.n) ? <p className="mt-1.5 text-xs"><span className="font-semibold text-indigo-700">Notable:</span> {notable.get(e.n)}</p> : null}
           {e.url ? (
             <a href={e.url} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-blue-700 hover:underline">
@@ -448,12 +482,12 @@ const EvidenceTab = ({ evidence, report, highlight, timezone }) => {
 /* --------------------------------------------------------------------------- dialog ----------------------- */
 
 /**
- * Profile Catalog → Human behaviour → Generate report.
+ * Tools → Profile Report → Generate report.
  * Opens the saved report, or starts one when there is none. Same background flow as the event report:
  * closing the dialog does not stop generation; reopening joins it.
  */
-export default function ProfileBehaviorReportDialog({ open, onOpenChange, profile, onReportChange }) {
-  const accountId = profile?.id;
+export default function ProfileReportDialog({ open, onOpenChange, profile, onReportChange }) {
+  const subjectId = profile?.id;
   const [phase, setPhase] = useState('loading'); // loading | running | ready | error | cancelled
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -488,7 +522,7 @@ export default function ProfileBehaviorReportDialog({ open, onOpenChange, profil
       setData(payload);
       setPhase('ready');
       setError(null);
-      onReportChangeRef.current?.(accountId, {
+      onReportChangeRef.current?.(subjectId, {
         generated_at: payload.generated_at,
         attention_level: payload.report.attention_level,
         summary_source: payload.summary_source,
@@ -509,40 +543,40 @@ export default function ProfileBehaviorReportDialog({ open, onOpenChange, profil
     }
     // { status: 'none' }: nothing saved and nothing running
     setPhase('none');
-  }, [accountId, stopPolling]);
+  }, [subjectId, stopPolling]);
 
   const poll = useCallback(async (run, announce) => {
     try {
-      const res = await socialProfilesApi.getBehaviorReport(accountId);
+      const res = await profileReportApi.getReport(subjectId);
       accept(res?.data, run, { announce });
     } catch (err) {
       if (run !== runRef.current) return;
       setPhase('error');
       setError(err?.response?.data?.message || err?.message || 'Could not load the report.');
     }
-  }, [accountId, accept]);
+  }, [subjectId, accept]);
   pollRef.current = poll;
 
   const start = useCallback(async () => {
-    if (!accountId) return;
+    if (!subjectId) return;
     stopPolling();
     const run = ++runRef.current;
     setPhase('running');
     setError(null);
     setStartedAt(new Date().toISOString());
     try {
-      const res = await socialProfilesApi.startBehaviorReport(accountId);
+      const res = await profileReportApi.startReport(subjectId);
       accept(res?.data, run, { announce: true });
     } catch (err) {
       if (run !== runRef.current) return;
       setPhase('error');
       setError(err?.response?.data?.message || err?.message || 'Could not start the report.');
     }
-  }, [accountId, accept, stopPolling]);
+  }, [subjectId, accept, stopPolling]);
 
   // Open: show the saved report, join a running job, or start one (the user clicked Generate).
   useEffect(() => {
-    if (!open || !accountId) return undefined;
+    if (!open || !subjectId) return undefined;
     const run = ++runRef.current;
     setPhase('loading');
     setData(null);
@@ -551,7 +585,7 @@ export default function ProfileBehaviorReportDialog({ open, onOpenChange, profil
     setHighlight(null);
     (async () => {
       try {
-        const res = await socialProfilesApi.getBehaviorReport(accountId);
+        const res = await profileReportApi.getReport(subjectId);
         if (run !== runRef.current) return;
         if (res?.data?.status === 'none') start();
         else accept(res?.data, run, { announce: true });
@@ -562,16 +596,16 @@ export default function ProfileBehaviorReportDialog({ open, onOpenChange, profil
       }
     })();
     return () => { runRef.current += 1; stopPolling(); };
-    // Runs once per open / profile; start, accept and stopPolling only change with accountId.
-  }, [open, accountId]);
+    // Runs once per open / profile; start, accept and stopPolling only change with subjectId.
+  }, [open, subjectId]);
 
   const cancel = useCallback(async () => {
     setCancelling(true);
     const run = ++runRef.current;
     stopPolling();
     try {
-      await socialProfilesApi.cancelBehaviorReport(accountId);
-      const res = await socialProfilesApi.getBehaviorReport(accountId);
+      await profileReportApi.cancelReport(subjectId);
+      const res = await profileReportApi.getReport(subjectId);
       accept(res?.data, run);
       if (!res?.data?.report) setPhase('cancelled');
     } catch (err) {
@@ -579,7 +613,7 @@ export default function ProfileBehaviorReportDialog({ open, onOpenChange, profil
     } finally {
       setCancelling(false);
     }
-  }, [accountId, accept, stopPolling]);
+  }, [subjectId, accept, stopPolling]);
 
   const showPost = useCallback((n) => {
     setTab('evidence');
@@ -603,7 +637,7 @@ export default function ProfileBehaviorReportDialog({ open, onOpenChange, profil
   const downloadPdf = useCallback(async () => {
     setDownloading(true);
     try {
-      const res = await socialProfilesApi.downloadBehaviorReportPdf(accountId);
+      const res = await profileReportApi.downloadReportPdf(subjectId);
       const header = res.headers?.['content-disposition'] || '';
       const name = (header.match(/filename="?([^"]+)"?/) || [])[1] || 'Behaviour_Report.pdf';
       const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
@@ -621,7 +655,7 @@ export default function ProfileBehaviorReportDialog({ open, onOpenChange, profil
     } finally {
       setDownloading(false);
     }
-  }, [accountId]);
+  }, [subjectId]);
 
   const report = data?.report || null;
   const facts = data?.facts || {};
@@ -642,9 +676,9 @@ export default function ProfileBehaviorReportDialog({ open, onOpenChange, profil
                 <BrainCircuit className="h-5 w-5 text-indigo-600" />
               </div>
               <div className="min-w-0">
-                <DialogTitle className="truncate text-base">Human behaviour report · {profile?.display_name || profile?.handle || 'Profile'}</DialogTitle>
+                <DialogTitle className="truncate text-base">Behaviour report · {profile?.display_name || 'Profile'}</DialogTitle>
                 <DialogDescription className="truncate text-xs">
-                  {profile?.handle}{profile?.platform_name || profile?.platform ? ` · ${profile.platform_name || profile.platform}` : ''}
+                  {(profile?.accounts || []).map((a) => `${platformLabel(a.platform)} ${a.handle}`).join(' · ')}
                   {phase === 'ready' && data?.generated_at ? ` · generated ${formatWhen(data.generated_at)}${data.generated_by?.name ? ` by ${data.generated_by.name}` : ''}` : ''}
                 </DialogDescription>
               </div>
@@ -692,9 +726,19 @@ export default function ProfileBehaviorReportDialog({ open, onOpenChange, profil
               {data.is_stale ? (
                 <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                   <span className="flex items-center gap-2"><Clock className="h-3.5 w-3.5" />
-                    {data.new_posts_count > 0 ? `${data.new_posts_count} new post${data.new_posts_count === 1 ? '' : 's'} collected since this report.` : 'Posts have changed since this report.'}
+                    {data.new_posts_count > 0
+                      ? `${formatCount(data.new_posts_count)} new post${data.new_posts_count === 1 ? '' : 's'} collected since this report.`
+                      : data.new_analysed_count > 0
+                        ? `${formatCount(data.new_analysed_count)} more post${data.new_analysed_count === 1 ? ' has' : 's have'} been analysed since this report.`
+                        : 'Posts have changed since this report.'}
                   </span>
                   <button type="button" className="font-semibold underline-offset-2 hover:underline" onClick={start}>Regenerate</button>
+                </div>
+              ) : null}
+              {data.analysis?.waiting > 0 ? (
+                <div className="flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                  Still analysing posts: {formatCount(data.analysis.analysed)} of {formatCount(data.analysis.posts)} done. This report uses the analysed posts; regenerate when analysis finishes for the full picture.
                 </div>
               ) : null}
               {data.llm_notice ? (
@@ -726,7 +770,7 @@ export default function ProfileBehaviorReportDialog({ open, onOpenChange, profil
 
               {/* Key figures */}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-                <Stat label="Posts read" value={cov.read ?? 0} sub={cov.total_posts > cov.read ? `of ${cov.total_posts} stored` : `${cov.analysed ?? 0} analysed`} />
+                <Stat label="Posts collected" value={formatCount(cov.read)} sub={`${formatCount(cov.analysed)} analysed`} />
                 <Stat label="Period" value={`${cov.span_days ?? 0} days`} sub={`${cov.first_post || '?'} → ${cov.last_post || '?'}`} />
                 <Stat label="Posts a day" value={facts.cadence?.posts_per_day ?? 0} sub={`${facts.cadence?.active_days ?? 0} active days`} />
                 <Stat label="Engagement a post" value={facts.engagement?.avg_score ?? 0} sub={`average · median ${facts.engagement?.median_score ?? 0}`} />
@@ -755,7 +799,7 @@ export default function ProfileBehaviorReportDialog({ open, onOpenChange, profil
               </Tabs>
 
               <p className="pb-1 text-center text-[10px] text-muted-foreground">
-                Analyst aid written from the account&apos;s public posts{data.summary_source === 'llm' ? ' with AI assistance' : ''}. Numbers are computed from the stored posts; P-numbers link to the evidence. Check the original posts before taking any action.
+                Analyst aid written from the profile&apos;s public posts{data.summary_source === 'llm' ? ' with AI assistance' : ''}. Numbers are computed from the stored posts; P-numbers link to the evidence. Check the original posts before taking any action.
               </p>
             </div>
           ) : null}

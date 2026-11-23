@@ -112,8 +112,25 @@ const fetchFacebookPosts = async (account, auth = null) => {
   };
 };
 
+/**
+ * One page of a Page's posts, for walking back through the whole history (Tools → Profile Report).
+ * @returns {{ posts: object[], next: string|null, apiHits: number, dataPatch: object|null }}
+ */
+const fetchFacebookPostsPage = async (account, { cursor = null, auth = null } = {}) => {
+  const { pageId, apiHits: resolveHits, dataPatch } = await resolvePageId(account.data || {}, auth);
+  const params = { page_id: pageId };
+  if (cursor) params.cursor = cursor;
+  const response = await callWithGap('PAGE_POSTS', params, auth);
+  const results = Array.isArray(response?.results) ? response.results : [];
+  const posts = results.filter((p) => p?.post_id).map((p) => mapFacebookPost(p, account.id));
+  const raw = response?.cursor;
+  const next = raw == null || raw === '' ? null : typeof raw === 'string' ? raw : JSON.stringify(raw);
+  return { posts, next: next && next !== cursor ? next : null, apiHits: resolveHits + 1, dataPatch };
+};
+
 module.exports = {
   fetchFacebookPosts,
+  fetchFacebookPostsPage,
   mapFacebookPost,
   resolvePageId,
 };

@@ -1,5 +1,5 @@
 /**
- * PROFILE BEHAVIOUR REPORT: what we ask the model and how we read its answer.
+ * PROFILE BEHAVIOUR REPORT (Tools → Profile Report): what we ask the model and how we read its answer.
  *
  *   buildSystemPrompt()        the analyst's rules and the fixed JSON output contract
  *   buildUserContext(...)      the computed facts and the numbered evidence posts [P1]..[Pn]
@@ -19,7 +19,7 @@ const ATTITUDES = ['Supportive', 'Critical', 'Hostile', 'Neutral', 'Mixed'];
 const SEVERITIES = ['High', 'Medium', 'Low'];
 const LEVELS = ['High', 'Medium', 'Low'];
 
-const RULES = `You are a senior police OSINT analyst. You write a short, evidence-based behaviour profile of ONE social media account from the posts it published. The reader is an officer who must decide, quickly and fairly, whether this account needs closer watching.
+const RULES = `You are a senior police OSINT analyst. You write a short, evidence-based behaviour profile of ONE subject (a person or organisation, on one or more social media accounts) from the posts those accounts published. The reader is an officer who must decide, quickly and fairly, whether this account needs closer watching.
 
 RULES
 1. Evidence only. Use ONLY the FACTS block and the numbered posts. Never invent people, events, places, dates, numbers, links or motives. If the posts do not show something, leave it out.
@@ -33,7 +33,10 @@ RULES
 9. The ATTENTION LEVEL is given in FACTS and is final. Explain it in "attention_reason" with the risk counts and the posts behind it; do not raise or lower it.
 10. Few posts. If FACTS show fewer than 10 posts read, or most posts are not analysed, say so in "limitations" and keep every judgement cautious.
 11. Language. Write in plain English, short sentences, the way an analyst briefs a senior officer. Give the meaning of non-English posts in English; do not copy long passages. No filler, no moral judgement, no repeated points across sections.
-12. Each fact appears once, in the section where it belongs.`;
+12. Each fact appears once, in the section where it belongs.
+13. Several accounts. A profile can combine accounts on different platforms that the user grouped as one person or organisation. Treat them as one subject, say which platform a pattern comes from, and use "platform_differences" for how the accounts differ. Do not claim the accounts are the same person beyond what the user grouped.
+14. Images. "Image text" on a post is text read from its picture. It is part of what the account published: use it as evidence and cite the post.
+15. Large histories. FACTS cover every collected post; the numbered posts are a selection chosen to show the highest-risk, most-engaged, most recent and a spread over time. Never imply the numbered posts are all the posts.`;
 
 const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only. No markdown, no code fences, no text before or after. Use exactly these fields:
 {
@@ -47,6 +50,7 @@ const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only. No markdown, no code fenc
  "targets": [{"target": "a person, party, institution or group the posts name", "attitude": "Supportive / Critical / Hostile / Neutral / Mixed", "detail": "one sentence", "posts": [1]}],
  "communication_style": "2-3 sentences: languages, original versus shared posts, media and links, hashtags and mentions, calls to action, how it addresses its audience",
  "posting_pattern": "2-3 sentences reading the rhythm in FACTS (busy hours and days, night posting, bursts and gaps)",
+ "platform_differences": "1-2 sentences on how the accounts differ by platform (tone, topics, reach, activity), using BY PLATFORM in FACTS; empty string when there is one platform",
  "influence": "1-2 sentences: reach and response from FACTS and which posts drew the most response",
  "risk_indicators": [{"indicator": "short label", "severity": "High / Medium / Low", "detail": "what the post says and why it matters", "posts": [1]}],
  "changes_over_time": [{"from": "earlier pattern", "to": "later pattern", "posts": [1, 9]}],
@@ -76,11 +80,15 @@ const factsText = (facts, evidence = []) => {
   const st = facts.stance;
   const r = facts.risk;
   const lines = [
-    `PROFILE: ${facts.profile.name}${facts.profile.handle && facts.profile.handle !== facts.profile.name ? ` (${facts.profile.handle})` : ''} on ${facts.profile.platform_name}`,
+    `PROFILE: ${facts.profile.name}`,
+    `ACCOUNTS: ${list(facts.profile.accounts || [], (a) => `${a.platform_name} ${a.handle} (${a.posts} posts)`, `${facts.profile.handle} on ${facts.profile.platform_name}`)}`,
     `TODAY: ${facts.today} (times are ${facts.timezone})`,
-    `POSTS: ${c.total_posts} stored; ${c.read} read for this report, from ${c.first_post || 'unknown'} to ${c.last_post || 'unknown'} (${c.span_days} days); ${c.analysed} carry AI analysis, ${c.not_analysed} not analysed yet`,
+    `POSTS: ${c.total_posts} collected, from ${c.first_post || 'unknown'} to ${c.last_post || 'unknown'} (${c.span_days} days); ${c.analysed} carry AI analysis, ${c.not_analysed} not analysed yet`,
+    ...((facts.by_platform || []).length > 1
+      ? [`BY PLATFORM: ${facts.by_platform.map((p) => `${p.platform}: ${p.posts} posts, ${p.negative_share}% negative of ${p.analysed} analysed, ${p.high_risk} serious-risk, average engagement ${p.avg_engagement}, ${p.first_post || '?'} to ${p.last_post || '?'}`).join(' | ')}`]
+      : []),
     `RHYTHM: ${cad.posts_per_day} posts a day; active on ${cad.active_days} days; busiest hours ${cad.busiest_hours ? `${hh(cad.busiest_hours.from)}-${hh(cad.busiest_hours.to)} (${cad.busiest_hours.posts} posts)` : 'unknown'}; busiest day ${cad.busiest_day ? `${cad.busiest_day.day} (${cad.busiest_day.posts} posts)` : 'unknown'}; ${cad.night_posts} posts between 00:00 and 05:00; longest silence ${cad.longest_gap_days} days`,
-    `CONTENT: ${con.original} original, ${con.shared} shared from others, ${con.replies} replies; ${con.with_media} with photos or video; ${con.with_links} with links; average length ${con.avg_length} characters`,
+    `CONTENT: ${con.original} original, ${con.shared} shared from others, ${con.replies} replies; ${con.with_media} with photos or video (${con.with_image_text || 0} with text read from the image); ${con.with_links} with links; average length ${con.avg_length} characters`,
     `LANGUAGES: ${list(con.languages, (x) => `${x.language} ${x.count}`)}`,
     `TOP HASHTAGS: ${list(con.hashtags, (x) => `${x.tag} (${x.count})`)}`,
     `TOP MENTIONS: ${list(con.mentions, (x) => `${x.handle} (${x.count})`)}`,
@@ -120,8 +128,9 @@ const evidenceLine = (e, maxChars) => {
     e.stance && e.stance !== 'unknown' ? `stance ${e.stance}` : null,
     `${e.engagement.likes} likes ${e.engagement.shares} shares ${e.engagement.comments} comments`,
   ].filter(Boolean).join(' · ');
-  const body = [`Text: ${clip(e.text, maxChars)}`];
+  const body = [`Text: ${clip(e.text, maxChars) || '(no text)'}`];
   if (e.english) body.push(`English: ${clip(e.english, maxChars)}`);
+  if (e.image_text) body.push(`Image text: ${clip(e.image_text, Math.round(maxChars * 0.8))}`);
   return `${head}\n${body.join('\n')}`;
 };
 
@@ -129,7 +138,7 @@ const buildUserContext = ({ facts, evidence, maxChars = 280 }) => [
   'FACTS',
   factsText(facts, evidence),
   '',
-  `EVIDENCE POSTS (oldest first, ${evidence.length} of ${facts.coverage.read} read; numbers P1-P${evidence.length} are the only valid citations)`,
+  `EVIDENCE POSTS (oldest first; ${evidence.length} chosen from ${facts.coverage.read} collected; numbers P1-P${evidence.length} are the only valid citations)`,
   ...evidence.map((e) => evidenceLine(e, maxChars)),
   '',
   'Write the behaviour profile JSON now.',
@@ -208,6 +217,7 @@ const parseBehaviorReport = (rawText, { maxN, attentionLevel = 'Low' } = {}) => 
     } : null), 6),
     communication_style: t(obj.communication_style, 900),
     posting_pattern: t(obj.posting_pattern, 700),
+    platform_differences: t(obj.platform_differences, 600),
     influence: t(obj.influence, 500),
     // A risk indicator without a post behind it is an opinion, not evidence: it is dropped.
     risk_indicators: listOf(obj.risk_indicators, (x) => {
@@ -245,7 +255,7 @@ const fallbackReport = (facts, evidence = []) => {
   const serious = evidence.filter((e) => e.risk_level === 'critical' || e.risk_level === 'high');
   const top = [...evidence].sort((a, b) => b.engagement.score - a.engagement.score).slice(0, 3);
   return {
-    bottom_line: `${facts.profile.name} published ${c.read} posts between ${c.first_post || 'unknown'} and ${c.last_post || 'unknown'}. The tone is ${mainTone} (${s.positive} positive, ${s.neutral} neutral, ${s.negative} negative)${r.critical + r.high > 0 ? `, and ${r.critical + r.high} posts carry a serious risk score` : ''}.`,
+    bottom_line: `${facts.profile.name} published ${c.read.toLocaleString('en-IN')} posts between ${c.first_post || 'unknown'} and ${c.last_post || 'unknown'}. The tone is ${mainTone} (${s.positive} positive, ${s.neutral} neutral, ${s.negative} negative)${r.critical + r.high > 0 ? `, and ${r.critical + r.high} posts carry a serious risk score` : ''}.`,
     account_type: 'Unclear',
     account_type_basis: 'Not assessed: the AI model was not available.',
     attention_level: facts.attention_level,
@@ -256,6 +266,9 @@ const fallbackReport = (facts, evidence = []) => {
     targets: [],
     communication_style: `${facts.content.original} original posts, ${facts.content.shared} shared and ${facts.content.replies} replies; ${facts.content.with_media} with photos or video and ${facts.content.with_links} with links.`,
     posting_pattern: `${facts.cadence.posts_per_day} posts a day on average${facts.cadence.busiest_hours ? `, busiest between ${hourRange(facts.cadence.busiest_hours)}` : ''}${facts.cadence.busiest_day ? ` and on ${facts.cadence.busiest_day.day}` : ''}.`,
+    platform_differences: (facts.by_platform || []).length > 1
+      ? facts.by_platform.map((p) => `${p.platform}: ${p.posts} posts, ${p.negative_share}% negative`).join('; ') + '.'
+      : '',
     influence: `${facts.engagement.total.likes} likes, ${facts.engagement.total.shares} shares and ${facts.engagement.total.comments} comments in total.`,
     risk_indicators: serious.slice(0, 5).map((e) => ({
       indicator: e.category || 'Serious risk score',
@@ -290,6 +303,7 @@ const reportToMarkdown = (report, facts) => {
   sec('Who the posts are about', report.targets, (x) => `**${x.target}** (${x.attitude}): ${x.detail}${cites(x.posts)}`);
   para('Communication style', report.communication_style);
   para('Posting pattern', report.posting_pattern);
+  para('Platform differences', report.platform_differences);
   para('Reach', report.influence);
   sec('Risk indicators', report.risk_indicators, (x) => `**${x.indicator}** (${x.severity}): ${x.detail}${cites(x.posts)}`);
   sec('Changes over time', report.changes_over_time, (x) => `${x.from} → ${x.to}${cites(x.posts)}`);

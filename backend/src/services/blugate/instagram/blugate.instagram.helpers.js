@@ -157,7 +157,32 @@ const mapUserToSearchProfile = (user, fallbackUsername) => {
   };
 };
 
+const NEXT_CURSOR_KEYS = ['end_cursor', 'endCursor', 'next_max_id', 'nextMaxId', 'next_cursor', 'nextCursor', 'max_id'];
+
+/**
+ * Cursor for the next (older) page of a POSTS / REELS feed, or null at the end.
+ * The gateway says "pass the end_cursor from the previous response as maxId" but not where in the payload it sits,
+ * so it is looked for at the top level, in the unwrapped result and in page_info / paging blocks.
+ * An explicit "no more pages" flag wins over a leftover cursor.
+ */
+const nextCursorOf = (payload) => {
+  const raw = unwrapPayload(payload);
+  const holders = [payload, raw, payload?.page_info, raw?.page_info, payload?.paging, raw?.paging, payload?.pagination, raw?.pagination]
+    .filter((h) => h && typeof h === 'object' && !Array.isArray(h));
+  for (const h of holders) {
+    if (h.more_available === false || h.has_next_page === false || h.hasNextPage === false || h.has_more === false) return null;
+  }
+  for (const h of holders) {
+    for (const k of NEXT_CURSOR_KEYS) {
+      const v = h[k];
+      if (v != null && v !== '' && v !== false) return String(v);
+    }
+  }
+  return null;
+};
+
 module.exports = {
+  nextCursorOf,
   unwrapPayload,
   pickUser,
   listItems,
