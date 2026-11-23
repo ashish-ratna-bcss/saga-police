@@ -637,8 +637,12 @@ const GlobalSearch = () => {
                         combinedCounts[p] = data.length;
                     } else {
                         if (axios.isCancel(result.reason) || result.reason?.name === 'AbortError' || result.reason?.code === 'ERR_CANCELED') return;
-                        const errMsg = result.reason?.response?.data?.error || result.reason?.message || 'Failed';
-                        errors[p] = errMsg.includes('timeout') ? 'Timed out' : errMsg;
+                        const errMsg = String(result.reason?.response?.data?.error || result.reason?.message || 'Failed');
+                        // Never show provider internals (URLs, key names, HTTP codes) to the person searching.
+                        const technical = /https?:\/\/|api key|blugate|http\s*\d{3}|status code|axios|econn|enotfound/i.test(errMsg);
+                        errors[p] = errMsg.includes('timeout') ? 'Timed out'
+                            : technical ? 'Not available right now. Please try again later.'
+                            : errMsg;
                         combinedCounts[p] = 0;
                     }
                 });

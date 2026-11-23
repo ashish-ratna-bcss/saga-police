@@ -17,21 +17,34 @@ const getRetryAfterSeconds = (error) => {
   return 90;
 };
 
+/**
+ * What a person is told when a platform search fails. The provider's own message (gateway URLs,
+ * key names, internal codes) goes to the log only: it means nothing to an analyst and exposes how
+ * the system is wired.
+ */
+const USER_MESSAGES = {
+  401: 'This platform is not available right now. Please contact your administrator.',
+  403: 'This platform is not available right now. Please contact your administrator.',
+  400: 'This search could not be run. Try different words.',
+  404: 'This platform did not respond. Please try again later.',
+};
+const GENERIC_MESSAGE = 'This search could not be completed right now. Please try again later.';
+
 const handleProviderError = (res, error, fallbackMessage) => {
   const status = error?.response?.status || error?.status;
+  logger.warn(`[Search] ${fallbackMessage}: HTTP ${status || '-'} ${error?.message || error}`);
   if (status === 429) {
     return res.status(429).json({
       error: 'Search is temporarily rate limited. Please retry later.',
       retryAfterSeconds: getRetryAfterSeconds(error),
     });
   }
-  if (status === 400 || status === 401 || status === 403 || status === 404) {
+  if (USER_MESSAGES[status]) {
     return res.status(status === 404 ? 502 : gatewayClientStatus(status)).json({
-      error: error.message || fallbackMessage,
+      error: USER_MESSAGES[status],
     });
   }
-  logger.error(`[Search] ${fallbackMessage}: ${error?.message || error}`);
-  return res.status(500).json({ error: fallbackMessage });
+  return res.status(500).json({ error: GENERIC_MESSAGE });
 };
 
 const listPlatformsHandler = async (req, res) => {
@@ -41,7 +54,7 @@ const listPlatformsHandler = async (req, res) => {
   } catch (error) {
     logger.error(`[Search] list platforms: ${error.message}`);
     return res.status(error.status || 500).json({
-      error: error.message || 'Failed to list platforms',
+      error: 'The list of platforms could not be loaded. Please try again later.',
     });
   }
 };
