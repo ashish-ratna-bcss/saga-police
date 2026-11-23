@@ -396,7 +396,7 @@ const SystemHealth = () => {
       id: 'blugate',
       title: 'BluGate Gateway',
       description: bg.health?.client?.name
-        ? `${bg.health.client.name} · client account & platform gateway`
+        ? `${bg.health.client.name} · ${bg.health.client.accessiblePlatformsCount ?? '?'} of ${bg.health.client.totalPlatformsCount ?? '?'} platforms accessible`
         : 'Client account & platform gateway health',
       status: bg.status || 'offline',
       icon: Network,
@@ -419,7 +419,8 @@ const SystemHealth = () => {
       groups: {
         infra: groupTone(infra.length ? infra : [{ status: 'online' }]),
         ai: groupTone(ai.length ? ai : [{ status: 'online' }]),
-        platforms: groupTone([blugateSummary, ...usable]),
+        // Only the gateway is shown here, so its status is the section's status.
+        platforms: groupTone([blugateSummary]),
       },
       usableCount: usable.length,
       llmDown,
@@ -527,14 +528,11 @@ const SystemHealth = () => {
               )}
             </Panel>
             <Panel n={3} title="Platforms" icon={Network} tone={catalog.groups.platforms}
-              desc="Where the posts come from" count={`${catalog.usableCount} of ${catalog.platforms.length} available`}>
+              desc="Where the posts come from" count="via BluGate">
               {catalog.blugate.summary ? <ServiceRow {...catalog.blugate.summary} /> : null}
-              {catalog.platforms.map((p) => (
-                <PlatformRow key={p.slug} p={p} />
-              ))}
-              {catalog.blugate.summary?.status !== 'online' && catalog.platforms.length === 0 ? (
+              {catalog.blugate.summary?.status !== 'online' ? (
                 <p className="px-3 py-4 text-center text-[11px] text-muted-foreground">
-                  No platform data yet. Connect BluGate under Settings &gt; Platforms.
+                  BluGate is not reachable. Check the connection under Settings &gt; Platforms.
                 </p>
               ) : null}
             </Panel>
