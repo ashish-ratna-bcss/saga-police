@@ -2240,6 +2240,7 @@ export default function Alerts() {
               <form onSubmit={handleSearchSubmit} className="relative w-full md:flex-1">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <input
+                  data-keyboard
                   type="text"
                   placeholder="Search alerts or paste URL to escalate…"
                   className="flex h-8 w-full rounded-md border border-input bg-background px-3 text-xs shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring pl-8 pr-28"

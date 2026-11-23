@@ -19,6 +19,7 @@ import { getLanguage, lookupEnglish, suggestKeywords, useKeyboardLanguage } from
 // Where the switch is offered. `all` = every search/keyword box on the page; otherwise only boxes marked data-keyboard.
 const PAGES = [
   { prefix: '/alerts', all: true },
+  { prefix: '/grievances', all: true },
   { prefix: '/events', all: true },
   { prefix: '/analysis-tools/news', all: true },
   { prefix: '/analysis-tools/epaper', all: true },
@@ -57,6 +58,14 @@ function writeValue(input, value, caret) {
   try {
     input.setSelectionRange(caret, caret);
   } catch { /* some input types have no selection */ }
+}
+
+/** A problem with one box must never take the switch away from every other box on the page. */
+class AssistBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { failed: false }; }
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(err) { console.warn('[KeyboardAssist] skipped one box:', err?.message); }
+  render() { return this.state.failed ? null : this.props.children; }
 }
 
 function Assist({ input, lang }) {
@@ -339,7 +348,9 @@ export default function KeyboardAssist() {
     };
   }, []);
 
-  return inputs.map((el) => <Assist key={keyOf(el)} input={el} lang={lang} />);
+  return inputs.map((el) => (
+    <AssistBoundary key={keyOf(el)}><Assist input={el} lang={lang} /></AssistBoundary>
+  ));
 }
 
 const ids = new WeakMap();
