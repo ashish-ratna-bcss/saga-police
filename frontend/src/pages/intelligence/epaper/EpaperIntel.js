@@ -289,10 +289,16 @@ const FetchTab = ({ onSaved, onOpen }) => {
     Promise.all([epaperApi.papers().catch(() => []), epaperApi.beats().catch(() => [])]).then(([p, b]) => {
       const list = Array.isArray(p) ? p : [];
       setPapers(list);
+      // Every state and union territory the app knows about; flag the ones no catalogued newspaper covers.
       const names = {};
       (Array.isArray(b) ? b : []).forEach((x) => { if (x.state_code) names[x.state_code] = x.state; });
-      const codes = [...new Set(list.flatMap((x) => x.states || []))];
-      setStates(codes.map((c) => ({ code: c, name: names[c] || c })).sort((m, n) => m.name.localeCompare(n.name)));
+      const covered = new Set(list.flatMap((x) => x.states || []));
+      const codes = [...new Set([...Object.keys(names), ...covered])];
+      setStates(
+        codes
+          .map((c) => ({ code: c, name: names[c] || c, covered: covered.has(c) }))
+          .sort((m, n) => m.name.localeCompare(n.name))
+      );
     });
   }, []);
 
@@ -393,7 +399,11 @@ const FetchTab = ({ onSaved, onOpen }) => {
               <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="State" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL} className="text-xs">All states</SelectItem>
-                {states.map((s) => <SelectItem key={s.code} value={s.code} className="text-xs">{s.name}</SelectItem>)}
+                {states.map((s) => (
+                  <SelectItem key={s.code} value={s.code} disabled={!s.covered} className="text-xs">
+                    {s.name}{s.covered ? '' : ' (no newspapers yet)'}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </Field>
