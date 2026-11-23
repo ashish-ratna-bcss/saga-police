@@ -499,7 +499,10 @@ function main() {
 
   const data = loadSites(sitesPath);
   // Always absolute — relative roots are resolved from nginx prefix (/etc/nginx), not the app.
-  const finalWebRoot = path.resolve(webRoot || data.web_root || '/var/www/sockeye/frontend/build');
+  // A POSIX absolute path is the server's path: keep it as written. path.resolve() on Windows
+  // would turn "/data-migration/..." into "C:\data-migration\..." and break every tenant's UI.
+  const rootInput = webRoot || data.web_root || '/var/www/sockeye/frontend/build';
+  const finalWebRoot = rootInput.startsWith('/') ? path.posix.normalize(rootInput) : path.resolve(rootInput);
   const confText = render(data, finalWebRoot);
 
   fs.writeFileSync(outPath, confText, 'utf8');
