@@ -11,6 +11,8 @@ const {
 const { buildMessages } = require('./context-builder.service');
 const { complete, completeStream, getLLMConfig } = require('./llm.service');
 const { enrichSources, sourceHref } = require('./source-formatter.service');
+const { runIntel } = require('./intel.service');
+const logger = require('../../lib/logger');
 
 /** Simple per-user rate limit for send. */
 const sendBuckets = new Map();
@@ -320,6 +322,25 @@ async function runRagTurn(prisma, question, filters, prior, opts = {}) {
       sourcesForStore: [],
       view: { layout: 'text' },
     };
+  }
+
+  // Public-order, threat, narrative and brief questions are answered from structured queries across every
+  // module (strict dates, places, status, scoring), not by asking the model to work those out.
+  try {
+    const intel = await runIntel(prisma, question, prior, opts.tenant || {});
+    if (intel) {
+      const sourcesForStore = mapSources(intel.sources);
+      if (typeof opts.onDelta === 'function') opts.onDelta(intel.answer);
+      return {
+        answer: intel.answer,
+        modelName: null,
+        usage: {},
+        sourcesForStore,
+        view: { layout: 'cards', title: intel.title, items: sourcesForStore, intel: intel.understood },
+      };
+    }
+  } catch (err) {
+    logger.warn(`[AI intel] fell back to the standard answer: ${err.message}`);
   }
 
   let chunks = [];

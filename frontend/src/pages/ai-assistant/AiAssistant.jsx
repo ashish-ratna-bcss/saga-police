@@ -19,11 +19,34 @@ import { aiAssistantApi } from '../../api/aiAssistant.api';
 import { Button } from '../../components/ui/button';
 import { cn } from '../../lib/utils';
 
-const SUGGESTIONS = [
-  'Latest posts',
-  'Summarize recent alerts',
-  'Find posts about protests',
-  'How many posts are in the database?',
+const SUGGESTION_GROUPS = [
+  {
+    title: 'Public order',
+    prompts: [
+      'Show active and planned protests',
+      'Identify potential law-and-order incidents today',
+      'What demonstrations are expected this week?',
+      'Show Bharat Bandh or strike-related discussions',
+    ],
+  },
+  {
+    title: 'Threat and risk',
+    prompts: [
+      "Show today's top 10 high-severity alerts",
+      'Identify viral misinformation',
+      'Find incidents involving violence or threats',
+      'Show alerts with increasing engagement',
+    ],
+  },
+  {
+    title: 'Intelligence analysis',
+    prompts: [
+      "Give me today's Intelligence Brief",
+      'Show emerging narratives',
+      "Compare today's alerts with yesterday",
+      'How many posts today?',
+    ],
+  },
 ];
 
 const platformTone = (platform) => {
@@ -434,18 +457,25 @@ export default function AiAssistant() {
                 </div>
                 <h2 className="text-lg font-semibold text-foreground">Ask about your records</h2>
                 <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-                  Ask in plain language — alerts, posts, events, or grievances. I’ll answer clearly and show matching cards below.
+                  Ask in plain language — alerts, posts, events, grievances or news. For protests, threats and the daily brief I search every module, check dates and places, and show how I scored each item.
                 </p>
-                <div className="mt-6 grid gap-2 sm:grid-cols-2">
-                  {SUGGESTIONS.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => handleSend(s)}
-                      className="rounded-2xl border border-border bg-muted/40 px-3 py-3 text-left text-sm text-foreground hover:bg-muted"
-                    >
-                      {s}
-                    </button>
+                <div className="mt-6 space-y-4 text-left">
+                  {SUGGESTION_GROUPS.map((group) => (
+                    <div key={group.title}>
+                      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{group.title}</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {group.prompts.map((prompt) => (
+                          <button
+                            key={prompt}
+                            type="button"
+                            onClick={() => handleSend(prompt)}
+                            className="rounded-2xl border border-border bg-muted/40 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted"
+                          >
+                            {prompt}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>

@@ -3,6 +3,8 @@ const chatbot = require('./chatbot.service');
 
 const tenantDb = (req) => req.tenantPrisma;
 const userId = (req) => req.user?.id;
+/** Which tenant is asking: its state, districts and time zone shape the intelligence answers. */
+const tenantInfo = (req) => ({ dbName: req.user?.db_name || null, title: req.user?.blurasagatitle || null });
 
 const listConversations = async (req, res) => {
   try {
@@ -86,6 +88,7 @@ const sendMessage = async (req, res) => {
         req.body || {},
         {
           onDelta: (delta) => writeEvent('delta', { text: delta }),
+          tenant: tenantInfo(req),
         }
       );
 
@@ -102,7 +105,8 @@ const sendMessage = async (req, res) => {
       tenantDb(req),
       userId(req),
       req.params.id,
-      req.body || {}
+      req.body || {},
+      { tenant: tenantInfo(req) }
     );
     return res.json(result);
   } catch (err) {
@@ -136,7 +140,7 @@ const regenerateMessage = async (req, res) => {
         userId(req),
         req.params.id,
         req.params.messageId,
-        { onDelta: (delta) => writeEvent('delta', { text: delta }) }
+        { onDelta: (delta) => writeEvent('delta', { text: delta }), tenant: tenantInfo(req) }
       );
       writeEvent('done', result);
       return res.end();
@@ -146,7 +150,8 @@ const regenerateMessage = async (req, res) => {
       tenantDb(req),
       userId(req),
       req.params.id,
-      req.params.messageId
+      req.params.messageId,
+      { tenant: tenantInfo(req) }
     );
     return res.json(result);
   } catch (err) {
