@@ -58,6 +58,11 @@
       "admin": "uganda",
       "frontend_port": 3006,
       "backend_port": 5011
+    },
+    {
+      "admin": "APpolice",
+      "frontend_port": 3007,
+      "backend_port": 5012
     }
   ]
 }
