@@ -794,6 +794,7 @@ const EventKeywordsFields = ({
             </Popover>
           </div>
           <textarea
+            data-keyboard
             value={keywordsValue || ''}
             onChange={(e) => onKeywordsChange?.(e.target.value)}
             placeholder="Words or phrases to search"
@@ -804,6 +805,7 @@ const EventKeywordsFields = ({
         <div className="space-y-1.5 min-w-0">
           <Label className="text-xs font-semibold">Hashtags</Label>
           <textarea
+            data-keyboard
             value={hashtagsValue || ''}
             onChange={(e) => onHashtagsChange?.(e.target.value)}
             placeholder="#TagOne, #TagTwo"
@@ -3349,11 +3351,11 @@ const Events = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Event Name *</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name of the event to monitor" className="h-9" />
+                <Input data-keyboard value={name} onChange={(e) => setName(e.target.value)} placeholder="Name of the event to monitor" className="h-9" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Location</Label>
-                <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="City, district, or state" className="h-9" />
+                <Input data-keyboard value={location} onChange={(e) => setLocation(e.target.value)} placeholder="City, district, or state" className="h-9" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Start Date</Label>
@@ -3366,6 +3368,7 @@ const Events = () => {
               <div className="space-y-1.5 sm:col-span-2">
                 <Label className="text-xs font-semibold">Description</Label>
                 <Textarea
+                  data-keyboard
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Short summary of the event"
@@ -3696,11 +3699,11 @@ const Events = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Event Name *</Label>
-                <Input value={nrForm.name} onChange={(e) => setNrForm({ ...nrForm, name: e.target.value })} placeholder="Name of the event to monitor" className="h-9" />
+                <Input data-keyboard value={nrForm.name} onChange={(e) => setNrForm({ ...nrForm, name: e.target.value })} placeholder="Name of the event to monitor" className="h-9" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Location</Label>
-                <Input value={nrForm.location} onChange={(e) => setNrForm({ ...nrForm, location: e.target.value })} placeholder="City, district, or state" className="h-9" />
+                <Input data-keyboard value={nrForm.location} onChange={(e) => setNrForm({ ...nrForm, location: e.target.value })} placeholder="City, district, or state" className="h-9" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Start Date</Label>
@@ -3721,6 +3724,7 @@ const Events = () => {
               <div className="space-y-1.5 sm:col-span-2">
                 <Label className="text-xs font-semibold">Description</Label>
                 <Textarea
+                  data-keyboard
                   value={nrForm.description || ''}
                   onChange={(e) => setNrForm({ ...nrForm, description: e.target.value })}
                   placeholder="Short summary of the event"

@@ -34,7 +34,7 @@ const SEARCH_RE = /search|filter|find|keyword|query/i;
 const SKIP_TYPES = new Set(['password', 'email', 'number', 'date', 'file', 'checkbox', 'radio', 'hidden', 'range', 'color', 'time', 'tel']);
 
 const isSearchInput = (el, rule) => {
-  if (!rule || !(el instanceof HTMLInputElement)) return false;
+  if (!rule || !(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return false;
   if (el.hasAttribute('data-no-keyboard') || el.hasAttribute('cmdk-input')) return false;
   const type = (el.getAttribute('type') || 'text').toLowerCase();
   if (SKIP_TYPES.has(type)) return false;
@@ -49,7 +49,8 @@ const isSearchInput = (el, rule) => {
 
 /** Set a React-controlled input's value and notify React. */
 function writeValue(input, value, caret) {
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+  const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
   setter.call(input, value);
   input.dispatchEvent(new Event('input', { bubbles: true }));
   input.focus();
@@ -249,7 +250,7 @@ function Assist({ input, lang }) {
             style={{
               position: 'absolute',
               left: pos.left + pos.width - 6 - (pos.inset || 0),
-              top: pos.top + (pos.height - 22) / 2,
+              top: pos.top + (input instanceof HTMLTextAreaElement ? 6 : (pos.height - 22) / 2),
               height: 22,
               transform: 'translateX(-100%)',
               zIndex: 5,
@@ -315,7 +316,7 @@ export default function KeyboardAssist() {
     const scan = () => {
       raf.current = 0;
       const rule = pageRule();
-      const found = rule ? Array.from(document.querySelectorAll('input')).filter((el) => isSearchInput(el, rule)) : [];
+      const found = rule ? Array.from(document.querySelectorAll('input, textarea')).filter((el) => isSearchInput(el, rule)) : [];
       setInputs((prev) =>
         prev.length === found.length && prev.every((el, i) => el === found[i]) ? prev : found
       );
