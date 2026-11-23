@@ -119,15 +119,42 @@ const searchTitle = (f) => {
   return f.keyword?.trim() || 'Latest news';
 };
 
+// The full lists, so a state or language is always there to pick even before any source covers it.
+const ALL_STATES = [
+  'Andaman and Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chandigarh', 'Chhattisgarh',
+  'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jammu and Kashmir',
+  'Jharkhand', 'Karnataka', 'Kerala', 'Ladakh', 'Lakshadweep', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya',
+  'Mizoram', 'Nagaland', 'Odisha', 'Puducherry', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
+  'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+];
+const ALL_LANGUAGES = [
+  'Assamese', 'Bengali', 'Bodo', 'Dogri', 'English', 'Gujarati', 'Hindi', 'Kannada', 'Kashmiri', 'Konkani', 'Maithili',
+  'Malayalam', 'Manipuri', 'Marathi', 'Nepali', 'Odia', 'Punjabi', 'Sanskrit', 'Santali', 'Sindhi', 'Tamil', 'Telugu', 'Urdu',
+  'Arabic', 'Chinese', 'French', 'German', 'Japanese', 'Persian', 'Portuguese', 'Russian', 'Spanish', 'Swahili',
+];
+const CANONICAL = { state: ALL_STATES, language: ALL_LANGUAGES };
+
 /** Options for one facet, narrowed by the other selected facets, with source counts. */
 const facetOptions = (sources, filters, facet, byId) => {
   const others = FACETS.filter((o) => o.key !== facet.key && filters[o.key].length);
   const counts = new Map();
+  const fits = [];
   sources.forEach((s) => {
     if (!others.every((o) => matchesFacet(o, s, filters[o.key]))) return;
+    fits.push(s);
     const v = facet.field(s);
     if (v) counts.set(v, (counts.get(v) || 0) + 1);
   });
+  const known = CANONICAL[facet.key];
+  if (known) {
+    // Same matching the API uses (substring), so "Telangana" also counts "Andhra Pradesh & Telangana".
+    known.forEach((name) => {
+      const n = fits.filter((s) => String(facet.field(s) || '').toLowerCase().includes(name.toLowerCase())).length;
+      const exact = [...counts.keys()].find((k) => k.toLowerCase() === name.toLowerCase());
+      if (exact) counts.set(exact, n || counts.get(exact));
+      else counts.set(name, n);
+    });
+  }
   return [...counts.entries()]
     .map(([value, n]) => (facet.key === 'source'
       ? { value, label: byId.get(value)?.name || value, hint: byId.get(value)?.language }
@@ -201,7 +228,7 @@ const MultiSelect = ({ label, icon: Icon, options, value, onChange, disabled }) 
                   <span className={`h-3.5 w-3.5 shrink-0 rounded-sm border flex items-center justify-center ${selected.has(o.value) ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/40'}`}>
                     {selected.has(o.value) && <Check className="h-3 w-3" />}
                   </span>
-                  <span className="truncate flex-1">{o.label}</span>
+                  <span className={`truncate flex-1 ${o.hint === 0 ? 'text-muted-foreground/60' : ''}`} title={o.hint === 0 ? 'No sources for this yet' : undefined}>{o.label}</span>
                   {o.hint != null && <span className="text-[10px] text-muted-foreground tabular-nums">{o.hint}</span>}
                 </CommandItem>
               ))}
