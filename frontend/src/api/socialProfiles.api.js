@@ -22,6 +22,17 @@ export const socialProfilesApi = {
   stopAllMonitoring: (params) =>
     apiHandler.put('/social-profiles/monitoring/stop-all', {}, { params }),
   preview: (body) => apiHandler.post('/social-profiles/preview', body),
+
+  // Human behaviour report (AI). GET → saved report | { status: 'running' | 'none' | 'failed' | 'cancelled' }.
+  getBehaviorReport: (id) =>
+    apiHandler.get(`/social-profiles/${id}/behavior-report`, { params: { _t: Date.now() } }),
+  startBehaviorReport: (id) => apiHandler.post(`/social-profiles/${id}/behavior-report`),
+  cancelBehaviorReport: (id) => apiHandler.post(`/social-profiles/${id}/behavior-report/cancel`),
+  downloadBehaviorReportPdf: (id) =>
+    apiHandler.get(`/social-profiles/${id}/behavior-report/report.pdf`, {
+      responseType: 'blob',
+      timeout: 240000,
+    }),
 };
 
 export default socialProfilesApi;

@@ -3,6 +3,7 @@ const monitoringSocialMedia = require('../../services/monitoringsocialmedia');
 const { previewProfile } = require('../../services/monitoringsocialmedia/previewProfile');
 const { attachRelevanceToAccounts } = require('./catalogRelevance.service');
 const { attachProfileRelevanceToAccounts } = require('./profileRelevance.service');
+const { attachBehaviorReportFlags } = require('./behaviorReport/behaviorReport.service');
 const { listActivePolicies } = require('../settings/settings.service');
 
 const FIELD_TYPES = new Set(['text', 'url']);
@@ -462,7 +463,8 @@ const listProfiles = async (req, res) => {
     const withRelevance = await attachRelevanceToAccounts(accounts.map(flattenAccount), {
       db: prisma,
     });
-    const flattened = await attachProfileRelevanceToAccounts(withRelevance, { db: prisma });
+    const withProfileRelevance = await attachProfileRelevanceToAccounts(withRelevance, { db: prisma });
+    const flattened = await attachBehaviorReportFlags(withProfileRelevance, { db: prisma });
 
     res.json({
       profiles: flattened,

@@ -4,8 +4,10 @@ import { readCatalogUrlFilters, matchPlatformSlug } from './catalogUrlFilters';
 import {
   Search, Plus, Pencil, Trash2, Loader2, PlayCircle, StopCircle,
   Twitter, Facebook, Instagram, Youtube, Globe2, Square, History, BarChart3, Download, Timer,
-  ChevronDown, User, FileText, CheckCircle, AlertTriangle,
+  ChevronDown, User, FileText, CheckCircle, AlertTriangle, BrainCircuit, Lock,
 } from 'lucide-react';
+import ProfileBehaviorReportDialog from './ProfileBehaviorReportDialog';
+import { ATTENTION_STYLES, behaviorLockReason, relativeTime } from './behaviorReportFormat';
 import { toast } from 'sonner';
 import { socialProfilesApi } from '../../api/socialProfiles.api';
 import { TelegramBrandLogo } from '../../components/PlatformBrandIcon';
@@ -384,6 +386,7 @@ const SocialProfiles = () => {
   });
   const [savingProfile, setSavingProfile] = useState(false);
   const [deleteProfile, setDeleteProfile] = useState(null);
+  const [behaviorRow, setBehaviorRow] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [monitoringId, setMonitoringId] = useState(null);
   const [startingAll, setStartingAll] = useState(false);
@@ -458,6 +461,20 @@ const SocialProfiles = () => {
     const t = setTimeout(() => loadProfiles(), query ? 300 : 0);
     return () => clearTimeout(t);
   }, [loadProfiles, query]);
+
+  // A monitored profile with no posts yet keeps its report button locked; refresh quietly so it
+  // unlocks as soon as monitoring collects the first posts. Stops once every monitored row has posts.
+  const waitingForFirstPosts = useMemo(
+    () => profiles.some((p) => p.monitoring_status === 'started' && !(Number(p.posts_stored) > 0)),
+    [profiles]
+  );
+  useEffect(() => {
+    if (!waitingForFirstPosts) return undefined;
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') loadProfiles({ silent: true }).catch(() => {});
+    }, 30000);
+    return () => clearInterval(id);
+  }, [waitingForFirstPosts, loadProfiles]);
 
   // The platforms load after the page opens. If a link asked for one that is spelled differently
   // (twitter / x) use the configured spelling; if it is not configured here at all, fall back to "All"
@@ -993,7 +1010,7 @@ const SocialProfiles = () => {
       </div>
 
         <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto max-h-[calc(100dvh-14rem)]">
-          <table className="text-sm border-collapse w-full" style={{ minWidth: 1080 }}>
+          <table className="text-sm border-collapse w-full" style={{ minWidth: 1200 }}>
             <thead className="sticky top-0 z-10 border-b bg-muted/95 text-left text-[11px] text-muted-foreground">
               <tr>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Profile</th>
@@ -1002,19 +1019,20 @@ const SocialProfiles = () => {
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Details</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Poll</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Monitoring</th>
+                <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Human behaviour</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-12 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-3 py-12 text-center text-muted-foreground">
                     <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" /> Loading…
                   </td>
                 </tr>
               ) : profiles.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-12 text-center">
+                  <td colSpan={8} className="px-3 py-12 text-center">
                     <p className="text-sm font-medium text-foreground">No profiles yet</p>
                     <p className="text-xs text-muted-foreground mt-0.5">Add a platform account to start monitoring.</p>
                     <Button size="sm" className="mt-3 h-8 gap-1.5" onClick={openAddProfile}>
@@ -1274,6 +1292,39 @@ const SocialProfiles = () => {
                             </PopoverContent>
                           </Popover>
                         </div>
+                      </td>
+                      <td className="px-2.5 py-2 align-top whitespace-nowrap">
+                        <span title={behaviorLockReason(row) || undefined} className="inline-block">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 gap-1 border-indigo-200 px-2 text-[11px] text-indigo-700 hover:bg-indigo-50 hover:text-indigo-800"
+                            disabled={Boolean(behaviorLockReason(row))}
+                            onClick={() => setBehaviorRow(row)}
+                          >
+                            {behaviorLockReason(row) ? <Lock className="h-3 w-3" /> : <BrainCircuit className="h-3 w-3" />}
+                            {row.behavior_report ? 'View report' : 'Generate report'}
+                          </Button>
+                        </span>
+                        {behaviorLockReason(row) ? (
+                          <p className="mt-1 text-[10px] text-muted-foreground">
+                            {isMonitoring ? 'Waiting for first posts' : 'Start monitoring first'}
+                          </p>
+                        ) : row.behavior_report?.generated_at ? (
+                          <p
+                            className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground"
+                            title={`Attention: ${row.behavior_report.attention_level || '—'}`}
+                          >
+                            <i
+                              className={cn(
+                                'h-1.5 w-1.5 rounded-full',
+                                (ATTENTION_STYLES[row.behavior_report.attention_level] || ATTENTION_STYLES.Low).dot
+                              )}
+                            />
+                            {row.behavior_report.attention_level || 'Low'} · {relativeTime(row.behavior_report.generated_at)}
+                          </p>
+                        ) : null}
                       </td>
                       <td className="px-2.5 py-2 align-top">
                         <div className="flex justify-end gap-1">
@@ -1739,6 +1790,14 @@ const SocialProfiles = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      <ProfileBehaviorReportDialog
+        open={Boolean(behaviorRow)}
+        onOpenChange={(next) => { if (!next) setBehaviorRow(null); }}
+        profile={behaviorRow}
+        onReportChange={(accountId, flag) => setProfiles((prev) => prev.map((p) => (
+          p.id === accountId ? { ...p, behavior_report: flag } : p
+        )))}
+      />
     </div>
   );
 };
