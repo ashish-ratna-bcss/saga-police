@@ -20,6 +20,7 @@ import { getLanguage, lookupEnglish, suggestKeywords, useKeyboardLanguage } from
 const PAGES = [
   { prefix: '/alerts', all: true },
   { prefix: '/grievances', all: true },
+  { prefix: '/social-profiles', all: true },
   { prefix: '/events', all: true },
   { prefix: '/analysis-tools/news', all: true },
   { prefix: '/analysis-tools/epaper', all: true },
