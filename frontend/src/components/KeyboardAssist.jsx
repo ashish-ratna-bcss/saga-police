@@ -21,6 +21,7 @@ const PAGES = [
   { prefix: '/alerts', all: true },
   { prefix: '/grievances', all: true },
   { prefix: '/social-profiles', all: true },
+  { prefix: '/global-search', all: true },
   { prefix: '/events', all: true },
   { prefix: '/analysis-tools/news', all: true },
   { prefix: '/analysis-tools/epaper', all: true },
