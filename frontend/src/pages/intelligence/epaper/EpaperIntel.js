@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Copy, Download, Languages, Library, Loader2, Newspaper, Search, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../../components/ui/button';
@@ -265,7 +265,7 @@ const Field = ({ title, children }) => (
   <label className="block space-y-1 text-xs font-medium">{title}{children}</label>
 );
 
-const FetchTab = ({ onSaved, onOpen }) => {
+const FetchTab = ({ onSaved, onOpen, onActive }) => {
   const [papers, setPapers] = useState([]);
   const [states, setStates] = useState([]);
   const [state, setState] = useState(ALL);
@@ -282,8 +282,10 @@ const FetchTab = ({ onSaved, onOpen }) => {
   const [toPage, setToPage] = useState('8');
   const [withText, setWithText] = useState(true);
   const [starting, setStarting] = useState(false);
-  const [job, setJob] = useState(null); // latest status from the server
+  const [jobs, setJobs] = useState([]); // background fetches (running, finished, failed)
+  const [opened, setOpened] = useState({}); // job id -> posts it saved, once the person asks to see them
   const [error, setError] = useState('');
+  const prevStatus = useRef({});
 
   useEffect(() => {
     Promise.all([epaperApi.papers().catch(() => []), epaperApi.beats().catch(() => [])]).then(([p, b]) => {
@@ -291,12 +293,15 @@ const FetchTab = ({ onSaved, onOpen }) => {
       setPapers(list);
       // Every state and union territory the app knows about; flag the ones no catalogued newspaper covers.
       const names = {};
-      (Array.isArray(b) ? b : []).forEach((x) => { if (x.state_code) names[x.state_code] = x.state; });
+      const hindi = {};
+      (Array.isArray(b) ? b : []).forEach((x) => {
+        if (x.state_code) { names[x.state_code] = x.state; hindi[x.state_code] = x.state_hi || ''; }
+      });
       const covered = new Set(list.flatMap((x) => x.states || []));
       const codes = [...new Set([...Object.keys(names), ...covered])];
       setStates(
         codes
-          .map((c) => ({ code: c, name: names[c] || c, covered: covered.has(c) }))
+          .map((c) => ({ code: c, name: names[c] || c, hi: hindi[c] || '', covered: covered.has(c) }))
           .sort((m, n) => m.name.localeCompare(n.name))
       );
     });
@@ -306,6 +311,15 @@ const FetchTab = ({ onSaved, onOpen }) => {
     () => papers.filter((p) => state === ALL || p.national || (p.states || []).includes(state)),
     [papers, state]
   );
+
+  // When a state is chosen, show the editions whose label names that state (Hindustan labels carry the state).
+  const shownEditions = useMemo(() => {
+    if (state === ALL) return editions;
+    const st = states.find((x) => x.code === state);
+    const aliases = [st?.name, st?.hi].filter(Boolean);
+    const matched = editions.filter((e) => aliases.some((a) => String(e.name).includes(a)));
+    return matched.length ? matched : editions;
+  }, [editions, state, states]);
 
   // paper -> editions
   useEffect(() => {
@@ -333,39 +347,49 @@ const FetchTab = ({ onSaved, onOpen }) => {
     return () => { off = true; };
   }, [host, titleId]);
 
-  const running = job && (job.status === 'queued' || job.status === 'running');
-
-  // poll the started job until it finishes
-  const jobId = job?.job_id;
-  useEffect(() => {
-    if (!jobId || !running) return undefined;
-    let off = false;
-    const tick = async () => {
-      try {
-        const st = await epaperApi.extractStatus(jobId, scope === 'range' ? { from_page: fromPage, to_page: toPage } : {});
-        if (off) return;
-        setJob(st);
-        if (st.status === 'done') {
-          if (st.saved > 0) { toast.success(`${st.saved} post${st.saved === 1 ? '' : 's'} saved (${st.added} new)`); onSaved(); }
-        } else if (st.status === 'error') {
-          setError(st.error || 'The page could not be read');
+  // Fetches run in the background on the server, so the list below is the only place to look.
+  const loadJobs = useCallback(async () => {
+    try {
+      const res = await epaperApi.fetchJobs();
+      const list = Array.isArray(res?.jobs) ? res.jobs : [];
+      list.forEach((j) => {
+        const before = prevStatus.current[j.id];
+        if (before && before !== 'done' && j.status === 'done' && j.saved > 0) {
+          toast.success(`${j.paper}${j.edition ? ` · ${j.edition}` : ''}: ${j.saved} post${j.saved === 1 ? '' : 's'} saved`);
+          onSaved();
         }
-      } catch (e) {
-        if (!off) { setError(errMsg(e, 'Lost contact with the E-Paper service')); setJob((j) => (j ? { ...j, status: 'error' } : j)); }
-      }
-    };
-    const timer = window.setInterval(tick, 3000);
-    return () => { off = true; window.clearInterval(timer); };
-  }, [jobId, running]); // eslint-disable-line
+        prevStatus.current[j.id] = j.status;
+      });
+      setJobs(list);
+    } catch { /* keep the last list */ }
+  }, [onSaved]);
+
+  const activeCount = jobs.filter((j) => j.status === 'running' || j.status === 'importing').length;
+  useEffect(() => { onActive?.(activeCount); }, [activeCount, onActive]);
+
+  useEffect(() => {
+    loadJobs();
+    const t = window.setInterval(loadJobs, 5000);
+    return () => window.clearInterval(t);
+  }, [loadJobs]);
+
+  const viewPosts = async (id) => {
+    if (opened[id]) { setOpened((o) => { const n = { ...o }; delete n[id]; return n; }); return; }
+    try {
+      const full = await epaperApi.fetchJob(id);
+      setOpened((o) => ({ ...o, [id]: full.results || [] }));
+    } catch (e) {
+      toast.error(errMsg(e, 'Could not load the posts'));
+    }
+  };
 
   const edition = editions.find((e) => String(e.id) === String(titleId));
-  const canFetch = host && titleId && date && !starting && !running;
+  const canFetch = host && titleId && date && !starting;
 
   const submit = async (e) => {
     e.preventDefault();
     setStarting(true);
     setError('');
-    setJob(null);
     try {
       const out = await epaperApi.extractPosts({
         host,
@@ -378,7 +402,9 @@ const FetchTab = ({ onSaved, onOpen }) => {
         to_page: Number(toPage) || 1,
         with_text: withText,
       });
-      setJob({ job_id: out.job_id, status: 'queued', stage: 'starting', kind: out.kind });
+      toast.success('Fetch started. It keeps running in the background, so you can leave this page.');
+      prevStatus.current[out.id] = out.status;
+      loadJobs();
     } catch (err) {
       setError(errMsg(err, 'Could not start the fetch'));
     } finally {
@@ -395,7 +421,7 @@ const FetchTab = ({ onSaved, onOpen }) => {
       <form onSubmit={submit} className="space-y-4 rounded-xl border border-border bg-card p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field title="State">
-            <Select value={state} onValueChange={(v) => { setState(v); setHost(''); }}>
+            <Select value={state} onValueChange={(v) => { setState(v); setHost(''); setTitleId(''); }}>
               <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="State" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL} className="text-xs">All states</SelectItem>
@@ -419,7 +445,7 @@ const FetchTab = ({ onSaved, onOpen }) => {
             <Select value={titleId} onValueChange={setTitleId} disabled={!host || editionsLoading}>
               <SelectTrigger className="h-9 text-xs"><SelectValue placeholder={!host ? 'Pick a newspaper' : editionsLoading ? 'Loading…' : 'Select…'} /></SelectTrigger>
               <SelectContent>
-                {editions.map((x) => <SelectItem key={x.id} value={String(x.id)} className="text-xs">{x.name}</SelectItem>)}
+                {shownEditions.map((x) => <SelectItem key={x.id} value={String(x.id)} className="text-xs">{x.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </Field>
@@ -466,43 +492,58 @@ const FetchTab = ({ onSaved, onOpen }) => {
             <span>Read full article text<span className="block text-[11px] text-muted-foreground">Needed for categories and search (slower)</span></span>
           </label>
           <Button type="submit" className="h-9 gap-1.5 text-xs" disabled={!canFetch}>
-            {starting || running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-            {starting ? 'Starting…' : running ? 'Fetching…' : 'Fetch posts'}
+            {starting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            {starting ? 'Starting…' : 'Fetch posts'}
           </Button>
         </div>
       </form>
 
       {error && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-400">{error}</p>}
 
-      {running && (
-        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-xs">
-          <Loader2 className="h-4 w-4 animate-spin text-primary" />
-          <div>
-            <p className="font-semibold">Reading {job.paper || 'the paper'}{job.edition ? ` · ${job.edition}` : ''}</p>
-            <p className="text-muted-foreground">
-              {job.stage || 'working'}
-              {job.n_pages ? ` · page ${Math.min(job.pages_done + 1, job.n_pages)} of ${job.n_pages}` : ''}
-            </p>
-          </div>
+      {jobs.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Your fetches {activeCount > 0 ? `· ${activeCount} running in the background` : ''}</p>
+          {jobs.map((j) => {
+            const live = j.status === 'running' || j.status === 'importing';
+            const pct = j.n_pages ? Math.min(100, Math.round((j.pages_done / j.n_pages) * 100)) : 0;
+            return (
+              <div key={j.id} className="rounded-xl border border-border bg-card px-4 py-3 text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  {live && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
+                  <p className="font-semibold">{j.paper}{j.edition ? ` · ${j.edition}` : ''}{j.date ? ` · ${fmtDate(j.date)}` : ''}</p>
+                  <Badge variant={j.status === 'error' ? 'destructive' : j.status === 'done' ? 'secondary' : 'outline'} className="text-[10px]">
+                    {j.status === 'importing' ? 'saving' : j.status}
+                  </Badge>
+                  <span className="text-muted-foreground">
+                    {j.scope === 'page' ? `page ${j.page_no || 1}` : j.scope === 'range' ? `pages ${j.from_page}–${j.to_page}` : 'whole paper'}
+                  </span>
+                  {j.status === 'done' && j.saved > 0 && (
+                    <Button type="button" size="sm" variant="outline" className="ml-auto h-7 text-[11px]" onClick={() => viewPosts(j.id)}>
+                      {opened[j.id] ? 'Hide posts' : `View ${j.saved} post${j.saved === 1 ? '' : 's'}`}
+                    </Button>
+                  )}
+                </div>
+                {live && (
+                  <div className="mt-2">
+                    <p className="text-muted-foreground">
+                      {j.stage || 'working'}{j.n_pages ? ` · page ${Math.min(j.pages_done + 1, j.n_pages)} of ${j.n_pages}` : ''}
+                    </p>
+                    {j.n_pages > 0 && <div className="mt-1 h-1.5 rounded-full bg-muted"><div className="h-1.5 rounded-full bg-primary" style={{ width: `${pct}%` }} /></div>}
+                  </div>
+                )}
+                {j.status === 'done' && (
+                  <p className="mt-1 text-muted-foreground">
+                    {j.saved > 0 ? `${j.saved} saved to the database (${j.added} new, ${j.updated} already there).` : (j.reason || 'The page had no readable articles.')}
+                  </p>
+                )}
+                {j.status === 'error' && <p className="mt-1 text-red-600">{j.error || 'The fetch failed.'}</p>}
+                {opened[j.id] && (
+                  <div className="mt-3 space-y-2">{opened[j.id].map((p) => <PostCard key={p.id} post={p} onOpen={onOpen} />)}</div>
+                )}
+              </div>
+            );
+          })}
         </div>
-      )}
-
-      {job?.status === 'done' && (
-        job.saved === 0 ? (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-4 text-center text-sm text-amber-800 dark:text-amber-300">
-            <p className="font-semibold">No posts could be read from this page</p>
-            <p className="mx-auto mt-1 max-w-lg text-xs opacity-90">
-              {job.reason || 'The page had no readable articles. Try another page or date.'}
-            </p>
-          </div>
-        ) : (
-          <>
-            <p className="text-xs text-muted-foreground">
-              {job.saved} post{job.saved === 1 ? '' : 's'} saved to the database ({job.added} new, {job.updated} already there)
-            </p>
-            <div className="space-y-2">{(job.results || []).map((p) => <PostCard key={p.id} post={p} onOpen={onOpen} />)}</div>
-          </>
-        )
       )}
     </div>
   );
@@ -514,6 +555,8 @@ export default function EpaperIntel() {
   const [tab, setTab] = useState('all');
   const [openPost, setOpenPost] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [running, setRunning] = useState(0);
+  const onSaved = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   const tabs = [
     { id: 'all', label: 'All posts', icon: Library },
@@ -534,7 +577,7 @@ export default function EpaperIntel() {
           {tabs.map(({ id, label: l, icon: Icon }) => (
             <button key={id} type="button" onClick={() => setTab(id)}
               className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${tab === id ? 'bg-primary/10 text-foreground ring-1 ring-primary/30' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`}>
-              <Icon className="h-3.5 w-3.5" /> {l}
+              <Icon className="h-3.5 w-3.5" /> {l}{id === 'fetch' && running > 0 ? ` · ${running} running` : ''}
             </button>
           ))}
         </nav>
@@ -543,7 +586,7 @@ export default function EpaperIntel() {
       <main className="min-h-0 flex-1 overflow-auto">
         <div className="mx-auto max-w-4xl px-3 py-4 sm:px-4 sm:py-5">
           {tab === 'all' && <AllPostsTab refreshKey={refreshKey} onOpen={setOpenPost} />}
-          {tab === 'fetch' && <FetchTab onSaved={() => setRefreshKey((k) => k + 1)} onOpen={setOpenPost} />}
+          <div className={tab === 'fetch' ? '' : 'hidden'}><FetchTab onSaved={onSaved} onOpen={setOpenPost} onActive={setRunning} /></div>
         </div>
       </main>
 

@@ -100,9 +100,11 @@ export const epaperApi = {
   extractPosts: async (payload) =>
     (await apiHandler.post('/epaper/posts/extract', payload)).data,
 
-  /** Progress; once finished the posts are saved and returned in `results`. */
-  extractStatus: async (jobId, params = {}) =>
-    (await apiHandler.get(`/epaper/posts/extract/${encodeURIComponent(jobId)}`, { params })).data,
+  /** Background fetches (running, finished, failed). */
+  fetchJobs: async () => (await apiHandler.get('/epaper/posts/jobs')).data,
+
+  /** One fetch, with the posts it saved once finished. */
+  fetchJob: async (id) => (await apiHandler.get(`/epaper/posts/jobs/${encodeURIComponent(id)}`)).data,
 
   categoryTree: async () =>
     (await apiHandler.get('/epaper/api/categories/tree')).data,

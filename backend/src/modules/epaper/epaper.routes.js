@@ -51,11 +51,16 @@ router.get('/posts/:id', async (req, res) => {
   }
 });
 
-/** Start reading a page, page range or whole paper from the catalogue. Returns the job id to poll. */
+/**
+ * Start reading a page, page range or whole paper from the catalogue. It runs in the background:
+ * this returns at once with a job, and the posts are saved when the service finishes.
+ */
 router.post('/posts/extract', async (req, res) => {
   try {
     const b = req.body || {};
-    const out = await postsService.startExtract({
+    const job = await postsService.startExtract({
+      db: req.tenantPrisma,
+      userId: req.user?.id,
       host: b.host,
       titleId: b.title_id,
       date: b.date,
@@ -66,25 +71,30 @@ router.post('/posts/extract', async (req, res) => {
       toPage: b.to_page,
       withText: b.with_text !== false,
     });
-    return res.json(out);
+    return res.status(202).json(job);
   } catch (error) {
     return postsError(res, error, 'could not start the fetch');
   }
 });
 
-/** Progress of a started fetch. When it finishes, its posts are saved (once) and returned. */
-router.get('/posts/extract/:jobId', async (req, res) => {
+/** Recent background fetches (running, finished, failed). */
+router.get('/posts/jobs', async (req, res) => {
   try {
-    const out = await postsService.extractStatus({
-      db: req.tenantPrisma,
-      userId: req.user?.id,
-      jobId: req.params.jobId,
-      fromPage: req.query.from_page,
-      toPage: req.query.to_page,
-    });
-    return res.json(out);
+    const jobs = await postsService.listFetchJobs({ db: req.tenantPrisma, limit: req.query.limit });
+    return res.json({ jobs });
   } catch (error) {
-    return postsError(res, error, 'could not read the fetch progress');
+    return postsError(res, error, 'could not list fetches');
+  }
+});
+
+/** One fetch, with the posts it saved once finished. */
+router.get('/posts/jobs/:id', async (req, res) => {
+  try {
+    const job = await postsService.getFetchJob({ db: req.tenantPrisma, id: req.params.id });
+    if (!job) return res.status(404).json({ message: 'Fetch not found' });
+    return res.json(job);
+  } catch (error) {
+    return postsError(res, error, 'could not load the fetch');
   }
 });
 

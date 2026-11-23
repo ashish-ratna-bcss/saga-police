@@ -14,6 +14,7 @@ const { assertJwtConfigured, shouldSeedDefaultAdmin } = require('./config/env');
 const { startScheduler: startCatalogMonitoringScheduler } = require('./services/monitoringsocialmedia');
 const { startScheduler: startMediaPostAnalysisScheduler } = require('./services/media_post_analysis');
 const { startScheduler: startEventScheduler } = require('./modules/events');
+const { startScheduler: startEpaperScheduler } = require('./modules/epaper');
 const prisma = require('../prisma/client');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
@@ -206,6 +207,7 @@ const startServer = async () => {
   startCatalogMonitoringScheduler();
   startMediaPostAnalysisScheduler();
   startEventScheduler();
+  startEpaperScheduler();
 
   const PORT = process.env.PORT || 8000;
   const HOST = process.env.HOST || '0.0.0.0';

@@ -55,6 +55,45 @@ const ensureTable = (prisma) => {
       await prisma.$executeRawUnsafe(
         'CREATE INDEX IF NOT EXISTS epaper_posts_category_idx ON epaper_posts (category)'
       );
+      await prisma.$executeRawUnsafe('ALTER TABLE epaper_posts ADD COLUMN IF NOT EXISTS fetch_job_id INTEGER NULL');
+      await prisma.$executeRawUnsafe(
+        'CREATE INDEX IF NOT EXISTS epaper_posts_fetch_job_idx ON epaper_posts (fetch_job_id)'
+      );
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS epaper_fetch_jobs (
+          id SERIAL PRIMARY KEY,
+          service_job_id TEXT NOT NULL,
+          host TEXT NULL,
+          title_id TEXT NULL,
+          paper TEXT NULL,
+          edition TEXT NULL,
+          pub_date DATE NULL,
+          scope TEXT NOT NULL DEFAULT 'page',
+          page_no INTEGER NULL,
+          from_page INTEGER NULL,
+          to_page INTEGER NULL,
+          with_text BOOLEAN NOT NULL DEFAULT TRUE,
+          status TEXT NOT NULL DEFAULT 'running',
+          stage TEXT NULL,
+          n_pages INTEGER NOT NULL DEFAULT 0,
+          pages_done INTEGER NOT NULL DEFAULT 0,
+          found INTEGER NOT NULL DEFAULT 0,
+          saved INTEGER NOT NULL DEFAULT 0,
+          added INTEGER NOT NULL DEFAULT 0,
+          updated INTEGER NOT NULL DEFAULT 0,
+          error TEXT NULL,
+          reason TEXT NULL,
+          fail_count INTEGER NOT NULL DEFAULT 0,
+          created_by INTEGER NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          finished_at TIMESTAMPTZ NULL,
+          claimed_at TIMESTAMPTZ NULL
+        )
+      `);
+      await prisma.$executeRawUnsafe(
+        'CREATE INDEX IF NOT EXISTS epaper_fetch_jobs_status_idx ON epaper_fetch_jobs (status, id)'
+      );
     })();
     p.catch(() => ready.delete(prisma));
     ready.set(prisma, p);
@@ -290,7 +329,12 @@ const fetchAndSave = async ({ db, userId, paper, dateFrom, dateTo, category, q, 
 };
 
 
-/* ───────────── Extract a page / edition from the catalogue, then save what it produced ───────────── */
+/* ───────────── Extract a page / edition in the background ─────────────
+ *
+ * A fetch can take many minutes, so it never ties up the browser: starting one records a job row,
+ * a poller (epaper.poller.js) follows the E-Paper service's job and, when it finishes, saves the
+ * posts. The person can close the page and come back; the job list shows what happened.
+ */
 
 const postService = async (path, body) => {
   const response = await forward({ method: 'POST', path, body });
@@ -311,39 +355,48 @@ const int = (v, min, max, fallback) => {
   return Math.max(min, Math.min(max, n));
 };
 
-/** Start reading a page (or a page range / whole paper). Returns the service job id. */
-const startExtract = async ({ host, titleId, date, edition, scope = 'page', pageNo, fromPage, toPage, withText = true }) => {
+const JOB_COLS = `id::int AS id, service_job_id, host, paper, edition, to_char(pub_date, 'YYYY-MM-DD') AS date,
+  scope, page_no, from_page, to_page, status, stage, n_pages, pages_done, found, saved, added, updated, error, reason,
+  created_by, to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
+  to_char(finished_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS finished_at`;
+
+/** Start reading a page (or a page range / whole paper). Returns our job row; the poller does the rest. */
+const startExtract = async ({ db, userId, host, titleId, date, edition, scope = 'page', pageNo, fromPage, toPage, withText = true }) => {
+  const prisma = dbOf(db);
+  await ensureTable(prisma);
   const h = cleanText(host, 120);
   const t = cleanText(titleId, 60);
-  if (!h || !/^[a-z0-9.-]+$/i.test(h)) {
-    const err = new Error('Pick a newspaper');
-    err.status = 400;
-    throw err;
-  }
-  if (!t) {
-    const err = new Error('Pick an edition');
-    err.status = 400;
-    throw err;
-  }
-  if (!cleanDate(date)) {
-    const err = new Error('Pick a date');
-    err.status = 400;
-    throw err;
-  }
+  const bad = (msg) => { const err = new Error(msg); err.status = 400; return err; };
+  if (!h || !/^[a-z0-9.-]+$/i.test(h)) throw bad('Pick a newspaper');
+  if (!t) throw bad('Pick an edition');
+  if (!cleanDate(date)) throw bad('Pick a date');
+
   const common = { host: h, title_id: t, date, edition: cleanText(edition, 120) };
+  let started;
+  const page = int(pageNo, 1, 200, 1);
+  const from = int(fromPage, 1, 200, 1);
+  const to = int(toPage, 1, 200, from);
   if (scope === 'page') {
-    const out = await postService('/api/jobs/fetch', { ...common, page_no: int(pageNo, 1, 200, 1), with_text: Boolean(withText) });
-    return { job_id: out.job_id, kind: 'page' };
+    started = await postService('/api/jobs/fetch', { ...common, page_no: page, with_text: Boolean(withText) });
+  } else {
+    started = await postService('/api/jobs/ingest', { ...common, ...(scope === 'range' ? { from_page: from, to_page: to } : {}) });
   }
-  const range = scope === 'range'
-    ? { from_page: int(fromPage, 1, 200, 1), to_page: int(toPage, 1, 200, int(fromPage, 1, 200, 1)) }
-    : {};
-  const out = await postService('/api/jobs/ingest', { ...common, ...range });
-  return { job_id: out.job_id, kind: 'edition' };
+  const papers = await callService('/api/papers').catch(() => []);
+  const paper = (Array.isArray(papers) ? papers : []).find((p) => p.host === h)?.name || h;
+
+  const rows = await prisma.$queryRawUnsafe(
+    `INSERT INTO epaper_fetch_jobs
+       (service_job_id, host, title_id, paper, edition, pub_date, scope, page_no, from_page, to_page, with_text, status, stage, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6::date,$7,$8,$9,$10,$11,'running','starting',$12)
+     RETURNING ${JOB_COLS}`,
+    String(started.job_id), h, t, paper, common.edition || null, date, scope,
+    scope === 'page' ? page : null, scope === 'range' ? from : null, scope === 'range' ? to : null,
+    Boolean(withText), userId || null
+  );
+  return rows[0];
 };
 
 const JOB_ID_RE = /^[a-f0-9]{6,32}$/i;
-const imported = new Map(); // job id -> summary (so polling does not re-import)
 
 const importJob = async ({ prisma, userId, jobId, fromPage, toPage }) => {
   const data = await callService(`/api/jobs/${jobId}`);
@@ -396,55 +449,148 @@ const importJob = async ({ prisma, userId, jobId, fromPage, toPage }) => {
   return { found: rows.length, saved: rows.length, added, updated: rows.length - added, ids };
 };
 
-/** Progress of a started job; when it has finished, saves its posts (once) and returns them. */
-const extractStatus = async ({ db, userId, jobId, fromPage, toPage }) => {
-  const prisma = dbOf(db);
-  await ensureTable(prisma);
-  if (!JOB_ID_RE.test(String(jobId || ''))) {
-    const err = new Error('Invalid job id');
-    err.status = 400;
-    throw err;
+/**
+ * Move one fetch job forward: refresh its progress from the service, and when the service has
+ * finished, save the posts. Safe to call from any process (the caller has claimed the row).
+ */
+const advanceJob = async (prisma, row) => {
+  const jobId = String(row.service_job_id || '');
+  if (!JOB_ID_RE.test(jobId)) {
+    await prisma.$executeRawUnsafe(
+      `UPDATE epaper_fetch_jobs SET status = 'error', error = 'Invalid job id', finished_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      row.id
+    );
+    return;
   }
-  const data = await callService(`/api/jobs/${jobId}`);
-  const job = data?.job || {};
-  const progress = {
-    job_id: jobId,
-    status: job.status || 'queued',
-    stage: job.stage || '',
-    kind: job.kind || 'page',
-    n_pages: job.n_pages || 0,
-    pages_done: job.pages_done || 0,
-    pages_failed: job.pages_failed || 0,
-    pages_skipped: job.pages_skipped || 0,
-    paper: job.paper || '',
-    edition: job.edition || '',
-    date: job.date || '',
-  };
-  if (job.status === 'error') return { ...progress, error: job.error || 'The page could not be read' };
-  if (job.status !== 'done') return progress;
 
-  let summary = imported.get(jobId);
-  if (!summary) {
-    summary = await importJob({ prisma, userId, jobId, fromPage: int(fromPage, 0, 200, 0), toPage: int(toPage, 0, 200, 0) });
-    imported.set(jobId, summary);
-    if (imported.size > 60) imported.delete(imported.keys().next().value);
+  let data;
+  try {
+    data = await callService(`/api/jobs/${jobId}`);
+  } catch (err) {
+    const fails = (row.fail_count || 0) + 1;
+    if (fails >= 10) {
+      await prisma.$executeRawUnsafe(
+        `UPDATE epaper_fetch_jobs SET status = 'error', error = $2, fail_count = $3, finished_at = NOW(), updated_at = NOW() WHERE id = $1`,
+        row.id, 'Lost contact with the E-Paper service', fails
+      );
+    } else {
+      await prisma.$executeRawUnsafe(
+        `UPDATE epaper_fetch_jobs SET fail_count = $2, updated_at = NOW() WHERE id = $1`,
+        row.id, fails
+      );
+    }
+    return;
   }
-  let results = [];
-  if (summary.ids.length) {
-    results = await prisma.$queryRawUnsafe(
-      `SELECT ${SELECT_COLS} FROM epaper_posts WHERE id = ANY($1::text[]::bigint[])
-       ORDER BY page_number ASC NULLS LAST, id ASC`,
-      summary.ids.map(String)
+
+  const job = data?.job || {};
+  const status = job.status || 'queued';
+  if (status === 'error') {
+    await prisma.$executeRawUnsafe(
+      `UPDATE epaper_fetch_jobs SET status = 'error', stage = $2, error = $3, n_pages = $4, pages_done = $5,
+         fail_count = 0, finished_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      row.id, job.stage || '', job.error || 'The page could not be read', job.n_pages || 0, job.pages_done || 0
+    );
+    return;
+  }
+  if (status !== 'done') {
+    await prisma.$executeRawUnsafe(
+      `UPDATE epaper_fetch_jobs SET stage = $2, n_pages = $3, pages_done = $4, fail_count = 0, updated_at = NOW() WHERE id = $1`,
+      row.id, job.stage || '', job.n_pages || 0, job.pages_done || 0
+    );
+    return;
+  }
+
+  // Finished on the service: save the posts. Mark the row first so no other process repeats the work.
+  await prisma.$executeRawUnsafe(
+    `UPDATE epaper_fetch_jobs SET status = 'importing', stage = 'saving posts', n_pages = $2, pages_done = $3, claimed_at = NOW(), updated_at = NOW() WHERE id = $1`,
+    row.id, job.n_pages || 0, job.pages_done || job.n_pages || 0
+  );
+  try {
+    const summary = await importJob({
+      prisma,
+      userId: row.created_by,
+      jobId,
+      fromPage: row.scope === 'range' ? row.from_page : 0,
+      toPage: row.scope === 'range' ? row.to_page : 0,
+    });
+    if (summary.ids.length) {
+      await prisma.$executeRawUnsafe(
+        `UPDATE epaper_posts SET fetch_job_id = $1 WHERE id = ANY($2::text[]::bigint[])`,
+        row.id, summary.ids.map(String)
+      );
+    }
+    let reason = '';
+    if (summary.saved === 0) {
+      const health = await callService('/api/health').catch(() => null);
+      reason = health && (health.vlm_ok === false || health.ocr_ok === false)
+        ? 'The page-reading service (OCR and vision model) is offline, so the text on this page could not be read.'
+        : 'The page had no readable articles.';
+    }
+    await prisma.$executeRawUnsafe(
+      `UPDATE epaper_fetch_jobs SET status = 'done', stage = 'complete', found = $2, saved = $3, added = $4, updated = $5,
+         reason = $6, finished_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      row.id, summary.found, summary.saved, summary.added, summary.updated, reason
+    );
+  } catch (err) {
+    await prisma.$executeRawUnsafe(
+      `UPDATE epaper_fetch_jobs SET status = 'error', error = $2, finished_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      row.id, `Could not save the posts: ${String(err.message || err).slice(0, 200)}`
     );
   }
-  let reason = '';
-  if (summary.saved === 0) {
-    const health = await callService('/api/health').catch(() => null);
-    if (health && (health.vlm_ok === false || health.ocr_ok === false)) {
-      reason = 'The page-reading service (OCR and vision model) is offline, so the text on this page could not be read.';
-    }
-  }
-  return { ...progress, found: summary.found, saved: summary.saved, added: summary.added, updated: summary.updated, results, reason };
 };
 
-module.exports = { ensureTable, listPosts, getPost, fetchAndSave, startExtract, extractStatus, upsertRows, toRow };
+/** Poller entry: claim a few due jobs (any process may run this) and advance each one. */
+const processFetchJobs = async (prisma) => {
+  const exists = await prisma.$queryRawUnsafe(`SELECT to_regclass('epaper_fetch_jobs')::text AS t`);
+  if (!exists[0]?.t) return 0;
+  const claimed = await prisma.$queryRawUnsafe(
+    `UPDATE epaper_fetch_jobs SET claimed_at = NOW()
+     WHERE id IN (
+       SELECT id FROM epaper_fetch_jobs
+       WHERE (status = 'running' AND (claimed_at IS NULL OR claimed_at < NOW() - INTERVAL '15 seconds'))
+          OR (status = 'importing' AND claimed_at < NOW() - INTERVAL '15 minutes')
+       ORDER BY id LIMIT 5
+       FOR UPDATE SKIP LOCKED
+     )
+     RETURNING id::int AS id, service_job_id, scope, from_page, to_page, created_by, fail_count`
+  );
+  for (const row of claimed) {
+    try {
+      await advanceJob(prisma, row);
+    } catch (err) {
+      console.error(`[epaper] job ${row.id}:`, err.message);
+    }
+  }
+  return claimed.length;
+};
+
+/** Recent fetch jobs, newest first. */
+const listFetchJobs = async ({ db, limit = 20 }) => {
+  const prisma = dbOf(db);
+  await ensureTable(prisma);
+  return prisma.$queryRawUnsafe(
+    `SELECT ${JOB_COLS} FROM epaper_fetch_jobs ORDER BY id DESC LIMIT ${Math.max(1, Math.min(Number(limit) || 20, 50))}`
+  );
+};
+
+/** One job, with the posts it saved once it has finished. */
+const getFetchJob = async ({ db, id }) => {
+  const prisma = dbOf(db);
+  await ensureTable(prisma);
+  const jobId = Number.parseInt(id, 10);
+  if (!Number.isFinite(jobId)) return null;
+  const rows = await prisma.$queryRawUnsafe(`SELECT ${JOB_COLS} FROM epaper_fetch_jobs WHERE id = $1`, jobId);
+  const job = rows[0];
+  if (!job) return null;
+  let results = [];
+  if (job.status === 'done' && job.saved > 0) {
+    results = await prisma.$queryRawUnsafe(
+      `SELECT ${SELECT_COLS} FROM epaper_posts WHERE fetch_job_id = $1
+       ORDER BY page_number ASC NULLS LAST, id ASC`,
+      jobId
+    );
+  }
+  return { ...job, results };
+};
+
+module.exports = { ensureTable, listPosts, getPost, fetchAndSave, startExtract, processFetchJobs, listFetchJobs, getFetchJob, upsertRows, toRow };
