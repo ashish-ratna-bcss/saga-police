@@ -128,11 +128,45 @@ const ALL_STATES = [
   'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
 ];
 const ALL_LANGUAGES = [
+  // Indian languages (the 22 scheduled ones, plus English)
   'Assamese', 'Bengali', 'Bodo', 'Dogri', 'English', 'Gujarati', 'Hindi', 'Kannada', 'Kashmiri', 'Konkani', 'Maithili',
   'Malayalam', 'Manipuri', 'Marathi', 'Nepali', 'Odia', 'Punjabi', 'Sanskrit', 'Santali', 'Sindhi', 'Tamil', 'Telugu', 'Urdu',
-  'Arabic', 'Chinese', 'French', 'German', 'Japanese', 'Persian', 'Portuguese', 'Russian', 'Spanish', 'Swahili',
+  // The rest of the world
+  'Afrikaans', 'Albanian', 'Amharic', 'Arabic', 'Armenian', 'Azerbaijani', 'Basque', 'Belarusian', 'Bosnian', 'Bulgarian',
+  'Burmese', 'Catalan', 'Chinese', 'Croatian', 'Czech', 'Danish', 'Dutch', 'Estonian', 'Filipino', 'Finnish', 'French',
+  'Galician', 'Georgian', 'German', 'Greek', 'Hausa', 'Hebrew', 'Hungarian', 'Icelandic', 'Igbo', 'Indonesian', 'Irish',
+  'Italian', 'Japanese', 'Kazakh', 'Khmer', 'Korean', 'Kurdish', 'Lao', 'Latvian', 'Lithuanian', 'Macedonian', 'Malay',
+  'Maltese', 'Mongolian', 'Norwegian', 'Pashto', 'Persian', 'Polish', 'Portuguese', 'Romanian', 'Russian', 'Serbian',
+  'Sinhala', 'Slovak', 'Slovenian', 'Somali', 'Spanish', 'Swahili', 'Swedish', 'Tagalog', 'Thai', 'Tibetan', 'Turkish',
+  'Ukrainian', 'Uzbek', 'Vietnamese', 'Welsh', 'Yoruba', 'Zulu',
 ];
-const CANONICAL = { state: ALL_STATES, language: ALL_LANGUAGES };
+// Spelled the way the news provider spells them (e.g. "Turkiye", "United States"), so the counts line up.
+const ALL_COUNTRIES = [
+  'Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Antigua and Barbuda', 'Argentina', 'Armenia', 'Australia',
+  'Austria', 'Azerbaijan', 'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados', 'Belarus', 'Belgium', 'Belize', 'Benin', 'Bhutan',
+  'Bolivia', 'Bosnia and Herzegovina', 'Botswana', 'Brazil', 'Brunei', 'Bulgaria', 'Burkina Faso', 'Burundi', 'Cabo Verde',
+  'Cambodia', 'Cameroon', 'Canada', 'Central African Republic', 'Chad', 'Chile', 'China', 'Colombia', 'Comoros', 'Congo',
+  'Costa Rica', 'Croatia', 'Cuba', 'Cyprus', 'Czechia', 'Democratic Republic of the Congo', 'Denmark', 'Djibouti', 'Dominica',
+  'Dominican Republic', 'Ecuador', 'Egypt', 'El Salvador', 'Equatorial Guinea', 'Eritrea', 'Estonia', 'Eswatini', 'Ethiopia',
+  'Fiji', 'Finland', 'France', 'Gabon', 'Gambia', 'Georgia', 'Germany', 'Ghana', 'Greece', 'Grenada', 'Guatemala', 'Guinea',
+  'Guinea-Bissau', 'Guyana', 'Haiti', 'Honduras', 'Hong Kong', 'Hungary', 'Iceland', 'India', 'Indonesia', 'International',
+  'Iran', 'Iraq', 'Ireland', 'Israel', 'Italy', 'Ivory Coast', 'Jamaica', 'Japan', 'Jordan', 'Kazakhstan', 'Kenya', 'Kiribati',
+  'Kosovo', 'Kuwait', 'Kyrgyzstan', 'Laos', 'Latvia', 'Lebanon', 'Lesotho', 'Liberia', 'Libya', 'Liechtenstein', 'Lithuania',
+  'Luxembourg', 'Madagascar', 'Malawi', 'Malaysia', 'Maldives', 'Mali', 'Malta', 'Marshall Islands', 'Mauritania', 'Mauritius',
+  'Mexico', 'Micronesia', 'Moldova', 'Monaco', 'Mongolia', 'Montenegro', 'Morocco', 'Mozambique', 'Myanmar', 'Namibia', 'Nauru',
+  'Nepal', 'Netherlands', 'New Zealand', 'Nicaragua', 'Niger', 'Nigeria', 'North Korea', 'North Macedonia', 'Norway', 'Oman',
+  'Pakistan', 'Palau', 'Palestine', 'Panama', 'Papua New Guinea', 'Paraguay', 'Peru', 'Philippines', 'Poland', 'Portugal', 'Qatar',
+  'Romania', 'Russia', 'Rwanda', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Samoa', 'San Marino',
+  'Sao Tome and Principe', 'Saudi Arabia', 'Senegal', 'Serbia', 'Seychelles', 'Sierra Leone', 'Singapore', 'Slovakia', 'Slovenia',
+  'Solomon Islands', 'Somalia', 'South Africa', 'South Korea', 'South Sudan', 'Spain', 'Sri Lanka', 'Sudan', 'Suriname', 'Sweden',
+  'Switzerland', 'Syria', 'Taiwan', 'Tajikistan', 'Tanzania', 'Thailand', 'Timor-Leste', 'Togo', 'Tonga', 'Trinidad and Tobago',
+  'Tunisia', 'Turkiye', 'Turkmenistan', 'Tuvalu', 'Uganda', 'Ukraine', 'United Arab Emirates', 'United Kingdom', 'United States',
+  'Uruguay', 'Uzbekistan', 'Vanuatu', 'Vatican City', 'Venezuela', 'Vietnam', 'Yemen', 'Zambia', 'Zimbabwe',
+];
+const CANONICAL = { state: ALL_STATES, language: ALL_LANGUAGES, country: ALL_COUNTRIES };
+// States match by substring (so "Telangana" also counts "Andhra Pradesh & Telangana"); countries and languages must match whole
+// names, or "Niger" would count Nigeria's sources.
+const SUBSTRING_FACETS = new Set(['state']);
 
 /** Options for one facet, narrowed by the other selected facets, with source counts. */
 const facetOptions = (sources, filters, facet, byId) => {
@@ -149,7 +183,11 @@ const facetOptions = (sources, filters, facet, byId) => {
   if (known) {
     // Same matching the API uses (substring), so "Telangana" also counts "Andhra Pradesh & Telangana".
     known.forEach((name) => {
-      const n = fits.filter((s) => String(facet.field(s) || '').toLowerCase().includes(name.toLowerCase())).length;
+      const lower = name.toLowerCase();
+      const n = fits.filter((s) => {
+        const v = String(facet.field(s) || '').toLowerCase();
+        return SUBSTRING_FACETS.has(facet.key) ? v.includes(lower) : v === lower;
+      }).length;
       const exact = [...counts.keys()].find((k) => k.toLowerCase() === name.toLowerCase());
       if (exact) counts.set(exact, n || counts.get(exact));
       else counts.set(name, n);
