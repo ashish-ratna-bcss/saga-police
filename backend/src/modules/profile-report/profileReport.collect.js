@@ -17,7 +17,7 @@ const { fetchInstagramPostsPage } = require('../../services/monitoringsocialmedi
 const { fetchYouTubePostsPage } = require('../../services/monitoringsocialmedia/youtube/fetch');
 const { fetchTelegramPostsPage } = require('../../services/monitoringsocialmedia/telegram/fetch');
 const store = require('./profileReport.store');
-const { json, encodeCursor, decodeCursor, kindOf } = require('./profileReport.util');
+const { json, encodeCursor, decodeCursor, kindOf, upstreamStatusOf } = require('./profileReport.util');
 
 /** Platforms whose full history can be walked. Reddit only offers keyword search, not a user's timeline. */
 const PAGERS = {
@@ -34,13 +34,26 @@ const MAX_PAGES = Math.max(10, Number(process.env.PROFILE_REPORT_MAX_PAGES) || 5
 const MAX_CONCURRENT = Math.max(1, Number(process.env.PROFILE_REPORT_FETCH_CONCURRENCY) || 2);
 const STALE_CLAIM_MINUTES = 5;
 const NOTHING_NEW_PAGES = 3;
-const RETRY_PAUSES_MS = [5000, 15000, 45000];
+/**
+ * Waits before retrying a page. A rate limit is waited out patiently (X answers 429 often, and a whole history is hundreds of
+ * calls); a server hiccup is retried quickly. A key the provider rejects is never retried.
+ */
+const PAUSES_MS = {
+  transient: [5000, 15000, 45000],
+  rateLimit: [30000, 60000, 90000, 120000, 120000, 120000],
+};
+const HEARTBEAT_SLICE_MS = 45000;
 
 const running = new Set(); // "<db>:<account id>" being collected by this process
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const statusOf = (err) => Number(err?.status || err?.response?.status) || 0;
+/**
+ * The provider's own status. BluGate's 401 is re-labelled 502 on our side, so err.status alone would make a rejected key
+ * look like an outage (and be retried for nothing): the response and the message hold the real one.
+ */
+const statusOf = (err) => upstreamStatusOf(err) || Number(err?.status) || 0;
+const isRateLimited = (err) => statusOf(err) === 429 || /\brate\b|too many/i.test(String(err?.message || ''));
 const isRetryable = (err) => {
   const s = statusOf(err);
   if (s === 429 || s >= 500 || s === 0) return true;
@@ -102,15 +115,37 @@ const fail = (prisma, id, message) =>
     id, message
   );
 
-/** One page, with retries for rate limits and server errors. */
-const fetchPageWithRetry = async (pager, account, cursor, auth) => {
-  for (let attempt = 0; ; attempt += 1) {
+/** Tell the other API processes this account is still being worked on. False when it was removed or stopped meanwhile. */
+const heartbeat = async (prisma, id) =>
+  (await store.exec(prisma, `UPDATE profile_report_accounts SET claimed_at = NOW() WHERE id = $1 AND fetch_status = 'running'`, id)) > 0;
+
+/** Sleep in slices, showing life in between: a long wait must not look like a dead process (its claim would be taken over). */
+const waitAlive = async (prisma, id, ms) => {
+  for (let left = ms; left > 0; ) {
+    const slice = Math.min(left, HEARTBEAT_SLICE_MS);
+    await sleep(slice);
+    left -= slice;
+    if (!(await heartbeat(prisma, id))) return false;
+  }
+  return true;
+};
+
+/** One page, with patient retries for rate limits and quick ones for server errors; a rejected key fails at once. */
+const fetchPageWithRetry = async (pager, account, cursor, auth, { prisma, id }) => {
+  let transient = 0;
+  let limited = 0;
+  for (;;) {
     try {
       return await pager(account, { cursor, auth });
     } catch (err) {
-      if (!isRetryable(err) || attempt >= RETRY_PAUSES_MS.length) throw err;
-      logger.warn(`[ProfileReport] page failed (${statusOf(err) || err.code || err.message}); retry ${attempt + 1} in ${RETRY_PAUSES_MS[attempt] / 1000}s`);
-      await sleep(RETRY_PAUSES_MS[attempt]);
+      if (!isRetryable(err)) throw err;
+      const rate = isRateLimited(err);
+      const list = rate ? PAUSES_MS.rateLimit : PAUSES_MS.transient;
+      const tries = rate ? limited : transient;
+      if (tries >= list.length) throw err;
+      if (rate) limited += 1; else transient += 1;
+      logger.warn(`[ProfileReport] page failed (${statusOf(err) || err.code || err.message}); retry ${tries + 1}/${list.length} in ${list[tries] / 1000}s`);
+      if (!(await waitAlive(prisma, id, list[tries]))) throw Object.assign(new Error('removed while waiting'), { code: 'REMOVED' });
     }
   }
 };
@@ -147,7 +182,7 @@ const collectAccount = async (prisma, dbName, row) => {
     logger.info(`[ProfileReport] collecting ${tag} mode=${refresh ? 'refresh' : 'full'} resume=${cursor ? 'yes' : 'no'}`);
 
     for (;;) {
-      const page = await fetchPageWithRetry(pager, account, cursor, auth);
+      const page = await fetchPageWithRetry(pager, account, cursor, auth, { prisma, id: row.id });
       pages += 1;
       const { inserted } = await store.upsertPosts(
         prisma,
@@ -177,7 +212,7 @@ const collectAccount = async (prisma, dbName, row) => {
     }
   } catch (err) {
     // Cancel / delete while a page was being saved: the account (and with it the profile) is gone. Not an error.
-    if (/foreign key constraint/i.test(String(err?.message || ''))) {
+    if (err?.code === 'REMOVED' || /foreign key constraint/i.test(String(err?.message || ''))) {
       logger.info(`[ProfileReport] ${tag} stopped: removed while collecting (${pages} pages)`);
       return { ok: false, stopped: true, pages };
     }
@@ -208,5 +243,5 @@ module.exports = {
   collectAccount,
   pollCollections,
   plainFetchError,
-  __test: { running, claimAccounts, MAX_PAGES },
+  __test: { running, claimAccounts, MAX_PAGES, PAUSES_MS, statusOf, isRetryable },
 };

@@ -25,9 +25,12 @@ const { toId } = require('./profileReport.util');
 
 const fail = (res, error) => {
   const status = Number(error?.status) || 500;
-  if (status >= 500) logger.error(`[ProfileReport] ${error?.stack || error}`);
+  // `expose` marks messages written for people (a provider problem already logged where it happened); anything else
+  // that is a 5xx is unexpected: log it in full and show only a generic sentence.
+  const plain = status < 500 || error?.expose === true;
+  if (!plain) logger.error(`[ProfileReport] ${error?.stack || error}`);
   return res.status(status).json({
-    message: status < 500 ? error.message : 'Something went wrong with Profile Report. Try again in a moment.',
+    message: plain ? error.message : 'Something went wrong with Profile Report. Try again in a moment.',
     ...(error?.code === 'NO_TENANT_DB' ? { code: 'NO_TENANT_DB' } : {}),
   });
 };

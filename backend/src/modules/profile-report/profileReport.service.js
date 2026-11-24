@@ -12,11 +12,44 @@ const { previewProfile } = require('../../services/monitoringsocialmedia/preview
 const { resolvePlatform, prepareAccountFields } = require('../social-profiles/socialProfile.controller');
 const store = require('./profileReport.store');
 const { SUPPORTED_PLATFORMS } = require('./profileReport.collect');
-const { httpError, toId } = require('./profileReport.util');
+const logger = require('../../lib/logger');
+const { httpError, toId, providerFailure } = require('./profileReport.util');
 
 const normalisePlatform = (slug) => {
   const s = String(slug || '').trim().toLowerCase();
   return s === 'twitter' ? 'x' : s;
+};
+
+/**
+ * A handle typed into Fetch, tidied before any provider call is spent on it: "@name" and a pasted profile link both become
+ * "name", and something that cannot be a username (a display name with spaces, for instance) is refused with a hint.
+ * Only platforms with a fixed username format are checked; links and channel ids are left to the platform lookup.
+ */
+const HANDLE_RULES = {
+  x: {
+    ok: /^[A-Za-z0-9_]{1,15}$/,
+    url: /^(?:https?:\/\/)?(?:www\.|mobile\.)?(?:x|twitter)\.com\/@?([A-Za-z0-9_]+)/i,
+    hint: 'X usernames are letters, numbers and underscores only, with no spaces. Type the handle (for example yourBabulal) or paste the profile link.',
+  },
+  instagram: {
+    ok: /^[A-Za-z0-9._]{1,30}$/,
+    url: /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/@?([A-Za-z0-9._]+)/i,
+    hint: 'Instagram usernames are letters, numbers, dots and underscores only, with no spaces. Type the handle or paste the profile link.',
+  },
+};
+
+const tidyIdentity = (slug, data) => {
+  const rule = HANDLE_RULES[slug];
+  const out = { ...(data || {}) };
+  if (!rule || out.user_id) return out;           // no fixed format, or already resolved once
+  let value = String(out.username || '').trim();
+  const fromLink = rule.url.exec(value);
+  if (fromLink) value = fromLink[1];
+  value = value.replace(/^@/, '');
+  if (!value) return out;                         // "required" is the platform's own message
+  if (!rule.ok.test(value)) throw httpError(400, rule.hint);
+  out.username = value;
+  return out;
 };
 
 /**
@@ -34,9 +67,19 @@ const fetchAccount = async ({ db, dbName, user, subjectId, platform, data }) => 
   const platformRow = await resolvePlatform(platform, { db: prisma });
   if (!platformRow) throw httpError(400, 'platform is invalid or not active');
 
+  const typed = tidyIdentity(slug, data);
   const auth = authForPlatform(platformRow, { tenantKey: dbName });
-  const result = await previewProfile(platformRow.slug, data || {}, auth);
-  const merged = { ...(data || {}), ...(result.data_patch || {}) };
+  let result;
+  try {
+    result = await previewProfile(platformRow.slug, typed, auth);
+  } catch (err) {
+    // A rejected key, a rate limit or a provider outage gets its real reason in plain words, not "something went wrong".
+    const plain = providerFailure(err, platformRow.name || platformRow.slug);
+    if (!plain) throw err;
+    logger.warn(`[ProfileReport] identity lookup failed for ${platformRow.slug}: ${err.message}`);
+    throw plain;
+  }
+  const merged = { ...typed, ...(result.data_patch || {}) };
   const { normalized, handle } = prepareAccountFields({ platformRow, data: merged, preview_data: result.preview_data });
 
   let subject;
@@ -108,4 +151,5 @@ module.exports = {
   discardDrafts,
   deleteDraftAccount,
   requireSubject,
+  tidyIdentity,
 };

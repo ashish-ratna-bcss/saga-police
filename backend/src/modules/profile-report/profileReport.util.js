@@ -50,4 +50,41 @@ const kindOf = (post) => {
   return 'original';
 };
 
-module.exports = { httpError, cleanDeep, json, toId, encodeCursor, decodeCursor, kindOf };
+/**
+ * The status the DATA PROVIDER answered with. BluGate's 401 is re-labelled 502 on our side (so a bad provider key never logs
+ * a user out), which means err.status is not the provider's status: the response and the message hold the real one.
+ */
+const upstreamStatusOf = (err) => Number(err?.response?.status)
+  || Number((/\bHTTP (\d{3})\b/.exec(String(err?.message || '')) || [])[1])
+  || 0;
+
+/** True when the error came from the data provider or the network, not from our own validation. */
+const isProviderError = (err) => Boolean(err?.response)
+  || /blu\s?gate .*(HTTP \d{3}|:)|ECONN\w*|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|timeout of \d+/i.test(String(err?.message || ''));
+
+/**
+ * Plain, actionable text for a provider failure during Fetch (identity lookup), or null for errors that are not the
+ * provider's (those already carry their own plain message). The provider's own wording and URLs stay in the log.
+ * The `expose` flag lets the HTTP layer show this message even though the status is a 5xx.
+ */
+const providerFailure = (err, platformName = 'platform') => {
+  if (!isProviderError(err)) return null;
+  const s = upstreamStatusOf(err);
+  if (s === 401 || s === 403) {
+    return Object.assign(
+      new Error(`The data provider did not accept the ${platformName} key saved for this workspace. An administrator can check it under Settings → Platforms, or try again in a few minutes.`),
+      { status: 502, expose: true }
+    );
+  }
+  if (s === 404) {
+    return Object.assign(new Error(`${platformName} did not find that account. Check the username or link and try again.`), { status: 404, expose: true });
+  }
+  if (s === 429) {
+    return Object.assign(new Error(`The ${platformName} data provider is limiting requests right now. Wait a minute and press Fetch again.`), { status: 429, expose: true });
+  }
+  return Object.assign(new Error(`The ${platformName} data provider did not answer. Try again in a moment.`), { status: 502, expose: true });
+};
+
+module.exports = {
+  httpError, cleanDeep, json, toId, encodeCursor, decodeCursor, kindOf, upstreamStatusOf, isProviderError, providerFailure,
+};

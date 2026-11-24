@@ -6,8 +6,10 @@ const { normalisePosts, buildBehaviorFacts, selectEvidence, attentionLevel } = r
 const { parseBehaviorReport, fallbackReport, buildUserContext, cleanCites } = require('../src/modules/profile-report/report/reportPrompt');
 const { buildBehaviorReportHtml } = require('../src/modules/profile-report/report/reportPdf');
 const { lockReason } = require('../src/modules/profile-report/report/reportService');
-const { kindOf, cleanDeep, encodeCursor, decodeCursor } = require('../src/modules/profile-report/profileReport.util');
-const { plainFetchError, SUPPORTED_PLATFORMS } = require('../src/modules/profile-report/profileReport.collect');
+const { kindOf, cleanDeep, encodeCursor, decodeCursor, upstreamStatusOf, providerFailure } = require('../src/modules/profile-report/profileReport.util');
+const { tidyIdentity } = require('../src/modules/profile-report/profileReport.service');
+const collectMod = require('../src/modules/profile-report/profileReport.collect');
+const { plainFetchError, SUPPORTED_PLATFORMS } = collectMod;
 const { nextCursorOf } = require('../src/services/blugate/instagram/blugate.instagram.helpers');
 const { computeAccountRelevance } = require('../src/modules/social-profiles/catalogRelevance.service');
 
@@ -268,4 +270,78 @@ test('relevance: newer alerts count more, and a quiet account ranks above a busy
   const busy = computeAccountRelevance([alert('high', 2)], { postCount: 2000, now: NOW });
   assert.ok(quiet.score > busy.score, `${quiet.score} vs ${busy.score}`);
   assert.ok(computeAccountRelevance(Array.from({ length: 30 }, () => alert('high', 1)), { postCount: 30, now: NOW }).score <= 100);
+});
+
+/* ------------------------------------------------------------ provider failures (the Odisha "Invalid API key" case) --- */
+
+/** What the BluGate client throws: the provider's 401 is re-labelled 502 so a bad key never logs a user out. */
+const blugate = (upstream, detail) => Object.assign(
+  new Error(`Blugate X USER HTTP ${upstream}: ${detail}`),
+  { status: upstream === 401 ? 502 : upstream, response: { status: upstream } }
+);
+
+test('the provider status is read from the response, not from the re-labelled one', () => {
+  const e = blugate(401, 'Invalid API key. Go to https://blugate.blurasaga.com/docs/keys-and-key-rotation for more info.');
+  assert.strictEqual(e.status, 502);
+  assert.strictEqual(upstreamStatusOf(e), 401);
+  assert.strictEqual(upstreamStatusOf(new Error('Blugate X USER HTTP 429: Too many requests')), 429, 'also read from the message when there is no response object');
+  assert.strictEqual(upstreamStatusOf(new Error('boom')), 0);
+});
+
+test('Fetch: a rejected key, a rate limit and an outage each get their own plain sentence, with nothing technical in it', () => {
+  const key = providerFailure(blugate(401, 'Invalid API key. Go to https://blugate.blurasaga.com/docs/keys-and-key-rotation for more info.'), 'X (Twitter)');
+  assert.ok(key.message.includes('did not accept the X (Twitter) key saved for this workspace'), key.message);
+  assert.match(key.message, /Settings → Platforms/);
+  assert.strictEqual(key.expose, true);
+  assert.match(providerFailure(blugate(429, 'Too many requests'), 'X').message, /limiting requests right now.*press Fetch again/);
+  assert.strictEqual(providerFailure(blugate(429, 'x'), 'X').status, 429);
+  assert.match(providerFailure(blugate(404, 'user not found'), 'X').message, /did not find that account/);
+  assert.match(providerFailure(blugate(503, 'unavailable'), 'YouTube').message, /did not answer/);
+  assert.match(providerFailure(new Error('connect ECONNREFUSED 127.0.0.1:8003'), 'X').message, /did not answer/);
+  for (const f of [key, providerFailure(blugate(429, 'x'), 'X'), providerFailure(new Error('connect ECONNREFUSED 10.0.0.5:8003'), 'X')]) {
+    assert.ok(!/blugate|https?:|ECONN|10.0.0|api key/i.test(f.message), f.message);
+  }
+});
+
+test('Fetch: our own validation messages pass through untouched', () => {
+  assert.strictEqual(providerFailure(Object.assign(new Error('X account needs username or user_id in data'), { status: 400 }), 'X'), null);
+  assert.strictEqual(providerFailure(Object.assign(new Error('platform is invalid or not active'), { status: 400 }), 'X'), null);
+});
+
+test('collection: a rejected key is not retried (it was, as a 502) and says to check the key; a 429 is waited out', () => {
+  const { statusOf, isRetryable, PAUSES_MS } = collectMod.__test;
+  const rejected = blugate(401, 'Invalid API key');
+  assert.strictEqual(statusOf(rejected), 401);
+  assert.strictEqual(isRetryable(rejected), false, 'retrying a bad key only wastes time and calls');
+  assert.match(plainFetchError(rejected, 300), /did not accept the request.*key in Settings.*300 posts were saved/);
+  assert.strictEqual(isRetryable(blugate(429, 'Too many requests')), true);
+  assert.strictEqual(isRetryable(blugate(503, 'x')), true);
+  assert.strictEqual(isRetryable(blugate(404, 'x')), false);
+  assert.ok(PAUSES_MS.rateLimit.length >= 5 && PAUSES_MS.rateLimit[0] >= 30000, 'rate limits get a patient schedule');
+  assert.ok(PAUSES_MS.rateLimit.reduce((a, b) => a + b, 0) > 300000, 'longer than the 5-minute claim window, which is why waits show life');
+});
+
+/* --------------------------------------------------------------------------- handles typed into Fetch -------- */
+
+test('Fetch: a handle, an @handle and a pasted link all become the same username', () => {
+  assert.strictEqual(tidyIdentity('x', { username: 'yourBabulal' }).username, 'yourBabulal');
+  assert.strictEqual(tidyIdentity('x', { username: '  @yourBabulal ' }).username, 'yourBabulal');
+  assert.strictEqual(tidyIdentity('x', { username: 'https://x.com/yourBabulal?lang=en' }).username, 'yourBabulal');
+  assert.strictEqual(tidyIdentity('x', { username: 'twitter.com/yourBabulal/status/123' }).username, 'yourBabulal');
+  assert.strictEqual(tidyIdentity('instagram', { username: 'https://www.instagram.com/first.last/' }).username, 'first.last');
+});
+
+test('Fetch: a display name (as in "O BO Stonecold") is refused before any provider call is spent, with a hint', () => {
+  assert.throws(() => tidyIdentity('x', { username: 'O BO Stonecold' }), (e) => e.status === 400 && /no spaces.*yourBabulal.*profile link/.test(e.message));
+  assert.throws(() => tidyIdentity('x', { username: 'a_name_longer_than_fifteen' }), (e) => e.status === 400);
+  assert.throws(() => tidyIdentity('instagram', { username: 'two words' }), (e) => e.status === 400 && /Instagram usernames/.test(e.message));
+});
+
+test('Fetch: nothing is changed for platforms without a fixed format, for resolved ids, or for empty input', () => {
+  const fb = { url: 'https://facebook.com/some page' };
+  assert.deepStrictEqual(tidyIdentity('facebook', fb), fb);
+  assert.deepStrictEqual(tidyIdentity('x', { username: 'Name With Spaces', user_id: '99' }).user_id, '99');
+  assert.strictEqual(tidyIdentity('x', { username: 'Name With Spaces', user_id: '99' }).username, 'Name With Spaces', 'an account already resolved keeps what it has');
+  assert.strictEqual(tidyIdentity('x', { username: '' }).username, '', 'empty is left for the platform lookup to report as "required"');
+  assert.deepStrictEqual(tidyIdentity('x', undefined), {});
 });
