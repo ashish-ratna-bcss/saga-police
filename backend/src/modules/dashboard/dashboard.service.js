@@ -10,6 +10,7 @@ const RANGE_MS = {
   '24h': 24 * 60 * 60 * 1000,
   '7d': 7 * 24 * 60 * 60 * 1000,
   '30d': 30 * 24 * 60 * 60 * 1000,
+  '90d': 90 * 24 * 60 * 60 * 1000,
 };
 
 const normalizePlatform = (raw) => {
@@ -22,8 +23,11 @@ const normalizePlatform = (raw) => {
 };
 
 const resolveRange = (rangeKey = '7d') => {
-  const key = RANGE_MS[rangeKey] ? rangeKey : '7d';
   const to = new Date();
+  if (rangeKey === 'all' || rangeKey === 'all-time') {
+    return { range: 'all', from: new Date(0), to };
+  }
+  const key = RANGE_MS[rangeKey] ? rangeKey : '7d';
   const from = new Date(to.getTime() - RANGE_MS[key]);
   return { range: key, from, to };
 };
@@ -412,9 +416,16 @@ const buildAlertsPulse = async (prisma, { from, to, platform }) => {
   };
 };
 
-const buildGrievancesPulse = async (prisma, { platform }) => {
-  const where = { is_active: true, ...(platform ? { platform } : {}) };
-  const [byWorkflow, byPlatform, total, reportStats] = await Promise.all([
+const buildGrievancesPulse = async (prisma, { platform, from, to, range = '30d' }) => {
+  // Same window as Analytics Hub → Citizen Grievances tab (detected_at).
+  // Previously this ignored the selected range and always returned all-time totals,
+  // so Executive Overview could show 197 while the tab (Last 30 Days) showed 0.
+  const where = {
+    is_active: true,
+    ...(platform ? { platform } : {}),
+    ...(range !== 'all' && from && to ? { detected_at: { gte: from, lte: to } } : {}),
+  };
+  const [byWorkflow, byPlatform, total, allTimeTotal, reportStats] = await Promise.all([
     prisma.social_media_grievances.groupBy({
       by: ['workflow_status'],
       where,
@@ -426,11 +437,18 @@ const buildGrievancesPulse = async (prisma, { platform }) => {
       _count: { _all: true },
     }),
     prisma.social_media_grievances.count({ where }),
+    prisma.social_media_grievances.count({
+      where: { is_active: true, ...(platform ? { platform } : {}) },
+    }),
     getDashboardReportStats({ db: prisma }),
   ]);
 
   const toMap = (rows, key) =>
     Object.fromEntries(rows.map((r) => [r[key] || 'unknown', r._count._all]));
+
+  const by_workflow = toMap(byWorkflow, 'workflow_status');
+  const resolvedCount = (by_workflow.resolved || 0) + (by_workflow.closed || 0);
+  const resolution_rate = total > 0 ? Number(((resolvedCount / total) * 100).toFixed(1)) : 0;
 
   const reportKey = platform === 'x' ? 'x' : platform || 'all';
   const reports =
@@ -441,7 +459,10 @@ const buildGrievancesPulse = async (prisma, { platform }) => {
 
   return {
     total,
-    by_workflow: toMap(byWorkflow, 'workflow_status'),
+    all_time_total: allTimeTotal,
+    resolved_count: resolvedCount,
+    resolution_rate,
+    by_workflow,
     by_platform: toMap(byPlatform, 'platform'),
     reports,
   };
@@ -556,7 +577,7 @@ const getOverview = async (query = {}) => {
     buildTopProfiles(prisma, { from, to, platform }),
     buildTopPosts(prisma, { from, to, platform }),
     buildAlertsPulse(prisma, { from, to, platform }),
-    buildGrievancesPulse(prisma, { platform }),
+    buildGrievancesPulse(prisma, { platform, from, to, range }),
     buildEventsPulse(prisma),
     buildPlatformsPulse(prisma),
     prisma.$queryRawUnsafe(`

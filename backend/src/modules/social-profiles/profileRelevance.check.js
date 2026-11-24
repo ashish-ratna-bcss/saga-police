@@ -22,25 +22,28 @@ const assertEqual = (label, actual, expected) => {
   }
 };
 
+// Denominator is medium+high only (low / other posts do not dilute).
+// All-medium → 50, all-high → 100.
+
 // ── Test 1: Basic risk ──
 assertEqual(
-  'Test 1 — basic risk (2 medium + 3 high / 10)',
+  'Test 1 — basic risk (2 medium + 3 high)',
   calculateRiskRelevance({ totalPosts: 10, mediumRiskPosts: 2, highRiskPosts: 3 }),
   80
 );
 
-// ── Test 2: Two high risk ──
+// ── Test 2: Two high risk (all scored posts are high → 100) ──
 assertEqual(
-  'Test 2 — two high risk / 10',
+  'Test 2 — two high risk',
   calculateRiskRelevance({ totalPosts: 10, mediumRiskPosts: 0, highRiskPosts: 2 }),
-  40
+  100
 );
 
-// ── Test 3: Basic virality ──
+// ── Test 3: Basic virality (1 medium + 2 high → (5/3)*50 ≈ 83.33) ──
 assertEqual(
-  'Test 3 — basic virality (1 medium + 2 high / 10)',
-  calculateViralityRelevance({ totalPosts: 10, mediumViralityPosts: 1, highViralityPosts: 2 }),
-  50
+  'Test 3 — basic virality (1 medium + 2 high)',
+  Math.round(calculateViralityRelevance({ totalPosts: 10, mediumViralityPosts: 1, highViralityPosts: 2 })),
+  83
 );
 
 // ── Test 4: Combined ──

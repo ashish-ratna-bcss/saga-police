@@ -9,16 +9,23 @@ const { deriveViralityFromEngagement, DEFAULT_VIRALITY_THRESHOLDS } = require('.
  * separate, alert-count-based score with a 30-day window and sibling fallback.
  */
 
+/**
+ * Score only medium + high items. Low / unknown posts are excluded from the
+ * denominator so a flood of low-risk posts cannot dilute the relevance score.
+ * All-medium → 50, all-high → 100, mix scales between.
+ */
 const calculateRiskRelevance = ({ totalPosts, mediumRiskPosts, highRiskPosts }) => {
-  if (!totalPosts) return 0;
-  const weighted = (mediumRiskPosts * 1) + (highRiskPosts * 2);
-  return Math.min(100, (weighted / totalPosts) * 100);
+  const scoredPosts = (Number(mediumRiskPosts) || 0) + (Number(highRiskPosts) || 0);
+  if (!scoredPosts) return 0;
+  const weighted = (Number(mediumRiskPosts) || 0) * 1 + (Number(highRiskPosts) || 0) * 2;
+  return Math.min(100, (weighted / scoredPosts) * 50);
 };
 
 const calculateViralityRelevance = ({ totalPosts, mediumViralityPosts, highViralityPosts }) => {
-  if (!totalPosts) return 0;
-  const weighted = (mediumViralityPosts * 1) + (highViralityPosts * 2);
-  return Math.min(100, (weighted / totalPosts) * 100);
+  const scoredPosts = (Number(mediumViralityPosts) || 0) + (Number(highViralityPosts) || 0);
+  if (!scoredPosts) return 0;
+  const weighted = (Number(mediumViralityPosts) || 0) * 1 + (Number(highViralityPosts) || 0) * 2;
+  return Math.min(100, (weighted / scoredPosts) * 50);
 };
 
 const calculateProfileRelevance = (riskRelevanceScore, viralityRelevanceScore) =>

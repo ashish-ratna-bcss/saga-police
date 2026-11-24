@@ -165,8 +165,10 @@ const ProfileRelevanceBadge = ({ row }) => {
             </div>
             <p className="text-[10px] text-muted-foreground mt-3 border-t dark:border-slate-800 pt-2 leading-relaxed">
               From this account&apos;s own alerts in the last {relevance.window_days || 30} days
-              ({relevance.recent_alerts_7d || 0} in the last 7). High and medium alerts add points, newer ones count more,
-              and low-risk alerts add none. A higher share of its {relevance.posts_in_window || 0} posts raising alerts adds more.
+              ({relevance.recent_alerts_7d || 0} serious in the last 7). Only high (+30) and medium (+10) alerts
+              add points; newer ones count more. Low-risk alerts are listed but never scored — no bonus from
+              post count or alert pile-up.
+              {relevance.posts_in_window ? ` ${relevance.posts_in_window} posts in window (display only).` : ''}
             </p>
           </div>
         </div>

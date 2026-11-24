@@ -175,7 +175,7 @@ const profiles = {
         {
           type: 'p',
           text:
-            'High alerts add 25 points and medium alerts 10; low-risk alerts add none. Alerts from the last 7 days count in full, the following week three quarters, and older ones half. Up to 20 more points are added when a large share of the account\'s own posts raised a high or medium alert, so a quiet account with a serious alert ranks above a very busy one with the same alert.',
+            'High alerts add 30 points and medium alerts 10; low-risk alerts are listed but never scored. Alerts from the last 7 days count in full, the following week three quarters, and older ones half. There is no bonus from post count or from piling up medium alerts — only high/medium severity and how recent they are.',
         },
         {
           type: 'table',
@@ -183,7 +183,7 @@ const profiles = {
           rows: [
             ['70 and above', 'Highly relevant. Frequent, recent or severe alerts.'],
             ['30 to 69', 'Moderately relevant. Some recent high or medium alerts.'],
-            ['Below 30', 'Low relevance. Few alerts, or only low-risk ones.'],
+            ['Below 30', 'Low relevance — few high/medium alerts. Low-risk-only accounts stay at “none”.'],
             ['0 with no alerts', 'No recent alerts.'],
           ],
         },

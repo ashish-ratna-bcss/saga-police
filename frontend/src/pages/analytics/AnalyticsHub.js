@@ -176,10 +176,10 @@ const StanceMatrixCard = ({
           <div className="flex justify-between items-center text-[11px] font-semibold">
             <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              Favourable ({favourable_pct}%)
+              Favourable ({favourable.toLocaleString()} · {favourable_pct}% of all)
             </span>
             <span className="text-rose-600 dark:text-rose-400 flex items-center gap-1">
-              Unfavourable ({unfavourable_pct}%)
+              Unfavourable ({unfavourable.toLocaleString()} · {unfavourable_pct}% of all)
               <span className="h-2 w-2 rounded-full bg-rose-500" />
             </span>
           </div>
@@ -187,17 +187,17 @@ const StanceMatrixCard = ({
             <div
               className="bg-emerald-500 h-full transition-all duration-500"
               style={{ width: `${polarized_favourable_pct}%` }}
-              title={`Favourable: ${polarized_favourable_pct}% of polarized stance`}
+              title={`Favourable share of polarized only: ${polarized_favourable_pct}%`}
             />
             <div
               className="bg-rose-500 h-full transition-all duration-500"
               style={{ width: `${polarized_unfavourable_pct}%` }}
-              title={`Unfavourable: ${polarized_unfavourable_pct}% of polarized stance`}
+              title={`Unfavourable share of polarized only: ${polarized_unfavourable_pct}%`}
             />
           </div>
           <div className="flex justify-between text-[9px] text-muted-foreground pt-0.5">
-            <span>Ratio: {polarized_favourable_pct}%</span>
-            <span>Ratio: {polarized_unfavourable_pct}%</span>
+            <span>Of polarized: {polarized_favourable_pct}%</span>
+            <span>Of polarized: {polarized_unfavourable_pct}%</span>
           </div>
         </div>
 
@@ -613,25 +613,50 @@ const EventIntelligenceModal = ({
     }
   }, [isOpen, initialDimension, initialFilter]);
 
+  // Reload from API whenever the open modal's dimension/filter changes.
+  // Server applies the same bucket filters as the Executive Overview cards
+  // (and for scope "all" includes catalog posts + event media).
   useEffect(() => {
     if (!isOpen || !eventId) return;
     setLoading(true);
+    const dim = activeDimension || 'all';
+    const filt =
+      dim === 'stance' ? stanceFilter
+        : dim === 'sentiment' ? sentimentFilter
+          : dim === 'risk' ? riskFilter
+            : 'all';
     analyticsHubApi
-      .eventDetails(eventId, { range, platform })
+      .eventDetails(eventId, {
+        range,
+        platform,
+        dimension: dim,
+        filter: filt,
+      })
       .then((res) => {
         setData(res.data);
       })
       .catch((err) => {
         toast.error(err.response?.data?.error || 'Failed to load event details');
+        setData(null);
       })
       .finally(() => setLoading(false));
-  }, [isOpen, eventId, range, platform]);
+  }, [isOpen, eventId, range, platform, activeDimension, stanceFilter, sentimentFilter, riskFilter]);
 
   const profiles = data?.profiles || [];
   const posts = data?.posts || [];
 
-  // Counts for each dimension
+  // Prefer server totals (same buckets as Executive Overview). Fall back to
+  // counting the loaded sample only if stats are missing.
   const stanceCounts = useMemo(() => {
+    const s = data?.stance_stats;
+    if (s && typeof s.total === 'number') {
+      return {
+        all: s.total,
+        favourable: s.favourable || 0,
+        unfavourable: s.unfavourable || 0,
+        neutral: s.neutral || 0,
+      };
+    }
     let fav = 0;
     let unfav = 0;
     let neu = 0;
@@ -642,24 +667,43 @@ const EventIntelligenceModal = ({
       else neu++;
     });
     return { all: posts.length, favourable: fav, unfavourable: unfav, neutral: neu };
-  }, [posts]);
+  }, [data?.stance_stats, posts]);
 
   const sentimentCounts = useMemo(() => {
+    const s = data?.sentiment_stats;
+    if (s && typeof s.total === 'number') {
+      return {
+        all: s.total,
+        positive: s.positive || 0,
+        negative: s.negative || 0,
+        neutral: s.neutral || 0,
+        pending: 0,
+      };
+    }
     let pos = 0;
     let neg = 0;
     let neu = 0;
     let pending = 0;
     posts.forEach((p) => {
-      const s = (p.sentiment || '').toLowerCase();
-      if (s === 'positive') pos++;
-      else if (s === 'negative') neg++;
-      else if (s === 'neutral') neu++;
+      const sent = (p.sentiment || '').toLowerCase();
+      if (sent === 'positive') pos++;
+      else if (sent === 'negative') neg++;
+      else if (sent === 'neutral') neu++;
       else pending++;
     });
     return { all: posts.length, positive: pos, negative: neg, neutral: neu, pending };
-  }, [posts]);
+  }, [data?.sentiment_stats, posts]);
 
   const riskCounts = useMemo(() => {
+    const s = data?.risk_stats;
+    if (s && typeof s.total === 'number') {
+      return {
+        all: s.total,
+        high: s.high || 0,
+        medium: s.medium || 0,
+        low: s.low || 0,
+      };
+    }
     let high = 0;
     let med = 0;
     let low = 0;
@@ -670,7 +714,7 @@ const EventIntelligenceModal = ({
       else low++;
     });
     return { all: posts.length, high, medium: med, low };
-  }, [posts]);
+  }, [data?.risk_stats, posts]);
 
   // Profiles filtered and sorted dynamically per dimension
   const filteredProfiles = useMemo(() => {
@@ -1419,14 +1463,22 @@ const EventIntelligenceModal = ({
                     </div>
 
                     <span className="text-[11px] text-muted-foreground">
-                      Showing <strong>{filteredPosts.length}</strong> posts
+                      Showing <strong>{filteredPosts.length}</strong>
+                      {data?.matched_posts != null && data?.total_posts != null
+                        ? ` of ${Number(data.total_posts).toLocaleString()} analyzed`
+                        : ' posts'}
+                      {data?.posts_sample_count != null && data.posts_sample_count < (data.matched_posts || filteredPosts.length)
+                        ? ' (sample)'
+                        : ''}
                     </span>
                   </div>
 
                   {/* Posts Cards Feed */}
                   {filteredPosts.length === 0 ? (
                     <div className="p-8 text-center text-xs text-muted-foreground rounded-lg border border-dashed border-border bg-muted/10">
-                      No posts match the active filter or search criteria
+                      {loading
+                        ? 'Loading matching posts…'
+                        : 'No posts match this filter in the selected range'}
                     </div>
                   ) : (
                     <div className="space-y-2.5">
@@ -1581,19 +1633,29 @@ const AllTab = ({ data, onGoTab, range, platform }) => {
   const [modalState, setModalState] = useState(null);
   if (!data) return null;
   const { kpis = {}, stance_stats = {}, sentiment_stats = {}, risk_stats = {}, platforms = [] } = data;
+  const ingestedTotal =
+    data.ingested_total ??
+    platforms.reduce((s, x) => s + (x.posts_count || 0), 0);
+  const analyzedTotal =
+    data.analyzed_total ??
+    Math.max(stance_stats.total || 0, sentiment_stats.total || 0, risk_stats.total || 0);
 
   return (
     <div className="space-y-3.5 animate-in fade-in-50 duration-200">
+      <p className="text-[11px] text-muted-foreground px-0.5">
+        Stance / sentiment / risk use <strong className="text-foreground">{analyzedTotal.toLocaleString()}</strong> analyzed posts.
+        Platform distribution uses <strong className="text-foreground">{ingestedTotal.toLocaleString()}</strong> ingested posts (includes not-yet-analyzed).
+      </p>
       {/* Top 3-Level Metrics Standard Strip */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <StanceMatrixCard
           stats={stance_stats}
           title="Global Stance Index"
-          subtitle="Overall public stance toward authority"
+          subtitle={`Analyzed posts · ${analyzedTotal.toLocaleString()} total`}
           onViewDetail={(dim, filt) =>
             setModalState({
               id: 'all',
-              name: 'All Monitored Events',
+              name: 'All Monitored Channels',
               dimension: dim || 'stance',
               filter: filt || 'all',
             })
@@ -1602,11 +1664,11 @@ const AllTab = ({ data, onGoTab, range, platform }) => {
         <SentimentMatrixCard
           stats={sentiment_stats}
           title="Global Sentiment Valence"
-          subtitle="Cross-domain sentiment breakdown"
+          subtitle={`Analyzed posts · ${analyzedTotal.toLocaleString()} total`}
           onViewDetail={(dim, filt) =>
             setModalState({
               id: 'all',
-              name: 'All Monitored Events',
+              name: 'All Monitored Channels',
               dimension: dim || 'sentiment',
               filter: filt || 'all',
             })
@@ -1615,11 +1677,11 @@ const AllTab = ({ data, onGoTab, range, platform }) => {
         <RiskMatrixCard
           stats={risk_stats}
           title="Global Threat Profile"
-          subtitle="High, medium and low risk distribution"
+          subtitle={`Analyzed posts · ${analyzedTotal.toLocaleString()} total`}
           onViewDetail={(dim, filt) =>
             setModalState({
               id: 'all',
-              name: 'All Monitored Events',
+              name: 'All Monitored Channels',
               dimension: dim || 'risk',
               filter: filt || 'all',
             })
@@ -1675,7 +1737,12 @@ const AllTab = ({ data, onGoTab, range, platform }) => {
           </div>
           <p className="text-xl font-extrabold text-foreground tabular-nums mt-1">{data.grievances?.total || 0}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center justify-between">
-            <span>{data.grievances?.resolution_rate ?? 0}% resolved</span>
+            <span>
+              {data.grievances?.resolution_rate ?? 0}% resolved
+              {data.grievances?.all_time_total > (data.grievances?.total || 0)
+                ? ` · ${Number(data.grievances.all_time_total).toLocaleString()} all-time`
+                : ''}
+            </span>
             <ArrowRight className="h-3 w-3 text-muted-foreground group-hover:text-amber-500 transition-colors" />
           </p>
         </div>
@@ -1692,7 +1759,7 @@ const AllTab = ({ data, onGoTab, range, platform }) => {
           </div>
           <p className="text-xl font-extrabold text-foreground tabular-nums mt-1">{kpis.accounts_total || 0}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center justify-between">
-            <span>{kpis.posts_in_range || 0} posts ingested</span>
+            <span>{(kpis.posts_in_range || 0).toLocaleString()} catalog posts in range</span>
             <ArrowRight className="h-3 w-3 text-muted-foreground group-hover:text-emerald-500 transition-colors" />
           </p>
         </div>
@@ -1701,7 +1768,7 @@ const AllTab = ({ data, onGoTab, range, platform }) => {
       {/* Mid Row: Ingestion Velocity & Platform Share */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         <div className="lg:col-span-2">
-          <SectionCard title="Telemetry Discovery Velocity" subtitle="Daily rate of posts and items analyzed across all sources">
+          <SectionCard title="Telemetry Discovery Velocity" subtitle="Daily ingested posts (catalog + event media)">
             <CompactTrendChart data={data.daily_ingestion || data.trend} height={190} color="#3b82f6" label="Ingestion Count" />
           </SectionCard>
         </div>
@@ -1709,10 +1776,10 @@ const AllTab = ({ data, onGoTab, range, platform }) => {
         <div>
           <SectionCard
             title="Platform Ingestion Distribution"
-            subtitle="Telemetry share by social network"
+            subtitle="All ingested posts by network (not only analyzed)"
             badge={
               platforms && platforms.length > 0
-                ? `${platforms.reduce((s, x) => s + (x.posts_count || 0), 0).toLocaleString()} Total`
+                ? `${ingestedTotal.toLocaleString()} ingested`
                 : undefined
             }
           >
@@ -2378,22 +2445,34 @@ const GrievancesTab = ({ data }) => {
   if (!data) return null;
   const {
     total = 0,
+    all_time_total = 0,
     resolved_count = 0,
     resolution_rate = 0,
     by_workflow = {},
     by_classification = {},
     reports = {},
     trend = [],
+    range: dataRange,
   } = data;
+  const outsideWindow = total === 0 && all_time_total > 0 && dataRange && dataRange !== 'all';
 
   return (
     <div className="space-y-3.5 animate-in fade-in-50 duration-200">
+      {outsideWindow && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+          No grievances detected in this period. {all_time_total.toLocaleString()} on record overall —
+          switch the date range to <span className="font-semibold">90 Days</span> or{' '}
+          <span className="font-semibold">All Time</span> to see them.
+        </div>
+      )}
       {/* Top Grievance Status KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         <div className="p-3 rounded-xl border border-border/70 bg-card/90 shadow-xs">
           <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Grievances</p>
           <p className="text-xl font-extrabold text-foreground tabular-nums mt-1">{total}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Detected in scope</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            {outsideWindow ? `${all_time_total.toLocaleString()} all-time` : 'Detected in scope'}
+          </p>
         </div>
         <div className="p-3 rounded-xl border border-border/70 bg-card/90 shadow-xs">
           <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Resolution Rate</p>
@@ -2441,7 +2520,11 @@ const GrievancesTab = ({ data }) => {
                   );
                 })
               ) : (
-                <p className="text-xs text-muted-foreground text-center py-6">No grievances classified yet</p>
+                <p className="text-xs text-muted-foreground text-center py-6">
+                  {outsideWindow
+                    ? `None in this period (${all_time_total.toLocaleString()} all-time)`
+                    : 'No grievances classified yet'}
+                </p>
               )}
             </div>
           </SectionCard>

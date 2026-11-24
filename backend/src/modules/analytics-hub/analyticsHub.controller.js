@@ -14,6 +14,8 @@ const wrap = (fn, label) => async (req, res) => {
       range: req.query.range,
       platform: req.query.platform,
       event_id: req.query.event_id || req.params.id,
+      dimension: req.query.dimension,
+      filter: req.query.filter,
       db: req.tenantPrisma,
     });
     return res.json(data);

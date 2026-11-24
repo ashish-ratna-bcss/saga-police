@@ -328,13 +328,24 @@ const getOverview = async (query = {}) => {
         posts_count: postsCountMap[slug] || 0,
       };
     })
+    .filter((p) => (p.posts_count || 0) > 0 || (p.accounts || 0) > 0)
     .sort((a, b) => (b.posts_count - a.posts_count) || (b.accounts - a.accounts));
+
+  const ingested_total = mergedPlatforms.reduce((s, p) => s + (Number(p.posts_count) || 0), 0);
+  // Stance/sentiment/risk cards only count rows with that analysis field set.
+  const analyzed_total = Math.max(
+    stance_stats.total || 0,
+    sentiment_stats.total || 0,
+    risk_stats.total || 0
+  );
 
   return {
     ...overview,
     daily_ingestion,
     trend: daily_ingestion,
     platforms: mergedPlatforms,
+    ingested_total,
+    analyzed_total,
     stance_stats,
     sentiment_stats,
     risk_stats,
@@ -532,42 +543,119 @@ const getEventsAnalytics = async (query = {}) => {
   };
 };
 
-/* ── 2b. Event Media & Author Details (For Modal Popup) ── */
+/**
+ * SQL fragment matching overview card buckets so modal drilldowns
+ * return the same universe the Executive Overview counts.
+ */
+const buildDimensionFilterSql = (dimension, filter) => {
+  const dim = String(dimension || 'all').toLowerCase();
+  const filt = String(filter || 'all').toLowerCase();
+  if (!dim || dim === 'all' || !filt || filt === 'all') return '';
+
+  if (dim === 'stance') {
+    if (filt === 'favourable') {
+      return `AND LOWER(COALESCE(analysis_result->>'stance', '')) IN ('support', 'favourable', 'favorable', 'positive')`;
+    }
+    if (filt === 'unfavourable') {
+      return `AND LOWER(COALESCE(analysis_result->>'stance', '')) IN ('oppose', 'unfavourable', 'unfavorable', 'negative')`;
+    }
+    if (filt === 'neutral') {
+      return `AND LOWER(COALESCE(analysis_result->>'stance', '')) IN ('neutral', 'unclear')`;
+    }
+  }
+
+  if (dim === 'sentiment') {
+    if (filt === 'positive' || filt === 'negative' || filt === 'neutral') {
+      return `AND LOWER(COALESCE(analysis_result->>'sentiment', '')) = '${filt}'`;
+    }
+    if (filt === 'pending') {
+      return `AND (analysis_result->>'sentiment' IS NULL OR analysis_result->>'sentiment' = '')`;
+    }
+  }
+
+  if (dim === 'risk') {
+    if (filt === 'high') {
+      return `AND LOWER(COALESCE(analysis_result->>'risk_level', '')) IN ('high', 'critical')`;
+    }
+    if (filt === 'medium') {
+      return `AND LOWER(COALESCE(analysis_result->>'risk_level', '')) = 'medium'`;
+    }
+    if (filt === 'low') {
+      return `AND LOWER(COALESCE(analysis_result->>'risk_level', '')) = 'low'`;
+    }
+  }
+
+  return '';
+};
+
+/* ── 2b. Event / global media & author details (modal popup) ── */
 const getEventDetails = async (query = {}) => {
   const prisma = dbOf(query.db);
   const { range, from, to } = resolveRange(query.range);
   const rawEventId = query.eventId || query.event_id;
-  const isAll = !rawEventId || rawEventId === 'all';
+  const isAll = !rawEventId || rawEventId === 'all' || Number.isNaN(Number(rawEventId));
   const eventId = isAll ? null : Number(rawEventId);
   const platform = normalizePlatform(query.platform);
+  const dimension = String(query.dimension || 'all').toLowerCase();
+  const filter = String(query.filter || 'all').toLowerCase();
+  const dimensionSql = buildDimensionFilterSql(dimension, filter);
 
   const dateClause = range === 'all' ? '' : `AND fetched_at >= '${from.toISOString()}' AND fetched_at <= '${to.toISOString()}'`;
   const platformClause = platform ? `AND platform = '${platform.replace(/'/g, '')}'` : '';
   const eventClause = eventId ? `AND event_id = ${eventId}` : '';
-  const whereExtra = `${eventClause} ${dateClause} ${platformClause}`;
 
-  const mediaWhere = {
-    ...(eventId ? { event_id: eventId } : {}),
-    ...(range !== 'all' ? { fetched_at: { gte: from, lte: to } } : {}),
-    ...(platform ? { platform } : {}),
-  };
+  // Executive Overview counts BOTH event media and catalog posts.
+  // Drilldown must do the same when scope is "all", or cards look empty.
+  const combinedFrom = isAll
+    ? `(
+        SELECT
+          ('e-' || id::text) AS uid,
+          id,
+          'event'::text AS source,
+          platform, author_name, author_handle, text, url,
+          posted_at, fetched_at, analysis_result, analysis_status::text AS analysis_status
+        FROM social_media_event_media
+        WHERE 1=1 ${dateClause} ${platformClause}
+        UNION ALL
+        SELECT
+          ('p-' || id::text) AS uid,
+          id,
+          'catalog'::text AS source,
+          platform, author_name, author_handle, text, url,
+          posted_at, fetched_at, analysis_result, analysis_status::text AS analysis_status
+        FROM social_media_posts
+        WHERE 1=1 ${dateClause} ${platformClause}
+      ) combined`
+    : `(
+        SELECT
+          ('e-' || id::text) AS uid,
+          id,
+          'event'::text AS source,
+          platform, author_name, author_handle, text, url,
+          posted_at, fetched_at, analysis_result, analysis_status::text AS analysis_status
+        FROM social_media_event_media
+        WHERE 1=1 ${eventClause} ${dateClause} ${platformClause}
+      ) combined`;
 
-  const [event, analyzedMediaRows, recentMediaRows, authorProfilesRaw, eventMetricsRaw] = await Promise.all([
+  const [event, mediaRows, authorProfilesRaw, eventMetricsRaw] = await Promise.all([
     isAll
       ? prisma.$queryRawUnsafe(`
-          SELECT DISTINCT platform FROM social_media_event_media 
-          WHERE platform IS NOT NULL AND platform != ''
+          SELECT DISTINCT LOWER(platform) AS platform FROM (
+            SELECT platform FROM social_media_event_media WHERE platform IS NOT NULL AND platform != ''
+            UNION
+            SELECT platform FROM social_media_posts WHERE platform IS NOT NULL AND platform != ''
+          ) p
         `)
           .then((rows) => ({
             id: 'all',
-            name: 'All Monitored Events',
-            description: 'Cross-event public intelligence & persona telemetry',
+            name: 'All Monitored Channels',
+            description: 'Catalog posts + event media across the selected range',
             platforms: (rows || []).map((r) => r.platform).filter(Boolean),
           }))
           .catch(() => ({
             id: 'all',
-            name: 'All Monitored Events',
-            description: 'Cross-event public intelligence & persona telemetry',
+            name: 'All Monitored Channels',
+            description: 'Catalog posts + event media across the selected range',
             platforms: [],
           }))
       : prisma.social_media_events.findUnique({
@@ -583,48 +671,22 @@ const getEventDetails = async (query = {}) => {
             created_at: true,
           },
         }),
-    // Prioritize analyzed items first
-    prisma.social_media_event_media.findMany({
-      where: { ...mediaWhere, analysis_result: { not: null } },
-      orderBy: [
-        { posted_at: 'desc' },
-        { fetched_at: 'desc' },
-      ],
-      take: 150,
-      select: {
-        id: true,
-        platform: true,
-        author_name: true,
-        author_handle: true,
-        text: true,
-        url: true,
-        posted_at: true,
-        fetched_at: true,
-        analysis_result: true,
-        analysis_status: true,
-      },
-    }),
-    // Recent posts stream
-    prisma.social_media_event_media.findMany({
-      where: mediaWhere,
-      orderBy: [
-        { posted_at: 'desc' },
-        { fetched_at: 'desc' },
-      ],
-      take: 150,
-      select: {
-        id: true,
-        platform: true,
-        author_name: true,
-        author_handle: true,
-        text: true,
-        url: true,
-        posted_at: true,
-        fetched_at: true,
-        analysis_result: true,
-        analysis_status: true,
-      },
-    }),
+    prisma.$queryRawUnsafe(`
+      SELECT uid, id, source, platform, author_name, author_handle, text, url,
+             posted_at, fetched_at, analysis_result, analysis_status
+      FROM ${combinedFrom}
+      WHERE 1=1 ${dimensionSql}
+      ORDER BY
+        CASE WHEN analysis_result IS NOT NULL
+          AND analysis_result::text NOT IN ('{}', 'null')
+          AND (
+            analysis_result->>'sentiment' IS NOT NULL
+            OR analysis_result->>'stance' IS NOT NULL
+            OR analysis_result->>'risk_level' IS NOT NULL
+          ) THEN 0 ELSE 1 END,
+        COALESCE(posted_at, fetched_at) DESC NULLS LAST
+      LIMIT 400
+    `).catch(() => []),
     prisma.$queryRawUnsafe(`
       SELECT
         COALESCE(NULLIF(author_handle, ''), NULLIF(author_name, ''), 'Unknown') AS author_identifier,
@@ -632,37 +694,35 @@ const getEventDetails = async (query = {}) => {
         author_handle,
         platform,
         COUNT(*)::int AS posts_count,
-        COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'sentiment' = 'positive')::int AS positive_count,
-        COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'sentiment' = 'negative')::int AS negative_count,
-        COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'sentiment' = 'neutral')::int AS neutral_count,
-        COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'stance' = 'support')::int AS stance_support,
-        COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'stance' = 'oppose')::int AS stance_oppose,
-        COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'stance' IN ('neutral', 'unclear'))::int AS stance_neutral,
-        COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'risk_level' IN ('high', 'critical'))::int AS risk_high,
-        COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'risk_level' = 'medium')::int AS risk_medium,
-        COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'risk_level' = 'low')::int AS risk_low
-      FROM social_media_event_media
-      WHERE 1=1 ${whereExtra}
+        COUNT(*) FILTER (WHERE analysis_result->>'sentiment' = 'positive')::int AS positive_count,
+        COUNT(*) FILTER (WHERE analysis_result->>'sentiment' = 'negative')::int AS negative_count,
+        COUNT(*) FILTER (WHERE analysis_result->>'sentiment' = 'neutral')::int AS neutral_count,
+        COUNT(*) FILTER (WHERE analysis_result->>'stance' = 'support')::int AS stance_support,
+        COUNT(*) FILTER (WHERE analysis_result->>'stance' = 'oppose')::int AS stance_oppose,
+        COUNT(*) FILTER (WHERE analysis_result->>'stance' IN ('neutral', 'unclear'))::int AS stance_neutral,
+        COUNT(*) FILTER (WHERE analysis_result->>'risk_level' IN ('high', 'critical'))::int AS risk_high,
+        COUNT(*) FILTER (WHERE analysis_result->>'risk_level' = 'medium')::int AS risk_medium,
+        COUNT(*) FILTER (WHERE analysis_result->>'risk_level' = 'low')::int AS risk_low
+      FROM ${combinedFrom}
+      WHERE 1=1 ${dimensionSql}
       GROUP BY author_identifier, author_name, author_handle, platform
-      ORDER BY 
-        (COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'sentiment' IS NOT NULL)) DESC,
-        posts_count DESC
+      ORDER BY posts_count DESC
       LIMIT 100
     `).catch(() => []),
     prisma.$queryRawUnsafe(`
       SELECT
         COUNT(*)::int AS total_media,
-        COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'sentiment' = 'positive')::int AS sentiment_positive,
-        COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'sentiment' = 'neutral')::int AS sentiment_neutral,
-        COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'sentiment' = 'negative')::int AS sentiment_negative,
-        COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'stance' = 'support')::int AS stance_support,
-        COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'stance' = 'oppose')::int AS stance_oppose,
-        COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'stance' IN ('neutral', 'unclear'))::int AS stance_neutral,
-        COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'risk_level' IN ('high', 'critical'))::int AS risk_high,
-        COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'risk_level' = 'medium')::int AS risk_medium,
-        COUNT(*) FILTER (WHERE analysis_result IS NOT NULL AND analysis_result->>'risk_level' = 'low')::int AS risk_low
-      FROM social_media_event_media
-      WHERE 1=1 ${whereExtra}
+        COUNT(*) FILTER (WHERE analysis_result->>'sentiment' = 'positive')::int AS sentiment_positive,
+        COUNT(*) FILTER (WHERE analysis_result->>'sentiment' = 'neutral')::int AS sentiment_neutral,
+        COUNT(*) FILTER (WHERE analysis_result->>'sentiment' = 'negative')::int AS sentiment_negative,
+        COUNT(*) FILTER (WHERE analysis_result->>'stance' = 'support')::int AS stance_support,
+        COUNT(*) FILTER (WHERE analysis_result->>'stance' = 'oppose')::int AS stance_oppose,
+        COUNT(*) FILTER (WHERE analysis_result->>'stance' IN ('neutral', 'unclear'))::int AS stance_neutral,
+        COUNT(*) FILTER (WHERE analysis_result->>'risk_level' IN ('high', 'critical'))::int AS risk_high,
+        COUNT(*) FILTER (WHERE analysis_result->>'risk_level' = 'medium')::int AS risk_medium,
+        COUNT(*) FILTER (WHERE analysis_result->>'risk_level' = 'low')::int AS risk_low
+      FROM ${combinedFrom}
+      WHERE 1=1
     `).catch(() => ([{}])),
   ]);
 
@@ -672,32 +732,20 @@ const getEventDetails = async (query = {}) => {
     throw err;
   }
 
-  // Merge analyzed and recent posts uniquely
-  const seenIds = new Set();
-  const mediaRows = [];
-  for (const m of [...analyzedMediaRows, ...recentMediaRows]) {
-    const sid = String(m.id);
-    if (!seenIds.has(sid)) {
-      seenIds.add(sid);
-      mediaRows.push(m);
-    }
-  }
-
   const distinctPlatforms = Array.from(
     new Set([
       ...(Array.isArray(event?.platforms) ? event.platforms : []),
-      ...mediaRows.map((m) => m.platform),
+      ...(mediaRows || []).map((m) => m.platform),
     ].filter(Boolean))
   );
-  if (event) {
-    event.platforms = distinctPlatforms;
-  }
+  event.platforms = distinctPlatforms;
 
-  const posts = mediaRows.map((m) => {
+  const posts = (mediaRows || []).map((m) => {
     const res = typeof m.analysis_result === 'object' && m.analysis_result ? m.analysis_result : {};
     const rawSentiment = res.sentiment ? String(res.sentiment).toLowerCase() : null;
     return {
-      id: String(m.id),
+      id: String(m.uid || m.id),
+      source: m.source || 'event',
       platform: m.platform,
       author_name: m.author_name || m.author_handle || 'Unknown',
       author_handle: m.author_handle,
@@ -709,13 +757,13 @@ const getEventDetails = async (query = {}) => {
       risk_level: res.risk_level || (rawSentiment ? 'low' : 'unclassified'),
       risk_score: res.risk_score ?? 0,
       url: m.url,
-      posted_at: m.posted_at ? m.posted_at.toISOString() : null,
-      fetched_at: m.fetched_at ? m.fetched_at.toISOString() : null,
-      is_analyzed: Boolean(rawSentiment),
+      posted_at: m.posted_at ? new Date(m.posted_at).toISOString() : null,
+      fetched_at: m.fetched_at ? new Date(m.fetched_at).toISOString() : null,
+      is_analyzed: Boolean(rawSentiment || res.stance || res.risk_level),
     };
   });
 
-  const profiles = authorProfilesRaw.map((r) => {
+  const profiles = (authorProfilesRaw || []).map((r) => {
     const count = Number(r.posts_count) || 1;
     const pos = Number(r.positive_count) || 0;
     const neg = Number(r.negative_count) || 0;
@@ -725,7 +773,7 @@ const getEventDetails = async (query = {}) => {
     const rHigh = Number(r.risk_high) || 0;
     const rMed = Number(r.risk_medium) || 0;
     const rLow = Number(r.risk_low) || 0;
-    const analyzedCount = pos + neg + neu;
+    const analyzedCount = pos + neg + neu || count;
 
     return {
       author_identifier: r.author_identifier,
@@ -775,7 +823,10 @@ const getEventDetails = async (query = {}) => {
   return {
     event,
     range,
-    total_posts: evRow.total_media || posts.length,
+    dimension,
+    filter,
+    total_posts: Number(evRow.total_media) || 0,
+    matched_posts: posts.length,
     posts_sample_count: posts.length,
     posts,
     profiles,
@@ -859,14 +910,20 @@ const getGrievancesAnalytics = async (query = {}) => {
   const { range, from, to } = resolveRange(query.range);
   const platform = normalizePlatform(query.platform);
 
-  const detectedInRange = {
-    ...(range !== 'all' ? { detected_at: { gte: from, lte: to } } : {}),
+  // Keep in lockstep with dashboard buildGrievancesPulse (overview card).
+  const baseWhere = {
+    is_active: true,
     ...(platform ? { platform } : {}),
   };
+  const detectedInRange = {
+    ...baseWhere,
+    ...(range !== 'all' ? { detected_at: { gte: from, lte: to } } : {}),
+  };
 
-  const [total, byWorkflowRaw, byPlatformRaw, byClassificationRaw, reportStats, trendRows] =
+  const [total, allTimeTotal, byWorkflowRaw, byPlatformRaw, byClassificationRaw, reportStats, trendRows] =
     await Promise.all([
       prisma.social_media_grievances.count({ where: detectedInRange }),
+      prisma.social_media_grievances.count({ where: baseWhere }),
       prisma.social_media_grievances.groupBy({
         by: ['workflow_status'],
         where: detectedInRange,
@@ -898,6 +955,7 @@ const getGrievancesAnalytics = async (query = {}) => {
     from: from.toISOString(),
     to: to.toISOString(),
     total,
+    all_time_total: allTimeTotal,
     resolved_count: resolvedCount,
     resolution_rate: resolutionRate,
     by_workflow,

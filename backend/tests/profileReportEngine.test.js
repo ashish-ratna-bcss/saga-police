@@ -241,12 +241,14 @@ const NOW = Date.UTC(2026, 10, 23);
 
 test('relevance: the label always matches the data (the old "Few or no recent alerts" on 4 alerts, one high, is gone)', () => {
   // The case from the screenshot: 1 high, 1 medium, 2 low in 30 days.
+  // Low alerts are listed in the hint but do not change the score.
   const r = computeAccountRelevance([alert('high', 3), alert('medium', 10), alert('low', 12), alert('low', 20)], { postCount: 40, now: NOW });
   assert.strictEqual(r.level, 'medium');
   assert.strictEqual(r.label, 'Moderately relevant');
   assert.match(r.hint, /1 high, 1 medium, 2 low in the last 30 days/);
   assert.strictEqual(r.total_alerts, 4);
-  assert.strictEqual(r.recent_alerts_7d, 1);
+  assert.strictEqual(r.low_alerts, 2);
+  assert.strictEqual(r.recent_alerts_7d, 1, 'only serious alerts count toward the 7-day recency tally');
   assert.strictEqual(r.posts_in_window, 40);
   assert.ok(r.score >= 30 && r.score < 70, `score ${r.score}`);
 });
@@ -256,19 +258,25 @@ test('relevance: low-risk alerts add nothing, no alerts is its own level, recent
   assert.strictEqual(computeAccountRelevance([], { now: NOW }).label, 'No recent alerts');
   const noise = computeAccountRelevance(Array.from({ length: 15 }, () => alert('low', 2)), { postCount: 15, now: NOW });
   assert.strictEqual(noise.score, 0, 'twelve+ low alerts used to make an account "moderately relevant"');
-  assert.strictEqual(noise.level, 'low');
+  assert.strictEqual(noise.level, 'none', 'low-only noise is not a relevance level');
+  assert.strictEqual(noise.low_alerts, 15);
   const hot = computeAccountRelevance([alert('high', 1), alert('high', 2), alert('high', 3)], { postCount: 500, now: NOW });
   assert.strictEqual(hot.level, 'high');
   assert.ok(hot.score >= 70 && hot.score <= 100);
 });
 
-test('relevance: newer alerts count more, and a quiet account ranks above a busy one with the same alert', () => {
+test('relevance: newer alerts count more; low-risk volume and total post count do not dilute the score', () => {
   const fresh = computeAccountRelevance([alert('high', 2)], { postCount: 10, now: NOW });
   const old = computeAccountRelevance([alert('high', 25)], { postCount: 10, now: NOW });
   assert.ok(fresh.score > old.score);
+  // Same serious alert → same score whether the account has 10 or 2000 posts,
+  // and whether it also has a pile of low-risk alerts.
   const quiet = computeAccountRelevance([alert('high', 2)], { postCount: 10, now: NOW });
-  const busy = computeAccountRelevance([alert('high', 2)], { postCount: 2000, now: NOW });
-  assert.ok(quiet.score > busy.score, `${quiet.score} vs ${busy.score}`);
+  const busy = computeAccountRelevance(
+    [alert('high', 2), ...Array.from({ length: 100 }, () => alert('low', 2))],
+    { postCount: 2000, now: NOW }
+  );
+  assert.strictEqual(quiet.score, busy.score, `${quiet.score} vs ${busy.score}`);
   assert.ok(computeAccountRelevance(Array.from({ length: 30 }, () => alert('high', 1)), { postCount: 30, now: NOW }).score <= 100);
 });
 
