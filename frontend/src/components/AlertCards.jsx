@@ -2462,12 +2462,6 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
                                     isMonitored={isMonitored}
                                 />
                             </div>
-                            <div className="flex items-start gap-2 px-3 py-2 border-t border-border bg-muted/10 shrink-0">
-                                <Info className="h-3 w-3 text-blue-500 mt-0.5 shrink-0" />
-                                <p className="text-[9px] text-muted-foreground leading-relaxed">
-                                    Click on any profile to <strong>add them into monitoring list</strong>.
-                                </p>
-                            </div>
                         </div>
 
                         {/* ═══ RIGHT PANEL — Engager Table ═══ */}
@@ -2886,9 +2880,6 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                             <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                     <h2 className="text-sm font-semibold">Frequent Engagers</h2>
-                                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                                        Who keeps engaging with your monitored accounts across X, Facebook and Instagram (from saved data)
-                                    </p>
                                 </div>
                                 {analyses.length > 0 && (
                                     <div className="relative w-40 shrink-0">
@@ -3095,12 +3086,6 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                             isMonitored={(handle) => isMonitored(handle)}
                                         />
                                     </div>
-                                    <div className="flex items-start gap-2 px-3 py-2 border-t border-border bg-muted/10 shrink-0">
-                                        <Info className="h-3 w-3 text-blue-500 mt-0.5 shrink-0" />
-                                        <p className="text-[9px] text-muted-foreground leading-relaxed">
-                                            Click any node to <strong>add them as a monitoring source</strong>.
-                                        </p>
-                                    </div>
                                 </div>
 
                                 {/* RIGHT — Engager Table */}
@@ -3235,7 +3220,6 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                     </ScrollArea>
 
                                     <div className="flex items-center gap-3 px-3 py-1.5 border-t border-border bg-muted/10 shrink-0 flex-wrap">
-                                        {analysis.note && <span className="w-full text-[9px] text-muted-foreground">{analysis.note}</span>}
                                         {FREQ_LEGEND.map(f => (
                                             <div key={f.key} className="flex items-center gap-1">
                                                 <div className={`w-2.5 h-2.5 rounded-sm ${f.color}`} />
