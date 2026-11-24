@@ -1,33 +1,55 @@
 /**
  * Readable text from what the image reader (OCR / vision model) returns.
  *
- * The reader is documented to return plain strings, but for some pictures a field such as `summary` or `description`
- * arrives as structured data (an object or a list). Joining that with `Array.join` or `String()` produces the literal
- * text "[object Object]", which was then analysed as if it were the post and printed in reports. Everything that turns
- * an image reading into text goes through here instead: strings come back unchanged, structures are flattened into a
- * short readable sentence, and the broken placeholder can never get through.
+ * The reader is documented to return plain strings, but in practice `summary` and `description` can arrive as
+ * structured data, and for pictures with no text it is often only the reader's own processing statistics
+ * ({text_blocks_detected: 0, total_processing_time_sec: 0.399, stage_times_sec: {...}}). Joining that with `Array.join`
+ * or `String()` produced the literal text "[object Object]", which was then analysed as if it were the post.
+ * Everything that turns an image reading into text goes through here instead: strings come back unchanged, structured
+ * descriptions are flattened into a short readable sentence, processing statistics are ignored, and the broken
+ * placeholder can never get through.
  */
 
 const GARBAGE = /\[object [A-Za-z]+\]/g;
 const TEXT_KEYS = new Set(['text', 'content', 'value', 'description', 'summary', 'caption', 'scene', 'label', 'name', 'title']);
+/** Keys of a structured value that mean it describes the picture (anything else is not a description). */
+const DESCRIPTIVE_KEY = /^(description|scene|caption|text|content|summary|details|setting|objects|people|symbols|labels?)$/i;
+/** Keys that are the reader's own bookkeeping: timings, block counts, thresholds, boxes. */
+const DIAGNOSTIC_KEY = /(^|_)(time|times|sec|secs|seconds|ms|latency|duration|elapsed|timing|stage|stages|threshold|blocks?|bbox|boxes|box|bounding|confidence|processing|engine|attempts?|detected)(_|$)/i;
 const MAX_DEPTH = 3;
 
 /** Any value as readable text. Strings are trimmed; lists and objects are flattened; null and empty give ''. */
-const flatten = (value, depth = 0) => {
+const flatten = (value, depth = 0, skip = null) => {
   if (value == null || depth > MAX_DEPTH) return '';
   if (typeof value === 'string') return value.replace(GARBAGE, ' ').replace(/[ \t]{2,}/g, ' ').trim();
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   if (Array.isArray(value)) {
-    return value.map((x) => flatten(x, depth + 1)).filter(Boolean).join('; ');
+    return value.map((x) => flatten(x, depth + 1, skip)).filter(Boolean).join('; ');
   }
   if (typeof value === 'object') {
     const parts = [];
     for (const [key, inner] of Object.entries(value)) {
-      const text = flatten(inner, depth + 1);
+      if (skip && skip.test(key)) continue;
+      const text = flatten(inner, depth + 1, skip);
       if (!text) continue;
       parts.push(TEXT_KEYS.has(String(key).toLowerCase()) ? text : `${String(key).replace(/[_-]+/g, ' ')}: ${text}`);
     }
     return parts.join('; ');
+  }
+  return '';
+};
+
+/**
+ * A description of the picture as text: a string as it is; a structured value only if it really describes something
+ * (has a scene, caption, objects ...), with its bookkeeping left out. The reader's timing statistics give ''.
+ */
+const descriptive = (value, depth = 0) => {
+  if (value == null) return '';
+  if (typeof value === 'string') return flatten(value);
+  if (Array.isArray(value)) return value.map((x) => descriptive(x, depth + 1)).filter(Boolean).join('; ');
+  if (typeof value === 'object') {
+    if (!Object.keys(value).some((k) => DESCRIPTIVE_KEY.test(k))) return '';
+    return flatten(value, depth, DIAGNOSTIC_KEY);
   }
   return '';
 };
@@ -40,19 +62,36 @@ const flatten = (value, depth = 0) => {
 const mediaTextOf = (reading, { sep = '\n', visible = true } = {}) => {
   if (!reading || typeof reading !== 'object' || Array.isArray(reading)) return '';
   if (reading.full_text) return flatten(reading.full_text);
-  const parts = [flatten(reading.description), flatten(reading.summary)];
+  const parts = [descriptive(reading.description), descriptive(reading.summary)];
   if (visible && Array.isArray(reading.visible_text)) parts.push(...reading.visible_text.map((x) => flatten(x)));
   return parts.filter(Boolean).join(sep).trim();
 };
 
-/** What the picture shows (description, then summary when it says something else), apart from any text printed on it. */
+const cut = (text, max) => Array.from(text).slice(0, max).join('').trim();
+
+/**
+ * What the picture shows, apart from any text printed on it. The description written by the vision model
+ * (`reading.picture.description`) comes first; otherwise the reader's description, plus its summary when that says something else.
+ */
 const sceneOf = (reading, max = 400) => {
   if (!reading || typeof reading !== 'object' || Array.isArray(reading) || reading.failed) return '';
-  const description = flatten(reading.description);
-  const summary = flatten(reading.summary);
+  const own = reading.picture && !reading.picture.failed ? flatten(reading.picture.description) : '';
+  if (own) return cut(own, max);
+  const description = descriptive(reading.description);
+  const summary = descriptive(reading.summary);
   const seen = description.toLowerCase();
   const text = summary && !seen.includes(summary.toLowerCase()) ? [description, summary].filter(Boolean).join(' ') : description || summary;
-  return Array.from(text).slice(0, max).join('').trim();
+  return cut(text, max);
+};
+
+/** What the vision model says is notable in the picture: symbols and anything that bears on risk. Empty when it saw nothing. */
+const signalsOf = (reading) => {
+  const p = reading && typeof reading === 'object' ? reading.picture : null;
+  if (!p || typeof p !== 'object' || p.failed) return [];
+  const all = [...(Array.isArray(p.alerts) ? p.alerts : []), ...(Array.isArray(p.symbols) ? p.symbols : [])]
+    .map((x) => flatten(x))
+    .filter(Boolean);
+  return all.filter((x, i) => all.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i).slice(0, 8);
 };
 
 /** A translation as the sentiment service returned it: text, or nothing. Never an object, never the broken placeholder. */
@@ -61,4 +100,4 @@ const cleanTranslation = (value) => {
   return text || null;
 };
 
-module.exports = { flatten, mediaTextOf, sceneOf, cleanTranslation };
+module.exports = { flatten, descriptive, mediaTextOf, sceneOf, signalsOf, cleanTranslation };
