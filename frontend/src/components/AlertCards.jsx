@@ -2687,6 +2687,9 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
     const [retweetSearch, setRetweetSearch] = useState('');
     const [listSearch, setListSearch] = useState('');
     const [listPage, setListPage] = useState(1);
+    /** Keys of engagers added in this dialog session — flips Add → Monitored immediately. */
+    const [justAddedKeys, setJustAddedKeys] = useState(() => new Set());
+    const [addingKey, setAddingKey] = useState(null);
     const LIST_PAGE_SIZE = 20;
     const PAGE_SIZE = 20;
 
@@ -2701,7 +2704,14 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
             .replace(/\/+$/, '')
             .replace(/\?.*$/, '');
 
+    const engagerKey = (rt) => {
+        if (!rt || typeof rt === 'string') return normalizeMonitoredToken(rt);
+        return normalizeMonitoredToken(rt.user_id || rt.handle || Object.values(rt.profile_urls || {})[0] || rt.name);
+    };
+
     const isMonitored = (rtOrHandle) => {
+        const key = engagerKey(rtOrHandle);
+        if (key && justAddedKeys.has(key)) return true;
         if (!Array.isArray(monitoredHandles) || monitoredHandles.length === 0) return false;
         const monitored = monitoredHandles
             .filter(Boolean)
@@ -2722,7 +2732,7 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
         return candidates.some((c) => c && monitored.includes(c));
     };
 
-    const handleAddSource = (rt) => {
+    const handleAddSource = async (rt) => {
         if (!onAddSource) {
             toast.error('Add to monitor is not available here');
             return;
@@ -2731,6 +2741,7 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
         const profileUrl = rt.profile_urls?.[platform] || null;
         const userId = rt.user_id ? String(rt.user_id).trim() : '';
         const handle = rt.handle ? String(rt.handle).replace(/^@/, '').trim() : '';
+        const key = engagerKey(rt);
 
         let identifier = null;
         if (platform === 'x' || platform === 'instagram') {
@@ -2757,14 +2768,23 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                 if (m) facebookPageId = decodeURIComponent(m[1]);
             }
         }
-        onAddSource({
-            platform,
-            identifier,
-            display_name: rt.name || handle || identifier,
-            page_id: facebookPageId,
-            avatar: rt.avatar || undefined,
-            category: 'unknown',
-        });
+
+        if (key) setAddingKey(key);
+        try {
+            const ok = await onAddSource({
+                platform,
+                identifier,
+                display_name: rt.name || handle || identifier,
+                page_id: facebookPageId,
+                avatar: rt.avatar || undefined,
+                category: 'unknown',
+            });
+            if (ok !== false && key) {
+                setJustAddedKeys((prev) => new Set([...prev, key]));
+            }
+        } finally {
+            setAddingKey(null);
+        }
     };
 
     const engagerHref = (rt) => {
@@ -2831,6 +2851,8 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
             setSelectedAnalysis(null);
             setListSearch('');
             setListPage(1);
+            setJustAddedKeys(new Set());
+            setAddingKey(null);
         }
     }, [open]);
 
@@ -3149,6 +3171,7 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                                                             const already = isMonitored(rt);
                                                                             const freq = rt.frequency || 'one-time';
                                                                             const rowKey = rt.handle || rt.user_id || rt.name;
+                                                                            const rowAdding = addingKey && addingKey === engagerKey(rt);
                                                                             return (
                                                                                 <tr key={rowKey} className={`border-t transition-colors ${FREQ_ROW_COLORS[freq] || ''}`}>
                                                                                     <td className="px-2 py-1.5 align-middle">
@@ -3179,8 +3202,9 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                                                                     </td>
                                                                                     <td className="px-2 py-1.5 text-center align-middle">
                                                                                         {onAddSource && !already ? (
-                                                                                            <Button size="sm" variant="outline" className="h-5 gap-0.5 text-[9px] px-1.5 border-green-300 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20 dark:text-green-400 dark:border-green-800" onClick={() => handleAddSource(rt)}>
-                                                                                                <UserPlus className="h-2.5 w-2.5" /> Add
+                                                                                            <Button size="sm" variant="outline" disabled={Boolean(rowAdding)} className="h-5 gap-0.5 text-[9px] px-1.5 border-green-300 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20 dark:text-green-400 dark:border-green-800" onClick={() => handleAddSource(rt)}>
+                                                                                                {rowAdding ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <UserPlus className="h-2.5 w-2.5" />}
+                                                                                                {rowAdding ? 'Adding…' : 'Add'}
                                                                                             </Button>
                                                                                         ) : already ? (
                                                                                             <span className="inline-flex items-center gap-0.5 text-[9px] text-green-600 font-medium"><Check className="h-2.5 w-2.5" /> Monitored</span>

@@ -1511,8 +1511,16 @@ export default function Alerts() {
         category: row.category || 'others',
       }));
       setMonitoredSources(normalized);
-      const handles = normalized.map((s) => s.handle || s.identifier).filter(Boolean);
-      setMonitoredHandles(handles);
+      // Include page_id / url / username so Frequent Engagers (Facebook commenters with
+      // null handle) can match after Add — handle alone is often a full URL or missing.
+      const tokens = [];
+      for (const s of normalized) {
+        const d = s.data && typeof s.data === 'object' ? s.data : {};
+        [s.handle, s.identifier, d.page_id, d.user_id, d.url, d.username, d.channel_url]
+          .filter(Boolean)
+          .forEach((t) => tokens.push(String(t)));
+      }
+      setMonitoredHandles([...new Set(tokens)]);
       setSourcesMetaLoaded(true);
     } catch (err) {
       console.error('Error fetching catalog profiles:', err);
@@ -2000,9 +2008,9 @@ export default function Alerts() {
     const built = buildCatalogPreviewData(platform, identifier, { page_id: pageId });
     if (!built) {
       toast.error('Missing platform or handle to add');
-      return;
+      return false;
     }
-    if (addingProfile) return;
+    if (addingProfile) return false;
 
     const label =
       data?.display_name ||
@@ -2024,7 +2032,7 @@ export default function Alerts() {
     });
     if (already) {
       toast.success(`${label} is already monitored`);
-      return;
+      return true;
     }
 
     setAddingProfile(true);
@@ -2096,9 +2104,13 @@ export default function Alerts() {
       }
 
       const newHandle = createdRow?.handle || identifier || pageId || label;
+      const createdPageId = createdRow?.data?.page_id || pageId;
+      const createdUrl = createdRow?.data?.url || identifier;
       setMonitoredHandles((prev) => {
         const next = new Set(prev.map((h) => String(h)));
-        [newHandle, identifier, pageId].filter(Boolean).forEach((h) => next.add(String(h)));
+        [newHandle, identifier, pageId, createdPageId, createdUrl]
+          .filter(Boolean)
+          .forEach((h) => next.add(String(h)));
         return [...next];
       });
       if (createdRow) {
@@ -2117,14 +2129,16 @@ export default function Alerts() {
 
       toast.success(`Monitoring started for ${label}`, { id: toastId });
       await fetchSourcesMetadata();
+      return true;
     } catch (error) {
       const message = error?.response?.data?.error || error.message || 'Failed to add profile';
       if (error?.response?.status === 409 || /already exists/i.test(message)) {
         toast.success(`${label} is already in Social Profiles`, { id: toastId });
         await fetchSourcesMetadata();
-      } else {
-        toast.error(message, { id: toastId });
+        return true;
       }
+      toast.error(message, { id: toastId });
+      return false;
     } finally {
       setAddingProfile(false);
     }
