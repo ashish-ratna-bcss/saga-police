@@ -152,7 +152,7 @@ const normalisePosts = (posts = [], { timezone = DEFAULT_TZ } = {}) => posts
     const text = String(p.text || '').trim();
     const printed = imageTextOf(p.image_analysis);
     // What the picture shows, unless it only repeats the words printed on it.
-    const shown = sceneOf(p.image_analysis, 300).replace(/\s+/g, ' ');
+    const shown = sceneOf(p.image_analysis, 420).replace(/\s+/g, ' ');
     const scene = shown && foldText(shown) !== foldText(printed) ? shown : '';
     const described = Boolean(shown);
     // The English reading is kept only when it adds something: not a copy of the caption, the image text or the description.
@@ -168,6 +168,10 @@ const normalisePosts = (posts = [], { timezone = DEFAULT_TZ } = {}) => posts
       imageText: printed,
       scene,
       described,
+      // how the post is MEANT, from a close reading of its caption, the writing on its picture and the picture together
+      meaning: analysed && a.reading && !a.reading.failed ? String(a.reading.meaning || '').replace(/\s+/g, ' ').trim() : '',
+      tone: analysed && a.reading && !a.reading.failed && a.reading.tone && a.reading.tone !== 'unclear' ? String(a.reading.tone) : '',
+      pictureObjects: [...new Set(((p.image_analysis && p.image_analysis.picture && Array.isArray(p.image_analysis.picture.objects)) ? p.image_analysis.picture.objects : []).map(cleanObject).filter(Boolean))],
       // what the vision model flagged in the picture (a weapon, a crowd, a flag with words on it ...)
       pictureSignals: signalsOf(p.image_analysis),
       pictureAlerts: p.image_analysis && p.image_analysis.picture && Array.isArray(p.image_analysis.picture.alerts) ? p.image_analysis.picture.alerts.map((x) => flatten(x)).filter(Boolean) : [],
@@ -197,16 +201,15 @@ const normalisePosts = (posts = [], { timezone = DEFAULT_TZ } = {}) => posts
   })
   .sort((x, y) => (x.at ? x.at.getTime() : 0) - (y.at ? y.at.getTime() : 0));
 
-/** Words that appear in almost any picture description and say nothing about what the pictures are of. */
-const PICTURE_STOP = new Set(('this that with from into over near they them their there which while where when showing shows shown show image images picture pictures photo photos photograph '
-  + 'background foreground appears appear seems seem text written words word large small several various front behind left right middle center centre top bottom side '
-  + 'white black blue red green yellow orange brown gray grey pink purple colour color colored coloured dark light bright some other another also have has been being are were was '
-  + 'visible displayed displays display containing contains contain includes include featuring features feature depicting depicts depict scene view looks look made like very more most than then just only '
-  + 'style design man woman men women boy girl male female').split(/\s+/));
+/** The vision model's list of notable objects, cleaned: short plain nouns only ("sofa", "flag"), not "color: red; design: beret" or clothing text. */
+const cleanObject = (value) => {
+  const s = flatten(value).toLowerCase().replace(/^(?:an?|the|some)\s+/, '').replace(/\s+/g, ' ').trim();
+  return s && s.length <= 30 && !/[:;]/.test(s) && s.split(' ').length <= 3 ? s : '';
+};
 
 /**
- * What the pictures are of, across ALL posts: the words that keep coming back in the reader's descriptions, with the
- * number of pictures each appears in. The evidence shows a few dozen posts; this shows what the rest look like.
+ * What the pictures are of, across ALL posts: the objects that appear in several pictures, with the number of pictures.
+ * Only repeats are shown, so a small profile shows nothing rather than a list of things seen once.
  */
 const pictureTermsOf = (rows) => {
   const counts = new Map();
@@ -214,12 +217,7 @@ const pictureTermsOf = (rows) => {
   rows.forEach((r) => {
     if (!r.scene) return;
     described += 1;
-    const seen = new Set();
-    for (const w of r.scene.toLowerCase().match(/\p{L}{4,}/gu) || []) {
-      const word = w.length > 4 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w;   // flags -> flag
-      if (!PICTURE_STOP.has(w) && !PICTURE_STOP.has(word)) seen.add(word);
-    }
-    seen.forEach((w) => counts.set(w, (counts.get(w) || 0) + 1));
+    new Set(r.pictureObjects).forEach((o) => counts.set(o, (counts.get(o) || 0) + 1));
   });
   const floor = Math.max(2, Math.ceil(described * 0.1));
   return [...counts.entries()]
@@ -363,6 +361,7 @@ const buildBehaviorFacts = ({ account = {}, accounts = [], rows = [], totalPosts
   const mentions = new Map();
   const shown = new Map();
   const languages = new Map();
+  const toneCounts = new Map();
   const categories = new Map();
   const signals = new Map();
   const keywords = new Map();
@@ -370,6 +369,7 @@ const buildBehaviorFacts = ({ account = {}, accounts = [], rows = [], totalPosts
     r.hashtags.forEach((h) => countFolded(hashtags, shown, h));
     r.mentions.forEach((m) => countFolded(mentions, shown, m));
     if (r.language) countInto(languages, r.language);
+    if (r.tone) countInto(toneCounts, r.tone);
     if (r.category) countInto(categories, r.category);
     new Set(r.signals).forEach((s) => countInto(signals, s));
     new Set(r.keywords).forEach((k) => countInto(keywords, k));
@@ -502,7 +502,11 @@ const buildBehaviorFacts = ({ account = {}, accounts = [], rows = [], totalPosts
       replies: rows.filter((r) => r.reply && !r.shared).length,
       with_media: rows.filter((r) => r.media).length,
       with_image_text: rows.filter((r) => r.imageText.length > 0).length,
+      captioned: withText.length,
+      no_caption: rows.length - withText.length,
       pictures: { with_pictures: withPictures.length, described, terms: pictureTermsOf(rows), signals: pictureSignalCounts(rows) },
+      tones: topOf(toneCounts, 8, 'term'),
+      read_in_context: rows.filter((r) => r.meaning).length,
       with_links: rows.filter((r) => r.link).length,
       avg_length: withText.length ? Math.round(withText.reduce((s, r) => s + Array.from(r.text).length, 0) / withText.length) : 0,
       languages: topOf(languages, 6, 'language'),
@@ -580,6 +584,8 @@ const selectEvidence = (rows = [], { max = 40 } = {}) => {
       image_text: row.imageText,
       scene: row.scene,
       picture_signals: row.pictureSignals,
+      meaning: row.meaning,
+      tone: row.tone,
       english: row.english,
       sentiment: row.sentiment,
       stance: row.stance,

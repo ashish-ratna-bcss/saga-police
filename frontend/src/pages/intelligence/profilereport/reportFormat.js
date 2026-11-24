@@ -31,6 +31,24 @@ export const postBody = ({ text, image_text: imageText, english, scene } = {}) =
   return { main: t, imageOnly: false, english: showEnglish ? e : '', imageText: i && foldText(i) !== foldText(t) ? i : '', picture };
 };
 
+/** How a post is meant (the close reading), or, for posts read before readings existed, the classifier's own note. */
+const wordSet = (t) => new Set(foldText(t).split(' ').filter((w) => w.length > 2));
+const wordShare = (a, b) => {
+  const x = wordSet(a);
+  const y = wordSet(b);
+  if (!x.size || !y.size) return 0;
+  let common = 0;
+  x.forEach((w) => { if (y.has(w)) common += 1; });
+  return common / Math.min(x.size, y.size);
+};
+export const readingOf = (e = {}) => {
+  if (e.meaning) {
+    // for a plain photo the reading only restates the picture line next to it; a joke is always worth saying
+    return !/^joke:/i.test(e.meaning) && e.scene && wordShare(e.meaning, e.scene) >= 0.75 ? '' : e.meaning;
+  }
+  return e.sentiment && e.summary && foldText(e.summary) !== foldText(e.text) ? e.summary : '';
+};
+
 /** Platforms that do not publish a share / repost count: a 0 there means "not shown", not "nobody shared it". */
 const NO_SHARE_COUNT = ['instagram', 'youtube'];
 export const sharesShown = (platform) => !NO_SHARE_COUNT.includes(String(platform || '').toLowerCase());

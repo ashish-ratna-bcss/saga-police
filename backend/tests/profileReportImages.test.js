@@ -59,7 +59,15 @@ test('picture description: description, plus the summary when it says something 
   assert.strictEqual(sceneOf({ summary: { scene: 'people at a market' } }), 'people at a market');
   assert.strictEqual(sceneOf({ failed: true, description: 'x' }), '');
   assert.strictEqual(sceneOf(null), '');
-  assert.strictEqual(Array.from(sceneOf({ description: 'x'.repeat(900) }, 50)).length, 50);
+  // too long: cut at the end of a sentence, or at a word with an ellipsis, never in the middle of a word
+  const long = 'A man sits on a green sofa in a living room and looks at the camera. The room has a patterned wall and a window with a curtain behind him.';
+  assert.strictEqual(sceneOf({ description: long }, 100), 'A man sits on a green sofa in a living room and looks at the camera.', 'ends at a sentence');
+  const noStop = 'A man sits on a green sofa in a living room and looks at the camera with a patterned wall behind him';
+  const cutAtWord = sceneOf({ description: noStop }, 60);
+  assert.match(cutAtWord, /…$/);
+  assert.ok(noStop.startsWith(cutAtWord.slice(0, -1)) && !/\s…$/.test(cutAtWord), 'at a word: ' + cutAtWord);
+  assert.strictEqual(sceneOf({ description: noStop }, 500), noStop, 'short enough is left alone');
+  assert.ok(Array.from(sceneOf({ description: 'x'.repeat(900) }, 50)).length <= 51, 'one unbroken word is cut at the limit');
 });
 
 test('translation: an object becomes text; the broken placeholder becomes nothing', () => {
@@ -302,35 +310,36 @@ test('pdf: the activity timeline and the chart values are drawn, and the evidenc
 
 /* ------------------------------------------------------------------ what the pictures show, all posts ---------- */
 
+const PIC = (description, objects, extra = {}) => ({ picture: { v: 2, description, kind: 'photo', objects, alerts: [], flags: [], symbols: [], ...extra } });
 const PICTURES = () => [
-  post(1, '2021-01-01T04:30:00Z', 'Rally today', A('neutral'), { image_analysis: { description: 'A large crowd holding flags in front of a stage.' } }),
-  post(2, '2021-01-02T04:30:00Z', 'Meeting', A('neutral'), { image_analysis: { description: 'Crowd gathered around a speaker with a flag behind him.' } }),
-  post(3, '2021-01-03T04:30:00Z', 'Evening', A('neutral'), { image_analysis: { description: 'A flag on a pole at sunset.', summary: 'Flag at dusk' } }),
-  post(4, '2021-01-04T04:30:00Z', 'Lunch', A('neutral'), { image_analysis: { description: 'A plate of rice and curry on a table.' } }),
+  post(1, '2021-01-01T04:30:00Z', 'Rally today', A('neutral'), { image_analysis: PIC('A large crowd holds flags in front of a stage.', ['crowd', 'a flag', 'stage']) }),
+  post(2, '2021-01-02T04:30:00Z', 'Meeting', A('neutral'), { image_analysis: PIC('A crowd gathers around a speaker with a flag behind him.', ['Crowd', 'the flag', 'microphone']) }),
+  post(3, '2021-01-03T04:30:00Z', 'Evening', A('neutral'), { image_analysis: PIC('A flag on a pole at sunset.', ['flag', 'pole', 'color: red; design: bands', 'a very long description of an object that nobody would call a plain noun']) }),
+  post(4, '2021-01-04T04:30:00Z', 'Lunch', A('neutral'), { image_analysis: PIC('A plate of rice and curry on a table.', ['plate of rice']) }),
   post(5, '2021-01-05T04:30:00Z', 'No description from the reader', A('neutral'), { image_analysis: { full_text: 'GOOD LUCK' } }),
   post(6, '2021-01-06T04:30:00Z', 'Waiting for the reader', {}, { image_analysis: null }),
 ];
 
-test('pictures: what they show is summed up across ALL posts, and the report says how many the reader described', () => {
+test('pictures: what they show is summed up across ALL posts, and the report says how many were described', () => {
   const rows = normalisePosts(PICTURES(), { timezone: 'Asia/Kolkata' });
   const f = facts(rows);
   const pic = f.content.pictures;
   assert.strictEqual(pic.with_pictures, 6);
   assert.strictEqual(pic.described, 4, 'posts 1 to 4 have a description');
-  const terms = Object.fromEntries(pic.terms.map((x) => [x.term, x.count]));
-  assert.strictEqual(terms.flag, 3, 'flag / flags counted once per picture, plural folded');
-  assert.strictEqual(terms.crowd, 2);
-  assert.ok(!('with' in terms) && !('large' in terms) && !('front' in terms) && !('behind' in terms), 'filler words are left out');
-  assert.ok(!terms.rice, 'a word in a single picture is not a pattern');
-  assert.ok(!pic.terms.some((x) => /^(man|woman|men|women)$/.test(x.term)), 'no gender words');
+  assert.deepStrictEqual(pic.terms, [{ term: 'flag', count: 3 }, { term: 'crowd', count: 2 }], 'objects seen in several pictures, articles and capitals folded; once-only objects are not a pattern');
+  assert.ok(!JSON.stringify(pic.terms).includes('color') && !JSON.stringify(pic.terms).includes('plate'), 'key-value and long phrases are not objects');
   // the note counts only posts the reader has already looked at: post 6 is simply waiting
   assert.ok(f.coverage.notes.includes('1 of 5 analysed posts with pictures have no description of the picture, so those are judged from their caption and any printed text only.'));
+  // a small profile shows nothing rather than a list of things seen once
+  const few = facts(normalisePosts(PICTURES().slice(0, 1), { timezone: 'Asia/Kolkata' }));
+  assert.deepStrictEqual(few.content.pictures.terms, []);
 });
 
 test('pictures: the model is told what the pictures show, for every post and not only the numbered ones', () => {
   const rows = normalisePosts(PICTURES(), { timezone: 'Asia/Kolkata' });
   const ctx = buildUserContext({ facts: facts(rows), evidence: selectEvidence(rows, { max: 3 }) });
   assert.match(ctx, /PICTURES: 4 of 6 posts with photos or video have a description of what the picture shows; words that recur in those descriptions, with the number of pictures each appears in: flag 3, crowd 2/);
+  assert.match(ctx, /6 have a caption of their own and 0 have none|have a caption of their own and \d+ have none \(the picture is the whole post\)/);
   assert.match(ctx, /Picture: /);
   assert.match(buildSystemPrompt(), /caption, the text printed on its picture and what the picture shows, together/);
   assert.match(buildSystemPrompt(), /Do not describe pictures you were not given a description for/);
@@ -339,11 +348,109 @@ test('pictures: the model is told what the pictures show, for every post and not
   assert.ok(!/PICTURES:/.test(buildUserContext({ facts: facts(none), evidence: selectEvidence(none, { max: 3 }) })));
 });
 
+/* ------------------------------------------------------------------------ how each post is meant ------------ */
+
+const READ = (tone, meaning, over = {}) => ({ v: 1, tone, meaning, joke: /humour/.test(tone), sentiment: 'neutral', hostile: false, confidence: 'high', ...over });
+const MEANT = () => [
+  post(1, '2021-02-01T04:30:00Z', '', A('neutral', { reading: READ('dark humour', 'Joke: the caption blames someone for not answering while the picture shows a crashed bike.') }), { image_analysis: { picture: { description: 'A motorcycle lies on its side.', kind: 'meme', alerts: ['person trapped, hurt or motionless'] } } }),
+  post(2, '2021-02-02T04:30:00Z', 'Happy New Year', A('positive', { reading: READ('greeting', 'A New Year greeting.') })),
+  post(3, '2021-02-03T04:30:00Z', 'A quote about patience', A('positive', { reading: READ('motivational', 'A motivational quote about patience.') })),
+  post(4, '2021-02-04T04:30:00Z', 'Another quote', A('positive', { reading: READ('motivational', 'A second motivational quote.') })),
+  post(5, '2021-02-05T04:30:00Z', 'Not read yet', A('neutral', { summary: 'The classifier note for this post.' })),
+  post(6, '2021-02-06T04:30:00Z', 'A reading that failed', A('neutral', { reading: { failed: true, v: 1, error: 'busy', at: '2026-11-24T00:00:00Z' } })),
+  post(7, '2021-02-07T04:30:00Z', 'Hard to tell', A('neutral', { reading: READ('unclear', 'Too little to read here.', { confidence: 'low' }) })),
+];
+
+test('meaning and tone: kept for each post, counted across all posts, and carried into the evidence', () => {
+  const rows = normalisePosts(MEANT(), { timezone: 'Asia/Kolkata' });
+  const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
+  assert.strictEqual(byId['1'].tone, 'dark humour');
+  assert.match(byId['1'].meaning, /^Joke: the caption blames/);
+  assert.strictEqual(byId['5'].meaning, '', 'a post not read yet has none');
+  assert.strictEqual(byId['6'].meaning, '', 'a failed reading is not shown');
+  assert.strictEqual(byId['7'].tone, '', '"unclear" is not a tone worth counting');
+  assert.strictEqual(byId['7'].meaning, 'Too little to read here.');
+  const f = facts(rows);
+  assert.deepStrictEqual(f.content.tones, [{ term: 'motivational', count: 2 }, { term: 'dark humour', count: 1 }, { term: 'greeting', count: 1 }]);
+  assert.strictEqual(f.content.read_in_context, 5, 'posts 1 to 4 and the unclear one have a meaning; the unread and the failed do not');
+  const ev = selectEvidence(rows, { max: 10 });
+  assert.strictEqual(ev.find((e) => e.id === '1').tone, 'dark humour');
+  assert.match(ev.find((e) => e.id === '2').meaning, /New Year greeting/);
+});
+
+test('the report writer is told how posts are meant, and not to take a joke or a quote for the account\'s own anger', () => {
+  const rows = normalisePosts(MEANT(), { timezone: 'Asia/Kolkata' });
+  const ctx = buildUserContext({ facts: facts(rows), evidence: selectEvidence(rows, { max: 10 }) });
+  assert.match(ctx, /HOW THE POSTS ARE MEANT \(from a close reading of each post's caption, picture and writing together; 5 of 7 posts read\): motivational 2, dark humour 1, greeting 1/);
+  assert.match(ctx, /\[P1\][^\n]*tone dark humour/);
+  assert.match(ctx, /Meaning: Joke: the caption blames someone for not answering/);
+  assert.match(ctx, /Seen in the picture: person trapped, hurt or motionless/);
+  assert.ok(!/Meaning: [^\n]*classifier note/.test(ctx));
+  assert.match(buildSystemPrompt(), /How posts are meant\. "Meaning" and "tone" on a post come from a close reading[\s\S]*a joke, a meme, a quote or a greeting is not the account's own anger or hostility/);
+  assert.match(buildSystemPrompt(), /call it dark humour and nothing more/);
+  // without any reading, no such line
+  const none = normalisePosts([post(1, '2021-02-01T04:30:00Z', 'Hello there', A('neutral'))], { timezone: 'Asia/Kolkata' });
+  assert.ok(!/HOW THE POSTS ARE MEANT/.test(buildUserContext({ facts: facts(none), evidence: selectEvidence(none, { max: 5 }) })));
+});
+
+test('the PDF shows each post\'s meaning and tone, and falls back to the classifier\'s note for posts read before readings existed', () => {
+  const { html } = pdfFor(MEANT());
+  const p1 = html.slice(html.indexOf('<td class="no">P1</td>'), html.indexOf('<td class="no">P2</td>'));
+  assert.match(p1, /<div class="muted">dark humour<\/div>/, 'the tone is under the reading');
+  assert.match(p1, /<b>Reading:<\/b> Joke: the caption blames someone for not answering while the picture shows a crashed bike\./);
+  const p5 = html.slice(html.indexOf('<td class="no">P5</td>'), html.indexOf('<td class="no">P6</td>'));
+  assert.match(p5, /<b>Reading:<\/b> The classifier note for this post\./);
+  assert.ok(!/<div class="muted">unclear<\/div>/.test(html));
+  assert.match(html, /How the posts are meant \(5 of 7 read in context\)/);
+  assert.match(html, /<span>motivational · 2<\/span>/);
+});
+
+test('watch points: a line that only says "keep watching for more" is dropped; specific ones stay', () => {
+  const r = parseBehaviorReport(JSON.stringify({
+    bottom_line: 'A quote account.',
+    watch_points: [
+      'Watch for any increase in engagement or new hashtags that may indicate a growing influence.',
+      'Monitor for an increase in posts about the cause.',
+      'Keep watching the account.',
+      'Any post that names a place or an official in Odisha: it would show a local link.',
+      'A banner or flag with written words: the words would say which group it belongs to.',
+    ],
+  }), { maxN: 3 });
+  assert.deepStrictEqual(r.watch_points, [
+    'Any post that names a place or an official in Odisha: it would show a local link.',
+    'A banner or flag with written words: the words would say which group it belongs to.',
+  ]);
+  assert.deepStrictEqual(parseBehaviorReport(JSON.stringify({ bottom_line: 'x', watch_points: ['Keep monitoring the account.'] }), { maxN: 3 }).watch_points, []);
+});
+
+test('captions: the writer is told how many posts have a caption of their own and how many are only a picture', () => {
+  const rows = normalisePosts([
+    post(1, '2021-03-01T04:30:00Z', '', A('neutral'), { image_analysis: { full_text: 'A quote on a card' } }),
+    post(2, '2021-03-02T04:30:00Z', '', A('neutral'), { image_analysis: PIC('A beach at sunset.', ['beach']) }),
+    post(3, '2021-03-03T04:30:00Z', 'Good morning everyone', A('positive')),
+  ], { timezone: 'Asia/Kolkata' });
+  const f = facts(rows);
+  assert.strictEqual(f.content.captioned, 1);
+  assert.strictEqual(f.content.no_caption, 2);
+  assert.match(buildUserContext({ facts: f, evidence: selectEvidence(rows, { max: 5 }) }), /1 have a caption of their own and 2 have none \(the picture is the whole post\)/);
+});
+
+test('the reading line is left out when it only restates the picture line next to it, but a joke is always shown', () => {
+  const scene = 'A woman with braided hair is looking directly at the camera, wearing a black and white jacket with a gold chain necklace.';
+  const plain = pdfFor([post(1, '2022-12-26T04:30:00Z', '', A('neutral', { reading: READ('personal update', 'A woman with braided hair is looking directly at the camera wearing a black and white jacket and a gold chain necklace.') }), { image_analysis: PIC(scene, ['jacket']) })]).html;
+  assert.match(plain, /Picture: A woman with braided hair/);
+  assert.ok(!/<b>Reading:<\/b>/.test(plain), 'no second line saying the same thing');
+  const joke = pdfFor([post(1, '2023-05-16T04:30:00Z', '', A('neutral', { reading: READ('dark humour', 'Joke: the picture shows a crashed bike, which is the real reason he is not answering.') }), { image_analysis: { full_text: 'He is not picking my calls', ...PIC('A crashed motorcycle with a motionless person beside it.', ['motorcycle']) } })]).html;
+  assert.match(joke, /<b>Reading:<\/b> Joke: the picture shows a crashed bike/);
+  const different = pdfFor([post(1, '2020-04-24T04:30:00Z', '', A('positive', { reading: READ('motivational', 'A motivational message encouraging people to put their own happiness before the opinions of others.') }), { image_analysis: { full_text: 'Do what makes you happy', ...PIC('A black background with white text.', []) } })]).html;
+  assert.match(different, /<b>Reading:<\/b> A motivational message encouraging people/);
+});
+
 test('pictures: the PDF shows what they show, and an older report without the summary still opens', () => {
   const { html, f, evidence } = pdfFor(PICTURES());
   assert.match(html, /What the pictures show \(4 of 6 pictures described\)/);
   assert.match(html, /<span>flag · 3<\/span>/);
-  assert.match(html, /Picture: A large crowd holding flags in front of a stage\./);
+  assert.match(html, /Picture: A large crowd holds flags in front of a stage\./);
   const old = JSON.parse(JSON.stringify(f));
   delete old.content.pictures;
   const again = buildBehaviorReportHtml({ report: { bottom_line: 'x', attention_level: 'Low' }, facts: old, evidence, generated_at: '2026-01-01T00:00:00Z' });

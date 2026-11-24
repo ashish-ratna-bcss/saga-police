@@ -18,6 +18,7 @@ const { extractOcr, extractVideo } = require('../../services/media_post_analysis
 const media = require('../../services/media_post_analysis/analyzeMediaPost');
 const { cleanTranslation, sceneOf, signalsOf } = require('../../services/media_post_analysis/imageText');
 const vision = require('./profileReport.vision');
+const reader = require('./profileReport.reading');
 const store = require('./profileReport.store');
 const { json, cleanDeep } = require('./profileReport.util');
 
@@ -38,6 +39,8 @@ const limits = {
   ocrBudgetMs: Math.max(20000, Number(process.env.PROFILE_REPORT_OCR_BUDGET_MS) || 150000),
   /** The vision model answers in a second or two; this only stops a hung server from holding a post. */
   pictureBudgetMs: Math.max(15000, Number(process.env.PROFILE_REPORT_PICTURE_BUDGET_MS) || 100000),
+  /** The report model reads one post in a few seconds; this only stops a hung server from holding a post. */
+  readingBudgetMs: Math.max(15000, Number(process.env.PROFILE_REPORT_READING_BUDGET_MS) || 75000),
   videoBudgetMs: 300000,
   /** Posts that take longer than this are named in the log, with the step that was slow. */
   slowMs: 60000,
@@ -198,6 +201,13 @@ const enrichMedia = async (prisma, post, dbName) => {
   return { ocr: reading, retryLater: false, ms: Date.now() - t0 };
 };
 
+/** The picture as one line for the model that reads the post in context: what it shows, then what stands out in it. */
+const pictureLine = (reading) => {
+  const scene = sceneOf(reading, 700);
+  const signals = signalsOf(reading);
+  return `${scene}${signals.length ? `${scene ? ' ' : ''}Notable: ${signals.join('; ')}.` : ''}`;
+};
+
 /** What the sentiment service is told about the picture: text on it, what it shows, and what stands out. Never the reader's timing statistics. */
 const imageContext = (reading) => {
   if (!reading || typeof reading !== 'object') return null;
@@ -271,12 +281,44 @@ const analyzePost = async (postId, { prisma, dbName = null } = {}) => {
       mapping = mappingService.resolveForAnalysis({ category: intel.category, text, platform: post.platform, country: 'IN' });
     } catch (e) { /* keep the pre-mapping */ }
     const category = mapping.category_id || intel.category || null;
+    const riskLevel = media.scoreToLevel(riskScore, high, medium);
+
+    // How the post is MEANT, read from the caption, the writing on the picture and the picture together (a joke, a quote,
+    // a show of support ...). It may soften a "negative" to "neutral" for plain humour; it never changes risk.
+    const classifierSentiment = intel.sentiment || 'neutral';
+    let reading = null;
+    if (reader.enabled()) {
+      await heartbeat(prisma, id);
+      const picture = ocr && ocr.picture && !ocr.picture.failed ? ocr.picture : null;
+      let said;
+      try {
+        said = await withBudget(reader.readPost({
+          caption: postText,
+          printed: store.printedTextOf(ocr),
+          picture: pictureLine(ocr),
+          kind: picture && picture.kind,
+          alerts: picture ? picture.alerts : [],
+          classifier: { sentiment: classifierSentiment, risk_level: riskLevel, category, summary: intel.summary },
+        }), limits.readingBudgetMs, 'The post reading');
+      } catch (err) {
+        said = { success: false, error: err.message, transient: true };
+      }
+      if (said.success && said.data) {
+        reading = said.data;
+      } else {
+        logger.warn(`[ProfileReport] post not read in context post=${id}: ${String(said.error || '').slice(0, 140)}`);
+        // a model that was only busy is asked again after a few hours; one that gave no usable answer is not
+        reading = { failed: true, v: reader.READING_VERSION, error: String(said.error || '').slice(0, 140), ...(said.transient ? { transient: true } : {}), at: new Date().toISOString() };
+      }
+    }
 
     const result = {
-      sentiment: intel.sentiment || 'neutral',
+      sentiment: reader.finalSentiment(classifierSentiment, reading),
+      sentiment_api: classifierSentiment,
+      reading,
       sentiment_confidence: intel.sentiment_confidence ?? null,
       risk_score: riskScore,
-      risk_level: media.scoreToLevel(riskScore, high, medium),
+      risk_level: riskLevel,
       stance: intel.stance ?? null,
       stance_confidence: intel.stance_confidence ?? null,
       tenant_name: tenantName || null,
@@ -292,7 +334,8 @@ const analyzePost = async (postId, { prisma, dbName = null } = {}) => {
       violated_policies: mapping.platform_policies || [],
       policy_triggered_keywords: mapping.triggered_keywords || [],
       language: intel.language || null,
-      english_text: cleanTranslation(intel.english_text),
+      // when the analysed words are the picture description (already English, written by us) there is no translation to show
+      english_text: textSource === 'picture' ? null : cleanTranslation(intel.english_text),
       was_translated: Boolean(intel.was_translated),
       source: intel.source || 'sentiment-api',
       model: intel.model || null,

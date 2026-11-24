@@ -85,6 +85,7 @@ const REPORT = {
     content: {
       original: 1000, shared: 100, replies: 100, with_media: 300, with_image_text: 120, with_links: 20, avg_length: 120, languages: [{ language: 'hi', count: 900 }], hashtags: [], mentions: [],
       pictures: { with_pictures: 300, described: 280, terms: [{ term: 'flag', count: 40 }, { term: 'crowd', count: 25 }], signals: [{ term: 'crowd or protest', count: 12 }, { term: 'weapon', count: 2 }] },
+      tones: [{ term: 'motivational', count: 90 }, { term: 'dark humour', count: 7 }], read_in_context: 1100,
     },
     engagement: { total: { likes: 10, shares: 2, comments: 1, views: 0 }, avg_score: 6, median_score: 6 },
     sentiment: { positive: 100, neutral: 300, negative: 700 },
@@ -96,7 +97,7 @@ const REPORT = {
   },
   evidence: [
     { n: 1, text: 'Crime is rising', english: '', image_text: '', platform: 'x', posted_at: '2026-11-01T13:00:00Z', sentiment: 'negative', risk_level: 'low', risk_score: 10, engagement: { likes: 4, shares: 1, comments: 0 } },
-    { n: 2, text: '', english: '', image_text: 'Close every market tomorrow 10am', platform: 'facebook', posted_at: '2026-11-02T13:00:00Z', sentiment: 'negative', risk_level: 'high', risk_score: 70, engagement: { likes: 6, shares: 1, comments: 1 }, url: 'https://x.com/p/2', picture_signals: ['crowd or protest', 'Flag with a sun'] },
+    { n: 2, text: '', english: '', image_text: 'Close every market tomorrow 10am', platform: 'facebook', posted_at: '2026-11-02T13:00:00Z', sentiment: 'negative', risk_level: 'high', risk_score: 70, engagement: { likes: 6, shares: 1, comments: 1 }, url: 'https://x.com/p/2', picture_signals: ['crowd or protest', 'Flag with a sun'], tone: 'call to action', meaning: 'A call to shut the markets tomorrow.' },
     { n: 3, text: '', english: '', image_text: '', scene: 'A beach at sunset with two people.', platform: 'instagram', posted_at: '2026-11-03T13:00:00Z', sentiment: 'neutral', risk_level: 'low', risk_score: 5, summary: 'A calm sunset photo with no message.', engagement: { likes: 3, shares: 0, comments: 1 }, shares_reported: false },
   ],
   markdown: '# Behaviour report',
@@ -198,6 +199,9 @@ describe('Profile Report dialog', () => {
     expect(text()).toContain('Longest silence 592 days (3 Dec 2020 → 18 Jul 2022)');
     expect(container.querySelector('[data-picture-terms]').textContent).toContain('flag');
     expect(text()).toContain('280 of 300 pictures described');
+    expect(container.querySelector('[data-tones]').textContent).toContain('motivational 90');
+    expect(container.querySelector('[data-tones]').textContent).toContain('dark humour 7');
+    expect(container.querySelector('[data-tones]').textContent).toContain('1100 of 1200 read in context');
     expect(container.querySelector('[data-picture-signals]').textContent).toContain('crowd or protest 12');
     expect(container.querySelector('[data-picture-signals]').textContent).toContain('weapon 2');
     await act(async () => { buttonNamed('Risk').click(); });
@@ -216,6 +220,11 @@ describe('Profile Report dialog', () => {
     expect(container.querySelector('#bev-P2 [data-picture-seen]').textContent).toContain('crowd or protest');
     expect(container.querySelector('#bev-P2 [data-picture-seen]').textContent).toContain('Flag with a sun');
     expect(container.querySelector('#bev-P1 [data-picture-seen]')).toBeNull();   // nothing flagged, nothing shown
+    // how the post is meant: its tone beside the labels, and what it means as its reading
+    expect(container.querySelector('#bev-P2 [data-tone]').textContent).toBe('call to action');
+    expect(container.querySelector('#bev-P2 [data-meaning]').textContent).toContain('Reading: A call to shut the markets tomorrow.');
+    expect(container.querySelector('#bev-P1 [data-tone]')).toBeNull();
+    expect(container.querySelector('#bev-P1 [data-meaning]')).toBeNull();   // no reading and no classifier note for this one
     expect(text()).toContain('Not listed: 1 post with no caption');
   });
 
@@ -233,7 +242,8 @@ describe('Profile Report dialog', () => {
     delete older.report.regional_link;
     delete older.facts.cadence.timeline; delete older.facts.cadence.longest_gap;
     delete older.facts.content.pictures;
-    older.evidence = older.evidence.map(({ picture_signals: ps, ...rest }) => rest);
+    older.evidence = older.evidence.map(({ picture_signals: ps, tone, meaning, ...rest }) => rest);
+    delete older.facts.content.tones; delete older.facts.content.read_in_context;
     delete older.facts.coverage.notes; delete older.facts.coverage.no_text; delete older.facts.coverage.waiting;
     older.evidence = older.evidence.map(({ scene, shares_reported: s, ...rest }) => rest);
     mockApi.getReport.mockResolvedValue({ data: older });
@@ -245,6 +255,7 @@ describe('Profile Report dialog', () => {
     expect(text()).toContain('Longest silence 0 days');                         // the older per-day figure
     expect(container.querySelector('[data-picture-terms]')).toBeNull();
     expect(container.querySelector('[data-picture-signals]')).toBeNull();
+    expect(container.querySelector('[data-tones]')).toBeNull();
     await act(async () => { buttonNamed('Evidence').click(); });
     expect(container.querySelector('#bev-P3').textContent).not.toContain('shares');   // an Instagram post saved earlier also hides shares
     expect(container.querySelector('[data-picture-seen]')).toBeNull();

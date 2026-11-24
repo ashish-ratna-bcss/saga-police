@@ -37,13 +37,14 @@ RULES
 13. Several accounts. A profile can combine accounts on different platforms that the user grouped as one person or organisation. Treat them as one subject, say which platform a pattern comes from, and use "platform_differences" for how the accounts differ. Do not claim the accounts are the same person beyond what the user grouped.
 14. Images. "Image text" on a post is text read from its picture. It is part of what the account published: use it as evidence and cite the post.
 15. Large histories. FACTS cover every collected post; the numbered posts are a selection chosen to show the highest-risk, most-engaged, most recent and a spread over time. Never imply the numbered posts are all the posts.
-16. Traits versus themes. A trait is what the account DOES (mobilises supporters, replies to critics, escalates, shares others' content). A theme is what it talks ABOUT. Never describe the same thing as both; if a point is only a subject, it is a theme and not a trait.
+16. Traits versus themes. A trait is a habit of the account, taken from FACTS and from the form of the posts: how often and when it posts (bursts, long silences, evenings), what format it uses (picture quotes, memes, its own photos, text only), whether it writes captions, replies, tags or shares other people's posts, whether it calls on people to act. A theme is what the posts are ABOUT. Never describe the same point as both: a subject is a theme, never a trait, and a trait must say something about behaviour that no theme already says.
 17. Plain wording. Say "Attention is Low", never the label in capitals. Do not say whether anything is legal or illegal, and do not name offences; describe what the posts say and do.
 18. No filler. If the posts show no real change over time, leave "changes_over_time" empty. Leave any list empty rather than padding it, and never copy the wording of the examples in the output contract.
 19. Shares. When FACTS say a platform does not publish share counts, a share figure of 0 for it means "not shown". Never write that the posts were not shared or reposted; describe reach by likes and comments.
 20. Pictures. "Picture" on a post describes what its photo shows, and the PICTURES line in FACTS covers all posts, not only the numbered ones. Read each post as its caption, the text printed on its picture and what the picture shows, together: say when a picture adds to, contradicts or goes beyond the caption. Use pictures as evidence and cite the post, but say only what the descriptions say: never name a person in a photo and never guess a place or an affiliation from how someone looks. Do not describe pictures you were not given a description for. "Seen in the picture" lists what the picture description flagged (a weapon, a crowd, a flag or slogan with its words); a picture alone is not proof of intent: report what it shows and cite the post, and raise a risk indicator only when the picture and the caption together show a threat, an incitement or a call to action.
 21. Region. When FACTS give a REGION, "regional_link" says whether the posts show any connection to it (place names, local language, local hashtags, named officials, events or institutions). If no post does, write exactly: "No link to <REGION> found in the posts read." Never guess nationality, residence or location from names, posting hours or the language used. With no REGION line, "regional_link" is an empty string.
-22. Watch points. Each one says what to look for and what would change the assessment, for example "Re-check if any post names a place or official in <REGION>, shows a weapon, or asks people to gather." Never write a vague line such as "monitor for any increase".`;
+22. Watch points. Each one names something specific to look for in future posts (a place, an official, a hashtag, a symbol, an object, a kind of call to action) and says what finding it would change in this assessment. Never write a general instruction to keep watching or to look for an increase.
+23. How posts are meant. "Meaning" and "tone" on a post come from a close reading of its caption, picture and writing together, and the sentiment counts already take them into account. Use them: a joke, a meme, a quote or a greeting is not the account's own anger or hostility, and do not treat it as one. Describe a joke as a joke. A joke that makes light of someone hurt or in trouble may be insensitive: call it dark humour and nothing more, and cite the post.`;
 
 const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only. No markdown, no code fences, no text before or after. Use exactly these fields:
 {
@@ -52,7 +53,7 @@ const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only. No markdown, no code fenc
  "account_type_basis": "one sentence: what in the posts shows this",
  "attention_reason": "1-2 sentences explaining the ATTENTION LEVEL given in FACTS, citing posts",
  "regional_link": "one sentence, see rule 21; an empty string when FACTS give no REGION",
- "behaviour_traits": [{"trait": "2-5 words, an action, e.g. 'Mobilises supporters for rallies'", "evidence_level": "Observed / Likely / Unclear", "detail": "1-2 sentences", "posts": [1, 2]}],
+ "behaviour_traits": [{"trait": "2-5 words, a habit of the account (see rule 16), not a subject", "evidence_level": "Observed / Likely / Unclear", "detail": "1-2 sentences saying how the account behaves and showing it with numbers from FACTS where there are any", "posts": [1, 2]}],
  "themes": [{"theme": "2-6 words", "share": "Main / Frequent / Occasional", "detail": "1-2 sentences on what the account says about it", "posts": [1]}],
  "tone": "2-3 sentences: usual tone and emotional pattern (for example calm, sarcastic, angry, celebratory, alarmist), using the sentiment counts from FACTS",
  "targets": [{"target": "a person, party, institution or group the posts name", "attitude": "Supportive / Critical / Hostile / Neutral / Mixed", "detail": "one sentence", "posts": [1]}],
@@ -100,9 +101,12 @@ const factsText = (facts, evidence = [], region = '') => {
       : []),
     `RHYTHM: ${cad.rate ? `${cad.rate.value} posts a ${cad.rate.unit}` : `${cad.posts_per_day} posts a day`} (${c.total_posts} posts over ${c.span_label || `${c.span_days} days`}); active on ${cad.active_days} days; busiest hours ${cad.busiest_hours ? `${hh(cad.busiest_hours.from)}-${hh(cad.busiest_hours.to)} (${cad.busiest_hours.posts} posts)` : 'unknown'}; busiest day ${cad.busiest_day ? `${cad.busiest_day.day} (${cad.busiest_day.posts} posts)` : 'unknown'}; ${cad.night_posts} posts between 00:00 and 05:00; longest silence ${cad.longest_gap ? `${cad.longest_gap.days} days (${cad.longest_gap.from} to ${cad.longest_gap.to})` : `${cad.longest_gap_days} days`}`,
     ...(tl ? [`ACTIVITY OVER TIME: posts in ${tl.active} of ${tl.buckets.length} ${tl.unit}s${tl.peak ? `; busiest ${tl.peak.label} (${tl.peak.posts} posts)` : ''}${tl.active <= 24 ? `; by ${tl.unit}: ${tl.buckets.filter((b) => b.posts > 0).map((b) => `${b.label} ${b.posts}`).join(', ')}` : ''}`] : []),
-    `CONTENT: ${con.original} original, ${con.shared} shared from others, ${con.replies} replies; ${con.with_media} with photos or video (${con.with_image_text || 0} with text read from the image); ${con.with_links} with links; average length ${con.avg_length} characters`,
+    `CONTENT: ${con.original} original, ${con.shared} shared from others, ${con.replies} replies; ${con.with_media} with photos or video (${con.with_image_text || 0} with text read from the image); ${con.captioned != null ? `${con.captioned} have a caption of their own and ${con.no_caption} have none (the picture is the whole post); ` : ''}${con.with_links} with links; average length ${con.avg_length} characters`,
     ...(con.pictures && con.pictures.with_pictures
       ? [`PICTURES: ${con.pictures.described} of ${con.pictures.with_pictures} posts with photos or video have a description of what the picture shows${(con.pictures.terms || []).length ? `; words that recur in those descriptions, with the number of pictures each appears in: ${con.pictures.terms.map((x) => `${x.term} ${x.count}`).join(', ')}` : ''}${(con.pictures.signals || []).length ? `; flagged in pictures (flags, symbols, weapons, crowds ...), with the number of pictures: ${con.pictures.signals.map((x) => `${x.term} ${x.count}`).join(', ')}` : ''}`]
+      : []),
+    ...((con.tones || []).length
+      ? [`HOW THE POSTS ARE MEANT (from a close reading of each post's caption, picture and writing together; ${con.read_in_context || 0} of ${c.read} posts read): ${con.tones.map((x) => `${x.term} ${x.count}`).join(', ')}`]
       : []),
     `LANGUAGES: ${list(con.languages, (x) => `${x.language} ${x.count}`)}`,
     `TOP HASHTAGS: ${list(con.hashtags, (x) => `${x.tag} (${x.count})`)}`,
@@ -139,6 +143,7 @@ const evidenceLine = (e, maxChars) => {
     e.platform || 'unknown',
     kind,
     e.sentiment ? e.sentiment.toUpperCase() : 'NOT ANALYSED',
+    e.tone ? `tone ${e.tone}` : null,
     e.risk_level ? `risk ${e.risk_level} (${e.risk_score})` : null,
     e.stance && e.stance !== 'unknown' ? `stance ${e.stance}` : null,
     `${e.engagement.likes} likes${e.shares_reported === false ? '' : ` ${e.engagement.shares} shares`} ${e.engagement.comments} comments`,
@@ -148,6 +153,7 @@ const evidenceLine = (e, maxChars) => {
   if (e.image_text) body.push(`Image text: ${clip(e.image_text, Math.round(maxChars * 0.8))}`);
   if (e.scene) body.push(`Picture: ${clip(e.scene, Math.round(maxChars * 0.7))}`);
   if ((e.picture_signals || []).length) body.push(`Seen in the picture: ${e.picture_signals.join('; ')}`);
+  if (e.meaning) body.push(`Meaning: ${clip(e.meaning, Math.round(maxChars * 0.9))}`);
   return `${head}\n${body.join('\n')}`;
 };
 
@@ -211,6 +217,8 @@ const overlap = (a, b) => {
 };
 /** Words that mean "nothing yet": the model copying the contract's example instead of saying something. */
 const PLACEHOLDER = /^(earlier|later|before|after|then|now)( (pattern|state|behaviour|activity|period))?\.?$/i;
+/** A watch point that only says "keep watching for more": it names nothing to look for and what it would change. */
+const VAGUE_WATCH = /\b(?:any|an|a)\s+(?:increase|rise|growth|change)\s+in\b|\bgrowing influence\b|\bnew hashtags?\b|^(?:keep|continue)\s+(?:to\s+)?(?:watching|monitoring)\b/i;
 
 const listOf = (v, mapFn, max) => (Array.isArray(v) ? v.map(mapFn).filter(Boolean).slice(0, max) : []);
 
@@ -265,7 +273,7 @@ const parseBehaviorReport = (rawText, { maxN, attentionLevel = 'Low' } = {}) => 
       const n = postsOf(x && (x.post ?? x.posts), maxN, 1)[0];
       return n ? { post: n, why: t(x.why, 240) } : null;
     }, 6),
-    watch_points: listOf(obj.watch_points, (x) => t(x, 240) || null, 4),
+    watch_points: listOf(obj.watch_points, (x) => { const w = t(x, 240); return w && !VAGUE_WATCH.test(w) ? w : null; }, 4),
     limitations: listOf(obj.limitations, (x) => t(x, 240) || null, 3),
   };
   // A change needs two different, real sides; a trait that only restates a theme is the same point twice.

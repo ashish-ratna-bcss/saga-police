@@ -78,6 +78,25 @@ const short = (s, max) => {
   return chars.length > max ? `${chars.slice(0, max).join('')}…` : chars.join('');
 };
 
+/** How a post is meant (the close reading), or, for posts read before readings existed, the classifier's own note. */
+const wordSet = (t) => new Set(foldText(t).split(' ').filter((w) => w.length > 2));
+/** Share of the shorter text's words that the other also has (0 to 1). */
+const wordShare = (a, b) => {
+  const x = wordSet(a);
+  const y = wordSet(b);
+  if (!x.size || !y.size) return 0;
+  let common = 0;
+  x.forEach((w) => { if (y.has(w)) common += 1; });
+  return common / Math.min(x.size, y.size);
+};
+const readingOf = (e) => {
+  if (e.meaning) {
+    // for a plain photo the reading only restates the picture line above it; a joke is always worth saying
+    return !/^joke:/i.test(e.meaning) && e.scene && wordShare(e.meaning, e.scene) >= 0.75 ? '' : e.meaning;
+  }
+  return e.sentiment && e.summary && foldText(e.summary) !== foldText(e.text) ? e.summary : '';
+};
+
 /** "12 likes · 3 comments · 4 shares", leaving shares out where the platform does not publish them. */
 const responseOf = (e) => {
   const g = e.engagement || {};
@@ -246,6 +265,7 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
     </div>
     ${(content.pictures?.terms || []).length ? `<div class="muted">What the pictures show (${n(content.pictures.described)} of ${n(content.pictures.with_pictures)} pictures described)</div>${chips(content.pictures.terms, (x) => `${x.term} · ${x.count}`)}` : ''}
     ${(content.pictures?.signals || []).length ? `<div class="muted">Flagged in pictures (flags, symbols, weapons, crowds ...)</div>${chips(content.pictures.signals, (x) => `${x.term} · ${x.count}`)}` : ''}
+    ${(content.tones || []).length ? `<div class="muted">How the posts are meant (${n(content.read_in_context)} of ${n(cov.read)} read in context)</div>${chips(content.tones, (x) => `${x.term} · ${x.count}`)}` : ''}
     <div class="muted">${n(content.original)} original · ${n(content.shared)} shared · ${n(content.replies)} replies · ${n(content.with_media)} with photo/video · ${n(content.with_links)} with links · languages: ${esc((content.languages || []).map((l) => `${l.language} ${l.count}`).join(', ') || 'not detected')}</div>`;
 
   // what the model says it cannot show, then what the numbers do not cover (posts without text, still waiting, no share counts)
@@ -261,8 +281,8 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
     ${annexRows.map((e) => `<tr>
       <td class="no">P${e.n}</td>
       <td>${esc(e.posted_at ? fmtDateTime(e.posted_at, tz) : 'undated')}<div class="muted">${esc(platformLabel(e.platform))}${e.shared ? ' · shared' : e.reply ? ' · reply' : ''}</div></td>
-      <td>${e.sentiment ? `<div>${esc(e.sentiment)}</div>` : '<div class="muted">not analysed</div>'}${e.risk_level ? `<div class="muted">risk ${esc(e.risk_level)} (${n(e.risk_score)})</div>` : ''}<div class="muted">${esc(responseOf(e))}</div></td>
-      <td>${bodyOf(e)}${e.sentiment && e.summary && foldText(e.summary) !== foldText(e.text) ? `<div class="en"><b>Reading:</b> ${esc(short(e.summary, 200))}</div>` : ''}${notable.has(e.n) ? `<div class="en"><b>Why notable:</b> ${rich((r.notable_posts.find((x) => x.post === e.n) || {}).why)}</div>` : ''}${e.url ? `<div><a href="${esc(e.url)}">${esc(e.url)}</a></div>` : ''}</td>
+      <td>${e.sentiment ? `<div>${esc(e.sentiment)}</div>` : '<div class="muted">not analysed</div>'}${e.tone ? `<div class="muted">${esc(e.tone)}</div>` : ''}${e.risk_level ? `<div class="muted">risk ${esc(e.risk_level)} (${n(e.risk_score)})</div>` : ''}<div class="muted">${esc(responseOf(e))}</div></td>
+      <td>${bodyOf(e)}${readingOf(e) ? `<div class="en"><b>Reading:</b> ${esc(short(readingOf(e), 280))}</div>` : ''}${notable.has(e.n) ? `<div class="en"><b>Why notable:</b> ${rich((r.notable_posts.find((x) => x.post === e.n) || {}).why)}</div>` : ''}${e.url ? `<div><a href="${esc(e.url)}">${esc(e.url)}</a></div>` : ''}</td>
     </tr>`).join('')}
     </tbody></table></section>` : '';
 

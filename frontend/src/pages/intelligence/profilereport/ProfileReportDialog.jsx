@@ -13,7 +13,7 @@ import { Progress } from '../../../components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
 import { cn } from '../../../lib/utils';
 import {
-  ATTENTION_STYLES, analysisProgress, citesIn, dayLabel, foldText, formatCount, formatWhen, hourLabel, limitationsOf, platformLabel, postBody, postingRate, responseText,
+  ATTENTION_STYLES, analysisProgress, citesIn, dayLabel, formatCount, formatWhen, hourLabel, limitationsOf, platformLabel, postBody, postingRate, readingOf, responseText,
   spanText, splitCites, timelineTicks, toneShare, WEEKDAYS,
 } from './reportFormat';
 
@@ -407,6 +407,18 @@ const PatternTab = ({ report, facts, onCite }) => {
               </div>
             </div>
           ) : null}
+          {content.tones?.length ? (
+            <div className="mt-3 border-t pt-2" data-tones>
+              <p className="mb-1 text-[11px] text-muted-foreground">
+                How the posts are meant <span className="text-muted-foreground/80">({content.read_in_context ?? 0} of {facts.coverage?.read ?? 0} read in context)</span>
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {content.tones.map((t) => (
+                  <span key={t.term} className="inline-flex items-center gap-0.5 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] capitalize text-violet-800">{t.term} <b className="ml-0.5 tabular-nums">{t.count}</b></span>
+                ))}
+              </div>
+            </div>
+          ) : null}
           {content.pictures?.signals?.length ? (
             <div className="mt-3 border-t pt-2" data-picture-signals>
               <p className="mb-1 text-[11px] text-muted-foreground">Flagged in pictures <span className="text-muted-foreground/80">(flags, symbols, weapons, crowds ...)</span></p>
@@ -538,6 +550,7 @@ const EvidenceTab = ({ evidence, report, highlight, timezone, coverage = {} }) =
             <span className="tabular-nums text-muted-foreground">{e.posted_at ? formatWhen(e.posted_at, timezone) : 'undated'}</span>
             <span className="text-muted-foreground">· {platformLabel(e.platform) || 'unknown'}{e.shared ? ' · shared' : e.reply ? ' · reply' : ''}</span>
             {e.sentiment ? <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-semibold capitalize text-white', TONE[e.sentiment])}>{e.sentiment}</span> : <span className="text-[10px] text-muted-foreground">not analysed</span>}
+            {e.tone ? <span className="rounded-full border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium capitalize text-violet-800" data-tone>{e.tone}</span> : null}
             {e.risk_level && e.risk_level !== 'low' ? (
               <span className={cn('rounded-full border px-1.5 py-0.5 text-[10px] font-semibold', e.risk_level === 'medium' ? PILL.Medium : PILL.High)}>
                 risk {e.risk_level} · {e.risk_score}
@@ -546,8 +559,8 @@ const EvidenceTab = ({ evidence, report, highlight, timezone, coverage = {} }) =
             <span className="ml-auto tabular-nums text-muted-foreground">{responseText(e)}</span>
           </div>
           <PostText post={e} />
-          {e.sentiment && e.summary && foldText(e.summary) !== foldText(e.text) ? (
-            <p className="mt-1 text-xs text-muted-foreground"><span className="font-semibold text-foreground">Reading:</span> {e.summary}</p>
+          {readingOf(e) ? (
+            <p className="mt-1 text-xs text-muted-foreground" data-meaning><span className="font-semibold text-foreground">Reading:</span> {readingOf(e)}</p>
           ) : null}
           {notable.has(e.n) ? <p className="mt-1.5 text-xs"><span className="font-semibold text-indigo-700">Notable:</span> {notable.get(e.n)}</p> : null}
           {e.url ? (

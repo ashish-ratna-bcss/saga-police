@@ -6,6 +6,7 @@ process.env.OCR_SERVICE_URL = 'http://gpu.test:8000';
 delete process.env.PROFILE_REPORT_VISION_URL;
 delete process.env.PROFILE_REPORT_PICTURE_DESCRIPTION;
 
+const fs = require('fs');
 const test = require('node:test');
 const assert = require('node:assert');
 const axios = require('axios');
@@ -73,6 +74,7 @@ test('what stood out in the picture: alerts and symbols, each once', () => {
 test('the model\'s JSON reply becomes the stored picture record', () => {
   const p = vision.parsePicture(JSON.stringify({
     description: 'One man sits on a green sofa and looks at the camera.',
+    kind: 'photo',
     people: 1,
     setting: 'indoor, a living room',
     objects: ['sofa', 'cushion'],
@@ -81,24 +83,126 @@ test('the model\'s JSON reply becomes the stored picture record', () => {
     alerts: [],
   }));
   assert.deepStrictEqual(p, {
-    description: 'One man sits on a green sofa and looks at the camera.', people: 1, setting: 'indoor, a living room', objects: ['sofa', 'cushion'], symbols: [], text_visible: '', alerts: [],
+    v: vision.PICTURE_VERSION, description: 'One man sits on a green sofa and looks at the camera.', kind: 'photo', people: 1, setting: 'indoor, a living room',
+    objects: ['sofa', 'cushion'], flags: [], symbols: [], text_visible: '', alerts: [], not_identified: undefined,
   });
 });
 
 test('alerts are kept only as the analyst\'s own words, symbols keep their wording, and every field is bounded', () => {
   const p = vision.parsePicture('```json\n' + JSON.stringify({
     description: 'A crowd with flags and one man holding a gun.',
+    kind: 'poster',
     people: 9999,
     setting: 'outdoor, a street',
     objects: Array.from({ length: 20 }, (_, i) => `object ${i}`),
-    symbols: ['Flag with a rising sun and the words FREE STATE'],
-    alerts: ['a gun', 'big protest crowd', 'cat', 'uniformed police', 'blood on the road'],
+    symbols: ['Banner with a rising sun and the words FREE STATE'],
+    alerts: ['a gun', 'big protest crowd', 'cat', 'military uniform', 'blood on the road', 'person hurt'],
   }) + '\n```');
   assert.strictEqual(p.people, 500, 'a count is capped');
-  assert.deepStrictEqual(p.alerts, ['weapon', 'blood or injury', 'crowd or protest', 'uniform'], 'known alerts in a fixed order; "cat" is not an alert');
+  assert.deepStrictEqual(p.alerts, ['weapon', 'blood or injury', 'person trapped, hurt or motionless', 'crowd or protest', 'military or police uniform'], 'known alerts in a fixed order; "cat" is not an alert');
   assert.strictEqual(p.objects.length, 8);
-  assert.deepStrictEqual(p.symbols, ['Flag with a rising sun and the words FREE STATE']);
-  assert.ok(Array.from(vision.parsePicture(JSON.stringify({ description: 'x'.repeat(2000) })).description).length <= 400);
+  assert.deepStrictEqual(p.symbols, ['Banner with a rising sun and the words FREE STATE'], 'a poster keeps the words on its banner');
+  assert.ok(Array.from(vision.parsePicture(JSON.stringify({ description: 'x'.repeat(2000), kind: 'poster' })).description).length <= 700);
+});
+
+test('alerts: a baby in a bath, a selfie or a quote card raise nothing, and the old over-eager words are gone', () => {
+  const names = vision.ALERTS.map(([name]) => name);
+  assert.ok(!names.includes('child') && !names.includes('nudity') && !names.includes('uniform'), 'plain "child", "nudity" and "uniform" are not alerts any more');
+  assert.ok(names.includes('person trapped, hurt or motionless') && names.includes('sexual or explicit nudity') && names.includes('child in danger'));
+  for (const said of [['child'], ['nudity'], ['baby in a bath'], ['selfie']]) {
+    assert.deepStrictEqual(vision.parsePicture(JSON.stringify({ description: 'A baby is sitting in a sink.', alerts: said })).alerts, [], JSON.stringify(said));
+  }
+  assert.deepStrictEqual(vision.parsePicture(JSON.stringify({ description: 'A person.', alerts: ['sexual or explicit nudity', 'child in danger'] })).alerts, ['sexual or explicit nudity', 'child in danger']);
+});
+
+test('people: a number, or a list the model gave instead; never NaN', () => {
+  const people = (v) => vision.parsePicture(JSON.stringify({ description: 'A group of men stands outdoors.', people: v })).people;
+  assert.strictEqual(people(3), 3);
+  assert.strictEqual(people('4'), 4);
+  assert.strictEqual(people([{ count: 2, gender: 'male' }, { count: 6, type: 'man' }]), 8);
+  assert.strictEqual(people([]), null);
+  assert.strictEqual(people('many'), null);
+  assert.strictEqual(people(-2), null);
+});
+
+/* ------------------------------------------------------------------------------ nobody is named ----------- */
+
+test('nobody is named: a name the model wrote for a person is removed and the description says so', () => {
+  const named = vision.parsePicture(JSON.stringify({ description: 'A black-and-white photograph of Sigmund Freud leaning against a wall, holding a cigar.', kind: 'quote card', people: 1 }));
+  assert.ok(!/Freud/.test(named.description), named.description);
+  assert.match(named.description, /photograph of a person leaning against a wall/);
+  assert.match(named.description, /\(Person not identified\.\)$/);
+  assert.strictEqual(named.not_identified, true);
+
+  for (const said of ['The man appears to be Bob Marley.', 'He looks like a famous actor.', 'She is a celebrity.', 'A famous singer stands on a stage.']) {
+    const out = vision.anonymise(said);
+    assert.strictEqual(out.changed, true, said);
+    assert.ok(!/Bob Marley|famous|celebrity/i.test(out.text), `${said} -> ${out.text}`);
+  }
+  assert.strictEqual(vision.anonymise('A famous singer stands on a stage.').text, 'A person stands on a stage.', 'a sentence still starts with a capital');
+});
+
+test('a name printed on a quote card is the author of the words, not the person in the photo: it is left in the quote', () => {
+  const out = vision.parsePicture(JSON.stringify({
+    description: 'A black-and-white image of a man leaning on a wall. The text overlay is a quote attributed to Sigmund Freud.', kind: 'quote card', people: 1,
+  }));
+  assert.match(out.description, /quote attributed to Sigmund Freud/);
+  assert.strictEqual(out.not_identified, undefined);
+  assert.strictEqual(vision.anonymise('This is Master Canteen Square.').changed, false, 'a place is not a person');
+  assert.strictEqual(vision.anonymise('A portrait of a man with dreadlocks.').changed, false);
+});
+
+test('the prompt itself forbids naming anyone, even a famous person, and any guess about what a flag stands for', () => {
+  const sys = fs.readFileSync(require.resolve('../src/modules/profile-report/profileReport.vision'), 'utf8');
+  assert.match(sys, /NEVER name or identify a real person: not from the face, not from a name printed in the picture, not even a famous person/);
+  assert.match(sys, /A name printed on a quote card is the author of the words/);
+  assert.match(sys, /man, woman, boy, girl, baby or child/, 'man and woman are allowed words');
+  assert.match(sys, /never say what a flag, emblem or logo stands for/i);
+});
+
+/* ------------------------------------------------------------------------------ what the picture shows ---- */
+
+test('states the model reported are said plainly in the description, so a fallen bike under a load is never "parked"', () => {
+  const p = vision.parsePicture(JSON.stringify({
+    description: 'A person is lying on the ground next to a motorcycle, with a large pile of sacks on the back of the bike.',
+    kind: 'meme', people: 1, vehicle: 'lying on its side or crashed', main_person: 'lying down', load_or_cover: 'sacks piled on top of the motorcycle',
+  }));
+  // "the person is lying down" is left out here because the description already says the person is lying on the ground
+  assert.match(p.description, /^The vehicle is lying on its side or has crashed; sacks piled on top of the motorcycle\. A person is lying on the ground/);
+  const trapped = vision.parsePicture(JSON.stringify({ description: 'A man and a motorcycle are on a dirt road.', kind: 'photo', vehicle: 'lying on its side or crashed', main_person: 'trapped or buried under objects', load_or_cover: 'sacks' }));
+  assert.match(trapped.description, /^The vehicle is lying on its side or has crashed; the person is trapped or buried under objects; sacks\./);
+  // nothing is added when the description already says it, or when the states are unremarkable
+  const said = vision.parsePicture(JSON.stringify({ description: 'The motorcycle is on its side and a man is lying on the ground.', kind: 'photo', vehicle: 'lying on its side or crashed', main_person: 'lying down' }));
+  assert.ok(!/^The vehicle is lying/.test(said.description), said.description);
+  const calm = vision.parsePicture(JSON.stringify({ description: 'A man sits in a car.', kind: 'photo', vehicle: 'upright and parked', main_person: 'sitting', load_or_cover: 'none' }));
+  assert.strictEqual(calm.description, 'A man sits in a car.');
+});
+
+test('writing in an ordinary photo is not trusted (shirts and boxes get invented words); a meme, quote card or poster keeps its writing', () => {
+  const photo = vision.parsePicture(JSON.stringify({
+    description: "A man wearing a white t-shirt with 'sport' and 'RIGA' text stands outdoors.", kind: 'photo', text_visible: 'sport RIGA',
+    symbols: ['The box features a yellow sun-like symbol and the word "NIGERIA".'],
+  }));
+  assert.strictEqual(photo.description, 'A man wearing a white t-shirt with some writing stands outdoors.');
+  assert.strictEqual(photo.text_visible, '');
+  assert.deepStrictEqual(photo.symbols, ['The box features a yellow sun-like symbol and some writing.']);
+  const meme = vision.parsePicture(JSON.stringify({ description: "A baby sits in a sink. The text reads 'If you see my mom on Facebook'.", kind: 'meme', text_visible: 'If you see my mom on Facebook' }));
+  assert.match(meme.description, /'If you see my mom on Facebook'/);
+  assert.strictEqual(meme.text_visible, 'If you see my mom on Facebook');
+  // a reply with no kind is treated like a photo
+  assert.strictEqual(vision.parsePicture(JSON.stringify({ description: "A man in a shirt with 'ABC' on it." })).description, 'A man in a shirt with some writing on it.');
+  assert.strictEqual(vision.dropQuotedWords('A man in a white shirt and red cap hands a box to another man.'), 'A man in a white shirt and red cap hands a box to another man.');
+});
+
+test('flags are asked separately and only phrases that really are a flag, banner, crest or emblem are kept', () => {
+  assert.deepStrictEqual(vision.parseFlags('["flag with red, black, green bands", "crest with lions, sun"]'), ['flag with red, black, green bands', 'crest with lions, sun']);
+  assert.deepStrictEqual(vision.parseFlags('```json\n["flag with green, black, red bands", "flag with green, black, red bands"]\n```'), ['flag with green, black, red bands'], 'each once');
+  assert.deepStrictEqual(vision.parseFlags('[]'), []);
+  assert.deepStrictEqual(vision.parseFlags('["white t-shirt with text", "red cap", "banner with a sun"]'), ['banner with a sun'], 'clothes are not flags');
+  assert.deepStrictEqual(vision.parseFlags('no flag here'), []);
+  const p = vision.parsePicture(JSON.stringify({ description: 'A man is draped in a flag.', kind: 'photo' }), { flags: ['flag with red, black, green bands'] });
+  assert.deepStrictEqual(p.flags, ['flag with red, black, green bands']);
+  assert.match(p.description, /Flags and emblems: flag with red, black, green bands\.$/);
 });
 
 test('a reply that is not JSON still gives a description when it is a sentence; an empty or useless one gives none', () => {
@@ -110,20 +214,45 @@ test('a reply that is not JSON still gives a description when it is a sentence; 
   assert.strictEqual(vision.parsePicture(JSON.stringify([1, 2, 3])), null);
 });
 
-test('the model is told to describe, never to identify, and its prompt is the one that was tried on the real model', async () => {
-  let body = null;
+test('two requests go to the model at the same time: the description, and a narrow one about flags', async () => {
+  const bodies = [];
   const original = axios.post;
-  axios.post = async (url, b) => { body = b; return { data: { choices: [{ message: { content: JSON.stringify({ description: 'A test picture.' }) } }] } }; };
+  axios.post = async (url, b) => {
+    bodies.push(b);
+    const flags = /FLAG \(a piece of cloth/.test(b.messages[1].content[1].text);
+    return reply(flags ? '["flag with red, black, green bands"]' : JSON.stringify({ description: 'A man is draped in a flag.', kind: 'photo', people: 1 }));
+  };
+  let out;
   try {
-    await vision.describePicture('https://img.test/a.jpg', { postId: '1' });
+    out = await vision.describePicture('https://img.test/a.jpg', { postId: '1' });
   } finally { axios.post = original; }
-  const system = body.messages[0].content;
-  const user = body.messages[1].content[1].text;
-  assert.match(system, /never identify anyone/);
-  assert.match(user, /do not name or identify any person/i);
-  assert.match(user, /Do not guess age, ethnicity, religion, nationality, caste or political affiliation/);
-  assert.match(user, /weapon, blood or injury, fire or smoke, crowd or protest, uniform, child, nudity, drugs or alcohol/);
-  assert.match(user, /Reply with ONE JSON object/);
+  assert.strictEqual(bodies.length, 2);
+  const main = bodies.find((b) => !/FLAG \(a piece of cloth/.test(b.messages[1].content[1].text));
+  const flags = bodies.find((b) => /FLAG \(a piece of cloth/.test(b.messages[1].content[1].text));
+  assert.strictEqual(main.temperature, 0, 'the same picture gives the same description');
+  assert.match(main.messages[0].content, /never identify|NEVER name or identify a real person/);
+  assert.match(main.messages[1].content[1].text, /Reply with ONE JSON object/);
+  assert.match(main.messages[1].content[1].text, /"vehicle": "none, or one of: upright and parked, upright and moving, lying on its side or crashed, cannot tell"/);
+  assert.match(main.messages[1].content[1].text, /A baby being bathed, people swimming, a family photo, a selfie or a quote card are NOT alerts/);
+  assert.match(flags.messages[0].content, /never read or guess any words/);
+  assert.ok(!/for example|e\.g\./i.test(flags.messages[1].content[1].text), 'no example in the flags question: the model would copy it');
+  assert.strictEqual(out.success, true);
+  assert.deepStrictEqual(out.data.flags, ['flag with red, black, green bands']);
+  assert.match(out.data.description, /Flags and emblems: flag with red, black, green bands\./);
+});
+
+test('if only the flags question fails, the description is still kept', async () => {
+  const original = axios.post;
+  axios.post = async (url, b) => {
+    if (/FLAG \(a piece of cloth/.test(b.messages[1].content[1].text)) throw new Error('socket hang up');
+    return reply(JSON.stringify({ description: 'A man sits on a sofa.', kind: 'photo', people: 1 }));
+  };
+  try {
+    const out = await vision.describePicture('https://img.test/a.jpg', { postId: '1' });
+    assert.strictEqual(out.success, true);
+    assert.deepStrictEqual(out.data.flags, []);
+    assert.strictEqual(out.data.description, 'A man sits on a sofa.');
+  } finally { axios.post = original; }
 });
 
 /* --------------------------------------------------------------------------------- talking to the server ----- */

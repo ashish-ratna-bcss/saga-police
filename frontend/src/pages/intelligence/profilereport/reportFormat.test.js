@@ -1,5 +1,5 @@
 import {
-  analysisProgress, citesIn, dayLabel, limitationsOf, platformLabel, postBody, postingRate, progressOf, relativeTime, reportLockReason, responseText, sharesShown, spanText, splitCites,
+  analysisProgress, citesIn, dayLabel, limitationsOf, platformLabel, postBody, postingRate, progressOf, readingOf, relativeTime, reportLockReason, responseText, sharesShown, spanText, splitCites,
   timelineTicks, toneShare,
 } from './reportFormat';
 
@@ -98,6 +98,20 @@ describe('Profile Report helpers', () => {
     expect(responseText({})).toBe('0 likes · 0 comments · 0 shares');
     expect(sharesShown('YouTube')).toBe(false);
     expect(sharesShown('facebook')).toBe(true);
+  });
+
+  test('a post\'s reading: what it means, or for older posts the classifier\'s note when it says something new', () => {
+    expect(readingOf({ meaning: 'Joke: the picture is the punchline.', sentiment: 'neutral', summary: 'old note', text: 'x' })).toBe('Joke: the picture is the punchline.');
+    expect(readingOf({ sentiment: 'negative', summary: 'The classifier note.', text: 'Something else' })).toBe('The classifier note.');
+    expect(readingOf({ sentiment: 'negative', summary: 'Happy new year', text: 'happy new year!' })).toBe('');   // a note that only repeats the post
+    expect(readingOf({ summary: 'A note on a post that was never analysed.' })).toBe('');
+    expect(readingOf()).toBe('');
+    // a reading that only restates the picture line next to it is left out; a joke, or a reading that adds something, is kept
+    const scene = 'A woman with braided hair is looking directly at the camera, wearing a black and white jacket with a gold chain necklace.';
+    expect(readingOf({ meaning: 'A woman with braided hair looks directly at the camera in a black and white jacket and a gold chain necklace.', scene })).toBe('');
+    expect(readingOf({ meaning: 'Joke: the picture shows a crashed bike, the real reason for not answering.', scene: 'A crashed motorcycle with a motionless person.' })).toContain('Joke:');
+    expect(readingOf({ meaning: 'A motivational message about putting your own happiness first.', scene: 'A black background with white text.' })).toContain('motivational');
+    expect(readingOf({ meaning: 'A plain post.', scene: '' })).toBe('A plain post.');
   });
 
   test('limitations: what the model cannot show, then what the numbers do not cover, each once', () => {

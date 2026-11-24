@@ -383,6 +383,9 @@ const serializePost = (r) => {
       summary: a.summary || null,
       language: a.language || null,
       english_text: cleanTranslation(a.english_text),
+      tone: a.reading && !a.reading.failed ? a.reading.tone || null : null,
+      meaning: a.reading && !a.reading.failed ? a.reading.meaning || null : null,
+      sentiment_api: a.sentiment_api || null,
       matched_keywords: Array.isArray(a.matched_keywords) ? a.matched_keywords.map((k) => (typeof k === 'string' ? k : k?.keyword)).filter(Boolean) : [],
     } : null,
     image_text: printedTextOf(r.image_analysis) || null,
@@ -420,7 +423,8 @@ const postsForReport = async (prisma, subjectId) =>
               'category', p.analysis_result->'category', 'summary', to_jsonb(left(p.analysis_result->>'summary', 400)),
               'signals', p.analysis_result->'signals', 'matched_keywords', p.analysis_result->'matched_keywords',
               'legal_sections', p.analysis_result->'legal_sections', 'language', p.analysis_result->'language',
-              'english_text', ${leanField('p.analysis_result', 'english_text', 1500)}, 'skipped', p.analysis_result->'skipped'
+              'english_text', ${leanField('p.analysis_result', 'english_text', 1500)}, 'skipped', p.analysis_result->'skipped',
+              'reading', CASE WHEN length((p.analysis_result->'reading')::text) <= 2000 THEN p.analysis_result->'reading' END
             ) AS analysis_result,
             jsonb_build_object(
               'full_text', ${leanField('p.image_analysis', 'full_text', 800)},
@@ -456,10 +460,10 @@ const requeueGarbledAnalysis = async (prisma) => exec(
  * image reader's timing statistics) go back in the queue once. Their image text is kept, so the picture is not read for
  * text again; only the description, tone and risk are redone. Every post ends up with a `picture` record (see enrichMedia),
  * so a post is never matched twice. A description that failed only because the vision server was busy is tried again
- * after 6 hours.
+ * after 6 hours, and a description made by an older version of the prompts is made again once.
  * @returns {Promise<number>} posts re-queued
  */
-const requeueForPictures = async (prisma) => exec(
+const requeueForPictures = async (prisma, { version = 1 } = {}) => exec(
   prisma,
   `UPDATE profile_report_posts
       SET analysis_status = 'pending', analysis_attempts = 0, claimed_at = NULL, analysis_error = NULL
@@ -467,7 +471,29 @@ const requeueForPictures = async (prisma) => exec(
       AND jsonb_typeof(media_urls) = 'array' AND jsonb_array_length(media_urls) > 0
       AND (image_analysis IS NULL OR image_analysis->'picture' IS NULL
            OR (image_analysis->'picture'->>'transient' = 'true'
-               AND (image_analysis->'picture'->>'at')::timestamptz < NOW() - INTERVAL '6 hours'))`
+               AND (image_analysis->'picture'->>'at')::timestamptz < NOW() - INTERVAL '6 hours')
+           OR (image_analysis->'picture'->>'description' IS NOT NULL
+               AND COALESCE((image_analysis->'picture'->>'v')::int, 1) < $1::int))`,
+  version
+);
+
+/**
+ * Posts that have not been read in context yet (analysed before readings existed, or by an older version of the reading
+ * prompt) go back in the queue once. A reading that failed only because the model was busy is tried again after 6 hours;
+ * every analysed post ends with a `reading` record (a reading, or a failure), so none is queued twice.
+ * @returns {Promise<number>} posts re-queued
+ */
+const requeueForReading = async (prisma, { version = 1 } = {}) => exec(
+  prisma,
+  `UPDATE profile_report_posts
+      SET analysis_status = 'pending', analysis_attempts = 0, claimed_at = NULL, analysis_error = NULL
+    WHERE analysis_status = 'done'
+      AND (analysis_result->'reading' IS NULL
+           OR (analysis_result->'reading'->>'failed' IS DISTINCT FROM 'true'
+               AND COALESCE((analysis_result->'reading'->>'v')::int, 0) < $1::int)
+           OR (analysis_result->'reading'->>'transient' = 'true'
+               AND (analysis_result->'reading'->>'at')::timestamptz < NOW() - INTERVAL '6 hours'))`,
+  version
 );
 
 module.exports = {
@@ -494,6 +520,7 @@ module.exports = {
   subjectCounts,
   requeueGarbledAnalysis,
   requeueForPictures,
+  requeueForReading,
   imageTextOf,
   printedTextOf,
 };

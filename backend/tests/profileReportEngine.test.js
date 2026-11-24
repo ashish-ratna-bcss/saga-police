@@ -423,7 +423,7 @@ test('parser: "the most engaged posts are P1, P3 and P7" becomes links, and numb
 test('the prompt asks for behaviour in traits and subjects in themes, forbids legal conclusions and placeholder lists', () => {
   const { buildSystemPrompt } = require('../src/modules/profile-report/report/reportPrompt');
   const p = buildSystemPrompt();
-  assert.match(p, /A trait is what the account DOES[\s\S]*A theme is what it talks ABOUT/);
+  assert.match(p, /A trait is a habit of the account[\s\S]*A theme is what the posts are ABOUT/);
   assert.match(p, /Do not say whether anything is legal or illegal/);
   assert.match(p, /never the label in capitals/);
   assert.match(p, /leave "changes_over_time" empty/);

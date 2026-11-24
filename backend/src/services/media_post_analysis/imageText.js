@@ -67,7 +67,16 @@ const mediaTextOf = (reading, { sep = '\n', visible = true } = {}) => {
   return parts.filter(Boolean).join(sep).trim();
 };
 
-const cut = (text, max) => Array.from(text).slice(0, max).join('').trim();
+/** Shorten to `max` characters at the end of a sentence if there is one in the second half, otherwise at a word, with an ellipsis. Never mid-word. */
+const cut = (text, max) => {
+  const chars = Array.from(String(text));
+  if (chars.length <= max) return chars.join('').trim();
+  const slice = chars.slice(0, max).join('');
+  const sentenceEnd = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('! '), slice.lastIndexOf('? '));
+  if (sentenceEnd > max * 0.5) return slice.slice(0, sentenceEnd + 1).trim();
+  const space = slice.lastIndexOf(' ');
+  return `${slice.slice(0, space > max * 0.5 ? space : max).trim()}…`;
+};
 
 /**
  * What the picture shows, apart from any text printed on it. The description written by the vision model
@@ -84,11 +93,11 @@ const sceneOf = (reading, max = 400) => {
   return cut(text, max);
 };
 
-/** What the vision model says is notable in the picture: symbols and anything that bears on risk. Empty when it saw nothing. */
+/** What the vision model says is notable in the picture: anything that bears on risk, flags, and other symbols. Empty when it saw nothing. */
 const signalsOf = (reading) => {
   const p = reading && typeof reading === 'object' ? reading.picture : null;
   if (!p || typeof p !== 'object' || p.failed) return [];
-  const all = [...(Array.isArray(p.alerts) ? p.alerts : []), ...(Array.isArray(p.symbols) ? p.symbols : [])]
+  const all = [...(Array.isArray(p.alerts) ? p.alerts : []), ...(Array.isArray(p.flags) ? p.flags : []), ...(Array.isArray(p.symbols) ? p.symbols : [])]
     .map((x) => flatten(x))
     .filter(Boolean);
   return all.filter((x, i) => all.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i).slice(0, 8);

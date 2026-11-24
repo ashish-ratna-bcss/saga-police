@@ -5,7 +5,7 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
 import { cn } from '../../../lib/utils';
-import { formatCount, formatWhen, platformLabel, postBody } from './reportFormat';
+import { formatCount, formatWhen, platformLabel, postBody, readingOf } from './reportFormat';
 
 const PAGE_SIZE = 30;
 const ALL = 'all';
@@ -58,7 +58,15 @@ const AnalysisChips = ({ post }) => {
   if (post.analysis_status === 'done' && a) {
     return (
       <>
-        {a.sentiment ? <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-semibold capitalize text-white', TONE[a.sentiment] || 'bg-slate-400')}>{a.sentiment}</span> : null}
+        {a.sentiment ? (
+          <span
+            className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-semibold capitalize text-white', TONE[a.sentiment] || 'bg-slate-400')}
+            title={a.sentiment_api && a.sentiment_api !== a.sentiment ? `The classifier said ${a.sentiment_api}; read in context it is ${a.sentiment}.` : undefined}
+          >
+            {a.sentiment}
+          </span>
+        ) : null}
+        {a.tone && a.tone !== 'unclear' ? <span className="rounded-full border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium capitalize text-violet-800" data-tone>{a.tone}</span> : null}
         {a.risk_level ? (
           <span className={cn('rounded-full border px-1.5 py-0.5 text-[10px] font-semibold capitalize', RISK[a.risk_level] || RISK.low)}>
             risk {a.risk_level}{a.risk_score != null ? ` · ${a.risk_score}` : ''}
@@ -112,6 +120,11 @@ const PostCard = ({ post }) => {
       {body.picture ? (
         <p className="mt-1 line-clamp-3 border-l-2 border-fuchsia-200 pl-2 text-xs text-muted-foreground">
           <ImageIcon className="mr-1 inline h-3 w-3 text-fuchsia-700" /><span className="font-semibold text-fuchsia-700">Picture</span> {body.picture}
+        </p>
+      ) : null}
+      {readingOf({ meaning: post.analysis?.meaning, scene: post.image_description }) ? (
+        <p className="mt-1 text-xs" data-meaning>
+          <span className="font-semibold text-foreground">Reading</span> <span className="text-muted-foreground">{post.analysis.meaning}</span>
         </p>
       ) : null}
       {post.image_signals?.length ? (

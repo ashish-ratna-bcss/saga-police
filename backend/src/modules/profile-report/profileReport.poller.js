@@ -11,6 +11,7 @@ const store = require('./profileReport.store');
 const { pollCollections } = require('./profileReport.collect');
 const { enqueuePending } = require('./profileReport.analyze');
 const vision = require('./profileReport.vision');
+const reader = require('./profileReport.reading');
 
 const POLL_MS = Math.max(3000, Number(process.env.PROFILE_REPORT_POLL_MS) || 15000);
 const SWEEP_MS = 60 * 60 * 1000;
@@ -40,8 +41,11 @@ const tenantTurn = async (dbName, { sweep = false } = {}) => {
     const garbled = Number(await store.requeueGarbledAnalysis(prisma)) || 0;
     if (garbled > 0) logger.warn(`[ProfileReport] tenant=${dbName}: ${garbled} posts were analysed on a garbled picture description and are being analysed again`);
     // Posts with a picture that has not been described yet (older posts, or ones judged on the reader's timing statistics) get a description.
-    const pictures = vision.enabled() ? Number(await store.requeueForPictures(prisma)) || 0 : 0;
+    const pictures = vision.enabled() ? Number(await store.requeueForPictures(prisma, { version: vision.PICTURE_VERSION })) || 0 : 0;
     if (pictures > 0) logger.warn(`[ProfileReport] tenant=${dbName}: ${pictures} posts with pictures are being analysed again so the pictures can be described`);
+    // Posts that have not been read in context yet (what the post means, whether it is a joke, its tone) are read once.
+    const readings = reader.enabled() ? Number(await store.requeueForReading(prisma, { version: reader.READING_VERSION })) || 0 : 0;
+    if (readings > 0) logger.warn(`[ProfileReport] tenant=${dbName}: ${readings} posts are being analysed again so they can be read in context`);
   }
   await pollCollections(prisma, dbName);
   await enqueuePending(prisma, dbName);

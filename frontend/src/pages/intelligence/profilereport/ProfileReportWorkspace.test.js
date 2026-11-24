@@ -44,7 +44,7 @@ const subject = (id, name, extra = {}) => ({
 const POSTS = {
   total: 2, page: 1, limit: 30, total_pages: 1,
   posts: [
-    { id: '2', platform: 'x', url: 'https://x.com/a/status/2', text: 'second post text', kind: 'original', media_urls: [], engagement: { likes: 12 }, posted_at: '2026-11-02T10:00:00Z', analysis_status: 'done', analysis: { sentiment: 'negative', risk_level: 'high', risk_score: 80, stance: 'oppose', category: 'protest', matched_keywords: ['bandh'], english_text: null }, image_text: 'RALLY 10am', image_description: 'A crowd with flags at a rally.', image_signals: ['crowd or protest', 'Flag with a sun'] },
+    { id: '2', platform: 'x', url: 'https://x.com/a/status/2', text: 'second post text', kind: 'original', media_urls: [], engagement: { likes: 12 }, posted_at: '2026-11-02T10:00:00Z', analysis_status: 'done', analysis: { sentiment: 'neutral', sentiment_api: 'negative', tone: 'dark humour', meaning: 'Joke: the caption blames someone for not answering while the picture shows a crashed bike.', risk_level: 'high', risk_score: 80, stance: 'oppose', category: 'protest', matched_keywords: ['bandh'], english_text: null }, image_text: 'RALLY 10am', image_description: 'A crowd with flags at a rally.', image_signals: ['crowd or protest', 'Flag with a sun'] },
     { id: '1', platform: 'x', url: null, text: 'first post text', kind: 'shared', media_urls: [], engagement: {}, posted_at: '2026-11-01T10:00:00Z', analysis_status: 'pending', analysis: null, image_text: null },
   ],
 };
@@ -129,6 +129,12 @@ describe('Profile Report workspace', () => {
     expect(t).toContain('RALLY 10am');
     expect(t).toContain('Picture');
     expect(t).toContain('A crowd with flags at a rally.');   // what the picture shows, apart from the words printed on it
+    // how the post is meant: its tone, what it means, and that the sentiment was read in context
+    expect(container.querySelector('[data-tone]').textContent).toBe('dark humour');
+    expect(container.querySelectorAll('[data-tone]').length).toBe(1);   // the post that has not been read has no tone
+    expect(container.querySelector('[data-meaning]').textContent).toContain('Reading');
+    expect(container.querySelector('[data-meaning]').textContent).toContain('Joke: the caption blames someone for not answering');
+    expect(container.querySelector('span[title^="The classifier said negative"]').textContent).toBe('neutral');
     expect(container.querySelectorAll('[data-picture-seen]').length).toBe(1);   // only the post with something flagged
     expect(container.querySelector('[data-picture-seen]').textContent).toContain('Seen in the picture');
     expect(container.querySelector('[data-picture-seen]').textContent).toContain('Flag with a sun');
