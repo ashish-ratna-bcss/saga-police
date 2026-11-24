@@ -65,7 +65,8 @@ const bodyOf = (e) => {
   const english = String(e.english || '').trim();
   const showEnglish = english && foldText(english) !== foldText(text) && foldText(english) !== foldText(image);
   const en = showEnglish ? `<div class="en">EN: ${esc(english)}</div>` : '';
-  const pic = scene && foldText(scene) !== foldText(text) && foldText(scene) !== foldText(image) ? `<div class="en">Picture: ${esc(scene)}</div>` : '';
+  const seen = (e.picture_signals || []).length ? `<div class="en"><b>Seen in the picture:</b> ${esc(e.picture_signals.join(' · '))}</div>` : '';
+  const pic = scene && foldText(scene) !== foldText(text) && foldText(scene) !== foldText(image) ? `<div class="en">Picture: ${esc(scene)}</div>${seen}` : seen;
   if (!text && image) return `<div><span class="tag">Image post</span> ${esc(image)}</div>${en}${pic}`;
   if (!text && pic) return `<div><span class="tag">Image post</span> <span class="muted">no caption, no text on the picture</span></div>${pic}${en}`;
   const imageLine = image && foldText(image) !== foldText(text) ? `<div class="en">Image text: ${esc(image)}</div>` : '';
@@ -243,7 +244,8 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
       <div><div class="muted">Top hashtags</div>${chips(content.hashtags, (x) => `${x.tag} · ${x.count}`)}</div>
       <div><div class="muted">Most mentioned</div>${chips(content.mentions, (x) => `${x.handle} · ${x.count}`)}</div>
     </div>
-    ${(content.pictures?.terms || []).length ? `<div class="muted">What the pictures show (${n(content.pictures.described)} of ${n(content.pictures.with_pictures)} described by the image reader)</div>${chips(content.pictures.terms, (x) => `${x.term} · ${x.count}`)}` : ''}
+    ${(content.pictures?.terms || []).length ? `<div class="muted">What the pictures show (${n(content.pictures.described)} of ${n(content.pictures.with_pictures)} pictures described)</div>${chips(content.pictures.terms, (x) => `${x.term} · ${x.count}`)}` : ''}
+    ${(content.pictures?.signals || []).length ? `<div class="muted">Flagged in pictures (flags, symbols, weapons, crowds ...)</div>${chips(content.pictures.signals, (x) => `${x.term} · ${x.count}`)}` : ''}
     <div class="muted">${n(content.original)} original · ${n(content.shared)} shared · ${n(content.replies)} replies · ${n(content.with_media)} with photo/video · ${n(content.with_links)} with links · languages: ${esc((content.languages || []).map((l) => `${l.language} ${l.count}`).join(', ') || 'not detected')}</div>`;
 
   // what the model says it cannot show, then what the numbers do not cover (posts without text, still waiting, no share counts)

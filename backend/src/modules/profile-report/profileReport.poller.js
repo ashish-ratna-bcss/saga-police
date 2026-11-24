@@ -10,6 +10,7 @@ const { ensureTables } = require('./profileReport.schema');
 const store = require('./profileReport.store');
 const { pollCollections } = require('./profileReport.collect');
 const { enqueuePending } = require('./profileReport.analyze');
+const vision = require('./profileReport.vision');
 
 const POLL_MS = Math.max(3000, Number(process.env.PROFILE_REPORT_POLL_MS) || 15000);
 const SWEEP_MS = 60 * 60 * 1000;
@@ -19,8 +20,9 @@ let timer = null;
 let busy = false;
 let lastSweep = 0;
 const nudges = new Map();
-/** Tenants whose garbled analyses were already put back in the queue by this process (once is enough). */
-const repaired = new Set();
+/** When each tenant's posts were last checked for ones that need analysing again (garbled text, no picture description). */
+const repairedAt = new Map();
+const REPAIR_EVERY_MS = 30 * 60 * 1000;
 
 /**
  * One tenant's turn. Only tenants that already use the module are touched: the tables are created by the first
@@ -32,11 +34,14 @@ const tenantTurn = async (dbName, { sweep = false } = {}) => {
   const [{ t } = {}] = await prisma.$queryRawUnsafe(`SELECT to_regclass('public.profile_report_accounts')::text AS t`);
   if (!t) return;
   await ensureTables(prisma);
-  if (!repaired.has(dbName)) {
+  if (Date.now() - (repairedAt.get(dbName) || 0) > REPAIR_EVERY_MS) {
+    repairedAt.set(dbName, Date.now());
     // Posts analysed on the text "[object Object]" (a picture description that arrived as structured data) are analysed again.
-    const n = Number(await store.requeueGarbledAnalysis(prisma)) || 0;
-    repaired.add(dbName);
-    if (n > 0) logger.warn(`[ProfileReport] tenant=${dbName}: ${n} posts were analysed on a garbled picture description and are being analysed again`);
+    const garbled = Number(await store.requeueGarbledAnalysis(prisma)) || 0;
+    if (garbled > 0) logger.warn(`[ProfileReport] tenant=${dbName}: ${garbled} posts were analysed on a garbled picture description and are being analysed again`);
+    // Posts with a picture that has not been described yet (older posts, or ones judged on the reader's timing statistics) get a description.
+    const pictures = vision.enabled() ? Number(await store.requeueForPictures(prisma)) || 0 : 0;
+    if (pictures > 0) logger.warn(`[ProfileReport] tenant=${dbName}: ${pictures} posts with pictures are being analysed again so the pictures can be described`);
   }
   await pollCollections(prisma, dbName);
   await enqueuePending(prisma, dbName);

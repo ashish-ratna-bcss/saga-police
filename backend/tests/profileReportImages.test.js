@@ -324,13 +324,13 @@ test('pictures: what they show is summed up across ALL posts, and the report say
   assert.ok(!terms.rice, 'a word in a single picture is not a pattern');
   assert.ok(!pic.terms.some((x) => /^(man|woman|men|women)$/.test(x.term)), 'no gender words');
   // the note counts only posts the reader has already looked at: post 6 is simply waiting
-  assert.ok(f.coverage.notes.includes('The image reader gave no description for 1 of 5 analysed posts with pictures, so those are judged from their caption and any printed text only.'));
+  assert.ok(f.coverage.notes.includes('1 of 5 analysed posts with pictures have no description of the picture, so those are judged from their caption and any printed text only.'));
 });
 
 test('pictures: the model is told what the pictures show, for every post and not only the numbered ones', () => {
   const rows = normalisePosts(PICTURES(), { timezone: 'Asia/Kolkata' });
   const ctx = buildUserContext({ facts: facts(rows), evidence: selectEvidence(rows, { max: 3 }) });
-  assert.match(ctx, /PICTURES: 4 of 6 posts with photos or video have a description of what the picture shows \(from the image reader\); words that recur in those descriptions, with the number of pictures each appears in: flag 3, crowd 2/);
+  assert.match(ctx, /PICTURES: 4 of 6 posts with photos or video have a description of what the picture shows; words that recur in those descriptions, with the number of pictures each appears in: flag 3, crowd 2/);
   assert.match(ctx, /Picture: /);
   assert.match(buildSystemPrompt(), /caption, the text printed on its picture and what the picture shows, together/);
   assert.match(buildSystemPrompt(), /Do not describe pictures you were not given a description for/);
@@ -341,7 +341,7 @@ test('pictures: the model is told what the pictures show, for every post and not
 
 test('pictures: the PDF shows what they show, and an older report without the summary still opens', () => {
   const { html, f, evidence } = pdfFor(PICTURES());
-  assert.match(html, /What the pictures show \(4 of 6 described by the image reader\)/);
+  assert.match(html, /What the pictures show \(4 of 6 pictures described\)/);
   assert.match(html, /<span>flag · 3<\/span>/);
   assert.match(html, /Picture: A large crowd holding flags in front of a stage\./);
   const old = JSON.parse(JSON.stringify(f));

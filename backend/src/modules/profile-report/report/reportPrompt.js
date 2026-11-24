@@ -41,7 +41,7 @@ RULES
 17. Plain wording. Say "Attention is Low", never the label in capitals. Do not say whether anything is legal or illegal, and do not name offences; describe what the posts say and do.
 18. No filler. If the posts show no real change over time, leave "changes_over_time" empty. Leave any list empty rather than padding it, and never copy the wording of the examples in the output contract.
 19. Shares. When FACTS say a platform does not publish share counts, a share figure of 0 for it means "not shown". Never write that the posts were not shared or reposted; describe reach by likes and comments.
-20. Pictures. "Picture" on a post describes what its photo shows, and the PICTURES line in FACTS covers all posts, not only the numbered ones. Read each post as its caption, the text printed on its picture and what the picture shows, together: say when a picture adds to, contradicts or goes beyond the caption. Use pictures as evidence and cite the post, but say only what the descriptions say: never name a person in a photo and never guess a place or an affiliation from how someone looks. Do not describe pictures you were not given a description for.
+20. Pictures. "Picture" on a post describes what its photo shows, and the PICTURES line in FACTS covers all posts, not only the numbered ones. Read each post as its caption, the text printed on its picture and what the picture shows, together: say when a picture adds to, contradicts or goes beyond the caption. Use pictures as evidence and cite the post, but say only what the descriptions say: never name a person in a photo and never guess a place or an affiliation from how someone looks. Do not describe pictures you were not given a description for. "Seen in the picture" lists what the picture description flagged (a weapon, a crowd, a flag or slogan with its words); a picture alone is not proof of intent: report what it shows and cite the post, and raise a risk indicator only when the picture and the caption together show a threat, an incitement or a call to action.
 21. Region. When FACTS give a REGION, "regional_link" says whether the posts show any connection to it (place names, local language, local hashtags, named officials, events or institutions). If no post does, write exactly: "No link to <REGION> found in the posts read." Never guess nationality, residence or location from names, posting hours or the language used. With no REGION line, "regional_link" is an empty string.
 22. Watch points. Each one says what to look for and what would change the assessment, for example "Re-check if any post names a place or official in <REGION>, shows a weapon, or asks people to gather." Never write a vague line such as "monitor for any increase".`;
 
@@ -102,7 +102,7 @@ const factsText = (facts, evidence = [], region = '') => {
     ...(tl ? [`ACTIVITY OVER TIME: posts in ${tl.active} of ${tl.buckets.length} ${tl.unit}s${tl.peak ? `; busiest ${tl.peak.label} (${tl.peak.posts} posts)` : ''}${tl.active <= 24 ? `; by ${tl.unit}: ${tl.buckets.filter((b) => b.posts > 0).map((b) => `${b.label} ${b.posts}`).join(', ')}` : ''}`] : []),
     `CONTENT: ${con.original} original, ${con.shared} shared from others, ${con.replies} replies; ${con.with_media} with photos or video (${con.with_image_text || 0} with text read from the image); ${con.with_links} with links; average length ${con.avg_length} characters`,
     ...(con.pictures && con.pictures.with_pictures
-      ? [`PICTURES: ${con.pictures.described} of ${con.pictures.with_pictures} posts with photos or video have a description of what the picture shows (from the image reader)${(con.pictures.terms || []).length ? `; words that recur in those descriptions, with the number of pictures each appears in: ${con.pictures.terms.map((x) => `${x.term} ${x.count}`).join(', ')}` : ''}`]
+      ? [`PICTURES: ${con.pictures.described} of ${con.pictures.with_pictures} posts with photos or video have a description of what the picture shows${(con.pictures.terms || []).length ? `; words that recur in those descriptions, with the number of pictures each appears in: ${con.pictures.terms.map((x) => `${x.term} ${x.count}`).join(', ')}` : ''}${(con.pictures.signals || []).length ? `; flagged in pictures (flags, symbols, weapons, crowds ...), with the number of pictures: ${con.pictures.signals.map((x) => `${x.term} ${x.count}`).join(', ')}` : ''}`]
       : []),
     `LANGUAGES: ${list(con.languages, (x) => `${x.language} ${x.count}`)}`,
     `TOP HASHTAGS: ${list(con.hashtags, (x) => `${x.tag} (${x.count})`)}`,
@@ -147,6 +147,7 @@ const evidenceLine = (e, maxChars) => {
   if (e.english) body.push(`English: ${clip(e.english, maxChars)}`);
   if (e.image_text) body.push(`Image text: ${clip(e.image_text, Math.round(maxChars * 0.8))}`);
   if (e.scene) body.push(`Picture: ${clip(e.scene, Math.round(maxChars * 0.7))}`);
+  if ((e.picture_signals || []).length) body.push(`Seen in the picture: ${e.picture_signals.join('; ')}`);
   return `${head}\n${body.join('\n')}`;
 };
 

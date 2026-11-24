@@ -114,6 +114,12 @@ const PostCard = ({ post }) => {
           <ImageIcon className="mr-1 inline h-3 w-3 text-fuchsia-700" /><span className="font-semibold text-fuchsia-700">Picture</span> {body.picture}
         </p>
       ) : null}
+      {post.image_signals?.length ? (
+        <p className="mt-1 flex flex-wrap items-center gap-1 text-xs" data-picture-seen>
+          <span className="font-semibold text-amber-800">Seen in the picture</span>
+          {post.image_signals.map((s) => <span key={s} className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-900">{s}</span>)}
+        </p>
+      ) : null}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <AnalysisChips post={post} />
         {(post.analysis?.matched_keywords || []).slice(0, 3).map((k) => (

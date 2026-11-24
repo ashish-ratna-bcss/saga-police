@@ -16,7 +16,8 @@ const intelligenceClient = require('../intelligence/intelligence.client.service'
 const mappingService = require('../settings/mapping.service');
 const { extractOcr, extractVideo } = require('../../services/media_post_analysis/extractOcr');
 const media = require('../../services/media_post_analysis/analyzeMediaPost');
-const { cleanTranslation } = require('../../services/media_post_analysis/imageText');
+const { cleanTranslation, sceneOf, signalsOf } = require('../../services/media_post_analysis/imageText');
+const vision = require('./profileReport.vision');
 const store = require('./profileReport.store');
 const { json, cleanDeep } = require('./profileReport.util');
 
@@ -35,6 +36,8 @@ const OCR_TRANSIENT_RETRIES = 2;
 const limits = {
   /** The shared OCR client has no timeout of its own (a hung service would hold a post for ever), so this module sets one. */
   ocrBudgetMs: Math.max(20000, Number(process.env.PROFILE_REPORT_OCR_BUDGET_MS) || 150000),
+  /** The vision model answers in a second or two; this only stops a hung server from holding a post. */
+  pictureBudgetMs: Math.max(15000, Number(process.env.PROFILE_REPORT_PICTURE_BUDGET_MS) || 100000),
   videoBudgetMs: 300000,
   /** Posts that take longer than this are named in the log, with the step that was slow. */
   slowMs: 60000,
@@ -106,45 +109,108 @@ const whyNotClaimed = async (prisma) => {
 /** A picture that already has a reading: text on it, a description, or a summary (the reader sometimes gives only a summary). */
 const alreadyRead = (img) => media.hasMediaAnalysis(img) || Boolean(img && typeof img === 'object' && !img.failed && img.summary);
 
+/**
+ * Every post with a picture ends up with a `picture` record: what the vision model saw, or a note on why there is none
+ * ('no_image', 'video', 'image_unavailable', or a failure). That record is what stops a post being queued for a
+ * description again and again.
+ */
+
+/**
+ * Step 1: text from the post's picture (OCR), then what the picture shows (vision model). Never fails the post.
+ * @returns {{ ocr: object|null, retryLater: boolean, ms: number }} retryLater: a service was busy or dropped the connection
+ */
 const enrichMedia = async (prisma, post, dbName) => {
-  if (alreadyRead(post.image_analysis)) return { ocr: post.image_analysis, retryLater: false, ms: 0 };
   const id = String(post.id);
   const t0 = Date.now();
+  const hasMedia = Array.isArray(post.media_urls) ? post.media_urls.length > 0 : Boolean(post.media_urls);
+  const wantsPicture = vision.enabled() && hasMedia;
   const saveMarker = (data) => store.exec(prisma, `UPDATE profile_report_posts SET image_analysis = $2::jsonb WHERE id = $1::bigint`, id, json(data, {}));
+  const mergeMarker = (patch) => store.exec(prisma, `UPDATE profile_report_posts SET image_analysis = COALESCE(image_analysis, '{}'::jsonb) || $2::jsonb WHERE id = $1::bigint`, id, json(patch, {}));
+  const skipPicture = async (why, reading) => {
+    if (!wantsPicture || (reading && reading.picture)) return reading;
+    const next = { ...(reading || {}), picture: { skipped: why } };
+    await mergeMarker({ picture: next.picture });
+    return next;
+  };
 
-  if (VIDEO_ANALYSIS) {
-    const videoUrl = media.extractFirstVideoUrl(post);
-    if (videoUrl) {
-      await heartbeat(prisma, id);
-      let res;
-      try { res = await withBudget(extractVideo(videoUrl, { postId: id, tenantKey: dbName }), limits.videoBudgetMs, 'Video analysis'); } catch (err) { res = { success: false, error: err.message }; }
-      const data = res.success && res.data ? { media_type: 'video', ...res.data } : { error: res.error, failed: true, media_type: 'video' };
-      await saveMarker(data);
-      return { ocr: data.failed ? null : data, retryLater: false, ms: Date.now() - t0 };
+  let reading = post.image_analysis && typeof post.image_analysis === 'object' && !Array.isArray(post.image_analysis) ? post.image_analysis : null;
+  const imageUrl = media.extractFirstImageUrl(post);
+
+  if (!alreadyRead(reading)) {
+    if (VIDEO_ANALYSIS) {
+      const videoUrl = media.extractFirstVideoUrl(post);
+      if (videoUrl) {
+        await heartbeat(prisma, id);
+        let res;
+        try { res = await withBudget(extractVideo(videoUrl, { postId: id, tenantKey: dbName }), limits.videoBudgetMs, 'Video analysis'); } catch (err) { res = { success: false, error: err.message }; }
+        const data = res.success && res.data ? { media_type: 'video', ...res.data } : { error: res.error, failed: true, media_type: 'video' };
+        const stored = wantsPicture ? { ...data, picture: { skipped: 'video' } } : data;
+        await saveMarker(stored);
+        return { ocr: stored.failed ? null : stored, retryLater: false, ms: Date.now() - t0 };
+      }
+    }
+
+    if (!imageUrl) return { ocr: await skipPicture('no_image', null), retryLater: false, ms: 0 };
+    await heartbeat(prisma, id);
+    let res;
+    try {
+      res = await withBudget(extractOcr(imageUrl, { postId: id, tenantKey: dbName }), limits.ocrBudgetMs, 'The image reader');
+    } catch (err) {
+      res = { success: false, error: err.message, attempts: 1 };
+    }
+    if (res.success && res.data) {
+      reading = res.data;
+      await saveMarker(reading);
+    } else {
+      // Busy or unreachable reader: try this post again shortly (a few times) instead of losing its image text for good.
+      if (isTransientImageFailure(res) && (Number(post.analysis_attempts) || 0) < OCR_TRANSIENT_RETRIES) {
+        return { ocr: null, retryLater: true, ms: Date.now() - t0 };
+      }
+      logger.warn(`[ProfileReport] image text not read for post ${id}: ${String(res.error || '').slice(0, 160)}`);
+      await saveMarker({ error: res.error, failed: true, attempts: res.attempts, ...(wantsPicture ? { picture: { skipped: 'image_unavailable' } } : {}) });
+      return { ocr: null, retryLater: false, ms: Date.now() - t0 };
     }
   }
 
-  const imageUrl = media.extractFirstImageUrl(post);
-  if (!imageUrl) return { ocr: null, retryLater: false, ms: 0 };
+  // Step 2: what the picture shows. Skipped for a picture that has a record already, or that cannot be fetched.
+  if (!wantsPicture) return { ocr: reading, retryLater: false, ms: Date.now() - t0 };
+  if (reading && reading.picture) return { ocr: reading, retryLater: false, ms: Date.now() - t0 };
+  if (!imageUrl) return { ocr: await skipPicture('no_image', reading), retryLater: false, ms: Date.now() - t0 };
   await heartbeat(prisma, id);
-  let res;
+  let seen;
   try {
-    res = await withBudget(extractOcr(imageUrl, { postId: id, tenantKey: dbName }), limits.ocrBudgetMs, 'The image reader');
+    seen = await withBudget(vision.describePicture(imageUrl, { postId: id }), limits.pictureBudgetMs, 'The picture description');
   } catch (err) {
-    res = { success: false, error: err.message, attempts: 1 };
+    seen = { success: false, error: err.message };
   }
-  const ms = Date.now() - t0;
-  if (res.success && res.data) {
-    await saveMarker(res.data);
-    return { ocr: res.data, retryLater: false, ms };
+  if (seen.success && seen.data) {
+    reading = { ...(reading || {}), picture: seen.data };
+    await mergeMarker({ picture: seen.data });
+  } else if (isTransientImageFailure(seen) && (Number(post.analysis_attempts) || 0) < OCR_TRANSIENT_RETRIES) {
+    return { ocr: reading, retryLater: true, ms: Date.now() - t0 };
+  } else {
+    logger.warn(`[ProfileReport] picture not described for post ${id}: ${String(seen.error || '').slice(0, 160)}`);
+    // a service that was only busy is asked again after a few hours; a picture it cannot describe is not
+    const record = { failed: true, error: String(seen.error || '').slice(0, 160), ...(isTransientImageFailure(seen) ? { transient: true } : {}), at: new Date().toISOString() };
+    reading = { ...(reading || {}), picture: record };
+    await mergeMarker({ picture: record });
   }
-  // Busy or unreachable reader: try this post again shortly (a few times) instead of losing its image text for good.
-  if (isTransientImageFailure(res) && (Number(post.analysis_attempts) || 0) < OCR_TRANSIENT_RETRIES) {
-    return { ocr: null, retryLater: true, ms };
-  }
-  logger.warn(`[ProfileReport] image text not read for post ${id}: ${String(res.error || '').slice(0, 160)}`);
-  await saveMarker({ error: res.error, failed: true, attempts: res.attempts });
-  return { ocr: null, retryLater: false, ms };
+  return { ocr: reading, retryLater: false, ms: Date.now() - t0 };
+};
+
+/** What the sentiment service is told about the picture: text on it, what it shows, and what stands out. Never the reader's timing statistics. */
+const imageContext = (reading) => {
+  if (!reading || typeof reading !== 'object') return null;
+  const { picture, ...rest } = reading;
+  const out = { ...rest };
+  delete out.description;
+  delete out.summary;
+  if (typeof reading.summary === 'string' && reading.summary.trim()) out.summary = reading.summary.trim();
+  const scene = sceneOf(reading, 600);
+  const signals = signalsOf(reading);
+  if (scene || signals.length) out.description = `${scene}${signals.length ? `${scene ? ' ' : ''}Notable in the picture: ${signals.join('; ')}.` : ''}`;
+  if (picture && !picture.failed && picture.text_visible && !(Array.isArray(out.visible_text) && out.visible_text.length)) out.visible_text = [picture.text_visible];
+  return Object.keys(out).length ? out : null;
 };
 
 /**
@@ -166,6 +232,8 @@ const analyzePost = async (postId, { prisma, dbName = null } = {}) => {
     const postText = String(post.text || '').trim();
     const mediaText = store.imageTextOf(ocr);
     const text = postText || mediaText;
+    // where the analysed words came from, so a later change in how pictures are read can find the posts it affects
+    const textSource = postText ? 'caption' : store.printedTextOf(ocr) ? 'image_text' : 'picture';
 
     if (postText.length < 3 && mediaText.length < 3) {
       await store.exec(
@@ -193,7 +261,7 @@ const analyzePost = async (postId, { prisma, dbName = null } = {}) => {
     } catch (e) { /* policy mapping is optional */ }
 
     const intel = await intelligenceClient.analyzeText(text, {
-      lane: 'bulk', tenantName, tenantKey: dbName, imageAnalysis: ocr, keywords: matchedKeywords, policy: preMapping,
+      lane: 'bulk', tenantName, tenantKey: dbName, imageAnalysis: imageContext(ocr), keywords: matchedKeywords, policy: preMapping,
     });
     if (!intel) throw Object.assign(new Error('intelligence returned null'), { retryable: true });
 
@@ -230,6 +298,7 @@ const analyzePost = async (postId, { prisma, dbName = null } = {}) => {
       model: intel.model || null,
       thresholds: { high, medium },
       analyzed_via: 'analyze/intelligence',
+      text_source: textSource,
       ocr,
     };
     await store.exec(
@@ -299,4 +368,4 @@ const enqueuePending = async (prisma, dbName) => {
   return added;
 };
 
-module.exports = { analyzePost, enqueuePending, getQueueStats: queue.getStats, __test: { queue, enrichMedia, limits, isTransientImageFailure, STALE_PROCESSING_MINUTES } };
+module.exports = { analyzePost, enqueuePending, getQueueStats: queue.getStats, __test: { queue, enrichMedia, imageContext, limits, isTransientImageFailure, STALE_PROCESSING_MINUTES } };

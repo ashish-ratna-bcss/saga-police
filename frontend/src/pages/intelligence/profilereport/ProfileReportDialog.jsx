@@ -398,11 +398,21 @@ const PatternTab = ({ report, facts, onCite }) => {
           {content.pictures?.terms?.length ? (
             <div className="mt-3 border-t pt-2" data-picture-terms>
               <p className="mb-1 text-[11px] text-muted-foreground">
-                What the pictures show <span className="text-muted-foreground/80">({content.pictures.described} of {content.pictures.with_pictures} described by the image reader)</span>
+                What the pictures show <span className="text-muted-foreground/80">({content.pictures.described} of {content.pictures.with_pictures} pictures described)</span>
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {content.pictures.terms.map((t) => (
                   <span key={t.term} className="inline-flex items-center gap-0.5 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] text-violet-800">{t.term} <b className="ml-0.5 tabular-nums">{t.count}</b></span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {content.pictures?.signals?.length ? (
+            <div className="mt-3 border-t pt-2" data-picture-signals>
+              <p className="mb-1 text-[11px] text-muted-foreground">Flagged in pictures <span className="text-muted-foreground/80">(flags, symbols, weapons, crowds ...)</span></p>
+              <div className="flex flex-wrap gap-1.5">
+                {content.pictures.signals.map((t) => (
+                  <span key={t.term} className="inline-flex items-center gap-0.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-900">{t.term} <b className="ml-0.5 tabular-nums">{t.count}</b></span>
                 ))}
               </div>
             </div>
@@ -493,6 +503,12 @@ const PostText = ({ post }) => {
       {body.english ? <p className="mt-1 border-l-2 border-sky-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-sky-700">EN</span> {body.english}</p> : null}
       {body.imageText ? <p className="mt-1 border-l-2 border-violet-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-violet-700">Image text</span> {body.imageText}</p> : null}
       {body.picture ? <p className="mt-1 border-l-2 border-fuchsia-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-fuchsia-700">Picture</span> {body.picture}</p> : null}
+      {post.picture_signals?.length ? (
+        <p className="mt-1 flex flex-wrap items-center gap-1 pl-2 text-xs" data-picture-seen>
+          <span className="font-semibold text-amber-800">Seen in the picture</span>
+          {post.picture_signals.map((s) => <span key={s} className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-900">{s}</span>)}
+        </p>
+      ) : null}
     </>
   );
 };

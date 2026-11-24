@@ -6,7 +6,7 @@
  */
 const { ensureTables } = require('./profileReport.schema');
 const { cleanDeep, json } = require('./profileReport.util');
-const { flatten, mediaTextOf, sceneOf, cleanTranslation } = require('../../services/media_post_analysis/imageText');
+const { flatten, sceneOf, signalsOf, cleanTranslation } = require('../../services/media_post_analysis/imageText');
 
 const ACCOUNT_COLS = `id, subject_id, platform, handle, data, preview_data, is_draft, fetch_status, fetch_mode, fetch_pages,
   posts_fetched, fetch_error, started_at, finished_at, last_fetched_at, created_at`;
@@ -348,13 +348,13 @@ const listPosts = async (prisma, subjectId, { platform, sentiment, risk, status,
   };
 };
 
-/** The text analysis reads for a picture: what is printed on it, or else what it shows. Always readable text. */
-const imageTextOf = (img) => {
-  if (!img || typeof img !== 'object' || img.failed) return '';
-  return mediaTextOf(img, { sep: ' ', visible: false });
-};
 /** Only the words printed on the picture (OCR), apart from any description of the scene. */
 const printedTextOf = (img) => (!img || typeof img !== 'object' || img.failed ? '' : flatten(img.full_text));
+/** The text analysis reads for a picture: what is printed on it, or else what it shows. Always readable text, never the reader's statistics. */
+const imageTextOf = (img) => {
+  if (!img || typeof img !== 'object' || img.failed) return '';
+  return printedTextOf(img) || sceneOf(img, 600);
+};
 
 const serializePost = (r) => {
   const a = r.analysis_result && typeof r.analysis_result === 'object' ? r.analysis_result : {};
@@ -387,6 +387,7 @@ const serializePost = (r) => {
     } : null,
     image_text: printedTextOf(r.image_analysis) || null,
     image_description: sceneOf(r.image_analysis) || null,
+    image_signals: signalsOf(r.image_analysis),
   };
 };
 
@@ -425,6 +426,7 @@ const postsForReport = async (prisma, subjectId) =>
               'full_text', ${leanField('p.image_analysis', 'full_text', 800)},
               'description', ${leanField('p.image_analysis', 'description', 400)},
               'summary', ${leanField('p.image_analysis', 'summary', 400)},
+              'picture', CASE WHEN length((p.image_analysis->'picture')::text) <= 3000 THEN p.image_analysis->'picture' END,
               'failed', p.image_analysis->'failed'
             ) AS image_analysis,
             a.handle AS account_handle
@@ -447,6 +449,25 @@ const requeueGarbledAnalysis = async (prisma) => exec(
   `UPDATE profile_report_posts
       SET analysis_status = 'pending', analysis_attempts = 0, claimed_at = NULL, analysis_error = NULL
     WHERE analysis_status = 'done' AND analysis_result::text LIKE '%[object Object]%'`
+);
+
+/**
+ * Posts with a picture that have no description of it yet (analysed before pictures were described, or analysed on the
+ * image reader's timing statistics) go back in the queue once. Their image text is kept, so the picture is not read for
+ * text again; only the description, tone and risk are redone. Every post ends up with a `picture` record (see enrichMedia),
+ * so a post is never matched twice. A description that failed only because the vision server was busy is tried again
+ * after 6 hours.
+ * @returns {Promise<number>} posts re-queued
+ */
+const requeueForPictures = async (prisma) => exec(
+  prisma,
+  `UPDATE profile_report_posts
+      SET analysis_status = 'pending', analysis_attempts = 0, claimed_at = NULL, analysis_error = NULL
+    WHERE analysis_status IN ('done', 'skipped')
+      AND jsonb_typeof(media_urls) = 'array' AND jsonb_array_length(media_urls) > 0
+      AND (image_analysis IS NULL OR image_analysis->'picture' IS NULL
+           OR (image_analysis->'picture'->>'transient' = 'true'
+               AND (image_analysis->'picture'->>'at')::timestamptz < NOW() - INTERVAL '6 hours'))`
 );
 
 module.exports = {
@@ -472,6 +493,7 @@ module.exports = {
   postsForReport,
   subjectCounts,
   requeueGarbledAnalysis,
+  requeueForPictures,
   imageTextOf,
   printedTextOf,
 };

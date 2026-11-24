@@ -7,7 +7,7 @@
  * Sentiment and risk use the same helpers as the event report, so a post counts the same everywhere.
  */
 const { parseSentiment, evaluateThreatRisk } = require('../../events/eventTelemetry.service');
-const { flatten, sceneOf, cleanTranslation } = require('../../../services/media_post_analysis/imageText');
+const { flatten, sceneOf, signalsOf, cleanTranslation } = require('../../../services/media_post_analysis/imageText');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -168,6 +168,9 @@ const normalisePosts = (posts = [], { timezone = DEFAULT_TZ } = {}) => posts
       imageText: printed,
       scene,
       described,
+      // what the vision model flagged in the picture (a weapon, a crowd, a flag with words on it ...)
+      pictureSignals: signalsOf(p.image_analysis),
+      pictureAlerts: p.image_analysis && p.image_analysis.picture && Array.isArray(p.image_analysis.picture.alerts) ? p.image_analysis.picture.alerts.map((x) => flatten(x)).filter(Boolean) : [],
       accountHandle: p.account_handle || '',
       english,
       // a post with nothing to read (no caption, nothing on or in the picture) is skipped, not analysed
@@ -224,6 +227,17 @@ const pictureTermsOf = (rows) => {
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, 8)
     .map(([term, count]) => ({ term, count }));
+};
+
+/** What stood out in the pictures, across ALL posts: each flag, symbol or alert with the number of pictures it was seen in. */
+const pictureSignalCounts = (rows) => {
+  const counts = new Map();
+  const shown = new Map();
+  rows.forEach((r) => {
+    new Set(r.pictureSignals.map((s) => s.toLowerCase())).forEach((k) => counts.set(k, (counts.get(k) || 0) + 1));
+    r.pictureSignals.forEach((s) => { if (!shown.has(s.toLowerCase())) shown.set(s.toLowerCase(), s); });
+  });
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 8).map(([k, count]) => ({ term: shown.get(k), count }));
 };
 
 /** A post with something to read: a caption, text on its picture, a description of it, or an English reading. */
@@ -441,7 +455,7 @@ const buildBehaviorFacts = ({ account = {}, accounts = [], rows = [], totalPosts
   const looked = withPictures.filter((r) => r.analysed);
   const described = withPictures.filter((r) => r.described).length;
   const undescribed = looked.filter((r) => !r.described).length;
-  if (undescribed) notes.push(`The image reader gave no description for ${undescribed} of ${looked.length} analysed posts with pictures, so those are judged from their caption and any printed text only.`);
+  if (undescribed) notes.push(`${undescribed} of ${looked.length} analysed posts with pictures have no description of the picture, so those are judged from their caption and any printed text only.`);
 
   return {
     profile: {
@@ -488,7 +502,7 @@ const buildBehaviorFacts = ({ account = {}, accounts = [], rows = [], totalPosts
       replies: rows.filter((r) => r.reply && !r.shared).length,
       with_media: rows.filter((r) => r.media).length,
       with_image_text: rows.filter((r) => r.imageText.length > 0).length,
-      pictures: { with_pictures: withPictures.length, described, terms: pictureTermsOf(rows) },
+      pictures: { with_pictures: withPictures.length, described, terms: pictureTermsOf(rows), signals: pictureSignalCounts(rows) },
       with_links: rows.filter((r) => r.link).length,
       avg_length: withText.length ? Math.round(withText.reduce((s, r) => s + Array.from(r.text).length, 0) / withText.length) : 0,
       languages: topOf(languages, 6, 'language'),
@@ -542,6 +556,8 @@ const selectEvidence = (rows = [], { max = 40 } = {}) => {
   take(byRisk.filter((r) => r.riskLevel === 'medium'), 6, 'medium_risk');
   take([...usable].sort((a, b) => b.engagement.score - a.engagement.score).filter((r) => r.engagement.score > 0), 8, 'top_engagement');
   take([...usable].reverse().filter((r) => r.sentiment === 'negative'), 6, 'negative');
+  // a picture that shows something the vision model flagged (a weapon, a crowd, a flag) is worth reading even when its caption is mild
+  take([...usable].reverse().filter((r) => r.pictureAlerts.length > 0), 6, 'picture_alert');
   take([...usable].reverse(), 6, 'recent');
   const room = max - picked.size;
   if (room > 0 && usable.length) {
@@ -563,6 +579,7 @@ const selectEvidence = (rows = [], { max = 40 } = {}) => {
       text: row.text,
       image_text: row.imageText,
       scene: row.scene,
+      picture_signals: row.pictureSignals,
       english: row.english,
       sentiment: row.sentiment,
       stance: row.stance,
