@@ -16,6 +16,7 @@ const intelligenceClient = require('../intelligence/intelligence.client.service'
 const mappingService = require('../settings/mapping.service');
 const { extractOcr, extractVideo } = require('../../services/media_post_analysis/extractOcr');
 const media = require('../../services/media_post_analysis/analyzeMediaPost');
+const { cleanTranslation } = require('../../services/media_post_analysis/imageText');
 const store = require('./profileReport.store');
 const { json, cleanDeep } = require('./profileReport.util');
 
@@ -102,8 +103,11 @@ const whyNotClaimed = async (prisma) => {
  * Step 1: text from the post's picture (or, if enabled, its video). Never fails the post.
  * @returns {{ ocr: object|null, retryLater: boolean, ms: number }} retryLater: the reader was busy or dropped the connection
  */
+/** A picture that already has a reading: text on it, a description, or a summary (the reader sometimes gives only a summary). */
+const alreadyRead = (img) => media.hasMediaAnalysis(img) || Boolean(img && typeof img === 'object' && !img.failed && img.summary);
+
 const enrichMedia = async (prisma, post, dbName) => {
-  if (media.hasMediaAnalysis(post.image_analysis)) return { ocr: post.image_analysis, retryLater: false, ms: 0 };
+  if (alreadyRead(post.image_analysis)) return { ocr: post.image_analysis, retryLater: false, ms: 0 };
   const id = String(post.id);
   const t0 = Date.now();
   const saveMarker = (data) => store.exec(prisma, `UPDATE profile_report_posts SET image_analysis = $2::jsonb WHERE id = $1::bigint`, id, json(data, {}));
@@ -220,7 +224,7 @@ const analyzePost = async (postId, { prisma, dbName = null } = {}) => {
       violated_policies: mapping.platform_policies || [],
       policy_triggered_keywords: mapping.triggered_keywords || [],
       language: intel.language || null,
-      english_text: intel.english_text || null,
+      english_text: cleanTranslation(intel.english_text),
       was_translated: Boolean(intel.was_translated),
       source: intel.source || 'sentiment-api',
       model: intel.model || null,

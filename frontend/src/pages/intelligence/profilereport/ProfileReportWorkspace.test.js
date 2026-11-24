@@ -44,7 +44,7 @@ const subject = (id, name, extra = {}) => ({
 const POSTS = {
   total: 2, page: 1, limit: 30, total_pages: 1,
   posts: [
-    { id: '2', platform: 'x', url: 'https://x.com/a/status/2', text: 'second post text', kind: 'original', media_urls: [], engagement: { likes: 12 }, posted_at: '2026-11-02T10:00:00Z', analysis_status: 'done', analysis: { sentiment: 'negative', risk_level: 'high', risk_score: 80, stance: 'oppose', category: 'protest', matched_keywords: ['bandh'], english_text: null }, image_text: 'RALLY 10am' },
+    { id: '2', platform: 'x', url: 'https://x.com/a/status/2', text: 'second post text', kind: 'original', media_urls: [], engagement: { likes: 12 }, posted_at: '2026-11-02T10:00:00Z', analysis_status: 'done', analysis: { sentiment: 'negative', risk_level: 'high', risk_score: 80, stance: 'oppose', category: 'protest', matched_keywords: ['bandh'], english_text: null }, image_text: 'RALLY 10am', image_description: 'A crowd with flags at a rally.' },
     { id: '1', platform: 'x', url: null, text: 'first post text', kind: 'shared', media_urls: [], engagement: {}, posted_at: '2026-11-01T10:00:00Z', analysis_status: 'pending', analysis: null, image_text: null },
   ],
 };
@@ -127,6 +127,8 @@ describe('Profile Report workspace', () => {
     expect(t).toContain('bandh');
     expect(t).toContain('Image text');
     expect(t).toContain('RALLY 10am');
+    expect(t).toContain('Picture');
+    expect(t).toContain('A crowd with flags at a rally.');   // what the picture shows, apart from the words printed on it
     expect(t).toContain('Waiting for analysis');
     expect(t).toContain('shared');
     expect(t).toContain('Showing 1–2 of 2 posts');

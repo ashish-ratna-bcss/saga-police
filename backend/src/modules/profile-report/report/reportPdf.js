@@ -5,7 +5,7 @@
  */
 const { fontFacesFor, FONT_STACK } = require('../../events/eventIntelligenceReport/template');
 const { esc } = require('../../events/eventIntelligenceReport/render');
-const { WEEKDAYS, citedPostNumbers, foldText } = require('./reportFacts');
+const { WEEKDAYS, citedPostNumbers, foldText, sharesReported } = require('./reportFacts');
 
 const INK = '#0f172a';
 const MUTED = '#64748b';
@@ -61,20 +61,60 @@ const dayLabel = (day) => {
 const bodyOf = (e) => {
   const text = String(e.text || '').trim();
   const image = String(e.image_text || '').trim();
+  const scene = String(e.scene || '').trim();
   const english = String(e.english || '').trim();
   const showEnglish = english && foldText(english) !== foldText(text) && foldText(english) !== foldText(image);
   const en = showEnglish ? `<div class="en">EN: ${esc(english)}</div>` : '';
-  if (!text && image) return `<div><span class="tag">Image post</span> ${esc(image)}</div>${en}`;
+  const pic = scene && foldText(scene) !== foldText(text) && foldText(scene) !== foldText(image) ? `<div class="en">Picture: ${esc(scene)}</div>` : '';
+  if (!text && image) return `<div><span class="tag">Image post</span> ${esc(image)}</div>${en}${pic}`;
+  if (!text && pic) return `<div><span class="tag">Image post</span> <span class="muted">no caption, no text on the picture</span></div>${pic}${en}`;
   const imageLine = image && foldText(image) !== foldText(text) ? `<div class="en">Image text: ${esc(image)}</div>` : '';
-  return `<div>${esc(text || '(no text)')}</div>${en}${imageLine}`;
+  return `<div>${esc(text || '(no caption)')}</div>${en}${imageLine}${pic}`;
+};
+
+const short = (s, max) => {
+  const chars = Array.from(String(s || '').replace(/\s+/g, ' ').trim());
+  return chars.length > max ? `${chars.slice(0, max).join('')}…` : chars.join('');
+};
+
+/** "12 likes · 3 comments · 4 shares", leaving shares out where the platform does not publish them. */
+const responseOf = (e) => {
+  const g = e.engagement || {};
+  const shares = e.shares_reported === undefined ? sharesReported(e.platform) : e.shares_reported;
+  return `${n(g.likes)} likes · ${n(g.comments)} comments${shares ? ` · ${n(g.shares)} shares` : ''}`;
 };
 
 const section = (title, body) => (body ? `<section><h2>${esc(title)}</h2>${body}</section>` : '');
 const para = (text) => (text ? `<p>${rich(text)}</p>` : '');
 
+/** A small column chart; each column carries its count so a handful of posts can be read without guessing. */
 const bars = (values, labels, color) => {
   const max = Math.max(1, ...values);
-  return `<div class="bars">${values.map((v, i) => `<div class="bar"><div class="fill" style="height:${Math.round((v / max) * 100)}%;background:${v ? color : LINE}"></div><div class="bl">${esc(labels[i])}</div></div>`).join('')}</div>`;
+  return `<div class="bars">${values.map((v, i) => `<div class="bar"><div class="bv">${v || ''}</div><div class="fill" style="height:${Math.round((v / max) * 66)}%;background:${v ? color : LINE}"></div><div class="bl">${esc(labels[i])}</div></div>`).join('')}</div>`;
+};
+
+/** Posts per month (or quarter, or year) over the whole period, with a few dates under it and the longest silence in words. */
+const timelineChart = (cadence) => {
+  const tl = cadence && cadence.timeline;
+  if (!tl || !Array.isArray(tl.buckets) || tl.buckets.length < 2) return '';
+  const total = tl.buckets.length;
+  const max = Math.max(1, ...tl.buckets.map((b) => b.posts));
+  const columns = tl.buckets.map((b) => `<div class="tbar"><div class="tv">${b.posts || ''}</div><div class="tfill" style="height:${Math.round((b.posts / max) * 66)}%;background:${b.posts ? '#7c3aed' : LINE}"></div></div>`).join('');
+  const startsYear = (b) => (tl.unit === 'month' ? b.key.endsWith('-01') : tl.unit === 'quarter' ? b.key.endsWith('Q1') : true);
+  const at = (i) => ((i + 0.5) / total) * 100;
+  const ticks = [{ i: 0, text: tl.buckets[0].label }, { i: total - 1, text: tl.buckets[total - 1].label }];
+  tl.buckets.forEach((b, i) => {
+    if (i > 0 && i < total - 1 && startsYear(b) && at(i) - at(0) > 11 && at(total - 1) - at(i) > 11) ticks.push({ i, text: b.key.slice(0, 4) });
+  });
+  const axis = ticks.map((t) => `<span style="left:${Math.min(94, Math.max(6, at(t.i))).toFixed(1)}%">${esc(t.text)}</span>`).join('');
+  const gap = cadence.longest_gap;
+  const caption = [
+    `Posts per ${tl.unit}`,
+    `posted in ${n(tl.active)} of ${n(total)} ${tl.unit}s`,
+    tl.peak ? `busiest ${tl.peak.label} (${n(tl.peak.posts)} posts)` : '',
+    gap && gap.days >= 30 ? `longest silence ${n(gap.days)} days (${dayLabel(gap.from)} → ${dayLabel(gap.to)})` : '',
+  ].filter(Boolean).join(' · ');
+  return `<div class="muted">${esc(caption)}</div><div class="tl">${columns}</div><div class="tax">${axis}</div>`;
 };
 
 const PLATFORMS = { x: 'X', twitter: 'X', facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', telegram: 'Telegram', reddit: 'Reddit' };
@@ -109,8 +149,9 @@ body{margin:0;font-family:'Helvetica Neue',Arial,${FONT_STACK},sans-serif;color:
 .kpi .k{font-size:6.8pt;color:${MUTED};text-transform:uppercase;letter-spacing:.06em}
 .kpi .v{font-size:11.5pt;font-weight:700;margin-top:1px}
 .kpi .s{font-size:7pt;color:${MUTED}}
-section{margin-top:12px;page-break-inside:avoid}
-h2{font-size:10pt;margin:0 0 5px;padding-bottom:3px;border-bottom:1px solid ${LINE};color:${BRAND};text-transform:uppercase;letter-spacing:.06em}
+section{margin-top:12px}
+.grid2,.tl,.tax,.bars,.item,.kpis,.bl-box,.chips,.stack,.legend{page-break-inside:avoid;break-inside:avoid}
+h2{font-size:10pt;margin:0 0 5px;padding-bottom:3px;border-bottom:1px solid ${LINE};color:${BRAND};text-transform:uppercase;letter-spacing:.06em;break-after:avoid;page-break-after:avoid}
 p{margin:0 0 5px}
 .muted{color:${MUTED}}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -123,10 +164,17 @@ tr{page-break-inside:avoid}
 .item{padding:5px 0;border-bottom:1px solid ${LINE}}
 .item:last-child{border-bottom:0}
 .item .h{font-weight:700}
-.bars{display:flex;align-items:flex-end;gap:2px;height:62px;margin:4px 0 2px}
+.bars{display:flex;align-items:flex-end;gap:2px;height:76px;margin:4px 0 2px}
 .bar{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%}
 .bar .fill{border-radius:2px 2px 0 0;min-height:1px}
-.bar .bl{font-size:5.8pt;color:${MUTED};text-align:center;margin-top:2px}
+.bar .bv{font-size:6pt;color:${INK};text-align:center;line-height:8px;height:8px}
+.bar .bl{font-size:5.8pt;color:${MUTED};text-align:center;margin-top:2px;line-height:8px;height:8px}
+.tl{display:flex;align-items:flex-end;gap:1px;height:74px;margin-top:4px}
+.tbar{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%}
+.tbar .tv{font-size:5.4pt;color:${INK};text-align:center;line-height:7px;height:7px}
+.tbar .tfill{min-height:1px;border-radius:1px 1px 0 0}
+.tax{position:relative;height:12px;margin-top:2px}
+.tax span{position:absolute;transform:translateX(-50%);font-size:6.2pt;color:${MUTED};white-space:nowrap}
 .stack{display:flex;height:9px;border-radius:5px;overflow:hidden;margin:3px 0}
 .legend{display:flex;gap:12px;font-size:7.5pt;color:${MUTED}}
 .legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;vertical-align:-1px}
@@ -138,7 +186,8 @@ li{margin-bottom:3px}
 .ev .en{color:${MUTED};margin-top:2px}
 .ev a{color:#1d4ed8;text-decoration:none;word-break:break-all;font-size:7pt}
 .foot{margin-top:14px;padding-top:6px;border-top:1px solid ${LINE};color:${MUTED};font-size:7.5pt}
-.annex{page-break-before:always}
+.annex{margin-top:16px;page-break-inside:auto}
+.ev thead{display:table-header-group}
 .tag{display:inline-block;margin-right:4px;padding:0 5px;border-radius:3px;background:#ede9fe;color:#6d28d9;font-size:6.8pt;font-weight:700;vertical-align:1px}
 `;
 
@@ -161,7 +210,7 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
 
   const kpi = (k, v, s = '') => `<div class="kpi"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div>${s ? `<div class="s">${esc(s)}</div>` : ''}</div>`;
   const kpis = `<div class="kpis">
-    ${kpi('Posts collected', n(cov.read), `${n(cov.analysed)} analysed`)}
+    ${kpi('Posts collected', n(cov.read), `${n(cov.analysed)} analysed${cov.no_text ? ` · ${n(cov.no_text)} no text` : ''}${cov.waiting ? ` · ${n(cov.waiting)} waiting` : ''}`)}
     ${kpi('Period', cov.span_label || `${cov.span_days || 0} days`, `${dayLabel(cov.first_post)} → ${dayLabel(cov.last_post)}`)}
     ${kpi(`Posts a ${cadence.rate?.unit || 'day'}`, String(cadence.rate ? cadence.rate.value : (cadence.posts_per_day ?? 0)), `${n(cadence.active_days)} active days`)}
     ${kpi('Engagement a post', n(f.engagement?.avg_score), `average · median ${n(f.engagement?.median_score)}`)}
@@ -183,6 +232,7 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
     : '';
 
   const pattern = `${para(r.posting_pattern)}
+    ${timelineChart(cadence)}
     <div class="grid2">
       <div><div class="muted">Posts by hour (${esc(tz)})</div>${bars(cadence.by_hour || Array(24).fill(0), Array.from({ length: 24 }, (_, h) => (h % 3 === 0 ? String(h) : '')), '#2563eb')}</div>
       <div><div class="muted">Posts by day of week</div>${bars(cadence.by_weekday || Array(7).fill(0), WEEKDAYS, '#0d9488')}</div>
@@ -193,20 +243,26 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
       <div><div class="muted">Top hashtags</div>${chips(content.hashtags, (x) => `${x.tag} · ${x.count}`)}</div>
       <div><div class="muted">Most mentioned</div>${chips(content.mentions, (x) => `${x.handle} · ${x.count}`)}</div>
     </div>
+    ${(content.pictures?.terms || []).length ? `<div class="muted">What the pictures show (${n(content.pictures.described)} of ${n(content.pictures.with_pictures)} described by the image reader)</div>${chips(content.pictures.terms, (x) => `${x.term} · ${x.count}`)}` : ''}
     <div class="muted">${n(content.original)} original · ${n(content.shared)} shared · ${n(content.replies)} replies · ${n(content.with_media)} with photo/video · ${n(content.with_links)} with links · languages: ${esc((content.languages || []).map((l) => `${l.language} ${l.count}`).join(', ') || 'not detected')}</div>`;
 
+  // what the model says it cannot show, then what the numbers do not cover (posts without text, still waiting, no share counts)
+  const limitations = [...(r.limitations || []), ...(cov.notes || [])].filter((x, i, all) => x && all.indexOf(x) === i);
   const notable = new Set((r.notable_posts || []).map((x) => x.post));
   const cited = citedPostNumbers(r);
-  const annexRows = ev.filter((e) => cited.has(e.n));
-  const annex = annexRows.length ? `<section class="annex"><h2>Evidence: posts cited in this report</h2>
-    <table class="ev"><tr><th style="width:6%">#</th><th style="width:15%">Posted</th><th style="width:15%">Reading</th><th>Post</th></tr>
+  // A small profile lists every post it has something to read for; a large one lists the posts the report cites.
+  const everyPost = Number.isFinite(cov.usable) && ev.length >= cov.usable && ev.length <= 60;
+  const annexRows = everyPost ? ev : ev.filter((e) => cited.has(e.n));
+  const annexNote = everyPost && cov.no_text ? `<p class="muted">Not listed: ${n(cov.no_text)} ${cov.no_text === 1 ? 'post' : 'posts'} with no caption and nothing readable in the picture.</p>` : '';
+  const annex = annexRows.length ? `<section class="annex"><h2>${everyPost ? `Evidence: all ${n(annexRows.length)} posts read` : 'Evidence: posts cited in this report'}</h2>${annexNote}
+    <table class="ev"><thead><tr><th style="width:6%">#</th><th style="width:15%">Posted</th><th style="width:17%">Reading</th><th>Post</th></tr></thead><tbody>
     ${annexRows.map((e) => `<tr>
       <td class="no">P${e.n}</td>
       <td>${esc(e.posted_at ? fmtDateTime(e.posted_at, tz) : 'undated')}<div class="muted">${esc(platformLabel(e.platform))}${e.shared ? ' · shared' : e.reply ? ' · reply' : ''}</div></td>
-      <td>${e.sentiment ? `<div>${esc(e.sentiment)}</div>` : '<div class="muted">not analysed</div>'}${e.risk_level ? `<div class="muted">risk ${esc(e.risk_level)} (${n(e.risk_score)})</div>` : ''}<div class="muted">${n(e.engagement?.likes)} likes · ${n(e.engagement?.shares)} shares</div></td>
-      <td>${bodyOf(e)}${notable.has(e.n) ? `<div class="en"><b>Why notable:</b> ${rich((r.notable_posts.find((x) => x.post === e.n) || {}).why)}</div>` : ''}${e.url ? `<div><a href="${esc(e.url)}">${esc(e.url)}</a></div>` : ''}</td>
+      <td>${e.sentiment ? `<div>${esc(e.sentiment)}</div>` : '<div class="muted">not analysed</div>'}${e.risk_level ? `<div class="muted">risk ${esc(e.risk_level)} (${n(e.risk_score)})</div>` : ''}<div class="muted">${esc(responseOf(e))}</div></td>
+      <td>${bodyOf(e)}${e.sentiment && e.summary && foldText(e.summary) !== foldText(e.text) ? `<div class="en"><b>Reading:</b> ${esc(short(e.summary, 200))}</div>` : ''}${notable.has(e.n) ? `<div class="en"><b>Why notable:</b> ${rich((r.notable_posts.find((x) => x.post === e.n) || {}).why)}</div>` : ''}${e.url ? `<div><a href="${esc(e.url)}">${esc(e.url)}</a></div>` : ''}</td>
     </tr>`).join('')}
-    </table></section>` : '';
+    </tbody></table></section>` : '';
 
   const body = `
   <div class="head">
@@ -223,6 +279,7 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
     <div class="t">${rich(r.bottom_line)}</div>
     <div class="sub"><b>${esc(r.account_type || 'Unclear')}</b>${r.account_type_basis ? ` · ${rich(r.account_type_basis)}` : ''}</div>
     ${r.attention_reason ? `<div class="sub"><b>Why ${esc(r.attention_level || 'Low')}:</b> ${rich(r.attention_reason)}</div>` : ''}
+    ${r.regional_link ? `<div class="sub"><b>Regional link:</b> ${rich(r.regional_link)}</div>` : ''}
   </div>
   ${kpis}
   <div class="grid2">
@@ -239,7 +296,7 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
   ${section('Changes over time', changes ? `<ul>${changes}</ul>` : '')}
   <div class="grid2">
     ${section('Watch points', (r.watch_points || []).length ? `<ul>${r.watch_points.map((w) => `<li>${rich(w)}</li>`).join('')}</ul>` : '')}
-    ${section('Limitations', (r.limitations || []).length ? `<ul>${r.limitations.map((w) => `<li>${rich(w)}</li>`).join('')}</ul>` : '')}
+    ${section('Limitations', limitations.length ? `<ul>${limitations.map((w) => `<li>${rich(w)}</li>`).join('')}</ul>` : '')}
   </div>
   <div class="foot">Analyst aid written from the account's public posts${data.summary_source === 'llm' ? ' with AI assistance' : ''}. Numbers are computed from the stored posts; P-numbers point to the evidence annex. Check the original posts before taking any action.</div>
   ${annex}`;

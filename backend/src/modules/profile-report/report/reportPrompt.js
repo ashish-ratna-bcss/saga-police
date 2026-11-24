@@ -39,7 +39,11 @@ RULES
 15. Large histories. FACTS cover every collected post; the numbered posts are a selection chosen to show the highest-risk, most-engaged, most recent and a spread over time. Never imply the numbered posts are all the posts.
 16. Traits versus themes. A trait is what the account DOES (mobilises supporters, replies to critics, escalates, shares others' content). A theme is what it talks ABOUT. Never describe the same thing as both; if a point is only a subject, it is a theme and not a trait.
 17. Plain wording. Say "Attention is Low", never the label in capitals. Do not say whether anything is legal or illegal, and do not name offences; describe what the posts say and do.
-18. No filler. If the posts show no real change over time, leave "changes_over_time" empty. Leave any list empty rather than padding it, and never copy the wording of the examples in the output contract.`;
+18. No filler. If the posts show no real change over time, leave "changes_over_time" empty. Leave any list empty rather than padding it, and never copy the wording of the examples in the output contract.
+19. Shares. When FACTS say a platform does not publish share counts, a share figure of 0 for it means "not shown". Never write that the posts were not shared or reposted; describe reach by likes and comments.
+20. Pictures. "Picture" on a post describes what its photo shows, and the PICTURES line in FACTS covers all posts, not only the numbered ones. Read each post as its caption, the text printed on its picture and what the picture shows, together: say when a picture adds to, contradicts or goes beyond the caption. Use pictures as evidence and cite the post, but say only what the descriptions say: never name a person in a photo and never guess a place or an affiliation from how someone looks. Do not describe pictures you were not given a description for.
+21. Region. When FACTS give a REGION, "regional_link" says whether the posts show any connection to it (place names, local language, local hashtags, named officials, events or institutions). If no post does, write exactly: "No link to <REGION> found in the posts read." Never guess nationality, residence or location from names, posting hours or the language used. With no REGION line, "regional_link" is an empty string.
+22. Watch points. Each one says what to look for and what would change the assessment, for example "Re-check if any post names a place or official in <REGION>, shows a weapon, or asks people to gather." Never write a vague line such as "monitor for any increase".`;
 
 const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only. No markdown, no code fences, no text before or after. Use exactly these fields:
 {
@@ -47,18 +51,19 @@ const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only. No markdown, no code fenc
  "account_type": "one of: ${ACCOUNT_TYPES.join(' / ')}",
  "account_type_basis": "one sentence: what in the posts shows this",
  "attention_reason": "1-2 sentences explaining the ATTENTION LEVEL given in FACTS, citing posts",
+ "regional_link": "one sentence, see rule 21; an empty string when FACTS give no REGION",
  "behaviour_traits": [{"trait": "2-5 words, an action, e.g. 'Mobilises supporters for rallies'", "evidence_level": "Observed / Likely / Unclear", "detail": "1-2 sentences", "posts": [1, 2]}],
  "themes": [{"theme": "2-6 words", "share": "Main / Frequent / Occasional", "detail": "1-2 sentences on what the account says about it", "posts": [1]}],
  "tone": "2-3 sentences: usual tone and emotional pattern (for example calm, sarcastic, angry, celebratory, alarmist), using the sentiment counts from FACTS",
  "targets": [{"target": "a person, party, institution or group the posts name", "attitude": "Supportive / Critical / Hostile / Neutral / Mixed", "detail": "one sentence", "posts": [1]}],
  "communication_style": "2-3 sentences: languages, original versus shared posts, media and links, hashtags and mentions, calls to action, how it addresses its audience",
- "posting_pattern": "2-3 sentences reading the rhythm in FACTS (busy hours and days, night posting, bursts and gaps)",
+ "posting_pattern": "2-3 sentences reading the rhythm in FACTS (busy hours and days, night posting, bursts and long silences from ACTIVITY OVER TIME)",
  "platform_differences": "1-2 sentences on how the accounts differ by platform (tone, topics, reach, activity), using BY PLATFORM in FACTS; empty string when there is one platform",
  "influence": "1-2 sentences: reach and response from FACTS and which posts drew the most response",
  "risk_indicators": [{"indicator": "short label", "severity": "High / Medium / Low", "detail": "what the post says and why it matters", "posts": [1]}],
  "changes_over_time": [{"from": "what the account did or said earlier", "to": "what it does or says later", "posts": [1, 9]}],   // only a real shift shown by the posts; otherwise []
  "notable_posts": [{"post": 1, "why": "one line"}],
- "watch_points": ["one concrete thing to keep watching: a topic, hashtag, linked account or date"],
+ "watch_points": ["one concrete thing to keep watching and what would change the assessment, see rule 22"],
  "limitations": ["one thing these posts cannot show"]
 }
 Sizes: behaviour_traits 3-6, themes 2-6, targets 0-6, risk_indicators 0-5, changes_over_time 0-3, notable_posts 3-6, watch_points 2-4, limitations 1-3.`;
@@ -73,7 +78,7 @@ const list = (items, fmt, empty = 'none') => (items && items.length ? items.map(
 const hh = (h) => `${String(h).padStart(2, '0')}:00`;
 
 /** The FACTS block: computed numbers only, each on its own line so the model can quote them. */
-const factsText = (facts, evidence = []) => {
+const factsText = (facts, evidence = [], region = '') => {
   const tagged = (pred) => evidence.filter(pred).map((e) => `P${e.n}`);
   const c = facts.coverage;
   const cad = facts.cadence;
@@ -82,20 +87,27 @@ const factsText = (facts, evidence = []) => {
   const s = facts.sentiment;
   const st = facts.stance;
   const r = facts.risk;
+  const tl = cad.timeline;
+  const noShare = (eng.no_share_platforms || []).join(', ');
   const lines = [
     `PROFILE: ${facts.profile.name}`,
+    ...(region ? [`REGION: ${region} (the area this report is for; see rule 21)`] : []),
     `ACCOUNTS: ${list(facts.profile.accounts || [], (a) => `${a.platform_name} ${a.handle} (${a.posts} posts)`, `${facts.profile.handle} on ${facts.profile.platform_name}`)}`,
     `TODAY: ${facts.today} (times are ${facts.timezone})`,
-    `POSTS: ${c.total_posts} collected, from ${c.first_post || 'unknown'} to ${c.last_post || 'unknown'} (${c.span_days} days); ${c.analysed} carry AI analysis, ${c.not_analysed} not analysed yet`,
+    `POSTS: ${c.total_posts} collected, from ${c.first_post || 'unknown'} to ${c.last_post || 'unknown'} (${c.span_days} days); ${c.analysed} carry AI analysis${c.no_text ? `, ${c.no_text} have no caption and nothing readable in the picture (not analysed)` : ''}${c.waiting ? `, ${c.waiting} still waiting to be analysed` : ''}`,
     ...((facts.by_platform || []).length > 1
       ? [`BY PLATFORM: ${facts.by_platform.map((p) => `${p.platform}: ${p.posts} posts, ${p.negative_share}% negative of ${p.analysed} analysed, ${p.high_risk} serious-risk, average engagement ${p.avg_engagement}, ${p.first_post || '?'} to ${p.last_post || '?'}`).join(' | ')}`]
       : []),
-    `RHYTHM: ${cad.rate ? `${cad.rate.value} posts a ${cad.rate.unit}` : `${cad.posts_per_day} posts a day`} (${c.total_posts} posts over ${c.span_label || `${c.span_days} days`}); active on ${cad.active_days} days; busiest hours ${cad.busiest_hours ? `${hh(cad.busiest_hours.from)}-${hh(cad.busiest_hours.to)} (${cad.busiest_hours.posts} posts)` : 'unknown'}; busiest day ${cad.busiest_day ? `${cad.busiest_day.day} (${cad.busiest_day.posts} posts)` : 'unknown'}; ${cad.night_posts} posts between 00:00 and 05:00; longest silence ${cad.longest_gap_days} days`,
+    `RHYTHM: ${cad.rate ? `${cad.rate.value} posts a ${cad.rate.unit}` : `${cad.posts_per_day} posts a day`} (${c.total_posts} posts over ${c.span_label || `${c.span_days} days`}); active on ${cad.active_days} days; busiest hours ${cad.busiest_hours ? `${hh(cad.busiest_hours.from)}-${hh(cad.busiest_hours.to)} (${cad.busiest_hours.posts} posts)` : 'unknown'}; busiest day ${cad.busiest_day ? `${cad.busiest_day.day} (${cad.busiest_day.posts} posts)` : 'unknown'}; ${cad.night_posts} posts between 00:00 and 05:00; longest silence ${cad.longest_gap ? `${cad.longest_gap.days} days (${cad.longest_gap.from} to ${cad.longest_gap.to})` : `${cad.longest_gap_days} days`}`,
+    ...(tl ? [`ACTIVITY OVER TIME: posts in ${tl.active} of ${tl.buckets.length} ${tl.unit}s${tl.peak ? `; busiest ${tl.peak.label} (${tl.peak.posts} posts)` : ''}${tl.active <= 24 ? `; by ${tl.unit}: ${tl.buckets.filter((b) => b.posts > 0).map((b) => `${b.label} ${b.posts}`).join(', ')}` : ''}`] : []),
     `CONTENT: ${con.original} original, ${con.shared} shared from others, ${con.replies} replies; ${con.with_media} with photos or video (${con.with_image_text || 0} with text read from the image); ${con.with_links} with links; average length ${con.avg_length} characters`,
+    ...(con.pictures && con.pictures.with_pictures
+      ? [`PICTURES: ${con.pictures.described} of ${con.pictures.with_pictures} posts with photos or video have a description of what the picture shows (from the image reader)${(con.pictures.terms || []).length ? `; words that recur in those descriptions, with the number of pictures each appears in: ${con.pictures.terms.map((x) => `${x.term} ${x.count}`).join(', ')}` : ''}`]
+      : []),
     `LANGUAGES: ${list(con.languages, (x) => `${x.language} ${x.count}`)}`,
     `TOP HASHTAGS: ${list(con.hashtags, (x) => `${x.tag} (${x.count})`)}`,
     `TOP MENTIONS: ${list(con.mentions, (x) => `${x.handle} (${x.count})`)}`,
-    `ENGAGEMENT: ${eng.total.likes} likes, ${eng.total.shares} shares, ${eng.total.comments} comments, ${eng.total.views} views in total; average score ${eng.avg_score} a post (median ${eng.median_score}); most engaged: ${list(tagged((e) => e.reasons.includes('top_engagement')).slice(0, 5), (x) => x)}`,
+    `ENGAGEMENT: ${eng.total.likes} likes, ${eng.shares_reported === false ? '' : `${eng.total.shares} shares${noShare ? ` (not counted for ${noShare}, which does not publish them)` : ''}, `}${eng.total.comments} comments, ${eng.total.views} views in total; average score ${eng.avg_score} a post (median ${eng.median_score}); most engaged: ${list(tagged((e) => e.reasons.includes('top_engagement')).slice(0, 5), (x) => x)}`,
     `SENTIMENT (analysed posts): ${s.positive} positive, ${s.neutral} neutral, ${s.negative} negative`,
     `STANCE: ${st.support} support, ${st.oppose} oppose, ${st.neutral} neutral, ${st.unknown} not given`,
     `RISK (analysed posts): ${r.critical} critical, ${r.high} high, ${r.medium} medium, ${r.low} low; highest score ${r.max_score}/100; serious-risk posts in evidence: ${list(tagged((e) => e.risk_level === 'critical' || e.risk_level === 'high'), (x) => x)}`,
@@ -129,17 +141,18 @@ const evidenceLine = (e, maxChars) => {
     e.sentiment ? e.sentiment.toUpperCase() : 'NOT ANALYSED',
     e.risk_level ? `risk ${e.risk_level} (${e.risk_score})` : null,
     e.stance && e.stance !== 'unknown' ? `stance ${e.stance}` : null,
-    `${e.engagement.likes} likes ${e.engagement.shares} shares ${e.engagement.comments} comments`,
+    `${e.engagement.likes} likes${e.shares_reported === false ? '' : ` ${e.engagement.shares} shares`} ${e.engagement.comments} comments`,
   ].filter(Boolean).join(' · ');
-  const body = [`Text: ${clip(e.text, maxChars) || '(no text)'}`];
+  const body = [`Text: ${clip(e.text, maxChars) || '(no caption)'}`];
   if (e.english) body.push(`English: ${clip(e.english, maxChars)}`);
   if (e.image_text) body.push(`Image text: ${clip(e.image_text, Math.round(maxChars * 0.8))}`);
+  if (e.scene) body.push(`Picture: ${clip(e.scene, Math.round(maxChars * 0.7))}`);
   return `${head}\n${body.join('\n')}`;
 };
 
-const buildUserContext = ({ facts, evidence, maxChars = 280 }) => [
+const buildUserContext = ({ facts, evidence, maxChars = 280, region = '' }) => [
   'FACTS',
-  factsText(facts, evidence),
+  factsText(facts, evidence, region),
   '',
   `EVIDENCE POSTS (oldest first; ${evidence.length} chosen from ${facts.coverage.read} collected; numbers P1-P${evidence.length} are the only valid citations)`,
   ...evidence.map((e) => evidenceLine(e, maxChars)),
@@ -214,6 +227,7 @@ const parseBehaviorReport = (rawText, { maxN, attentionLevel = 'Low' } = {}) => 
     account_type_basis: t(obj.account_type_basis, 400),
     attention_level: attentionLevel,
     attention_reason: t(obj.attention_reason, 600),
+    regional_link: t(obj.regional_link, 300),
     behaviour_traits: listOf(obj.behaviour_traits, (x) => (x && str(x.trait) ? {
       trait: str(x.trait, 80),
       evidence_level: oneOf(x.evidence_level, EVIDENCE_LEVELS, 'Likely'),
@@ -283,6 +297,7 @@ const fallbackReport = (facts, evidence = []) => {
     account_type_basis: 'Not assessed: the AI model was not available.',
     attention_level: facts.attention_level,
     attention_reason: `Risk counts: ${r.critical} critical, ${r.high} high, ${r.medium} medium, ${r.low} low.`,
+    regional_link: '',
     behaviour_traits: [],
     themes: facts.categories.slice(0, 5).map((x) => ({ theme: x.name, share: x.count >= c.analysed / 3 ? 'Main' : 'Occasional', detail: `${x.count} posts in this category.`, posts: [] })),
     tone: `${s.positive} positive, ${s.neutral} neutral and ${s.negative} negative posts among the ${analysedN} analysed.`,
@@ -292,7 +307,9 @@ const fallbackReport = (facts, evidence = []) => {
     platform_differences: (facts.by_platform || []).length > 1
       ? facts.by_platform.map((p) => `${p.platform}: ${p.posts} posts, ${p.negative_share}% negative`).join('; ') + '.'
       : '',
-    influence: `${facts.engagement.total.likes} likes, ${facts.engagement.total.shares} shares and ${facts.engagement.total.comments} comments in total.`,
+    influence: facts.engagement.shares_reported === false
+      ? `${facts.engagement.total.likes} likes and ${facts.engagement.total.comments} comments in total.`
+      : `${facts.engagement.total.likes} likes, ${facts.engagement.total.shares} shares and ${facts.engagement.total.comments} comments in total.`,
     risk_indicators: serious.slice(0, 5).map((e) => ({
       indicator: e.category || 'Serious risk score',
       severity: e.risk_level === 'critical' ? 'High' : 'Medium',
@@ -318,6 +335,7 @@ const reportToMarkdown = (report, facts) => {
   if (facts) out.push(`${facts.profile.platform_name} · ${facts.coverage.read} posts, ${facts.coverage.first_post || '?'} to ${facts.coverage.last_post || '?'}`);
   out.push('', `**Attention: ${report.attention_level}.** ${report.attention_reason}`, '', report.bottom_line);
   out.push('', `**Account type:** ${report.account_type}. ${report.account_type_basis}`);
+  if (report.regional_link) out.push('', `**Regional link:** ${report.regional_link}`);
   const sec = (title, items, fmt) => { if (items && items.length) { out.push('', `## ${title}`); items.forEach((x) => out.push(`- ${fmt(x)}`)); } };
   const para = (title, text) => { if (text) out.push('', `## ${title}`, text); };
   sec('Behaviour traits', report.behaviour_traits, (x) => `**${x.trait}** (${x.evidence_level}): ${x.detail}${cites(x.posts)}`);
@@ -332,7 +350,7 @@ const reportToMarkdown = (report, facts) => {
   sec('Changes over time', report.changes_over_time, (x) => `${x.from} → ${x.to}${cites(x.posts)}`);
   sec('Notable posts', report.notable_posts, (x) => `P${x.post}: ${x.why}`);
   sec('Watch points', report.watch_points, (x) => x);
-  sec('Limitations', report.limitations, (x) => x);
+  sec('Limitations', [...(report.limitations || []), ...((facts && facts.coverage && facts.coverage.notes) || [])], (x) => x);
   return out.join('\n');
 };
 

@@ -82,7 +82,7 @@ const AnalysisChips = ({ post }) => {
 };
 
 const PostCard = ({ post }) => {
-  const body = postBody({ text: post.text, image_text: post.image_text, english: post.analysis?.english_text });
+  const body = postBody({ text: post.text, image_text: post.image_text, english: post.analysis?.english_text, scene: post.image_description });
   return (
   <article className="flex gap-3 rounded-lg border bg-card p-3">
     <Thumb post={post} />
@@ -99,7 +99,7 @@ const PostCard = ({ post }) => {
       </div>
       <p className="mt-1.5 line-clamp-4 whitespace-pre-line break-words text-[13px] leading-relaxed">
         {body.imageOnly ? <span className="mr-1.5 inline-flex items-center gap-1 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700"><ImageIcon className="h-3 w-3" />Image post</span> : null}
-        {body.main || <span className="text-muted-foreground">(no text)</span>}
+        {body.main || <span className="text-muted-foreground">{body.noWords ? 'no caption, no text on the picture' : '(no caption)'}</span>}
       </p>
       {body.english ? (
         <p className="mt-1 line-clamp-3 border-l-2 border-sky-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-sky-700">EN</span> {body.english}</p>
@@ -107,6 +107,11 @@ const PostCard = ({ post }) => {
       {body.imageText ? (
         <p className="mt-1 line-clamp-3 border-l-2 border-violet-200 pl-2 text-xs text-muted-foreground">
           <ImageIcon className="mr-1 inline h-3 w-3 text-violet-700" /><span className="font-semibold text-violet-700">Image text</span> {body.imageText}
+        </p>
+      ) : null}
+      {body.picture ? (
+        <p className="mt-1 line-clamp-3 border-l-2 border-fuchsia-200 pl-2 text-xs text-muted-foreground">
+          <ImageIcon className="mr-1 inline h-3 w-3 text-fuchsia-700" /><span className="font-semibold text-fuchsia-700">Picture</span> {body.picture}
         </p>
       ) : null}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">

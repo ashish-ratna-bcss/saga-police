@@ -18,13 +18,50 @@ export const foldText = (t) => String(t || '').toLowerCase().replace(/[^\p{L}\p{
  * What a post says, each sentence once. A post with only a picture shows the text read from it as its main text
  * (flagged imageOnly); an English line that repeats the post or its image text is left out.
  */
-export const postBody = ({ text, image_text: imageText, english } = {}) => {
+export const postBody = ({ text, image_text: imageText, english, scene } = {}) => {
   const t = String(text || '').trim();
   const i = String(imageText || '').trim();
   const e = String(english || '').trim();
+  const s = String(scene || '').trim();
   const showEnglish = Boolean(e) && foldText(e) !== foldText(t) && foldText(e) !== foldText(i);
-  if (!t && i) return { main: i, imageOnly: true, english: showEnglish ? e : '', imageText: '' };
-  return { main: t, imageOnly: false, english: showEnglish ? e : '', imageText: i && foldText(i) !== foldText(t) ? i : '' };
+  // what the picture shows, unless it only repeats the caption or the words printed on it
+  const picture = s && foldText(s) !== foldText(t) && foldText(s) !== foldText(i) ? s : '';
+  if (!t && i) return { main: i, imageOnly: true, english: showEnglish ? e : '', imageText: '', picture };
+  if (!t && picture) return { main: '', imageOnly: true, noWords: true, english: showEnglish ? e : '', imageText: '', picture };
+  return { main: t, imageOnly: false, english: showEnglish ? e : '', imageText: i && foldText(i) !== foldText(t) ? i : '', picture };
+};
+
+/** Platforms that do not publish a share / repost count: a 0 there means "not shown", not "nobody shared it". */
+const NO_SHARE_COUNT = ['instagram', 'youtube'];
+export const sharesShown = (platform) => !NO_SHARE_COUNT.includes(String(platform || '').toLowerCase());
+
+/** "12 likes · 3 comments · 4 shares" for one post, leaving shares out where the platform has none. Reports saved earlier carry no flag, so the platform decides. */
+export const responseText = (post = {}) => {
+  const g = post.engagement || {};
+  const shares = post.shares_reported === undefined ? sharesShown(post.platform) : post.shares_reported;
+  const num = (v) => Number(v || 0).toLocaleString('en-IN');
+  return `${num(g.likes)} likes · ${num(g.comments)} comments${shares ? ` · ${num(g.shares)} shares` : ''}`;
+};
+
+/** What the numbers do not cover (posts without text, still waiting, no share counts) after what the model said it cannot show. */
+export const limitationsOf = (report = {}, facts = {}) =>
+  [...(report.limitations || []), ...(facts.coverage?.notes || [])].filter((x, i, all) => x && all.indexOf(x) === i);
+
+/**
+ * The few dates written under the activity timeline: the first and last period, and each new year in between
+ * (left out where it would sit on top of the first or last one). `at` is the column's centre, in percent.
+ */
+export const timelineTicks = (tl) => {
+  const buckets = tl?.buckets || [];
+  if (buckets.length < 2) return [];
+  const total = buckets.length;
+  const at = (i) => ((i + 0.5) / total) * 100;
+  const startsYear = (b) => (tl.unit === 'month' ? b.key.endsWith('-01') : tl.unit === 'quarter' ? b.key.endsWith('Q1') : true);
+  const ticks = [{ i: 0, text: buckets[0].label }, { i: total - 1, text: buckets[total - 1].label }];
+  buckets.forEach((b, i) => {
+    if (i > 0 && i < total - 1 && startsYear(b) && at(i) - at(0) > 11 && at(total - 1) - at(i) > 11) ticks.push({ i, text: b.key.slice(0, 4) });
+  });
+  return ticks.map((t) => ({ ...t, at: Math.min(94, Math.max(6, at(t.i))) })).sort((a, b) => a.i - b.i);
 };
 
 /** The posting rate in the unit that reads naturally: "1.8 a day", "0.4 a month". Older saved reports only have a per-day figure. */

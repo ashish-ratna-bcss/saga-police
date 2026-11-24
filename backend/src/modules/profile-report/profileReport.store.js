@@ -6,6 +6,7 @@
  */
 const { ensureTables } = require('./profileReport.schema');
 const { cleanDeep, json } = require('./profileReport.util');
+const { flatten, mediaTextOf, sceneOf, cleanTranslation } = require('../../services/media_post_analysis/imageText');
 
 const ACCOUNT_COLS = `id, subject_id, platform, handle, data, preview_data, is_draft, fetch_status, fetch_mode, fetch_pages,
   posts_fetched, fetch_error, started_at, finished_at, last_fetched_at, created_at`;
@@ -347,11 +348,13 @@ const listPosts = async (prisma, subjectId, { platform, sentiment, risk, status,
   };
 };
 
+/** The text analysis reads for a picture: what is printed on it, or else what it shows. Always readable text. */
 const imageTextOf = (img) => {
   if (!img || typeof img !== 'object' || img.failed) return '';
-  const t = img.full_text || [img.description, img.summary].filter(Boolean).join(' ');
-  return String(t || '').trim();
+  return mediaTextOf(img, { sep: ' ', visible: false });
 };
+/** Only the words printed on the picture (OCR), apart from any description of the scene. */
+const printedTextOf = (img) => (!img || typeof img !== 'object' || img.failed ? '' : flatten(img.full_text));
 
 const serializePost = (r) => {
   const a = r.analysis_result && typeof r.analysis_result === 'object' ? r.analysis_result : {};
@@ -379,10 +382,11 @@ const serializePost = (r) => {
       category: a.category || null,
       summary: a.summary || null,
       language: a.language || null,
-      english_text: a.english_text || null,
+      english_text: cleanTranslation(a.english_text),
       matched_keywords: Array.isArray(a.matched_keywords) ? a.matched_keywords.map((k) => (typeof k === 'string' ? k : k?.keyword)).filter(Boolean) : [],
     } : null,
-    image_text: imageTextOf(r.image_analysis) || null,
+    image_text: printedTextOf(r.image_analysis) || null,
+    image_description: sceneOf(r.image_analysis) || null,
   };
 };
 
@@ -391,6 +395,16 @@ const serializePost = (r) => {
  * tens of thousands of posts stays small in memory: no raw payloads, only the analysis fields the report uses, and
  * long texts cut to what the report can show.
  */
+/**
+ * One field of a stored JSON document for the report. Text is cut to n characters. A structured value (the image reader
+ * sometimes returns an object for a description) is kept whole, because it is small, and made readable in code; only an
+ * unusually large one is cut as text.
+ */
+const leanField = (col, key, n) => `CASE
+                WHEN jsonb_typeof(${col}->'${key}') = 'string' THEN to_jsonb(left(${col}->>'${key}', ${n}))
+                WHEN length((${col}->'${key}')::text) <= 2000 THEN ${col}->'${key}'
+                ELSE to_jsonb(left((${col}->'${key}')::text, ${n})) END`;
+
 const postsForReport = async (prisma, subjectId) =>
   q(
     prisma,
@@ -405,11 +419,12 @@ const postsForReport = async (prisma, subjectId) =>
               'category', p.analysis_result->'category', 'summary', to_jsonb(left(p.analysis_result->>'summary', 400)),
               'signals', p.analysis_result->'signals', 'matched_keywords', p.analysis_result->'matched_keywords',
               'legal_sections', p.analysis_result->'legal_sections', 'language', p.analysis_result->'language',
-              'english_text', to_jsonb(left(p.analysis_result->>'english_text', 1500)), 'skipped', p.analysis_result->'skipped'
+              'english_text', ${leanField('p.analysis_result', 'english_text', 1500)}, 'skipped', p.analysis_result->'skipped'
             ) AS analysis_result,
             jsonb_build_object(
-              'full_text', to_jsonb(left(p.image_analysis->>'full_text', 800)),
-              'description', to_jsonb(left(p.image_analysis->>'description', 400)),
+              'full_text', ${leanField('p.image_analysis', 'full_text', 800)},
+              'description', ${leanField('p.image_analysis', 'description', 400)},
+              'summary', ${leanField('p.image_analysis', 'summary', 400)},
               'failed', p.image_analysis->'failed'
             ) AS image_analysis,
             a.handle AS account_handle
@@ -420,6 +435,19 @@ const postsForReport = async (prisma, subjectId) =>
   );
 
 const subjectCounts = async (prisma, subjectId) => (await countsFor(prisma, [subjectId])).get(subjectId) || EMPTY_COUNTS;
+
+/**
+ * Posts that were analysed on the broken text "[object Object]" (an image description that arrived as structured data)
+ * are put back in the queue. Their stored picture reading is kept, so the image is not read again; only the tone and
+ * risk step is repeated, now on readable text. Safe to run any number of times: once re-analysed they no longer match.
+ * @returns {Promise<number>} posts re-queued
+ */
+const requeueGarbledAnalysis = async (prisma) => exec(
+  prisma,
+  `UPDATE profile_report_posts
+      SET analysis_status = 'pending', analysis_attempts = 0, claimed_at = NULL, analysis_error = NULL
+    WHERE analysis_status = 'done' AND analysis_result::text LIKE '%[object Object]%'`
+);
 
 module.exports = {
   q,
@@ -443,5 +471,7 @@ module.exports = {
   listPosts,
   postsForReport,
   subjectCounts,
+  requeueGarbledAnalysis,
   imageTextOf,
+  printedTextOf,
 };

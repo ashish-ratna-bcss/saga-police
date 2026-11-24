@@ -149,8 +149,18 @@ const callModel = async (messages, { maxTokens, signal }) => {
   }
 };
 
+/**
+ * The area this report is for ("Odisha"), taken from the tenant's name with words like "police" removed.
+ * Empty when what is left is too short to be a place name (a code such as "AP"), so the model is never asked about a made-up region.
+ */
+const regionOf = (tenantName) => {
+  const s = String(tenantName || '').replace(/_+/g, ' ').replace(/blura\s*saga|police|force|agency|department/gi, ' ').replace(/\s+/g, ' ').trim();
+  if (s.length < 4 || /\d/.test(s)) return '';
+  return s.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+};
+
 /** The largest evidence set whose prompt still leaves room for the reply in the model's window. */
-const planPrompt = (rows, facts) => {
+const planPrompt = (rows, facts, region = '') => {
   const { contextWindow, maxInputTokens, maxTokens } = getLLMConfig();
   const outputTokens = Math.min(3500, Math.max(2200, maxTokens));
   const system = buildSystemPrompt();
@@ -158,7 +168,7 @@ const planPrompt = (rows, facts) => {
   let chosen = null;
   for (const plan of EVIDENCE_PLANS) {
     const evidence = selectEvidence(rows, { max: plan.max });
-    const user = buildUserContext({ facts, evidence, maxChars: plan.chars });
+    const user = buildUserContext({ facts, evidence, maxChars: plan.chars, region });
     chosen = { evidence, user, system };
     if (estimateTokens(user) <= budget) break;
   }
@@ -174,6 +184,7 @@ const storedEvidence = (evidence) => evidence.map((e) => ({
   text: clipChars(e.text, 700),
   english: clipChars(e.english, 700),
   image_text: clipChars(e.image_text, 500),
+  scene: clipChars(e.scene, 300),
   summary: clipChars(e.summary, 300),
 }));
 
@@ -217,7 +228,7 @@ const generateReport = async (subjectId, { db, dbName = null, tenantName, genera
   let modelName = null;
 
   try {
-    const plan = planPrompt(rows, facts);
+    const plan = planPrompt(rows, facts, regionOf(tenantName));
     evidence = plan.evidence;
     const messages = [{ role: 'system', content: plan.system }, { role: 'user', content: plan.user }];
     let reply = await callModel(messages, { maxTokens: plan.maxTokens, signal });
@@ -331,5 +342,5 @@ module.exports = {
   startReportJob,
   getReportJob,
   cancelReportJob,
-  __test: { jobs, planPrompt },
+  __test: { jobs, planPrompt, regionOf },
 };

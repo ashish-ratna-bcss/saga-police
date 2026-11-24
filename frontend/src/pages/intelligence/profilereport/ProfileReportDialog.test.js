@@ -65,12 +65,27 @@ const REPORT = {
     notable_posts: [{ post: 2, why: 'Bandh call' }],
     watch_points: ['#JharkhandBandh'],
     limitations: ['Only 2 posts read.'],
+    regional_link: 'No link to Odisha found in the posts read.',
   },
   facts: {
     timezone: 'Asia/Kolkata',
-    coverage: { total_posts: 1200, read: 1200, analysed: 1100, first_post: '2025-01-01', last_post: '2026-11-02', span_days: 670, span_label: '22 months' },
-    cadence: { posts_per_day: 1.8, rate: { value: 0.4, unit: 'month' }, active_days: 400, by_hour: Array(24).fill(0), by_weekday: Array(7).fill(0), weeks: [] },
-    content: { original: 1000, shared: 100, replies: 100, with_media: 300, with_image_text: 120, with_links: 20, avg_length: 120, languages: [{ language: 'hi', count: 900 }], hashtags: [], mentions: [] },
+    coverage: {
+      total_posts: 1200, read: 1200, analysed: 1100, first_post: '2025-01-01', last_post: '2026-11-02', span_days: 670, span_label: '22 months',
+      no_text: 1, waiting: 0, usable: 3,
+      notes: ['1 of 1200 posts has no caption and nothing readable in the picture, so it was not analysed.', 'Instagram does not publish share counts, so no share figures are shown for it.'],
+    },
+    cadence: {
+      posts_per_day: 1.8, rate: { value: 0.4, unit: 'month' }, active_days: 400, by_hour: Array(24).fill(0), by_weekday: Array(7).fill(0), weeks: [],
+      longest_gap: { days: 592, from: '2020-12-03', to: '2022-07-18' },
+      timeline: {
+        unit: 'month', active: 2, peak: { label: 'Apr 2025', posts: 5 },
+        buckets: [{ key: '2025-01', label: 'Jan 2025', posts: 3 }, { key: '2025-02', label: 'Feb 2025', posts: 0 }, { key: '2025-03', label: 'Mar 2025', posts: 0 }, { key: '2025-04', label: 'Apr 2025', posts: 5 }],
+      },
+    },
+    content: {
+      original: 1000, shared: 100, replies: 100, with_media: 300, with_image_text: 120, with_links: 20, avg_length: 120, languages: [{ language: 'hi', count: 900 }], hashtags: [], mentions: [],
+      pictures: { with_pictures: 300, described: 280, terms: [{ term: 'flag', count: 40 }, { term: 'crowd', count: 25 }] },
+    },
     engagement: { total: { likes: 10, shares: 2, comments: 1, views: 0 }, avg_score: 6, median_score: 6 },
     sentiment: { positive: 100, neutral: 300, negative: 700 },
     risk: { critical: 0, high: 1, medium: 0, low: 1099, max_score: 70 },
@@ -82,6 +97,7 @@ const REPORT = {
   evidence: [
     { n: 1, text: 'Crime is rising', english: '', image_text: '', platform: 'x', posted_at: '2026-11-01T13:00:00Z', sentiment: 'negative', risk_level: 'low', risk_score: 10, engagement: { likes: 4, shares: 1, comments: 0 } },
     { n: 2, text: '', english: '', image_text: 'Close every market tomorrow 10am', platform: 'facebook', posted_at: '2026-11-02T13:00:00Z', sentiment: 'negative', risk_level: 'high', risk_score: 70, engagement: { likes: 6, shares: 1, comments: 1 }, url: 'https://x.com/p/2' },
+    { n: 3, text: '', english: '', image_text: '', scene: 'A beach at sunset with two people.', platform: 'instagram', posted_at: '2026-11-03T13:00:00Z', sentiment: 'neutral', risk_level: 'low', risk_score: 5, summary: 'A calm sunset photo with no message.', engagement: { likes: 3, shares: 0, comments: 1 }, shares_reported: false },
   ],
   markdown: '# Behaviour report',
   summary_source: 'llm',
@@ -167,6 +183,63 @@ describe('Profile Report dialog', () => {
     expect(card.textContent).not.toContain('(no text)');
     expect(card.textContent.split('Close every market tomorrow 10am').length - 1).toBe(1);   // said once, not three times
     expect(card.textContent).toContain('Notable');
+  });
+
+  test('the picture, the reason for each label, the regional link, the timeline and honest engagement all show', async () => {
+    mockApi.getReport.mockResolvedValue({ data: REPORT });
+    await render();
+    expect(text()).toContain('Regional link:');
+    expect(text()).toContain('No link to Odisha found in the posts read.');
+    expect(text()).toContain('1,100 analysed · 1 no text');
+    await act(async () => { buttonNamed('Activity pattern').click(); });
+    expect(container.querySelector('[data-timeline]')).toBeTruthy();
+    expect(text()).toContain('Posts per month');
+    expect(text()).toContain('busiest Apr 2025 (5 posts)');
+    expect(text()).toContain('Longest silence 592 days (3 Dec 2020 → 18 Jul 2022)');
+    expect(container.querySelector('[data-picture-terms]').textContent).toContain('flag');
+    expect(text()).toContain('280 of 300 described by the image reader');
+    await act(async () => { buttonNamed('Risk').click(); });
+    expect(text()).toContain('1 of 1200 posts has no caption and nothing readable in the picture');
+    expect(text()).toContain('Only 2 posts read.');
+    await act(async () => { buttonNamed('Evidence').click(); });
+    const photo = container.querySelector('#bev-P3');
+    expect(photo.textContent).toContain('Image post');
+    expect(photo.textContent).toContain('no caption, no text on the picture');
+    expect(photo.textContent).toContain('A beach at sunset with two people.');
+    expect(photo.textContent).toContain('Reading: A calm sunset photo with no message.');
+    expect(photo.textContent).toContain('3 likes · 1 comments');
+    expect(photo.textContent).not.toContain('shares');                         // Instagram does not publish them
+    expect(container.querySelector('#bev-P1').textContent).toContain('4 likes · 0 comments · 1 shares');   // X does
+    expect(text()).toContain('Not listed: 1 post with no caption');
+  });
+
+  test('Reach has no Shares tile when the platform publishes none', async () => {
+    mockApi.getReport.mockResolvedValue({ data: { ...REPORT, facts: { ...REPORT.facts, engagement: { ...REPORT.facts.engagement, shares_reported: false } } } });
+    await render();
+    await act(async () => { buttonNamed('Activity pattern').click(); });
+    expect(text()).toContain('Likes');
+    expect(text()).toContain('Comments');
+    expect(text()).not.toMatch(/\bShares\b/);
+  });
+
+  test('a report saved before these additions still opens, without the parts it does not have', async () => {
+    const older = JSON.parse(JSON.stringify(REPORT));
+    delete older.report.regional_link;
+    delete older.facts.cadence.timeline; delete older.facts.cadence.longest_gap;
+    delete older.facts.content.pictures;
+    delete older.facts.coverage.notes; delete older.facts.coverage.no_text; delete older.facts.coverage.waiting;
+    older.evidence = older.evidence.map(({ scene, shares_reported: s, ...rest }) => rest);
+    mockApi.getReport.mockResolvedValue({ data: older });
+    await render();
+    expect(text()).toContain('Attention: Medium');
+    expect(text()).not.toContain('Regional link');
+    await act(async () => { buttonNamed('Activity pattern').click(); });
+    expect(container.querySelector('[data-timeline]')).toBeNull();
+    expect(text()).toContain('Longest silence 0 days');                         // the older per-day figure
+    expect(container.querySelector('[data-picture-terms]')).toBeNull();
+    await act(async () => { buttonNamed('Evidence').click(); });
+    expect(container.querySelector('#bev-P3').textContent).not.toContain('shares');   // an Instagram post saved earlier also hides shares
+    expect(text()).not.toMatch(/undefined|NaN/);
   });
 
   test('while posts are still being analysed the report says so and offers to regenerate later', async () => {

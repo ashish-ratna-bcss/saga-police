@@ -1,5 +1,6 @@
 import {
-  analysisProgress, citesIn, dayLabel, platformLabel, postBody, postingRate, progressOf, relativeTime, reportLockReason, spanText, splitCites, toneShare,
+  analysisProgress, citesIn, dayLabel, limitationsOf, platformLabel, postBody, postingRate, progressOf, relativeTime, reportLockReason, responseText, sharesShown, spanText, splitCites,
+  timelineTicks, toneShare,
 } from './reportFormat';
 
 const account = (fetch_status, extra = {}) => ({ id: 1, platform: 'x', handle: 'a', fetch_status, posts_fetched: 10, ...extra });
@@ -73,12 +74,51 @@ describe('Profile Report helpers', () => {
 
   test('a post says each sentence once: a picture-only post shows its image text as the post, labelled', () => {
     const quote = 'Before you diagnose yourself with depression, make sure you are not surrounded by fools.';
-    expect(postBody({ text: '', image_text: quote, english: quote })).toEqual({ main: quote, imageOnly: true, english: '', imageText: '' });
+    expect(postBody({ text: '', image_text: quote, english: quote })).toEqual({ main: quote, imageOnly: true, english: '', imageText: '', picture: '' });
     expect(postBody({ text: '', image_text: quote, english: quote.toUpperCase() + '!' }).english).toBe('');   // same words, other case
-    expect(postBody({ text: 'Happy New Year', image_text: 'Be patient. Be humble.', english: '' })).toEqual({ main: 'Happy New Year', imageOnly: false, english: '', imageText: 'Be patient. Be humble.' });
-    expect(postBody({ text: 'Namaste', image_text: 'Namaste', english: 'Hello' })).toEqual({ main: 'Namaste', imageOnly: false, english: 'Hello', imageText: '' });
+    expect(postBody({ text: 'Happy New Year', image_text: 'Be patient. Be humble.', english: '' })).toEqual({ main: 'Happy New Year', imageOnly: false, english: '', imageText: 'Be patient. Be humble.', picture: '' });
+    expect(postBody({ text: 'Namaste', image_text: 'Namaste', english: 'Hello' })).toEqual({ main: 'Namaste', imageOnly: false, english: 'Hello', imageText: '', picture: '' });
     expect(postBody({ text: '', image_text: '', english: '' }).main).toBe('');
-    expect(postBody()).toEqual({ main: '', imageOnly: false, english: '', imageText: '' });
+    expect(postBody()).toEqual({ main: '', imageOnly: false, english: '', imageText: '', picture: '' });
+  });
+
+  test('what the picture shows is a line of its own, and a photo with no words at all is said to be so', () => {
+    expect(postBody({ text: 'Rally today', image_text: '', scene: 'A crowd holding flags.' })).toEqual({ main: 'Rally today', imageOnly: false, english: '', imageText: '', picture: 'A crowd holding flags.' });
+    expect(postBody({ text: '', image_text: '', scene: 'A beach at sunset.' })).toEqual({ main: '', imageOnly: true, noWords: true, english: '', imageText: '', picture: 'A beach at sunset.' });
+    expect(postBody({ text: '', image_text: 'GOOD MORNING', scene: 'Good morning' }).picture).toBe('');   // a description that only repeats the printed words
+    expect(postBody({ text: 'Good morning', scene: 'good morning!' }).picture).toBe('');
+  });
+
+  test('response figures leave out shares where the platform has none, for new and older saved reports alike', () => {
+    const eng = { likes: 1234, comments: 5, shares: 0 };
+    expect(responseText({ platform: 'instagram', engagement: eng })).toBe('1,234 likes · 5 comments');
+    expect(responseText({ platform: 'x', engagement: { ...eng, shares: 7 } })).toBe('1,234 likes · 5 comments · 7 shares');
+    expect(responseText({ platform: 'instagram', shares_reported: true, engagement: eng })).toContain('shares');   // the saved flag wins
+    expect(responseText({ platform: 'x', shares_reported: false, engagement: eng })).not.toContain('shares');
+    expect(responseText({})).toBe('0 likes · 0 comments · 0 shares');
+    expect(sharesShown('YouTube')).toBe(false);
+    expect(sharesShown('facebook')).toBe(true);
+  });
+
+  test('limitations: what the model cannot show, then what the numbers do not cover, each once', () => {
+    expect(limitationsOf({ limitations: ['Only public posts.'] }, { coverage: { notes: ['1 of 18 posts has no caption.', 'Only public posts.'] } })).toEqual(['Only public posts.', '1 of 18 posts has no caption.']);
+    expect(limitationsOf({}, {})).toEqual([]);
+    expect(limitationsOf(undefined, undefined)).toEqual([]);
+  });
+
+  test('timeline ticks: first and last period, a year mark between, never two labels on top of each other', () => {
+    const months = (from, count) => Array.from({ length: count }, (_, i) => {
+      const idx = from.month - 1 + i;
+      const y = from.year + Math.floor(idx / 12);
+      const m = (idx % 12) + 1;
+      return { key: `${y}-${String(m).padStart(2, '0')}`, label: `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1]} ${y}`, posts: i % 5 === 0 ? 1 : 0 };
+    });
+    const ticks = timelineTicks({ unit: 'month', buckets: months({ year: 2019, month: 5 }, 49) });
+    expect(ticks.map((t) => t.text)).toEqual(['May 2019', '2020', '2021', '2022', 'May 2023']);
+    expect(ticks.every((t, i) => i === 0 || t.at - ticks[i - 1].at > 9)).toBe(true);
+    expect(ticks[0].at).toBeGreaterThanOrEqual(6);
+    expect(timelineTicks({ unit: 'month', buckets: [] })).toEqual([]);
+    expect(timelineTicks(null)).toEqual([]);
   });
 
   test('the posting rate reads in the unit that makes sense, and the period in years when long', () => {

@@ -13,7 +13,8 @@ import { Progress } from '../../../components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
 import { cn } from '../../../lib/utils';
 import {
-  ATTENTION_STYLES, analysisProgress, citesIn, dayLabel, formatCount, formatWhen, hourLabel, platformLabel, postBody, postingRate, spanText, splitCites, toneShare, WEEKDAYS,
+  ATTENTION_STYLES, analysisProgress, citesIn, dayLabel, foldText, formatCount, formatWhen, hourLabel, limitationsOf, platformLabel, postBody, postingRate, responseText,
+  spanText, splitCites, timelineTicks, toneShare, WEEKDAYS,
 } from './reportFormat';
 
 const POLL_MS = 3500;
@@ -101,16 +102,52 @@ const Stat = ({ label, value, sub, tone }) => (
   </div>
 );
 
-const Bars = ({ values, labels, color, height = 72 }) => {
+/** Columns with their counts above them, so a handful of posts can be read without guessing. */
+const Bars = ({ values, labels, color, height = 84 }) => {
   const max = Math.max(1, ...values);
   return (
     <div className="flex items-end gap-[3px]" style={{ height }}>
       {values.map((v, i) => (
         <div key={i} className="flex h-full flex-1 flex-col justify-end" title={`${labels[i] || i}: ${v} posts`}>
-          <div className={cn('min-h-[2px] rounded-t-sm', v ? color : 'bg-slate-100')} style={{ height: `${Math.round((v / max) * 100)}%` }} />
+          <span className="h-3 text-center text-[9px] font-medium leading-3 tabular-nums text-foreground">{v || ''}</span>
+          <div className={cn('min-h-[2px] rounded-t-sm', v ? color : 'bg-slate-100')} style={{ height: `${Math.round((v / max) * 72)}%` }} />
           <span className="mt-1 h-3 text-center text-[9px] leading-3 text-muted-foreground">{labels[i]}</span>
         </div>
       ))}
+    </div>
+  );
+};
+
+/** Posts per month (or quarter, or year) over the whole period, so bursts and long silences show. */
+const Timeline = ({ cad }) => {
+  const tl = cad.timeline;
+  if (!tl || !Array.isArray(tl.buckets) || tl.buckets.length < 2) return null;
+  const max = Math.max(1, ...tl.buckets.map((b) => b.posts));
+  const gap = cad.longest_gap;
+  return (
+    <div className="mb-4" data-timeline>
+      <p className="mb-1 text-[11px] text-muted-foreground">
+        Posts per {tl.unit} · posted in <b className="text-foreground">{tl.active}</b> of {tl.buckets.length} {tl.unit}s
+        {tl.peak ? <> · busiest <b className="text-foreground">{tl.peak.label}</b> ({tl.peak.posts} posts)</> : null}
+      </p>
+      <div className="flex items-end gap-px" style={{ height: 84 }}>
+        {tl.buckets.map((b) => (
+          <div key={b.key} className="flex h-full flex-1 flex-col justify-end" title={`${b.label}: ${b.posts} posts`}>
+            <span className="h-3 text-center text-[8px] leading-3 tabular-nums text-foreground">{b.posts || ''}</span>
+            <div className={cn('min-h-[1px] rounded-t-sm', b.posts ? 'bg-violet-500' : 'bg-slate-100')} style={{ height: `${Math.round((b.posts / max) * 72)}%` }} />
+          </div>
+        ))}
+      </div>
+      <div className="relative mt-1 h-3.5">
+        {timelineTicks(tl).map((t) => (
+          <span key={t.i} className="absolute -translate-x-1/2 whitespace-nowrap text-[10px] text-muted-foreground" style={{ left: `${t.at}%` }}>{t.text}</span>
+        ))}
+      </div>
+      {gap && gap.days >= 30 ? (
+        <p className="mt-1.5 text-[11px] text-muted-foreground">
+          Longest silence <b className="tabular-nums text-foreground">{formatCount(gap.days)} days</b> ({dayLabel(gap.from)} → {dayLabel(gap.to)})
+        </p>
+      ) : null}
     </div>
   );
 };
@@ -298,6 +335,7 @@ const PatternTab = ({ report, facts, onCite }) => {
 
       <Section title="Posting rhythm" hint={`Times in ${facts.timezone || 'local time'}`}>
         {report.posting_pattern ? <p className="mb-3 text-xs leading-relaxed"><Rich text={report.posting_pattern} onCite={onCite} /></p> : null}
+        <Timeline cad={cad} />
         <div className="grid gap-5 md:grid-cols-[2fr_1fr]">
           <div>
             <p className="mb-1 text-[11px] text-muted-foreground">Posts by hour of day</p>
@@ -312,11 +350,11 @@ const PatternTab = ({ report, facts, onCite }) => {
           <span>Busiest hours <b className="text-foreground">{cad.busiest_hours ? `${hourLabel(cad.busiest_hours.from)}–${hourLabel(cad.busiest_hours.to)}` : '—'}</b></span>
           <span>Busiest day <b className="text-foreground">{cad.busiest_day?.day || '—'}</b></span>
           <span>Night posts (00–05) <b className="tabular-nums text-foreground">{cad.night_posts ?? 0}</b></span>
-          <span>Longest silence <b className="tabular-nums text-foreground">{cad.longest_gap_days ?? 0} days</b></span>
+          {cad.timeline ? null : <span>Longest silence <b className="tabular-nums text-foreground">{cad.longest_gap_days ?? 0} days</b></span>}
         </div>
       </Section>
 
-      {weeks.length > 1 ? (
+      {weeks.length > 1 && (!cad.timeline || (facts.coverage?.span_days ?? 0) <= 120) ? (
         <Section title="Week by week" hint="Red = negative posts · dot = serious-risk posts">
           <div className="space-y-1">
             {weeks.map((w) => (
@@ -338,8 +376,8 @@ const PatternTab = ({ report, facts, onCite }) => {
       <div className="grid gap-3 md:grid-cols-2">
         <Section title="Reach">
           {report.influence ? <p className="text-xs leading-relaxed"><Rich text={report.influence} onCite={onCite} /></p> : null}
-          <div className="mt-2 grid grid-cols-4 gap-2 text-center">
-            {[['Likes', eng.total?.likes], ['Shares', eng.total?.shares], ['Comments', eng.total?.comments], ['Views', eng.total?.views]].map(([k, v]) => (
+          <div className={cn('mt-2 grid gap-2 text-center', eng.shares_reported === false ? 'grid-cols-3' : 'grid-cols-4')}>
+            {[['Likes', eng.total?.likes], ...(eng.shares_reported === false ? [] : [['Shares', eng.total?.shares]]), ['Comments', eng.total?.comments], ['Views', eng.total?.views]].map(([k, v]) => (
               <div key={k} className="rounded-md bg-muted/40 py-1.5">
                 <p className="text-sm font-bold tabular-nums">{Number(v || 0).toLocaleString('en-IN')}</p>
                 <p className="text-[10px] text-muted-foreground">{k}</p>
@@ -357,6 +395,18 @@ const PatternTab = ({ report, facts, onCite }) => {
             ))}
             {!content.hashtags?.length && !content.mentions?.length ? <Empty>No hashtags or mentions.</Empty> : null}
           </div>
+          {content.pictures?.terms?.length ? (
+            <div className="mt-3 border-t pt-2" data-picture-terms>
+              <p className="mb-1 text-[11px] text-muted-foreground">
+                What the pictures show <span className="text-muted-foreground/80">({content.pictures.described} of {content.pictures.with_pictures} described by the image reader)</span>
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {content.pictures.terms.map((t) => (
+                  <span key={t.term} className="inline-flex items-center gap-0.5 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] text-violet-800">{t.term} <b className="ml-0.5 tabular-nums">{t.count}</b></span>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </Section>
       </div>
 
@@ -422,8 +472,8 @@ const RiskTab = ({ report, facts, onCite }) => {
           ) : <Empty>None.</Empty>}
         </Section>
         <Section title="Limitations">
-          {report.limitations?.length ? (
-            <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">{report.limitations.map((w, i) => <li key={i}><Rich text={w} onCite={onCite} /></li>)}</ul>
+          {limitationsOf(report, facts).length ? (
+            <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">{limitationsOf(report, facts).map((w, i) => <li key={i}><Rich text={w} onCite={onCite} /></li>)}</ul>
           ) : <Empty>None noted.</Empty>}
         </Section>
       </div>
@@ -433,20 +483,21 @@ const RiskTab = ({ report, facts, onCite }) => {
 
 /** What an evidence post says, each sentence once; a picture-only post shows the text read from it, labelled. */
 const PostText = ({ post }) => {
-  const body = postBody({ text: post.text, image_text: post.image_text, english: post.english });
+  const body = postBody({ text: post.text, image_text: post.image_text, english: post.english, scene: post.scene });
   return (
     <>
       <p className="mt-1.5 whitespace-pre-line break-words text-[13px] leading-relaxed">
         {body.imageOnly ? <span className="mr-1.5 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700">Image post</span> : null}
-        {body.main || <span className="text-muted-foreground">(no text)</span>}
+        {body.main || <span className="text-muted-foreground">{body.noWords ? 'no caption, no text on the picture' : '(no caption)'}</span>}
       </p>
       {body.english ? <p className="mt-1 border-l-2 border-sky-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-sky-700">EN</span> {body.english}</p> : null}
       {body.imageText ? <p className="mt-1 border-l-2 border-violet-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-violet-700">Image text</span> {body.imageText}</p> : null}
+      {body.picture ? <p className="mt-1 border-l-2 border-fuchsia-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-fuchsia-700">Picture</span> {body.picture}</p> : null}
     </>
   );
 };
 
-const EvidenceTab = ({ evidence, report, highlight, timezone }) => {
+const EvidenceTab = ({ evidence, report, highlight, timezone, coverage = {} }) => {
   const cited = useMemo(() => citesIn(report), [report]);
   const notable = useMemo(() => new Map((report.notable_posts || []).map((x) => [x.post, x.why])), [report]);
   if (!evidence.length) return <Empty>No posts.</Empty>;
@@ -454,6 +505,7 @@ const EvidenceTab = ({ evidence, report, highlight, timezone }) => {
     <div className="space-y-2">
       <p className="text-[11px] text-muted-foreground">
         The {evidence.length} posts the analysis read, oldest first. {cited.size} are cited in the report.
+        {coverage.no_text ? ` Not listed: ${coverage.no_text} ${coverage.no_text === 1 ? 'post' : 'posts'} with no caption and nothing readable in the picture.` : ''}
       </p>
       {evidence.map((e) => (
         <article
@@ -475,11 +527,12 @@ const EvidenceTab = ({ evidence, report, highlight, timezone }) => {
                 risk {e.risk_level} · {e.risk_score}
               </span>
             ) : null}
-            <span className="ml-auto tabular-nums text-muted-foreground">
-              {e.engagement?.likes || 0} likes · {e.engagement?.shares || 0} shares · {e.engagement?.comments || 0} comments
-            </span>
+            <span className="ml-auto tabular-nums text-muted-foreground">{responseText(e)}</span>
           </div>
           <PostText post={e} />
+          {e.sentiment && e.summary && foldText(e.summary) !== foldText(e.text) ? (
+            <p className="mt-1 text-xs text-muted-foreground"><span className="font-semibold text-foreground">Reading:</span> {e.summary}</p>
+          ) : null}
           {notable.has(e.n) ? <p className="mt-1.5 text-xs"><span className="font-semibold text-indigo-700">Notable:</span> {notable.get(e.n)}</p> : null}
           {e.url ? (
             <a href={e.url} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-blue-700 hover:underline">
@@ -779,11 +832,16 @@ export default function ProfileReportDialog({ open, onOpenChange, profile, onRep
                     <b className="text-foreground">Account type:</b> <Rich text={report.account_type_basis} onCite={showPost} />
                   </p>
                 ) : null}
+                {report.regional_link ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    <b className="text-foreground">Regional link:</b> <Rich text={report.regional_link} onCite={showPost} />
+                  </p>
+                ) : null}
               </div>
 
               {/* Key figures */}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-                <Stat label="Posts collected" value={formatCount(cov.read)} sub={`${formatCount(cov.analysed)} analysed`} />
+                <Stat label="Posts collected" value={formatCount(cov.read)} sub={`${formatCount(cov.analysed)} analysed${cov.no_text ? ` · ${formatCount(cov.no_text)} no text` : ''}${cov.waiting ? ` · ${formatCount(cov.waiting)} waiting` : ''}`} />
                 <Stat label="Period" value={spanText(cov)} sub={`${dayLabel(cov.first_post)} → ${dayLabel(cov.last_post)}`} />
                 <Stat label={postingRate(facts).label} value={postingRate(facts).value} sub={`${facts.cadence?.active_days ?? 0} active days`} />
                 <Stat label="Engagement a post" value={facts.engagement?.avg_score ?? 0} sub={`average · median ${facts.engagement?.median_score ?? 0}`} />
@@ -808,7 +866,7 @@ export default function ProfileReportDialog({ open, onOpenChange, profile, onRep
                 <TabsContent value="behaviour" className="mt-3"><BehaviourTab report={report} facts={facts} onCite={showPost} /></TabsContent>
                 <TabsContent value="pattern" className="mt-3"><PatternTab report={report} facts={facts} onCite={showPost} /></TabsContent>
                 <TabsContent value="risk" className="mt-3"><RiskTab report={report} facts={facts} onCite={showPost} /></TabsContent>
-                <TabsContent value="evidence" className="mt-3"><EvidenceTab evidence={evidence} report={report} highlight={highlight} timezone={tz} /></TabsContent>
+                <TabsContent value="evidence" className="mt-3"><EvidenceTab evidence={evidence} report={report} highlight={highlight} timezone={tz} coverage={cov} /></TabsContent>
               </Tabs>
 
               <p className="pb-1 text-center text-[10px] text-muted-foreground">

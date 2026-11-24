@@ -7,6 +7,7 @@
  * Sentiment and risk use the same helpers as the event report, so a post counts the same everywhere.
  */
 const { parseSentiment, evaluateThreatRisk } = require('../../events/eventTelemetry.service');
+const { flatten, sceneOf, cleanTranslation } = require('../../../services/media_post_analysis/imageText');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -73,11 +74,18 @@ const isReply = (p) => p.kind === 'reply' || /^@\w/.test(String(p.text || '').tr
 const hasMedia = (p) => (Array.isArray(p.media_urls) && p.media_urls.length > 0) ||
   /photo|image|video|reel|album|gif/i.test(String(p.media_type || ''));
 
-/** Text read from a post's picture (OCR), or described from its video. */
+/** The words printed on a post's picture (OCR). What the picture shows is `scene`, kept apart. */
 const imageTextOf = (img) => {
   if (!img || typeof img !== 'object' || img.failed) return '';
-  return String(img.full_text || [img.description, img.summary].filter(Boolean).join(' ') || '').replace(/\s+/g, ' ').trim();
+  return flatten(img.full_text).replace(/\s+/g, ' ').trim();
 };
+
+/** Platforms that do not publish a share / repost count: a 0 there means "not shown", not "nobody shared it". */
+const NO_SHARE_COUNT = new Set(['instagram', 'youtube']);
+const sharesReported = (platform) => !NO_SHARE_COUNT.has(String(platform || '').toLowerCase());
+const PLATFORM_LABELS = { x: 'X', twitter: 'X', facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', telegram: 'Telegram', reddit: 'Reddit' };
+const platformName = (p) => PLATFORM_LABELS[String(p || '').toLowerCase()] || String(p || '');
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const HASHTAG_RE = /#[\p{L}\p{M}\p{N}_]{2,60}/gu;
 const MENTION_RE = /(?:^|[^\w@])@([A-Za-z0-9_.]{2,30})/g;
@@ -142,6 +150,14 @@ const normalisePosts = (posts = [], { timezone = DEFAULT_TZ } = {}) => posts
     const analysed = isAnalysed(a);
     const risk = analysed ? evaluateThreatRisk(a) : { riskLevel: null, riskScore: 0, hasThreatVector: false };
     const text = String(p.text || '').trim();
+    const printed = imageTextOf(p.image_analysis);
+    // What the picture shows, unless it only repeats the words printed on it.
+    const shown = sceneOf(p.image_analysis, 300).replace(/\s+/g, ' ');
+    const scene = shown && foldText(shown) !== foldText(printed) ? shown : '';
+    const described = Boolean(shown);
+    // The English reading is kept only when it adds something: not a copy of the caption, the image text or the description.
+    const translation = analysed ? cleanTranslation(a.english_text) || '' : '';
+    const english = translation && ![text, printed, scene].some((x) => x && foldText(x) === foldText(translation)) ? translation.replace(/\s+/g, ' ') : '';
     return {
       id: p.id != null ? String(p.id) : null,
       url: p.url || null,
@@ -149,9 +165,13 @@ const normalisePosts = (posts = [], { timezone = DEFAULT_TZ } = {}) => posts
       at: when,
       local: when ? localParts(when, timezone) : null,
       text,
-      imageText: imageTextOf(p.image_analysis),
+      imageText: printed,
+      scene,
+      described,
       accountHandle: p.account_handle || '',
-      english: analysed && a.english_text && ![foldText(text), foldText(imageTextOf(p.image_analysis))].includes(foldText(a.english_text)) ? String(a.english_text).trim() : '',
+      english,
+      // a post with nothing to read (no caption, nothing on or in the picture) is skipped, not analysed
+      noText: p.analysis_status === 'skipped' || a.skipped === true,
       language: analysed && a.language ? String(a.language).toLowerCase() : null,
       analysed,
       sentiment: analysed ? parseSentiment(a.sentiment || a.label) : null,
@@ -173,6 +193,73 @@ const normalisePosts = (posts = [], { timezone = DEFAULT_TZ } = {}) => posts
     };
   })
   .sort((x, y) => (x.at ? x.at.getTime() : 0) - (y.at ? y.at.getTime() : 0));
+
+/** Words that appear in almost any picture description and say nothing about what the pictures are of. */
+const PICTURE_STOP = new Set(('this that with from into over near they them their there which while where when showing shows shown show image images picture pictures photo photos photograph '
+  + 'background foreground appears appear seems seem text written words word large small several various front behind left right middle center centre top bottom side '
+  + 'white black blue red green yellow orange brown gray grey pink purple colour color colored coloured dark light bright some other another also have has been being are were was '
+  + 'visible displayed displays display containing contains contain includes include featuring features feature depicting depicts depict scene view looks look made like very more most than then just only '
+  + 'style design man woman men women boy girl male female').split(/\s+/));
+
+/**
+ * What the pictures are of, across ALL posts: the words that keep coming back in the reader's descriptions, with the
+ * number of pictures each appears in. The evidence shows a few dozen posts; this shows what the rest look like.
+ */
+const pictureTermsOf = (rows) => {
+  const counts = new Map();
+  let described = 0;
+  rows.forEach((r) => {
+    if (!r.scene) return;
+    described += 1;
+    const seen = new Set();
+    for (const w of r.scene.toLowerCase().match(/\p{L}{4,}/gu) || []) {
+      const word = w.length > 4 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w;   // flags -> flag
+      if (!PICTURE_STOP.has(w) && !PICTURE_STOP.has(word)) seen.add(word);
+    }
+    seen.forEach((w) => counts.set(w, (counts.get(w) || 0) + 1));
+  });
+  const floor = Math.max(2, Math.ceil(described * 0.1));
+  return [...counts.entries()]
+    .filter(([, c]) => c >= floor)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 8)
+    .map(([term, count]) => ({ term, count }));
+};
+
+/** A post with something to read: a caption, text on its picture, a description of it, or an English reading. */
+const isUsable = (r) => r.text.length >= 3 || r.english.length >= 3 || r.imageText.length >= 3 || r.scene.length >= 3;
+
+/**
+ * Posts per month across the whole period (per quarter, or year, when the history is long), empty months included,
+ * so bursts and long silences are visible. Null when there is nothing dated.
+ */
+const timelineOf = (dated) => {
+  if (!dated.length) return null;
+  const parts = (day) => [Number(day.slice(0, 4)), Number(day.slice(5, 7))];
+  const [fy, fm] = parts(dated[0].local.day);
+  const [ly, lm] = parts(dated[dated.length - 1].local.day);
+  const months = (ly - fy) * 12 + (lm - fm) + 1;
+  const unit = months <= 60 ? 'month' : months <= 180 ? 'quarter' : 'year';
+  const meta = (y, m) => {
+    const q = Math.floor((m - 1) / 3) + 1;
+    if (unit === 'month') return { key: `${y}-${String(m).padStart(2, '0')}`, label: `${MONTH_NAMES[m - 1]} ${y}` };
+    if (unit === 'quarter') return { key: `${y}-Q${q}`, label: `Q${q} ${y}` };
+    return { key: String(y), label: String(y) };
+  };
+  const buckets = new Map();
+  for (let i = 0; i < months; i += 1) {
+    const idx = fm - 1 + i;
+    const { key, label } = meta(fy + Math.floor(idx / 12), (idx % 12) + 1);
+    if (!buckets.has(key)) buckets.set(key, { key, label, posts: 0 });
+  }
+  dated.forEach((r) => {
+    const [y, m] = parts(r.local.day);
+    buckets.get(meta(y, m).key).posts += 1;
+  });
+  const list = [...buckets.values()];
+  const peak = list.reduce((best, b) => (b.posts > (best ? best.posts : 0) ? b : best), null);
+  return { unit, buckets: list, active: list.filter((b) => b.posts > 0).length, peak: peak ? { label: peak.label, posts: peak.posts } : null };
+};
 
 const sentimentCounts = (rows) => rows.reduce((acc, r) => {
   if (r.sentiment) acc[r.sentiment] += 1;
@@ -229,12 +316,18 @@ const buildBehaviorFacts = ({ account = {}, accounts = [], rows = [], totalPosts
   const byWeekday = Array(7).fill(0);
   const days = new Set();
   let longestGap = 0;
+  let gapFrom = null;
+  let gapTo = null;
   dated.forEach((r, i) => {
     byHour[r.local.hour] += 1;
     byWeekday[r.local.weekday] += 1;
     days.add(r.local.day);
-    if (i > 0) longestGap = Math.max(longestGap, (r.at - dated[i - 1].at) / DAY_MS);
+    if (i > 0) {
+      const gap = (r.at - dated[i - 1].at) / DAY_MS;
+      if (gap > longestGap) { longestGap = gap; gapFrom = dated[i - 1].local.day; gapTo = r.local.day; }
+    }
   });
+  const timeline = timelineOf(dated);
   const bands = Array.from({ length: 8 }, (_, b) => ({ from: b * 3, count: byHour.slice(b * 3, b * 3 + 3).reduce((s, n) => s + n, 0) }));
   const topBand = [...bands].sort((a, b) => b.count - a.count)[0];
   const topDay = byWeekday.indexOf(Math.max(...byWeekday));
@@ -335,6 +428,21 @@ const buildBehaviorFacts = ({ account = {}, accounts = [], rows = [], totalPosts
     };
   }
 
+  // ---- what the numbers do not cover, in words an officer can read
+  const noText = rows.filter((r) => r.noText).length;
+  const waiting = Math.max(0, rows.length - analysed.length - noText);
+  const noShare = [...new Set(rows.map((r) => r.platform))].filter((p) => !sharesReported(p));
+  const notes = [];
+  if (noText) notes.push(`${noText} of ${rows.length} posts ${noText === 1 ? 'has' : 'have'} no caption and nothing readable in the picture, so ${noText === 1 ? 'it was' : 'they were'} not analysed.`);
+  if (waiting) notes.push(`${waiting} of ${rows.length} posts ${waiting === 1 ? 'is' : 'are'} still waiting to be analysed; regenerate the report when they are done.`);
+  if (noShare.length) notes.push(`${noShare.map(platformName).join(' and ')} ${noShare.length === 1 ? 'does' : 'do'} not publish share counts, so no share figures are shown for ${noShare.length === 1 ? 'it' : 'them'}.`);
+  // pictures: how many were described by the image reader. Only analysed posts count against it: a post with nothing readable has its own note.
+  const withPictures = rows.filter((r) => r.media);
+  const looked = withPictures.filter((r) => r.analysed);
+  const described = withPictures.filter((r) => r.described).length;
+  const undescribed = looked.filter((r) => !r.described).length;
+  if (undescribed) notes.push(`The image reader gave no description for ${undescribed} of ${looked.length} analysed posts with pictures, so those are judged from their caption and any printed text only.`);
+
   return {
     profile: {
       id: account.id ?? null,
@@ -351,6 +459,10 @@ const buildBehaviorFacts = ({ account = {}, accounts = [], rows = [], totalPosts
       read: rows.length,
       analysed: analysed.length,
       not_analysed: rows.length - analysed.length,
+      no_text: noText,
+      waiting,
+      usable: rows.filter(isUsable).length,
+      notes,
       first_post: first ? first.local.day : null,
       last_post: last ? last.local.day : null,
       span_days: spanDays,
@@ -364,6 +476,8 @@ const buildBehaviorFacts = ({ account = {}, accounts = [], rows = [], totalPosts
       busiest_day: byWeekday[topDay] > 0 ? { day: WEEKDAYS[topDay], posts: byWeekday[topDay] } : null,
       night_posts: night,
       longest_gap_days: round1(longestGap),
+      longest_gap: longestGap > 0 ? { days: Math.round(longestGap), from: gapFrom, to: gapTo } : null,
+      timeline,
       by_hour: byHour,
       by_weekday: byWeekday,
       weeks: [...weeks.values()].sort((a, b) => a.week.localeCompare(b.week)).slice(-12),
@@ -374,6 +488,7 @@ const buildBehaviorFacts = ({ account = {}, accounts = [], rows = [], totalPosts
       replies: rows.filter((r) => r.reply && !r.shared).length,
       with_media: rows.filter((r) => r.media).length,
       with_image_text: rows.filter((r) => r.imageText.length > 0).length,
+      pictures: { with_pictures: withPictures.length, described, terms: pictureTermsOf(rows) },
       with_links: rows.filter((r) => r.link).length,
       avg_length: withText.length ? Math.round(withText.reduce((s, r) => s + Array.from(r.text).length, 0) / withText.length) : 0,
       languages: topOf(languages, 6, 'language'),
@@ -382,6 +497,8 @@ const buildBehaviorFacts = ({ account = {}, accounts = [], rows = [], totalPosts
     },
     engagement: {
       total,
+      shares_reported: rows.length === 0 || rows.some((r) => sharesReported(r.platform)),
+      no_share_platforms: noShare,
       avg_score: rows.length ? Math.round(scores.reduce((s, n) => s + n, 0) / rows.length) : 0,
       median_score: median,
     },
@@ -408,7 +525,7 @@ const buildBehaviorFacts = ({ account = {}, accounts = [], rows = [], totalPosts
  * and an even spread across the whole period for the rest.
  */
 const selectEvidence = (rows = [], { max = 40 } = {}) => {
-  const usable = rows.filter((r) => r.text.length >= 3 || r.english.length >= 3 || r.imageText.length >= 3);
+  const usable = rows.filter(isUsable);
   const picked = new Map();
   const take = (list, n, reason) => {
     for (const r of list) {
@@ -445,6 +562,7 @@ const selectEvidence = (rows = [], { max = 40 } = {}) => {
       account_handle: row.accountHandle,
       text: row.text,
       image_text: row.imageText,
+      scene: row.scene,
       english: row.english,
       sentiment: row.sentiment,
       stance: row.stance,
@@ -455,6 +573,7 @@ const selectEvidence = (rows = [], { max = 40 } = {}) => {
       shared: row.shared,
       reply: row.reply,
       engagement: row.engagement,
+      shares_reported: sharesReported(row.platform),
       reasons,
     }));
 };
@@ -481,6 +600,10 @@ module.exports = {
   foldText,
   rateOf,
   spanLabelOf,
+  sharesReported,
+  isUsable,
+  timelineOf,
+  pictureTermsOf,
   DEFAULT_TZ,
   WEEKDAYS,
   engagementOf,

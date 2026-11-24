@@ -76,7 +76,7 @@ test('facts: text read from images counts, and image-only posts can be evidence'
   const e = ev.find((x) => x.id === '20');
   assert.ok(e, 'a post with no text but image text is usable evidence');
   assert.strictEqual(e.image_text, 'Join the rally at Morabadi 10am');
-  assert.match(buildUserContext({ facts: f, evidence: ev }), /Text: \(no text\)\nImage text: Join the rally at Morabadi 10am/);
+  assert.match(buildUserContext({ facts: f, evidence: ev }), /Text: \(no caption\)\nImage text: Join the rally at Morabadi 10am/);
   assert.strictEqual(normalisePosts([post(21, '2026-11-11T09:00:00Z', 'x', {}, { image_analysis: { failed: true, error: 'x' } })])[0].imageText, '', 'a failed OCR contributes nothing');
 });
 
@@ -382,7 +382,7 @@ test('a picture-only post does not repeat its quote three times: the translation
   assert.strictEqual(ev.english, '');
   const ctx = buildUserContext({ facts: facts(rows), evidence: [ev] });
   assert.ok(!/English:/.test(ctx));
-  assert.match(ctx, /Text: \(no text\)\nImage text: Remember/);
+  assert.match(ctx, /Text: \(no caption\)\nImage text: Remember/);
   // a real translation is kept
   const kept = normalisePosts([post(50, '2026-01-01T00:00:00Z', 'नमस्ते दोस्तों', A('positive', 'low', 0, { english_text: 'Hello friends' }))])[0];
   assert.strictEqual(kept.english, 'Hello friends');
@@ -441,6 +441,6 @@ test('pdf: the annex lists every cited post (inline [P#] too), each post says it
   assert.ok(!/Posts a day/.test(html));
   const pic = html.slice(html.indexOf('<td class="no">P' + picNo + '</td>'));
   assert.match(pic, /<span class="tag">Image post<\/span> Remember: the day you plant the seed/);
-  assert.ok(!/\(no text\)/.test(pic.slice(0, 900)), 'a picture-only post is not "(no text)"');
+  assert.ok(!/\(no (text|caption)\)/.test(pic.slice(0, 900)), 'a picture-only post is not "(no text)"');
   assert.strictEqual(pic.slice(0, 1200).split('Remember: the day you plant the seed').length - 1, 1, 'the quote appears once');
 });
