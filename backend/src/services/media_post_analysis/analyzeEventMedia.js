@@ -5,6 +5,7 @@ const mappingService = require('../../modules/settings/mapping.service');
 const { getSettingsDoc } = require('../../modules/settings/settings.service');
 const { resolveTenantName } = require('../../lib/tenantDatabase.service');
 const { extractOcr, extractVideo } = require('./extractOcr');
+const { mediaTextOf } = require('./imageText');
 const { keywordMatchesText } = require('../../modules/events/event.utils');
 
 const MAX_ATTEMPTS = Math.max(1, Number(process.env.SENTIMENT_MAX_ATTEMPTS) || 5);
@@ -186,13 +187,8 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
 
   // ── STEP 2: SENTIMENT ANALYSIS ──
   const rowText = String(row.text || '').trim();
-  const mediaText = ocrData?.full_text
-    ? String(ocrData.full_text).trim()
-    : String(
-        [ocrData?.description, ocrData?.summary, ...(Array.isArray(ocrData?.visible_text) ? ocrData.visible_text : [])]
-          .filter(Boolean)
-          .join('\n')
-      ).trim();
+  // Readable text even when the image reader answered with structured data (it used to become "[object Object]").
+  const mediaText = mediaTextOf(ocrData);
   const textForAnalysis = rowText || mediaText;
 
   if (rowText.length < 3 && mediaText.length < 3) {
