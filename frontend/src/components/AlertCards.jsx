@@ -2352,13 +2352,11 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
                 <div className="px-5 pt-4 pb-3 border-b border-border">
                     <div className="flex items-center justify-between gap-3 mb-2">
                         <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shrink-0 shadow-md">
-                                {sourceAvatar ? (
-                                    <img src={sourceAvatar} alt="" className="h-9 w-9 rounded-full object-cover" />
-                                ) : (
-                                    <Users className="h-4 w-4 text-white" />
-                                )}
-                            </div>
+                            <InitialAvatar
+                                src={sourceAvatar}
+                                name={sourceLabel || handleClean}
+                                className="h-9 w-9 rounded-full object-cover shrink-0 shadow-md text-xs"
+                            />
                             <div className="min-w-0">
                                 <h2 className="text-sm font-semibold truncate">Frequent Engagers</h2>
                                 <p className="text-xs text-muted-foreground">@{handleClean} · {sourceLabel}</p>
@@ -2546,13 +2544,7 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
                                                                         <tr key={rt.handle} className={`border-t transition-colors ${FREQ_ROW_COLORS[freq] || ''}`}>
                                                                             <td className="px-2 py-1.5 align-middle">
                                                                                 <div className="flex items-center gap-1.5">
-                                                                                    {rt.avatar ? (
-                                                                                        <img src={rt.avatar} alt="" className="h-5 w-5 rounded-full object-cover shrink-0" />
-                                                                                    ) : (
-                                                                                        <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-[8px] font-bold shrink-0">
-                                                                                            {(rt.name || rt.handle || '?')[0].toUpperCase()}
-                                                                                        </div>
-                                                                                    )}
+                                                                                    <InitialAvatar src={rt.avatar} name={rt.name || rt.handle} className="h-5 w-5 rounded-full object-cover shrink-0 text-[8px]" />
                                                                                     <a href={`https://x.com/${rt.handle}`} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline text-[11px] break-all leading-tight">@{rt.handle}</a>
                                                                                     {rt.verified && <CheckCircle2 className="h-2.5 w-2.5 text-blue-500 shrink-0" />}
                                                                                 </div>
@@ -2623,13 +2615,7 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
                                                                         <tr key={rt.handle} className={`border-t transition-colors ${FREQ_ROW_COLORS[freq] || ''}`}>
                                                                             <td className="px-2 py-1.5 align-middle">
                                                                                 <div className="flex items-center gap-1.5">
-                                                                                    {rt.avatar ? (
-                                                                                        <img src={rt.avatar} alt="" className="h-5 w-5 rounded-full object-cover shrink-0" />
-                                                                                    ) : (
-                                                                                        <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-[8px] font-bold shrink-0">
-                                                                                            {(rt.name || rt.handle || '?')[0].toUpperCase()}
-                                                                                        </div>
-                                                                                    )}
+                                                                                    <InitialAvatar src={rt.avatar} name={rt.name || rt.handle} className="h-5 w-5 rounded-full object-cover shrink-0 text-[8px]" />
                                                                                     <a href={`https://x.com/${rt.handle}`} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline text-[11px] break-all leading-tight">@{rt.handle}</a>
                                                                                     {rt.verified && <CheckCircle2 className="h-2.5 w-2.5 text-blue-500 shrink-0" />}
                                                                                 </div>
@@ -2936,13 +2922,11 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                                     className="w-full text-left rounded-lg border bg-card px-3 py-2.5 transition-colors hover:border-primary/40 hover:bg-accent/40 cursor-pointer"
                                                 >
                                                     <div className="flex items-start gap-2.5">
-                                                        {a.avatar ? (
-                                                            <img src={a.avatar} alt="" className="h-9 w-9 rounded-full object-cover shrink-0" />
-                                                        ) : (
-                                                            <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-xs font-bold shrink-0">
-                                                                {(a.display_name || a.handle || '?')[0].toUpperCase()}
-                                                            </div>
-                                                        )}
+                                                        <InitialAvatar
+                                                            src={a.avatar}
+                                                            name={a.display_name || a.handle}
+                                                            className="h-9 w-9 rounded-full object-cover shrink-0 text-xs"
+                                                        />
                                                         <div className="min-w-0 flex-1">
                                                             <div className="flex items-center justify-between gap-2">
                                                                 <div className="min-w-0">
@@ -2957,7 +2941,7 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                                             </div>
 
                                                             <p className="text-[11px] text-muted-foreground mt-1">
-                                                                {a.tweets_analyzed || 0} saved posts · click to see who engages
+                                                                {a.tweets_analyzed || 0} saved posts
                                                             </p>
 
                                                             {rowEngagers.length > 0 ? (
@@ -2970,13 +2954,11 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                                                                 className="flex items-center gap-2 rounded-md bg-muted/40 px-2 py-1.5"
                                                                                 onClick={(ev) => ev.stopPropagation()}
                                                                             >
-                                                                                {e.avatar ? (
-                                                                                    <img src={e.avatar} alt="" className="h-6 w-6 rounded-full object-cover shrink-0" />
-                                                                                ) : (
-                                                                                    <div className="h-6 w-6 rounded-full bg-background border flex items-center justify-center text-[9px] font-bold shrink-0">
-                                                                                        {(e.name || e.handle || '?')[0].toUpperCase()}
-                                                                                    </div>
-                                                                                )}
+                                                                                <InitialAvatar
+                                                                                    src={e.avatar}
+                                                                                    name={e.name || e.handle}
+                                                                                    className="h-6 w-6 rounded-full object-cover shrink-0 text-[9px]"
+                                                                                />
                                                                                 <div className="min-w-0 flex-1">
                                                                                     <a
                                                                                         href={`https://x.com/${e.handle}`}
@@ -3047,13 +3029,11 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                     <ChevronRight className="h-4 w-4 rotate-180" />
                                 </button>
                                 <div className="flex items-center gap-2 min-w-0">
-                                    {sourceAvatar ? (
-                                        <img src={sourceAvatar} alt="" className="h-8 w-8 rounded-full object-cover" />
-                                    ) : (
-                                        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
-                                            <Users className="h-4 w-4 text-white" />
-                                        </div>
-                                    )}
+                                    <InitialAvatar
+                                        src={sourceAvatar}
+                                        name={sourceLabel || selectedHandle}
+                                        className="h-8 w-8 rounded-full object-cover text-xs"
+                                    />
                                     <div>
                                         <h2 className="text-sm font-semibold">@{selectedHandle}</h2>
                                         {analysis && <p className="text-[10px] text-muted-foreground">{analysis.display_name} · {analysis.tweets_analyzed} posts · {analysis.unique_retweeters} engagers · {analysis.period_days}-day window</p>}
