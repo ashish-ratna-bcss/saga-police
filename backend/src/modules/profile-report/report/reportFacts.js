@@ -109,6 +109,28 @@ const weekStart = (day) => {
   return new Date(d.getTime() - shift * DAY_MS).toISOString().slice(0, 10);
 };
 
+/** Lower-case words only, so "Hello, World!" and "hello world" compare equal. */
+const foldText = (t) => String(t || '').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
+
+/**
+ * How often an account posts, in the unit that reads naturally: "1.8 a day", "3 a week", "0.4 a month".
+ * (18 posts over four years is "0 a day" to one decimal, which says nothing.)
+ */
+const rateOf = (posts, spanDays) => {
+  const perDay = spanDays > 0 ? posts / spanDays : 0;
+  if (perDay >= 1) return { value: round1(perDay), unit: 'day' };
+  if (perDay * 7 >= 1) return { value: round1(perDay * 7), unit: 'week' };
+  return { value: round1(perDay * 30.4), unit: 'month' };
+};
+
+/** "12 days", "7 months", "4 years". */
+const spanLabelOf = (days) => {
+  if (days < 60) return `${days} day${days === 1 ? '' : 's'}`;
+  if (days < 730) return `${Math.round(days / 30.4)} months`;
+  const years = Math.round((days / 365) * 10) / 10;
+  return `${years} years`;
+};
+
 /**
  * One normalised record per post: what every later step (facts, evidence, prompt, PDF) reads.
  * Posts come in any order; the result is oldest first.
@@ -129,7 +151,7 @@ const normalisePosts = (posts = [], { timezone = DEFAULT_TZ } = {}) => posts
       text,
       imageText: imageTextOf(p.image_analysis),
       accountHandle: p.account_handle || '',
-      english: analysed && a.english_text && String(a.english_text).trim() !== text ? String(a.english_text).trim() : '',
+      english: analysed && a.english_text && ![foldText(text), foldText(imageTextOf(p.image_analysis))].includes(foldText(a.english_text)) ? String(a.english_text).trim() : '',
       language: analysed && a.language ? String(a.language).toLowerCase() : null,
       analysed,
       sentiment: analysed ? parseSentiment(a.sentiment || a.label) : null,
@@ -332,9 +354,11 @@ const buildBehaviorFacts = ({ account = {}, accounts = [], rows = [], totalPosts
       first_post: first ? first.local.day : null,
       last_post: last ? last.local.day : null,
       span_days: spanDays,
+      span_label: spanLabelOf(spanDays),
     },
     cadence: {
-      posts_per_day: round1(dated.length / spanDays),
+      posts_per_day: Math.round((dated.length / spanDays) * 100) / 100,
+      rate: rateOf(dated.length, spanDays),
       active_days: days.size,
       busiest_hours: topBand && topBand.count > 0 ? { from: topBand.from, to: topBand.from + 3, posts: topBand.count } : null,
       busiest_day: byWeekday[topDay] > 0 ? { day: WEEKDAYS[topDay], posts: byWeekday[topDay] } : null,
@@ -435,7 +459,28 @@ const selectEvidence = (rows = [], { max = 40 } = {}) => {
     }));
 };
 
+/** Every post number a report points to: [P#] in any text, "posts" lists and notable posts. */
+const citedPostNumbers = (report) => {
+  const out = new Set();
+  const walk = (v, key) => {
+    if (typeof v === 'string') { for (const m of v.matchAll(/\[P(\d+)\]/g)) out.add(Number(m[1])); return; }
+    if (Array.isArray(v)) { v.forEach((x) => (key === 'posts' && Number.isInteger(x) ? out.add(x) : walk(x))); return; }
+    if (v && typeof v === 'object') {
+      Object.entries(v).forEach(([k, x]) => {
+        if (k === 'post' && Number.isInteger(x)) out.add(x);
+        else walk(x, k);
+      });
+    }
+  };
+  walk(report);
+  return out;
+};
+
 module.exports = {
+  citedPostNumbers,
+  foldText,
+  rateOf,
+  spanLabelOf,
   DEFAULT_TZ,
   WEEKDAYS,
   engagementOf,

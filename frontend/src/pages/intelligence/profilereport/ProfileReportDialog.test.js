@@ -68,8 +68,8 @@ const REPORT = {
   },
   facts: {
     timezone: 'Asia/Kolkata',
-    coverage: { total_posts: 1200, read: 1200, analysed: 1100, first_post: '2025-01-01', last_post: '2026-11-02', span_days: 670 },
-    cadence: { posts_per_day: 1.8, active_days: 400, by_hour: Array(24).fill(0), by_weekday: Array(7).fill(0), weeks: [] },
+    coverage: { total_posts: 1200, read: 1200, analysed: 1100, first_post: '2025-01-01', last_post: '2026-11-02', span_days: 670, span_label: '22 months' },
+    cadence: { posts_per_day: 1.8, rate: { value: 0.4, unit: 'month' }, active_days: 400, by_hour: Array(24).fill(0), by_weekday: Array(7).fill(0), weeks: [] },
     content: { original: 1000, shared: 100, replies: 100, with_media: 300, with_image_text: 120, with_links: 20, avg_length: 120, languages: [{ language: 'hi', count: 900 }], hashtags: [], mentions: [] },
     engagement: { total: { likes: 10, shares: 2, comments: 1, views: 0 }, avg_score: 6, median_score: 6 },
     sentiment: { positive: 100, neutral: 300, negative: 700 },
@@ -136,6 +136,9 @@ describe('Profile Report dialog', () => {
     expect(text()).toContain('1,200');
     expect(text()).toContain('Mobilises supporters');
     expect(text()).toContain('Text read from images');
+    expect(text()).toContain('Posts a month');   // not "Posts a day: 0" for an account that posts rarely
+    expect(text()).toContain('22 months');
+    expect(text()).toContain('1 Jan 2025 → 2 Nov 2026');   // dates written out, not 2025-01-01
     expect(onReportChange).toHaveBeenCalledWith(42, expect.objectContaining({ attention_level: 'Medium' }));
     await act(async () => { buttonNamed('Risk').click(); });
     expect(text()).toContain('Bandh call');
@@ -160,7 +163,9 @@ describe('Profile Report dialog', () => {
     expect(container.querySelector('[data-panel="evidence"]')).toBeTruthy();
     const card = container.querySelector('#bev-P2');
     expect(card.textContent).toContain('Close every market tomorrow 10am');
-    expect(card.textContent).toContain('Image text');
+    expect(card.textContent).toContain('Image post');          // a picture-only post is labelled as such
+    expect(card.textContent).not.toContain('(no text)');
+    expect(card.textContent.split('Close every market tomorrow 10am').length - 1).toBe(1);   // said once, not three times
     expect(card.textContent).toContain('Notable');
   });
 

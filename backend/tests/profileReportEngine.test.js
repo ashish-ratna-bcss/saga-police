@@ -2,7 +2,7 @@ process.env.LLM_BASE_URL = process.env.LLM_BASE_URL || 'http://llm.test/v1';
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { normalisePosts, buildBehaviorFacts, selectEvidence, attentionLevel } = require('../src/modules/profile-report/report/reportFacts');
+const { normalisePosts, buildBehaviorFacts, selectEvidence, attentionLevel, citedPostNumbers } = require('../src/modules/profile-report/report/reportFacts');
 const { parseBehaviorReport, fallbackReport, buildUserContext, cleanCites } = require('../src/modules/profile-report/report/reportPrompt');
 const { buildBehaviorReportHtml } = require('../src/modules/profile-report/report/reportPdf');
 const { lockReason } = require('../src/modules/profile-report/report/reportService');
@@ -344,4 +344,103 @@ test('Fetch: nothing is changed for platforms without a fixed format, for resolv
   assert.strictEqual(tidyIdentity('x', { username: 'Name With Spaces', user_id: '99' }).username, 'Name With Spaces', 'an account already resolved keeps what it has');
   assert.strictEqual(tidyIdentity('x', { username: '' }).username, '', 'empty is left for the platform lookup to report as "required"');
   assert.deepStrictEqual(tidyIdentity('x', undefined), {});
+});
+
+/* ------------------------------------------------------------- what the first real report showed (Instagram, 18 posts) --- */
+
+const sparse = () => {
+  // 18 posts spread over four years, most of them pictures with a quote on them
+  const day = (n) => new Date(Date.UTC(2019, 4, 23) + n * 864e5).toISOString();
+  const quote = 'Remember: the day you plant the seed is not the day you eat the fruit. Be patient.';
+  return Array.from({ length: 18 }, (_, i) => post(i + 1, day(Math.round((i * 1455) / 17)), i % 3 === 0 ? '' : 'Happy New Year', A(i % 4 === 0 ? 'positive' : 'neutral', 'low', 0, { english_text: i % 3 === 0 ? quote : null }), {
+    image_analysis: i % 3 === 0 ? { full_text: quote } : null, media_urls: ['media'], platform: 'instagram', account_handle: 'stone_9itbob',
+  }));
+};
+
+test('an account that posts rarely is "0.4 a month over 4 years", not "0 posts a day"', () => {
+  const f = facts(normalisePosts(sparse(), { timezone: 'Asia/Kolkata' }));
+  assert.deepStrictEqual(f.cadence.rate, { value: 0.4, unit: 'month' });
+  assert.strictEqual(f.coverage.span_label, '4 years');
+  assert.ok(f.cadence.posts_per_day > 0, 'the exact per-day figure is still kept');
+  const ctx = buildUserContext({ facts: f, evidence: selectEvidence(normalisePosts(sparse()), { max: 5 }) });
+  assert.match(ctx, /RHYTHM: 0\.4 posts a month \(18 posts over 4 years\)/);
+  assert.ok(!/0 posts a day/.test(ctx));
+});
+
+test('a busy account is still "per day", a weekly one "per week"', () => {
+  const rows = (n, spanDays) => normalisePosts(Array.from({ length: n }, (_, i) => post(i + 1, new Date(Date.UTC(2026, 0, 1) + (i * spanDays * 864e5) / n).toISOString(), 'x', A('neutral'))));
+  assert.deepStrictEqual(facts(rows(60, 30)).cadence.rate, { value: 2, unit: 'day' });
+  assert.deepStrictEqual(facts(rows(8, 56)).cadence.rate.unit, 'week');
+});
+
+test('a picture-only post does not repeat its quote three times: the translation of the image text is dropped', () => {
+  const rows = normalisePosts(sparse(), { timezone: 'Asia/Kolkata' });
+  const pic = rows.find((r) => r.text === '');
+  assert.ok(pic.imageText.length > 20);
+  assert.strictEqual(pic.english, '', 'the English line was the same words as the image text');
+  const ev = selectEvidence(rows, { max: 18 }).find((e) => e.id === pic.id);
+  assert.strictEqual(ev.english, '');
+  const ctx = buildUserContext({ facts: facts(rows), evidence: [ev] });
+  assert.ok(!/English:/.test(ctx));
+  assert.match(ctx, /Text: \(no text\)\nImage text: Remember/);
+  // a real translation is kept
+  const kept = normalisePosts([post(50, '2026-01-01T00:00:00Z', 'नमस्ते दोस्तों', A('positive', 'low', 0, { english_text: 'Hello friends' }))])[0];
+  assert.strictEqual(kept.english, 'Hello friends');
+});
+
+test('parser: the model placeholder "earlier pattern -> later pattern" and a trait that restates a theme are dropped', () => {
+  const reply = JSON.stringify({
+    bottom_line: 'Personal account posting quotes [P1].',
+    behaviour_traits: [
+      { trait: 'Posts motivational quotes and personal reflections', evidence_level: 'Observed', detail: 'The account frequently shares motivational quotes and personal reflections, often in the form of images with text.', posts: [1, 2] },
+      { trait: 'Mentions Biafra', evidence_level: 'Likely', detail: 'Posted support for Biafra once, without context.', posts: [3] },
+    ],
+    themes: [{ theme: 'Motivational quotes', share: 'Frequent', detail: 'The account regularly shares motivational quotes and personal reflections, often in the form of images with text.', posts: [1, 2] }],
+    changes_over_time: [{ from: 'earlier pattern', to: 'later pattern', posts: [1, 9] }, { from: 'Earlier', to: 'Later', posts: [1] }],
+  });
+  const r = parseBehaviorReport(reply, { maxN: 8 });
+  assert.deepStrictEqual(r.behaviour_traits.map((t) => t.trait), ['Mentions Biafra']);
+  assert.strictEqual(r.themes.length, 1, 'the theme stays; only the repeat goes');
+  assert.deepStrictEqual(r.changes_over_time, []);
+  const real = parseBehaviorReport(JSON.stringify({ bottom_line: 'x', changes_over_time: [{ from: 'Mostly quotes', to: 'Mostly calls to rallies', posts: [1, 3] }] }), { maxN: 8 });
+  assert.strictEqual(real.changes_over_time.length, 1, 'a real change is kept');
+});
+
+test('parser: "the most engaged posts are P1, P3 and P7" becomes links, and numbers outside the evidence disappear', () => {
+  assert.strictEqual(cleanCites('The most engaged posts are P1, P3, P4 and P7.', 8), 'The most engaged posts are [P1], [P3], [P4] and [P7].');
+  assert.strictEqual(cleanCites('See [P2] and P3 but not P13.', 8), 'See [P2] and [P3] but not.');
+  assert.strictEqual(cleanCites('P2P payments and PX1 are not post numbers', 8), 'P2P payments and PX1 are not post numbers');
+});
+
+test('the prompt asks for behaviour in traits and subjects in themes, forbids legal conclusions and placeholder lists', () => {
+  const { buildSystemPrompt } = require('../src/modules/profile-report/report/reportPrompt');
+  const p = buildSystemPrompt();
+  assert.match(p, /A trait is what the account DOES[\s\S]*A theme is what it talks ABOUT/);
+  assert.match(p, /Do not say whether anything is legal or illegal/);
+  assert.match(p, /never the label in capitals/);
+  assert.match(p, /leave "changes_over_time" empty/);
+  assert.ok(!/earlier pattern/.test(p), 'no placeholder text left for the model to copy');
+});
+
+test('pdf: the annex lists every cited post (inline [P#] too), each post says its words once, a rate and period read naturally', () => {
+  const rows = normalisePosts(sparse(), { timezone: 'Asia/Kolkata' });
+  const f = facts(rows);
+  const evidence = selectEvidence(rows, { max: 18 });
+  const picNo = evidence.find((e) => e.text === '').n;
+  const report = {
+    bottom_line: 'Quotes account [P' + picNo + '].', attention_level: 'Low', notable_posts: [], behaviour_traits: [], themes: [], tone: 'Calm.',
+    influence: 'Reach is small; the most engaged posts are [P2] and [P5].',
+  };
+  assert.deepStrictEqual([...citedPostNumbers(report)].sort((a, b) => a - b), [2, 5, picNo].sort((a, b) => a - b));
+  const html = buildBehaviorReportHtml({ report, facts: f, evidence, generated_at: '2026-11-24T05:21:00Z' }, { tenantLabel: 'Odisha' });
+  for (const n of [2, 5, picNo]) assert.match(html, new RegExp('<td class="no">P' + n + '</td>'), 'P' + n + ' is in the annex');
+  assert.match(html, /Posts a month/);
+  assert.match(html, /4 years/);
+  assert.match(html, /23 May 2019 → \d{1,2} \w{3} 2023/, 'the period is written as dates, not 2019-05-23');
+  assert.ok(!/\d{4}-\d{2}-\d{2} → /.test(html), 'no raw ISO dates left in the report');
+  assert.ok(!/Posts a day/.test(html));
+  const pic = html.slice(html.indexOf('<td class="no">P' + picNo + '</td>'));
+  assert.match(pic, /<span class="tag">Image post<\/span> Remember: the day you plant the seed/);
+  assert.ok(!/\(no text\)/.test(pic.slice(0, 900)), 'a picture-only post is not "(no text)"');
+  assert.strictEqual(pic.slice(0, 1200).split('Remember: the day you plant the seed').length - 1, 1, 'the quote appears once');
 });

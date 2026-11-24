@@ -11,6 +11,38 @@ export const ATTENTION_STYLES = {
 const PLATFORMS = { x: 'X', twitter: 'X', facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', telegram: 'Telegram', reddit: 'Reddit' };
 export const platformLabel = (p) => PLATFORMS[String(p || '').toLowerCase()] || p || '';
 
+/** Lower-case words only, so "Hello, World!" and "hello world" compare equal. */
+export const foldText = (t) => String(t || '').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
+
+/**
+ * What a post says, each sentence once. A post with only a picture shows the text read from it as its main text
+ * (flagged imageOnly); an English line that repeats the post or its image text is left out.
+ */
+export const postBody = ({ text, image_text: imageText, english } = {}) => {
+  const t = String(text || '').trim();
+  const i = String(imageText || '').trim();
+  const e = String(english || '').trim();
+  const showEnglish = Boolean(e) && foldText(e) !== foldText(t) && foldText(e) !== foldText(i);
+  if (!t && i) return { main: i, imageOnly: true, english: showEnglish ? e : '', imageText: '' };
+  return { main: t, imageOnly: false, english: showEnglish ? e : '', imageText: i && foldText(i) !== foldText(t) ? i : '' };
+};
+
+/** The posting rate in the unit that reads naturally: "1.8 a day", "0.4 a month". Older saved reports only have a per-day figure. */
+export const postingRate = (facts) => {
+  const c = facts?.cadence || {};
+  return c.rate ? { label: `Posts a ${c.rate.unit}`, value: c.rate.value } : { label: 'Posts a day', value: c.posts_per_day ?? 0 };
+};
+
+/** "4 years", "7 months", "12 days". */
+export const spanText = (cov = {}) => cov.span_label || `${cov.span_days ?? 0} days`;
+
+/** "2022-05-23" (a calendar day) as "23 May 2022"; anything else is shown as it came. */
+export const dayLabel = (day) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day || ''));
+  if (!m) return day ? String(day) : '?';
+  return new Intl.DateTimeFormat('en-IN', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])));
+};
+
 /** Platforms whose whole timeline can be collected. The server sends its own list; this is the fallback. */
 export const DEFAULT_SUPPORTED_PLATFORMS = ['x', 'facebook', 'instagram', 'youtube', 'telegram'];
 

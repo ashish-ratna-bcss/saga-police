@@ -102,6 +102,7 @@ describe('Profile Report workspace', () => {
     const t = text();
     ['Alpha', 'Bravo', 'Charlie'].forEach((n) => expect(t).toContain(n));
     expect(t).toContain('X alpha');
+    expect(t).toContain('60 analysed · 35 waiting');   // the card agrees with the figures (5 posts without text are skipped, not analysed)
     expect(t).toContain('Analysing posts');
     expect(t).toContain('Collecting posts');
     expect(t).toContain('Ready');

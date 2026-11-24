@@ -13,7 +13,7 @@ import { Progress } from '../../../components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
 import { cn } from '../../../lib/utils';
 import {
-  ATTENTION_STYLES, analysisProgress, citesIn, formatCount, formatWhen, hourLabel, platformLabel, splitCites, toneShare, WEEKDAYS,
+  ATTENTION_STYLES, analysisProgress, citesIn, dayLabel, formatCount, formatWhen, hourLabel, platformLabel, postBody, postingRate, spanText, splitCites, toneShare, WEEKDAYS,
 } from './reportFormat';
 
 const POLL_MS = 3500;
@@ -287,7 +287,7 @@ const PatternTab = ({ report, facts, onCite }) => {
                     <td className="py-1.5 pr-3 tabular-nums">{p.negative_share}% <span className="text-muted-foreground">of {formatCount(p.analysed)}</span></td>
                     <td className={cn('py-1.5 pr-3 tabular-nums', p.high_risk ? 'font-semibold text-rose-600' : '')}>{formatCount(p.high_risk)}</td>
                     <td className="py-1.5 pr-3 tabular-nums">{formatCount(p.avg_engagement)}</td>
-                    <td className="py-1.5 tabular-nums text-muted-foreground">{p.first_post || '?'} → {p.last_post || '?'}</td>
+                    <td className="py-1.5 tabular-nums text-muted-foreground">{dayLabel(p.first_post)} → {dayLabel(p.last_post)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -431,6 +431,21 @@ const RiskTab = ({ report, facts, onCite }) => {
   );
 };
 
+/** What an evidence post says, each sentence once; a picture-only post shows the text read from it, labelled. */
+const PostText = ({ post }) => {
+  const body = postBody({ text: post.text, image_text: post.image_text, english: post.english });
+  return (
+    <>
+      <p className="mt-1.5 whitespace-pre-line break-words text-[13px] leading-relaxed">
+        {body.imageOnly ? <span className="mr-1.5 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700">Image post</span> : null}
+        {body.main || <span className="text-muted-foreground">(no text)</span>}
+      </p>
+      {body.english ? <p className="mt-1 border-l-2 border-sky-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-sky-700">EN</span> {body.english}</p> : null}
+      {body.imageText ? <p className="mt-1 border-l-2 border-violet-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-violet-700">Image text</span> {body.imageText}</p> : null}
+    </>
+  );
+};
+
 const EvidenceTab = ({ evidence, report, highlight, timezone }) => {
   const cited = useMemo(() => citesIn(report), [report]);
   const notable = useMemo(() => new Map((report.notable_posts || []).map((x) => [x.post, x.why])), [report]);
@@ -464,9 +479,7 @@ const EvidenceTab = ({ evidence, report, highlight, timezone }) => {
               {e.engagement?.likes || 0} likes · {e.engagement?.shares || 0} shares · {e.engagement?.comments || 0} comments
             </span>
           </div>
-          <p className="mt-1.5 whitespace-pre-line break-words text-[13px] leading-relaxed">{e.text}</p>
-          {e.english ? <p className="mt-1 border-l-2 border-sky-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-sky-700">EN</span> {e.english}</p> : null}
-          {e.image_text ? <p className="mt-1 border-l-2 border-violet-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-violet-700">Image text</span> {e.image_text}</p> : null}
+          <PostText post={e} />
           {notable.has(e.n) ? <p className="mt-1.5 text-xs"><span className="font-semibold text-indigo-700">Notable:</span> {notable.get(e.n)}</p> : null}
           {e.url ? (
             <a href={e.url} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-blue-700 hover:underline">
@@ -771,8 +784,8 @@ export default function ProfileReportDialog({ open, onOpenChange, profile, onRep
               {/* Key figures */}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
                 <Stat label="Posts collected" value={formatCount(cov.read)} sub={`${formatCount(cov.analysed)} analysed`} />
-                <Stat label="Period" value={`${cov.span_days ?? 0} days`} sub={`${cov.first_post || '?'} → ${cov.last_post || '?'}`} />
-                <Stat label="Posts a day" value={facts.cadence?.posts_per_day ?? 0} sub={`${facts.cadence?.active_days ?? 0} active days`} />
+                <Stat label="Period" value={spanText(cov)} sub={`${dayLabel(cov.first_post)} → ${dayLabel(cov.last_post)}`} />
+                <Stat label={postingRate(facts).label} value={postingRate(facts).value} sub={`${facts.cadence?.active_days ?? 0} active days`} />
                 <Stat label="Engagement a post" value={facts.engagement?.avg_score ?? 0} sub={`average · median ${facts.engagement?.median_score ?? 0}`} />
                 <Stat label="Negative" value={`${tone.negative}%`} sub={`${sent.negative || 0} of ${tone.total} analysed`} tone={tone.negative >= 50 ? 'text-rose-600' : ''} />
                 <Stat

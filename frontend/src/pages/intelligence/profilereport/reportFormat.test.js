@@ -1,5 +1,5 @@
 import {
-  analysisProgress, citesIn, platformLabel, progressOf, relativeTime, reportLockReason, splitCites, toneShare,
+  analysisProgress, citesIn, dayLabel, platformLabel, postBody, postingRate, progressOf, relativeTime, reportLockReason, spanText, splitCites, toneShare,
 } from './reportFormat';
 
 const account = (fetch_status, extra = {}) => ({ id: 1, platform: 'x', handle: 'a', fetch_status, posts_fetched: 10, ...extra });
@@ -69,5 +69,31 @@ describe('Profile Report helpers', () => {
     expect(relativeTime('2026-11-23T09:00:00Z', now)).toBe('3h ago');
     expect(relativeTime('2026-11-21T12:00:00Z', now)).toBe('2d ago');
     expect(relativeTime('not a date', now)).toBe('');
+  });
+
+  test('a post says each sentence once: a picture-only post shows its image text as the post, labelled', () => {
+    const quote = 'Before you diagnose yourself with depression, make sure you are not surrounded by fools.';
+    expect(postBody({ text: '', image_text: quote, english: quote })).toEqual({ main: quote, imageOnly: true, english: '', imageText: '' });
+    expect(postBody({ text: '', image_text: quote, english: quote.toUpperCase() + '!' }).english).toBe('');   // same words, other case
+    expect(postBody({ text: 'Happy New Year', image_text: 'Be patient. Be humble.', english: '' })).toEqual({ main: 'Happy New Year', imageOnly: false, english: '', imageText: 'Be patient. Be humble.' });
+    expect(postBody({ text: 'Namaste', image_text: 'Namaste', english: 'Hello' })).toEqual({ main: 'Namaste', imageOnly: false, english: 'Hello', imageText: '' });
+    expect(postBody({ text: '', image_text: '', english: '' }).main).toBe('');
+    expect(postBody()).toEqual({ main: '', imageOnly: false, english: '', imageText: '' });
+  });
+
+  test('the posting rate reads in the unit that makes sense, and the period in years when long', () => {
+    expect(postingRate({ cadence: { rate: { value: 0.4, unit: 'month' } } })).toEqual({ label: 'Posts a month', value: 0.4 });
+    expect(postingRate({ cadence: { rate: { value: 2.5, unit: 'week' } } }).label).toBe('Posts a week');
+    expect(postingRate({ cadence: { posts_per_day: 1.8 } })).toEqual({ label: 'Posts a day', value: 1.8 });   // reports saved before the unit existed
+    expect(postingRate(null)).toEqual({ label: 'Posts a day', value: 0 });
+    expect(spanText({ span_label: '4 years', span_days: 1455 })).toBe('4 years');
+    expect(spanText({ span_days: 12 })).toBe('12 days');
+  });
+
+  test('days are written out, not shown as 2022-05-23', () => {
+    expect(dayLabel('2022-05-23')).toBe('23 May 2022');
+    expect(dayLabel('2026-11-02')).toBe('2 Nov 2026');
+    expect(dayLabel(null)).toBe('?');
+    expect(dayLabel('sometime')).toBe('sometime');
   });
 });

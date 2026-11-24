@@ -36,7 +36,10 @@ RULES
 12. Each fact appears once, in the section where it belongs.
 13. Several accounts. A profile can combine accounts on different platforms that the user grouped as one person or organisation. Treat them as one subject, say which platform a pattern comes from, and use "platform_differences" for how the accounts differ. Do not claim the accounts are the same person beyond what the user grouped.
 14. Images. "Image text" on a post is text read from its picture. It is part of what the account published: use it as evidence and cite the post.
-15. Large histories. FACTS cover every collected post; the numbered posts are a selection chosen to show the highest-risk, most-engaged, most recent and a spread over time. Never imply the numbered posts are all the posts.`;
+15. Large histories. FACTS cover every collected post; the numbered posts are a selection chosen to show the highest-risk, most-engaged, most recent and a spread over time. Never imply the numbered posts are all the posts.
+16. Traits versus themes. A trait is what the account DOES (mobilises supporters, replies to critics, escalates, shares others' content). A theme is what it talks ABOUT. Never describe the same thing as both; if a point is only a subject, it is a theme and not a trait.
+17. Plain wording. Say "Attention is Low", never the label in capitals. Do not say whether anything is legal or illegal, and do not name offences; describe what the posts say and do.
+18. No filler. If the posts show no real change over time, leave "changes_over_time" empty. Leave any list empty rather than padding it, and never copy the wording of the examples in the output contract.`;
 
 const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only. No markdown, no code fences, no text before or after. Use exactly these fields:
 {
@@ -44,7 +47,7 @@ const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only. No markdown, no code fenc
  "account_type": "one of: ${ACCOUNT_TYPES.join(' / ')}",
  "account_type_basis": "one sentence: what in the posts shows this",
  "attention_reason": "1-2 sentences explaining the ATTENTION LEVEL given in FACTS, citing posts",
- "behaviour_traits": [{"trait": "2-5 words, e.g. 'Mobilises supporters for rallies'", "evidence_level": "Observed / Likely / Unclear", "detail": "1-2 sentences", "posts": [1, 2]}],
+ "behaviour_traits": [{"trait": "2-5 words, an action, e.g. 'Mobilises supporters for rallies'", "evidence_level": "Observed / Likely / Unclear", "detail": "1-2 sentences", "posts": [1, 2]}],
  "themes": [{"theme": "2-6 words", "share": "Main / Frequent / Occasional", "detail": "1-2 sentences on what the account says about it", "posts": [1]}],
  "tone": "2-3 sentences: usual tone and emotional pattern (for example calm, sarcastic, angry, celebratory, alarmist), using the sentiment counts from FACTS",
  "targets": [{"target": "a person, party, institution or group the posts name", "attitude": "Supportive / Critical / Hostile / Neutral / Mixed", "detail": "one sentence", "posts": [1]}],
@@ -53,7 +56,7 @@ const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only. No markdown, no code fenc
  "platform_differences": "1-2 sentences on how the accounts differ by platform (tone, topics, reach, activity), using BY PLATFORM in FACTS; empty string when there is one platform",
  "influence": "1-2 sentences: reach and response from FACTS and which posts drew the most response",
  "risk_indicators": [{"indicator": "short label", "severity": "High / Medium / Low", "detail": "what the post says and why it matters", "posts": [1]}],
- "changes_over_time": [{"from": "earlier pattern", "to": "later pattern", "posts": [1, 9]}],
+ "changes_over_time": [{"from": "what the account did or said earlier", "to": "what it does or says later", "posts": [1, 9]}],   // only a real shift shown by the posts; otherwise []
  "notable_posts": [{"post": 1, "why": "one line"}],
  "watch_points": ["one concrete thing to keep watching: a topic, hashtag, linked account or date"],
  "limitations": ["one thing these posts cannot show"]
@@ -87,7 +90,7 @@ const factsText = (facts, evidence = []) => {
     ...((facts.by_platform || []).length > 1
       ? [`BY PLATFORM: ${facts.by_platform.map((p) => `${p.platform}: ${p.posts} posts, ${p.negative_share}% negative of ${p.analysed} analysed, ${p.high_risk} serious-risk, average engagement ${p.avg_engagement}, ${p.first_post || '?'} to ${p.last_post || '?'}`).join(' | ')}`]
       : []),
-    `RHYTHM: ${cad.posts_per_day} posts a day; active on ${cad.active_days} days; busiest hours ${cad.busiest_hours ? `${hh(cad.busiest_hours.from)}-${hh(cad.busiest_hours.to)} (${cad.busiest_hours.posts} posts)` : 'unknown'}; busiest day ${cad.busiest_day ? `${cad.busiest_day.day} (${cad.busiest_day.posts} posts)` : 'unknown'}; ${cad.night_posts} posts between 00:00 and 05:00; longest silence ${cad.longest_gap_days} days`,
+    `RHYTHM: ${cad.rate ? `${cad.rate.value} posts a ${cad.rate.unit}` : `${cad.posts_per_day} posts a day`} (${c.total_posts} posts over ${c.span_label || `${c.span_days} days`}); active on ${cad.active_days} days; busiest hours ${cad.busiest_hours ? `${hh(cad.busiest_hours.from)}-${hh(cad.busiest_hours.to)} (${cad.busiest_hours.posts} posts)` : 'unknown'}; busiest day ${cad.busiest_day ? `${cad.busiest_day.day} (${cad.busiest_day.posts} posts)` : 'unknown'}; ${cad.night_posts} posts between 00:00 and 05:00; longest silence ${cad.longest_gap_days} days`,
     `CONTENT: ${con.original} original, ${con.shared} shared from others, ${con.replies} replies; ${con.with_media} with photos or video (${con.with_image_text || 0} with text read from the image); ${con.with_links} with links; average length ${con.avg_length} characters`,
     `LANGUAGES: ${list(con.languages, (x) => `${x.language} ${x.count}`)}`,
     `TOP HASHTAGS: ${list(con.hashtags, (x) => `${x.tag} (${x.count})`)}`,
@@ -176,9 +179,24 @@ const postsOf = (v, maxN, cap = 8) => {
 /** Inline citations: [Post #3], [P 3], (P3) -> [P3]; numbers outside the evidence are removed. */
 const cleanCites = (text, maxN) => String(text || '')
   .replace(/[[(]\s*(?:post\s*#?|p)\s*(\d+)\s*[\])]/gi, (m, d) => (Number(d) >= 1 && Number(d) <= maxN ? `[P${Number(d)}]` : ''))
+  // "the most engaged posts are P1, P3 and P7": a bare number is still a citation
+  .replace(/(?<!\[)\bP(\d{1,3})\b(?!\])/g, (m, d) => (Number(d) >= 1 && Number(d) <= maxN ? `[P${Number(d)}]` : ''))
   .replace(/\s+([.,;:])/g, '$1')
   .replace(/\s{2,}/g, ' ')
   .trim();
+
+const words = (t) => new Set(String(t || '').toLowerCase().replace(/\[p\d+\]/g, ' ').split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2));
+/** Share of words two texts have in common (0 to 1). */
+const overlap = (a, b) => {
+  const x = words(a);
+  const y = words(b);
+  if (!x.size || !y.size) return 0;
+  let common = 0;
+  x.forEach((w) => { if (y.has(w)) common += 1; });
+  return common / Math.min(x.size, y.size);
+};
+/** Words that mean "nothing yet": the model copying the contract's example instead of saying something. */
+const PLACEHOLDER = /^(earlier|later|before|after|then|now)( (pattern|state|behaviour|activity|period))?\.?$/i;
 
 const listOf = (v, mapFn, max) => (Array.isArray(v) ? v.map(mapFn).filter(Boolean).slice(0, max) : []);
 
@@ -235,6 +253,11 @@ const parseBehaviorReport = (rawText, { maxN, attentionLevel = 'Low' } = {}) => 
     watch_points: listOf(obj.watch_points, (x) => t(x, 240) || null, 4),
     limitations: listOf(obj.limitations, (x) => t(x, 240) || null, 3),
   };
+  // A change needs two different, real sides; a trait that only restates a theme is the same point twice.
+  report.changes_over_time = report.changes_over_time.filter((c) => c.from && c.to && !PLACEHOLDER.test(c.from) && !PLACEHOLDER.test(c.to) && overlap(c.from, c.to) < 0.95);
+  report.behaviour_traits = report.behaviour_traits.filter((t, i, all) =>
+    !report.themes.some((th) => overlap(t.detail, th.detail) >= 0.7 && t.detail.length > 20)
+    && !all.slice(0, i).some((u) => overlap(t.detail, u.detail) >= 0.85 && t.detail.length > 20));
   if (!report.bottom_line) throw new Error('reply has no bottom_line');
   return report;
 };

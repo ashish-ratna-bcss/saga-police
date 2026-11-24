@@ -5,7 +5,7 @@
  */
 const { fontFacesFor, FONT_STACK } = require('../../events/eventIntelligenceReport/template');
 const { esc } = require('../../events/eventIntelligenceReport/render');
-const { WEEKDAYS } = require('./reportFacts');
+const { WEEKDAYS, citedPostNumbers, foldText } = require('./reportFacts');
 
 const INK = '#0f172a';
 const MUTED = '#64748b';
@@ -47,6 +47,27 @@ const fmtDateTime = (iso, timeZone) => {
   }
 };
 const n = (v) => Number(v || 0).toLocaleString('en-IN');
+/** "2022-05-23" (a calendar day already in the report's timezone) as "23 May 2022". */
+const dayLabel = (day) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day || ''));
+  if (!m) return day ? String(day) : '?';
+  return new Intl.DateTimeFormat('en-IN', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])));
+};
+
+/**
+ * What a post says, each sentence once. A post with only a picture shows the text read from it, labelled as such;
+ * an English line that repeats the post or its image text is left out.
+ */
+const bodyOf = (e) => {
+  const text = String(e.text || '').trim();
+  const image = String(e.image_text || '').trim();
+  const english = String(e.english || '').trim();
+  const showEnglish = english && foldText(english) !== foldText(text) && foldText(english) !== foldText(image);
+  const en = showEnglish ? `<div class="en">EN: ${esc(english)}</div>` : '';
+  if (!text && image) return `<div><span class="tag">Image post</span> ${esc(image)}</div>${en}`;
+  const imageLine = image && foldText(image) !== foldText(text) ? `<div class="en">Image text: ${esc(image)}</div>` : '';
+  return `<div>${esc(text || '(no text)')}</div>${en}${imageLine}`;
+};
 
 const section = (title, body) => (body ? `<section><h2>${esc(title)}</h2>${body}</section>` : '');
 const para = (text) => (text ? `<p>${rich(text)}</p>` : '');
@@ -118,6 +139,7 @@ li{margin-bottom:3px}
 .ev a{color:#1d4ed8;text-decoration:none;word-break:break-all;font-size:7pt}
 .foot{margin-top:14px;padding-top:6px;border-top:1px solid ${LINE};color:${MUTED};font-size:7.5pt}
 .annex{page-break-before:always}
+.tag{display:inline-block;margin-right:4px;padding:0 5px;border-radius:3px;background:#ede9fe;color:#6d28d9;font-size:6.8pt;font-weight:700;vertical-align:1px}
 `;
 
 /**
@@ -140,8 +162,8 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
   const kpi = (k, v, s = '') => `<div class="kpi"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div>${s ? `<div class="s">${esc(s)}</div>` : ''}</div>`;
   const kpis = `<div class="kpis">
     ${kpi('Posts collected', n(cov.read), `${n(cov.analysed)} analysed`)}
-    ${kpi('Period', `${cov.span_days || 0} days`, `${cov.first_post || '?'} → ${cov.last_post || '?'}`)}
-    ${kpi('Posts a day', String(cadence.posts_per_day ?? 0), `${n(cadence.active_days)} active days`)}
+    ${kpi('Period', cov.span_label || `${cov.span_days || 0} days`, `${dayLabel(cov.first_post)} → ${dayLabel(cov.last_post)}`)}
+    ${kpi(`Posts a ${cadence.rate?.unit || 'day'}`, String(cadence.rate ? cadence.rate.value : (cadence.posts_per_day ?? 0)), `${n(cadence.active_days)} active days`)}
     ${kpi('Engagement a post', n(f.engagement?.avg_score), `average · median ${n(f.engagement?.median_score)}`)}
     ${kpi('Negative', `${analysedN ? Math.round(((sent.negative || 0) / analysedN) * 100) : 0}%`, `${n(sent.negative)} of ${n(analysedN)}`)}
     ${kpi('Serious risk', n((risk.critical || 0) + (risk.high || 0)), `${n(risk.medium)} medium`)}
@@ -157,7 +179,7 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
   const chips = (items, fmt) => (items && items.length ? `<div class="chips">${items.map((x) => `<span>${esc(fmt(x))}</span>`).join('')}</div>` : '<p class="muted">None.</p>');
 
   const byPlatform = (f.by_platform || []).length > 1
-    ? `${para(r.platform_differences)}<table><tr><th>Platform</th><th>Posts</th><th>Negative</th><th>Serious risk</th><th>Engagement a post</th><th>Period</th></tr>${f.by_platform.map((p) => `<tr><td><b>${esc(platformLabel(p.platform))}</b></td><td>${n(p.posts)}</td><td>${p.negative_share}% of ${n(p.analysed)}</td><td>${n(p.high_risk)}</td><td>${n(p.avg_engagement)}</td><td>${esc(p.first_post || '?')} → ${esc(p.last_post || '?')}</td></tr>`).join('')}</table>`
+    ? `${para(r.platform_differences)}<table><tr><th>Platform</th><th>Posts</th><th>Negative</th><th>Serious risk</th><th>Engagement a post</th><th>Period</th></tr>${f.by_platform.map((p) => `<tr><td><b>${esc(platformLabel(p.platform))}</b></td><td>${n(p.posts)}</td><td>${p.negative_share}% of ${n(p.analysed)}</td><td>${n(p.high_risk)}</td><td>${n(p.avg_engagement)}</td><td>${esc(dayLabel(p.first_post))} → ${esc(dayLabel(p.last_post))}</td></tr>`).join('')}</table>`
     : '';
 
   const pattern = `${para(r.posting_pattern)}
@@ -174,10 +196,7 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
     <div class="muted">${n(content.original)} original · ${n(content.shared)} shared · ${n(content.replies)} replies · ${n(content.with_media)} with photo/video · ${n(content.with_links)} with links · languages: ${esc((content.languages || []).map((l) => `${l.language} ${l.count}`).join(', ') || 'not detected')}</div>`;
 
   const notable = new Set((r.notable_posts || []).map((x) => x.post));
-  const cited = new Set([
-    ...notable,
-    ...['behaviour_traits', 'themes', 'targets', 'risk_indicators', 'changes_over_time'].flatMap((k) => (r[k] || []).flatMap((x) => x.posts || [])),
-  ]);
+  const cited = citedPostNumbers(r);
   const annexRows = ev.filter((e) => cited.has(e.n));
   const annex = annexRows.length ? `<section class="annex"><h2>Evidence: posts cited in this report</h2>
     <table class="ev"><tr><th style="width:6%">#</th><th style="width:15%">Posted</th><th style="width:15%">Reading</th><th>Post</th></tr>
@@ -185,7 +204,7 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
       <td class="no">P${e.n}</td>
       <td>${esc(e.posted_at ? fmtDateTime(e.posted_at, tz) : 'undated')}<div class="muted">${esc(platformLabel(e.platform))}${e.shared ? ' · shared' : e.reply ? ' · reply' : ''}</div></td>
       <td>${e.sentiment ? `<div>${esc(e.sentiment)}</div>` : '<div class="muted">not analysed</div>'}${e.risk_level ? `<div class="muted">risk ${esc(e.risk_level)} (${n(e.risk_score)})</div>` : ''}<div class="muted">${n(e.engagement?.likes)} likes · ${n(e.engagement?.shares)} shares</div></td>
-      <td>${esc(e.text || '(no text)')}${e.english ? `<div class="en">EN: ${esc(e.english)}</div>` : ''}${e.image_text ? `<div class="en">Image text: ${esc(e.image_text)}</div>` : ''}${notable.has(e.n) ? `<div class="en"><b>Why notable:</b> ${rich((r.notable_posts.find((x) => x.post === e.n) || {}).why)}</div>` : ''}${e.url ? `<div><a href="${esc(e.url)}">${esc(e.url)}</a></div>` : ''}</td>
+      <td>${bodyOf(e)}${notable.has(e.n) ? `<div class="en"><b>Why notable:</b> ${rich((r.notable_posts.find((x) => x.post === e.n) || {}).why)}</div>` : ''}${e.url ? `<div><a href="${esc(e.url)}">${esc(e.url)}</a></div>` : ''}</td>
     </tr>`).join('')}
     </table></section>` : '';
 
@@ -195,7 +214,7 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
       <div class="org">${esc(tenantLabel || 'Digital Intelligence')} · Profile behaviour report</div>
       <h1>${esc(f.profile?.name || 'Profile')}</h1>
       <div class="who">${esc(f.profile?.handle && f.profile.handle !== f.profile?.name ? f.profile.handle : '')}${f.profile?.platform_name ? ` · ${esc(f.profile.platform_name)}` : ''}</div>
-      <div class="meta">Generated ${esc(fmtDateTime(data.generated_at, tz))}${data.generated_by?.name ? ` by ${esc(data.generated_by.name)}` : ''} · ${n(cov.read)} posts, ${esc(cov.first_post || '?')} to ${esc(cov.last_post || '?')}</div>
+      <div class="meta">Generated ${esc(fmtDateTime(data.generated_at, tz))}${data.generated_by?.name ? ` by ${esc(data.generated_by.name)}` : ''} · ${n(cov.read)} posts, ${esc(dayLabel(cov.first_post))} to ${esc(dayLabel(cov.last_post))}</div>
     </div>
     <div class="att"><div class="lbl">Attention</div><span class="val" style="background:${lvl.bg};color:${lvl.fg};border-color:${lvl.bd}">${esc(r.attention_level || 'Low')}</span></div>
   </div>

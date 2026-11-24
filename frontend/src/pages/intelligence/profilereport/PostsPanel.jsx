@@ -5,7 +5,7 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
 import { cn } from '../../../lib/utils';
-import { formatCount, formatWhen, platformLabel } from './reportFormat';
+import { formatCount, formatWhen, platformLabel, postBody } from './reportFormat';
 
 const PAGE_SIZE = 30;
 const ALL = 'all';
@@ -81,7 +81,9 @@ const AnalysisChips = ({ post }) => {
   );
 };
 
-const PostCard = ({ post }) => (
+const PostCard = ({ post }) => {
+  const body = postBody({ text: post.text, image_text: post.image_text, english: post.analysis?.english_text });
+  return (
   <article className="flex gap-3 rounded-lg border bg-card p-3">
     <Thumb post={post} />
     <div className="min-w-0 flex-1">
@@ -96,14 +98,15 @@ const PostCard = ({ post }) => (
         </span>
       </div>
       <p className="mt-1.5 line-clamp-4 whitespace-pre-line break-words text-[13px] leading-relaxed">
-        {post.text || <span className="text-muted-foreground">(no text)</span>}
+        {body.imageOnly ? <span className="mr-1.5 inline-flex items-center gap-1 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700"><ImageIcon className="h-3 w-3" />Image post</span> : null}
+        {body.main || <span className="text-muted-foreground">(no text)</span>}
       </p>
-      {post.analysis?.english_text ? (
-        <p className="mt-1 line-clamp-3 border-l-2 border-sky-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-sky-700">EN</span> {post.analysis.english_text}</p>
+      {body.english ? (
+        <p className="mt-1 line-clamp-3 border-l-2 border-sky-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-sky-700">EN</span> {body.english}</p>
       ) : null}
-      {post.image_text ? (
+      {body.imageText ? (
         <p className="mt-1 line-clamp-3 border-l-2 border-violet-200 pl-2 text-xs text-muted-foreground">
-          <ImageIcon className="mr-1 inline h-3 w-3 text-violet-700" /><span className="font-semibold text-violet-700">Image text</span> {post.image_text}
+          <ImageIcon className="mr-1 inline h-3 w-3 text-violet-700" /><span className="font-semibold text-violet-700">Image text</span> {body.imageText}
         </p>
       ) : null}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -119,7 +122,8 @@ const PostCard = ({ post }) => (
       </div>
     </div>
   </article>
-);
+  );
+};
 
 /**
  * Every post collected for a profile, newest first, with its analysis. Filters and paging run on the server, so a

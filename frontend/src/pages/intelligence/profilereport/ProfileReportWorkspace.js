@@ -103,7 +103,7 @@ const ProfileList = ({ subjects, selectedId, onSelect, loading, query, onQuery, 
                 </p>
                 <div className="mt-2 flex items-center justify-between text-[11px] tabular-nums text-muted-foreground">
                   <span><b className="text-foreground">{formatCount(s.posts)}</b> posts</span>
-                  <span>{formatCount(progress.processed)} analysed</span>
+                  <span>{formatCount(s.analysed)} analysed{s.waiting > 0 ? ` · ${formatCount(s.waiting)} waiting` : ''}</span>
                   <AttentionDot report={s.report} />
                 </div>
                 {s.posts > 0 && progress.percent < 100 ? <Progress value={progress.percent} className="mt-1.5 h-1" /> : null}
