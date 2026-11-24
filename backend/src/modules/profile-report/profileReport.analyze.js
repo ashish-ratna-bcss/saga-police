@@ -175,9 +175,10 @@ const enrichMedia = async (prisma, post, dbName) => {
     }
   }
 
-  // Step 2: what the picture shows. Skipped for a picture that has a record already, or that cannot be fetched.
+  // Step 2: what the picture shows. Skipped for a picture that has a current record already, or that cannot be fetched.
+  // A description made by an older version of the prompts is made again.
   if (!wantsPicture) return { ocr: reading, retryLater: false, ms: Date.now() - t0 };
-  if (reading && reading.picture) return { ocr: reading, retryLater: false, ms: Date.now() - t0 };
+  if (reading && reading.picture && !pictureIsStale(reading.picture)) return { ocr: reading, retryLater: false, ms: Date.now() - t0 };
   if (!imageUrl) return { ocr: await skipPicture('no_image', reading), retryLater: false, ms: Date.now() - t0 };
   await heartbeat(prisma, id);
   let seen;
@@ -193,13 +194,20 @@ const enrichMedia = async (prisma, post, dbName) => {
     return { ocr: reading, retryLater: true, ms: Date.now() - t0 };
   } else {
     logger.warn(`[ProfileReport] picture not described for post ${id}: ${String(seen.error || '').slice(0, 160)}`);
-    // a service that was only busy is asked again after a few hours; a picture it cannot describe is not
-    const record = { failed: true, error: String(seen.error || '').slice(0, 160), ...(isTransientImageFailure(seen) ? { transient: true } : {}), at: new Date().toISOString() };
+    // An older description is better than none: it is kept (marked as current so the post is not queued again for it).
+    // Otherwise: a service that was only busy is asked again after a few hours; a picture it cannot describe is not.
+    const older = reading && reading.picture && reading.picture.description ? reading.picture : null;
+    const record = older
+      ? { ...older, v: vision.PICTURE_VERSION, kept_old: true }
+      : { failed: true, error: String(seen.error || '').slice(0, 160), ...(isTransientImageFailure(seen) ? { transient: true } : {}), at: new Date().toISOString() };
     reading = { ...(reading || {}), picture: record };
     await mergeMarker({ picture: record });
   }
   return { ocr: reading, retryLater: false, ms: Date.now() - t0 };
 };
+
+/** A description made by an older version of the prompts (records from before versions have no `v`). */
+const pictureIsStale = (picture) => Boolean(picture && picture.description && (Number(picture.v) || 1) < vision.PICTURE_VERSION);
 
 /** The picture as one line for the model that reads the post in context: what it shows, then what stands out in it. */
 const pictureLine = (reading) => {
