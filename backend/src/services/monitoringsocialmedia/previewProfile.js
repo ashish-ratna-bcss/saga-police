@@ -36,9 +36,9 @@ const previewFacebook = async (data = {}, auth = null) => {
       fetched_at: new Date().toISOString(),
       platform: 'facebook',
       summary: {
-        name: null,
-        image: null,
-        url: null,
+        name: data.display_name || data.name || null,
+        image: data.image || data.avatar || null,
+        url: `https://www.facebook.com/${existingPageId}`,
         page_id: existingPageId,
         followers: null,
         note: 'page_id already set — add a URL to refresh preview',
@@ -49,7 +49,10 @@ const previewFacebook = async (data = {}, auth = null) => {
       platform: 'facebook',
       preview: preview_data.summary,
       preview_data,
-      data_patch: { page_id: existingPageId },
+      data_patch: {
+        page_id: existingPageId,
+        url: `https://www.facebook.com/${existingPageId}`,
+      },
     };
   }
 

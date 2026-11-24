@@ -30,22 +30,40 @@ const normalizeAddPlatform = (platform) => {
 };
 
 /** Map engager / alert "add profile" payloads to social-profiles preview data. */
-const buildCatalogPreviewData = (platform, identifier) => {
+const buildCatalogPreviewData = (platform, identifier, extras = {}) => {
   const raw = String(identifier || '').trim();
   const clean = raw.replace(/^@/, '');
   const slug = normalizeAddPlatform(platform);
-  if (!slug || !clean) return null;
-  if (slug === 'x') return { platform: slug, data: { username: clean } };
+  const pageId = extras.page_id ? String(extras.page_id).trim() : '';
+  if (!slug) return null;
+  if (slug === 'x') {
+    if (!clean) return null;
+    return { platform: slug, data: { username: clean } };
+  }
   if (slug === 'facebook') {
-    const url = /^https?:\/\//i.test(raw) ? raw : `https://www.facebook.com/${clean}`;
-    return { platform: slug, data: { url } };
+    // Numeric page/profile ids can be saved without a vanity URL (common for commenters).
+    if (!clean && !pageId) return null;
+    const url = raw
+      ? (/^https?:\/\//i.test(raw) ? raw : `https://www.facebook.com/${clean}`)
+      : pageId
+        ? `https://www.facebook.com/${pageId}`
+        : '';
+    return {
+      platform: slug,
+      data: {
+        ...(url ? { url } : {}),
+        ...(pageId ? { page_id: pageId } : {}),
+      },
+    };
   }
   if (slug === 'youtube') {
+    if (!clean) return null;
     const url = /^https?:\/\//i.test(raw)
       ? raw
       : `https://www.youtube.com/@${clean}`;
     return { platform: slug, data: { channel_url: url } };
   }
+  if (!clean) return null;
   return { platform: slug, data: { username: clean } };
 };
 
@@ -1978,51 +1996,112 @@ export default function Alerts() {
   const handleOpenAddSource = async (data = null) => {
     const platform = data?.platform;
     const identifier = data?.identifier || data?.handle;
-    const built = buildCatalogPreviewData(platform, identifier);
+    const pageId = data?.page_id ? String(data.page_id).trim() : '';
+    const built = buildCatalogPreviewData(platform, identifier, { page_id: pageId });
     if (!built) {
       toast.error('Missing platform or handle to add');
       return;
     }
     if (addingProfile) return;
 
-    const cleanHandle = String(identifier || '').replace(/^@/, '').trim();
-    const already = monitoredHandles.some(
-      (h) => h && String(h).replace(/^@/, '').toLowerCase().trim() === cleanHandle.toLowerCase()
-    );
+    const label =
+      data?.display_name ||
+      String(identifier || pageId || '')
+        .replace(/^https?:\/\/(www\.)?facebook\.com\//i, '')
+        .replace(/^@/, '')
+        .trim() ||
+      'profile';
+
+    const tokensToMatch = [identifier, pageId, data?.display_name]
+      .filter(Boolean)
+      .map((v) => String(v).replace(/^@/, '').trim().toLowerCase());
+    const already = monitoredHandles.some((h) => {
+      if (!h) return false;
+      const clean = String(h).replace(/^@/, '').trim().toLowerCase();
+      return tokensToMatch.some(
+        (t) => t === clean || clean.includes(t) || t.includes(clean)
+      );
+    });
     if (already) {
-      toast.success(`@${cleanHandle} is already monitored`);
+      toast.success(`${label} is already monitored`);
       return;
     }
 
     setAddingProfile(true);
-    const toastId = toast.loading(`Adding @${cleanHandle} to Social Profiles…`);
+    const toastId = toast.loading(`Adding ${label} to monitoring…`);
     try {
-      const previewRes = await socialProfilesApi.preview({
-        platform: built.platform,
-        data: built.data,
-      });
-      const previewData = previewRes.data?.preview_data;
+      // Prefer page_id-only preview for Facebook commenters (numeric ids) — skips flaky
+      // PAGE_DETAILS on pfbid / personal profile URLs.
+      const previewDataIn =
+        built.platform === 'facebook' && pageId && /^\d+$/.test(pageId)
+          ? {
+              page_id: pageId,
+              display_name: data?.display_name || undefined,
+              avatar: data?.avatar || undefined,
+            }
+          : built.data;
+
+      let previewRes;
+      try {
+        previewRes = await socialProfilesApi.preview({
+          platform: built.platform,
+          data: previewDataIn,
+        });
+      } catch (previewErr) {
+        // Fall back: if URL preview failed but we have a numeric id, save with page_id only.
+        if (built.platform === 'facebook' && pageId && /^\d+$/.test(pageId) && previewDataIn.url) {
+          previewRes = await socialProfilesApi.preview({
+            platform: 'facebook',
+            data: {
+              page_id: pageId,
+              display_name: data?.display_name || undefined,
+              avatar: data?.avatar || undefined,
+            },
+          });
+        } else {
+          throw previewErr;
+        }
+      }
+
+      let previewData = previewRes.data?.preview_data;
       const dataPatch = previewRes.data?.data_patch || {};
-      const displayName =
-        data?.display_name ||
-        previewRes.data?.preview?.name ||
-        cleanHandle;
+      if (previewData?.summary) {
+        previewData = {
+          ...previewData,
+          summary: {
+            ...previewData.summary,
+            name: data?.display_name || previewData.summary.name || null,
+            image: data?.avatar || previewData.summary.image || null,
+            page_id: previewData.summary.page_id || pageId || null,
+          },
+        };
+      }
 
       const created = await socialProfilesApi.create({
         platform: built.platform,
-        data: { ...built.data, ...dataPatch },
-        display_name: displayName,
+        data: { ...built.data, ...dataPatch, ...(pageId ? { page_id: pageId } : {}) },
+        display_name: data?.display_name || previewRes.data?.preview?.name || label,
         preview_data: previewData,
         poll_interval_minutes: 30,
       });
 
       const createdRow = created.data;
-      const newHandle = createdRow?.handle || cleanHandle;
-      setMonitoredHandles((prev) =>
-        prev.some((h) => String(h).toLowerCase() === String(newHandle).toLowerCase())
-          ? prev
-          : [...prev, newHandle]
-      );
+      // Create leaves monitoring_status=stopped — turn monitoring on so Add means monitor.
+      if (createdRow?.id && createdRow.monitoring_status !== 'started') {
+        try {
+          const toggled = await socialProfilesApi.toggleMonitoring(createdRow.id);
+          Object.assign(createdRow, toggled.data || {});
+        } catch (toggleErr) {
+          console.warn('Profile saved but monitoring toggle failed', toggleErr);
+        }
+      }
+
+      const newHandle = createdRow?.handle || identifier || pageId || label;
+      setMonitoredHandles((prev) => {
+        const next = new Set(prev.map((h) => String(h)));
+        [newHandle, identifier, pageId].filter(Boolean).forEach((h) => next.add(String(h)));
+        return [...next];
+      });
       if (createdRow) {
         setMonitoredSources((prev) => {
           if (prev.some((s) => s.id === createdRow.id)) return prev;
@@ -2037,12 +2116,12 @@ export default function Alerts() {
         });
       }
 
-      toast.success(`Monitoring started for @${newHandle}`, { id: toastId });
+      toast.success(`Monitoring started for ${label}`, { id: toastId });
       await fetchSourcesMetadata();
     } catch (error) {
       const message = error?.response?.data?.error || error.message || 'Failed to add profile';
       if (error?.response?.status === 409 || /already exists/i.test(message)) {
-        toast.success(`@${cleanHandle} is already in Social Profiles`, { id: toastId });
+        toast.success(`${label} is already in Social Profiles`, { id: toastId });
         await fetchSourcesMetadata();
       } else {
         toast.error(message, { id: toastId });

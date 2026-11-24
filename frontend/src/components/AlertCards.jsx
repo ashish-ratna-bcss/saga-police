@@ -2710,20 +2710,72 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
     const LIST_PAGE_SIZE = 20;
     const PAGE_SIZE = 20;
 
-    const isMonitored = (handle) => {
-        if (!handle || !Array.isArray(monitoredHandles) || monitoredHandles.length === 0) return false;
-        const clean = String(handle).replace(/^@/, '').toLowerCase().trim();
-        return monitoredHandles.some(h => h && String(h).replace(/^@/, '').toLowerCase().trim() === clean);
+    const normalizeMonitoredToken = (value) =>
+        String(value || '')
+            .replace(/^@/, '')
+            .trim()
+            .toLowerCase()
+            .replace(/^https?:\/\/(www\.)?(facebook|fb)\.com\//, '')
+            .replace(/^https?:\/\/(www\.)?instagram\.com\//, '')
+            .replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//, '')
+            .replace(/\/+$/, '')
+            .replace(/\?.*$/, '');
+
+    const isMonitored = (rtOrHandle) => {
+        if (!Array.isArray(monitoredHandles) || monitoredHandles.length === 0) return false;
+        const monitored = monitoredHandles
+            .filter(Boolean)
+            .map((h) => normalizeMonitoredToken(h));
+        if (!monitored.length) return false;
+        if (typeof rtOrHandle === 'string' || rtOrHandle == null) {
+            const clean = normalizeMonitoredToken(rtOrHandle);
+            return Boolean(clean) && monitored.includes(clean);
+        }
+        const rt = rtOrHandle;
+        const candidates = [
+            rt.handle,
+            rt.user_id,
+            ...(Object.values(rt.profile_urls || {})),
+        ]
+            .filter(Boolean)
+            .map((v) => normalizeMonitoredToken(v));
+        return candidates.some((c) => c && monitored.includes(c));
     };
 
     const handleAddSource = (rt) => {
-        if (!onAddSource) return;
+        if (!onAddSource) {
+            toast.error('Add to monitor is not available here');
+            return;
+        }
         const platform = (rt.platforms && rt.platforms[0]) || 'x';
-        const identifier = platform === 'x' || platform === 'instagram'
-            ? rt.handle
-            : (rt.profile_urls?.[platform] || rt.handle);
-        if (!identifier) return;
-        onAddSource({ platform, identifier, display_name: rt.name || rt.handle, category: 'unknown' });
+        const profileUrl = rt.profile_urls?.[platform] || null;
+        const userId = rt.user_id ? String(rt.user_id).trim() : '';
+        const handle = rt.handle ? String(rt.handle).replace(/^@/, '').trim() : '';
+
+        let identifier = null;
+        if (platform === 'x' || platform === 'instagram') {
+            identifier = handle || profileUrl;
+        } else if (platform === 'facebook') {
+            // Commenters often have no vanity slug — only pfbid / numeric id + profile URL.
+            identifier = profileUrl || (userId ? `https://www.facebook.com/${userId}` : '') || handle;
+        } else {
+            identifier = profileUrl || handle;
+        }
+
+        if (!identifier) {
+            toast.error('This engager has no profile link to add to monitoring');
+            return;
+        }
+
+        const numericPageId = /^\d+$/.test(userId) ? userId : undefined;
+        onAddSource({
+            platform,
+            identifier,
+            display_name: rt.name || handle || identifier,
+            page_id: platform === 'facebook' ? numericPageId : undefined,
+            avatar: rt.avatar || undefined,
+            category: 'unknown',
+        });
     };
 
     const engagerHref = (rt) => {
@@ -3040,7 +3092,7 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                             topRetweeters={engagers.slice(0, 8).map(e => ({ ...e, handle: e.handle || e.name || 'unknown', tweet_count: e.tweets_retweeted }))}
                                             totalRetweeters={analysis.unique_retweeters || 0}
                                             onNodeClick={handleAddSource}
-                                            isMonitored={isMonitored}
+                                            isMonitored={(handle) => isMonitored(handle)}
                                         />
                                     </div>
                                     <div className="flex items-start gap-2 px-3 py-2 border-t border-border bg-muted/10 shrink-0">
@@ -3120,10 +3172,11 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
                                                                     </thead>
                                                                     <tbody>
                                                                         {paged.map((rt) => {
-                                                                            const already = isMonitored(rt.handle);
+                                                                            const already = isMonitored(rt);
                                                                             const freq = rt.frequency || 'one-time';
+                                                                            const rowKey = rt.handle || rt.user_id || rt.name;
                                                                             return (
-                                                                                <tr key={rt.handle || rt.user_id || rt.name} className={`border-t transition-colors ${FREQ_ROW_COLORS[freq] || ''}`}>
+                                                                                <tr key={rowKey} className={`border-t transition-colors ${FREQ_ROW_COLORS[freq] || ''}`}>
                                                                                     <td className="px-2 py-1.5 align-middle">
                                                                                         <div className="flex items-center gap-1.5">
                                                                                             <InitialAvatar src={rt.avatar} name={rt.name || rt.handle} className="h-5 w-5 rounded-full object-cover shrink-0 text-[8px]" />
