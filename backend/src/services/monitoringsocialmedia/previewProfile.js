@@ -21,9 +21,48 @@ const { parseChannelRef } = require('./youtube/fetch');
  * Returns preview_data (JSONB shape to store on profile) + data_patch for form fields.
  * Does NOT save posts.
  */
+/** Pull a usable Facebook id from a profile/page URL (numeric, pfbid, or vanity slug). */
+const extractFacebookIdFromUrl = (rawUrl) => {
+  const u = String(rawUrl || '').trim();
+  if (!u) return '';
+  const fromQuery = u.match(/[?&]id=(\d{5,})/i);
+  if (fromQuery) return fromQuery[1];
+  const path = u.match(/facebook\.com\/([^/?#]+)/i);
+  if (!path) return '';
+  const seg = decodeURIComponent(path[1]);
+  if (!seg || /^(profile\.php|people|pages|watch|reel|photo|groups|events)$/i.test(seg)) return '';
+  return seg;
+};
+
+const facebookPreviewFromId = (pageId, data = {}, url = '') => {
+  const id = String(pageId || '').trim();
+  const href = url || `https://www.facebook.com/${id}`;
+  const summary = {
+    name: data.display_name || data.name || null,
+    image: data.image || data.avatar || null,
+    url: href,
+    page_id: id,
+    followers: null,
+    note: data.note || 'Resolved from profile link (PAGE_DETAILS unavailable)',
+  };
+  const preview_data = {
+    fetched_at: new Date().toISOString(),
+    platform: 'facebook',
+    summary,
+    raw: { page_id: id, url: href },
+  };
+  return {
+    platform: 'facebook',
+    preview: summary,
+    preview_data,
+    data_patch: { page_id: id, url: href },
+  };
+};
+
 const previewFacebook = async (data = {}, auth = null) => {
   const url = String(data.url || data.page_url || '').trim();
   const existingPageId = data.page_id ? String(data.page_id).trim() : '';
+  const extractedId = extractFacebookIdFromUrl(url);
 
   if (!url && !existingPageId) {
     const err = new Error('Enter a Facebook page URL (or page_id)');
@@ -31,74 +70,69 @@ const previewFacebook = async (data = {}, auth = null) => {
     throw err;
   }
 
+  // Already have an id (engager Add / numeric page) — skip Blugate.
   if (!url) {
-    const preview_data = {
-      fetched_at: new Date().toISOString(),
-      platform: 'facebook',
-      summary: {
-        name: data.display_name || data.name || null,
-        image: data.image || data.avatar || null,
-        url: `https://www.facebook.com/${existingPageId}`,
-        page_id: existingPageId,
-        followers: null,
-        note: 'page_id already set — add a URL to refresh preview',
-      },
-      raw: { page_id: existingPageId },
-    };
-    return {
-      platform: 'facebook',
-      preview: preview_data.summary,
-      preview_data,
-      data_patch: {
-        page_id: existingPageId,
-        url: `https://www.facebook.com/${existingPageId}`,
-      },
-    };
+    return facebookPreviewFromId(existingPageId, {
+      ...data,
+      note: 'page_id already set — add a URL to refresh preview',
+    });
   }
 
-  const details = await callFacebookApi('PAGE_DETAILS', { url }, auth);
-  const results =
-    details?.results && typeof details.results === 'object'
-      ? details.results
-      : details && typeof details === 'object'
-        ? details
-        : {};
-  const pageId = String(results.page_id || existingPageId || '').trim();
-  if (!pageId) {
-    const err = new Error('Could not resolve page_id from this URL');
-    err.status = 400;
-    throw err;
+  try {
+    const details = await callFacebookApi('PAGE_DETAILS', { url }, auth);
+    const results =
+      details?.results && typeof details.results === 'object'
+        ? details.results
+        : details && typeof details === 'object'
+          ? details
+          : {};
+    const pageId = String(results.page_id || existingPageId || extractedId || '').trim();
+    if (pageId) {
+      const summary = {
+        name: results.name || data.display_name || data.name || null,
+        image: results.image || data.image || data.avatar || null,
+        url: results.url || url,
+        page_id: pageId,
+        followers: results.followers ?? null,
+        following: results.following ?? null,
+        type: results.type || null,
+        categories: Array.isArray(results.categories) ? results.categories : [],
+        website: results.website || null,
+        intro: results.intro || null,
+      };
+      const preview_data = {
+        fetched_at: new Date().toISOString(),
+        platform: 'facebook',
+        summary,
+        raw: results,
+      };
+      return {
+        platform: 'facebook',
+        preview: summary,
+        preview_data,
+        data_patch: {
+          url: summary.url,
+          page_id: pageId,
+        },
+      };
+    }
+  } catch (err) {
+    // Fall through to URL/id extraction — personal/pfbid links often fail PAGE_DETAILS.
+    if (!(existingPageId || extractedId)) {
+      const wrapped = new Error(err.message || 'Could not resolve page_id from this URL');
+      wrapped.status = err.status || 400;
+      throw wrapped;
+    }
   }
 
-  const summary = {
-    name: results.name || null,
-    image: results.image || null,
-    url: results.url || url,
-    page_id: pageId,
-    followers: results.followers ?? null,
-    following: results.following ?? null,
-    type: results.type || null,
-    categories: Array.isArray(results.categories) ? results.categories : [],
-    website: results.website || null,
-    intro: results.intro || null,
-  };
+  const fallbackId = existingPageId || extractedId;
+  if (fallbackId) {
+    return facebookPreviewFromId(fallbackId, data, url);
+  }
 
-  const preview_data = {
-    fetched_at: new Date().toISOString(),
-    platform: 'facebook',
-    summary,
-    raw: results,
-  };
-
-  return {
-    platform: 'facebook',
-    preview: summary,
-    preview_data,
-    data_patch: {
-      url: summary.url,
-      page_id: pageId,
-    },
-  };
+  const err = new Error('Could not resolve page_id from this URL');
+  err.status = 400;
+  throw err;
 };
 
 const previewX = async (data = {}, auth = null) => {

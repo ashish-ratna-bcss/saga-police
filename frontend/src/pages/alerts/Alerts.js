@@ -2030,10 +2030,10 @@ export default function Alerts() {
     setAddingProfile(true);
     const toastId = toast.loading(`Adding ${label} to monitoring…`);
     try {
-      // Prefer page_id-only preview for Facebook commenters (numeric ids) — skips flaky
-      // PAGE_DETAILS on pfbid / personal profile URLs.
+      // Facebook engagers (commenters) often only have pfbid / numeric ids — send
+      // page_id alone so preview skips PAGE_DETAILS (personal/pfbid URLs fail there).
       const previewDataIn =
-        built.platform === 'facebook' && pageId && /^\d+$/.test(pageId)
+        built.platform === 'facebook' && pageId
           ? {
               page_id: pageId,
               display_name: data?.display_name || undefined,
@@ -2048,8 +2048,7 @@ export default function Alerts() {
           data: previewDataIn,
         });
       } catch (previewErr) {
-        // Fall back: if URL preview failed but we have a numeric id, save with page_id only.
-        if (built.platform === 'facebook' && pageId && /^\d+$/.test(pageId) && previewDataIn.url) {
+        if (built.platform === 'facebook' && pageId) {
           previewRes = await socialProfilesApi.preview({
             platform: 'facebook',
             data: {

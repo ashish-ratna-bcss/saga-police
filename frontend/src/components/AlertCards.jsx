@@ -2747,12 +2747,21 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
             return;
         }
 
-        const numericPageId = /^\d+$/.test(userId) ? userId : undefined;
+        // Pass any Facebook author id (numeric or pfbid) so preview can skip flaky PAGE_DETAILS.
+        let facebookPageId;
+        if (platform === 'facebook') {
+            facebookPageId = userId || undefined;
+            if (!facebookPageId && profileUrl) {
+                const m = String(profileUrl).match(/[?&]id=(\d{5,})/i)
+                    || String(profileUrl).match(/facebook\.com\/([^/?#]+)/i);
+                if (m) facebookPageId = decodeURIComponent(m[1]);
+            }
+        }
         onAddSource({
             platform,
             identifier,
             display_name: rt.name || handle || identifier,
-            page_id: platform === 'facebook' ? numericPageId : undefined,
+            page_id: facebookPageId,
             avatar: rt.avatar || undefined,
             category: 'unknown',
         });
