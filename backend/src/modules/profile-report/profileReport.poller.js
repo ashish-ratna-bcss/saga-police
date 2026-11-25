@@ -12,6 +12,7 @@ const { pollCollections } = require('./profileReport.collect');
 const { enqueuePending } = require('./profileReport.analyze');
 const vision = require('./profileReport.vision');
 const reader = require('./profileReport.reading');
+const clip = require('./profileReport.video');
 
 const POLL_MS = Math.max(3000, Number(process.env.PROFILE_REPORT_POLL_MS) || 15000);
 const SWEEP_MS = 60 * 60 * 1000;
@@ -46,6 +47,9 @@ const tenantTurn = async (dbName, { sweep = false } = {}) => {
     // Posts that have not been read in context yet (what the post means, whether it is a joke, its tone) are read once.
     const readings = reader.enabled() ? Number(await store.requeueForReading(prisma, { version: reader.READING_VERSION })) || 0 : 0;
     if (readings > 0) logger.warn(`[ProfileReport] tenant=${dbName}: ${readings} posts are being analysed again so they can be read in context`);
+    // Posts with a video file whose video has not been read yet are read once, the way Alerts read videos.
+    const videos = clip.enabled() ? Number(await store.requeueForVideos(prisma)) || 0 : 0;
+    if (videos > 0) logger.warn(`[ProfileReport] tenant=${dbName}: ${videos} posts with videos are being analysed again so the videos can be read`);
   }
   await pollCollections(prisma, dbName);
   await enqueuePending(prisma, dbName);

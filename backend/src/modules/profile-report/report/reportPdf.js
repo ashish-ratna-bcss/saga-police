@@ -86,10 +86,14 @@ const bodyOf = (e) => {
   const showEnglish = english && foldText(english) !== foldText(text) && foldText(english) !== foldText(image);
   const en = showEnglish ? `<div class="en">EN: ${esc(english)}</div>` : '';
   const seen = (e.picture_signals || []).length ? `<div class="en"><b>Seen in the picture:</b> ${esc(e.picture_signals.join(' · '))}</div>` : '';
-  const pic = scene && foldText(scene) !== foldText(text) && foldText(scene) !== foldText(image) ? `<div class="en">Picture: ${esc(scene)}</div>${seen}` : seen;
-  if (!text && image) return `<div><span class="tag">Image post</span> ${esc(image)}</div>${en}${pic}`;
-  if (!text && pic) return `<div><span class="tag">Image post</span> <span class="muted">no caption, no text on the picture</span></div>${pic}${en}`;
-  const imageLine = image && foldText(image) !== foldText(text) ? `<div class="en">Image text: ${esc(image)}</div>` : '';
+  // a video that was read: what it shows and the writing on screen are of the video, and it says how long it is
+  const isVideo = Boolean(e.is_video || e.video);
+  const sceneLabel = e.video ? `Video${e.video_seconds ? ` (${n(e.video_seconds)}s)` : ''}` : 'Picture';
+  const pic = scene && foldText(scene) !== foldText(text) && foldText(scene) !== foldText(image) ? `<div class="en">${sceneLabel}: ${esc(scene)}</div>${seen}` : seen;
+  const tag = isVideo ? 'Video post' : 'Image post';
+  if (!text && image) return `<div><span class="tag">${tag}</span> ${esc(image)}</div>${en}${pic}`;
+  if (!text && pic) return `<div><span class="tag">${tag}</span> <span class="muted">${isVideo ? 'no caption' : 'no caption, no text on the picture'}</span></div>${pic}${en}`;
+  const imageLine = image && foldText(image) !== foldText(text) ? `<div class="en">${e.video ? 'Video text' : 'Image text'}: ${esc(image)}</div>` : '';
   return `<div>${esc(text || '(no caption)')}</div>${en}${imageLine}${pic}`;
 };
 
@@ -290,6 +294,7 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '', includeEvidence = tru
     </div>
     ${(content.pictures?.terms || []).length ? `<div class="muted">What the pictures show (${n(content.pictures.described)} of ${n(content.pictures.with_pictures)} pictures described)</div>${chips(content.pictures.terms, (x) => `${x.term} · ${x.count}`)}` : ''}
     ${(content.pictures?.signals || []).length ? `<div class="muted">Flagged in pictures (flags, symbols, weapons, crowds ...)</div>${chips(content.pictures.signals, (x) => `${x.term} · ${x.count}`)}` : ''}
+    ${content.videos?.total ? `<div class="muted">Videos: ${n(content.videos.read)} of ${n(content.videos.total)} watched by the video reader (what they show and the writing on screen)</div>` : ''}
     ${(content.tones || []).length ? `<div class="muted">How the posts are meant (${n(content.read_in_context)} of ${n(cov.read)} read in context)</div>${chips(content.tones, (x) => `${x.term} · ${x.count}`)}` : ''}
     <div class="muted">${n(content.original)} original · ${n(content.shared)} shared · ${n(content.replies)} replies · ${n(content.with_media)} with photo/video · ${n(content.with_links)} with links · languages: ${esc((content.languages || []).map((l) => `${l.language} ${l.count}`).join(', ') || 'not detected')}</div>`;
 

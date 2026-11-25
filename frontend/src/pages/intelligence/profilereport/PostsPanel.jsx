@@ -178,14 +178,21 @@ const PostCard = ({ post }) => {
         <p className="mt-1 line-clamp-3 border-l-2 border-sky-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-sky-700">EN</span> {body.english}</p>
       ) : null}
       {body.imageText ? (
-        <p className="mt-1 line-clamp-3 border-l-2 border-violet-200 pl-2 text-xs text-muted-foreground">
-          <ImageIcon className="mr-1 inline h-3 w-3 text-violet-700" /><span className="font-semibold text-violet-700">Image text</span> {body.imageText}
+        <p className="mt-1 line-clamp-3 border-l-2 border-violet-200 pl-2 text-xs text-muted-foreground" data-image-text>
+          <ImageIcon className="mr-1 inline h-3 w-3 text-violet-700" /><span className="font-semibold text-violet-700">{post.video ? 'On-screen text' : 'Image text'}</span> {body.imageText}
         </p>
       ) : null}
       {body.picture ? (
-        <p className="mt-1 line-clamp-3 border-l-2 border-fuchsia-200 pl-2 text-xs text-muted-foreground">
-          <ImageIcon className="mr-1 inline h-3 w-3 text-fuchsia-700" /><span className="font-semibold text-fuchsia-700">Picture</span> {body.picture}
-        </p>
+        post.video ? (
+          // what the video reader saw in the video: longer than a picture's description, and it says how long the video is
+          <p className="mt-1 line-clamp-6 border-l-2 border-teal-200 pl-2 text-xs text-muted-foreground" data-video-seen>
+            <VideoIcon className="mr-1 inline h-3 w-3 text-teal-700" /><span className="font-semibold text-teal-700">Video{post.video.seconds ? ` · ${post.video.seconds}s` : ''}</span> {body.picture}
+          </p>
+        ) : (
+          <p className="mt-1 line-clamp-3 border-l-2 border-fuchsia-200 pl-2 text-xs text-muted-foreground">
+            <ImageIcon className="mr-1 inline h-3 w-3 text-fuchsia-700" /><span className="font-semibold text-fuchsia-700">Picture</span> {body.picture}
+          </p>
+        )
       ) : null}
       {readingOf({ meaning: post.analysis?.meaning, scene: post.image_description }) ? (
         <p className="mt-1 text-xs" data-meaning>

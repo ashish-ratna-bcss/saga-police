@@ -515,15 +515,23 @@ const RiskTab = ({ report, facts, onCite }) => {
 /** What an evidence post says, each sentence once; a picture-only post shows the text read from it, labelled. */
 const PostText = ({ post }) => {
   const body = postBody({ text: post.text, image_text: post.image_text, english: post.english, scene: post.scene });
+  // a video post: when the video was read (post.video) the description and the text are of the video, not of a still picture
+  const isVideo = Boolean(post.is_video || post.video);
   return (
     <>
       <p className="mt-1.5 whitespace-pre-line break-words text-[13px] leading-relaxed">
-        {body.imageOnly ? <span className="mr-1.5 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700">Image post</span> : null}
-        {body.main || <span className="text-muted-foreground">{body.noWords ? 'no caption, no text on the picture' : '(no caption)'}</span>}
+        {isVideo
+          ? <span className="mr-1.5 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-bold text-sky-700" data-video-chip>Video post</span>
+          : body.imageOnly ? <span className="mr-1.5 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700">Image post</span> : null}
+        {body.main || <span className="text-muted-foreground">{body.noWords && !isVideo ? 'no caption, no text on the picture' : '(no caption)'}</span>}
       </p>
       {body.english ? <p className="mt-1 border-l-2 border-sky-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-sky-700">EN</span> {body.english}</p> : null}
-      {body.imageText ? <p className="mt-1 border-l-2 border-violet-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-violet-700">Image text</span> {body.imageText}</p> : null}
-      {body.picture ? <p className="mt-1 border-l-2 border-fuchsia-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-fuchsia-700">Picture</span> {body.picture}</p> : null}
+      {body.imageText ? <p className="mt-1 border-l-2 border-violet-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-violet-700">{post.video ? 'On-screen text' : 'Image text'}</span> {body.imageText}</p> : null}
+      {body.picture ? (
+        post.video
+          ? <p className="mt-1 border-l-2 border-teal-200 pl-2 text-xs text-muted-foreground" data-video-seen><span className="font-semibold text-teal-700">Video{post.video_seconds ? ` · ${post.video_seconds}s` : ''}</span> {body.picture}</p>
+          : <p className="mt-1 border-l-2 border-fuchsia-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-fuchsia-700">Picture</span> {body.picture}</p>
+      ) : (isVideo && !post.video ? <p className="mt-1 pl-2 text-xs text-muted-foreground" data-video-unread>Video not watched: judged from the caption.</p> : null)}
       {post.picture_signals?.length ? (
         <p className="mt-1 flex flex-wrap items-center gap-1 pl-2 text-xs" data-picture-seen>
           <span className="font-semibold text-amber-800">Seen in the picture</span>

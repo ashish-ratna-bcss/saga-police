@@ -44,7 +44,8 @@ RULES
 20. Pictures. "Picture" on a post describes what its photo shows, and the PICTURES line in FACTS covers all posts, not only the numbered ones. Read each post as its caption, the text printed on its picture and what the picture shows, together: say when a picture adds to, contradicts or goes beyond the caption. Use pictures as evidence and cite the post, but say only what the descriptions say: never name a person in a photo and never guess a place or an affiliation from how someone looks. Do not describe pictures you were not given a description for. "Seen in the picture" lists what the picture description flagged (a weapon, a crowd, a flag or slogan with its words); a picture alone is not proof of intent: report what it shows and cite the post, and raise a risk indicator only when the picture and the caption together show a threat, an incitement or a call to action.
 21. Region. When FACTS give a REGION, "regional_link" says whether the posts show any connection to it (place names, local language, local hashtags, named officials, events or institutions). If no post does, write exactly: "No link to <REGION> found in the posts read." Never guess nationality, residence or location from names, posting hours or the language used. With no REGION line, "regional_link" is an empty string.
 22. Watch points. Each one names something specific to look for in future posts (a place, an official, a hashtag, a symbol, an object, a kind of call to action) and says what finding it would change in this assessment. Never write a general instruction to keep watching or to look for an increase.
-23. How posts are meant. "Meaning" and "tone" on a post come from a close reading of its caption, picture and writing together, and the sentiment counts already take them into account. Use them: a joke, a meme, a quote or a greeting is not the account's own anger or hostility, and do not treat it as one. Describe a joke as a joke. A joke that makes light of someone hurt or in trouble may be insensitive: call it dark humour and nothing more, and cite the post.`;
+23. How posts are meant. "Meaning" and "tone" on a post come from a close reading of its caption, picture and writing together, and the sentiment counts already take them into account. Use them: a joke, a meme, a quote or a greeting is not the account's own anger or hostility, and do not treat it as one. Describe a joke as a joke. A joke that makes light of someone hurt or in trouble may be insensitive: call it dark humour and nothing more, and cite the post.
+24. Videos. "Video" on a post describes the video (its scenes and what they show), and "Video text" is the writing shown on screen. Use them as evidence of what the video shows and cite the post, but say only what the description says: it is not a transcript, so never say what was spoken or sung in a video, never name a person in it, and never guess a place or an affiliation from how someone looks. A post marked "Video: (no description available)" has a video that nothing is known about: judge it from its caption and say nothing about what its video shows. The VIDEOS line in FACTS covers all posts, not only the numbered ones. Write about what the videos show and what the account does with them (how often it posts video, what kind, with or without a caption). Never write that a video was "read", "watched", "analysed" or "processed", or that a description was or was not available: that is how this report was made, not how the account behaves. If videos have no description, say so once, in "limitations".`;
 
 const OUTPUT_CONTRACT = `OUTPUT: ONE JSON object only. No markdown, no code fences, no text before or after. Use exactly these fields:
 {
@@ -105,6 +106,9 @@ const factsText = (facts, evidence = [], region = '') => {
     ...(con.pictures && con.pictures.with_pictures
       ? [`PICTURES: ${con.pictures.described} of ${con.pictures.with_pictures} posts with photos or video have a description of what the picture shows${(con.pictures.terms || []).length ? `; words that recur in those descriptions, with the number of pictures each appears in: ${con.pictures.terms.map((x) => `${x.term} ${x.count}`).join(', ')}` : ''}${(con.pictures.signals || []).length ? `; flagged in pictures (flags, symbols, weapons, crowds ...), with the number of pictures: ${con.pictures.signals.map((x) => `${x.term} ${x.count}`).join(', ')}` : ''}`]
       : []),
+    ...(con.videos && con.videos.total
+      ? [`VIDEOS: ${con.videos.total} posts are videos; ${con.videos.read} of them have a description of what the video shows (in their "Video" lines) and the rest have only their caption`]
+      : []),
     ...((con.tones || []).length
       ? [`HOW THE POSTS ARE MEANT (from a close reading of each post's caption, picture and writing together; ${con.read_in_context || 0} of ${c.read} posts read): ${con.tones.map((x) => `${x.term} ${x.count}`).join(', ')}`]
       : []),
@@ -150,8 +154,9 @@ const evidenceLine = (e, maxChars) => {
   ].filter(Boolean).join(' · ');
   const body = [`Text: ${clip(e.text, maxChars) || '(no caption)'}`];
   if (e.english) body.push(`English: ${clip(e.english, maxChars)}`);
-  if (e.image_text) body.push(`Image text: ${clip(e.image_text, Math.round(maxChars * 0.8))}`);
-  if (e.scene) body.push(`Picture: ${clip(e.scene, Math.round(maxChars * 0.7))}`);
+  if (e.image_text) body.push(`${e.video ? 'Video text' : 'Image text'}: ${clip(e.image_text, Math.round(maxChars * 0.8))}`);
+  if (e.scene) body.push(`${e.video ? `Video${e.video_seconds ? ` (${e.video_seconds}s)` : ''}` : 'Picture'}: ${clip(e.scene, Math.round(maxChars * (e.video ? 1.2 : 0.7)))}`);
+  else if (e.is_video && !e.video) body.push('Video: (no description available)');
   if ((e.picture_signals || []).length) body.push(`Seen in the picture: ${e.picture_signals.join('; ')}`);
   if (e.meaning) body.push(`Meaning: ${clip(e.meaning, Math.round(maxChars * 0.9))}`);
   return `${head}\n${body.join('\n')}`;

@@ -7,6 +7,7 @@
 const { ensureTables } = require('./profileReport.schema');
 const { cleanDeep, json } = require('./profileReport.util');
 const { flatten, sceneOf, signalsOf, cleanTranslation } = require('../../services/media_post_analysis/imageText');
+const clip = require('./profileReport.video');
 
 const ACCOUNT_COLS = `id, subject_id, platform, handle, data, preview_data, is_draft, fetch_status, fetch_mode, fetch_pages,
   posts_fetched, fetch_error, started_at, finished_at, last_fetched_at, created_at`;
@@ -348,8 +349,8 @@ const listPosts = async (prisma, subjectId, { platform, sentiment, risk, status,
   };
 };
 
-/** Only the words printed on the picture (OCR), apart from any description of the scene. */
-const printedTextOf = (img) => (!img || typeof img !== 'object' || img.failed ? '' : flatten(img.full_text));
+/** Only the words printed on the picture (OCR), apart from any description of the scene. For a video: the text shown on screen. */
+const printedTextOf = (img) => (!img || typeof img !== 'object' || img.failed ? '' : flatten(img.full_text) || clip.onScreenTextOf(img));
 /** The text analysis reads for a picture: what is printed on it, or else what it shows. Always readable text, never the reader's statistics. */
 const imageTextOf = (img) => {
   if (!img || typeof img !== 'object' || img.failed) return '';
@@ -391,6 +392,8 @@ const serializePost = (r) => {
     image_text: printedTextOf(r.image_analysis) || null,
     image_description: sceneOf(r.image_analysis) || null,
     image_signals: signalsOf(r.image_analysis),
+    // set when the video itself was read: the description and the text above are then of the video, not of a still picture
+    video: clip.isVideoReading(r.image_analysis) ? { seconds: clip.secondsOf(r.image_analysis), scenes: Number(r.image_analysis.scenes) || 0 } : null,
   };
 };
 
@@ -412,9 +415,12 @@ const leanField = (col, key, n) => `CASE
 const postsForReport = async (prisma, subjectId) =>
   q(
     prisma,
+    // the links themselves are not needed (and are long): "video" marks a post that has a video file, "media" any other picture
     `SELECT p.id::text AS id, p.platform, p.url, left(p.text, 1500) AS text, p.kind, p.media_type,
             CASE WHEN jsonb_typeof(p.media_urls) = 'array'
-                 THEN (CASE WHEN jsonb_array_length(p.media_urls) > 0 THEN '["media"]'::jsonb ELSE '[]'::jsonb END)
+                 THEN (CASE WHEN jsonb_array_length(p.media_urls) = 0 THEN '[]'::jsonb
+                            WHEN p.media_urls::text ~* $2 THEN '["video"]'::jsonb
+                            ELSE '["media"]'::jsonb END)
                  ELSE '[]'::jsonb END AS media_urls,
             p.engagement, p.posted_at, p.fetched_at, p.analysis_status,
             jsonb_build_object(
@@ -428,16 +434,20 @@ const postsForReport = async (prisma, subjectId) =>
             ) AS analysis_result,
             jsonb_build_object(
               'full_text', ${leanField('p.image_analysis', 'full_text', 800)},
-              'description', ${leanField('p.image_analysis', 'description', 400)},
+              'description', ${leanField('p.image_analysis', 'description', 800)},
               'summary', ${leanField('p.image_analysis', 'summary', 400)},
               'picture', CASE WHEN length((p.image_analysis->'picture')::text) <= 3000 THEN p.image_analysis->'picture' END,
-              'failed', p.image_analysis->'failed'
+              'failed', p.image_analysis->'failed',
+              'media_type', p.image_analysis->'media_type',
+              'visible_text', ${leanField('p.image_analysis', 'visible_text', 800)},
+              'duration_seconds', p.image_analysis->'duration_seconds',
+              'video', CASE WHEN length((p.image_analysis->'video')::text) <= 600 THEN p.image_analysis->'video' END
             ) AS image_analysis,
             a.handle AS account_handle
        FROM profile_report_posts p JOIN profile_report_accounts a ON a.id = p.account_id AND a.is_draft = FALSE
       WHERE p.subject_id = $1
       ORDER BY p.posted_at ASC NULLS FIRST, p.id ASC`,
-    subjectId
+    subjectId, clip.VIDEO_URL_SQL
   );
 
 const subjectCounts = async (prisma, subjectId) => (await countsFor(prisma, [subjectId])).get(subjectId) || EMPTY_COUNTS;
@@ -496,6 +506,27 @@ const requeueForReading = async (prisma, { version = 1 } = {}) => exec(
   version
 );
 
+/**
+ * Posts with a video file that have not had their video read yet (analysed before videos were read) go back in the queue once.
+ * Each is marked `video: { queued: true }` in the same statement, so a post is never queued twice for its video, whatever
+ * happens to it afterwards (a reading replaces the mark; a failure replaces it with the failure). Their other readings are
+ * kept until the video's own reading replaces them. A video the reader was only too busy for is tried again after RETRY_AFTER_HOURS.
+ * @returns {Promise<number>} posts re-queued
+ */
+const requeueForVideos = async (prisma) => exec(
+  prisma,
+  `UPDATE profile_report_posts
+      SET analysis_status = 'pending', analysis_attempts = 0, claimed_at = NULL, analysis_error = NULL,
+          image_analysis = COALESCE(image_analysis, '{}'::jsonb) || jsonb_build_object('video', jsonb_build_object('queued', TRUE))
+    WHERE analysis_status IN ('done', 'skipped')
+      AND jsonb_typeof(media_urls) = 'array' AND media_urls::text ~* $1
+      AND (image_analysis IS NULL
+           OR (image_analysis->'video' IS NULL AND COALESCE(image_analysis->>'media_type', '') <> 'video')
+           OR (image_analysis->'video'->>'transient' = 'true'
+               AND (image_analysis->'video'->>'at')::timestamptz < NOW() - make_interval(hours => $2::int)))`,
+  clip.VIDEO_URL_SQL, clip.RETRY_AFTER_HOURS
+);
+
 module.exports = {
   q,
   exec,
@@ -521,6 +552,7 @@ module.exports = {
   requeueGarbledAnalysis,
   requeueForPictures,
   requeueForReading,
+  requeueForVideos,
   imageTextOf,
   printedTextOf,
 };

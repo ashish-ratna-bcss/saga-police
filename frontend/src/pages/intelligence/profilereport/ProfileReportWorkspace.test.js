@@ -247,6 +247,47 @@ describe('Profile Report workspace', () => {
       expect([...container.querySelectorAll('a')].some((a) => a.href === 'https://www.facebook.com/watch/?v=1')).toBe(true);
     });
 
+    test('a video that was read: what it showed, how long it is and the writing on screen are labelled as the video\'s, beside the player', async () => {
+      const read = { analysis_status: 'done', analysis: { sentiment: 'neutral', risk_level: 'low', risk_score: 4 }, image_text: 'VOTE FOR CHANGE', image_description: 'A crowd holds flags in a street.', image_signals: [], video: { seconds: 52, scenes: 3 } };
+      await loadWith([{ ...instagramVideo, ...read, id: '20', text: 'Rally highlights' }]);
+      const seen = container.querySelector('[data-video-seen]');
+      expect(seen.textContent).toContain('Video · 52s');
+      expect(seen.textContent).toContain('A crowd holds flags in a street.');
+      expect(container.querySelector('[data-image-text]').textContent).toContain('On-screen text');
+      expect(container.querySelector('[data-image-text]').textContent).toContain('VOTE FOR CHANGE');
+      expect(container.querySelector('article').textContent).not.toMatch(/Image text|Picture/);   // not described as a still picture
+      expect(container.querySelector('video[data-post-video]')).toBeTruthy();
+      expect(container.querySelector('[data-video-chip]').textContent).toBe('Video post');
+    });
+
+    test('a video with no caption of its own: the writing on screen is the post\'s text, tagged Video post, beside its description', async () => {
+      await loadWith([{
+        ...instagramVideo, id: '23', text: '', analysis_status: 'done', analysis: { sentiment: 'neutral', risk_level: 'low', risk_score: 4 },
+        image_text: 'VOTE FOR CHANGE', image_description: 'A crowd holds flags in a street.', image_signals: [], video: { seconds: 52, scenes: 3 },
+      }]);
+      const card = container.querySelector('article');
+      expect(card.textContent).toContain('VOTE FOR CHANGE');
+      expect(card.textContent).not.toContain('(no caption)');
+      expect(card.querySelector('[data-video-chip]').textContent).toBe('Video post');
+      expect(card.querySelector('[data-video-seen]').textContent).toContain('A crowd holds flags in a street.');
+      expect(card.textContent).not.toMatch(/Image post|Picture/);
+    });
+
+    test('a video that was not read has no video line, and a picture post keeps its Picture and Image text labels', async () => {
+      await loadWith([
+        { ...instagramVideo, id: '21', text: 'caption only', analysis_status: 'done', analysis: { sentiment: 'neutral', risk_level: 'low', risk_score: 4 }, video: null },
+        { ...base, id: '22', platform: 'instagram', url: 'https://www.instagram.com/p/Pic2/', text: 'A poster', media_type: 'post', media_urls: ['https://scontent.cdninstagram.com/v/t51/p.jpg'], analysis_status: 'done', analysis: { sentiment: 'neutral', risk_level: 'low', risk_score: 1 }, image_text: 'MEETING TODAY', image_description: 'A poster on a wall.', image_signals: [], video: null },
+      ]);
+      expect(container.querySelectorAll('[data-video-seen]').length).toBe(0);
+      const [video, picture] = [...container.querySelectorAll('article')];
+      expect(video.textContent).toContain('caption only');
+      expect(picture.textContent).toContain('Image text');
+      expect(picture.textContent).toContain('MEETING TODAY');
+      expect(picture.textContent).toContain('Picture');
+      expect(picture.textContent).toContain('A poster on a wall.');
+      expect(picture.querySelector('[data-video-seen]')).toBeNull();
+    });
+
     test('a plain picture post and a text post are unchanged: no player, no Video post label', async () => {
       await loadWith([
         { ...base, id: '15', platform: 'instagram', url: 'https://www.instagram.com/p/Pic/', text: 'A photo', media_type: 'post', media_urls: ['https://scontent.cdninstagram.com/v/t51/photo.jpg?x=1'], analysis_status: 'done', analysis: { sentiment: 'neutral', risk_level: 'low', risk_score: 1 } },

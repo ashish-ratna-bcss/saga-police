@@ -239,6 +239,35 @@ describe('Profile Report dialog', () => {
     expect(text()).toContain('Not listed: 1 post with no caption');
   });
 
+  test('a video post in the evidence: what the video showed, its length and its on-screen text are the video\'s; an unwatched video says so', async () => {
+    const withVideos = JSON.parse(JSON.stringify(REPORT));
+    withVideos.evidence.push(
+      { n: 4, text: '', english: '', image_text: 'VOTE FOR CHANGE', scene: 'A crowd holds flags in a street.', is_video: true, video: true, video_seconds: 52, platform: 'instagram', posted_at: '2026-11-04T13:00:00Z', sentiment: 'neutral', risk_level: 'low', risk_score: 5, engagement: { likes: 3, shares: 0, comments: 1 }, shares_reported: false },
+      { n: 5, text: 'Watch this', english: '', image_text: '', scene: '', is_video: true, video: false, platform: 'youtube', posted_at: '2026-11-05T13:00:00Z', sentiment: 'neutral', risk_level: 'low', risk_score: 1, engagement: { likes: 1, shares: 0, comments: 0 }, shares_reported: false },
+      { n: 6, text: 'Rally highlights', english: '', image_text: 'VOTE FOR CHANGE', scene: 'A crowd holds flags in a street.', is_video: true, video: true, video_seconds: 31, platform: 'instagram', posted_at: '2026-11-06T13:00:00Z', sentiment: 'neutral', risk_level: 'low', risk_score: 2, engagement: { likes: 2, shares: 0, comments: 0 }, shares_reported: false },
+    );
+    mockApi.getReport.mockResolvedValue({ data: withVideos });
+    await render();
+    await act(async () => { buttonNamed('Evidence').click(); });
+    const read = container.querySelector('#bev-P4');
+    expect(read.querySelector('[data-video-chip]').textContent).toBe('Video post');
+    expect(read.textContent).toContain('VOTE FOR CHANGE');   // no caption: the writing on screen is the post's text
+    expect(read.querySelector('[data-video-seen]').textContent).toContain('Video · 52s');
+    expect(read.querySelector('[data-video-seen]').textContent).toContain('A crowd holds flags in a street.');
+    expect(read.textContent).not.toMatch(/Image post|Image text|Picture/);
+    const captioned = container.querySelector('#bev-P6');
+    expect(captioned.textContent).toContain('Rally highlights');
+    expect(captioned.textContent).toContain('On-screen text');   // with a caption, the writing on screen is a line of its own, labelled as the video's
+    expect(captioned.textContent).not.toContain('Image text');
+    const unread = container.querySelector('#bev-P5');
+    expect(unread.querySelector('[data-video-chip]')).toBeTruthy();
+    expect(unread.querySelector('[data-video-unread]').textContent).toContain('Video not watched');
+    expect(unread.querySelector('[data-video-seen]')).toBeNull();
+    // the other posts are unchanged
+    expect(container.querySelector('#bev-P3').querySelector('[data-video-chip]')).toBeNull();
+    expect(container.querySelector('#bev-P3').textContent).toContain('A beach at sunset with two people.');
+  });
+
   test('Reach has no Shares tile when the platform publishes none', async () => {
     mockApi.getReport.mockResolvedValue({ data: { ...REPORT, facts: { ...REPORT.facts, engagement: { ...REPORT.facts.engagement, shares_reported: false } } } });
     await render();

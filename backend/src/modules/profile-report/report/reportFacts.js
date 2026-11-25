@@ -8,6 +8,7 @@
  */
 const { parseSentiment, evaluateThreatRisk } = require('../../events/eventTelemetry.service');
 const { flatten, sceneOf, signalsOf, cleanTranslation } = require('../../../services/media_post_analysis/imageText');
+const clip = require('../profileReport.video');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -74,11 +75,15 @@ const isReply = (p) => p.kind === 'reply' || /^@\w/.test(String(p.text || '').tr
 const hasMedia = (p) => (Array.isArray(p.media_urls) && p.media_urls.length > 0) ||
   /photo|image|video|reel|album|gif/i.test(String(p.media_type || ''));
 
-/** The words printed on a post's picture (OCR). What the picture shows is `scene`, kept apart. */
+/** The words printed on a post's picture (OCR), or shown on screen in its video. What the picture shows is `scene`, kept apart. */
 const imageTextOf = (img) => {
   if (!img || typeof img !== 'object' || img.failed) return '';
-  return flatten(img.full_text).replace(/\s+/g, ' ').trim();
+  return (flatten(img.full_text) || clip.onScreenTextOf(img)).replace(/\s+/g, ' ').trim();
 };
+
+/** A post that has a video, whether or not the video was read: its video file (marked "video" when the posts are loaded for the report), or the platform's own type. */
+const isVideoPost = (p) => (Array.isArray(p.media_urls) && p.media_urls.includes('video')) ||
+  /video|reel|animated_gif/i.test(String(p.media_type || '')) || clip.isVideoReading(p.image_analysis);
 
 /** Platforms that do not publish a share / repost count: a 0 there means "not shown", not "nobody shared it". */
 const NO_SHARE_COUNT = new Set(['instagram', 'youtube']);
@@ -151,8 +156,9 @@ const normalisePosts = (posts = [], { timezone = DEFAULT_TZ } = {}) => posts
     const risk = analysed ? evaluateThreatRisk(a) : { riskLevel: null, riskScore: 0, hasThreatVector: false };
     const text = String(p.text || '').trim();
     const printed = imageTextOf(p.image_analysis);
-    // What the picture shows, unless it only repeats the words printed on it.
-    const shown = sceneOf(p.image_analysis, 420).replace(/\s+/g, ' ');
+    // What the picture (or the video) shows, unless it only repeats the words printed on it. A video says more, so it gets more room.
+    const videoRead = clip.isVideoReading(p.image_analysis);
+    const shown = sceneOf(p.image_analysis, videoRead ? 700 : 420).replace(/\s+/g, ' ');
     const scene = shown && foldText(shown) !== foldText(printed) ? shown : '';
     const described = Boolean(shown);
     // The English reading is kept only when it adds something: not a copy of the caption, the image text or the description.
@@ -168,6 +174,10 @@ const normalisePosts = (posts = [], { timezone = DEFAULT_TZ } = {}) => posts
       imageText: printed,
       scene,
       described,
+      // the post has a video; `video` is set when the video itself was read (then `scene` and `imageText` are of the video)
+      isVideo: isVideoPost(p),
+      video: videoRead,
+      videoSeconds: videoRead ? clip.secondsOf(p.image_analysis) : null,
       // how the post is MEANT, from a close reading of its caption, the writing on its picture and the picture together
       meaning: analysed && a.reading && !a.reading.failed ? String(a.reading.meaning || '').replace(/\s+/g, ' ').trim() : '',
       tone: analysed && a.reading && !a.reading.failed && a.reading.tone && a.reading.tone !== 'unclear' ? String(a.reading.tone) : '',
@@ -215,7 +225,7 @@ const pictureTermsOf = (rows) => {
   const counts = new Map();
   let described = 0;
   rows.forEach((r) => {
-    if (!r.scene) return;
+    if (!r.scene || r.video) return;   // what a video shows is counted under VIDEOS, not as a picture
     described += 1;
     new Set(r.pictureObjects).forEach((o) => counts.set(o, (counts.get(o) || 0) + 1));
   });
@@ -451,11 +461,16 @@ const buildBehaviorFacts = ({ account = {}, accounts = [], rows = [], totalPosts
   if (waiting) notes.push(`${waiting} of ${rows.length} posts ${waiting === 1 ? 'is' : 'are'} still waiting to be analysed; regenerate the report when they are done.`);
   if (noShare.length) notes.push(`${noShare.map(platformName).join(' and ')} ${noShare.length === 1 ? 'does' : 'do'} not publish share counts, so no share figures are shown for ${noShare.length === 1 ? 'it' : 'them'}.`);
   // pictures: how many were described by the image reader. Only analysed posts count against it: a post with nothing readable has its own note.
-  const withPictures = rows.filter((r) => r.media);
+  const withPictures = rows.filter((r) => r.media && !r.isVideo);
   const looked = withPictures.filter((r) => r.analysed);
   const described = withPictures.filter((r) => r.described).length;
   const undescribed = looked.filter((r) => !r.described).length;
   if (undescribed) notes.push(`${undescribed} of ${looked.length} analysed posts with pictures have no description of the picture, so those are judged from their caption and any printed text only.`);
+  // videos: how many were actually watched by the video reader (a YouTube video, an expired link or a file the reader could not open is not)
+  const videoPosts = rows.filter((r) => r.isVideo);
+  const videosRead = videoPosts.filter((r) => r.video).length;
+  const videosUnread = videoPosts.filter((r) => r.analysed && !r.video).length;
+  if (videosUnread) notes.push(`${videosUnread} of ${videoPosts.length} videos were not watched (no playable file, an expired link or a video that could not be opened), so those are judged from their caption and any text only.`);
 
   return {
     profile: {
@@ -505,6 +520,7 @@ const buildBehaviorFacts = ({ account = {}, accounts = [], rows = [], totalPosts
       captioned: withText.length,
       no_caption: rows.length - withText.length,
       pictures: { with_pictures: withPictures.length, described, terms: pictureTermsOf(rows), signals: pictureSignalCounts(rows) },
+      videos: { total: videoPosts.length, read: videosRead },
       tones: topOf(toneCounts, 8, 'term'),
       read_in_context: rows.filter((r) => r.meaning).length,
       with_links: rows.filter((r) => r.link).length,
@@ -583,6 +599,10 @@ const selectEvidence = (rows = [], { max = 40 } = {}) => {
       text: row.text,
       image_text: row.imageText,
       scene: row.scene,
+      // a video post: `video` = the video itself was read (then image_text and scene are of the video); otherwise it is judged from its caption
+      is_video: row.isVideo,
+      video: row.video,
+      video_seconds: row.videoSeconds,
       picture_signals: row.pictureSignals,
       meaning: row.meaning,
       tone: row.tone,

@@ -1,13 +1,15 @@
 /**
  * Tools → Profile Report: analyse every collected post, one by one, in a queue.
  *
- *   1. Image OCR / description for posts with a picture (video posts use their preview still frame).
+ *   1. Media: a post with a video file gets the same video reading Alerts give it (what it shows, the text on screen, how long it
+ *      is; see profileReport.video.js). Otherwise image OCR / description for a post with a picture. A video the reader cannot
+ *      open falls back to its still frame, if it has one, and then to the caption alone.
  *   2. Sentiment, risk, stance, category, translation: the same Sentiment API monitoring uses (bulk lane),
- *      given the post text plus the text read from its image.
+ *      given the post text plus the text read from its image or video.
  *
  * Same steps as monitoring's media analysis, but written to this module's own table and with no alerts raised.
  * The queue is separate from monitoring's, so a profile with thousands of old posts can never hold up live alerts.
- * Newest posts are analysed first. Full video analysis (minutes per clip) is off unless PROFILE_REPORT_VIDEO_ANALYSIS=1.
+ * Newest posts are analysed first. Reading videos can be switched off with PROFILE_REPORT_VIDEO_ANALYSIS=0.
  */
 const logger = require('../../lib/logger');
 const { createAnalysisQueue } = require('../../services/analysisFairQueue');
@@ -19,13 +21,13 @@ const media = require('../../services/media_post_analysis/analyzeMediaPost');
 const { cleanTranslation, sceneOf, signalsOf } = require('../../services/media_post_analysis/imageText');
 const vision = require('./profileReport.vision');
 const reader = require('./profileReport.reading');
+const clip = require('./profileReport.video');
 const store = require('./profileReport.store');
 const { json, cleanDeep } = require('./profileReport.util');
 
 const BATCH = Math.max(5, Number(process.env.PROFILE_REPORT_ANALYSIS_BATCH) || 25);
 /** Most posts of one tenant analysed at the same time, across all API processes. */
 const PARALLEL = Math.max(1, Number(process.env.PROFILE_REPORT_ANALYSIS_PARALLEL) || 2);
-const VIDEO_ANALYSIS = process.env.PROFILE_REPORT_VIDEO_ANALYSIS === '1';
 /**
  * A post stays 'processing' only while some process shows life: analysis refreshes claimed_at before each step, and the
  * longest single step is bounded (OCR budget below, sentiment client 3 min), so a process that died (a restart in the
@@ -34,6 +36,8 @@ const VIDEO_ANALYSIS = process.env.PROFILE_REPORT_VIDEO_ANALYSIS === '1';
 const STALE_PROCESSING_MINUTES = 4;
 /** Image reads that failed because the service was busy or the connection dropped are tried again this many times before the post is analysed on its text alone. */
 const OCR_TRANSIENT_RETRIES = 2;
+/** A video the reader was too busy or slow for is tried once more shortly, then the post is analysed on its caption (and tried again after hours). */
+const VIDEO_TRANSIENT_RETRIES = 1;
 const limits = {
   /** The shared OCR client has no timeout of its own (a hung service would hold a post for ever), so this module sets one. */
   ocrBudgetMs: Math.max(20000, Number(process.env.PROFILE_REPORT_OCR_BUDGET_MS) || 150000),
@@ -41,7 +45,11 @@ const limits = {
   pictureBudgetMs: Math.max(15000, Number(process.env.PROFILE_REPORT_PICTURE_BUDGET_MS) || 100000),
   /** The report model reads one post in a few seconds; this only stops a hung server from holding a post. */
   readingBudgetMs: Math.max(15000, Number(process.env.PROFILE_REPORT_READING_BUDGET_MS) || 75000),
-  videoBudgetMs: 300000,
+  /**
+   * The reader downloads the clip itself and looks at about ten frames, so a clip takes seconds (a ten-minute one took 18 s). This
+   * stays under STALE_PROCESSING_MINUTES, so a post still waiting on its video is never mistaken for one a dead process left behind.
+   */
+  videoBudgetMs: Math.max(30000, Math.min(200000, Number(process.env.PROFILE_REPORT_VIDEO_BUDGET_MS) || 180000)),
   /** Posts that take longer than this are named in the log, with the step that was slow. */
   slowMs: 60000,
 };
@@ -127,7 +135,14 @@ const enrichMedia = async (prisma, post, dbName) => {
   const t0 = Date.now();
   const hasMedia = Array.isArray(post.media_urls) ? post.media_urls.length > 0 : Boolean(post.media_urls);
   const wantsPicture = vision.enabled() && hasMedia;
-  const saveMarker = (data) => store.exec(prisma, `UPDATE profile_report_posts SET image_analysis = $2::jsonb WHERE id = $1::bigint`, id, json(data, {}));
+  // The note that the video could not be read (or was queued for reading) is never lost when a still frame's reading is saved after it:
+  // it is what stops the post being queued for its video again and again.
+  let videoNote = null;
+  const saveMarker = (data) => store.exec(
+    prisma,
+    `UPDATE profile_report_posts SET image_analysis = $2::jsonb WHERE id = $1::bigint`,
+    id, json(videoNote && !data.video && data.media_type !== 'video' ? { ...data, video: videoNote } : data, {})
+  );
   const mergeMarker = (patch) => store.exec(prisma, `UPDATE profile_report_posts SET image_analysis = COALESCE(image_analysis, '{}'::jsonb) || $2::jsonb WHERE id = $1::bigint`, id, json(patch, {}));
   const skipPicture = async (why, reading) => {
     if (!wantsPicture || (reading && reading.picture)) return reading;
@@ -138,22 +153,43 @@ const enrichMedia = async (prisma, post, dbName) => {
 
   let reading = post.image_analysis && typeof post.image_analysis === 'object' && !Array.isArray(post.image_analysis) ? post.image_analysis : null;
   const imageUrl = media.extractFirstImageUrl(post);
+  if (reading && reading.video && typeof reading.video === 'object') videoNote = reading.video;
+
+  // A video file: the same reading Alerts give it. It replaces a still frame's reading (it says more), and when the reader cannot
+  // open the video the post keeps whatever reading it had and goes on to its still frame, if there is one.
+  const videoUrl = clip.enabled() ? media.extractFirstVideoUrl(post) : null;
+  if (videoUrl && clip.needsReading(reading)) {
+    await heartbeat(prisma, id);
+    const beat = setInterval(() => { heartbeat(prisma, id).catch(() => {}); }, 60000);   // alive while the reader works
+    let res;
+    try {
+      res = await withBudget(
+        extractVideo(videoUrl, { postId: id, tenantKey: dbName, timeoutMs: limits.videoBudgetMs - 5000, maxAttempts: 1 }),
+        limits.videoBudgetMs, 'The video reader'
+      );
+    } catch (err) {
+      res = { success: false, error: err.message };
+    } finally {
+      clearInterval(beat);
+    }
+    if (res.success && res.data) {
+      reading = clip.recordOf(res.data);
+      await saveMarker(reading);
+      return { ocr: reading, retryLater: false, ms: Date.now() - t0 };
+    }
+    const transient = isTransientImageFailure(res);
+    if (transient && (Number(post.analysis_attempts) || 0) < VIDEO_TRANSIENT_RETRIES) {
+      return { ocr: reading, retryLater: true, ms: Date.now() - t0 };
+    }
+    logger.warn(`[ProfileReport] video not read for post ${id}: ${String(res.error || '').slice(0, 160)}`);
+    const note = clip.failureOf(res.error, { transient });
+    videoNote = note;
+    reading = { ...(reading && !reading.failed ? reading : {}), video: note };
+    await mergeMarker({ video: note });
+  }
 
   if (!alreadyRead(reading)) {
-    if (VIDEO_ANALYSIS) {
-      const videoUrl = media.extractFirstVideoUrl(post);
-      if (videoUrl) {
-        await heartbeat(prisma, id);
-        let res;
-        try { res = await withBudget(extractVideo(videoUrl, { postId: id, tenantKey: dbName }), limits.videoBudgetMs, 'Video analysis'); } catch (err) { res = { success: false, error: err.message }; }
-        const data = res.success && res.data ? { media_type: 'video', ...res.data } : { error: res.error, failed: true, media_type: 'video' };
-        const stored = wantsPicture ? { ...data, picture: { skipped: 'video' } } : data;
-        await saveMarker(stored);
-        return { ocr: stored.failed ? null : stored, retryLater: false, ms: Date.now() - t0 };
-      }
-    }
-
-    if (!imageUrl) return { ocr: await skipPicture('no_image', null), retryLater: false, ms: 0 };
+    if (!imageUrl) return { ocr: await skipPicture('no_image', reading), retryLater: false, ms: Date.now() - t0 };
     await heartbeat(prisma, id);
     let res;
     try {
@@ -223,6 +259,8 @@ const imageContext = (reading) => {
   const out = { ...rest };
   delete out.description;
   delete out.summary;
+  delete out.video;   // this module's own note on a video it could not read: nothing the sentiment service needs
+  delete out.at;
   if (typeof reading.summary === 'string' && reading.summary.trim()) out.summary = reading.summary.trim();
   const scene = sceneOf(reading, 600);
   const signals = signalsOf(reading);
@@ -244,7 +282,7 @@ const analyzePost = async (postId, { prisma, dbName = null } = {}) => {
   try {
     const { ocr, retryLater, ms: imageMs } = await enrichMedia(prisma, post, dbName);
     if (retryLater) {
-      await release(prisma, id, { attempts: (Number(post.analysis_attempts) || 0) + 1, giveUp: false, message: 'The image reader was busy; trying again shortly.', cooldown: true });
+      await release(prisma, id, { attempts: (Number(post.analysis_attempts) || 0) + 1, giveUp: false, message: 'The image and video reader was busy; trying again shortly.', cooldown: true });
       return { ok: false, retry: true, reason: 'image_reader_busy' };
     }
     const postText = String(post.text || '').trim();
@@ -304,7 +342,7 @@ const analyzePost = async (postId, { prisma, dbName = null } = {}) => {
           caption: postText,
           printed: store.printedTextOf(ocr),
           picture: pictureLine(ocr),
-          kind: picture && picture.kind,
+          kind: clip.isVideoReading(ocr) ? 'video' : picture && picture.kind,
           alerts: picture ? picture.alerts : [],
           classifier: { sentiment: classifierSentiment, risk_level: riskLevel, category, summary: intel.summary },
         }), limits.readingBudgetMs, 'The post reading');

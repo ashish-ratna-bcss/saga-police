@@ -184,7 +184,7 @@ const storedEvidence = (evidence) => evidence.map((e) => ({
   text: clipChars(e.text, 700),
   english: clipChars(e.english, 700),
   image_text: clipChars(e.image_text, 500),
-  scene: clipChars(e.scene, 300),
+  scene: clipChars(e.scene, e.video ? 600 : 300),
   summary: clipChars(e.summary, 300),
 }));
 
