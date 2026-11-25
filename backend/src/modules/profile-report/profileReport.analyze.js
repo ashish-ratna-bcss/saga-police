@@ -158,6 +158,13 @@ const enrichMedia = async (prisma, post, dbName) => {
   // A video file: the same reading Alerts give it. It replaces a still frame's reading (it says more), and when the reader cannot
   // open the video the post keeps whatever reading it had and goes on to its still frame, if there is one.
   const videoUrl = clip.enabled() ? media.extractFirstVideoUrl(post) : null;
+  if (!videoUrl && clip.enabled() && videoNote && videoNote.queued) {
+    // queued for its video, but there is no video file to read after all: say so, so the post is not queued again
+    const note = clip.failureOf('No video file to read');
+    videoNote = note;
+    reading = { ...(reading && !reading.failed ? reading : {}), video: note };
+    await mergeMarker({ video: note });
+  }
   if (videoUrl && clip.needsReading(reading)) {
     await heartbeat(prisma, id);
     const beat = setInterval(() => { heartbeat(prisma, id).catch(() => {}); }, 60000);   // alive while the reader works

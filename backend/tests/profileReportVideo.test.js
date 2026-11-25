@@ -251,6 +251,17 @@ test('a post with a picture and no video is untouched by all of this', async () 
   assert.strictEqual(res.ocr.full_text, 'RALLY 10AM');
 });
 
+test('a post queued for its video that has no video file after all gets a note saying so, so it is never queued again', async () => {
+  const res = await run(post({ media_type: 'post', media_urls: ['https://cdn.example.com/photo.jpg'], image_analysis: { full_text: 'words on the picture', video: { queued: true } } }));
+  assert.strictEqual(videoCalls.length, 0, 'there is nothing to send to the video reader');
+  const note = merged().find((m) => m.video);
+  assert.strictEqual(note.video.failed, true);
+  assert.ok(!note.video.transient, 'it will not change');
+  assert.ok(!note.video.queued, 'the queued mark is replaced');
+  assert.strictEqual(clip.needsReading({ video: note.video }), false);
+  assert.strictEqual(res.ocr.full_text, 'words on the picture', 'what the post had is kept');
+});
+
 test('the video\'s own timeout is shorter than the time after which a post counts as abandoned', () => {
   assert.ok(analyze.__test.limits.videoBudgetMs < analyze.__test.STALE_PROCESSING_MINUTES * 60 * 1000);
 });

@@ -507,10 +507,12 @@ const requeueForReading = async (prisma, { version = 1 } = {}) => exec(
 );
 
 /**
- * Posts with a video file that have not had their video read yet (analysed before videos were read) go back in the queue once.
- * Each is marked `video: { queued: true }` in the same statement, so a post is never queued twice for its video, whatever
- * happens to it afterwards (a reading replaces the mark; a failure replaces it with the failure). Their other readings are
- * kept until the video's own reading replaces them. A video the reader was only too busy for is tried again after RETRY_AFTER_HOURS.
+ * Posts with a video file that have not had their video read yet (analysed before videos were read) go back in the queue.
+ * Each is marked `video: { queued: true }` in the same statement. Analysing the post always replaces that mark (the video's
+ * reading, or a note of why it could not be read), so a post is queued for its video once and never loops. A post that is
+ * finished but still carries the mark was analysed by a process still running older code (an API roll in progress) or was
+ * interrupted: its video was never read, so it is queued again. Their other readings are kept until the video's own reading
+ * replaces them. A video the reader was only too busy for is tried again after RETRY_AFTER_HOURS.
  * @returns {Promise<number>} posts re-queued
  */
 const requeueForVideos = async (prisma) => exec(
@@ -522,6 +524,7 @@ const requeueForVideos = async (prisma) => exec(
       AND jsonb_typeof(media_urls) = 'array' AND media_urls::text ~* $1
       AND (image_analysis IS NULL
            OR (image_analysis->'video' IS NULL AND COALESCE(image_analysis->>'media_type', '') <> 'video')
+           OR image_analysis->'video'->>'queued' = 'true'
            OR (image_analysis->'video'->>'transient' = 'true'
                AND (image_analysis->'video'->>'at')::timestamptz < NOW() - make_interval(hours => $2::int)))`,
   clip.VIDEO_URL_SQL, clip.RETRY_AFTER_HOURS
