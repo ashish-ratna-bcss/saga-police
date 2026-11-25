@@ -147,22 +147,26 @@ async function extractOcr(imageUrl, { postId = 'unknown', tenantKey = null } = {
  * @param {object} [options]
  * @param {string} [options.postId] - for logging context
  * @param {string} [options.tenantKey] - see extractOcr's jsdoc -- same purpose.
+ * @param {number} [options.timeoutMs] - wait at most this long for the service (default: OCR_VIDEO_TIMEOUT_MS, 10 min).
+ *   A caller with its own, shorter patience (Profile Report) passes it so the request is dropped when the caller stops waiting.
+ * @param {number} [options.maxAttempts] - tries before giving up (default: OCR_VIDEO_MAX_ATTEMPTS, 2).
  * @returns {Promise<{ success: boolean, data?: object, error?: string, attempts: number }>}
  */
-async function extractVideo(videoUrl, { postId = 'unknown', tenantKey = null } = {}) {
+async function extractVideo(videoUrl, { postId = 'unknown', tenantKey = null, timeoutMs = OCR_VIDEO_TIMEOUT_MS, maxAttempts = OCR_VIDEO_MAX_ATTEMPTS } = {}) {
   if (!videoUrl || typeof videoUrl !== 'string') {
     return { success: false, error: 'Invalid or missing video URL', attempts: 0 };
   }
 
+  const tries = Math.max(1, Number(maxAttempts) || OCR_VIDEO_MAX_ATTEMPTS);
   let lastError = null;
-  for (let attempt = 1; attempt <= OCR_VIDEO_MAX_ATTEMPTS; attempt++) {
+  for (let attempt = 1; attempt <= tries; attempt++) {
     try {
       const res = await axios.post(
         `${OCR_BASE_URL}/extract`,
         { video_url: videoUrl, ...(tenantKey ? { tenant_key: tenantKey } : {}) },
         {
           headers: { 'Content-Type': 'application/json' },
-          timeout: OCR_VIDEO_TIMEOUT_MS,
+          timeout: Math.max(1000, Number(timeoutMs) || OCR_VIDEO_TIMEOUT_MS),
         }
       );
 
@@ -186,10 +190,10 @@ async function extractVideo(videoUrl, { postId = 'unknown', tenantKey = null } =
         err.code === 'ETIMEDOUT';
 
       logger.warn(
-        `[Video] Attempt ${attempt}/${OCR_VIDEO_MAX_ATTEMPTS} failed for post ${postId}${status ? ` (HTTP ${status})` : ''}: ${detail}`
+        `[Video] Attempt ${attempt}/${tries} failed for post ${postId}${status ? ` (HTTP ${status})` : ''}: ${detail}`
       );
 
-      if (!isRetryable || attempt >= OCR_VIDEO_MAX_ATTEMPTS) {
+      if (!isRetryable || attempt >= tries) {
         break;
       }
 
@@ -201,7 +205,7 @@ async function extractVideo(videoUrl, { postId = 'unknown', tenantKey = null } =
   return {
     success: false,
     error: lastError?.response?.data?.error || lastError?.message || 'Video analysis failed',
-    attempts: OCR_VIDEO_MAX_ATTEMPTS,
+    attempts: tries,
   };
 }
 

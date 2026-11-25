@@ -109,4 +109,4 @@ const cleanTranslation = (value) => {
   return text || null;
 };
 
-module.exports = { flatten, descriptive, mediaTextOf, sceneOf, signalsOf, cleanTranslation };
+module.exports = { flatten, descriptive, mediaTextOf, sceneOf, signalsOf, cleanTranslation, cut };
