@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ChevronLeft, ChevronRight, Clock, ExternalLink, Image as ImageIcon, Loader2, RefreshCw, Search } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, Clock, ExternalLink, Image as ImageIcon, Loader2, Play, RefreshCw, Search, Video as VideoIcon } from 'lucide-react';
 import { profileReportApi } from '../../../api/profileReport.api';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
 import { cn } from '../../../lib/utils';
-import { formatCount, formatWhen, platformLabel, postBody, readingOf } from './reportFormat';
+import { formatCount, formatWhen, platformLabel, postBody, readingOf, videoOf } from './reportFormat';
 
 const PAGE_SIZE = 30;
 const ALL = 'all';
@@ -18,7 +18,6 @@ const RISK = {
   low: 'border-slate-200 bg-slate-50 text-slate-600',
 };
 const KIND = { shared: 'shared', reply: 'reply', quote: 'quote' };
-const VIDEO_URL = /\.(mp4|m4v|mov|webm|avi|mkv|m3u8)(\?.*)?$/i;
 
 const FILTERS = {
   sentiment: [[ALL, 'Any tone'], ['positive', 'Positive'], ['neutral', 'Neutral'], ['negative', 'Negative']],
@@ -37,19 +36,80 @@ const Filter = ({ value, onChange, options, label, className }) => (
   </Select>
 );
 
-const Thumb = ({ post }) => {
+// A small picture beside the text. A video that plays in the card has its own player, so it gets no thumbnail.
+const Thumb = ({ post, video }) => {
   const [ok, setOk] = useState(true);
-  const src = (post.media_urls || []).find((u) => typeof u === 'string' && !VIDEO_URL.test(u));
+  const src = video.poster;
   if (!src || !ok) return null;
   return (
-    <img
-      src={src}
-      alt=""
-      loading="lazy"
-      referrerPolicy="no-referrer"
-      onError={() => setOk(false)}
-      className="h-16 w-16 shrink-0 rounded-md border object-cover"
-    />
+    <div className="relative h-16 w-16 shrink-0">
+      <img
+        src={src}
+        alt=""
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setOk(false)}
+        className="h-full w-full rounded-md border object-cover"
+      />
+      {video.isVideo ? <span className="absolute inset-0 flex items-center justify-center rounded-md bg-black/25"><Play className="h-5 w-5 fill-white text-white" /></span> : null}
+    </div>
+  );
+};
+
+/**
+ * The post's video, brought in as it is (nothing is analysed for it). A platform file plays right in the card; YouTube loads
+ * its player when asked, so a page of posts does not open thirty players. If the platform's link has expired, the original is one click away.
+ */
+const PostVideo = ({ video, url }) => {
+  const [failed, setFailed] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [posterOk, setPosterOk] = useState(true);
+
+  if (video.src && !failed) {
+    // #t=0.1 makes the browser show the first frame instead of a black box; streams (.m3u8) are left as they are
+    const src = /#|\.m3u8/i.test(video.src) ? video.src : `${video.src}#t=0.1`;
+    return (
+      <video
+        data-post-video
+        src={src}
+        controls
+        preload="metadata"
+        playsInline
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
+        className="mt-2 max-h-96 w-full max-w-md rounded-md border bg-black object-contain"
+      />
+    );
+  }
+  if (video.embed && !failed) {
+    return playing ? (
+      <iframe
+        data-post-video
+        title="Video"
+        src={`${video.embed}?autoplay=1&rel=0`}
+        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+        allowFullScreen
+        referrerPolicy="strict-origin-when-cross-origin"
+        className="mt-2 aspect-video w-full max-w-md rounded-md border bg-black"
+      />
+    ) : (
+      <button
+        type="button"
+        data-post-video-play
+        onClick={() => setPlaying(true)}
+        aria-label="Play the video"
+        className="relative mt-2 flex aspect-video w-full max-w-md items-center justify-center overflow-hidden rounded-md border bg-black"
+      >
+        {video.poster && posterOk ? <img src={video.poster} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setPosterOk(false)} className="absolute inset-0 h-full w-full object-cover opacity-80" /> : null}
+        <span className="relative flex h-11 w-11 items-center justify-center rounded-full bg-white/90 shadow"><Play className="ml-0.5 h-5 w-5 fill-black text-black" /></span>
+      </button>
+    );
+  }
+  return (
+    <p className="mt-2 text-xs text-muted-foreground" data-video-unavailable>
+      The video could not be loaded here (the platform's link may have expired).
+      {url ? <> <a href={url} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline">Open the original</a> to watch it.</> : null}
+    </p>
   );
 };
 
@@ -91,9 +151,11 @@ const AnalysisChips = ({ post }) => {
 
 const PostCard = ({ post }) => {
   const body = postBody({ text: post.text, image_text: post.image_text, english: post.analysis?.english_text, scene: post.image_description });
+  const video = videoOf(post);
+  const plays = Boolean(video.src || video.embed);
   return (
   <article className="flex gap-3 rounded-lg border bg-card p-3">
-    <Thumb post={post} />
+    {plays ? null : <Thumb post={post} video={video} />}
     <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
         <span className="rounded border bg-muted/40 px-1.5 py-0.5 font-medium">{platformLabel(post.platform)}</span>
@@ -106,9 +168,12 @@ const PostCard = ({ post }) => {
         </span>
       </div>
       <p className="mt-1.5 line-clamp-4 whitespace-pre-line break-words text-[13px] leading-relaxed">
-        {body.imageOnly ? <span className="mr-1.5 inline-flex items-center gap-1 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700"><ImageIcon className="h-3 w-3" />Image post</span> : null}
-        {body.main || <span className="text-muted-foreground">{body.noWords ? 'no caption, no text on the picture' : '(no caption)'}</span>}
+        {video.isVideo
+          ? <span className="mr-1.5 inline-flex items-center gap-1 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-bold text-sky-700" data-video-chip><VideoIcon className="h-3 w-3" />Video post</span>
+          : body.imageOnly ? <span className="mr-1.5 inline-flex items-center gap-1 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700"><ImageIcon className="h-3 w-3" />Image post</span> : null}
+        {body.main || <span className="text-muted-foreground">{body.noWords && !video.isVideo ? 'no caption, no text on the picture' : '(no caption)'}</span>}
       </p>
+      {plays ? <PostVideo video={video} url={post.url} /> : null}
       {body.english ? (
         <p className="mt-1 line-clamp-3 border-l-2 border-sky-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-sky-700">EN</span> {body.english}</p>
       ) : null}

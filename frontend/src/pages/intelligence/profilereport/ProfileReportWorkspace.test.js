@@ -12,7 +12,7 @@ jest.mock('../../../api/socialProfiles.api', () => ({ socialProfilesApi: mockPla
 jest.mock('sonner', () => ({ toast: { success: jest.fn(), error: jest.fn(), warning: jest.fn() } }));
 jest.mock('./AddProfileDialog', () => ({ __esModule: true, default: ({ open, subject }) => (open ? <div data-add-dialog>{subject ? `editing ${subject.display_name}` : 'adding'}</div> : null) }));
 jest.mock('./ProfileReportDialog', () => ({ __esModule: true, default: ({ open, profile }) => (open ? <div data-report-dialog>{`report for ${profile?.display_name}`}</div> : null) }));
-jest.mock('../../../components/ui/button', () => ({ Button: ({ children, onClick, disabled, type, title, ...rest }) => <button type={type || 'button'} onClick={onClick} disabled={disabled} title={title} aria-label={rest['aria-label']}>{children}</button> }));
+jest.mock('../../../components/ui/button', () => ({ Button: ({ children, onClick, disabled, type, title, className, ...rest }) => <button type={type || 'button'} onClick={onClick} disabled={disabled} title={title} className={className} aria-label={rest['aria-label']}>{children}</button> }));
 jest.mock('../../../components/ui/input', () => ({ Input: ({ value, onChange, placeholder, ...rest }) => <input value={value ?? ''} onChange={onChange || (() => {})} placeholder={placeholder} aria-label={rest['aria-label']} /> }));
 jest.mock('../../../components/ui/progress', () => ({ Progress: ({ value }) => <div data-progress={value} /> }));
 jest.mock('../../../components/ui/select', () => {
@@ -143,9 +143,9 @@ describe('Profile Report workspace', () => {
     expect(t).toContain('Showing 1–2 of 2 posts');
   });
 
-  test('Generate report is locked until a post is analysed, then unlocked; a saved report reads View report', async () => {
+  test('Generate Report is locked until a post is analysed, then unlocked; a saved report reads View Report', async () => {
     await render([subject(1, 'Alpha', { analysed: 0, waiting: 100 })]);
-    expect(button('Generate report').disabled).toBe(true);
+    expect(button('Generate Report').disabled).toBe(true);
     expect(text()).toContain('still being analysed');
     await act(async () => { root.unmount(); });
     container.remove();
@@ -153,9 +153,109 @@ describe('Profile Report workspace', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     await render([subject(1, 'Alpha', { report: { generated_at: new Date().toISOString(), attention_level: 'Low' } })]);
-    expect(button('View report').disabled).toBe(false);
-    await act(async () => { button('View report').click(); });
+    expect(button('View Report').disabled).toBe(false);
+    await act(async () => { button('View Report').click(); });
     expect(container.querySelector('[data-report-dialog]').textContent).toBe('report for Alpha');
+  });
+
+  test('the report button looks like the event page\'s View Report: purple with a sparkle, and a green tick once a report exists', async () => {
+    await render([subject(1, 'Alpha')]);
+    const before = button('Generate Report');
+    expect(before.className).toMatch(/border-purple-200/);
+    expect(before.className).toMatch(/bg-purple-50/);
+    expect(before.className).toMatch(/text-purple-700/);
+    expect(before.querySelector('[data-report-ready]')).toBeNull();   // nothing to tick yet
+    await act(async () => { root.unmount(); });
+    container.remove();
+
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    await render([subject(1, 'Alpha', { report: { generated_at: new Date().toISOString(), attention_level: 'Low' } })]);
+    const after = button('View Report');
+    expect(after.className).toMatch(/border-purple-200/);
+    expect(after.className).toMatch(/\brelative\b/);   // the tick sits on the corner
+    expect(after.querySelector('[data-report-ready]')).toBeTruthy();
+    expect(after.title).toBe('Report already generated: click to view');
+  });
+
+  describe('video posts: the video is brought in and shown, nothing is analysed for it', () => {
+    const IG_VIDEO = 'https://scontent-bom1-1.cdninstagram.com/o1/v/t16/f2/m86/abc123.mp4?efg=eyJ2&oe=69999999';
+    const videoPosts = (posts) => ({ total: posts.length, page: 1, limit: 30, total_pages: 1, posts });
+    const base = { kind: 'original', engagement: { likes: 4, comments: 1 }, posted_at: '2019-05-23T09:00:00Z', analysis: null, image_text: null };
+    const instagramVideo = { ...base, id: '10', platform: 'instagram', url: 'https://www.instagram.com/p/AbC/', text: '', media_type: 'reel', media_urls: [IG_VIDEO], analysis_status: 'skipped' };
+    const loadWith = async (posts) => {
+      mockApi.posts.mockResolvedValue({ data: videoPosts(posts) });
+      await render([subject(1, 'Alpha')]);
+    };
+
+    test('a video post with no caption plays in the card, labelled Video post, with its original link', async () => {
+      await loadWith([instagramVideo]);
+      const v = container.querySelector('video[data-post-video]');
+      expect(v).toBeTruthy();
+      expect(v.getAttribute('src')).toBe(`${IG_VIDEO}#t=0.1`);   // first frame instead of a black box
+      expect(v.hasAttribute('controls')).toBe(true);
+      expect(v.getAttribute('preload')).toBe('metadata');        // nothing is downloaded until someone plays it
+      expect(v.hasAttribute('autoplay')).toBe(false);
+      expect(v.getAttribute('referrerpolicy')).toBe('no-referrer');
+      expect(container.querySelector('[data-video-chip]').textContent).toBe('Video post');
+      expect(text()).toContain('(no caption)');
+      expect(text()).toContain('No text to analyse');            // the analysis did not change: only a caption is analysed
+      expect(container.querySelector('article img')).toBeNull(); // no thumbnail beside a card that has its own player
+      expect([...container.querySelectorAll('a')].some((a) => a.href === 'https://www.instagram.com/p/AbC/')).toBe(true);
+    });
+
+    test('a video with a caption shows the caption and the video', async () => {
+      await loadWith([{ ...instagramVideo, id: '11', text: 'Rally highlights', analysis_status: 'done', analysis: { sentiment: 'positive', risk_level: 'low', risk_score: 3 } }]);
+      expect(text()).toContain('Rally highlights');
+      expect(container.querySelector('video[data-post-video]')).toBeTruthy();
+      expect(text()).not.toContain('(no caption)');
+    });
+
+    test('if the platform\'s link no longer works the card says so and points to the original, instead of a broken box', async () => {
+      await loadWith([instagramVideo]);
+      await act(async () => { container.querySelector('video[data-post-video]').dispatchEvent(new Event('error')); });
+      expect(container.querySelector('video[data-post-video]')).toBeNull();
+      const note = container.querySelector('[data-video-unavailable]');
+      expect(note.textContent).toContain('The video could not be loaded here');
+      expect(note.querySelector('a').href).toBe('https://www.instagram.com/p/AbC/');
+      expect(note.querySelector('a').textContent).toBe('Open the original');
+    });
+
+    test('a stream link (.m3u8) is handed to the player as it is', async () => {
+      await loadWith([{ ...instagramVideo, id: '12', platform: 'x', url: 'https://x.com/a/status/12', media_type: 'video', media_urls: ['https://video.twimg.com/amplify_video/1/pl/abc.m3u8?tag=14'] }]);
+      expect(container.querySelector('video[data-post-video]').getAttribute('src')).toBe('https://video.twimg.com/amplify_video/1/pl/abc.m3u8?tag=14');
+    });
+
+    test('YouTube: the thumbnail with a play button, and the player only opens when asked', async () => {
+      await loadWith([{ ...base, id: '13', platform: 'youtube', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', text: 'A speech', media_type: 'video', media_urls: ['https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg'], analysis_status: 'done', analysis: { sentiment: 'neutral', risk_level: 'low', risk_score: 1 } }]);
+      expect(container.querySelector('iframe')).toBeNull();      // a page of posts does not open a page of players
+      const play = container.querySelector('[data-post-video-play]');
+      expect(play).toBeTruthy();
+      expect(play.querySelector('img').getAttribute('src')).toBe('https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
+      await act(async () => { play.click(); });
+      const frame = container.querySelector('iframe[data-post-video]');
+      expect(frame.getAttribute('src')).toBe('https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0');
+      expect(container.querySelector('[data-post-video-play]')).toBeNull();
+    });
+
+    test('a video the platform gave no file for keeps its picture, marked as a video, with the original link to watch it', async () => {
+      await loadWith([{ ...base, id: '14', platform: 'facebook', url: 'https://www.facebook.com/watch/?v=1', text: 'Live from the venue', media_type: 'video', media_urls: ['https://scontent.xx.fbcdn.net/v/t15/cover.jpg'], analysis_status: 'done', analysis: { sentiment: 'neutral', risk_level: 'low', risk_score: 1 } }]);
+      expect(container.querySelector('video')).toBeNull();
+      expect(container.querySelector('iframe')).toBeNull();
+      expect(container.querySelector('[data-video-chip]').textContent).toBe('Video post');
+      expect(container.querySelector('article img').getAttribute('src')).toBe('https://scontent.xx.fbcdn.net/v/t15/cover.jpg');
+      expect([...container.querySelectorAll('a')].some((a) => a.href === 'https://www.facebook.com/watch/?v=1')).toBe(true);
+    });
+
+    test('a plain picture post and a text post are unchanged: no player, no Video post label', async () => {
+      await loadWith([
+        { ...base, id: '15', platform: 'instagram', url: 'https://www.instagram.com/p/Pic/', text: 'A photo', media_type: 'post', media_urls: ['https://scontent.cdninstagram.com/v/t51/photo.jpg?x=1'], analysis_status: 'done', analysis: { sentiment: 'neutral', risk_level: 'low', risk_score: 1 } },
+        { ...base, id: '16', platform: 'x', url: null, text: 'Only words', media_type: 'tweet', media_urls: [], analysis_status: 'done', analysis: { sentiment: 'neutral', risk_level: 'low', risk_score: 1 } },
+      ]);
+      expect(container.querySelector('video')).toBeNull();
+      expect(container.querySelector('[data-video-chip]')).toBeNull();
+      expect(container.querySelector('article img').getAttribute('src')).toBe('https://scontent.cdninstagram.com/v/t51/photo.jpg?x=1');
+    });
   });
 
   test('while posts are being collected or analysed the numbers refresh by themselves', async () => {

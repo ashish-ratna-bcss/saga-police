@@ -31,6 +31,31 @@ export const postBody = ({ text, image_text: imageText, english, scene } = {}) =
   return { main: t, imageOnly: false, english: showEnglish ? e : '', imageText: i && foldText(i) !== foldText(t) ? i : '', picture };
 };
 
+const VIDEO_FILE = /\.(mp4|m4v|mov|webm)(\?|#|$)/i;
+const HLS_STREAM = /\.m3u8/i;
+const YOUTUBE_ID = /(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{11})/i;
+const isVideoFile = (u) => VIDEO_FILE.test(u) || HLS_STREAM.test(u);
+
+/**
+ * The video of a post, shown as it is: nothing is analysed or described for it.
+ *   src     a playable video file (Instagram, Facebook and X keep the file link with the post)
+ *   embed   YouTube only keeps the watch page, so its player is the embedded one
+ *   poster  a still picture of the post, when there is one besides the video
+ *   isVideo the post is a video even if no file could be kept for it (then the original is the way to watch it)
+ */
+export const videoOf = (post = {}) => {
+  const urls = (Array.isArray(post.media_urls) ? post.media_urls : []).filter((u) => typeof u === 'string' && /^https?:\/\//i.test(u));
+  const src = urls.find(isVideoFile) || null;
+  const poster = urls.find((u) => !isVideoFile(u)) || null;
+  const youtubeId = String(post.platform || '').toLowerCase() === 'youtube' ? (YOUTUBE_ID.exec(String(post.url || '')) || [])[1] : null;
+  return {
+    isVideo: Boolean(src) || Boolean(youtubeId) || /video|reel|animated_gif/i.test(String(post.media_type || '')),
+    src,
+    embed: youtubeId ? `https://www.youtube.com/embed/${youtubeId}` : null,
+    poster,
+  };
+};
+
 /** How a post is meant (the close reading), or, for posts read before readings existed, the classifier's own note. */
 const wordSet = (t) => new Set(foldText(t).split(' ').filter((w) => w.length > 2));
 const wordShare = (a, b) => {

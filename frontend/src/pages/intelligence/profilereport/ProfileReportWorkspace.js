@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, BrainCircuit, CheckCircle2, Loader2, Lock, Pencil, Plus, RefreshCw, Search, Trash2, UserSearch,
+  AlertTriangle, CheckCircle2, Loader2, Lock, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2, UserSearch,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { profileReportApi } from '../../../api/profileReport.api';
@@ -163,9 +163,19 @@ const ProfileDetail = ({ subject, onGenerate, onRefresh, onRetry, onEdit, onDele
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <span title={lock || undefined} className="inline-block">
-            <Button size="sm" className="h-8 gap-1.5 text-xs" disabled={Boolean(lock)} onClick={onGenerate}>
-              {lock ? <Lock className="h-3.5 w-3.5" /> : <BrainCircuit className="h-3.5 w-3.5" />}
-              {subject.report ? 'View report' : 'Generate report'}
+            {/* same look as the event page's View Report: purple, with a green tick once a report has been written */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="relative h-8 gap-1.5 border-purple-200 bg-purple-50/70 px-2.5 text-xs font-medium text-purple-700 shadow-2xs hover:bg-purple-100 hover:text-purple-800 dark:border-purple-800/70 dark:bg-purple-950/40 dark:text-purple-300 dark:hover:bg-purple-900/50"
+              disabled={Boolean(lock)}
+              onClick={onGenerate}
+              title={subject.report ? 'Report already generated: click to view' : undefined}
+            >
+              {lock ? <Lock className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />}
+              {subject.report ? 'View Report' : 'Generate Report'}
+              {subject.report ? <CheckCircle2 className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-background text-emerald-600 dark:text-emerald-400" data-report-ready /> : null}
             </Button>
           </span>
           <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={onRefresh} disabled={!idle || busyAction === 'refresh'} title="Fetch posts published since the last fetch">

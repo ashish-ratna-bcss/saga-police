@@ -1,6 +1,6 @@
 import {
   analysisProgress, citesIn, dayLabel, limitationsOf, platformLabel, postBody, postingRate, progressOf, readingOf, relativeTime, reportLockReason, responseText, sharesShown, spanText, splitCites,
-  timelineTicks, toneShare,
+  timelineTicks, toneShare, videoOf,
 } from './reportFormat';
 
 const account = (fetch_status, extra = {}) => ({ id: 1, platform: 'x', handle: 'a', fetch_status, posts_fetched: 10, ...extra });
@@ -87,6 +87,31 @@ describe('Profile Report helpers', () => {
     expect(postBody({ text: '', image_text: '', scene: 'A beach at sunset.' })).toEqual({ main: '', imageOnly: true, noWords: true, english: '', imageText: '', picture: 'A beach at sunset.' });
     expect(postBody({ text: '', image_text: 'GOOD MORNING', scene: 'Good morning' }).picture).toBe('');   // a description that only repeats the printed words
     expect(postBody({ text: 'Good morning', scene: 'good morning!' }).picture).toBe('');
+  });
+
+  test('videoOf finds the playable file, the YouTube player, or just says it is a video', () => {
+    const ig = 'https://scontent.cdninstagram.com/o1/v/t16/f2/m86/abc.mp4?efg=1&oe=2';
+    expect(videoOf({ platform: 'instagram', media_type: 'reel', media_urls: [ig] })).toEqual({ isVideo: true, src: ig, embed: null, poster: null });
+    expect(videoOf({ platform: 'instagram', media_type: 'post', media_urls: [ig] }).src).toBe(ig);   // a video in the posts feed is still a video
+    for (const f of ['a.m4v', 'a.mov', 'a.webm', 'a.mp4#t=1', 'a.MP4']) expect(videoOf({ media_urls: [`https://cdn.example.com/${f}`] }).src).toMatch(/^https:/);
+    expect(videoOf({ platform: 'x', media_type: 'video', media_urls: ['https://video.twimg.com/amplify_video/1/pl/a.m3u8?tag=14'] }).src).toContain('.m3u8');
+    // a picture and a video on one post: the picture is its poster
+    expect(videoOf({ media_urls: ['https://cdn.example.com/cover.jpg', 'https://cdn.example.com/v.mp4'] })).toEqual({ isVideo: true, src: 'https://cdn.example.com/v.mp4', embed: null, poster: 'https://cdn.example.com/cover.jpg' });
+    // YouTube keeps only the watch page and a thumbnail
+    for (const url of ['https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'https://www.youtube.com/watch?feature=share&v=dQw4w9WgXcQ', 'https://youtu.be/dQw4w9WgXcQ', 'https://www.youtube.com/shorts/dQw4w9WgXcQ']) {
+      expect(videoOf({ platform: 'youtube', url, media_type: 'video', media_urls: ['https://i.ytimg.com/vi/x/hq.jpg'] })).toEqual({ isVideo: true, src: null, embed: 'https://www.youtube.com/embed/dQw4w9WgXcQ', poster: 'https://i.ytimg.com/vi/x/hq.jpg' });
+    }
+    // a video with no file kept: still a video, nothing to play
+    expect(videoOf({ platform: 'facebook', media_type: 'video', media_urls: ['https://cdn.example.com/cover.jpg'] })).toEqual({ isVideo: true, src: null, embed: null, poster: 'https://cdn.example.com/cover.jpg' });
+    expect(videoOf({ platform: 'x', media_type: 'animated_gif', media_urls: [] }).isVideo).toBe(true);
+    // not videos
+    expect(videoOf({ platform: 'instagram', media_type: 'post', media_urls: ['https://cdn.example.com/photo.jpg'] }).isVideo).toBe(false);
+    expect(videoOf({ platform: 'x', media_type: 'tweet', media_urls: [] })).toEqual({ isVideo: false, src: null, embed: null, poster: null });
+    expect(videoOf({ platform: 'youtube', url: 'https://www.youtube.com/@channel', media_urls: [] }).embed).toBeNull();   // a channel page is not a video
+    // never plays a link that is not a web address, and copes with missing data
+    expect(videoOf({ media_urls: ['media', 'javascript:alert(1).mp4', null, 5] })).toEqual({ isVideo: false, src: null, embed: null, poster: null });
+    expect(videoOf()).toEqual({ isVideo: false, src: null, embed: null, poster: null });
+    expect(videoOf({ media_urls: 'x' }).src).toBeNull();
   });
 
   test('response figures leave out shares where the platform has none, for new and older saved reports alike', () => {

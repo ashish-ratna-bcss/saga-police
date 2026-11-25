@@ -215,7 +215,7 @@ const analysisTools = {
             { text: 'Choose the platform, type the account and click **Fetch**. The account is verified and **all of its posts start being collected right away**; the card shows how many so far. Add more platforms for the same person with **Add platform**.' },
             { text: 'Click **Save**. Closing the window without saving removes what was fetched.' },
             { text: 'Posts are analysed in the background, newest first. The profile card shows how many are done.' },
-            { text: 'Click **Generate report** once the first posts are analysed. It can be regenerated later to include more.' },
+            { text: 'Click **Generate Report** once the first posts are analysed. Once a report exists the button reads **View Report** with a green tick. The report can be regenerated later to include more.' },
             { text: 'Click **Download Report** and choose the format: **Executive Summary** (the assessment without the post list) or **Full Report with Evidence** (every cited post listed and linked).' },
           ],
         },
@@ -225,7 +225,8 @@ const analysisTools = {
           rows: [
             ['Collecting posts', 'The platform is being read page by page until its history ends. There is no limit on the number of posts.'],
             ['Analysing posts', 'Each post is read one at a time: text in images, then tone, risk and stance. A large profile takes a while.'],
-            ['Generate report is locked', 'No post has been analysed yet. It unlocks by itself.'],
+            ['Generate Report is locked', 'No post has been analysed yet. It unlocks by itself.'],
+            ['Video posts', 'The video plays right in the post list, as the platform provides it. Videos are not analysed: only the caption is. If the platform\'s link has expired, **Open the original** takes you to the post.'],
             ['Collection stopped', 'The platform stopped answering. **Retry** continues from the last page saved; nothing is collected twice.'],
             ['Refresh posts', 'Fetches only posts published since the last fetch.'],
             ['Executive Summary (PDF)', 'The same assessment, key figures and charts, without the post-by-post evidence and without the P-number tags. Short enough to hand to someone who only needs the conclusion.'],

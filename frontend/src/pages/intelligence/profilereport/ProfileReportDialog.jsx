@@ -846,7 +846,7 @@ export default function ProfileReportDialog({ open, onOpenChange, profile, onRep
               </p>
               {error ? <p className="mt-1 text-xs text-muted-foreground">{error}</p> : null}
               <Button size="sm" className="mt-4 h-8 gap-1.5 text-xs" onClick={start}>
-                <BrainCircuit className="h-3.5 w-3.5" /> Generate report
+                <BrainCircuit className="h-3.5 w-3.5" /> Generate Report
               </Button>
             </div>
           ) : null}
