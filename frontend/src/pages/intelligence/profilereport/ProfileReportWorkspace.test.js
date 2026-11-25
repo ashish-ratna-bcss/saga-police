@@ -5,7 +5,7 @@
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 
-const mockApi = { list: jest.fn(), get: jest.fn(), posts: jest.fn(), refresh: jest.fn(), retry: jest.fn(), remove: jest.fn() };
+const mockApi = { list: jest.fn(), get: jest.fn(), posts: jest.fn(), postVideo: jest.fn(), refresh: jest.fn(), retry: jest.fn(), remove: jest.fn() };
 const mockPlatformsApi = { listPlatforms: jest.fn() };
 jest.mock('../../../api/profileReport.api', () => ({ profileReportApi: mockApi }));
 jest.mock('../../../api/socialProfiles.api', () => ({ socialProfilesApi: mockPlatformsApi }));
@@ -211,14 +211,51 @@ describe('Profile Report workspace', () => {
       expect(text()).not.toContain('(no caption)');
     });
 
-    test('if the platform\'s link no longer works the card says so and points to the original, instead of a broken box', async () => {
+    test('if the platform\'s link no longer works the card asks the server for the video, and plays what it sends', async () => {
+      URL.createObjectURL = jest.fn(() => 'blob:served-video');
+      URL.revokeObjectURL = jest.fn();
+      let send;
+      mockApi.postVideo.mockReturnValue(new Promise((resolve) => { send = resolve; }));
       await loadWith([instagramVideo]);
       await act(async () => { container.querySelector('video[data-post-video]').dispatchEvent(new Event('error')); });
+      expect(mockApi.postVideo).toHaveBeenCalledWith('10');
+      expect(container.querySelector('[data-video-loading]').textContent).toContain('Loading the video');
+      expect(container.querySelector('video[data-post-video]')).toBeNull();
+      await act(async () => { send({ data: new ArrayBuffer(8), headers: { 'content-type': 'video/mp4' } }); });
+      await flush();
+      const served = container.querySelector('video[data-post-video][data-served]');
+      expect(served.getAttribute('src')).toBe('blob:served-video');
+      expect(served.hasAttribute('controls')).toBe(true);
+      expect(container.querySelector('[data-video-unavailable]')).toBeNull();
+      expect(container.querySelector('[data-video-loading]')).toBeNull();
+    });
+
+    test('if the server cannot get the video either, the card says why and points to the original, instead of a broken box', async () => {
+      const body = { text: async () => JSON.stringify({ message: 'The platform no longer serves this video, and a fresh link could not be fetched right now. Open the original to watch it.' }) };
+      mockApi.postVideo.mockRejectedValue({ response: { status: 410, data: body } });
+      await loadWith([instagramVideo]);
+      await act(async () => { container.querySelector('video[data-post-video]').dispatchEvent(new Event('error')); });
+      await flush();
       expect(container.querySelector('video[data-post-video]')).toBeNull();
       const note = container.querySelector('[data-video-unavailable]');
-      expect(note.textContent).toContain('The video could not be loaded here');
+      expect(note.textContent).toContain('The platform no longer serves this video, and a fresh link could not be fetched right now.');
+      expect(note.textContent.match(/Open the original/g)).toHaveLength(1);   // the server's own "Open the original to watch it." is not said twice
       expect(note.querySelector('a').href).toBe('https://www.instagram.com/p/AbC/');
       expect(note.querySelector('a').textContent).toBe('Open the original');
+    });
+
+    test('with no answer from the server at all the card falls back to the plain note', async () => {
+      mockApi.postVideo.mockRejectedValue(new Error('Network Error'));
+      await loadWith([instagramVideo]);
+      await act(async () => { container.querySelector('video[data-post-video]').dispatchEvent(new Event('error')); });
+      await flush();
+      expect(container.querySelector('[data-video-unavailable]').textContent).toContain('The video could not be loaded here');
+    });
+
+    test('a video that plays from the platform\'s own link never asks the server for anything', async () => {
+      await loadWith([instagramVideo]);
+      expect(container.querySelector('video[data-post-video]')).toBeTruthy();
+      expect(mockApi.postVideo).not.toHaveBeenCalled();
     });
 
     test('a stream link (.m3u8) is handed to the player as it is', async () => {

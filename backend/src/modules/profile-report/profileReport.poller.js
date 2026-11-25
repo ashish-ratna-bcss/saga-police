@@ -13,6 +13,7 @@ const { enqueuePending } = require('./profileReport.analyze');
 const vision = require('./profileReport.vision');
 const reader = require('./profileReport.reading');
 const clip = require('./profileReport.video');
+const frames = require('./profileReport.videoFrames');
 
 const POLL_MS = Math.max(3000, Number(process.env.PROFILE_REPORT_POLL_MS) || 15000);
 const SWEEP_MS = 60 * 60 * 1000;
@@ -50,6 +51,9 @@ const tenantTurn = async (dbName, { sweep = false } = {}) => {
     // Posts with a video file whose video has not been read yet are read once, the way Alerts read videos.
     const videos = clip.enabled() ? Number(await store.requeueForVideos(prisma)) || 0 : 0;
     if (videos > 0) logger.warn(`[ProfileReport] tenant=${dbName}: ${videos} posts with videos are being analysed again so the videos can be read`);
+    // Videos already read, but never looked at frame by frame the way pictures are (what is in them, weapon / crowd / fire ...), are looked at once.
+    const lookedAt = clip.enabled() && frames.enabled() ? Number(await store.requeueForVideoFrames(prisma)) || 0 : 0;
+    if (lookedAt > 0) logger.warn(`[ProfileReport] tenant=${dbName}: ${lookedAt} posts with videos are being analysed again so the videos can be looked at frame by frame`);
   }
   await pollCollections(prisma, dbName);
   await enqueuePending(prisma, dbName);

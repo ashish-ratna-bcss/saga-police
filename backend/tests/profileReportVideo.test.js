@@ -20,8 +20,10 @@ ocrModule.extractVideo = async (url, opts) => { videoCalls.push({ url, opts }); 
 ocrModule.extractOcr = async (url, opts) => { ocrCalls.push({ url, opts }); return typeof ocrAnswer === 'function' ? ocrAnswer(url, opts) : ocrAnswer; };
 
 const clip = require('../src/modules/profile-report/profileReport.video');
+const frames = require('../src/modules/profile-report/profileReport.videoFrames');
 const store = require('../src/modules/profile-report/profileReport.store');
 const analyze = require('../src/modules/profile-report/profileReport.analyze');
+const { sceneOf, signalsOf } = require('../src/services/media_post_analysis/imageText');
 const { normalisePosts, buildBehaviorFacts, selectEvidence } = require('../src/modules/profile-report/report/reportFacts');
 const { buildUserContext, buildSystemPrompt } = require('../src/modules/profile-report/report/reportPrompt');
 const { buildBehaviorReportHtml } = require('../src/modules/profile-report/report/reportPdf');
@@ -140,14 +142,24 @@ const merged = () => executed.filter((e) => /\|\| \$2::jsonb/.test(e.sql)).map((
 const heartbeats = () => executed.filter((e) => /SET claimed_at = NOW\(\)/.test(e.sql)).length;
 const run = (p) => analyze.__test.enrichMedia({}, p, 'tenant_x');
 
+// the frame-by-frame look is off unless a test turns it on (ffmpeg may or may not be installed where these run)
+const framesCalls = [];
+let framesAnswer;
+let framesOn = false;
+const realFramesEnabled = frames.enabled;
+const realFramesAnalyse = frames.analyse;
 test.beforeEach(() => {
-  executed.length = 0; videoCalls.length = 0; ocrCalls.length = 0;
+  executed.length = 0; videoCalls.length = 0; ocrCalls.length = 0; framesCalls.length = 0;
   videoAnswer = { success: true, data: READER_ANSWER, attempts: 1 };
   ocrAnswer = { success: true, data: { full_text: 'RALLY 10AM', language: 'en' }, attempts: 1 };
   delete process.env.PROFILE_REPORT_VIDEO_ANALYSIS;
   store.exec = async (prisma, sql, ...params) => { executed.push({ sql, params }); return 1; };
+  framesOn = false;
+  framesAnswer = null;
+  frames.enabled = () => framesOn;
+  frames.analyse = async (url, opts) => { framesCalls.push({ url, opts }); return typeof framesAnswer === 'function' ? framesAnswer(url, opts) : framesAnswer; };
 });
-test.afterEach(() => { store.exec = origExec; });
+test.afterEach(() => { store.exec = origExec; frames.enabled = realFramesEnabled; frames.analyse = realFramesAnalyse; });
 
 test('a video post with no caption is read: the reader is sent the video link, and its reading is what gets analysed', async () => {
   const res = await run(post());
@@ -264,6 +276,170 @@ test('a post queued for its video that has no video file after all gets a note s
 
 test('the video\'s own timeout is shorter than the time after which a post counts as abandoned', () => {
   assert.ok(analyze.__test.limits.videoBudgetMs < analyze.__test.STALE_PROCESSING_MINUTES * 60 * 1000);
+});
+
+/* ---------------------------------------- looking at the video frame by frame (the picture questions) ---- */
+
+const fr = (extra = {}) => ({ v: 2, description: 'A pile of green leaves.', objects: [], flags: [], symbols: [], alerts: [], ...extra });
+const RIFLE_FRAME = { description: 'A rifle is resting against a green bush. The rifle has a black stock and a silver barrel.', objects: ['a rifle with a black stock and silver barrel'], alerts: ['weapon'] };
+/** what frames.analyse answers when the video's frames were looked at: 4 of 24 frames show a rifle */
+const LOOKED_AT = (() => {
+  const described = Array.from({ length: 24 }, () => fr());
+  [13, 16, 17, 20].forEach((i) => { described[i] = fr(RIFLE_FRAME); });
+  return { success: true, data: frames.summarise(described, { total: 24 }), described, total: 24 };
+})();
+const lastSaved = () => savedImageAnalysis().pop();
+
+test('a video is read by the reader and looked at frame by frame at the same time, and the frames\' weapon alert leads the picture record', async () => {
+  framesOn = true;
+  framesAnswer = LOOKED_AT;
+  const res = await run(post());
+  assert.strictEqual(videoCalls.length, 1);
+  assert.strictEqual(framesCalls.length, 1);
+  assert.strictEqual(framesCalls[0].url, IG_VIDEO);
+  assert.strictEqual(res.retryLater, false);
+  const saved = lastSaved();
+  assert.strictEqual(saved.media_type, 'video');
+  assert.strictEqual(saved.duration_seconds, 52.2, 'the reader\'s length and on-screen text are kept');
+  assert.deepStrictEqual(saved.visible_text, ['VOTE FOR CHANGE', 'Rally 10am']);
+  assert.strictEqual(saved.picture.source, 'video');
+  assert.deepStrictEqual(saved.picture.alerts, ['weapon']);
+  assert.match(saved.picture.description, /^The video begins with a wide shot of a snowy landscape\./, 'the reader\'s description leads');
+  assert.match(saved.picture.description, /Weapon \(seen in 4 of 24 frames\): A rifle is resting against a green bush\./);
+  assert.deepStrictEqual(signalsOf({ picture: saved.picture })[0], 'weapon', 'it shows as "Seen in the video"');
+  assert.ok(sceneOf(saved, 900).includes('rifle'), 'what the post list and the report show says rifle, not what the reader said alone');
+  assert.ok(clip.isVideoReading(res.ocr));
+  assert.strictEqual(clip.needsFrames(res.ocr), false, 'looked at: not again');
+});
+
+test('a video that turns out to be an animation is not flagged for a weapon its frames showed, and the post says it is animated', async () => {
+  framesOn = true;
+  framesAnswer = { ...LOOKED_AT, animated: true };
+  const res = await run(post());
+  const saved = lastSaved();
+  assert.deepStrictEqual(saved.picture.alerts, []);
+  assert.strictEqual(saved.picture.animated, true);
+  assert.match(saved.picture.description, /Animated or computer-generated footage, not a recording of real events \(weapon seen in its frames is not counted\)/);
+  assert.deepStrictEqual(signalsOf(res.ocr), []);
+  assert.ok(!/Notable in the video/.test(analyze.__test.imageContext(res.ocr).description || ''), 'the sentiment service is not told of a weapon');
+});
+
+test('the sentiment service is told about the weapon seen in the video', async () => {
+  framesOn = true;
+  framesAnswer = LOOKED_AT;
+  const res = await run(post());
+  const context = analyze.__test.imageContext(res.ocr);
+  assert.match(context.description, /Notable in the video: weapon/);
+  assert.ok(!/Notable in the picture/.test(context.description));
+  assert.ok(!('picture' in context) && !('video' in context));
+});
+
+test('a vision model that was busy: the reader\'s reading is kept, the frames are noted as not looked at, and are tried again after 6 hours', async () => {
+  framesOn = true;
+  framesAnswer = { success: false, error: 'Only 0 of 24 frames could be described: Vision model: socket hang up', nonRetryable: false };
+  const res = await run(post());
+  assert.strictEqual(res.retryLater, false, 'the post is analysed now, on what the reader saw');
+  const saved = lastSaved();
+  assert.strictEqual(saved.media_type, 'video');
+  assert.strictEqual(saved.picture.failed, true);
+  assert.strictEqual(saved.picture.transient, true);
+  assert.deepStrictEqual(signalsOf({ picture: saved.picture }), []);
+  assert.match(sceneOf(saved, 900), /snowy landscape/, 'the reader\'s description still shows');
+  assert.strictEqual(clip.needsFrames(res.ocr), false, 'too soon to try again');
+});
+
+test('frames that cannot be got at all (an expired link) are a lasting note, not retried', async () => {
+  framesOn = true;
+  framesAnswer = { success: false, error: 'Download failed: HTTP 403', nonRetryable: true };
+  await run(post());
+  const saved = lastSaved();
+  assert.strictEqual(saved.picture.failed, true);
+  assert.ok(!saved.picture.transient);
+  assert.strictEqual(clip.needsFrames(saved, Date.now() + 1000 * 3600 * 1000 * 24 * 30), false, 'not even after a month');
+});
+
+test('with no video tool on the server the video keeps the reader\'s reading and is left to be looked at later', async () => {
+  framesOn = true;
+  framesAnswer = { success: false, error: 'No video tool is installed here', nonRetryable: true, unavailable: true };
+  const res = await run(post());
+  assert.deepStrictEqual(lastSaved().picture, { skipped: 'video' }, 'no failure is recorded for a missing tool');
+  assert.strictEqual(clip.needsFrames(res.ocr), true);
+});
+
+test('when the reader cannot open a video but the frames can, the post still gets a reading, made from the frames', async () => {
+  framesOn = true;
+  videoAnswer = { success: false, error: 'Could not read video: Could not determine video duration.', attempts: 1 };
+  framesAnswer = LOOKED_AT;
+  const res = await run(post());
+  assert.strictEqual(videoCalls.length, 1);
+  assert.strictEqual(res.retryLater, false);
+  const saved = lastSaved();
+  assert.ok(clip.isVideoReading(saved));
+  assert.strictEqual(saved.picture.source, 'video');
+  assert.deepStrictEqual(saved.picture.alerts, ['weapon']);
+  assert.ok(!saved.video, 'no "video could not be read" note: it was read, by its frames');
+  assert.match(sceneOf(saved, 900), /Weapon \(seen in 4 of 24 frames\)/);
+  // a reader that was only busy is not retried either: the frames gave the post its reading
+  videoAnswer = { success: false, error: 'socket hang up', attempts: 1 };
+  executed.length = 0;
+  const busy = await run(post({ analysis_attempts: 0 }));
+  assert.strictEqual(busy.retryLater, false);
+});
+
+test('when neither the reader nor the frames can open the video, it is as before: a retry for a busy reader, else a note and the caption', async () => {
+  framesOn = true;
+  framesAnswer = { success: false, error: 'Download failed: HTTP 403', nonRetryable: true };
+  videoAnswer = { success: false, error: 'socket hang up', attempts: 1 };
+  assert.strictEqual((await run(post({ analysis_attempts: 0 }))).retryLater, true);
+  executed.length = 0;
+  videoAnswer = { success: false, error: "Could not fetch video_url: 'x' returned HTTP 403.", attempts: 1 };
+  const res = await run(post({ analysis_attempts: 0 }));
+  assert.strictEqual(res.retryLater, false);
+  assert.ok(merged().some((m) => m.video && m.video.failed));
+});
+
+test('a video the reader already read is not sent to the reader again, only looked at frame by frame, and the reader\'s reading is kept', async () => {
+  framesOn = true;
+  framesAnswer = LOOKED_AT;
+  const earlier = clip.recordOf(READER_ANSWER);   // picture: { skipped: 'video' }
+  const res = await run(post({ image_analysis: { ...earlier, picture: { skipped: 'video', queued: true } } }));
+  assert.strictEqual(videoCalls.length, 0, 'the reader is not asked again');
+  assert.strictEqual(framesCalls.length, 1);
+  const saved = lastSaved();
+  assert.strictEqual(saved.duration_seconds, 52.2);
+  assert.deepStrictEqual(saved.visible_text, ['VOTE FOR CHANGE', 'Rally 10am']);
+  assert.match(saved.picture.description, /^The video begins with a wide shot of a snowy landscape\./);
+  assert.deepStrictEqual(saved.picture.alerts, ['weapon']);
+  assert.ok(clip.isVideoReading(res.ocr));
+});
+
+test('a video already looked at frame by frame is not looked at again', async () => {
+  framesOn = true;
+  framesAnswer = LOOKED_AT;
+  const done = { ...clip.recordOf(READER_ANSWER), picture: LOOKED_AT.data };
+  const res = await run(post({ image_analysis: done }));
+  assert.strictEqual(videoCalls.length, 0);
+  assert.strictEqual(framesCalls.length, 0);
+  assert.deepStrictEqual(res.ocr.picture.alerts, ['weapon']);
+});
+
+test('with the frame-by-frame look switched off nothing is asked of it, and the video is read as before', async () => {
+  framesOn = false;
+  const res = await run(post());
+  assert.strictEqual(framesCalls.length, 0);
+  assert.strictEqual(videoCalls.length, 1);
+  assert.deepStrictEqual(lastSaved().picture, { skipped: 'video' });
+  assert.ok(clip.isVideoReading(res.ocr));
+});
+
+test('a post queued to be looked at that turns out to have no video file gets a note, so it is not queued again', async () => {
+  framesOn = true;
+  const res = await run(post({ media_type: 'post', media_urls: ['https://cdn.example.com/photo.jpg'], image_analysis: { ...clip.recordOf(READER_ANSWER), picture: { skipped: 'video', queued: true } } }));
+  assert.strictEqual(framesCalls.length, 0);
+  const note = merged().find((m) => m.picture && m.picture.failed);
+  assert.ok(note, 'a note was written');
+  assert.ok(!note.picture.transient && !note.picture.queued);
+  assert.strictEqual(clip.needsFrames(res.ocr), false);
 });
 
 /* --------------------------------------------------------------------------------- the report and the PDF ---- */

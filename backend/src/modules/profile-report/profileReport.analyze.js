@@ -22,6 +22,7 @@ const { cleanTranslation, sceneOf, signalsOf } = require('../../services/media_p
 const vision = require('./profileReport.vision');
 const reader = require('./profileReport.reading');
 const clip = require('./profileReport.video');
+const frames = require('./profileReport.videoFrames');
 const store = require('./profileReport.store');
 const { json, cleanDeep } = require('./profileReport.util');
 
@@ -50,6 +51,8 @@ const limits = {
    * stays under STALE_PROCESSING_MINUTES, so a post still waiting on its video is never mistaken for one a dead process left behind.
    */
   videoBudgetMs: Math.max(30000, Math.min(200000, Number(process.env.PROFILE_REPORT_VIDEO_BUDGET_MS) || 180000)),
+  /** Downloading a clip, cutting up to 32 frames and describing each in turn takes one to two minutes (about 3.5 s a frame); this stops a hung step from holding a post. */
+  framesBudgetMs: Math.max(30000, Math.min(200000, Number(process.env.PROFILE_REPORT_VIDEO_FRAMES_BUDGET_MS) || 170000)),
   /** Posts that take longer than this are named in the log, with the step that was slow. */
   slowMs: 60000,
 };
@@ -165,31 +168,58 @@ const enrichMedia = async (prisma, post, dbName) => {
     reading = { ...(reading && !reading.failed ? reading : {}), video: note };
     await mergeMarker({ video: note });
   }
-  if (videoUrl && clip.needsReading(reading)) {
+  if (!videoUrl && frames.enabled() && clip.isVideoReading(reading) && reading.picture && reading.picture.queued) {
+    // queued to be looked at frame by frame, but there is no video file after all: say so, so the post is not queued again
+    const note = clip.framesFailureOf('No video file to look at');
+    reading = { ...reading, picture: note };
+    await mergeMarker({ picture: note });
+  }
+  // And, when ffmpeg is there, the video is also looked at frame by frame with the picture questions (what is IN it, and the alerts
+  // a picture gets: weapon, crowd, fire ...): the reader alone called a rifle "a knife or cutting tool". The two run side by side.
+  const needReader = Boolean(videoUrl) && clip.needsReading(reading);
+  const needFrames = Boolean(videoUrl) && frames.enabled() && (needReader || clip.needsFrames(reading));
+  let readerRes = null;
+  let framesRes = null;
+  if (needReader || needFrames) {
     await heartbeat(prisma, id);
-    const beat = setInterval(() => { heartbeat(prisma, id).catch(() => {}); }, 60000);   // alive while the reader works
-    let res;
+    const beat = setInterval(() => { heartbeat(prisma, id).catch(() => {}); }, 60000);   // alive while the services work
+    const settle = (promise) => promise.then((v) => v, (err) => ({ success: false, error: err.message }));
     try {
-      res = await withBudget(
-        extractVideo(videoUrl, { postId: id, tenantKey: dbName, timeoutMs: limits.videoBudgetMs - 5000, maxAttempts: 1 }),
-        limits.videoBudgetMs, 'The video reader'
-      );
-    } catch (err) {
-      res = { success: false, error: err.message };
+      [readerRes, framesRes] = await Promise.all([
+        needReader
+          ? settle(withBudget(extractVideo(videoUrl, { postId: id, tenantKey: dbName, timeoutMs: limits.videoBudgetMs - 5000, maxAttempts: 1 }), limits.videoBudgetMs, 'The video reader'))
+          : null,
+        needFrames ? settle(withBudget(frames.analyse(videoUrl, { postId: id }), limits.framesBudgetMs, 'Looking at the video frame by frame')) : null,
+      ]);
     } finally {
       clearInterval(beat);
     }
-    if (res.success && res.data) {
-      reading = clip.recordOf(res.data);
+    const readerOk = Boolean(readerRes && readerRes.success && readerRes.data);
+    const framesOk = Boolean(framesRes && framesRes.success && framesRes.data);
+    const framesTried = Boolean(framesRes) && !framesRes.unavailable;   // a missing tool is not a failure of the video: it is left to be looked at later
+    if (readerOk || framesOk || (!needReader && framesTried)) {
+      // the video's reading: the reader's, or (when the reader could not open it) one made from the frames alone, or the one it already had
+      const record = readerOk ? clip.recordOf(readerRes.data) : clip.isVideoReading(reading) ? { ...reading } : clip.recordOf({});
+      if (needFrames && framesTried) {
+        const lead = record.description || record.summary || '';
+        record.picture = framesOk
+          ? frames.summarise(framesRes.described, { total: framesRes.total, lead, animated: framesRes.animated === true })
+          : clip.framesFailureOf(framesRes.error, { transient: !framesRes.nonRetryable });
+        if (!framesOk) logger.warn(`[ProfileReport] video frames not looked at for post ${id}: ${String(framesRes.error || '').slice(0, 160)}`);
+      }
+      reading = record;
       await saveMarker(reading);
       return { ocr: reading, retryLater: false, ms: Date.now() - t0 };
     }
-    const transient = isTransientImageFailure(res);
+  }
+  if (needReader) {
+    // neither the reader nor the frames could open the video
+    const transient = isTransientImageFailure(readerRes);
     if (transient && (Number(post.analysis_attempts) || 0) < VIDEO_TRANSIENT_RETRIES) {
       return { ocr: reading, retryLater: true, ms: Date.now() - t0 };
     }
-    logger.warn(`[ProfileReport] video not read for post ${id}: ${String(res.error || '').slice(0, 160)}`);
-    const note = clip.failureOf(res.error, { transient });
+    logger.warn(`[ProfileReport] video not read for post ${id}: ${String(readerRes.error || '').slice(0, 160)}`);
+    const note = clip.failureOf(readerRes.error, { transient });
     videoNote = note;
     reading = { ...(reading && !reading.failed ? reading : {}), video: note };
     await mergeMarker({ video: note });
@@ -250,7 +280,7 @@ const enrichMedia = async (prisma, post, dbName) => {
 };
 
 /** A description made by an older version of the prompts (records from before versions have no `v`). */
-const pictureIsStale = (picture) => Boolean(picture && picture.description && (Number(picture.v) || 1) < vision.PICTURE_VERSION);
+const pictureIsStale = (picture) => Boolean(picture && picture.source !== 'video' && picture.description && (Number(picture.v) || 1) < vision.PICTURE_VERSION);
 
 /** The picture as one line for the model that reads the post in context: what it shows, then what stands out in it. */
 const pictureLine = (reading) => {
@@ -271,7 +301,7 @@ const imageContext = (reading) => {
   if (typeof reading.summary === 'string' && reading.summary.trim()) out.summary = reading.summary.trim();
   const scene = sceneOf(reading, 600);
   const signals = signalsOf(reading);
-  if (scene || signals.length) out.description = `${scene}${signals.length ? `${scene ? ' ' : ''}Notable in the picture: ${signals.join('; ')}.` : ''}`;
+  if (scene || signals.length) out.description = `${scene}${signals.length ? `${scene ? ' ' : ''}Notable in the ${clip.isVideoReading(reading) ? 'video' : 'picture'}: ${signals.join('; ')}.` : ''}`;
   if (picture && !picture.failed && picture.text_visible && !(Array.isArray(out.visible_text) && out.visible_text.length)) out.visible_text = [picture.text_visible];
   return Object.keys(out).length ? out : null;
 };

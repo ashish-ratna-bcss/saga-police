@@ -534,7 +534,7 @@ const PostText = ({ post }) => {
       ) : (isVideo && !post.video ? <p className="mt-1 pl-2 text-xs text-muted-foreground" data-video-unread>Video not watched: judged from the caption.</p> : null)}
       {post.picture_signals?.length ? (
         <p className="mt-1 flex flex-wrap items-center gap-1 pl-2 text-xs" data-picture-seen>
-          <span className="font-semibold text-amber-800">Seen in the picture</span>
+          <span className="font-semibold text-amber-800">{post.video ? 'Seen in the video' : 'Seen in the picture'}</span>
           {post.picture_signals.map((s) => <span key={s} className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-900">{s}</span>)}
         </p>
       ) : null}

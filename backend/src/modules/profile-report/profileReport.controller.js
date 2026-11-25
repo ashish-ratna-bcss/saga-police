@@ -22,6 +22,7 @@ const { renderHtmlToPdf } = require('../events/eventIntelligenceReport/render');
 const { tenantDisplayName } = require('../events/eventIntelligenceReport/headquarters');
 const { getTenantProfile } = require('../events/eventIntelligenceReport/tenantProfile');
 const { toId, wantsEvidence } = require('./profileReport.util');
+const mediaLink = require('./profileReport.mediaLink');
 
 const fail = (res, error) => {
   const status = Number(error?.status) || 500;
@@ -150,6 +151,23 @@ const startReport = wrap(async (req, res, prisma) => {
   return running(res, job, id);
 });
 
+/**
+ * A post's video, for the post list. The platform's own link is short-lived and often refused to a browser, so the video is
+ * fetched here (with a fresh link from the provider when the stored one has expired) and passed on.
+ */
+const getPostVideo = wrap(async (req, res, prisma) => {
+  const id = toId(req.params.postId, 'post id');
+  const post = await store.getPostMedia(prisma, id);
+  if (!post) return res.status(404).json({ message: 'Post not found' });
+  const opened = await mediaLink.openVideo(prisma, req.tenantDbName, post);
+  if (!opened.ok) return res.status(opened.status).json({ message: opened.message });
+  Object.entries(opened.headers).forEach(([k, v]) => res.setHeader(k, v));
+  res.status(200);
+  req.on('close', () => opened.stream.destroy());
+  opened.stream.on('error', () => res.destroy());
+  return opened.stream.pipe(res);
+});
+
 const cancelReport = wrap(async (req, res) => {
   const cancelled = cancelReportJob(req.tenantDbName, toId(req.params.id, 'profile id'));
   res.json({ cancelled, subject_id: String(req.params.id) });
@@ -176,5 +194,5 @@ const getReportPdf = wrap(async (req, res, prisma) => {
 
 module.exports = {
   listSubjects, fetchAccount, getSubject, saveSubject, discardDrafts, deleteDraftAccount, deleteSubject,
-  listPosts, refresh, retry, getReport, startReport, cancelReport, getReportPdf,
+  listPosts, getPostVideo, refresh, retry, getReport, startReport, cancelReport, getReportPdf,
 };

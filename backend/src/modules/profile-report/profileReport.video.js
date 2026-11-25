@@ -79,4 +79,27 @@ const needsReading = (reading, now = Date.now()) => {
   return true;   // none yet, or only queued by the one-time re-queue
 };
 
-module.exports = { VIDEO_URL_SQL, enabled, RETRY_AFTER_HOURS, isVideoReading, onScreenTextOf, secondsOf, recordOf, failureOf, needsReading };
+/**
+ * A video's reading has a `picture` the way a photo's does: what the frames of the video show (see profileReport.videoFrames.js).
+ *   { skipped: 'video' }                          the reader's reading only: frames have not been looked at
+ *   { source: 'video', description, alerts, ... } the frames were looked at
+ *   { failed: true, source: 'video', ... }        they could not be (a note; `transient` = the vision model was busy)
+ */
+const needsFrames = (reading, now = Date.now()) => {
+  if (!isVideoReading(reading)) return false;
+  const p = reading.picture;
+  if (!p || typeof p !== 'object') return true;
+  if (p.failed) return Boolean(p.transient) && now - Date.parse(p.at) > RETRY_AFTER_HOURS * 3600 * 1000;
+  return p.source !== 'video';   // looked at (source 'video') is done; the reader's `{ skipped: 'video' }` or a queued mark is not
+};
+
+/** A note that the frames could not be looked at, kept on the video's picture. */
+const framesFailureOf = (error, { transient = false, now = new Date() } = {}) => ({
+  failed: true,
+  source: 'video',
+  error: String(error || 'The frames could not be looked at').replace(/\s+/g, ' ').slice(0, 160),
+  ...(transient ? { transient: true } : {}),
+  at: now.toISOString(),
+});
+
+module.exports = { VIDEO_URL_SQL, enabled, RETRY_AFTER_HOURS, isVideoReading, onScreenTextOf, secondsOf, recordOf, failureOf, needsReading, needsFrames, framesFailureOf };

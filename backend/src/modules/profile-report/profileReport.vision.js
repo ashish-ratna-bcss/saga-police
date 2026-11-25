@@ -246,6 +246,15 @@ const describePicture = async (imageUrl, { postId = 'unknown', timeoutMs = 80000
     const status = err.response?.status;
     return { success: false, error: `Download failed: ${err.message}`, nonRetryable: status === 404 || status === 403 };
   }
+  return describeBase64(b64, { timeoutMs });
+};
+
+/**
+ * Describe a picture we already hold (base64), e.g. a frame cut out of a video. Same questions, same record as describePicture.
+ * @returns {Promise<{ success: boolean, data?: object, error?: string, nonRetryable?: boolean }>}
+ */
+const describeBase64 = async (b64, { timeoutMs = 80000 } = {}) => {
+  if (!enabled()) return { success: false, error: 'Picture descriptions are switched off', nonRetryable: true };
   try {
     // the description and the flags are asked separately and at the same time: a small model does each better on its own
     const [main, flagReply] = await Promise.all([
@@ -262,4 +271,4 @@ const describePicture = async (imageUrl, { postId = 'unknown', timeoutMs = 80000
   }
 };
 
-module.exports = { describePicture, parsePicture, parseFlags, anonymise, dropQuotedWords, enabled, baseUrl, modelName, ALERTS, KINDS, PICTURE_VERSION };
+module.exports = { describePicture, describeBase64, parsePicture, parseFlags, anonymise, dropQuotedWords, enabled, baseUrl, modelName, ALERTS, KINDS, PICTURE_VERSION };

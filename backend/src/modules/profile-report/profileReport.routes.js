@@ -15,6 +15,7 @@ router.route('/subjects/:id').get(c.getSubject).delete(c.deleteSubject);
 router.post('/subjects/:id/save', c.saveSubject);
 router.post('/subjects/:id/discard', c.discardDrafts);
 router.get('/subjects/:id/posts', c.listPosts);
+router.get('/posts/:postId/video', c.getPostVideo);
 router.post('/subjects/:id/refresh', c.refresh);
 router.post('/subjects/:id/retry', c.retry);
 

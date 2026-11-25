@@ -60,11 +60,39 @@ const Thumb = ({ post, video }) => {
  * The post's video, brought in as it is (nothing is analysed for it). A platform file plays right in the card; YouTube loads
  * its player when asked, so a page of posts does not open thirty players. If the platform's link has expired, the original is one click away.
  */
-const PostVideo = ({ video, url }) => {
+const PostVideo = ({ video, url, postId }) => {
   const [failed, setFailed] = useState(false);
+  const [reason, setReason] = useState('');
+  const [via, setVia] = useState('platform');   // platform: the platform's own link | loading | server: our server's copy
+  const [blobUrl, setBlobUrl] = useState(null);
   const [playing, setPlaying] = useState(false);
   const [posterOk, setPosterOk] = useState(true);
 
+  useEffect(() => () => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, [blobUrl]);
+
+  // A platform's video link is signed and lives for a few hours, after which the platform refuses it. When the browser cannot play
+  // it, the server fetches the video instead (asking the data provider for a fresh link if it has to) and the card plays that.
+  const loadFromServer = useCallback(async () => {
+    if (!postId) { setFailed(true); return; }
+    setVia('loading');
+    try {
+      const res = await profileReportApi.postVideo(postId);
+      setBlobUrl(URL.createObjectURL(new Blob([res.data], { type: res.headers?.['content-type'] || 'video/mp4' })));
+      setVia('server');
+    } catch (err) {
+      let message = '';
+      try { message = JSON.parse(await err.response.data.text()).message || ''; } catch (e) { /* no message from the server */ }
+      setReason(message);
+      setFailed(true);
+    }
+  }, [postId]);
+
+  if (via === 'loading' && !failed) {
+    return <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground" data-video-loading><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading the video…</p>;
+  }
+  if (via === 'server' && blobUrl && !failed) {
+    return <video data-post-video data-served src={blobUrl} controls playsInline onError={() => setFailed(true)} className="mt-2 max-h-96 w-full max-w-md rounded-md border bg-black object-contain" />;
+  }
   if (video.src && !failed) {
     // #t=0.1 makes the browser show the first frame instead of a black box; streams (.m3u8) are left as they are
     const src = /#|\.m3u8/i.test(video.src) ? video.src : `${video.src}#t=0.1`;
@@ -76,7 +104,7 @@ const PostVideo = ({ video, url }) => {
         preload="metadata"
         playsInline
         referrerPolicy="no-referrer"
-        onError={() => setFailed(true)}
+        onError={loadFromServer}
         className="mt-2 max-h-96 w-full max-w-md rounded-md border bg-black object-contain"
       />
     );
@@ -107,7 +135,7 @@ const PostVideo = ({ video, url }) => {
   }
   return (
     <p className="mt-2 text-xs text-muted-foreground" data-video-unavailable>
-      The video could not be loaded here (the platform's link may have expired).
+      {reason ? reason.replace(/\s*Open the original to watch it\.?$/i, '') : "The video could not be loaded here (the platform's link may have expired)."}
       {url ? <> <a href={url} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline">Open the original</a> to watch it.</> : null}
     </p>
   );
@@ -173,7 +201,7 @@ const PostCard = ({ post }) => {
           : body.imageOnly ? <span className="mr-1.5 inline-flex items-center gap-1 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700"><ImageIcon className="h-3 w-3" />Image post</span> : null}
         {body.main || <span className="text-muted-foreground">{body.noWords && !video.isVideo ? 'no caption, no text on the picture' : '(no caption)'}</span>}
       </p>
-      {plays ? <PostVideo video={video} url={post.url} /> : null}
+      {plays ? <PostVideo video={video} url={post.url} postId={post.id} /> : null}
       {body.english ? (
         <p className="mt-1 line-clamp-3 border-l-2 border-sky-200 pl-2 text-xs text-muted-foreground"><span className="font-semibold text-sky-700">EN</span> {body.english}</p>
       ) : null}
@@ -201,7 +229,7 @@ const PostCard = ({ post }) => {
       ) : null}
       {post.image_signals?.length ? (
         <p className="mt-1 flex flex-wrap items-center gap-1 text-xs" data-picture-seen>
-          <span className="font-semibold text-amber-800">Seen in the picture</span>
+          <span className="font-semibold text-amber-800">{post.video ? 'Seen in the video' : 'Seen in the picture'}</span>
           {post.image_signals.map((s) => <span key={s} className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-900">{s}</span>)}
         </p>
       ) : null}

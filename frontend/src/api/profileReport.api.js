@@ -18,6 +18,8 @@ export const profileReportApi = {
 
   // Posts and collection
   posts: (id, params) => apiHandler.get(`/profile-report/subjects/${id}/posts`, { params }),
+  // a post's video as a file, fetched by the server (the platform's own link is short-lived and often refused to a browser)
+  postVideo: (postId) => apiHandler.get(`/profile-report/posts/${postId}/video`, { responseType: 'blob', timeout: 180000 }),
   refresh: (id) => apiHandler.post(`/profile-report/subjects/${id}/refresh`),
   retry: (id) => apiHandler.post(`/profile-report/subjects/${id}/retry`),
 

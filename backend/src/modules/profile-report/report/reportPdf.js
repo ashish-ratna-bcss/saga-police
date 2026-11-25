@@ -85,7 +85,7 @@ const bodyOf = (e) => {
   const english = String(e.english || '').trim();
   const showEnglish = english && foldText(english) !== foldText(text) && foldText(english) !== foldText(image);
   const en = showEnglish ? `<div class="en">EN: ${esc(english)}</div>` : '';
-  const seen = (e.picture_signals || []).length ? `<div class="en"><b>Seen in the picture:</b> ${esc(e.picture_signals.join(' · '))}</div>` : '';
+  const seen = (e.picture_signals || []).length ? `<div class="en"><b>Seen in the ${e.video ? 'video' : 'picture'}:</b> ${esc(e.picture_signals.join(' · '))}</div>` : '';
   // a video that was read: what it shows and the writing on screen are of the video, and it says how long it is
   const isVideo = Boolean(e.is_video || e.video);
   const sceneLabel = e.video ? `Video${e.video_seconds ? ` (${n(e.video_seconds)}s)` : ''}` : 'Picture';
@@ -293,7 +293,7 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '', includeEvidence = tru
       <div><div class="muted">Most mentioned</div>${chips(content.mentions, (x) => `${x.handle} · ${x.count}`)}</div>
     </div>
     ${(content.pictures?.terms || []).length ? `<div class="muted">What the pictures show (${n(content.pictures.described)} of ${n(content.pictures.with_pictures)} pictures described)</div>${chips(content.pictures.terms, (x) => `${x.term} · ${x.count}`)}` : ''}
-    ${(content.pictures?.signals || []).length ? `<div class="muted">Flagged in pictures (flags, symbols, weapons, crowds ...)</div>${chips(content.pictures.signals, (x) => `${x.term} · ${x.count}`)}` : ''}
+    ${(content.pictures?.signals || []).length ? `<div class="muted">Flagged in pictures and videos (flags, symbols, weapons, crowds ...)</div>${chips(content.pictures.signals, (x) => `${x.term} · ${x.count}`)}` : ''}
     ${content.videos?.total ? `<div class="muted">Videos: ${n(content.videos.read)} of ${n(content.videos.total)} watched by the video reader (what they show and the writing on screen)</div>` : ''}
     ${(content.tones || []).length ? `<div class="muted">How the posts are meant (${n(content.read_in_context)} of ${n(cov.read)} read in context)</div>${chips(content.tones, (x) => `${x.term} · ${x.count}`)}` : ''}
     <div class="muted">${n(content.original)} original · ${n(content.shared)} shared · ${n(content.replies)} replies · ${n(content.with_media)} with photo/video · ${n(content.with_links)} with links · languages: ${esc((content.languages || []).map((l) => `${l.language} ${l.count}`).join(', ') || 'not detected')}</div>`;

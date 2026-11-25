@@ -479,6 +479,7 @@ const requeueForPictures = async (prisma, { version = 1 } = {}) => exec(
       SET analysis_status = 'pending', analysis_attempts = 0, claimed_at = NULL, analysis_error = NULL
     WHERE analysis_status IN ('done', 'skipped')
       AND jsonb_typeof(media_urls) = 'array' AND jsonb_array_length(media_urls) > 0
+      AND COALESCE(image_analysis->>'media_type', '') <> 'video'   -- a video's picture is looked at by requeueForVideoFrames
       AND (image_analysis IS NULL OR image_analysis->'picture' IS NULL
            OR (image_analysis->'picture'->>'transient' = 'true'
                AND (image_analysis->'picture'->>'at')::timestamptz < NOW() - INTERVAL '6 hours')
@@ -530,6 +531,46 @@ const requeueForVideos = async (prisma) => exec(
   clip.VIDEO_URL_SQL, clip.RETRY_AFTER_HOURS
 );
 
+/**
+ * Videos that were read by the video reader but never looked at frame by frame (read before that existed) go back in the queue,
+ * to be looked at the way a picture is (what is in it, and its alerts: weapon, crowd, fire ...). Only called when that is possible
+ * (ffmpeg and the vision model are there). Each is marked `picture: { skipped: 'video', queued: true }`; analysing the post replaces
+ * the mark (the frames' record, or a note of why not), and a finished post that still carries the mark (analysed by an older
+ * process during an API roll) is queued again, so a post is queued for it once and never loops. A look that only failed because the
+ * vision model was busy is repeated after RETRY_AFTER_HOURS. The reader's own reading and any text read from the video are kept.
+ * @returns {Promise<number>} posts re-queued
+ */
+const requeueForVideoFrames = async (prisma) => exec(
+  prisma,
+  `UPDATE profile_report_posts
+      SET analysis_status = 'pending', analysis_attempts = 0, claimed_at = NULL, analysis_error = NULL,
+          image_analysis = jsonb_set(image_analysis, '{picture}', jsonb_build_object('skipped', 'video', 'queued', TRUE))
+    WHERE analysis_status IN ('done', 'skipped')
+      AND image_analysis->>'media_type' = 'video' AND COALESCE(image_analysis->>'failed', 'false') <> 'true'
+      AND jsonb_typeof(media_urls) = 'array' AND media_urls::text ~* $1
+      AND (image_analysis->'picture' IS NULL
+           OR (image_analysis->'picture'->>'skipped' = 'video' AND image_analysis->'picture'->>'failed' IS NULL)
+           OR (image_analysis->'picture'->>'failed' = 'true' AND image_analysis->'picture'->>'transient' = 'true'
+               AND (image_analysis->'picture'->>'at')::timestamptz < NOW() - make_interval(hours => $2::int)))`,
+  clip.VIDEO_URL_SQL, clip.RETRY_AFTER_HOURS
+);
+
+/** One saved post with the links to its media, for serving its video. Null for a post of a draft or another profile's account. */
+const getPostMedia = async (prisma, id) => {
+  const rows = await q(
+    prisma,
+    `SELECT p.id::text AS id, p.platform, p.url, p.external_id, p.media_urls
+       FROM profile_report_posts p JOIN profile_report_accounts a ON a.id = p.account_id AND a.is_draft = FALSE
+      WHERE p.id = $1::bigint`,
+    id
+  );
+  return rows[0] || null;
+};
+
+/** Replace a post's media links (a fresh link for a video whose old one expired). */
+const setPostMediaUrls = (prisma, id, urls) =>
+  exec(prisma, `UPDATE profile_report_posts SET media_urls = $2::jsonb, updated_at = NOW() WHERE id = $1::bigint`, id, json(urls, []));
+
 module.exports = {
   q,
   exec,
@@ -556,6 +597,9 @@ module.exports = {
   requeueForPictures,
   requeueForReading,
   requeueForVideos,
+  requeueForVideoFrames,
+  getPostMedia,
+  setPostMediaUrls,
   imageTextOf,
   printedTextOf,
 };
