@@ -21,7 +21,7 @@ const { buildBehaviorReportHtml } = require('./report/reportPdf');
 const { renderHtmlToPdf } = require('../events/eventIntelligenceReport/render');
 const { tenantDisplayName } = require('../events/eventIntelligenceReport/headquarters');
 const { getTenantProfile } = require('../events/eventIntelligenceReport/tenantProfile');
-const { toId } = require('./profileReport.util');
+const { toId, wantsEvidence } = require('./profileReport.util');
 
 const fail = (res, error) => {
   const status = Number(error?.status) || 500;
@@ -161,10 +161,12 @@ const getReportPdf = wrap(async (req, res, prisma) => {
   if (!data) return res.status(404).json({ message: 'No report has been generated for this profile yet.' });
   let tenantLabel = tenantLabelOf(req.user) || '';
   try { tenantLabel = tenantDisplayName(tenantLabel, await getTenantProfile(req.tenantDbName)) || tenantLabel; } catch (e) { /* keep the plain label */ }
-  const html = buildBehaviorReportHtml(data, { tenantLabel });
+  // Two reports from the same saved analysis: the full one lists and links every cited post, the executive summary leaves them out.
+  const withEvidence = wantsEvidence(req.query.include_evidence);
+  const html = buildBehaviorReportHtml(data, { tenantLabel, includeEvidence: withEvidence });
   const name = data.facts?.profile?.name || `Profile_${id}`;
-  const pdf = await renderHtmlToPdf(html, { footerLabel: `${tenantLabel ? `${tenantLabel} · ` : ''}${name} · Behaviour report` });
-  const safe = `${name}_Behaviour_Report`.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  const pdf = await renderHtmlToPdf(html, { footerLabel: `${tenantLabel ? `${tenantLabel} · ` : ''}${name} · Behaviour report${withEvidence ? '' : ' · Executive summary'}` });
+  const safe = `${name}_Behaviour_Report_${withEvidence ? 'With_Evidence' : 'Executive_Summary'}`.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
   res.setHeader('Content-Disposition', `attachment; filename="${safe}.pdf"`);

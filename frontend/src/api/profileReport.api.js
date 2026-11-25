@@ -25,8 +25,13 @@ export const profileReportApi = {
   getReport: (id) => apiHandler.get(`/profile-report/subjects/${id}/report`, { params: { _t: Date.now() } }),
   startReport: (id) => apiHandler.post(`/profile-report/subjects/${id}/report`),
   cancelReport: (id) => apiHandler.post(`/profile-report/subjects/${id}/report/cancel`),
-  downloadReportPdf: (id) =>
-    apiHandler.get(`/profile-report/subjects/${id}/report/pdf`, { responseType: 'blob', timeout: 240000 }),
+  // evidence: true = the full report (every cited post listed and linked), false = the executive summary without the post list
+  downloadReportPdf: (id, { evidence = true } = {}) =>
+    apiHandler.get(`/profile-report/subjects/${id}/report/pdf`, {
+      params: { include_evidence: evidence ? 'true' : 'false' },
+      responseType: 'blob',
+      timeout: 240000,
+    }),
 };
 
 export default profileReportApi;

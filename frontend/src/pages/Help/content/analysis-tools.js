@@ -216,6 +216,7 @@ const analysisTools = {
             { text: 'Click **Save**. Closing the window without saving removes what was fetched.' },
             { text: 'Posts are analysed in the background, newest first. The profile card shows how many are done.' },
             { text: 'Click **Generate report** once the first posts are analysed. It can be regenerated later to include more.' },
+            { text: 'Click **Download Report** and choose the format: **Executive Summary** (the assessment without the post list) or **Full Report with Evidence** (every cited post listed and linked).' },
           ],
         },
         {
@@ -227,6 +228,8 @@ const analysisTools = {
             ['Generate report is locked', 'No post has been analysed yet. It unlocks by itself.'],
             ['Collection stopped', 'The platform stopped answering. **Retry** continues from the last page saved; nothing is collected twice.'],
             ['Refresh posts', 'Fetches only posts published since the last fetch.'],
+            ['Executive Summary (PDF)', 'The same assessment, key figures and charts, without the post-by-post evidence and without the P-number tags. Short enough to hand to someone who only needs the conclusion.'],
+            ['Full Report with Evidence (PDF)', 'Everything above plus an evidence section that lists and links every cited post, so each P-number can be checked.'],
           ],
         },
         {

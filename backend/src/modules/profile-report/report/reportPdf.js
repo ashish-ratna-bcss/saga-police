@@ -18,9 +18,29 @@ const LEVEL = {
 };
 const TONE = { positive: '#16a34a', neutral: '#94a3b8', negative: '#dc2626' };
 
-/** Escaped text with [P3] citations turned into small tags. */
-const rich = (text) => esc(text || '').replace(/\[P(\d+)\]/g, '<span class="cite">P$1</span>');
-const cites = (posts) => (posts && posts.length ? ` ${posts.map((n) => `<span class="cite">P${n}</span>`).join('')}` : '');
+/** Escaped text with [P3] citations turned into small tags (the report with evidence). */
+const richCited = (text) => esc(text || '').replace(/\[P(\d+)\]/g, '<span class="cite">P$1</span>');
+const citesTags = (posts) => (posts && posts.length ? ` ${posts.map((n) => `<span class="cite">P${n}</span>`).join('')}` : '');
+const DANGLING = /\b(?:are|is|were|was|in|see|from|by|at|on|and|of|include|includes|including)\s*[.!?]?$/i;
+/**
+ * Escaped text with the [P3] citations taken out (the report without evidence: there is no list for them to point to).
+ * A sentence that only exists to point at posts ("The most liked posts are [P2], [P5] and [P4].") would be left hanging,
+ * so it is cut back to the part before its last semicolon, or dropped.
+ */
+// one citation "[P3]" or a group the model wrote: "[P1, P2]", "[P1, [P2], P3]"
+const CITE_GROUP = /\s*\[(?:\s*\[?\s*P\d+\s*\]?\s*(?:,|;|and|&)?)+\]/gi;
+const richPlain = (text) => {
+  const sentences = String(text || '').match(/[^.!?]+(?:[.!?]+|$)\s*/g) || [];
+  const kept = sentences.map((s) => {
+    const rest = s.replace(CITE_GROUP, '');
+    if (rest === s) return s;                                   // no citation in this sentence
+    const tidy = rest.replace(/(?:\s*[,;:])+(?=\s*[.!?]|\s*$)/g, '').replace(/\s+/g, ' ').trim();
+    if (!DANGLING.test(tidy.replace(/[\s,]+(?=[.!?]?$)/, ''))) return `${tidy} `;
+    const cut = tidy.lastIndexOf(';');
+    return cut > 3 ? `${tidy.slice(0, cut)}. ` : '';
+  });
+  return esc(kept.join('')).replace(/\s+([.,;:])/g, '$1').replace(/\s{2,}/g, ' ').trim();
+};
 const pill = (label, map) => {
   const c = map[label] || { bg: '#f1f5f9', fg: '#334155', bd: LINE };
   return `<span class="pill" style="background:${c.bg};color:${c.fg};border-color:${c.bd}">${esc(label)}</span>`;
@@ -105,7 +125,6 @@ const responseOf = (e) => {
 };
 
 const section = (title, body) => (body ? `<section><h2>${esc(title)}</h2>${body}</section>` : '');
-const para = (text) => (text ? `<p>${rich(text)}</p>` : '');
 
 /** A small column chart; each column carries its count so a handful of posts can be read without guessing. */
 const bars = (values, labels, color) => {
@@ -212,10 +231,16 @@ li{margin-bottom:3px}
 `;
 
 /**
+ * Two versions of the same report, like the event report's "Full Report with Evidence" and "Executive Summary":
+ *   with evidence    (default)  every cited post is listed and linked, and [P#] citations point to that list
+ *   without evidence            the assessment on its own: no post list and no citation tags
  * @param {object} data  getCachedBehaviorReport() result
- * @param {object} opts  { tenantLabel }
+ * @param {object} opts  { tenantLabel, includeEvidence }
  */
-const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
+const buildBehaviorReportHtml = (data, { tenantLabel = '', includeEvidence = true } = {}) => {
+  const rich = includeEvidence ? richCited : richPlain;
+  const cites = includeEvidence ? citesTags : () => '';
+  const para = (text) => { const t = text ? rich(text) : ''; return t ? `<p>${t}</p>` : ''; };
   const r = data.report || {};
   const f = data.facts || {};
   const ev = data.evidence || [];
@@ -276,7 +301,7 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
   const everyPost = Number.isFinite(cov.usable) && ev.length >= cov.usable && ev.length <= 60;
   const annexRows = everyPost ? ev : ev.filter((e) => cited.has(e.n));
   const annexNote = everyPost && cov.no_text ? `<p class="muted">Not listed: ${n(cov.no_text)} ${cov.no_text === 1 ? 'post' : 'posts'} with no caption and nothing readable in the picture.</p>` : '';
-  const annex = annexRows.length ? `<section class="annex"><h2>${everyPost ? `Evidence: all ${n(annexRows.length)} posts read` : 'Evidence: posts cited in this report'}</h2>${annexNote}
+  const annex = includeEvidence && annexRows.length ? `<section class="annex"><h2>${everyPost ? `Evidence: all ${n(annexRows.length)} posts read` : 'Evidence: posts cited in this report'}</h2>${annexNote}
     <table class="ev"><thead><tr><th style="width:6%">#</th><th style="width:15%">Posted</th><th style="width:17%">Reading</th><th>Post</th></tr></thead><tbody>
     ${annexRows.map((e) => `<tr>
       <td class="no">P${e.n}</td>
@@ -289,7 +314,7 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
   const body = `
   <div class="head">
     <div>
-      <div class="org">${esc(tenantLabel || 'Digital Intelligence')} · Profile behaviour report</div>
+      <div class="org">${esc(tenantLabel || 'Digital Intelligence')} · Profile behaviour report${includeEvidence ? '' : ' · Executive summary'}</div>
       <h1>${esc(f.profile?.name || 'Profile')}</h1>
       <div class="who">${esc(f.profile?.handle && f.profile.handle !== f.profile?.name ? f.profile.handle : '')}${f.profile?.platform_name ? ` · ${esc(f.profile.platform_name)}` : ''}</div>
       <div class="meta">Generated ${esc(fmtDateTime(data.generated_at, tz))}${data.generated_by?.name ? ` by ${esc(data.generated_by.name)}` : ''} · ${n(cov.read)} posts, ${esc(dayLabel(cov.first_post))} to ${esc(dayLabel(cov.last_post))}</div>
@@ -320,10 +345,12 @@ const buildBehaviorReportHtml = (data, { tenantLabel = '' } = {}) => {
     ${section('Watch points', (r.watch_points || []).length ? `<ul>${r.watch_points.map((w) => `<li>${rich(w)}</li>`).join('')}</ul>` : '')}
     ${section('Limitations', limitations.length ? `<ul>${limitations.map((w) => `<li>${rich(w)}</li>`).join('')}</ul>` : '')}
   </div>
-  <div class="foot">Analyst aid written from the account's public posts${data.summary_source === 'llm' ? ' with AI assistance' : ''}. Numbers are computed from the stored posts; P-numbers point to the evidence annex. Check the original posts before taking any action.</div>
+  <div class="foot">Analyst aid written from the account's public posts${data.summary_source === 'llm' ? ' with AI assistance' : ''}. ${includeEvidence
+    ? 'Numbers are computed from the stored posts; P-numbers point to the evidence annex. Check the original posts before taking any action.'
+    : 'Numbers are computed from the stored posts. This summary leaves out the post-by-post evidence; the full report with evidence lists and links every post. Check the original posts before taking any action.'}</div>
   ${annex}`;
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>${fontFacesFor(body)}${CSS}</style></head><body>${body}</body></html>`;
 };
 
-module.exports = { buildBehaviorReportHtml };
+module.exports = { buildBehaviorReportHtml, __test: { richPlain } };

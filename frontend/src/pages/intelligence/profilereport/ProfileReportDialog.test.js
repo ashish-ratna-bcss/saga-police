@@ -19,6 +19,17 @@ jest.mock('../../../components/ui/dialog', () => {
   const Pass = ({ children }) => <div>{children}</div>;
   return { Dialog: Closed, DialogContent: Pass, DialogDescription: Pass, DialogHeader: Pass, DialogTitle: Pass };
 });
+jest.mock('../../../components/ui/dropdown-menu', () => {
+  // the menu is always open here, so its items can be clicked without simulating Radix pointer events
+  const Pass = ({ children }) => <div>{children}</div>;
+  return {
+    DropdownMenu: Pass,
+    DropdownMenuTrigger: ({ children }) => <>{children}</>,
+    DropdownMenuContent: Pass,
+    DropdownMenuLabel: Pass,
+    DropdownMenuItem: ({ children, onClick, disabled }) => <button type="button" data-menu-item disabled={disabled} onClick={onClick}>{children}</button>,
+  };
+});
 jest.mock('../../../components/ui/progress', () => ({ Progress: () => <div data-progress /> }));
 jest.mock('../../../components/ui/tabs', () => {
   const ReactLib = require('react');
@@ -280,6 +291,99 @@ describe('Profile Report dialog', () => {
     expect(text()).toContain('Writing the behaviour report');
     for (let i = 0; i < 3; i += 1) { await act(async () => { jest.advanceTimersByTime(3600); }); await flush(); }
     expect(text()).toContain('Attention: Medium');
+  });
+
+  describe('Download Report: the same two PDF reports as the event report', () => {
+    const { toast } = require('sonner');
+    let clicked;
+    const pdf = (filename) => ({ data: new ArrayBuffer(8), headers: { 'content-disposition': `attachment; filename="${filename}"` } });
+    const menuItem = (title) => [...container.querySelectorAll('[data-menu-item]')].find((b) => b.textContent.includes(title));
+
+    beforeEach(() => {
+      clicked = [];
+      URL.createObjectURL = jest.fn(() => 'blob:report');
+      URL.revokeObjectURL = jest.fn();
+      jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function click() { clicked.push(this.download); });
+      mockApi.getReport.mockResolvedValue({ data: REPORT });
+    });
+    afterEach(() => { jest.restoreAllMocks(); });
+
+    test('one "Download Report" button replaces the plain PDF button, with the two formats under "Select Report Format"', async () => {
+      await render();
+      expect(buttonNamed('Download Report')).toBeTruthy();
+      expect(buttonNamed('PDF')).toBeUndefined();
+      expect(text()).toContain('Select Report Format');
+      const titles = [...container.querySelectorAll('[data-menu-item]')].map((b) => b.textContent);
+      expect(titles).toHaveLength(2);
+      expect(titles[0]).toContain('Executive Summary');
+      expect(titles[0]).toContain('without the post-by-post list');
+      expect(titles[1]).toContain('Full Report with Evidence');
+      expect(titles[1]).toContain('every cited post listed and linked');
+      // header order as in the event report: Regenerate, Copy (icon), Download Report
+      const order = [...container.querySelectorAll('button')].map((b) => b.getAttribute('aria-label') || b.textContent.trim());
+      expect(order.indexOf('Regenerate')).toBeLessThan(order.indexOf('Copy report text'));
+      expect(order.indexOf('Copy report text')).toBeLessThan(order.findIndex((t) => t.startsWith('Download Report')));
+    });
+
+    test('Executive Summary asks for the report without evidence and saves the file the server names', async () => {
+      mockApi.downloadReportPdf.mockResolvedValue(pdf('Babulal_Marandi_Behaviour_Report_Executive_Summary.pdf'));
+      await render();
+      await act(async () => { menuItem('Executive Summary').click(); });
+      await flush();
+      expect(mockApi.downloadReportPdf).toHaveBeenCalledTimes(1);
+      expect(mockApi.downloadReportPdf).toHaveBeenCalledWith(42, { evidence: false });
+      expect(clicked).toEqual(['Babulal_Marandi_Behaviour_Report_Executive_Summary.pdf']);
+    });
+
+    test('Full Report with Evidence asks for the report with evidence', async () => {
+      mockApi.downloadReportPdf.mockResolvedValue(pdf('Babulal_Marandi_Behaviour_Report_With_Evidence.pdf'));
+      await render();
+      await act(async () => { menuItem('Full Report with Evidence').click(); });
+      await flush();
+      expect(mockApi.downloadReportPdf).toHaveBeenCalledWith(42, { evidence: true });
+      expect(clicked).toEqual(['Babulal_Marandi_Behaviour_Report_With_Evidence.pdf']);
+    });
+
+    test('without a file name from the server the file is still named after the chosen format', async () => {
+      mockApi.downloadReportPdf.mockResolvedValue({ data: new ArrayBuffer(8), headers: {} });
+      await render();
+      await act(async () => { menuItem('Executive Summary').click(); });
+      await flush();
+      await act(async () => { menuItem('Full Report with Evidence').click(); });
+      await flush();
+      expect(clicked).toEqual(['Behaviour_Report_Executive_Summary.pdf', 'Behaviour_Report_With_Evidence.pdf']);
+    });
+
+    test('while a PDF is being prepared the button says so and a second one cannot be started', async () => {
+      let finish;
+      mockApi.downloadReportPdf.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+      await render();
+      await act(async () => { menuItem('Executive Summary').click(); });
+      expect(buttonNamed('Preparing')).toBeTruthy();
+      expect(buttonNamed('Preparing').disabled).toBe(true);
+      expect(menuItem('Full Report with Evidence').disabled).toBe(true);
+      await act(async () => { finish(pdf('x.pdf')); });
+      await flush();
+      expect(buttonNamed('Download Report').disabled).toBe(false);
+    });
+
+    test('a failed download shows the plain reason from the server and the button comes back', async () => {
+      const body = { text: async () => JSON.stringify({ message: 'No report has been generated for this profile yet.' }) };
+      mockApi.downloadReportPdf.mockRejectedValue({ message: 'Request failed with status code 404', response: { data: body } });
+      await render();
+      await act(async () => { menuItem('Full Report with Evidence').click(); });
+      await flush();
+      expect(toast.error).toHaveBeenCalledWith('PDF download failed', { description: 'No report has been generated for this profile yet.' });
+      expect(clicked).toEqual([]);
+      expect(buttonNamed('Download Report').disabled).toBe(false);
+    });
+
+    test('Regenerate still works from its new place in the header', async () => {
+      mockApi.startReport.mockResolvedValue({ data: { status: 'running', started_at: new Date().toISOString() } });
+      await render();
+      await act(async () => { buttonNamed('Regenerate').click(); });
+      expect(mockApi.startReport).toHaveBeenCalledWith(42);
+    });
   });
 
   test('a profile that cannot have a report yet gets the plain reason instead of a report', async () => {

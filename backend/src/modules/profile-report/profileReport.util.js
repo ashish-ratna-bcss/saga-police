@@ -23,6 +23,12 @@ const toId = (value, label = 'id') => {
   return n;
 };
 
+/**
+ * The "with evidence" switch of a report download (the event report's `include_evidence`): on unless it says otherwise,
+ * so a link or a client that does not send it still gets the full report.
+ */
+const wantsEvidence = (value) => !/^(false|0|no|off)$/i.test(String(value == null ? '' : value).trim());
+
 /** Cursors are opaque to the store: a string, or an object (Instagram) kept as JSON text. */
 const encodeCursor = (c) => (c == null || c === '' ? null : typeof c === 'string' ? c : JSON.stringify(c));
 const decodeCursor = (text) => {
@@ -86,5 +92,5 @@ const providerFailure = (err, platformName = 'platform') => {
 };
 
 module.exports = {
-  httpError, cleanDeep, json, toId, encodeCursor, decodeCursor, kindOf, upstreamStatusOf, isProviderError, providerFailure,
+  httpError, cleanDeep, json, toId, wantsEvidence, encodeCursor, decodeCursor, kindOf, upstreamStatusOf, isProviderError, providerFailure,
 };
