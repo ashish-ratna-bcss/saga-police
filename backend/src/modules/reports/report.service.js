@@ -27,14 +27,25 @@ const toFormalReportShape = (row) => {
     handle ||
     'Unknown';
 
+  const status = String(row.status || '').toLowerCase() || 'pending';
+  // Alerts Reports UI historically used "sent_to_intermediary" for escalated notices.
+  const uiStatus = status === 'escalated' ? 'sent_to_intermediary' : status;
+  const postLink = row.post_link || row.profile_link || null;
+  const category = row.category || row.report_type || '';
+
   return {
     id: row.id,
     serial_number: row.unique_code,
     alert_id: row.grievance_id,
     report_type: row.report_type,
     platform: row.platform,
-    status: String(row.status || '').toLowerCase() || 'pending',
-    title: row.category || row.report_type,
+    status: uiStatus,
+    title: category,
+    // Fields the Alerts → Reports table reads
+    source_category: category,
+    joined_content_url: postLink,
+    closing_remarks: row.remarks || '',
+    edited_content: postLink ? { contentUrl: postLink } : {},
     target_user_details: {
       name,
       handle,
@@ -44,7 +55,7 @@ const toFormalReportShape = (row) => {
     },
     content_summary: row.post_description || row.message || '',
     media_links: asArray(row.media_urls),
-    post_link: row.post_link || null,
+    post_link: postLink,
     report_pdf_url: row.report_pdf_url || (row.pdf_base64 ? `/api/reports/${row.id}/pdf` : null),
     informed_to: asObject(row.informed_to),
     generated_at: row.created_at || row.shared_at || null,
@@ -102,7 +113,9 @@ const getAllReports = async (filters = {}, { db } = {}) => {
     where.report_type = String(report_type).toLowerCase();
   }
   if (status && status !== 'all') {
-    where.status = String(status).toUpperCase();
+    let st = String(status).toLowerCase();
+    if (st === 'sent_to_intermediary' || st === 'awaiting_reply') st = 'escalated';
+    where.status = st.toUpperCase();
   }
 
   const normalizedSearch = String(search || '').trim();
@@ -155,8 +168,13 @@ const updateReport = async (idOrCode, updateData, { db } = {}) => {
   if (!existing) throw new Error('Report not found');
 
   const data = {};
-  if (updateData.status != null) data.status = String(updateData.status).toUpperCase();
+  if (updateData.status != null) {
+    let next = String(updateData.status).toLowerCase();
+    if (next === 'sent_to_intermediary' || next === 'awaiting_reply') next = 'escalated';
+    data.status = next.toUpperCase();
+  }
   if (updateData.remarks != null) data.remarks = updateData.remarks;
+  if (updateData.closing_remarks != null) data.remarks = updateData.closing_remarks;
   if (updateData.message != null) data.message = updateData.message;
   if (updateData.category != null) data.category = updateData.category;
   if (updateData.report_pdf_url != null) data.report_pdf_url = updateData.report_pdf_url;

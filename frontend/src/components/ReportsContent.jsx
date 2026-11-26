@@ -42,7 +42,7 @@ const CardsMetric = ({ label, value, icon }) => (
     </div>
 );
 
-const REPORT_STATUS_FILTERS = ['sent_to_intermediary', 'closed', 'all'];
+const REPORT_STATUS_FILTERS = ['pending', 'sent_to_intermediary', 'closed', 'all'];
 
 const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateRange, searchQuery: sharedSearch, keywordFilter: sharedKeyword, riskFilter: sharedRisk = 'all', viralityFilter: sharedVirality = 'all', alertCategory: sharedCategory, sourceCategoryFilter: sharedSourceCategory, viewHandle, onClearHandle }) => {
     const [reports, setReports] = useState([]);
@@ -805,6 +805,7 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">All Statuses</SelectItem>
+                                    <SelectItem value="pending">Pending</SelectItem>
                                     <SelectItem value="sent_to_intermediary">Sent to Intermediary</SelectItem>
                                     <SelectItem value="closed">Closed</SelectItem>
                                 </SelectContent>
@@ -1020,13 +1021,14 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
                                         </td>
                                         <td className="px-4 py-3">
                                             <Select
-                                                value={report.status}
-                                                onValueChange={(value) => handleStatusChange(report.alert_id, value)}
+                                                value={report.status || 'pending'}
+                                                onValueChange={(value) => handleStatusChange(report.alert_id || report.id, value)}
                                             >
                                                 <SelectTrigger className="w-full h-8 text-xs font-bold uppercase">
                                                     <SelectValue placeholder="Status" />
                                                 </SelectTrigger>
                                                 <SelectContent>
+                                                    <SelectItem value="pending">Pending</SelectItem>
                                                     <SelectItem value="sent_to_intermediary">Sent to Intermediary</SelectItem>
                                                     <SelectItem value="closed">Closed</SelectItem>
                                                 </SelectContent>
