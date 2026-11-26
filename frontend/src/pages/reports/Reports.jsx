@@ -574,8 +574,7 @@ const Reports = () => {
       api.get('/suggestion/reports', { params: { page: 1, limit: 1 } }),
       api.get('/criticism/reports', { params: { page: 1, limit: 1 } }),
       api.get('/query-workflow/reports', { params: { page: 1, limit: 1 } }),
-      api.get('/reports'),
-      api.get('/events'),
+      api.get('/events/report'),
     ]);
 
     const next = { ...INITIAL_COUNTS };
@@ -605,9 +604,14 @@ const Reports = () => {
     );
     next.catalog = parts.length ? parts.reduce((sum, n) => sum + n, 0) : null;
 
-    if (results[6].status === 'fulfilled') {
-      const data = results[6].value?.data;
-      next.events = parseCount(Array.isArray(data) ? data.length : data?.total);
+    if (results[5].status === 'fulfilled') {
+      const data = results[5].value?.data || {};
+      if (data?.summary_count != null) {
+        next.events = parseCount(data.summary_count);
+      } else {
+        const list = Array.isArray(data?.events) ? data.events : Array.isArray(data) ? data : [];
+        next.events = list.filter((e) => e?.has_summary).length || parseCount(list.length);
+      }
     }
 
     setCounts(next);

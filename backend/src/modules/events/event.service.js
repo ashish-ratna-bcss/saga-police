@@ -341,22 +341,32 @@ const listEventContent = async (id, { page = 1, limit = 50, platform = 'all', db
 
 const getEventsReport = async ({ db } = {}) => {
   const prisma = dbOf(db);
-  const events = await prisma.social_media_events.findMany({
-    orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
-  });
-  const counts = await prisma.social_media_event_media.groupBy({
-    by: ['event_id'],
-    _count: { _all: true },
-  });
+  const [events, counts, summaries, summaryCount] = await Promise.all([
+    prisma.social_media_events.findMany({
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+    }),
+    prisma.social_media_event_media.groupBy({
+      by: ['event_id'],
+      _count: { _all: true },
+    }),
+    prisma.social_media_event_summaries.findMany({
+      select: { event_id: true },
+    }),
+    prisma.social_media_event_summaries.count(),
+  ]);
   const countMap = Object.fromEntries(
     counts.map((c) => [String(c.event_id), c._count._all])
   );
+  const summarySet = new Set(summaries.map((s) => String(s.event_id)));
   return {
     events: events.map((e) => ({
       ...hydrateEvent(e),
       discovered_hashtags: [],
       content_count: countMap[String(e.id)] || 0,
+      has_summary: summarySet.has(String(e.id)),
     })),
+    // Formal event reports = generated summaries, not raw event rows
+    summary_count: summaryCount,
   };
 };
 
