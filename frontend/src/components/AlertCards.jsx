@@ -2388,10 +2388,16 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
         try {
             const res = await api.get(`/alerts/engagers/${encodeURIComponent(hc)}`, {
                 params: { period_days: 30, store: 'catalog' },
+                timeout: 60000,
             });
             setAnalysis(res.data);
         } catch (err) {
-            setError(err?.response?.data?.message || err?.response?.data?.error || 'Failed to load engagers');
+            const timedOut = err?.code === 'ECONNABORTED' || /timeout/i.test(String(err?.message || ''));
+            setError(
+              timedOut
+                ? 'Engager analysis timed out — try Refresh'
+                : (err?.response?.data?.message || err?.response?.data?.error || 'Failed to load engagers')
+            );
             setAnalysis(null);
         } finally { setLoading(false); }
     }, []);
@@ -2414,11 +2420,17 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
         try {
             const res = await api.get(`/alerts/engagers/${encodeURIComponent(handleClean)}`, {
                 params: { period_days: 30, store: 'catalog' },
+                timeout: 60000,
             });
             setAnalysis(res.data);
             toast.success(`Loaded ${res.data?.unique_retweeters || 0} engagers for @${handleClean}`);
         } catch (err) {
-            setError(err?.response?.data?.message || 'Failed to analyze engagers');
+            const timedOut = err?.code === 'ECONNABORTED' || /timeout/i.test(String(err?.message || ''));
+            setError(
+              timedOut
+                ? 'Engager analysis timed out — try again'
+                : (err?.response?.data?.message || 'Failed to analyze engagers')
+            );
         } finally {
             setAnalyzing(false);
         }
@@ -3499,7 +3511,6 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
     const [isExpanded, setIsExpanded] = useState(false);
     const [isQuotedExpanded, setIsQuotedExpanded] = useState(false);
     const [showRetweetNetworkDialog, setShowRetweetNetworkDialog] = useState(false);
-    const [triggeringAnalysis, setTriggeringAnalysis] = useState(false);
     const dropdownRef = useRef(null);
     const sourceIdForRetweetNetwork = content?.source_id || alert?.source_id || null;
     const sourceHandleForRetweetNetwork = content?.author_handle || source?.handle || alert?.author_handle || null;
@@ -4289,32 +4300,20 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                             />
                         )}
 
-                        {/* Relation button — alerts only (not catalog All Posts) */}
+                        {/* Relation button — alerts only (not catalog All Posts). Opens dialog; analysis loads inside. */}
                         {!hideActions && (
                         <button
-                            onClick={async (e) => {
+                            onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                if (!canOpenRetweetNetwork || triggeringAnalysis) return;
-                                setTriggeringAnalysis(true);
-                                try {
-                                    const res = await api.get(`/alerts/engagers/${encodeURIComponent(sourceHandleForRetweetNetwork)}`, {
-                                        params: { period_days: 30, store: 'catalog' },
-                                    });
-                                    toast.success(`Found ${res.data?.unique_retweeters || 0} engagers for @${sourceHandleForRetweetNetwork}`, {
-                                        description: 'Open Frequent Engagers for the full list',
-                                    });
-                                } catch (err) {
-                                    toast.error(err?.response?.data?.message || 'Failed to load engagers');
-                                } finally {
-                                    setTriggeringAnalysis(false);
-                                }
+                                if (!canOpenRetweetNetwork) return;
+                                setShowRetweetNetworkDialog(true);
                             }}
-                            disabled={!canOpenRetweetNetwork || triggeringAnalysis}
-                            className={`p-2 rounded-md transition-colors z-20 relative ${canOpenRetweetNetwork && !triggeringAnalysis ? 'hover:bg-accent text-muted-foreground hover:text-accent-foreground' : 'text-muted-foreground/40 cursor-not-allowed'}`}
-                            title={canOpenRetweetNetwork ? 'Analyze Frequent Engagers' : 'Only available for X (Twitter)'}
+                            disabled={!canOpenRetweetNetwork}
+                            className={`p-2 rounded-md transition-colors z-20 relative ${canOpenRetweetNetwork ? 'hover:bg-accent text-muted-foreground hover:text-accent-foreground' : 'text-muted-foreground/40 cursor-not-allowed'}`}
+                            title={canOpenRetweetNetwork ? 'Frequent Engagers' : 'Only available for X (Twitter)'}
                         >
-                            {triggeringAnalysis ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+                            <Users className="h-4 w-4" />
                             {!canOpenRetweetNetwork && <span className="absolute inset-0 flex items-center justify-center"><span className="block w-5 h-[1.5px] bg-muted-foreground/50 rotate-[-45deg] rounded-full" /></span>}
                         </button>
                         )}
@@ -4664,6 +4663,16 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                     isOpen={isShareModalOpen}
                     onClose={() => setIsShareModalOpen(false)}
                     initialText={shareText}
+                />
+                <RetweetNetworkDialog
+                    open={showRetweetNetworkDialog}
+                    onOpenChange={setShowRetweetNetworkDialog}
+                    sourceId={sourceIdForRetweetNetwork}
+                    sourceHandle={sourceHandleForRetweetNetwork}
+                    sourceName={source?.name || alert?.author || sourceHandleForRetweetNetwork}
+                    contentId={content?.external_id || alert?.external_id || content?.id || null}
+                    onAddSource={onAddSource}
+                    monitoredHandles={monitoredHandles}
                 />
             </div>
         </>
