@@ -83,7 +83,57 @@ const formatWhen = (value) => {
   }
 };
 
-/** Master–detail browse of formal G/S/C/Q reports (GET /api/reports). */
+const CATALOG_SOURCES = [
+  { key: 'alerts', url: '/reports', tab: 'alerts', label: 'Open in Alerts' },
+  { key: 'grievance', url: '/grievance-workflow/reports', tab: 'grievance', label: 'Manage in Grievances' },
+  { key: 'suggestion', url: '/suggestion/reports', tab: 'suggestion', label: 'Open Suggestions' },
+  { key: 'criticism', url: '/criticism/reports', tab: 'criticism', label: 'Open Criticism' },
+  { key: 'query', url: '/query-workflow/reports', tab: 'query', label: 'Open Queries' },
+];
+
+/** Normalize alert notice or G/S/C/Q row into one catalog shape. */
+const toCatalogReport = (row, sourceKey) => {
+  if (!row) return null;
+  const posted = row.posted_by || {};
+  const target = row.target_user_details || {
+    name: posted.display_name || posted.name || row.profile_id || 'Unknown',
+    handle: posted.handle || row.profile_id || '',
+    profile_url: row.profile_link || posted.profile_url || '',
+    avatar_url: posted.profile_image_url || posted.avatar_url || '',
+  };
+  const reportType =
+    sourceKey === 'alerts'
+      ? row.report_type || 'alert_notice'
+      : row.report_type || sourceKey;
+  const status = String(row.status || 'pending').toLowerCase();
+  const id = String(row.id || row.unique_code || `${sourceKey}-${row.serial_number || Math.random()}`);
+  return {
+    ...row,
+    id: `${sourceKey}:${id}`,
+    source_key: sourceKey,
+    serial_number: row.serial_number || row.unique_code || null,
+    unique_code: row.unique_code || row.serial_number || null,
+    report_type: reportType,
+    platform: row.platform || '—',
+    status,
+    target_user_details: target,
+    content_summary: row.content_summary || row.post_description || row.message || '',
+    generated_at: row.generated_at || row.created_at || row.shared_at || null,
+    report_pdf_url: row.report_pdf_url || null,
+    alert_id: row.alert_id || null,
+  };
+};
+
+const extractReportList = (data) => {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data.items)) return data.items;
+  if (Array.isArray(data.reports)) return data.reports;
+  if (Array.isArray(data.data)) return data.data;
+  return [];
+};
+
+/** Master–detail browse of all formal reports (alerts + G / S / C / Q). */
 const FormalReportsCatalog = () => {
   const [searchParams] = useSearchParams();
   const [reports, setReports] = useState([]);
@@ -99,18 +149,40 @@ const FormalReportsCatalog = () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const response = await api.get('/reports');
-      setReports(Array.isArray(response.data) ? response.data : response.data?.data || []);
+      const results = await Promise.allSettled(
+        CATALOG_SOURCES.map((src) =>
+          api.get(src.url, { params: { page: 1, limit: 500 } })
+        )
+      );
+      const merged = [];
+      let failed = 0;
+      results.forEach((result, idx) => {
+        const src = CATALOG_SOURCES[idx];
+        if (result.status !== 'fulfilled') {
+          failed += 1;
+          return;
+        }
+        extractReportList(result.value?.data).forEach((row) => {
+          const normalized = toCatalogReport(row, src.key);
+          if (normalized) merged.push(normalized);
+        });
+      });
+      merged.sort((a, b) => {
+        const ta = a.generated_at ? new Date(a.generated_at).getTime() : 0;
+        const tb = b.generated_at ? new Date(b.generated_at).getTime() : 0;
+        return tb - ta;
+      });
+      setReports(merged);
+      if (failed === CATALOG_SOURCES.length) {
+        setLoadError('Could not reach the reports APIs');
+        toast.error('Failed to load reports');
+      } else if (failed > 0) {
+        toast.error(`Some report sources failed (${failed})`);
+      }
     } catch (error) {
-      console.error('Failed to fetch reports:', error);
+      console.error('Failed to fetch catalog reports:', error);
       setReports([]);
-      const msg =
-        error.response?.data?.error ||
-        error.response?.data?.message ||
-        (error.response?.status
-          ? `Server error (${error.response.status})`
-          : 'Could not reach the reports API');
-      setLoadError(msg);
+      setLoadError(error.message || 'Could not reach the reports API');
       toast.error('Failed to load reports');
     } finally {
       setLoading(false);
@@ -335,11 +407,16 @@ const FormalReportsCatalog = () => {
           <FileText className="h-9 w-9 text-muted-foreground" />
           <p className="text-sm font-medium">No formal reports yet</p>
           <p className="max-w-sm text-xs text-muted-foreground">
-            Open an escalated alert and click Generate Report. The notice is saved here when that page opens.
+            Generate an alert notice, or create G / S / C / Q reports from Grievances — they all appear here.
           </p>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/alerts?status=escalated">Open Escalated Alerts</Link>
-          </Button>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link to="/alerts?status=escalated">Open Escalated Alerts</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/grievances">Open Grievances</Link>
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="grid min-h-0 flex-1 grid-cols-1 divide-y divide-border lg:grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] lg:divide-x lg:divide-y-0">
@@ -407,12 +484,25 @@ const FormalReportsCatalog = () => {
                         </a>
                       </Button>
                     ) : null}
-                    <Button asChild variant="outline" size="sm" className="h-7 gap-1">
-                      <Link to="/grievances?status=reports">
-                        <ExternalLink className="h-3 w-3" />
-                        Manage in Grievances
-                      </Link>
-                    </Button>
+                    {(() => {
+                      const src = CATALOG_SOURCES.find((s) => s.key === selected.source_key);
+                      const href =
+                        selected.source_key === 'alerts' && selected.alert_id
+                          ? `/reports/generate/${selected.alert_id}`
+                          : `/reports?tab=${src?.tab || 'catalog'}`;
+                      const label =
+                        selected.source_key === 'alerts'
+                          ? 'Open notice'
+                          : src?.label || 'Open module';
+                      return (
+                        <Button asChild variant="outline" size="sm" className="h-7 gap-1">
+                          <Link to={href}>
+                            <ExternalLink className="h-3 w-3" />
+                            {label}
+                          </Link>
+                        </Button>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -509,15 +599,12 @@ const Reports = () => {
       const data = results[4].value?.data || {};
       next.query = parseCount(data?.pagination?.total ?? data?.stats?.total);
     }
-    if (results[5].status === 'fulfilled') {
-      const data = results[5].value?.data;
-      if (data?.pagination?.total != null) {
-        next.catalog = parseCount(data.pagination.total);
-      } else {
-        const list = Array.isArray(data) ? data : data?.items || data?.data || [];
-        next.catalog = list.length;
-      }
-    }
+    // All Formal = alerts + G + S + C + Q (not events)
+    const parts = [next.alerts, next.grievance, next.suggestion, next.criticism, next.query].filter(
+      (n) => n != null
+    );
+    next.catalog = parts.length ? parts.reduce((sum, n) => sum + n, 0) : null;
+
     if (results[6].status === 'fulfilled') {
       const data = results[6].value?.data;
       next.events = parseCount(Array.isArray(data) ? data.length : data?.total);
