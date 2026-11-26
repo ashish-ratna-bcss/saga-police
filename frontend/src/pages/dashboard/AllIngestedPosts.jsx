@@ -46,7 +46,8 @@ const toMediaList = (mediaUrls, platform) => {
       return {
         type: isVideo ? 'video' : 'photo',
         url: proxied,
-        preview: proxied,
+        // Never use an mp4/video URL as poster — that paints a black frame.
+        preview: isVideo ? '' : proxied,
         // Keep original for download / resolve fallbacks inside AlertCards.
         fallbackUrls: proxied !== url ? [url] : [],
         original_url: url,

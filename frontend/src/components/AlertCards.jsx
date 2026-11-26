@@ -242,14 +242,39 @@ const correctFilenameForContentType = (filename, contentType) => {
     return filename;
 };
 
+/** Prefer the real CDN URL when a media/stream proxy wrapper was passed. */
+const unwrapStreamProxyUrl = (url) => {
+    const raw = String(url || '').trim();
+    if (!raw) return '';
+    if (!/\/api\/media\/stream/i.test(raw)) return raw;
+    try {
+        const parsed = new URL(raw, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+        const inner = parsed.searchParams.get('url');
+        return inner ? decodeURIComponent(inner) : raw;
+    } catch {
+        return raw;
+    }
+};
+
 const triggerBlobDownload = async (url, filename, expectedMediaType = null) => {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutMs = expectedMediaType === 'video' ? 90000 : 45000;
+    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
     try {
         let fetchUrl = String(url || '').trim();
         if (!fetchUrl) return false;
         if (fetchUrl.startsWith('/')) {
             fetchUrl = `${BACKEND_URL}${fetchUrl}`;
         }
-        const response = await fetch(fetchUrl, { credentials: 'include' });
+        // Route CDN hosts through our stream proxy so download isn't blocked by hotlink/CORS.
+        const unwrapped = unwrapStreamProxyUrl(fetchUrl);
+        const proxied = proxyMediaUrl(unwrapped) || unwrapped;
+        fetchUrl = proxied.startsWith('/') ? `${BACKEND_URL}${proxied}` : proxied;
+
+        const response = await fetch(fetchUrl, {
+            credentials: 'include',
+            signal: controller?.signal,
+        });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const blob = await response.blob();
         const ct = (blob.type || '').split(';')[0].trim().toLowerCase();
@@ -277,6 +302,8 @@ const triggerBlobDownload = async (url, filename, expectedMediaType = null) => {
     } catch (error) {
         console.error('Blob download failed:', error);
         return false;
+    } finally {
+        if (timer) clearTimeout(timer);
     }
 };
 
@@ -569,6 +596,19 @@ export const DownloadMenu = ({
 
 
 
+    const pickDownloadUrl = (item) => {
+        const candidates = [
+            item?.original_url,
+            ...(Array.isArray(item?.fallbackUrls) ? item.fallbackUrls : []),
+            item?.s3_url,
+            item?.url,
+            item?.preview,
+        ]
+            .map((u) => unwrapStreamProxyUrl(u))
+            .filter(Boolean);
+        return candidates[0] || '';
+    };
+
     const handleDownloadImages = async (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -587,7 +627,7 @@ export const DownloadMenu = ({
 
             // Prepare image URLs with twitter high quality
             const imageUrls = imageItems.map(m => {
-                let url = m.s3_url || m.url || m.preview;
+                let url = pickDownloadUrl(m);
                 // For Twitter images, get highest quality (only for non-S3 URLs)
                 if (url && !url.includes('amazonaws.com') && url.includes('pbs.twimg.com') && !url.includes('name=')) {
                     url = `${url}${url.includes('?') ? '&' : '?'}name=orig`;
@@ -636,7 +676,7 @@ export const DownloadMenu = ({
 
                     // console.log(`Triggering download for ${filename} from ${downloadUrl}`);
 
-                    const result = await triggerBlobDownload(downloadUrl, filename);
+                    const result = await triggerBlobDownload(downloadUrl, filename, 'image');
                     if (!result) console.error(`Failed to download ${filename}`);
                     // Small delay between downloads to prevent browser blocking
                     if (i < response.data.items.length - 1) {
@@ -664,14 +704,19 @@ export const DownloadMenu = ({
             // Filter video items
             const videoItems = validItems.filter((m) => isVideoMediaItem(m));
 
-            // Strategy 1: Try direct download from CDN/S3 video URLs only (not page URLs).
+            // Strategy 1: Try download via stream proxy from real CDN video URLs (not page URLs).
             const directVideoUrls = videoItems
-                .map(v => {
-                    const candidates = [v.s3_url, v.url, ...(v.fallbackUrls || [])].filter(Boolean);
-                    return candidates.find(u => isLikelyVideoUrl(u) || VIDEO_URL_RE.test(u)) || null;
+                .map((v) => {
+                    const candidates = [
+                        v.original_url,
+                        ...(Array.isArray(v.fallbackUrls) ? v.fallbackUrls : []),
+                        v.s3_url,
+                        unwrapStreamProxyUrl(v.url),
+                    ].filter(Boolean);
+                    return candidates.find((u) => isLikelyVideoUrl(u) || VIDEO_URL_RE.test(u)) || null;
                 })
                 .filter(Boolean)
-                .filter(u => !isLikelyYouTubeUrl(u) && !isDownloadableSocialLink(u));
+                .filter((u) => !isLikelyYouTubeUrl(u) && !isDownloadableSocialLink(u));
 
             if (directVideoUrls.length > 0) {
                 let allSucceeded = true;
@@ -696,8 +741,10 @@ export const DownloadMenu = ({
 
             // Strategy 2: Fall back to backend download-video API (CDN fetch or yt-dlp)
             const response = await api.post('/media/download-video', {
-                media_url: mediaUrl || videoItems[0]?.s3_url || videoItems[0]?.url,
-                video_urls: videoItems.flatMap(v => [v.s3_url, v.url, ...(v.fallbackUrls || [])]).filter(Boolean),
+                media_url: unwrapStreamProxyUrl(mediaUrl) || pickDownloadUrl(videoItems[0]) || videoItems[0]?.url,
+                video_urls: videoItems
+                    .flatMap((v) => [v.original_url, ...(v.fallbackUrls || []), v.s3_url, unwrapStreamProxyUrl(v.url)])
+                    .filter(Boolean),
                 content_id: contentId
             });
 
@@ -1860,12 +1907,17 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
         );
     }
 
+    const posterSrc = posterFailed ? '' : (allPosterUrls[posterSourceIndex] || '');
+    // Never use a video file URL as <img>/poster — browsers render a black frame.
+    const safePoster =
+        posterSrc && !isLikelyVideoUrl(posterSrc) && !VIDEO_URL_RE.test(posterSrc) ? posterSrc : '';
+
     return (
         <div className="w-full h-full relative flex items-center justify-center bg-black group/video" onClick={(e) => e.stopPropagation()}>
             <video
                 ref={videoRef}
-                poster={posterFailed ? '' : (allPosterUrls[posterSourceIndex] || preview || '')}
-                controls
+                poster={safePoster}
+                controls={hasLoadedMedia}
                 autoPlay={false}
                 loop={Boolean(autoPlay) && hasLoadedMedia}
                 muted
@@ -1901,25 +1953,51 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
                 }}
                 onClick={(e) => e.stopPropagation()}
             />
+            {!hasLoadedMedia && safePoster ? (
+                <img
+                    src={safePoster}
+                    alt=""
+                    className="pointer-events-none absolute inset-0 z-[1] h-full w-full object-contain"
+                    onError={handlePosterError}
+                />
+            ) : null}
             {isResolvingMedia && !hasLoadedMedia && (
                 <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-1 bg-black/30">
                     <Loader2 className="h-5 w-5 animate-spin text-white/90" />
                     <span className="text-[10px] text-white/80">Preparing video…</span>
                 </div>
             )}
-            <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover/video:opacity-100">
+            {!hasLoadedMedia && !isResolvingMedia && (
                 <button
                     type="button"
                     onClick={(e) => {
                         e.stopPropagation();
                         togglePlayback();
                     }}
-                    className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm"
-                    title={isPlaying ? 'Pause' : 'Play'}
+                    className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-black/25 text-white"
+                    title="Play video"
                 >
-                    {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-current" />}
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm">
+                        <Play className="h-5 w-5 fill-current" />
+                    </span>
+                    <span className="text-[11px] font-medium text-white/90">Play video</span>
                 </button>
-            </div>
+            )}
+            {hasLoadedMedia ? (
+                <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover/video:opacity-100">
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            togglePlayback();
+                        }}
+                        className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm"
+                        title={isPlaying ? 'Pause' : 'Play'}
+                    >
+                        {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-current" />}
+                    </button>
+                </div>
+            ) : null}
         </div>
     );
 };
