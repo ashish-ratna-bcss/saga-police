@@ -69,6 +69,41 @@ const pickFacebookMediaUrl = (post) => {
   return null;
 };
 
+const richText = (value) => {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object') {
+    return value.text || value.message || value.body || null;
+  }
+  return null;
+};
+
+const hasFacebookVideo = (post) =>
+  Boolean(
+    post?.video_files?.video_sd_file ||
+      post?.video_files?.video_hd_file ||
+      post?.video_thumbnail ||
+      (typeof post?.video === 'string' && /video/i.test(post.video))
+  );
+
+const hasFacebookPhoto = (post) =>
+  Boolean(
+    post?.image?.uri ||
+      post?.photo_url ||
+      (Array.isArray(post?.album_preview) && post.album_preview.length > 0) ||
+      (Number(post?.images_count) > 0)
+  );
+
+/**
+ * Label for caption-less posts so the UI is not stuck on
+ * "[Facebook post without text]" for normal photo/video shares.
+ */
+const describeFacebookPostFallback = (post) => {
+  if (hasFacebookVideo(post) || hasFacebookVideo(post?.attached_post)) return '[Facebook video]';
+  if (hasFacebookPhoto(post) || hasFacebookPhoto(post?.attached_post)) return '[Facebook photo]';
+  if (post?.attached_post || post?.attached_post_url) return '[Facebook shared post]';
+  return '[Facebook post]';
+};
+
 /**
  * Caption for a PAGE_POSTS item. Blugate leaves `message` null on many shares /
  * reshare wrappers; the real caption lives on `attached_post.message` (and
@@ -77,11 +112,11 @@ const pickFacebookMediaUrl = (post) => {
 const pickFacebookText = (post) => {
   const candidates = [
     post?.message,
-    typeof post?.message_rich === 'string' ? post.message_rich : null,
+    richText(post?.message_rich),
     post?.description,
     post?.text,
     post?.attached_post?.message,
-    typeof post?.attached_post?.message_rich === 'string' ? post.attached_post.message_rich : null,
+    richText(post?.attached_post?.message_rich),
     post?.attached_post?.description,
     post?.attached_post?.text,
     post?.author_title,
@@ -92,6 +127,9 @@ const pickFacebookText = (post) => {
   }
   return null;
 };
+
+/** Caption when present, otherwise a media-aware short label. */
+const resolveFacebookText = (post) => pickFacebookText(post) || describeFacebookPostFallback(post);
 
 /** Comment body from POST_COMMENTS — sticker/GIF rows often leave `message` empty. */
 const pickFacebookCommentText = (comment) => {
@@ -122,7 +160,7 @@ const mapFacebookPost = (post, accountId) => {
     platform: 'facebook',
     external_id: String(post.post_id),
     url: post.url || null,
-    text: pickFacebookText(post),
+    text: resolveFacebookText(post),
     author_name: post.author?.name || null,
     author_handle: post.author?.url || null,
     media_type: post.type || 'post',
@@ -180,5 +218,7 @@ module.exports = {
   pickFacebookText,
   pickFacebookCommentText,
   pickFacebookMediaUrl,
+  describeFacebookPostFallback,
+  resolveFacebookText,
   resolvePageId,
 };

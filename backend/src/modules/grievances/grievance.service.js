@@ -3,8 +3,10 @@ const logger = require('../../lib/logger');
 const { searchMentions } = require('./grievance.mentions');
 const {
   fetchFacebookPosts,
-  pickFacebookText,
   pickFacebookCommentText,
+  pickFacebookMediaUrl,
+  resolveFacebookText,
+  describeFacebookPostFallback,
 } = require('../../services/monitoringsocialmedia/facebook/fetch');
 const {
   fetchInstagramPosts,
@@ -30,7 +32,9 @@ const asObject = (value, fallback = {}) => {
   return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback;
 };
 
-const isPlaceholderText = (value) => /without text\s*\]?\s*$/i.test(String(value || '').trim());
+const isPlaceholderText = (value) =>
+  /^\[(Facebook|Instagram|Telegram)\b/i.test(String(value || '').trim()) ||
+  /without text\s*\]?\s*$/i.test(String(value || '').trim());
 
 const pickInstagramCommentText = (comment) => {
   const candidates = [
@@ -300,12 +304,22 @@ const createGrievanceIfNew = async ({
   if (existing) {
     // Re-scans used to skip forever, so share-caption / field-fallback fixes
     // never repaired rows stuck on "[… without text]".
-    if (resolvedText && !isPlaceholderText(resolvedText) && isPlaceholderText(existing.text)) {
+    const canUpgradePlaceholder =
+      resolvedText &&
+      isPlaceholderText(existing.text) &&
+      resolvedText !== existing.text &&
+      (!isPlaceholderText(resolvedText) || /without text/i.test(String(existing.text || '')));
+    if (canUpgradePlaceholder) {
       await prisma.social_media_grievances.update({
         where: { id: existing.id },
         data: {
           text: resolvedText,
-          content: { ...asObject(existing.content), text: resolvedText, full_text: resolvedText },
+          content: {
+            ...asObject(existing.content),
+            ...asObject(content),
+            text: resolvedText,
+            full_text: resolvedText,
+          },
           engagement: engagement && Object.keys(engagement).length ? engagement : existing.engagement,
         },
       });
@@ -445,8 +459,12 @@ const fetchCatalogFacebookGrievances = async (account, startDate, endDate, { db 
     const canonicalPostId = `facebook:post:${postId}`;
     const postUrl = post.url || `https://facebook.com/${postId}`;
     const raw = post.raw_data && typeof post.raw_data === 'object' ? post.raw_data : {};
-    const postText =
-      String(post.text || pickFacebookText(raw) || '').trim() || '[Facebook post without text]';
+    const mediaUrl = (Array.isArray(post.media_urls) && post.media_urls[0]) || pickFacebookMediaUrl(raw);
+    const postText = String(
+      (post.text && !isPlaceholderText(post.text) ? post.text : null) ||
+        resolveFacebookText(raw) ||
+        describeFacebookPostFallback(raw)
+    ).trim();
     const postAuthorName = post.author_name || displayName;
     const postAuthorHandle = post.author_handle || taggedHandle;
 
@@ -462,7 +480,11 @@ const fetchCatalogFacebookGrievances = async (account, startDate, endDate, { db 
         is_verified: false,
         follower_count: 0,
       },
-      content: { text: postText, full_text: postText, media: [] },
+      content: {
+        text: postText,
+        full_text: postText,
+        media: mediaUrl ? [{ type: 'image', url: mediaUrl }] : [],
+      },
       engagement: {
         likes: post.engagement?.reactions || 0,
         replies: post.engagement?.comments || 0,
