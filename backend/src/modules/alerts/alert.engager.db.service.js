@@ -67,6 +67,107 @@ const facebookSlug = (url) => {
   return slug;
 };
 
+const FB_COUNT_SQL = `
+SELECT p.account_id::int AS account_id,
+       count(DISTINCT c->'author'->>'id')::int AS n
+FROM social_media_posts p
+CROSS JOIN LATERAL jsonb_array_elements(
+  CASE WHEN jsonb_typeof(p.raw_data->'top_comments') = 'array'
+       THEN p.raw_data->'top_comments' ELSE '[]'::jsonb END
+) c
+WHERE p.platform = 'facebook'
+  AND p.account_id = ANY($1::text[]::int[])
+  AND p.posted_at >= $2::timestamptz
+  AND c->'author'->>'id' IS NOT NULL
+  AND c->'author'->>'id' IS DISTINCT FROM p.raw_data#>>'{author,id}'
+GROUP BY p.account_id
+`;
+
+const IG_COUNT_SQL = `
+SELECT p.account_id::int AS account_id,
+       count(DISTINCT lower(l))::int AS n
+FROM social_media_posts p
+CROSS JOIN LATERAL jsonb_array_elements_text(
+  CASE WHEN jsonb_typeof(p.raw_data->'top_likers') = 'array'
+       THEN p.raw_data->'top_likers' ELSE '[]'::jsonb END
+) l
+WHERE p.platform = 'instagram'
+  AND p.account_id = ANY($1::text[]::int[])
+  AND p.posted_at >= $2::timestamptz
+GROUP BY p.account_id
+`;
+
+/** Attach unique_retweeters for the list view (30d, same window as detail default). */
+const attachEngagerCounts = async (prisma, profiles, days = 30) => {
+  if (!profiles.length) return;
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+  const allXHandles = [];
+  const xHandlesByProfile = new Map();
+  const fbIds = [];
+  const igIds = [];
+  const fbAccountsByProfile = new Map();
+  const igAccountsByProfile = new Map();
+
+  for (const p of profiles) {
+    const xSet = new Set();
+    const fb = [];
+    const ig = [];
+    for (const pl of p.platforms || []) {
+      const slug = pl.platform;
+      if (slug === 'x' || slug === 'twitter') {
+        const h = normalizeHandle(pl.handle);
+        if (h) {
+          xSet.add(h);
+          allXHandles.push(h);
+        }
+      } else if (slug === 'facebook' && pl.account_id != null) {
+        fb.push(Number(pl.account_id));
+        fbIds.push(String(pl.account_id));
+      } else if (slug === 'instagram' && pl.account_id != null) {
+        ig.push(Number(pl.account_id));
+        igIds.push(String(pl.account_id));
+      }
+    }
+    xHandlesByProfile.set(p.profile_id, xSet);
+    fbAccountsByProfile.set(p.profile_id, fb);
+    igAccountsByProfile.set(p.profile_id, ig);
+    p.unique_retweeters = 0;
+  }
+
+  const handles = [...new Set(allXHandles)].sort();
+  const [xRows, fbRows, igRows] = await Promise.all([
+    handles.length ? loadXRelations(prisma, days, handles).catch(() => []) : [],
+    fbIds.length
+      ? prisma.$queryRawUnsafe(FB_COUNT_SQL, [...new Set(fbIds)], since).catch(() => [])
+      : [],
+    igIds.length
+      ? prisma.$queryRawUnsafe(IG_COUNT_SQL, [...new Set(igIds)], since).catch(() => [])
+      : [],
+  ]);
+
+  const xByTarget = new Map();
+  for (const r of xRows || []) {
+    if (!r?.t || !r?.eh) continue;
+    if (!xByTarget.has(r.t)) xByTarget.set(r.t, new Set());
+    xByTarget.get(r.t).add(r.eh);
+  }
+  const fbByAccount = new Map((fbRows || []).map((r) => [Number(r.account_id), Number(r.n) || 0]));
+  const igByAccount = new Map((igRows || []).map((r) => [Number(r.account_id), Number(r.n) || 0]));
+
+  for (const p of profiles) {
+    const keys = new Set();
+    for (const h of xHandlesByProfile.get(p.profile_id) || []) {
+      for (const eh of xByTarget.get(h) || []) keys.add(`x:${eh}`);
+    }
+    let fbN = 0;
+    for (const id of fbAccountsByProfile.get(p.profile_id) || []) fbN += fbByAccount.get(id) || 0;
+    let igN = 0;
+    for (const id of igAccountsByProfile.get(p.profile_id) || []) igN += igByAccount.get(id) || 0;
+    // FB/IG ids are opaque here — add counts (same person rarely overlaps X handle keys).
+    p.unique_retweeters = keys.size + fbN + igN;
+  }
+};
+
 /** Profiles that have at least one stored post. */
 const listProfiles = async ({ db } = {}) => {
   const prisma = dbOf(db);
@@ -97,6 +198,7 @@ const listProfiles = async ({ db } = {}) => {
         avatar: pickAvatar(a.preview_data),
         platforms: [],
         tweets_analyzed: 0,
+        unique_retweeters: 0,
         engagers: [],
         live: false,
       });
@@ -104,13 +206,24 @@ const listProfiles = async ({ db } = {}) => {
     const row = byProfile.get(a.profile.id);
     if (!row.avatar) row.avatar = pickAvatar(a.preview_data);
     row._handles.push(a.handle);
-    row.platforms.push({ platform: a.platforms?.slug, handle: a.handle, posts: a._count.posts });
+    row.platforms.push({
+      platform: a.platforms?.slug,
+      handle: a.handle,
+      posts: a._count.posts,
+      account_id: a.id,
+    });
     row.tweets_analyzed += a._count.posts;
   }
-  return [...byProfile.values()].map(({ _handles, ...row }) => ({
+  const profiles = [...byProfile.values()].map(({ _handles, ...row }) => ({
     ...row,
     handle: displayHandle(_handles),
   }));
+  try {
+    await attachEngagerCounts(prisma, profiles, 30);
+  } catch (_) {
+    /* counts are best-effort for the list */
+  }
+  return profiles;
 };
 
 const X_SCREEN = (base) =>

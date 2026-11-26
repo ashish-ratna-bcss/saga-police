@@ -3099,6 +3099,8 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
 
                                                             <p className="text-[11px] text-muted-foreground mt-1">
                                                                 {a.tweets_analyzed || 0} saved posts
+                                                                <span className="text-border mx-1">·</span>
+                                                                {a.unique_retweeters || 0} engager{(a.unique_retweeters || 0) === 1 ? '' : 's'}
                                                             </p>
 
                                                             {rowEngagers.length > 0 ? (
