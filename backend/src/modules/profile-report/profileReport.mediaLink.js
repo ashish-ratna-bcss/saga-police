@@ -1,9 +1,10 @@
 /**
  * Tools → Profile Report: showing a post's video.
  *
- * A platform's video links are signed and short-lived: an Instagram link carries its own expiry (`oe=`) a few hours after it was
- * collected, and after that the platform answers 403. So a link that played when the post was collected does not play a day later,
- * in a browser or anywhere else. The app therefore serves the video itself: it opens the stored link, and when the platform
+ * A platform's video links are signed and short-lived: an Instagram link carries its own expiry (`oe=`), a day or two after it was
+ * issued (two real links for one post expired 48 hours apart, both at 15:19:05 UTC), and after that the platform answers 403. So a
+ * link that played when the post was collected does not play a few days later, in a browser or anywhere else. Checked live: with an
+ * expired link the platform answered 403, the provider's MEDIA_BY_SHORTCODE gave a fresh link in under 3 seconds, and the full video came through. The app therefore serves the video itself: it opens the stored link, and when the platform
  * refuses it (403, 404, 410) it asks the data provider for a fresh link to the same post, keeps that link for next time, and passes
  * the video on. Only Instagram has a call for one post (MEDIA_BY_SHORTCODE); for other platforms a refused link stays refused.
  *

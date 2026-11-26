@@ -70,7 +70,7 @@ const PostVideo = ({ video, url, postId }) => {
 
   useEffect(() => () => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, [blobUrl]);
 
-  // A platform's video link is signed and lives for a few hours, after which the platform refuses it. When the browser cannot play
+  // A platform's video link is signed and lives for a day or two, after which the platform refuses it. When the browser cannot play
   // it, the server fetches the video instead (asking the data provider for a fresh link if it has to) and the card plays that.
   const loadFromServer = useCallback(async () => {
     if (!postId) { setFailed(true); return; }

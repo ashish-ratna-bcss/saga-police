@@ -23,6 +23,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const http = require('http');
 const { spawn, spawnSync } = require('child_process');
 const axios = require('axios');
 const logger = require('../../lib/logger');
@@ -58,9 +59,6 @@ const ffmpegPath = () => {
   found = { bin, at: Date.now() };
   return bin;
 };
-const available = () => Boolean(ffmpegPath());
-/** Frame analysis is on when it is not switched off, ffmpeg is there and the vision model is. */
-const enabled = () => process.env.PROFILE_REPORT_VIDEO_FRAME_ANALYSIS !== '0' && vision.enabled() && available();
 
 /** Run ffmpeg and collect what it prints (it prints a video's length on stderr). */
 const run = (bin, args, timeoutMs) => new Promise((resolve) => {
@@ -126,6 +124,126 @@ const downloadVideo = async (url, file) => {
   }
 };
 
+/* ------------------------------------------------------------------------------- how frames are cut ------- */
+
+/**
+ * Two ways to cut frames out of a downloaded video, behind one interface: a session { duration, grab(seconds) -> base64 JPEG | null, close() }.
+ *   ffmpeg  the ffmpeg program, when it is installed (FFMPEG_PATH, the optional ffmpeg-static package, or the PATH);
+ *   chrome  the headless Chrome that Puppeteer already provides for the PDF reports. It decodes H.264, so a server with no ffmpeg can still
+ *           cut frames: checked on the live server, Chrome 143 turned the real video into six sharp frames in under three seconds,
+ *           the rifle plainly visible in the three from its second half. Nothing has to be installed.
+ * PROFILE_REPORT_VIDEO_FRAME_ENGINE = ffmpeg | chrome | auto (default: ffmpeg when there is one, else chrome).
+ */
+const ffmpegEngine = {
+  name: 'ffmpeg',
+  available: () => Boolean(ffmpegPath()),
+  open: async (file, { dir, durationHint }) => {
+    const bin = ffmpegPath();
+    const duration = Number(durationHint) > 0 ? Number(durationHint) : await probeDuration(bin, file);
+    let n = 0;
+    return {
+      duration,
+      grab: async (seconds) => {
+        const jpg = path.join(dir, `g${n++}.jpg`);
+        if (!(await grabFrame(bin, file, seconds, jpg))) return null;
+        const b64 = (await fs.promises.readFile(jpg)).toString('base64');
+        await fs.promises.unlink(jpg).catch(() => {});
+        return b64;
+      },
+      close: async () => {},
+    };
+  },
+};
+
+let chromeFound;   // { ok, at }, looked up again every 10 minutes
+const chromeAvailable = () => {
+  if (chromeFound && Date.now() - chromeFound.at < 10 * 60 * 1000) return chromeFound.ok;
+  let ok = false;
+  try {
+    const exe = require('puppeteer').executablePath();   // eslint-disable-line global-require
+    ok = Boolean(exe) && fs.existsSync(exe);
+  } catch (e) { ok = false; }
+  chromeFound = { ok, at: Date.now() };
+  return ok;
+};
+
+/** A frame under this many bytes is blank (a black frame): not worth describing. */
+const BLANK_BYTES = 2500;
+const chromeEngine = {
+  name: 'chrome',
+  available: chromeAvailable,
+  open: async (file) => {
+    const puppeteer = require('puppeteer');   // eslint-disable-line global-require
+    const size = fs.statSync(file).size;
+    // a page and the file on a tiny local server (same origin, so the picture can be read back; with Range, as a browser asks for video)
+    const server = http.createServer((req, res) => {
+      if (req.url === '/') { res.writeHead(200, { 'Content-Type': 'text/html' }); res.end('<!doctype html><meta charset="utf-8"><video id="v" muted playsinline preload="auto" src="/v.mp4"></video>'); return; }
+      const range = /bytes=(\d+)-(\d*)/.exec(req.headers.range || '');
+      if (range) {
+        const start = Number(range[1]);
+        const end = range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+        res.writeHead(206, { 'Content-Type': 'video/mp4', 'Content-Range': `bytes ${start}-${end}/${size}`, 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1 });
+        fs.createReadStream(file, { start, end }).pipe(res);
+      } else {
+        res.writeHead(200, { 'Content-Type': 'video/mp4', 'Content-Length': size, 'Accept-Ranges': 'bytes' });
+        fs.createReadStream(file).pipe(res);
+      }
+    });
+    await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+    let browser = null;
+    const close = async () => {
+      try { if (browser) await Promise.race([browser.close(), sleep(5000)]); } catch (e) { /* closing anyway */ }
+      try { if (browser && browser.process()) browser.process().kill('SIGKILL'); } catch (e) { /* already gone */ }
+      server.close();
+    };
+    try {
+      browser = await puppeteer.launch({ headless: true, timeout: 30000, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--mute-audio', '--autoplay-policy=no-user-gesture-required'] });
+      const page = await browser.newPage();
+      await page.goto(`http://127.0.0.1:${server.address().port}/`, { timeout: 20000 });
+      const meta = await page.evaluate(() => new Promise((resolve) => {
+        const v = document.getElementById('v');
+        const done = () => resolve({ ok: v.videoWidth > 0 && Number.isFinite(v.duration), duration: v.duration });
+        if (v.readyState >= 1) done(); else { v.addEventListener('loadedmetadata', done); v.addEventListener('error', done); setTimeout(done, 15000); }
+      }));
+      if (!meta.ok) throw Object.assign(new Error('This video cannot be decoded here'), { undecodable: true });
+      return {
+        duration: meta.duration,
+        grab: async (seconds) => {
+          const url = await page.evaluate(async (t, maxWidth) => {
+            const v = document.getElementById('v');
+            const at = Math.min(Math.max(0, t), Math.max(0, v.duration - 0.05));
+            if (Math.abs(v.currentTime - at) > 0.01) {
+              await new Promise((resolve) => { const h = () => { v.removeEventListener('seeked', h); resolve(); }; v.addEventListener('seeked', h); v.currentTime = at; setTimeout(resolve, 8000); });
+            }
+            await new Promise((resolve) => setTimeout(resolve, 40));   // let the frame be painted
+            const scale = Math.min(1, maxWidth / v.videoWidth);
+            const c = document.createElement('canvas');
+            c.width = Math.round(v.videoWidth * scale);
+            c.height = Math.round(v.videoHeight * scale);
+            c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+            return c.toDataURL('image/jpeg', 0.85);
+          }, seconds, 640);
+          const b64 = String(url || '').split(',')[1] || '';
+          return Buffer.from(b64, 'base64').length >= BLANK_BYTES ? b64 : null;
+        },
+        close,
+      };
+    } catch (err) {
+      await close();
+      throw err;
+    }
+  },
+};
+
+const pickEngine = () => {
+  const want = String(process.env.PROFILE_REPORT_VIDEO_FRAME_ENGINE || 'auto').toLowerCase();
+  const order = want === 'ffmpeg' ? [ffmpegEngine] : want === 'chrome' ? [chromeEngine] : [ffmpegEngine, chromeEngine];
+  return order.find((e) => e.available()) || null;
+};
+const available = () => Boolean(pickEngine());
+/** Frame analysis is on when it is not switched off, the vision model is, and there is a way to cut frames (ffmpeg or the headless Chrome). */
+const enabled = () => process.env.PROFILE_REPORT_VIDEO_FRAME_ANALYSIS !== '0' && vision.enabled() && available();
+
 /* ------------------------------------------------------------------------- real footage, or animation? ------- */
 
 /**
@@ -178,6 +296,24 @@ const frameText = (f) => `${f.description || ''} ${(f.objects || []).join(' ')}`
 const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 48);
 const sentences = (text, n) => (String(text || '').match(/[^.!?]+[.!?]+(\s|$)/g) || [String(text || '')]).slice(0, n).join(' ').replace(/\s+/g, ' ').trim();
 const sentence = (s) => (s ? `${String(s).replace(/[.\s]+$/, '')}.` : '');
+/** Frames closer together than this are the same moment. */
+const MOMENT_GAP = 2.0;
+const SINGLE_MOMENT_OK = new Set(['weapon']);
+/** How many separate moments the frames are. Frames with no time count one each. */
+const momentsOf = (hit) => {
+  const ts = hit.map((f) => f.t).filter((t) => Number.isFinite(t)).sort((a, b) => a - b);
+  if (ts.length < hit.length) return hit.length;
+  let moments = ts.length ? 1 : 0;
+  for (let i = 1; i < ts.length; i += 1) if (ts[i] - ts[i - 1] > MOMENT_GAP) moments += 1;
+  return moments;
+};
+const clock = (seconds) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+/** When the frames that raised something were: "at 0:41" or "from 0:41 to 0:50"; '' when the frames carry no time. */
+const whenOf = (hit) => {
+  const ts = hit.map((f) => f.t).filter((t) => Number.isFinite(t)).sort((a, b) => a - b);
+  if (!ts.length) return '';
+  return clock(ts[0]) === clock(ts[ts.length - 1]) ? `at ${clock(ts[0])}` : `from ${clock(ts[0])} to ${clock(ts[ts.length - 1])}`;
+};
 
 /**
  * Many frame descriptions as one picture-shaped record.
@@ -190,7 +326,10 @@ const summarise = (frames, { total = null, lead = '', animated = false } = {}) =
   const raised = new Map();   // alert -> frames that raised it
   for (const f of frames) for (const a of f.alerts || []) { if (!raised.has(a)) raised.set(a, []); raised.get(a).push(f); }
 
-  // an alert needs two frames, or one frame that itself says what it is
+  // An alert needs two separate MOMENTS (frames more than 2 seconds apart; neighbouring frames see the same thing, so they are one
+  // sighting, not two). Only a weapon may stand on a single moment, and only when that frame itself names it: a rifle frame says "rifle".
+  // Anything about a person ("trapped", "hurt", blood, a child in danger) needs two moments, because that is what the model invents from a
+  // texture: a cream sack covering the frame was called "a person trapped under a white sheet" in every frame it was in view.
   const alerts = [];
   const support = new Map();
   for (const [name] of vision.ALERTS) {
@@ -198,10 +337,10 @@ const summarise = (frames, { total = null, lead = '', animated = false } = {}) =
     if (!hit) continue;
     const re = alertPattern(name);
     const naming = hit.filter((f) => re && re.test(frameText(f)));
-    if (hit.length >= 2 || naming.length >= 1) {
+    if (momentsOf(hit) >= 2 || (SINGLE_MOMENT_OK.has(name) && naming.length >= 1)) {
       alerts.push(name);
       // the frame that describes it best: one that names it, the longest of those
-      support.set(name, { frame: (naming.length ? naming : hit).slice().sort((a, b) => String(b.description || '').length - String(a.description || '').length)[0], count: hit.length });
+      support.set(name, { frame: (naming.length ? naming : hit).slice().sort((a, b) => String(b.description || '').length - String(a.description || '').length)[0], count: hit.length, hit });
     }
   }
 
@@ -226,17 +365,20 @@ const summarise = (frames, { total = null, lead = '', animated = false } = {}) =
   for (const f of frames) for (const x of f.flags || []) if (!flagShown.has(norm(x))) flagShown.set(norm(x), x);
   const flags = [...flagCount.entries()].filter(([, c]) => c >= 2).slice(0, 6).map(([x]) => flagShown.get(x));
 
+  // What was found comes first, with when it was seen, so the analyst reads it before the reader's general summary (which, on the real
+  // video, said "a person handling green leafy vegetables" and nothing about the rifle).
   const parts = [];
-  if (lead) parts.push(sentence(cut(flatten(lead).replace(/\s+/g, ' ').trim(), 480)));
   const flaggedAnimation = animated && alerts.length > 0;
   if (flaggedAnimation) {
     parts.push(`Animated or computer-generated footage, not a recording of real events (${alerts.join(', ')} seen in its frames is not counted).`);
   } else {
     for (const name of alerts.slice(0, 3)) {
       const s = support.get(name);
-      parts.push(`${name.charAt(0).toUpperCase()}${name.slice(1)} (seen in ${s.count} of ${n} frames): ${sentence(sentences(s.frame.description, 2))}`);
+      const when = whenOf(s.hit);
+      parts.push(`${name.charAt(0).toUpperCase()}${name.slice(1)} (seen ${when ? `${when}, ` : ''}in ${s.count} of ${n} frames): ${sentence(sentences(s.frame.description, 2))}`);
     }
   }
+  if (lead) parts.push(sentence(cut(flatten(lead).replace(/\s+/g, ' ').trim(), 480)));
   if (!parts.length && objects.length) parts.push(sentence(`Frames of the video show ${objects.slice(0, 5).join(', ')}`));
   const description = Array.from(parts.join(' ').replace(/\s+/g, ' ').trim()).slice(0, 900).join('');
 
@@ -268,13 +410,14 @@ const summarise = (frames, { total = null, lead = '', animated = false } = {}) =
  * @param {{ postId?: string, durationHint?: number|null, lead?: string }} opts
  * @returns {Promise<{ success: boolean, data?: object, described?: object[], total?: number, error?: string, nonRetryable?: boolean, unavailable?: boolean }>} same shape as the image reader's
  */
-const analyse = async (videoUrl, { postId = 'unknown', durationHint = null, lead = '' } = {}) => {
-  const bin = ffmpegPath();
-  if (!bin) return { success: false, error: 'No video tool is installed here', nonRetryable: true, unavailable: true };
+const analyse = async (videoUrl, { postId = 'unknown', durationHint = null, lead = '', deadline = null } = {}) => {
+  const engine = pickEngine();
+  if (!engine) return { success: false, error: 'No way to cut frames from a video is available here', nonRetryable: true, unavailable: true };
   if (!vision.enabled()) return { success: false, error: 'Picture descriptions are switched off', nonRetryable: true, unavailable: true };
   if (/\.m3u8/i.test(videoUrl)) return { success: false, error: 'A video stream is not read frame by frame', nonRetryable: true };
 
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'prv-'));
+  let session = null;
   try {
     const file = path.join(dir, 'video.mp4');
     try {
@@ -282,26 +425,41 @@ const analyse = async (videoUrl, { postId = 'unknown', durationHint = null, lead
     } catch (err) {
       return { success: false, error: String(err.message || 'Download failed').replace(/https?:\/\/\S+/g, '<link>').slice(0, 160), nonRetryable: Boolean(err.nonRetryable) };
     }
-    const duration = Number(durationHint) > 0 ? Number(durationHint) : await probeDuration(bin, file);
+    try {
+      session = await engine.open(file, { dir, durationHint });
+    } catch (err) {
+      // a file the engine cannot decode is a fact about this video; an engine that would not start (no browser, no memory) is not
+      if (err.undecodable) return { success: false, error: err.message, nonRetryable: true };
+      logger.warn(`[ProfileReport] video frames post=${postId}: the ${engine.name} engine could not open the video: ${String(err.message).slice(0, 120)}`);
+      return { success: false, error: `Frames could not be cut (${engine.name}): ${String(err.message).slice(0, 100)}`, nonRetryable: false };
+    }
+    const duration = Number(durationHint) > 0 ? Number(durationHint) : session.duration;
     const times = sampleTimes(duration, frameCount(duration));
     const described = [];
     let lastError = null;
     let transient = false;
-    for (let i = 0; i < times.length; i += 1) {
-      const jpg = path.join(dir, `f${i}.jpg`);
-      if (!(await grabFrame(bin, file, times[i], jpg))) { lastError = 'A frame could not be cut from the video'; continue; }
-      const b64 = (await fs.promises.readFile(jpg)).toString('base64');
-      await fs.promises.unlink(jpg).catch(() => {});
+    /** One frame: cut and described, with its time. Null when it could not be. */
+    const look = async (t) => {
+      const b64 = await session.grab(t);
+      if (!b64) { lastError = 'A frame could not be cut from the video'; return null; }
       let r = await vision.describeBase64(b64);
       if (!r.success && !r.nonRetryable) { await sleep(1500); r = await vision.describeBase64(b64); }   // the vision model is sometimes busy for a moment
-      if (r.success) described.push(r.data);
-      else { lastError = r.error; transient = !r.nonRetryable; }
+      if (r.success) return { ...r.data, t };
+      lastError = r.error;
+      transient = !r.nonRetryable;
+      return null;
+    };
+    for (const t of times) {
+      if (deadline && Date.now() > deadline) break;   // out of time: go on with the frames already described
+      const f = await look(t);
+      if (f) described.push(f);
     }
     const need = Math.max(3, Math.ceil(times.length / 2));
     if (described.length < need) {
       logger.warn(`[ProfileReport] video frames post=${postId}: ${described.length} of ${times.length} frames described (${String(lastError || '').slice(0, 100)})`);
       return { success: false, error: `Only ${described.length} of ${times.length} frames could be described${lastError ? `: ${String(lastError).slice(0, 100)}` : ''}`, nonRetryable: !transient };
     }
+    described.sort((a, b) => a.t - b.t);
     // Only when an alert is about to be kept: is this real footage, or an animation? (see askAnimated)
     let data = summarise(described, { total: times.length, lead });
     let animated = null;
@@ -314,8 +472,13 @@ const analyse = async (videoUrl, { postId = 'unknown', durationHint = null, lead
   } catch (err) {
     return { success: false, error: String(err.message || 'The video could not be read frame by frame').slice(0, 160), nonRetryable: false };
   } finally {
+    if (session) await session.close().catch(() => {});
     await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});   // gone before the caller continues
   }
 };
 
-module.exports = { available, enabled, ffmpegPath, analyse, summarise, sampleTimes, downloadVideo, probeDuration, grabFrame, frameCount, askAnimated, __test: { deps, reset: () => { found = undefined; } } };
+module.exports = {
+  available, enabled, pickEngine, ffmpegPath, analyse, summarise, sampleTimes, momentsOf, downloadVideo, probeDuration, grabFrame, frameCount, askAnimated,
+  engines: { ffmpeg: ffmpegEngine, chrome: chromeEngine },
+  __test: { deps, reset: () => { found = undefined; chromeFound = undefined; } },
+};

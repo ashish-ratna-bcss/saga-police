@@ -51,8 +51,12 @@ const limits = {
    * stays under STALE_PROCESSING_MINUTES, so a post still waiting on its video is never mistaken for one a dead process left behind.
    */
   videoBudgetMs: Math.max(30000, Math.min(200000, Number(process.env.PROFILE_REPORT_VIDEO_BUDGET_MS) || 180000)),
-  /** Downloading a clip, cutting up to 32 frames and describing each in turn takes one to two minutes (about 3.5 s a frame); this stops a hung step from holding a post. */
-  framesBudgetMs: Math.max(30000, Math.min(200000, Number(process.env.PROFILE_REPORT_VIDEO_FRAMES_BUDGET_MS) || 170000)),
+  /**
+   * Downloading a clip, cutting up to 32 frames and describing each in turn takes one to two minutes (3.5 to 4 s a frame). The pass
+   * stops describing 20 s before this, so a slow vision server still leaves a result; this only stops a hung step from holding a
+   * post. Under STALE_PROCESSING_MINUTES.
+   */
+  framesBudgetMs: Math.max(60000, Math.min(230000, Number(process.env.PROFILE_REPORT_VIDEO_FRAMES_BUDGET_MS) || 200000)),
   /** Posts that take longer than this are named in the log, with the step that was slow. */
   slowMs: 60000,
 };
@@ -189,7 +193,7 @@ const enrichMedia = async (prisma, post, dbName) => {
         needReader
           ? settle(withBudget(extractVideo(videoUrl, { postId: id, tenantKey: dbName, timeoutMs: limits.videoBudgetMs - 5000, maxAttempts: 1 }), limits.videoBudgetMs, 'The video reader'))
           : null,
-        needFrames ? settle(withBudget(frames.analyse(videoUrl, { postId: id }), limits.framesBudgetMs, 'Looking at the video frame by frame')) : null,
+        needFrames ? settle(withBudget(frames.analyse(videoUrl, { postId: id, deadline: Date.now() + limits.framesBudgetMs - 20000 }), limits.framesBudgetMs, 'Looking at the video frame by frame')) : null,
       ]);
     } finally {
       clearInterval(beat);

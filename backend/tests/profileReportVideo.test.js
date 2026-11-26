@@ -304,8 +304,8 @@ test('a video is read by the reader and looked at frame by frame at the same tim
   assert.deepStrictEqual(saved.visible_text, ['VOTE FOR CHANGE', 'Rally 10am']);
   assert.strictEqual(saved.picture.source, 'video');
   assert.deepStrictEqual(saved.picture.alerts, ['weapon']);
-  assert.match(saved.picture.description, /^The video begins with a wide shot of a snowy landscape\./, 'the reader\'s description leads');
-  assert.match(saved.picture.description, /Weapon \(seen in 4 of 24 frames\): A rifle is resting against a green bush\./);
+  assert.match(saved.picture.description, /^Weapon \(seen in 4 of 24 frames\): A rifle is resting against a green bush\./, 'what was found comes first');
+  assert.match(saved.picture.description, /The video begins with a wide shot of a snowy landscape\./, 'the reader\'s summary follows it');
   assert.deepStrictEqual(signalsOf({ picture: saved.picture })[0], 'weapon', 'it shows as "Seen in the video"');
   assert.ok(sceneOf(saved, 900).includes('rifle'), 'what the post list and the report show says rifle, not what the reader said alone');
   assert.ok(clip.isVideoReading(res.ocr));
@@ -408,7 +408,8 @@ test('a video the reader already read is not sent to the reader again, only look
   const saved = lastSaved();
   assert.strictEqual(saved.duration_seconds, 52.2);
   assert.deepStrictEqual(saved.visible_text, ['VOTE FOR CHANGE', 'Rally 10am']);
-  assert.match(saved.picture.description, /^The video begins with a wide shot of a snowy landscape\./);
+  assert.match(saved.picture.description, /^Weapon \(seen in 4 of 24 frames\)/);
+  assert.match(saved.picture.description, /The video begins with a wide shot of a snowy landscape\./, 'the reader\'s reading is still part of the description');
   assert.deepStrictEqual(saved.picture.alerts, ['weapon']);
   assert.ok(clip.isVideoReading(res.ocr));
 });

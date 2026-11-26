@@ -1,5 +1,5 @@
 /**
- * Profile Report: showing a post's video. The platform's link is short-lived (an Instagram link carries its own expiry a few hours after
+ * Profile Report: showing a post's video. The platform's link is short-lived (an Instagram link carries its own expiry a day or two after
  * collection, then answers 403), so the server opens the stored link and, when it is refused, gets a fresh one from the data provider.
  * The platform, the provider and the database are faked: nothing is called.
  */
