@@ -335,10 +335,10 @@ const FormalReportsCatalog = () => {
           <FileText className="h-9 w-9 text-muted-foreground" />
           <p className="text-sm font-medium">No formal reports yet</p>
           <p className="max-w-sm text-xs text-muted-foreground">
-            Create G / S / C / Q reports from the Grievances workflow, then they appear here.
+            Open an escalated alert and click Generate Report. The notice is saved here when that page opens.
           </p>
           <Button asChild variant="outline" size="sm">
-            <Link to="/grievances">Open Grievances</Link>
+            <Link to="/alerts?status=escalated">Open Escalated Alerts</Link>
           </Button>
         </div>
       ) : (

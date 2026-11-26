@@ -626,6 +626,45 @@ async function ensureOpsSchema(prisma, opts = {}) {
       CONSTRAINT periscope_reports_date_key UNIQUE (report_date)
     )
   `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS formal_reports (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      serial_number TEXT NOT NULL,
+      alert_id TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT 'NOTICE: U/Sec:69(A) & 79(3) Information Technology Amendment Act 2008 and 94 BNSS',
+      platform TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'sent_to_intermediary',
+      source_category TEXT NULL,
+      content_url TEXT NULL,
+      content_summary TEXT NULL,
+      closing_remarks TEXT NULL,
+      target_user_details JSONB NOT NULL DEFAULT '{}'::jsonb,
+      media_links JSONB NOT NULL DEFAULT '[]'::jsonb,
+      legal_sections JSONB NOT NULL DEFAULT '[]'::jsonb,
+      violated_policies JSONB NOT NULL DEFAULT '[]'::jsonb,
+      edited_content JSONB NOT NULL DEFAULT '{}'::jsonb,
+      report_pdf_url TEXT NULL,
+      pdf_base64 TEXT NULL,
+      generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CONSTRAINT formal_reports_serial_number_key UNIQUE (serial_number),
+      CONSTRAINT formal_reports_alert_id_key UNIQUE (alert_id)
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS formal_reports_generated_at_idx
+    ON formal_reports (generated_at DESC)
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS formal_reports_status_generated_at_idx
+    ON formal_reports (status, generated_at DESC)
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS formal_reports_platform_status_generated_at_idx
+    ON formal_reports (platform, status, generated_at DESC)
+  `);
   await prisma.$executeRawUnsafe(`
     CREATE INDEX IF NOT EXISTS periscope_reports_date_idx ON social_media_periscope_reports (report_date DESC)
   `);

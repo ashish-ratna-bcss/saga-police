@@ -858,7 +858,7 @@ const ReportsContent = ({ platformFilter: sharedPlatform, dateRange: sharedDateR
             ) : reports.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-[#0f0f0f] rounded-2xl border border-dashed border-gray-200 dark:border-gray-800">
                     <FileText className="h-12 w-12 text-gray-300 mb-4" />
-                    <p className="text-gray-500">No formal reports found.</p>
+                    <p className="text-gray-500">No generated reports yet. Open an alert and click Generate Report to create one.</p>
                 </div>
             ) : (
                 <>

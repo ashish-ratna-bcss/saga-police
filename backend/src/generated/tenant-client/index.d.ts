@@ -104,6 +104,11 @@ export type audit_logs = $Result.DefaultSelection<Prisma.$audit_logsPayload>
  * 
  */
 export type social_media_periscope_reports = $Result.DefaultSelection<Prisma.$social_media_periscope_reportsPayload>
+/**
+ * Model formal_reports
+ * Formal notices generated from Alerts → Generate Report (not G/S/C/Q grievances).
+ */
+export type formal_reports = $Result.DefaultSelection<Prisma.$formal_reportsPayload>
 
 /**
  * Enums
@@ -434,6 +439,16 @@ export class PrismaClient<
     * ```
     */
   get social_media_periscope_reports(): Prisma.social_media_periscope_reportsDelegate<ExtArgs, ClientOptions>;
+
+  /**
+   * `prisma.formal_reports`: Exposes CRUD operations for the **formal_reports** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more Formal_reports
+    * const formal_reports = await prisma.formal_reports.findMany()
+    * ```
+    */
+  get formal_reports(): Prisma.formal_reportsDelegate<ExtArgs, ClientOptions>;
 }
 
 export namespace Prisma {
@@ -892,7 +907,8 @@ export namespace Prisma {
     report_templates: 'report_templates',
     policy_mappings: 'policy_mappings',
     audit_logs: 'audit_logs',
-    social_media_periscope_reports: 'social_media_periscope_reports'
+    social_media_periscope_reports: 'social_media_periscope_reports',
+    formal_reports: 'formal_reports'
   };
 
   export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -911,7 +927,7 @@ export namespace Prisma {
       omit: GlobalOmitOptions
     }
     meta: {
-      modelProps: "platforms" | "social_media_profiles" | "social_media_accounts" | "social_media_posts" | "social_media_alerts" | "social_media_grievances" | "social_media_grievance_reports" | "social_media_grievance_contacts" | "keywords" | "social_media_occasion_calendar" | "social_media_events" | "social_media_event_summaries" | "social_media_event_media" | "alert_config" | "report_templates" | "policy_mappings" | "audit_logs" | "social_media_periscope_reports"
+      modelProps: "platforms" | "social_media_profiles" | "social_media_accounts" | "social_media_posts" | "social_media_alerts" | "social_media_grievances" | "social_media_grievance_reports" | "social_media_grievance_contacts" | "keywords" | "social_media_occasion_calendar" | "social_media_events" | "social_media_event_summaries" | "social_media_event_media" | "alert_config" | "report_templates" | "policy_mappings" | "audit_logs" | "social_media_periscope_reports" | "formal_reports"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -2247,6 +2263,80 @@ export namespace Prisma {
           }
         }
       }
+      formal_reports: {
+        payload: Prisma.$formal_reportsPayload<ExtArgs>
+        fields: Prisma.formal_reportsFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.formal_reportsFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.formal_reportsFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload>
+          }
+          findFirst: {
+            args: Prisma.formal_reportsFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.formal_reportsFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload>
+          }
+          findMany: {
+            args: Prisma.formal_reportsFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload>[]
+          }
+          create: {
+            args: Prisma.formal_reportsCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload>
+          }
+          createMany: {
+            args: Prisma.formal_reportsCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.formal_reportsCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload>[]
+          }
+          delete: {
+            args: Prisma.formal_reportsDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload>
+          }
+          update: {
+            args: Prisma.formal_reportsUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload>
+          }
+          deleteMany: {
+            args: Prisma.formal_reportsDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.formal_reportsUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateManyAndReturn: {
+            args: Prisma.formal_reportsUpdateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload>[]
+          }
+          upsert: {
+            args: Prisma.formal_reportsUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload>
+          }
+          aggregate: {
+            args: Prisma.Formal_reportsAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateFormal_reports>
+          }
+          groupBy: {
+            args: Prisma.formal_reportsGroupByArgs<ExtArgs>
+            result: $Utils.Optional<Formal_reportsGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.formal_reportsCountArgs<ExtArgs>
+            result: $Utils.Optional<Formal_reportsCountAggregateOutputType> | number
+          }
+        }
+      }
     }
   } & {
     other: {
@@ -2361,6 +2451,7 @@ export namespace Prisma {
     policy_mappings?: policy_mappingsOmit
     audit_logs?: audit_logsOmit
     social_media_periscope_reports?: social_media_periscope_reportsOmit
+    formal_reports?: formal_reportsOmit
   }
 
   /* Types for Logging */
@@ -23963,6 +24054,1176 @@ export namespace Prisma {
 
 
   /**
+   * Model formal_reports
+   */
+
+  export type AggregateFormal_reports = {
+    _count: Formal_reportsCountAggregateOutputType | null
+    _min: Formal_reportsMinAggregateOutputType | null
+    _max: Formal_reportsMaxAggregateOutputType | null
+  }
+
+  export type Formal_reportsMinAggregateOutputType = {
+    id: string | null
+    serial_number: string | null
+    alert_id: string | null
+    title: string | null
+    platform: string | null
+    status: string | null
+    source_category: string | null
+    content_url: string | null
+    content_summary: string | null
+    closing_remarks: string | null
+    report_pdf_url: string | null
+    pdf_base64: string | null
+    generated_at: Date | null
+    created_at: Date | null
+    updated_at: Date | null
+  }
+
+  export type Formal_reportsMaxAggregateOutputType = {
+    id: string | null
+    serial_number: string | null
+    alert_id: string | null
+    title: string | null
+    platform: string | null
+    status: string | null
+    source_category: string | null
+    content_url: string | null
+    content_summary: string | null
+    closing_remarks: string | null
+    report_pdf_url: string | null
+    pdf_base64: string | null
+    generated_at: Date | null
+    created_at: Date | null
+    updated_at: Date | null
+  }
+
+  export type Formal_reportsCountAggregateOutputType = {
+    id: number
+    serial_number: number
+    alert_id: number
+    title: number
+    platform: number
+    status: number
+    source_category: number
+    content_url: number
+    content_summary: number
+    closing_remarks: number
+    target_user_details: number
+    media_links: number
+    legal_sections: number
+    violated_policies: number
+    edited_content: number
+    report_pdf_url: number
+    pdf_base64: number
+    generated_at: number
+    created_at: number
+    updated_at: number
+    _all: number
+  }
+
+
+  export type Formal_reportsMinAggregateInputType = {
+    id?: true
+    serial_number?: true
+    alert_id?: true
+    title?: true
+    platform?: true
+    status?: true
+    source_category?: true
+    content_url?: true
+    content_summary?: true
+    closing_remarks?: true
+    report_pdf_url?: true
+    pdf_base64?: true
+    generated_at?: true
+    created_at?: true
+    updated_at?: true
+  }
+
+  export type Formal_reportsMaxAggregateInputType = {
+    id?: true
+    serial_number?: true
+    alert_id?: true
+    title?: true
+    platform?: true
+    status?: true
+    source_category?: true
+    content_url?: true
+    content_summary?: true
+    closing_remarks?: true
+    report_pdf_url?: true
+    pdf_base64?: true
+    generated_at?: true
+    created_at?: true
+    updated_at?: true
+  }
+
+  export type Formal_reportsCountAggregateInputType = {
+    id?: true
+    serial_number?: true
+    alert_id?: true
+    title?: true
+    platform?: true
+    status?: true
+    source_category?: true
+    content_url?: true
+    content_summary?: true
+    closing_remarks?: true
+    target_user_details?: true
+    media_links?: true
+    legal_sections?: true
+    violated_policies?: true
+    edited_content?: true
+    report_pdf_url?: true
+    pdf_base64?: true
+    generated_at?: true
+    created_at?: true
+    updated_at?: true
+    _all?: true
+  }
+
+  export type Formal_reportsAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which formal_reports to aggregate.
+     */
+    where?: formal_reportsWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of formal_reports to fetch.
+     */
+    orderBy?: formal_reportsOrderByWithRelationInput | formal_reportsOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: formal_reportsWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` formal_reports from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` formal_reports.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned formal_reports
+    **/
+    _count?: true | Formal_reportsCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: Formal_reportsMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: Formal_reportsMaxAggregateInputType
+  }
+
+  export type GetFormal_reportsAggregateType<T extends Formal_reportsAggregateArgs> = {
+        [P in keyof T & keyof AggregateFormal_reports]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateFormal_reports[P]>
+      : GetScalarType<T[P], AggregateFormal_reports[P]>
+  }
+
+
+
+
+  export type formal_reportsGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: formal_reportsWhereInput
+    orderBy?: formal_reportsOrderByWithAggregationInput | formal_reportsOrderByWithAggregationInput[]
+    by: Formal_reportsScalarFieldEnum[] | Formal_reportsScalarFieldEnum
+    having?: formal_reportsScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: Formal_reportsCountAggregateInputType | true
+    _min?: Formal_reportsMinAggregateInputType
+    _max?: Formal_reportsMaxAggregateInputType
+  }
+
+  export type Formal_reportsGroupByOutputType = {
+    id: string
+    serial_number: string
+    alert_id: string
+    title: string
+    platform: string
+    status: string
+    source_category: string | null
+    content_url: string | null
+    content_summary: string | null
+    closing_remarks: string | null
+    target_user_details: JsonValue
+    media_links: JsonValue
+    legal_sections: JsonValue
+    violated_policies: JsonValue
+    edited_content: JsonValue
+    report_pdf_url: string | null
+    pdf_base64: string | null
+    generated_at: Date
+    created_at: Date
+    updated_at: Date
+    _count: Formal_reportsCountAggregateOutputType | null
+    _min: Formal_reportsMinAggregateOutputType | null
+    _max: Formal_reportsMaxAggregateOutputType | null
+  }
+
+  type GetFormal_reportsGroupByPayload<T extends formal_reportsGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<Formal_reportsGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof Formal_reportsGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], Formal_reportsGroupByOutputType[P]>
+            : GetScalarType<T[P], Formal_reportsGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type formal_reportsSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    serial_number?: boolean
+    alert_id?: boolean
+    title?: boolean
+    platform?: boolean
+    status?: boolean
+    source_category?: boolean
+    content_url?: boolean
+    content_summary?: boolean
+    closing_remarks?: boolean
+    target_user_details?: boolean
+    media_links?: boolean
+    legal_sections?: boolean
+    violated_policies?: boolean
+    edited_content?: boolean
+    report_pdf_url?: boolean
+    pdf_base64?: boolean
+    generated_at?: boolean
+    created_at?: boolean
+    updated_at?: boolean
+  }, ExtArgs["result"]["formal_reports"]>
+
+  export type formal_reportsSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    serial_number?: boolean
+    alert_id?: boolean
+    title?: boolean
+    platform?: boolean
+    status?: boolean
+    source_category?: boolean
+    content_url?: boolean
+    content_summary?: boolean
+    closing_remarks?: boolean
+    target_user_details?: boolean
+    media_links?: boolean
+    legal_sections?: boolean
+    violated_policies?: boolean
+    edited_content?: boolean
+    report_pdf_url?: boolean
+    pdf_base64?: boolean
+    generated_at?: boolean
+    created_at?: boolean
+    updated_at?: boolean
+  }, ExtArgs["result"]["formal_reports"]>
+
+  export type formal_reportsSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    serial_number?: boolean
+    alert_id?: boolean
+    title?: boolean
+    platform?: boolean
+    status?: boolean
+    source_category?: boolean
+    content_url?: boolean
+    content_summary?: boolean
+    closing_remarks?: boolean
+    target_user_details?: boolean
+    media_links?: boolean
+    legal_sections?: boolean
+    violated_policies?: boolean
+    edited_content?: boolean
+    report_pdf_url?: boolean
+    pdf_base64?: boolean
+    generated_at?: boolean
+    created_at?: boolean
+    updated_at?: boolean
+  }, ExtArgs["result"]["formal_reports"]>
+
+  export type formal_reportsSelectScalar = {
+    id?: boolean
+    serial_number?: boolean
+    alert_id?: boolean
+    title?: boolean
+    platform?: boolean
+    status?: boolean
+    source_category?: boolean
+    content_url?: boolean
+    content_summary?: boolean
+    closing_remarks?: boolean
+    target_user_details?: boolean
+    media_links?: boolean
+    legal_sections?: boolean
+    violated_policies?: boolean
+    edited_content?: boolean
+    report_pdf_url?: boolean
+    pdf_base64?: boolean
+    generated_at?: boolean
+    created_at?: boolean
+    updated_at?: boolean
+  }
+
+  export type formal_reportsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "serial_number" | "alert_id" | "title" | "platform" | "status" | "source_category" | "content_url" | "content_summary" | "closing_remarks" | "target_user_details" | "media_links" | "legal_sections" | "violated_policies" | "edited_content" | "report_pdf_url" | "pdf_base64" | "generated_at" | "created_at" | "updated_at", ExtArgs["result"]["formal_reports"]>
+
+  export type $formal_reportsPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "formal_reports"
+    objects: {}
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      serial_number: string
+      alert_id: string
+      title: string
+      platform: string
+      status: string
+      source_category: string | null
+      content_url: string | null
+      content_summary: string | null
+      closing_remarks: string | null
+      target_user_details: Prisma.JsonValue
+      media_links: Prisma.JsonValue
+      legal_sections: Prisma.JsonValue
+      violated_policies: Prisma.JsonValue
+      edited_content: Prisma.JsonValue
+      report_pdf_url: string | null
+      pdf_base64: string | null
+      generated_at: Date
+      created_at: Date
+      updated_at: Date
+    }, ExtArgs["result"]["formal_reports"]>
+    composites: {}
+  }
+
+  type formal_reportsGetPayload<S extends boolean | null | undefined | formal_reportsDefaultArgs> = $Result.GetResult<Prisma.$formal_reportsPayload, S>
+
+  type formal_reportsCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> =
+    Omit<formal_reportsFindManyArgs, 'select' | 'include' | 'distinct' | 'omit'> & {
+      select?: Formal_reportsCountAggregateInputType | true
+    }
+
+  export interface formal_reportsDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['formal_reports'], meta: { name: 'formal_reports' } }
+    /**
+     * Find zero or one Formal_reports that matches the filter.
+     * @param {formal_reportsFindUniqueArgs} args - Arguments to find a Formal_reports
+     * @example
+     * // Get one Formal_reports
+     * const formal_reports = await prisma.formal_reports.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends formal_reportsFindUniqueArgs>(args: SelectSubset<T, formal_reportsFindUniqueArgs<ExtArgs>>): Prisma__formal_reportsClient<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "findUnique", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find one Formal_reports that matches the filter or throw an error with `error.code='P2025'`
+     * if no matches were found.
+     * @param {formal_reportsFindUniqueOrThrowArgs} args - Arguments to find a Formal_reports
+     * @example
+     * // Get one Formal_reports
+     * const formal_reports = await prisma.formal_reports.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends formal_reportsFindUniqueOrThrowArgs>(args: SelectSubset<T, formal_reportsFindUniqueOrThrowArgs<ExtArgs>>): Prisma__formal_reportsClient<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first Formal_reports that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {formal_reportsFindFirstArgs} args - Arguments to find a Formal_reports
+     * @example
+     * // Get one Formal_reports
+     * const formal_reports = await prisma.formal_reports.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends formal_reportsFindFirstArgs>(args?: SelectSubset<T, formal_reportsFindFirstArgs<ExtArgs>>): Prisma__formal_reportsClient<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "findFirst", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first Formal_reports that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {formal_reportsFindFirstOrThrowArgs} args - Arguments to find a Formal_reports
+     * @example
+     * // Get one Formal_reports
+     * const formal_reports = await prisma.formal_reports.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends formal_reportsFindFirstOrThrowArgs>(args?: SelectSubset<T, formal_reportsFindFirstOrThrowArgs<ExtArgs>>): Prisma__formal_reportsClient<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "findFirstOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find zero or more Formal_reports that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {formal_reportsFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all Formal_reports
+     * const formal_reports = await prisma.formal_reports.findMany()
+     * 
+     * // Get first 10 Formal_reports
+     * const formal_reports = await prisma.formal_reports.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const formal_reportsWithIdOnly = await prisma.formal_reports.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends formal_reportsFindManyArgs>(args?: SelectSubset<T, formal_reportsFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
+
+    /**
+     * Create a Formal_reports.
+     * @param {formal_reportsCreateArgs} args - Arguments to create a Formal_reports.
+     * @example
+     * // Create one Formal_reports
+     * const Formal_reports = await prisma.formal_reports.create({
+     *   data: {
+     *     // ... data to create a Formal_reports
+     *   }
+     * })
+     * 
+     */
+    create<T extends formal_reportsCreateArgs>(args: SelectSubset<T, formal_reportsCreateArgs<ExtArgs>>): Prisma__formal_reportsClient<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "create", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Create many Formal_reports.
+     * @param {formal_reportsCreateManyArgs} args - Arguments to create many Formal_reports.
+     * @example
+     * // Create many Formal_reports
+     * const formal_reports = await prisma.formal_reports.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends formal_reportsCreateManyArgs>(args?: SelectSubset<T, formal_reportsCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many Formal_reports and returns the data saved in the database.
+     * @param {formal_reportsCreateManyAndReturnArgs} args - Arguments to create many Formal_reports.
+     * @example
+     * // Create many Formal_reports
+     * const formal_reports = await prisma.formal_reports.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many Formal_reports and only return the `id`
+     * const formal_reportsWithIdOnly = await prisma.formal_reports.createManyAndReturn({
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends formal_reportsCreateManyAndReturnArgs>(args?: SelectSubset<T, formal_reportsCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "createManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Delete a Formal_reports.
+     * @param {formal_reportsDeleteArgs} args - Arguments to delete one Formal_reports.
+     * @example
+     * // Delete one Formal_reports
+     * const Formal_reports = await prisma.formal_reports.delete({
+     *   where: {
+     *     // ... filter to delete one Formal_reports
+     *   }
+     * })
+     * 
+     */
+    delete<T extends formal_reportsDeleteArgs>(args: SelectSubset<T, formal_reportsDeleteArgs<ExtArgs>>): Prisma__formal_reportsClient<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "delete", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Update one Formal_reports.
+     * @param {formal_reportsUpdateArgs} args - Arguments to update one Formal_reports.
+     * @example
+     * // Update one Formal_reports
+     * const formal_reports = await prisma.formal_reports.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends formal_reportsUpdateArgs>(args: SelectSubset<T, formal_reportsUpdateArgs<ExtArgs>>): Prisma__formal_reportsClient<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "update", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Delete zero or more Formal_reports.
+     * @param {formal_reportsDeleteManyArgs} args - Arguments to filter Formal_reports to delete.
+     * @example
+     * // Delete a few Formal_reports
+     * const { count } = await prisma.formal_reports.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends formal_reportsDeleteManyArgs>(args?: SelectSubset<T, formal_reportsDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more Formal_reports.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {formal_reportsUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many Formal_reports
+     * const formal_reports = await prisma.formal_reports.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends formal_reportsUpdateManyArgs>(args: SelectSubset<T, formal_reportsUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more Formal_reports and returns the data updated in the database.
+     * @param {formal_reportsUpdateManyAndReturnArgs} args - Arguments to update many Formal_reports.
+     * @example
+     * // Update many Formal_reports
+     * const formal_reports = await prisma.formal_reports.updateManyAndReturn({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Update zero or more Formal_reports and only return the `id`
+     * const formal_reportsWithIdOnly = await prisma.formal_reports.updateManyAndReturn({
+     *   select: { id: true },
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    updateManyAndReturn<T extends formal_reportsUpdateManyAndReturnArgs>(args: SelectSubset<T, formal_reportsUpdateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "updateManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Create or update one Formal_reports.
+     * @param {formal_reportsUpsertArgs} args - Arguments to update or create a Formal_reports.
+     * @example
+     * // Update or create a Formal_reports
+     * const formal_reports = await prisma.formal_reports.upsert({
+     *   create: {
+     *     // ... data to create a Formal_reports
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the Formal_reports we want to update
+     *   }
+     * })
+     */
+    upsert<T extends formal_reportsUpsertArgs>(args: SelectSubset<T, formal_reportsUpsertArgs<ExtArgs>>): Prisma__formal_reportsClient<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "upsert", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+
+    /**
+     * Count the number of Formal_reports.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {formal_reportsCountArgs} args - Arguments to filter Formal_reports to count.
+     * @example
+     * // Count the number of Formal_reports
+     * const count = await prisma.formal_reports.count({
+     *   where: {
+     *     // ... the filter for the Formal_reports we want to count
+     *   }
+     * })
+    **/
+    count<T extends formal_reportsCountArgs>(
+      args?: Subset<T, formal_reportsCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], Formal_reportsCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a Formal_reports.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {Formal_reportsAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends Formal_reportsAggregateArgs>(args: Subset<T, Formal_reportsAggregateArgs>): Prisma.PrismaPromise<GetFormal_reportsAggregateType<T>>
+
+    /**
+     * Group by Formal_reports.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {formal_reportsGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends formal_reportsGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: formal_reportsGroupByArgs['orderBy'] }
+        : { orderBy?: formal_reportsGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, formal_reportsGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetFormal_reportsGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the formal_reports model
+   */
+  readonly fields: formal_reportsFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for formal_reports.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__formal_reportsClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the formal_reports model
+   */
+  interface formal_reportsFieldRefs {
+    readonly id: FieldRef<"formal_reports", 'String'>
+    readonly serial_number: FieldRef<"formal_reports", 'String'>
+    readonly alert_id: FieldRef<"formal_reports", 'String'>
+    readonly title: FieldRef<"formal_reports", 'String'>
+    readonly platform: FieldRef<"formal_reports", 'String'>
+    readonly status: FieldRef<"formal_reports", 'String'>
+    readonly source_category: FieldRef<"formal_reports", 'String'>
+    readonly content_url: FieldRef<"formal_reports", 'String'>
+    readonly content_summary: FieldRef<"formal_reports", 'String'>
+    readonly closing_remarks: FieldRef<"formal_reports", 'String'>
+    readonly target_user_details: FieldRef<"formal_reports", 'Json'>
+    readonly media_links: FieldRef<"formal_reports", 'Json'>
+    readonly legal_sections: FieldRef<"formal_reports", 'Json'>
+    readonly violated_policies: FieldRef<"formal_reports", 'Json'>
+    readonly edited_content: FieldRef<"formal_reports", 'Json'>
+    readonly report_pdf_url: FieldRef<"formal_reports", 'String'>
+    readonly pdf_base64: FieldRef<"formal_reports", 'String'>
+    readonly generated_at: FieldRef<"formal_reports", 'DateTime'>
+    readonly created_at: FieldRef<"formal_reports", 'DateTime'>
+    readonly updated_at: FieldRef<"formal_reports", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * formal_reports findUnique
+   */
+  export type formal_reportsFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the formal_reports
+     */
+    select?: formal_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the formal_reports
+     */
+    omit?: formal_reportsOmit<ExtArgs> | null
+    /**
+     * Filter, which formal_reports to fetch.
+     */
+    where: formal_reportsWhereUniqueInput
+  }
+
+  /**
+   * formal_reports findUniqueOrThrow
+   */
+  export type formal_reportsFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the formal_reports
+     */
+    select?: formal_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the formal_reports
+     */
+    omit?: formal_reportsOmit<ExtArgs> | null
+    /**
+     * Filter, which formal_reports to fetch.
+     */
+    where: formal_reportsWhereUniqueInput
+  }
+
+  /**
+   * formal_reports findFirst
+   */
+  export type formal_reportsFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the formal_reports
+     */
+    select?: formal_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the formal_reports
+     */
+    omit?: formal_reportsOmit<ExtArgs> | null
+    /**
+     * Filter, which formal_reports to fetch.
+     */
+    where?: formal_reportsWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of formal_reports to fetch.
+     */
+    orderBy?: formal_reportsOrderByWithRelationInput | formal_reportsOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for formal_reports.
+     */
+    cursor?: formal_reportsWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` formal_reports from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` formal_reports.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of formal_reports.
+     */
+    distinct?: Formal_reportsScalarFieldEnum | Formal_reportsScalarFieldEnum[]
+  }
+
+  /**
+   * formal_reports findFirstOrThrow
+   */
+  export type formal_reportsFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the formal_reports
+     */
+    select?: formal_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the formal_reports
+     */
+    omit?: formal_reportsOmit<ExtArgs> | null
+    /**
+     * Filter, which formal_reports to fetch.
+     */
+    where?: formal_reportsWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of formal_reports to fetch.
+     */
+    orderBy?: formal_reportsOrderByWithRelationInput | formal_reportsOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for formal_reports.
+     */
+    cursor?: formal_reportsWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` formal_reports from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` formal_reports.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of formal_reports.
+     */
+    distinct?: Formal_reportsScalarFieldEnum | Formal_reportsScalarFieldEnum[]
+  }
+
+  /**
+   * formal_reports findMany
+   */
+  export type formal_reportsFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the formal_reports
+     */
+    select?: formal_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the formal_reports
+     */
+    omit?: formal_reportsOmit<ExtArgs> | null
+    /**
+     * Filter, which formal_reports to fetch.
+     */
+    where?: formal_reportsWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of formal_reports to fetch.
+     */
+    orderBy?: formal_reportsOrderByWithRelationInput | formal_reportsOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing formal_reports.
+     */
+    cursor?: formal_reportsWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` formal_reports from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` formal_reports.
+     */
+    skip?: number
+    distinct?: Formal_reportsScalarFieldEnum | Formal_reportsScalarFieldEnum[]
+  }
+
+  /**
+   * formal_reports create
+   */
+  export type formal_reportsCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the formal_reports
+     */
+    select?: formal_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the formal_reports
+     */
+    omit?: formal_reportsOmit<ExtArgs> | null
+    /**
+     * The data needed to create a formal_reports.
+     */
+    data: XOR<formal_reportsCreateInput, formal_reportsUncheckedCreateInput>
+  }
+
+  /**
+   * formal_reports createMany
+   */
+  export type formal_reportsCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many formal_reports.
+     */
+    data: formal_reportsCreateManyInput | formal_reportsCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * formal_reports createManyAndReturn
+   */
+  export type formal_reportsCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the formal_reports
+     */
+    select?: formal_reportsSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the formal_reports
+     */
+    omit?: formal_reportsOmit<ExtArgs> | null
+    /**
+     * The data used to create many formal_reports.
+     */
+    data: formal_reportsCreateManyInput | formal_reportsCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * formal_reports update
+   */
+  export type formal_reportsUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the formal_reports
+     */
+    select?: formal_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the formal_reports
+     */
+    omit?: formal_reportsOmit<ExtArgs> | null
+    /**
+     * The data needed to update a formal_reports.
+     */
+    data: XOR<formal_reportsUpdateInput, formal_reportsUncheckedUpdateInput>
+    /**
+     * Choose, which formal_reports to update.
+     */
+    where: formal_reportsWhereUniqueInput
+  }
+
+  /**
+   * formal_reports updateMany
+   */
+  export type formal_reportsUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update formal_reports.
+     */
+    data: XOR<formal_reportsUpdateManyMutationInput, formal_reportsUncheckedUpdateManyInput>
+    /**
+     * Filter which formal_reports to update
+     */
+    where?: formal_reportsWhereInput
+    /**
+     * Limit how many formal_reports to update.
+     */
+    limit?: number
+  }
+
+  /**
+   * formal_reports updateManyAndReturn
+   */
+  export type formal_reportsUpdateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the formal_reports
+     */
+    select?: formal_reportsSelectUpdateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the formal_reports
+     */
+    omit?: formal_reportsOmit<ExtArgs> | null
+    /**
+     * The data used to update formal_reports.
+     */
+    data: XOR<formal_reportsUpdateManyMutationInput, formal_reportsUncheckedUpdateManyInput>
+    /**
+     * Filter which formal_reports to update
+     */
+    where?: formal_reportsWhereInput
+    /**
+     * Limit how many formal_reports to update.
+     */
+    limit?: number
+  }
+
+  /**
+   * formal_reports upsert
+   */
+  export type formal_reportsUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the formal_reports
+     */
+    select?: formal_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the formal_reports
+     */
+    omit?: formal_reportsOmit<ExtArgs> | null
+    /**
+     * The filter to search for the formal_reports to update in case it exists.
+     */
+    where: formal_reportsWhereUniqueInput
+    /**
+     * In case the formal_reports found by the `where` argument doesn't exist, create a new formal_reports with this data.
+     */
+    create: XOR<formal_reportsCreateInput, formal_reportsUncheckedCreateInput>
+    /**
+     * In case the formal_reports was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<formal_reportsUpdateInput, formal_reportsUncheckedUpdateInput>
+  }
+
+  /**
+   * formal_reports delete
+   */
+  export type formal_reportsDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the formal_reports
+     */
+    select?: formal_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the formal_reports
+     */
+    omit?: formal_reportsOmit<ExtArgs> | null
+    /**
+     * Filter which formal_reports to delete.
+     */
+    where: formal_reportsWhereUniqueInput
+  }
+
+  /**
+   * formal_reports deleteMany
+   */
+  export type formal_reportsDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which formal_reports to delete
+     */
+    where?: formal_reportsWhereInput
+    /**
+     * Limit how many formal_reports to delete.
+     */
+    limit?: number
+  }
+
+  /**
+   * formal_reports without action
+   */
+  export type formal_reportsDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the formal_reports
+     */
+    select?: formal_reportsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the formal_reports
+     */
+    omit?: formal_reportsOmit<ExtArgs> | null
+  }
+
+
+  /**
    * Enums
    */
 
@@ -24348,6 +25609,32 @@ export namespace Prisma {
   };
 
   export type Social_media_periscope_reportsScalarFieldEnum = (typeof Social_media_periscope_reportsScalarFieldEnum)[keyof typeof Social_media_periscope_reportsScalarFieldEnum]
+
+
+  export const Formal_reportsScalarFieldEnum: {
+    id: 'id',
+    serial_number: 'serial_number',
+    alert_id: 'alert_id',
+    title: 'title',
+    platform: 'platform',
+    status: 'status',
+    source_category: 'source_category',
+    content_url: 'content_url',
+    content_summary: 'content_summary',
+    closing_remarks: 'closing_remarks',
+    target_user_details: 'target_user_details',
+    media_links: 'media_links',
+    legal_sections: 'legal_sections',
+    violated_policies: 'violated_policies',
+    edited_content: 'edited_content',
+    report_pdf_url: 'report_pdf_url',
+    pdf_base64: 'pdf_base64',
+    generated_at: 'generated_at',
+    created_at: 'created_at',
+    updated_at: 'updated_at'
+  };
+
+  export type Formal_reportsScalarFieldEnum = (typeof Formal_reportsScalarFieldEnum)[keyof typeof Formal_reportsScalarFieldEnum]
 
 
   export const SortOrder: {
@@ -26413,6 +27700,133 @@ export namespace Prisma {
     created_by?: StringNullableWithAggregatesFilter<"social_media_periscope_reports"> | string | null
     created_at?: DateTimeWithAggregatesFilter<"social_media_periscope_reports"> | Date | string
     updated_at?: DateTimeWithAggregatesFilter<"social_media_periscope_reports"> | Date | string
+  }
+
+  export type formal_reportsWhereInput = {
+    AND?: formal_reportsWhereInput | formal_reportsWhereInput[]
+    OR?: formal_reportsWhereInput[]
+    NOT?: formal_reportsWhereInput | formal_reportsWhereInput[]
+    id?: StringFilter<"formal_reports"> | string
+    serial_number?: StringFilter<"formal_reports"> | string
+    alert_id?: StringFilter<"formal_reports"> | string
+    title?: StringFilter<"formal_reports"> | string
+    platform?: StringFilter<"formal_reports"> | string
+    status?: StringFilter<"formal_reports"> | string
+    source_category?: StringNullableFilter<"formal_reports"> | string | null
+    content_url?: StringNullableFilter<"formal_reports"> | string | null
+    content_summary?: StringNullableFilter<"formal_reports"> | string | null
+    closing_remarks?: StringNullableFilter<"formal_reports"> | string | null
+    target_user_details?: JsonFilter<"formal_reports">
+    media_links?: JsonFilter<"formal_reports">
+    legal_sections?: JsonFilter<"formal_reports">
+    violated_policies?: JsonFilter<"formal_reports">
+    edited_content?: JsonFilter<"formal_reports">
+    report_pdf_url?: StringNullableFilter<"formal_reports"> | string | null
+    pdf_base64?: StringNullableFilter<"formal_reports"> | string | null
+    generated_at?: DateTimeFilter<"formal_reports"> | Date | string
+    created_at?: DateTimeFilter<"formal_reports"> | Date | string
+    updated_at?: DateTimeFilter<"formal_reports"> | Date | string
+  }
+
+  export type formal_reportsOrderByWithRelationInput = {
+    id?: SortOrder
+    serial_number?: SortOrder
+    alert_id?: SortOrder
+    title?: SortOrder
+    platform?: SortOrder
+    status?: SortOrder
+    source_category?: SortOrderInput | SortOrder
+    content_url?: SortOrderInput | SortOrder
+    content_summary?: SortOrderInput | SortOrder
+    closing_remarks?: SortOrderInput | SortOrder
+    target_user_details?: SortOrder
+    media_links?: SortOrder
+    legal_sections?: SortOrder
+    violated_policies?: SortOrder
+    edited_content?: SortOrder
+    report_pdf_url?: SortOrderInput | SortOrder
+    pdf_base64?: SortOrderInput | SortOrder
+    generated_at?: SortOrder
+    created_at?: SortOrder
+    updated_at?: SortOrder
+  }
+
+  export type formal_reportsWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    serial_number?: string
+    alert_id?: string
+    AND?: formal_reportsWhereInput | formal_reportsWhereInput[]
+    OR?: formal_reportsWhereInput[]
+    NOT?: formal_reportsWhereInput | formal_reportsWhereInput[]
+    title?: StringFilter<"formal_reports"> | string
+    platform?: StringFilter<"formal_reports"> | string
+    status?: StringFilter<"formal_reports"> | string
+    source_category?: StringNullableFilter<"formal_reports"> | string | null
+    content_url?: StringNullableFilter<"formal_reports"> | string | null
+    content_summary?: StringNullableFilter<"formal_reports"> | string | null
+    closing_remarks?: StringNullableFilter<"formal_reports"> | string | null
+    target_user_details?: JsonFilter<"formal_reports">
+    media_links?: JsonFilter<"formal_reports">
+    legal_sections?: JsonFilter<"formal_reports">
+    violated_policies?: JsonFilter<"formal_reports">
+    edited_content?: JsonFilter<"formal_reports">
+    report_pdf_url?: StringNullableFilter<"formal_reports"> | string | null
+    pdf_base64?: StringNullableFilter<"formal_reports"> | string | null
+    generated_at?: DateTimeFilter<"formal_reports"> | Date | string
+    created_at?: DateTimeFilter<"formal_reports"> | Date | string
+    updated_at?: DateTimeFilter<"formal_reports"> | Date | string
+  }, "id" | "serial_number" | "alert_id">
+
+  export type formal_reportsOrderByWithAggregationInput = {
+    id?: SortOrder
+    serial_number?: SortOrder
+    alert_id?: SortOrder
+    title?: SortOrder
+    platform?: SortOrder
+    status?: SortOrder
+    source_category?: SortOrderInput | SortOrder
+    content_url?: SortOrderInput | SortOrder
+    content_summary?: SortOrderInput | SortOrder
+    closing_remarks?: SortOrderInput | SortOrder
+    target_user_details?: SortOrder
+    media_links?: SortOrder
+    legal_sections?: SortOrder
+    violated_policies?: SortOrder
+    edited_content?: SortOrder
+    report_pdf_url?: SortOrderInput | SortOrder
+    pdf_base64?: SortOrderInput | SortOrder
+    generated_at?: SortOrder
+    created_at?: SortOrder
+    updated_at?: SortOrder
+    _count?: formal_reportsCountOrderByAggregateInput
+    _max?: formal_reportsMaxOrderByAggregateInput
+    _min?: formal_reportsMinOrderByAggregateInput
+  }
+
+  export type formal_reportsScalarWhereWithAggregatesInput = {
+    AND?: formal_reportsScalarWhereWithAggregatesInput | formal_reportsScalarWhereWithAggregatesInput[]
+    OR?: formal_reportsScalarWhereWithAggregatesInput[]
+    NOT?: formal_reportsScalarWhereWithAggregatesInput | formal_reportsScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"formal_reports"> | string
+    serial_number?: StringWithAggregatesFilter<"formal_reports"> | string
+    alert_id?: StringWithAggregatesFilter<"formal_reports"> | string
+    title?: StringWithAggregatesFilter<"formal_reports"> | string
+    platform?: StringWithAggregatesFilter<"formal_reports"> | string
+    status?: StringWithAggregatesFilter<"formal_reports"> | string
+    source_category?: StringNullableWithAggregatesFilter<"formal_reports"> | string | null
+    content_url?: StringNullableWithAggregatesFilter<"formal_reports"> | string | null
+    content_summary?: StringNullableWithAggregatesFilter<"formal_reports"> | string | null
+    closing_remarks?: StringNullableWithAggregatesFilter<"formal_reports"> | string | null
+    target_user_details?: JsonWithAggregatesFilter<"formal_reports">
+    media_links?: JsonWithAggregatesFilter<"formal_reports">
+    legal_sections?: JsonWithAggregatesFilter<"formal_reports">
+    violated_policies?: JsonWithAggregatesFilter<"formal_reports">
+    edited_content?: JsonWithAggregatesFilter<"formal_reports">
+    report_pdf_url?: StringNullableWithAggregatesFilter<"formal_reports"> | string | null
+    pdf_base64?: StringNullableWithAggregatesFilter<"formal_reports"> | string | null
+    generated_at?: DateTimeWithAggregatesFilter<"formal_reports"> | Date | string
+    created_at?: DateTimeWithAggregatesFilter<"formal_reports"> | Date | string
+    updated_at?: DateTimeWithAggregatesFilter<"formal_reports"> | Date | string
   }
 
   export type platformsCreateInput = {
@@ -28658,6 +30072,167 @@ export namespace Prisma {
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
+  export type formal_reportsCreateInput = {
+    id?: string
+    serial_number: string
+    alert_id: string
+    title?: string
+    platform: string
+    status?: string
+    source_category?: string | null
+    content_url?: string | null
+    content_summary?: string | null
+    closing_remarks?: string | null
+    target_user_details?: JsonNullValueInput | InputJsonValue
+    media_links?: JsonNullValueInput | InputJsonValue
+    legal_sections?: JsonNullValueInput | InputJsonValue
+    violated_policies?: JsonNullValueInput | InputJsonValue
+    edited_content?: JsonNullValueInput | InputJsonValue
+    report_pdf_url?: string | null
+    pdf_base64?: string | null
+    generated_at?: Date | string
+    created_at?: Date | string
+    updated_at?: Date | string
+  }
+
+  export type formal_reportsUncheckedCreateInput = {
+    id?: string
+    serial_number: string
+    alert_id: string
+    title?: string
+    platform: string
+    status?: string
+    source_category?: string | null
+    content_url?: string | null
+    content_summary?: string | null
+    closing_remarks?: string | null
+    target_user_details?: JsonNullValueInput | InputJsonValue
+    media_links?: JsonNullValueInput | InputJsonValue
+    legal_sections?: JsonNullValueInput | InputJsonValue
+    violated_policies?: JsonNullValueInput | InputJsonValue
+    edited_content?: JsonNullValueInput | InputJsonValue
+    report_pdf_url?: string | null
+    pdf_base64?: string | null
+    generated_at?: Date | string
+    created_at?: Date | string
+    updated_at?: Date | string
+  }
+
+  export type formal_reportsUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    serial_number?: StringFieldUpdateOperationsInput | string
+    alert_id?: StringFieldUpdateOperationsInput | string
+    title?: StringFieldUpdateOperationsInput | string
+    platform?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    source_category?: NullableStringFieldUpdateOperationsInput | string | null
+    content_url?: NullableStringFieldUpdateOperationsInput | string | null
+    content_summary?: NullableStringFieldUpdateOperationsInput | string | null
+    closing_remarks?: NullableStringFieldUpdateOperationsInput | string | null
+    target_user_details?: JsonNullValueInput | InputJsonValue
+    media_links?: JsonNullValueInput | InputJsonValue
+    legal_sections?: JsonNullValueInput | InputJsonValue
+    violated_policies?: JsonNullValueInput | InputJsonValue
+    edited_content?: JsonNullValueInput | InputJsonValue
+    report_pdf_url?: NullableStringFieldUpdateOperationsInput | string | null
+    pdf_base64?: NullableStringFieldUpdateOperationsInput | string | null
+    generated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type formal_reportsUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    serial_number?: StringFieldUpdateOperationsInput | string
+    alert_id?: StringFieldUpdateOperationsInput | string
+    title?: StringFieldUpdateOperationsInput | string
+    platform?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    source_category?: NullableStringFieldUpdateOperationsInput | string | null
+    content_url?: NullableStringFieldUpdateOperationsInput | string | null
+    content_summary?: NullableStringFieldUpdateOperationsInput | string | null
+    closing_remarks?: NullableStringFieldUpdateOperationsInput | string | null
+    target_user_details?: JsonNullValueInput | InputJsonValue
+    media_links?: JsonNullValueInput | InputJsonValue
+    legal_sections?: JsonNullValueInput | InputJsonValue
+    violated_policies?: JsonNullValueInput | InputJsonValue
+    edited_content?: JsonNullValueInput | InputJsonValue
+    report_pdf_url?: NullableStringFieldUpdateOperationsInput | string | null
+    pdf_base64?: NullableStringFieldUpdateOperationsInput | string | null
+    generated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type formal_reportsCreateManyInput = {
+    id?: string
+    serial_number: string
+    alert_id: string
+    title?: string
+    platform: string
+    status?: string
+    source_category?: string | null
+    content_url?: string | null
+    content_summary?: string | null
+    closing_remarks?: string | null
+    target_user_details?: JsonNullValueInput | InputJsonValue
+    media_links?: JsonNullValueInput | InputJsonValue
+    legal_sections?: JsonNullValueInput | InputJsonValue
+    violated_policies?: JsonNullValueInput | InputJsonValue
+    edited_content?: JsonNullValueInput | InputJsonValue
+    report_pdf_url?: string | null
+    pdf_base64?: string | null
+    generated_at?: Date | string
+    created_at?: Date | string
+    updated_at?: Date | string
+  }
+
+  export type formal_reportsUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    serial_number?: StringFieldUpdateOperationsInput | string
+    alert_id?: StringFieldUpdateOperationsInput | string
+    title?: StringFieldUpdateOperationsInput | string
+    platform?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    source_category?: NullableStringFieldUpdateOperationsInput | string | null
+    content_url?: NullableStringFieldUpdateOperationsInput | string | null
+    content_summary?: NullableStringFieldUpdateOperationsInput | string | null
+    closing_remarks?: NullableStringFieldUpdateOperationsInput | string | null
+    target_user_details?: JsonNullValueInput | InputJsonValue
+    media_links?: JsonNullValueInput | InputJsonValue
+    legal_sections?: JsonNullValueInput | InputJsonValue
+    violated_policies?: JsonNullValueInput | InputJsonValue
+    edited_content?: JsonNullValueInput | InputJsonValue
+    report_pdf_url?: NullableStringFieldUpdateOperationsInput | string | null
+    pdf_base64?: NullableStringFieldUpdateOperationsInput | string | null
+    generated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type formal_reportsUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    serial_number?: StringFieldUpdateOperationsInput | string
+    alert_id?: StringFieldUpdateOperationsInput | string
+    title?: StringFieldUpdateOperationsInput | string
+    platform?: StringFieldUpdateOperationsInput | string
+    status?: StringFieldUpdateOperationsInput | string
+    source_category?: NullableStringFieldUpdateOperationsInput | string | null
+    content_url?: NullableStringFieldUpdateOperationsInput | string | null
+    content_summary?: NullableStringFieldUpdateOperationsInput | string | null
+    closing_remarks?: NullableStringFieldUpdateOperationsInput | string | null
+    target_user_details?: JsonNullValueInput | InputJsonValue
+    media_links?: JsonNullValueInput | InputJsonValue
+    legal_sections?: JsonNullValueInput | InputJsonValue
+    violated_policies?: JsonNullValueInput | InputJsonValue
+    edited_content?: JsonNullValueInput | InputJsonValue
+    report_pdf_url?: NullableStringFieldUpdateOperationsInput | string | null
+    pdf_base64?: NullableStringFieldUpdateOperationsInput | string | null
+    generated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
   export type IntFilter<$PrismaModel = never> = {
     equals?: number | IntFieldRefInput<$PrismaModel>
     in?: number[] | ListIntFieldRefInput<$PrismaModel>
@@ -30207,6 +31782,65 @@ export namespace Prisma {
     _count?: NestedIntFilter<$PrismaModel>
     _min?: NestedStringFilter<$PrismaModel>
     _max?: NestedStringFilter<$PrismaModel>
+  }
+
+  export type formal_reportsCountOrderByAggregateInput = {
+    id?: SortOrder
+    serial_number?: SortOrder
+    alert_id?: SortOrder
+    title?: SortOrder
+    platform?: SortOrder
+    status?: SortOrder
+    source_category?: SortOrder
+    content_url?: SortOrder
+    content_summary?: SortOrder
+    closing_remarks?: SortOrder
+    target_user_details?: SortOrder
+    media_links?: SortOrder
+    legal_sections?: SortOrder
+    violated_policies?: SortOrder
+    edited_content?: SortOrder
+    report_pdf_url?: SortOrder
+    pdf_base64?: SortOrder
+    generated_at?: SortOrder
+    created_at?: SortOrder
+    updated_at?: SortOrder
+  }
+
+  export type formal_reportsMaxOrderByAggregateInput = {
+    id?: SortOrder
+    serial_number?: SortOrder
+    alert_id?: SortOrder
+    title?: SortOrder
+    platform?: SortOrder
+    status?: SortOrder
+    source_category?: SortOrder
+    content_url?: SortOrder
+    content_summary?: SortOrder
+    closing_remarks?: SortOrder
+    report_pdf_url?: SortOrder
+    pdf_base64?: SortOrder
+    generated_at?: SortOrder
+    created_at?: SortOrder
+    updated_at?: SortOrder
+  }
+
+  export type formal_reportsMinOrderByAggregateInput = {
+    id?: SortOrder
+    serial_number?: SortOrder
+    alert_id?: SortOrder
+    title?: SortOrder
+    platform?: SortOrder
+    status?: SortOrder
+    source_category?: SortOrder
+    content_url?: SortOrder
+    content_summary?: SortOrder
+    closing_remarks?: SortOrder
+    report_pdf_url?: SortOrder
+    pdf_base64?: SortOrder
+    generated_at?: SortOrder
+    created_at?: SortOrder
+    updated_at?: SortOrder
   }
 
   export type social_media_accountsCreateNestedManyWithoutPlatformsInput = {

@@ -441,6 +441,29 @@ exports.Prisma.Social_media_periscope_reportsScalarFieldEnum = {
   updated_at: 'updated_at'
 };
 
+exports.Prisma.Formal_reportsScalarFieldEnum = {
+  id: 'id',
+  serial_number: 'serial_number',
+  alert_id: 'alert_id',
+  title: 'title',
+  platform: 'platform',
+  status: 'status',
+  source_category: 'source_category',
+  content_url: 'content_url',
+  content_summary: 'content_summary',
+  closing_remarks: 'closing_remarks',
+  target_user_details: 'target_user_details',
+  media_links: 'media_links',
+  legal_sections: 'legal_sections',
+  violated_policies: 'violated_policies',
+  edited_content: 'edited_content',
+  report_pdf_url: 'report_pdf_url',
+  pdf_base64: 'pdf_base64',
+  generated_at: 'generated_at',
+  created_at: 'created_at',
+  updated_at: 'updated_at'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -501,7 +524,8 @@ exports.Prisma.ModelName = {
   report_templates: 'report_templates',
   policy_mappings: 'policy_mappings',
   audit_logs: 'audit_logs',
-  social_media_periscope_reports: 'social_media_periscope_reports'
+  social_media_periscope_reports: 'social_media_periscope_reports',
+  formal_reports: 'formal_reports'
 };
 
 /**

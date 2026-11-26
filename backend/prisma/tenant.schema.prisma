@@ -437,6 +437,34 @@ model social_media_periscope_reports {
   @@index([report_date(sort: Desc)])
 }
 
+/// Formal notices generated from Alerts → Generate Report (not G/S/C/Q grievances).
+model formal_reports {
+  id                  String   @id @default(uuid())
+  serial_number       String   @unique
+  alert_id            String   @unique
+  title               String   @default("NOTICE: U/Sec:69(A) & 79(3) Information Technology Amendment Act 2008 and 94 BNSS")
+  platform            String
+  status              String   @default("sent_to_intermediary")
+  source_category     String?
+  content_url         String?
+  content_summary     String?  @db.Text
+  closing_remarks     String?  @db.Text
+  target_user_details Json     @default("{}")
+  media_links         Json     @default("[]")
+  legal_sections      Json     @default("[]")
+  violated_policies   Json     @default("[]")
+  edited_content      Json     @default("{}")
+  report_pdf_url      String?
+  pdf_base64          String?  @db.Text
+  generated_at        DateTime @default(now()) @db.Timestamptz(6)
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([generated_at(sort: Desc)])
+  @@index([status, generated_at(sort: Desc)])
+  @@index([platform, status, generated_at(sort: Desc)])
+}
+
 enum monitoring_status_enum {
   started
   stopped
