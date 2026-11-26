@@ -21,7 +21,29 @@ const AppLayout = () => {
   const { user, logout, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Desktop: open by default. Mobile: closed so content uses full width.
+  const [sidebarOpen, setSidebarOpen] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const mq = window.matchMedia('(min-width: 768px)');
+    const onChange = (e) => {
+      // When crossing to mobile, collapse so main content is not crushed.
+      if (!e.matches) setSidebarOpen(false);
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  // Close overlay sidebar after navigation on small screens.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!window.matchMedia('(min-width: 768px)').matches) {
+      setSidebarOpen(false);
+    }
+  }, [location.pathname]);
 
   const pageAccessDenied = useMemo(() => {
     if (!user) return false;
@@ -135,12 +157,22 @@ const AppLayout = () => {
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
         onLogout={handleLogout}
       />
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 relative">
+        {/* Mobile overlay — sidebar draws over content instead of shrinking it */}
+        {sidebarOpen ? (
+          <button
+            type="button"
+            aria-label="Close menu"
+            className="fixed inset-0 top-16 z-30 bg-black/40 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        ) : null}
         <Sidebar open={sidebarOpen} items={user?.sidebar || []} />
         <main
           className={cn(
-            'min-h-0 flex-1 overflow-auto p-3 lg:p-4 transition-[margin] duration-300',
-            sidebarOpen ? 'ml-[72px]' : 'ml-0'
+            'min-h-0 flex-1 overflow-auto overflow-x-hidden p-3 sm:p-3.5 lg:p-4 transition-[margin] duration-300 w-full max-w-full',
+            // On md+ the icon rail reserves space; on mobile it overlays (ml-0).
+            sidebarOpen ? 'ml-0 md:ml-[72px]' : 'ml-0'
           )}
         >
           <Outlet />

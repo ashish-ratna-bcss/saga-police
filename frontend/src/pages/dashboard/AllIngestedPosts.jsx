@@ -200,12 +200,12 @@ const AllIngestedPosts = ({ open, onClose, initialRange = '7d', initialPlatform 
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col overflow-hidden">
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-b border-border bg-gradient-to-r from-indigo-600 to-sky-500 text-white shadow-md">
+      <div className="flex-shrink-0 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3 sm:px-6 py-3 border-b border-border bg-gradient-to-r from-indigo-600 to-sky-500 text-white shadow-md">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
             <Database className="w-4 h-4 text-white" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="font-bold text-base leading-tight">All Posts</h1>
             <p className="text-[11px] text-indigo-100 truncate">
               {loading
@@ -215,15 +215,18 @@ const AllIngestedPosts = ({ open, onClose, initialRange = '7d', initialPlatform 
                   }`}
             </p>
           </div>
+          <button type="button" onClick={onClose} className="p-1.5 rounded hover:bg-white/20 sm:hidden" aria-label="Close">
+            <X className="w-5 h-5 text-white" />
+          </button>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="hidden sm:flex gap-1">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex gap-1 overflow-x-auto [scrollbar-width:none]">
             {RANGES.map((r) => (
               <button
                 key={r.id}
                 type="button"
                 onClick={() => setRange(r.id)}
-                className={`px-3 py-1 rounded text-xs font-medium border ${
+                className={`px-2.5 sm:px-3 py-1 rounded text-xs font-medium border shrink-0 ${
                   range === r.id
                     ? 'bg-white text-indigo-700 border-white'
                     : 'border-white/40 text-white hover:bg-white/20'
@@ -241,13 +244,13 @@ const AllIngestedPosts = ({ open, onClose, initialRange = '7d', initialPlatform 
           >
             {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : '↻'} Refresh
           </button>
-          <button type="button" onClick={onClose} className="p-1.5 rounded hover:bg-white/20" aria-label="Close">
+          <button type="button" onClick={onClose} className="p-1.5 rounded hover:bg-white/20 hidden sm:inline-flex" aria-label="Close">
             <X className="w-5 h-5 text-white" />
           </button>
         </div>
       </div>
 
-      <div className="flex-shrink-0 flex flex-wrap items-center gap-2 px-6 py-2.5 border-b border-border bg-muted/30">
+      <div className="flex-shrink-0 flex flex-wrap items-center gap-2 px-3 sm:px-6 py-2.5 border-b border-border bg-muted/30">
         <span className="text-xs text-muted-foreground font-medium shrink-0">Filter:</span>
         {platformFilters.map((p) => {
           const active = platform === p.id;

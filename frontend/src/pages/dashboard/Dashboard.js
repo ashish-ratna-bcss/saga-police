@@ -905,7 +905,7 @@ const OperationsDashboard = () => {
         </div>
 
         {/* Right Action Bar & Filters */}
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 ml-auto">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto sm:ml-auto min-w-0">
           <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 text-xs hidden md:inline-flex">
             <Link to="/global-search">
               <Search className="h-3.5 w-3.5 text-primary" />
@@ -928,7 +928,7 @@ const OperationsDashboard = () => {
                 type="button"
                 onClick={() => setRange(r.id)}
                 className={cn(
-                  'rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer',
+                  'rounded-md px-2 sm:px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer',
                   range === r.id
                     ? 'bg-foreground text-background shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
@@ -940,7 +940,7 @@ const OperationsDashboard = () => {
           </div>
 
           {/* Platform Selector Filter */}
-          <div className="flex rounded-lg border border-border/70 bg-card p-0.5 shadow-2xs overflow-x-auto">
+          <div className="flex max-w-full rounded-lg border border-border/70 bg-card p-0.5 shadow-2xs overflow-x-auto [scrollbar-width:none]">
             {platformOptions.map((p) => {
               const isActive = platform === p.id;
               return (
@@ -982,146 +982,154 @@ const OperationsDashboard = () => {
       </div>
 
       {/* 2. 5 CORE OPERATIONS KPI CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-        <Link
-          // Opens Alerts on high-risk only, for the exact window and platform the card counted. The window
-          // is the server's own (overview.from/to/range), not the button pressed: "All" is currently served
-          // as 7 days, and the card must link to whatever it actually counted.
-          to={buildAlertsLink({ risk: 'high', range: overview.range || range, platform, from: overview.from, to: overview.to })}
-          className="group flex flex-col justify-between p-3.5 rounded-xl border border-border/70 bg-card hover:border-rose-500/50 hover:shadow-md transition-all cursor-pointer"
-        >
-          <div className="flex items-center justify-between gap-1 mb-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-500 truncate">
-              Threat Vector Radar
-            </span>
-            <div className="h-7 w-7 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 shrink-0 group-hover:scale-105 transition-transform">
-              <AlertTriangle className="h-3.5 w-3.5" />
-            </div>
-          </div>
-          <div className="flex items-baseline justify-between gap-1">
-            <p className="text-2xl font-black tabular-nums tracking-tight text-foreground">
-              {Number(kpis.high_risk_open || 0).toLocaleString('en-IN')}
-            </p>
-            <span className="text-[10px] font-bold text-rose-500">High / Critical</span>
-          </div>
-          <p className="text-[10px] text-muted-foreground mt-1 truncate">
-            {Number(kpis.unread_alerts || 0).toLocaleString('en-IN')} unacknowledged in queue
-          </p>
-        </Link>
-
-        <Link
-          to="/social-profiles"
-          className="group flex flex-col justify-between p-3.5 rounded-xl border border-border/70 bg-card hover:border-emerald-500/50 hover:shadow-md transition-all cursor-pointer"
-        >
-          <div className="flex items-center justify-between gap-1 mb-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 truncate">
-              Surveillance Fleet
-            </span>
-            <div className="h-7 w-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0 group-hover:scale-105 transition-transform">
-              <Radio className="h-3.5 w-3.5" />
-            </div>
-          </div>
-          <div className="flex items-baseline justify-between gap-1">
-            <p className="text-2xl font-black tabular-nums tracking-tight text-foreground">
-              {Number(kpis.accounts_monitoring || 0).toLocaleString('en-IN')}
-            </p>
-            <span className="text-[10px] font-bold text-emerald-500">Active Probes</span>
-          </div>
-          <p className="text-[10px] text-muted-foreground mt-1 truncate">
-            {Number(kpis.accounts_total || 0).toLocaleString('en-IN')} total target profiles
-          </p>
-        </Link>
-
-        <Link
-          to="/events"
-          className="group flex flex-col justify-between p-3.5 rounded-xl border border-border/70 bg-card hover:border-blue-500/50 hover:shadow-md transition-all cursor-pointer"
-        >
-          <div className="flex items-center justify-between gap-1 mb-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500 truncate">
-              Monitored Events
-            </span>
-            <div className="h-7 w-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500 shrink-0 group-hover:scale-105 transition-transform">
-              <CalendarDays className="h-3.5 w-3.5" />
-            </div>
-          </div>
-          <div className="flex items-baseline justify-between gap-1">
-            <p className="text-2xl font-black tabular-nums tracking-tight text-foreground">
-              {Number(kpis.events_started || overview.events?.started || 0).toLocaleString('en-IN')}
-            </p>
-            <span className="text-[10px] font-bold text-blue-500">Live Running</span>
-          </div>
-          <p className="text-[10px] text-muted-foreground mt-1 truncate">
-            {Number(overview.events?.total || 0).toLocaleString('en-IN')} monitored operations
-          </p>
-        </Link>
-
-        <Link
-          to="/grievances"
-          className="group flex flex-col justify-between p-3.5 rounded-xl border border-border/70 bg-card hover:border-orange-500/50 hover:shadow-md transition-all cursor-pointer"
-        >
-          <div className="flex items-center justify-between gap-1 mb-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-orange-500 truncate">
-              Citizen Grievances
-            </span>
-            <div className="h-7 w-7 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-500 shrink-0 group-hover:scale-105 transition-transform">
-              <MessageSquareWarning className="h-3.5 w-3.5" />
-            </div>
-          </div>
-          <div className="flex items-baseline justify-between gap-1">
-            <p className="text-2xl font-black tabular-nums tracking-tight text-foreground">
-              {Number(kpis.open_grievances || 0).toLocaleString('en-IN')}
-            </p>
-            <span className="text-[10px] font-bold text-orange-500">Open Cases</span>
-          </div>
-          <p className="text-[10px] text-muted-foreground mt-1 truncate">
-            {grievReports.sent_to_intermediary || 0} escalated to intermediary
-          </p>
-        </Link>
-
-        <Link
-          to="/analytics-hub"
-          className="group flex flex-col justify-between p-3.5 rounded-xl border border-border/70 bg-card hover:border-indigo-500/50 hover:shadow-md transition-all cursor-pointer col-span-2 sm:col-span-1"
-        >
-          <div className="flex items-center justify-between gap-1 mb-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 truncate">
-              Captured Telemetry
-            </span>
-            <div className="h-7 w-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 group-hover:scale-105 transition-transform">
-              <Activity className="h-3.5 w-3.5" />
-            </div>
-          </div>
-          <div className="flex items-baseline justify-between gap-1">
-            <p className="text-2xl font-black tabular-nums tracking-tight text-foreground">
-              {Number(kpis.posts_in_range || 0).toLocaleString('en-IN')}
-            </p>
-            <span className="text-[10px] font-bold text-indigo-400">Posts Ingested</span>
-          </div>
-          <p className="text-[10px] text-muted-foreground mt-1 truncate">
-            Multi-source intelligence stream
-          </p>
-        </Link>
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 min-w-0">
+        {[
+          {
+            to: buildAlertsLink({ risk: 'high', range: overview.range || range, platform, from: overview.from, to: overview.to }),
+            title: 'Threat Vector Radar',
+            titleShort: 'Threat Radar',
+            value: Number(kpis.high_risk_open || 0),
+            metric: 'High / Critical',
+            footer: `${Number(kpis.unread_alerts || 0).toLocaleString('en-IN')} unacknowledged in queue`,
+            color: 'rose',
+            Icon: AlertTriangle,
+          },
+          {
+            to: '/social-profiles',
+            title: 'Surveillance Fleet',
+            titleShort: 'Fleet',
+            value: Number(kpis.accounts_monitoring || 0),
+            metric: 'Active Probes',
+            footer: `${Number(kpis.accounts_total || 0).toLocaleString('en-IN')} total target profiles`,
+            color: 'emerald',
+            Icon: Radio,
+          },
+          {
+            to: '/events',
+            title: 'Monitored Events',
+            titleShort: 'Events',
+            value: Number(kpis.events_started || overview.events?.started || 0),
+            metric: 'Live Running',
+            footer: `${Number(overview.events?.total || 0).toLocaleString('en-IN')} monitored operations`,
+            color: 'blue',
+            Icon: CalendarDays,
+          },
+          {
+            to: '/grievances',
+            title: 'Citizen Grievances',
+            titleShort: 'Grievances',
+            value: Number(kpis.open_grievances || 0),
+            metric: 'Open Cases',
+            footer: `${grievReports.sent_to_intermediary || 0} escalated to intermediary`,
+            color: 'orange',
+            Icon: MessageSquareWarning,
+          },
+          {
+            to: '/analytics-hub',
+            title: 'Captured Telemetry',
+            titleShort: 'Telemetry',
+            value: Number(kpis.posts_in_range || 0),
+            metric: 'Posts Ingested',
+            footer: 'Multi-source intelligence stream',
+            color: 'indigo',
+            Icon: Activity,
+            span: 'min-[420px]:col-span-2 sm:col-span-1 lg:col-span-1',
+          },
+        ].map((card) => {
+          const colorMap = {
+            rose: {
+              title: 'text-rose-500',
+              border: 'hover:border-rose-500/50',
+              iconWrap: 'bg-rose-500/10 border-rose-500/20 text-rose-500',
+              metric: 'text-rose-500',
+            },
+            emerald: {
+              title: 'text-emerald-500',
+              border: 'hover:border-emerald-500/50',
+              iconWrap: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500',
+              metric: 'text-emerald-500',
+            },
+            blue: {
+              title: 'text-blue-500',
+              border: 'hover:border-blue-500/50',
+              iconWrap: 'bg-blue-500/10 border-blue-500/20 text-blue-500',
+              metric: 'text-blue-500',
+            },
+            orange: {
+              title: 'text-orange-500',
+              border: 'hover:border-orange-500/50',
+              iconWrap: 'bg-orange-500/10 border-orange-500/20 text-orange-500',
+              metric: 'text-orange-500',
+            },
+            indigo: {
+              title: 'text-indigo-400',
+              border: 'hover:border-indigo-500/50',
+              iconWrap: 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400',
+              metric: 'text-indigo-400',
+            },
+          };
+          const c = colorMap[card.color];
+          const Icon = card.Icon;
+          return (
+            <Link
+              key={card.title}
+              to={card.to}
+              className={cn(
+                'group flex min-w-0 flex-col justify-between p-3 sm:p-3.5 rounded-xl border border-border/70 bg-card hover:shadow-md transition-all cursor-pointer',
+                c.border,
+                card.span
+              )}
+            >
+              <div className="flex items-start justify-between gap-2 mb-2 min-w-0">
+                <span className={cn('text-[10px] font-bold uppercase tracking-wider leading-snug', c.title)}>
+                  <span className="sm:hidden">{card.titleShort}</span>
+                  <span className="hidden sm:inline">{card.title}</span>
+                </span>
+                <div
+                  className={cn(
+                    'h-7 w-7 rounded-lg border flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform',
+                    c.iconWrap
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                </div>
+              </div>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 min-w-0">
+                <p className="text-2xl font-black tabular-nums tracking-tight text-foreground">
+                  {card.value.toLocaleString('en-IN')}
+                </p>
+                <span className={cn('text-[10px] font-bold shrink-0', c.metric)}>{card.metric}</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2 sm:truncate">{card.footer}</p>
+            </Link>
+          );
+        })}
       </div>
 
       {/* 3. DUAL INTELLIGENCE COMMAND STAGE (8 COLS + 4 COLS) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 min-w-0">
         {/* LEFT (8 COLS): TELEMETRY DISCOVERY VELOCITY AREA CHART */}
-        <div className="lg:col-span-8 min-w-0 rounded-xl border border-border/70 bg-card p-3.5 sm:p-4 shadow-xs flex flex-col justify-between overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2.5 border-b border-border/60 min-w-0">
-            <div className="flex items-center gap-2 min-w-0">
+        <div className="lg:col-span-8 min-w-0 rounded-xl border border-border/70 bg-card p-3 sm:p-4 shadow-xs flex flex-col justify-between overflow-hidden">
+          <div className="flex flex-col gap-2 mb-3 pb-2.5 border-b border-border/60 min-w-0">
+            <div className="flex items-start gap-2 min-w-0">
               <div className="h-7 w-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
                 <TrendingUp className="h-4 w-4" />
               </div>
-              <div className="min-w-0">
-                <h2 className="text-xs font-heading font-bold uppercase tracking-wider text-foreground truncate">
-                  Telemetry Discovery Velocity & Ingestion Trend
+              <div className="min-w-0 flex-1">
+                <h2 className="text-xs font-heading font-bold uppercase tracking-wider text-foreground leading-snug">
+                  <span className="sm:hidden">Ingestion Trend</span>
+                  <span className="hidden sm:inline">Telemetry Discovery Velocity & Ingestion Trend</span>
                 </h2>
-                <p className="text-[11px] text-muted-foreground truncate">
-                  Continuous day-by-day surveillance intake ({range} timeframe)
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  <span className="sm:hidden">{range} intake</span>
+                  <span className="hidden sm:inline">
+                    Continuous day-by-day surveillance intake ({range} timeframe)
+                  </span>
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 min-w-0">
               <div className="flex items-center gap-1.5 text-xs">
                 <span className="text-[11px] text-muted-foreground">Peak:</span>
                 <span className="font-bold tabular-nums text-foreground">{trendStats.peak.toLocaleString('en-IN')}</span>
@@ -1130,35 +1138,38 @@ const OperationsDashboard = () => {
                 <span className="text-[11px] text-muted-foreground">Avg/Day:</span>
                 <span className="font-bold tabular-nums text-foreground">{trendStats.avg.toLocaleString('en-IN')}</span>
               </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2 text-xs font-semibold text-primary"
-                onClick={() => setAllPostsOpen(true)}
-              >
-                <span>All Posts</span>
-                <ArrowRight className="h-3 w-3 ml-1" />
-              </Button>
-              <Button asChild size="sm" variant="ghost" className="h-7 px-2 text-xs font-semibold text-primary">
-                <Link to="/analytics-hub">
-                  <span>Deep Analytics</span>
+              <div className="flex flex-wrap items-center gap-1 ml-auto">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs font-semibold text-primary"
+                  onClick={() => setAllPostsOpen(true)}
+                >
+                  <span>All Posts</span>
                   <ArrowRight className="h-3 w-3 ml-1" />
-                </Link>
-              </Button>
+                </Button>
+                <Button asChild size="sm" variant="ghost" className="h-7 px-2 text-xs font-semibold text-primary">
+                  <Link to="/analytics-hub">
+                    <span className="hidden sm:inline">Deep Analytics</span>
+                    <span className="sm:hidden">Analytics</span>
+                    <ArrowRight className="h-3 w-3 ml-1" />
+                  </Link>
+                </Button>
+              </div>
             </div>
           </div>
 
           {/* Area Chart Container */}
-          <div className="w-full h-[220px] min-w-0">
+          <div className="w-full h-[180px] sm:h-[220px] min-w-0">
             {trendData.length === 0 ? (
-              <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground text-center">
+              <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground text-center px-2">
                 <Activity className="h-8 w-8 text-muted-foreground/30 mb-1.5" />
                 <p className="text-xs font-semibold text-foreground">No Telemetry Recorded in Range</p>
                 <p className="text-[11px] text-muted-foreground">Switch range to 30d or All Time to view historical velocity.</p>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <AreaChart data={trendData} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}>
                   <defs>
                     <linearGradient id="telemetryGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#6366f1" stopOpacity={0.45} />
@@ -1224,20 +1235,20 @@ const OperationsDashboard = () => {
         </div>
 
         {/* RIGHT (4 COLS): MULTI-PLATFORM INGESTION SHARE */}
-        <div className="lg:col-span-4 min-w-0 rounded-xl border border-border/70 bg-card p-3.5 sm:p-4 shadow-xs flex flex-col justify-between overflow-hidden">
-          <div className="flex items-center justify-between gap-2 mb-3 pb-2.5 border-b border-border/60 min-w-0">
-            <div className="flex items-center gap-2 min-w-0">
+        <div className="lg:col-span-4 min-w-0 rounded-xl border border-border/70 bg-card p-3 sm:p-4 shadow-xs flex flex-col justify-between overflow-hidden">
+          <div className="flex items-start justify-between gap-2 mb-3 pb-2.5 border-b border-border/60 min-w-0">
+            <div className="flex items-start gap-2 min-w-0 flex-1">
               <div className="h-7 w-7 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-500 shrink-0">
                 <Globe className="h-4 w-4" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-xs font-heading font-bold uppercase tracking-wider text-foreground truncate">
+                <h2 className="text-xs font-heading font-bold uppercase tracking-wider text-foreground leading-snug">
                   Platform Ingestion Share
                 </h2>
-                <p className="text-[11px] text-muted-foreground truncate">Distribution across social vectors</p>
+                <p className="text-[11px] text-muted-foreground leading-snug">Distribution across social vectors</p>
               </div>
             </div>
-            <span className="text-[11px] font-bold tabular-nums text-foreground shrink-0">
+            <span className="text-[11px] font-bold tabular-nums text-foreground shrink-0 whitespace-nowrap">
               {platforms.length} Platforms
             </span>
           </div>
@@ -1357,9 +1368,10 @@ const OperationsDashboard = () => {
                 </span>
                 <span className="text-[9px] text-muted-foreground">{sentimentStats.positive_pct || 0}%</span>
               </div>
-              <div className="p-2 rounded-lg bg-slate-500/5 border border-slate-500/15">
+              <div className="p-2 rounded-lg bg-slate-500/5 border border-slate-500/15 min-w-0">
                 <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">
-                  Neutral / News
+                  <span className="sm:hidden">Neutral</span>
+                  <span className="hidden sm:inline">Neutral / News</span>
                 </span>
                 <span className="text-xs font-black tabular-nums text-foreground block mt-0.5">
                   {sentimentStats.neutral || 0}
@@ -1377,9 +1389,9 @@ const OperationsDashboard = () => {
               </div>
             </div>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-border/40 text-[10px] text-muted-foreground flex items-center justify-between">
-            <span>Positive = Approval • Negative = Backlash</span>
-            <Link to="/analytics-hub" className="text-primary font-semibold hover:underline">
+          <div className="mt-2.5 pt-2 border-t border-border/40 text-[10px] text-muted-foreground flex flex-wrap items-center justify-between gap-1">
+            <span className="min-w-0">Positive = Approval • Negative = Backlash</span>
+            <Link to="/analytics-hub" className="text-primary font-semibold hover:underline shrink-0">
               Analyze →
             </Link>
           </div>
@@ -1507,9 +1519,10 @@ const OperationsDashboard = () => {
 
             {/* Legend & Counts */}
             <div className="grid grid-cols-3 gap-1.5 text-center">
-              <div className="p-2 rounded-lg bg-rose-500/5 border border-rose-500/15">
+              <div className="p-2 rounded-lg bg-rose-500/5 border border-rose-500/15 min-w-0">
                 <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 block">
-                  Critical / High
+                  <span className="sm:hidden">High</span>
+                  <span className="hidden sm:inline">Critical / High</span>
                 </span>
                 <span className="text-xs font-black tabular-nums text-foreground block mt-0.5">
                   {riskStats.high || 0}
@@ -1536,9 +1549,9 @@ const OperationsDashboard = () => {
               </div>
             </div>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-border/40 text-[10px] text-muted-foreground flex items-center justify-between">
-            <span>High = Urgent triage • Low = Routine monitoring</span>
-            <Link to="/alerts" className="text-primary font-semibold hover:underline">
+          <div className="mt-2.5 pt-2 border-t border-border/40 text-[10px] text-muted-foreground flex flex-wrap items-center justify-between gap-1">
+            <span className="min-w-0">High = Urgent triage • Low = Routine monitoring</span>
+            <Link to="/alerts" className="text-primary font-semibold hover:underline shrink-0">
               Alerts queue →
             </Link>
           </div>

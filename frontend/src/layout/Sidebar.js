@@ -102,11 +102,12 @@ const Sidebar = ({ open, items }) => {
   return (
     <aside
       className={cn(
-        'fixed bottom-0 left-0 top-16 z-40 flex w-[72px] flex-col border-r border-white/10 shadow-md transition-all duration-300',
+        'fixed bottom-0 left-0 top-16 z-40 flex w-[72px] flex-col border-r border-white/10 shadow-md transition-transform duration-300',
         open ? 'translate-x-0' : '-translate-x-full'
       )}
       style={{ background: 'var(--primary-gradient)' }}
       aria-label="Main navigation"
+      aria-hidden={!open}
     >
       <nav className="flex w-full flex-1 flex-col items-center gap-0.5 overflow-y-auto overflow-x-hidden py-2 [scrollbar-width:none]">
         {nav.map((item) => {
