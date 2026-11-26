@@ -740,13 +740,17 @@ export const DownloadMenu = ({
             }
 
             // Strategy 2: Fall back to backend download-video API (CDN fetch or yt-dlp)
-            const response = await api.post('/media/download-video', {
-                media_url: unwrapStreamProxyUrl(mediaUrl) || pickDownloadUrl(videoItems[0]) || videoItems[0]?.url,
-                video_urls: videoItems
-                    .flatMap((v) => [v.original_url, ...(v.fallbackUrls || []), v.s3_url, unwrapStreamProxyUrl(v.url)])
-                    .filter(Boolean),
-                content_id: contentId
-            });
+            const response = await api.post(
+                '/media/download-video',
+                {
+                    media_url: unwrapStreamProxyUrl(mediaUrl) || pickDownloadUrl(videoItems[0]) || videoItems[0]?.url,
+                    video_urls: videoItems
+                        .flatMap((v) => [v.original_url, ...(v.fallbackUrls || []), v.s3_url, unwrapStreamProxyUrl(v.url)])
+                        .filter(Boolean),
+                    content_id: contentId,
+                },
+                { timeout: 90000 }
+            );
 
             if (response.data.items && response.data.items.length > 0) {
                 // Download each video file
@@ -885,8 +889,8 @@ export const DownloadMenu = ({
                 ) : (
                     <Download className="h-4 w-4" />
                 )}
-                <span className={showLabel ? 'hidden sm:inline' : 'hidden'}>
-                    {downloading ? 'Downloading...' : downloadError ? 'Failed' :
+                <span className={showLabel ? 'inline whitespace-nowrap' : 'hidden'}>
+                    {downloading ? 'Downloading…' : downloadError ? 'Failed' :
                         (simpleMode ? 'Download' :
                             (hasImages && !hasVideos ? imageLabel :
                                 (hasVideos && !hasImages ? videoLabel : 'Download')))}
@@ -4260,11 +4264,13 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
 
                         <button
                             onClick={handleFormatClick}
-                            className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1 z-20 px-2 py-1.5 rounded-md hover:bg-accent transition-colors"
+                            className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1 z-20 px-2 py-1.5 rounded-md hover:bg-accent transition-colors shrink-0"
                             title="Format & Share"
                         >
-                            <FileText className="h-3.5 w-3.5" />
-                            {alert.status !== 'escalated' && <span>Format & Share</span>}
+                            <FileText className="h-3.5 w-3.5 shrink-0" />
+                            <span className="whitespace-nowrap">
+                              {alert.status === 'escalated' && !hideActions ? 'Format' : 'Format & Share'}
+                            </span>
                         </button>
 
                         {canDownload && (
@@ -4279,11 +4285,12 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                                 downloadProgress={downloadProgress}
                                 downloadStatus={downloadStatus}
                                 downloadError={downloadError}
-                                showLabel={false}
+                                showLabel
                             />
                         )}
 
-                        {/* Relation button */}
+                        {/* Relation button — alerts only (not catalog All Posts) */}
+                        {!hideActions && (
                         <button
                             onClick={async (e) => {
                                 e.preventDefault();
@@ -4310,8 +4317,22 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                             {triggeringAnalysis ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
                             {!canOpenRetweetNetwork && <span className="absolute inset-0 flex items-center justify-center"><span className="block w-5 h-[1.5px] bg-muted-foreground/50 rotate-[-45deg] rounded-full" /></span>}
                         </button>
+                        )}
 
-                        {/* View Details button - always visible */}
+                        {/* Catalog All Posts: open original. Alerts: view details modal. */}
+                        {hideActions && cardOpenUrl ? (
+                          <a
+                            href={cardOpenUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium text-primary hover:bg-accent z-20 shrink-0"
+                            title="Open original post"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            <span className="whitespace-nowrap">Open</span>
+                          </a>
+                        ) : (
                         <button
                             onClick={(e) => {
                                 e.preventDefault();
@@ -4326,6 +4347,7 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                                 <Eye className="h-4 w-4" />
                             </div>
                         </button>
+                        )}
                     </div>
 
                     {/* Alert Title/Reason Removed to save space */}
@@ -5350,16 +5372,18 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
 
                         <button
                             onClick={handleFormatClick}
-                            className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1 z-20 px-2 py-1.5 rounded-md hover:bg-accent transition-colors"
+                            className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1 z-20 px-2 py-1.5 rounded-md hover:bg-accent transition-colors shrink-0"
                             title="Format & Share"
                         >
-                            <FileText className="h-3.5 w-3.5" />
-                            {alert.status !== 'escalated' && <span>Format & Share</span>}
+                            <FileText className="h-3.5 w-3.5 shrink-0" />
+                            <span className="whitespace-nowrap">
+                              {alert.status === 'escalated' && !hideActions ? 'Format' : 'Format & Share'}
+                            </span>
                         </button>
 
                         {youtubeVideoId && (
                             <DownloadMenu
-                                mediaItems={[{ type: 'video', url: mediaUrl }]}
+                                mediaItems={[{ type: 'video', url: mediaUrl, original_url: mediaUrl }]}
                                 mediaUrl={mediaUrl}
                                 contentId={content?.id}
                                 onDownloadStart={handleDownloadStart}
@@ -5369,10 +5393,11 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
                                 downloadProgress={downloadProgress}
                                 downloadStatus={downloadStatus}
                                 downloadError={downloadError}
-                                showLabel={false}
+                                showLabel
                             />
                         )}
 
+                        {!hideActions && (
                         <button
                             disabled
                             className="p-2 rounded-md text-muted-foreground/40 cursor-not-allowed transition-colors relative"
@@ -5381,7 +5406,21 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
                             <Users className="h-4 w-4" />
                             <span className="absolute inset-0 flex items-center justify-center"><span className="block w-5 h-[1.5px] bg-muted-foreground/50 rotate-[-45deg] rounded-full" /></span>
                         </button>
+                        )}
 
+                        {hideActions && mediaUrl ? (
+                          <a
+                            href={mediaUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium text-primary hover:bg-accent z-20 shrink-0"
+                            title="Open original post"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            <span className="whitespace-nowrap">Open</span>
+                          </a>
+                        ) : (
                         <button
                             onClick={(e) => {
                                 e.preventDefault();
@@ -5396,6 +5435,7 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
                                 <Eye className="h-4 w-4" />
                             </div>
                         </button>
+                        )}
                     </div>
                     {/* Header: Avatar | Channel */}
                     <div className="flex justify-between items-start gap-2 mb-3">
