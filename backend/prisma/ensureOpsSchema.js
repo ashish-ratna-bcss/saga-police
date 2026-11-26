@@ -627,8 +627,18 @@ async function ensureOpsSchema(prisma, opts = {}) {
     )
   `);
 
+  // Rename short-lived formal_reports → social_media_alert_reports (match grievance naming).
   await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS formal_reports (
+    DO $$
+    BEGIN
+      IF to_regclass('public.formal_reports') IS NOT NULL
+         AND to_regclass('public.social_media_alert_reports') IS NULL THEN
+        ALTER TABLE formal_reports RENAME TO social_media_alert_reports;
+      END IF;
+    END $$
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS social_media_alert_reports (
       id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
       serial_number TEXT NOT NULL,
       alert_id TEXT NOT NULL,
@@ -649,21 +659,21 @@ async function ensureOpsSchema(prisma, opts = {}) {
       generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      CONSTRAINT formal_reports_serial_number_key UNIQUE (serial_number),
-      CONSTRAINT formal_reports_alert_id_key UNIQUE (alert_id)
+      CONSTRAINT social_media_alert_reports_serial_number_key UNIQUE (serial_number),
+      CONSTRAINT social_media_alert_reports_alert_id_key UNIQUE (alert_id)
     )
   `);
   await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS formal_reports_generated_at_idx
-    ON formal_reports (generated_at DESC)
+    CREATE INDEX IF NOT EXISTS social_media_alert_reports_generated_at_idx
+    ON social_media_alert_reports (generated_at DESC)
   `);
   await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS formal_reports_status_generated_at_idx
-    ON formal_reports (status, generated_at DESC)
+    CREATE INDEX IF NOT EXISTS social_media_alert_reports_status_generated_at_idx
+    ON social_media_alert_reports (status, generated_at DESC)
   `);
   await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS formal_reports_platform_status_generated_at_idx
-    ON formal_reports (platform, status, generated_at DESC)
+    CREATE INDEX IF NOT EXISTS social_media_alert_reports_platform_status_generated_at_idx
+    ON social_media_alert_reports (platform, status, generated_at DESC)
   `);
   await prisma.$executeRawUnsafe(`
     CREATE INDEX IF NOT EXISTS periscope_reports_date_idx ON social_media_periscope_reports (report_date DESC)

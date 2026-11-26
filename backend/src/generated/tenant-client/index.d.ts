@@ -105,10 +105,10 @@ export type audit_logs = $Result.DefaultSelection<Prisma.$audit_logsPayload>
  */
 export type social_media_periscope_reports = $Result.DefaultSelection<Prisma.$social_media_periscope_reportsPayload>
 /**
- * Model formal_reports
- * Formal notices generated from Alerts → Generate Report (not G/S/C/Q grievances).
+ * Model social_media_alert_reports
+ * Notices generated from Alerts → Generate Report (not G/S/C/Q grievances).
  */
-export type formal_reports = $Result.DefaultSelection<Prisma.$formal_reportsPayload>
+export type social_media_alert_reports = $Result.DefaultSelection<Prisma.$social_media_alert_reportsPayload>
 
 /**
  * Enums
@@ -441,14 +441,14 @@ export class PrismaClient<
   get social_media_periscope_reports(): Prisma.social_media_periscope_reportsDelegate<ExtArgs, ClientOptions>;
 
   /**
-   * `prisma.formal_reports`: Exposes CRUD operations for the **formal_reports** model.
+   * `prisma.social_media_alert_reports`: Exposes CRUD operations for the **social_media_alert_reports** model.
     * Example usage:
     * ```ts
-    * // Fetch zero or more Formal_reports
-    * const formal_reports = await prisma.formal_reports.findMany()
+    * // Fetch zero or more Social_media_alert_reports
+    * const social_media_alert_reports = await prisma.social_media_alert_reports.findMany()
     * ```
     */
-  get formal_reports(): Prisma.formal_reportsDelegate<ExtArgs, ClientOptions>;
+  get social_media_alert_reports(): Prisma.social_media_alert_reportsDelegate<ExtArgs, ClientOptions>;
 }
 
 export namespace Prisma {
@@ -908,7 +908,7 @@ export namespace Prisma {
     policy_mappings: 'policy_mappings',
     audit_logs: 'audit_logs',
     social_media_periscope_reports: 'social_media_periscope_reports',
-    formal_reports: 'formal_reports'
+    social_media_alert_reports: 'social_media_alert_reports'
   };
 
   export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -927,7 +927,7 @@ export namespace Prisma {
       omit: GlobalOmitOptions
     }
     meta: {
-      modelProps: "platforms" | "social_media_profiles" | "social_media_accounts" | "social_media_posts" | "social_media_alerts" | "social_media_grievances" | "social_media_grievance_reports" | "social_media_grievance_contacts" | "keywords" | "social_media_occasion_calendar" | "social_media_events" | "social_media_event_summaries" | "social_media_event_media" | "alert_config" | "report_templates" | "policy_mappings" | "audit_logs" | "social_media_periscope_reports" | "formal_reports"
+      modelProps: "platforms" | "social_media_profiles" | "social_media_accounts" | "social_media_posts" | "social_media_alerts" | "social_media_grievances" | "social_media_grievance_reports" | "social_media_grievance_contacts" | "keywords" | "social_media_occasion_calendar" | "social_media_events" | "social_media_event_summaries" | "social_media_event_media" | "alert_config" | "report_templates" | "policy_mappings" | "audit_logs" | "social_media_periscope_reports" | "social_media_alert_reports"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -2263,77 +2263,77 @@ export namespace Prisma {
           }
         }
       }
-      formal_reports: {
-        payload: Prisma.$formal_reportsPayload<ExtArgs>
-        fields: Prisma.formal_reportsFieldRefs
+      social_media_alert_reports: {
+        payload: Prisma.$social_media_alert_reportsPayload<ExtArgs>
+        fields: Prisma.social_media_alert_reportsFieldRefs
         operations: {
           findUnique: {
-            args: Prisma.formal_reportsFindUniqueArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload> | null
+            args: Prisma.social_media_alert_reportsFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_alert_reportsPayload> | null
           }
           findUniqueOrThrow: {
-            args: Prisma.formal_reportsFindUniqueOrThrowArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload>
+            args: Prisma.social_media_alert_reportsFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_alert_reportsPayload>
           }
           findFirst: {
-            args: Prisma.formal_reportsFindFirstArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload> | null
+            args: Prisma.social_media_alert_reportsFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_alert_reportsPayload> | null
           }
           findFirstOrThrow: {
-            args: Prisma.formal_reportsFindFirstOrThrowArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload>
+            args: Prisma.social_media_alert_reportsFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_alert_reportsPayload>
           }
           findMany: {
-            args: Prisma.formal_reportsFindManyArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload>[]
+            args: Prisma.social_media_alert_reportsFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_alert_reportsPayload>[]
           }
           create: {
-            args: Prisma.formal_reportsCreateArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload>
+            args: Prisma.social_media_alert_reportsCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_alert_reportsPayload>
           }
           createMany: {
-            args: Prisma.formal_reportsCreateManyArgs<ExtArgs>
+            args: Prisma.social_media_alert_reportsCreateManyArgs<ExtArgs>
             result: BatchPayload
           }
           createManyAndReturn: {
-            args: Prisma.formal_reportsCreateManyAndReturnArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload>[]
+            args: Prisma.social_media_alert_reportsCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_alert_reportsPayload>[]
           }
           delete: {
-            args: Prisma.formal_reportsDeleteArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload>
+            args: Prisma.social_media_alert_reportsDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_alert_reportsPayload>
           }
           update: {
-            args: Prisma.formal_reportsUpdateArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload>
+            args: Prisma.social_media_alert_reportsUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_alert_reportsPayload>
           }
           deleteMany: {
-            args: Prisma.formal_reportsDeleteManyArgs<ExtArgs>
+            args: Prisma.social_media_alert_reportsDeleteManyArgs<ExtArgs>
             result: BatchPayload
           }
           updateMany: {
-            args: Prisma.formal_reportsUpdateManyArgs<ExtArgs>
+            args: Prisma.social_media_alert_reportsUpdateManyArgs<ExtArgs>
             result: BatchPayload
           }
           updateManyAndReturn: {
-            args: Prisma.formal_reportsUpdateManyAndReturnArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload>[]
+            args: Prisma.social_media_alert_reportsUpdateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_alert_reportsPayload>[]
           }
           upsert: {
-            args: Prisma.formal_reportsUpsertArgs<ExtArgs>
-            result: $Utils.PayloadToResult<Prisma.$formal_reportsPayload>
+            args: Prisma.social_media_alert_reportsUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$social_media_alert_reportsPayload>
           }
           aggregate: {
-            args: Prisma.Formal_reportsAggregateArgs<ExtArgs>
-            result: $Utils.Optional<AggregateFormal_reports>
+            args: Prisma.Social_media_alert_reportsAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateSocial_media_alert_reports>
           }
           groupBy: {
-            args: Prisma.formal_reportsGroupByArgs<ExtArgs>
-            result: $Utils.Optional<Formal_reportsGroupByOutputType>[]
+            args: Prisma.social_media_alert_reportsGroupByArgs<ExtArgs>
+            result: $Utils.Optional<Social_media_alert_reportsGroupByOutputType>[]
           }
           count: {
-            args: Prisma.formal_reportsCountArgs<ExtArgs>
-            result: $Utils.Optional<Formal_reportsCountAggregateOutputType> | number
+            args: Prisma.social_media_alert_reportsCountArgs<ExtArgs>
+            result: $Utils.Optional<Social_media_alert_reportsCountAggregateOutputType> | number
           }
         }
       }
@@ -2451,7 +2451,7 @@ export namespace Prisma {
     policy_mappings?: policy_mappingsOmit
     audit_logs?: audit_logsOmit
     social_media_periscope_reports?: social_media_periscope_reportsOmit
-    formal_reports?: formal_reportsOmit
+    social_media_alert_reports?: social_media_alert_reportsOmit
   }
 
   /* Types for Logging */
@@ -24054,16 +24054,16 @@ export namespace Prisma {
 
 
   /**
-   * Model formal_reports
+   * Model social_media_alert_reports
    */
 
-  export type AggregateFormal_reports = {
-    _count: Formal_reportsCountAggregateOutputType | null
-    _min: Formal_reportsMinAggregateOutputType | null
-    _max: Formal_reportsMaxAggregateOutputType | null
+  export type AggregateSocial_media_alert_reports = {
+    _count: Social_media_alert_reportsCountAggregateOutputType | null
+    _min: Social_media_alert_reportsMinAggregateOutputType | null
+    _max: Social_media_alert_reportsMaxAggregateOutputType | null
   }
 
-  export type Formal_reportsMinAggregateOutputType = {
+  export type Social_media_alert_reportsMinAggregateOutputType = {
     id: string | null
     serial_number: string | null
     alert_id: string | null
@@ -24081,7 +24081,7 @@ export namespace Prisma {
     updated_at: Date | null
   }
 
-  export type Formal_reportsMaxAggregateOutputType = {
+  export type Social_media_alert_reportsMaxAggregateOutputType = {
     id: string | null
     serial_number: string | null
     alert_id: string | null
@@ -24099,7 +24099,7 @@ export namespace Prisma {
     updated_at: Date | null
   }
 
-  export type Formal_reportsCountAggregateOutputType = {
+  export type Social_media_alert_reportsCountAggregateOutputType = {
     id: number
     serial_number: number
     alert_id: number
@@ -24124,7 +24124,7 @@ export namespace Prisma {
   }
 
 
-  export type Formal_reportsMinAggregateInputType = {
+  export type Social_media_alert_reportsMinAggregateInputType = {
     id?: true
     serial_number?: true
     alert_id?: true
@@ -24142,7 +24142,7 @@ export namespace Prisma {
     updated_at?: true
   }
 
-  export type Formal_reportsMaxAggregateInputType = {
+  export type Social_media_alert_reportsMaxAggregateInputType = {
     id?: true
     serial_number?: true
     alert_id?: true
@@ -24160,7 +24160,7 @@ export namespace Prisma {
     updated_at?: true
   }
 
-  export type Formal_reportsCountAggregateInputType = {
+  export type Social_media_alert_reportsCountAggregateInputType = {
     id?: true
     serial_number?: true
     alert_id?: true
@@ -24184,79 +24184,79 @@ export namespace Prisma {
     _all?: true
   }
 
-  export type Formal_reportsAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+  export type Social_media_alert_reportsAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     /**
-     * Filter which formal_reports to aggregate.
+     * Filter which social_media_alert_reports to aggregate.
      */
-    where?: formal_reportsWhereInput
+    where?: social_media_alert_reportsWhereInput
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
      * 
-     * Determine the order of formal_reports to fetch.
+     * Determine the order of social_media_alert_reports to fetch.
      */
-    orderBy?: formal_reportsOrderByWithRelationInput | formal_reportsOrderByWithRelationInput[]
+    orderBy?: social_media_alert_reportsOrderByWithRelationInput | social_media_alert_reportsOrderByWithRelationInput[]
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
      * 
      * Sets the start position
      */
-    cursor?: formal_reportsWhereUniqueInput
+    cursor?: social_media_alert_reportsWhereUniqueInput
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
      * 
-     * Take `±n` formal_reports from the position of the cursor.
+     * Take `±n` social_media_alert_reports from the position of the cursor.
      */
     take?: number
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
      * 
-     * Skip the first `n` formal_reports.
+     * Skip the first `n` social_media_alert_reports.
      */
     skip?: number
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
      * 
-     * Count returned formal_reports
+     * Count returned social_media_alert_reports
     **/
-    _count?: true | Formal_reportsCountAggregateInputType
+    _count?: true | Social_media_alert_reportsCountAggregateInputType
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
      * 
      * Select which fields to find the minimum value
     **/
-    _min?: Formal_reportsMinAggregateInputType
+    _min?: Social_media_alert_reportsMinAggregateInputType
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
      * 
      * Select which fields to find the maximum value
     **/
-    _max?: Formal_reportsMaxAggregateInputType
+    _max?: Social_media_alert_reportsMaxAggregateInputType
   }
 
-  export type GetFormal_reportsAggregateType<T extends Formal_reportsAggregateArgs> = {
-        [P in keyof T & keyof AggregateFormal_reports]: P extends '_count' | 'count'
+  export type GetSocial_media_alert_reportsAggregateType<T extends Social_media_alert_reportsAggregateArgs> = {
+        [P in keyof T & keyof AggregateSocial_media_alert_reports]: P extends '_count' | 'count'
       ? T[P] extends true
         ? number
-        : GetScalarType<T[P], AggregateFormal_reports[P]>
-      : GetScalarType<T[P], AggregateFormal_reports[P]>
+        : GetScalarType<T[P], AggregateSocial_media_alert_reports[P]>
+      : GetScalarType<T[P], AggregateSocial_media_alert_reports[P]>
   }
 
 
 
 
-  export type formal_reportsGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    where?: formal_reportsWhereInput
-    orderBy?: formal_reportsOrderByWithAggregationInput | formal_reportsOrderByWithAggregationInput[]
-    by: Formal_reportsScalarFieldEnum[] | Formal_reportsScalarFieldEnum
-    having?: formal_reportsScalarWhereWithAggregatesInput
+  export type social_media_alert_reportsGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: social_media_alert_reportsWhereInput
+    orderBy?: social_media_alert_reportsOrderByWithAggregationInput | social_media_alert_reportsOrderByWithAggregationInput[]
+    by: Social_media_alert_reportsScalarFieldEnum[] | Social_media_alert_reportsScalarFieldEnum
+    having?: social_media_alert_reportsScalarWhereWithAggregatesInput
     take?: number
     skip?: number
-    _count?: Formal_reportsCountAggregateInputType | true
-    _min?: Formal_reportsMinAggregateInputType
-    _max?: Formal_reportsMaxAggregateInputType
+    _count?: Social_media_alert_reportsCountAggregateInputType | true
+    _min?: Social_media_alert_reportsMinAggregateInputType
+    _max?: Social_media_alert_reportsMaxAggregateInputType
   }
 
-  export type Formal_reportsGroupByOutputType = {
+  export type Social_media_alert_reportsGroupByOutputType = {
     id: string
     serial_number: string
     alert_id: string
@@ -24277,26 +24277,26 @@ export namespace Prisma {
     generated_at: Date
     created_at: Date
     updated_at: Date
-    _count: Formal_reportsCountAggregateOutputType | null
-    _min: Formal_reportsMinAggregateOutputType | null
-    _max: Formal_reportsMaxAggregateOutputType | null
+    _count: Social_media_alert_reportsCountAggregateOutputType | null
+    _min: Social_media_alert_reportsMinAggregateOutputType | null
+    _max: Social_media_alert_reportsMaxAggregateOutputType | null
   }
 
-  type GetFormal_reportsGroupByPayload<T extends formal_reportsGroupByArgs> = Prisma.PrismaPromise<
+  type GetSocial_media_alert_reportsGroupByPayload<T extends social_media_alert_reportsGroupByArgs> = Prisma.PrismaPromise<
     Array<
-      PickEnumerable<Formal_reportsGroupByOutputType, T['by']> &
+      PickEnumerable<Social_media_alert_reportsGroupByOutputType, T['by']> &
         {
-          [P in ((keyof T) & (keyof Formal_reportsGroupByOutputType))]: P extends '_count'
+          [P in ((keyof T) & (keyof Social_media_alert_reportsGroupByOutputType))]: P extends '_count'
             ? T[P] extends boolean
               ? number
-              : GetScalarType<T[P], Formal_reportsGroupByOutputType[P]>
-            : GetScalarType<T[P], Formal_reportsGroupByOutputType[P]>
+              : GetScalarType<T[P], Social_media_alert_reportsGroupByOutputType[P]>
+            : GetScalarType<T[P], Social_media_alert_reportsGroupByOutputType[P]>
         }
       >
     >
 
 
-  export type formal_reportsSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+  export type social_media_alert_reportsSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
     serial_number?: boolean
     alert_id?: boolean
@@ -24317,9 +24317,9 @@ export namespace Prisma {
     generated_at?: boolean
     created_at?: boolean
     updated_at?: boolean
-  }, ExtArgs["result"]["formal_reports"]>
+  }, ExtArgs["result"]["social_media_alert_reports"]>
 
-  export type formal_reportsSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+  export type social_media_alert_reportsSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
     serial_number?: boolean
     alert_id?: boolean
@@ -24340,9 +24340,9 @@ export namespace Prisma {
     generated_at?: boolean
     created_at?: boolean
     updated_at?: boolean
-  }, ExtArgs["result"]["formal_reports"]>
+  }, ExtArgs["result"]["social_media_alert_reports"]>
 
-  export type formal_reportsSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+  export type social_media_alert_reportsSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
     serial_number?: boolean
     alert_id?: boolean
@@ -24363,9 +24363,9 @@ export namespace Prisma {
     generated_at?: boolean
     created_at?: boolean
     updated_at?: boolean
-  }, ExtArgs["result"]["formal_reports"]>
+  }, ExtArgs["result"]["social_media_alert_reports"]>
 
-  export type formal_reportsSelectScalar = {
+  export type social_media_alert_reportsSelectScalar = {
     id?: boolean
     serial_number?: boolean
     alert_id?: boolean
@@ -24388,10 +24388,10 @@ export namespace Prisma {
     updated_at?: boolean
   }
 
-  export type formal_reportsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "serial_number" | "alert_id" | "title" | "platform" | "status" | "source_category" | "content_url" | "content_summary" | "closing_remarks" | "target_user_details" | "media_links" | "legal_sections" | "violated_policies" | "edited_content" | "report_pdf_url" | "pdf_base64" | "generated_at" | "created_at" | "updated_at", ExtArgs["result"]["formal_reports"]>
+  export type social_media_alert_reportsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "serial_number" | "alert_id" | "title" | "platform" | "status" | "source_category" | "content_url" | "content_summary" | "closing_remarks" | "target_user_details" | "media_links" | "legal_sections" | "violated_policies" | "edited_content" | "report_pdf_url" | "pdf_base64" | "generated_at" | "created_at" | "updated_at", ExtArgs["result"]["social_media_alert_reports"]>
 
-  export type $formal_reportsPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    name: "formal_reports"
+  export type $social_media_alert_reportsPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "social_media_alert_reports"
     objects: {}
     scalars: $Extensions.GetPayloadResult<{
       id: string
@@ -24414,136 +24414,136 @@ export namespace Prisma {
       generated_at: Date
       created_at: Date
       updated_at: Date
-    }, ExtArgs["result"]["formal_reports"]>
+    }, ExtArgs["result"]["social_media_alert_reports"]>
     composites: {}
   }
 
-  type formal_reportsGetPayload<S extends boolean | null | undefined | formal_reportsDefaultArgs> = $Result.GetResult<Prisma.$formal_reportsPayload, S>
+  type social_media_alert_reportsGetPayload<S extends boolean | null | undefined | social_media_alert_reportsDefaultArgs> = $Result.GetResult<Prisma.$social_media_alert_reportsPayload, S>
 
-  type formal_reportsCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> =
-    Omit<formal_reportsFindManyArgs, 'select' | 'include' | 'distinct' | 'omit'> & {
-      select?: Formal_reportsCountAggregateInputType | true
+  type social_media_alert_reportsCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> =
+    Omit<social_media_alert_reportsFindManyArgs, 'select' | 'include' | 'distinct' | 'omit'> & {
+      select?: Social_media_alert_reportsCountAggregateInputType | true
     }
 
-  export interface formal_reportsDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> {
-    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['formal_reports'], meta: { name: 'formal_reports' } }
+  export interface social_media_alert_reportsDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['social_media_alert_reports'], meta: { name: 'social_media_alert_reports' } }
     /**
-     * Find zero or one Formal_reports that matches the filter.
-     * @param {formal_reportsFindUniqueArgs} args - Arguments to find a Formal_reports
+     * Find zero or one Social_media_alert_reports that matches the filter.
+     * @param {social_media_alert_reportsFindUniqueArgs} args - Arguments to find a Social_media_alert_reports
      * @example
-     * // Get one Formal_reports
-     * const formal_reports = await prisma.formal_reports.findUnique({
+     * // Get one Social_media_alert_reports
+     * const social_media_alert_reports = await prisma.social_media_alert_reports.findUnique({
      *   where: {
      *     // ... provide filter here
      *   }
      * })
      */
-    findUnique<T extends formal_reportsFindUniqueArgs>(args: SelectSubset<T, formal_reportsFindUniqueArgs<ExtArgs>>): Prisma__formal_reportsClient<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "findUnique", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+    findUnique<T extends social_media_alert_reportsFindUniqueArgs>(args: SelectSubset<T, social_media_alert_reportsFindUniqueArgs<ExtArgs>>): Prisma__social_media_alert_reportsClient<$Result.GetResult<Prisma.$social_media_alert_reportsPayload<ExtArgs>, T, "findUnique", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
 
     /**
-     * Find one Formal_reports that matches the filter or throw an error with `error.code='P2025'`
+     * Find one Social_media_alert_reports that matches the filter or throw an error with `error.code='P2025'`
      * if no matches were found.
-     * @param {formal_reportsFindUniqueOrThrowArgs} args - Arguments to find a Formal_reports
+     * @param {social_media_alert_reportsFindUniqueOrThrowArgs} args - Arguments to find a Social_media_alert_reports
      * @example
-     * // Get one Formal_reports
-     * const formal_reports = await prisma.formal_reports.findUniqueOrThrow({
+     * // Get one Social_media_alert_reports
+     * const social_media_alert_reports = await prisma.social_media_alert_reports.findUniqueOrThrow({
      *   where: {
      *     // ... provide filter here
      *   }
      * })
      */
-    findUniqueOrThrow<T extends formal_reportsFindUniqueOrThrowArgs>(args: SelectSubset<T, formal_reportsFindUniqueOrThrowArgs<ExtArgs>>): Prisma__formal_reportsClient<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+    findUniqueOrThrow<T extends social_media_alert_reportsFindUniqueOrThrowArgs>(args: SelectSubset<T, social_media_alert_reportsFindUniqueOrThrowArgs<ExtArgs>>): Prisma__social_media_alert_reportsClient<$Result.GetResult<Prisma.$social_media_alert_reportsPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
 
     /**
-     * Find the first Formal_reports that matches the filter.
+     * Find the first Social_media_alert_reports that matches the filter.
      * Note, that providing `undefined` is treated as the value not being there.
      * Read more here: https://pris.ly/d/null-undefined
-     * @param {formal_reportsFindFirstArgs} args - Arguments to find a Formal_reports
+     * @param {social_media_alert_reportsFindFirstArgs} args - Arguments to find a Social_media_alert_reports
      * @example
-     * // Get one Formal_reports
-     * const formal_reports = await prisma.formal_reports.findFirst({
+     * // Get one Social_media_alert_reports
+     * const social_media_alert_reports = await prisma.social_media_alert_reports.findFirst({
      *   where: {
      *     // ... provide filter here
      *   }
      * })
      */
-    findFirst<T extends formal_reportsFindFirstArgs>(args?: SelectSubset<T, formal_reportsFindFirstArgs<ExtArgs>>): Prisma__formal_reportsClient<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "findFirst", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+    findFirst<T extends social_media_alert_reportsFindFirstArgs>(args?: SelectSubset<T, social_media_alert_reportsFindFirstArgs<ExtArgs>>): Prisma__social_media_alert_reportsClient<$Result.GetResult<Prisma.$social_media_alert_reportsPayload<ExtArgs>, T, "findFirst", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
 
     /**
-     * Find the first Formal_reports that matches the filter or
+     * Find the first Social_media_alert_reports that matches the filter or
      * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
      * Note, that providing `undefined` is treated as the value not being there.
      * Read more here: https://pris.ly/d/null-undefined
-     * @param {formal_reportsFindFirstOrThrowArgs} args - Arguments to find a Formal_reports
+     * @param {social_media_alert_reportsFindFirstOrThrowArgs} args - Arguments to find a Social_media_alert_reports
      * @example
-     * // Get one Formal_reports
-     * const formal_reports = await prisma.formal_reports.findFirstOrThrow({
+     * // Get one Social_media_alert_reports
+     * const social_media_alert_reports = await prisma.social_media_alert_reports.findFirstOrThrow({
      *   where: {
      *     // ... provide filter here
      *   }
      * })
      */
-    findFirstOrThrow<T extends formal_reportsFindFirstOrThrowArgs>(args?: SelectSubset<T, formal_reportsFindFirstOrThrowArgs<ExtArgs>>): Prisma__formal_reportsClient<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "findFirstOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+    findFirstOrThrow<T extends social_media_alert_reportsFindFirstOrThrowArgs>(args?: SelectSubset<T, social_media_alert_reportsFindFirstOrThrowArgs<ExtArgs>>): Prisma__social_media_alert_reportsClient<$Result.GetResult<Prisma.$social_media_alert_reportsPayload<ExtArgs>, T, "findFirstOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
 
     /**
-     * Find zero or more Formal_reports that matches the filter.
+     * Find zero or more Social_media_alert_reports that matches the filter.
      * Note, that providing `undefined` is treated as the value not being there.
      * Read more here: https://pris.ly/d/null-undefined
-     * @param {formal_reportsFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @param {social_media_alert_reportsFindManyArgs} args - Arguments to filter and select certain fields only.
      * @example
-     * // Get all Formal_reports
-     * const formal_reports = await prisma.formal_reports.findMany()
+     * // Get all Social_media_alert_reports
+     * const social_media_alert_reports = await prisma.social_media_alert_reports.findMany()
      * 
-     * // Get first 10 Formal_reports
-     * const formal_reports = await prisma.formal_reports.findMany({ take: 10 })
+     * // Get first 10 Social_media_alert_reports
+     * const social_media_alert_reports = await prisma.social_media_alert_reports.findMany({ take: 10 })
      * 
      * // Only select the `id`
-     * const formal_reportsWithIdOnly = await prisma.formal_reports.findMany({ select: { id: true } })
+     * const social_media_alert_reportsWithIdOnly = await prisma.social_media_alert_reports.findMany({ select: { id: true } })
      * 
      */
-    findMany<T extends formal_reportsFindManyArgs>(args?: SelectSubset<T, formal_reportsFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
+    findMany<T extends social_media_alert_reportsFindManyArgs>(args?: SelectSubset<T, social_media_alert_reportsFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$social_media_alert_reportsPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
 
     /**
-     * Create a Formal_reports.
-     * @param {formal_reportsCreateArgs} args - Arguments to create a Formal_reports.
+     * Create a Social_media_alert_reports.
+     * @param {social_media_alert_reportsCreateArgs} args - Arguments to create a Social_media_alert_reports.
      * @example
-     * // Create one Formal_reports
-     * const Formal_reports = await prisma.formal_reports.create({
+     * // Create one Social_media_alert_reports
+     * const Social_media_alert_reports = await prisma.social_media_alert_reports.create({
      *   data: {
-     *     // ... data to create a Formal_reports
+     *     // ... data to create a Social_media_alert_reports
      *   }
      * })
      * 
      */
-    create<T extends formal_reportsCreateArgs>(args: SelectSubset<T, formal_reportsCreateArgs<ExtArgs>>): Prisma__formal_reportsClient<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "create", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+    create<T extends social_media_alert_reportsCreateArgs>(args: SelectSubset<T, social_media_alert_reportsCreateArgs<ExtArgs>>): Prisma__social_media_alert_reportsClient<$Result.GetResult<Prisma.$social_media_alert_reportsPayload<ExtArgs>, T, "create", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
 
     /**
-     * Create many Formal_reports.
-     * @param {formal_reportsCreateManyArgs} args - Arguments to create many Formal_reports.
+     * Create many Social_media_alert_reports.
+     * @param {social_media_alert_reportsCreateManyArgs} args - Arguments to create many Social_media_alert_reports.
      * @example
-     * // Create many Formal_reports
-     * const formal_reports = await prisma.formal_reports.createMany({
+     * // Create many Social_media_alert_reports
+     * const social_media_alert_reports = await prisma.social_media_alert_reports.createMany({
      *   data: [
      *     // ... provide data here
      *   ]
      * })
      *     
      */
-    createMany<T extends formal_reportsCreateManyArgs>(args?: SelectSubset<T, formal_reportsCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+    createMany<T extends social_media_alert_reportsCreateManyArgs>(args?: SelectSubset<T, social_media_alert_reportsCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
 
     /**
-     * Create many Formal_reports and returns the data saved in the database.
-     * @param {formal_reportsCreateManyAndReturnArgs} args - Arguments to create many Formal_reports.
+     * Create many Social_media_alert_reports and returns the data saved in the database.
+     * @param {social_media_alert_reportsCreateManyAndReturnArgs} args - Arguments to create many Social_media_alert_reports.
      * @example
-     * // Create many Formal_reports
-     * const formal_reports = await prisma.formal_reports.createManyAndReturn({
+     * // Create many Social_media_alert_reports
+     * const social_media_alert_reports = await prisma.social_media_alert_reports.createManyAndReturn({
      *   data: [
      *     // ... provide data here
      *   ]
      * })
      * 
-     * // Create many Formal_reports and only return the `id`
-     * const formal_reportsWithIdOnly = await prisma.formal_reports.createManyAndReturn({
+     * // Create many Social_media_alert_reports and only return the `id`
+     * const social_media_alert_reportsWithIdOnly = await prisma.social_media_alert_reports.createManyAndReturn({
      *   select: { id: true },
      *   data: [
      *     // ... provide data here
@@ -24553,28 +24553,28 @@ export namespace Prisma {
      * Read more here: https://pris.ly/d/null-undefined
      * 
      */
-    createManyAndReturn<T extends formal_reportsCreateManyAndReturnArgs>(args?: SelectSubset<T, formal_reportsCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "createManyAndReturn", GlobalOmitOptions>>
+    createManyAndReturn<T extends social_media_alert_reportsCreateManyAndReturnArgs>(args?: SelectSubset<T, social_media_alert_reportsCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$social_media_alert_reportsPayload<ExtArgs>, T, "createManyAndReturn", GlobalOmitOptions>>
 
     /**
-     * Delete a Formal_reports.
-     * @param {formal_reportsDeleteArgs} args - Arguments to delete one Formal_reports.
+     * Delete a Social_media_alert_reports.
+     * @param {social_media_alert_reportsDeleteArgs} args - Arguments to delete one Social_media_alert_reports.
      * @example
-     * // Delete one Formal_reports
-     * const Formal_reports = await prisma.formal_reports.delete({
+     * // Delete one Social_media_alert_reports
+     * const Social_media_alert_reports = await prisma.social_media_alert_reports.delete({
      *   where: {
-     *     // ... filter to delete one Formal_reports
+     *     // ... filter to delete one Social_media_alert_reports
      *   }
      * })
      * 
      */
-    delete<T extends formal_reportsDeleteArgs>(args: SelectSubset<T, formal_reportsDeleteArgs<ExtArgs>>): Prisma__formal_reportsClient<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "delete", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+    delete<T extends social_media_alert_reportsDeleteArgs>(args: SelectSubset<T, social_media_alert_reportsDeleteArgs<ExtArgs>>): Prisma__social_media_alert_reportsClient<$Result.GetResult<Prisma.$social_media_alert_reportsPayload<ExtArgs>, T, "delete", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
 
     /**
-     * Update one Formal_reports.
-     * @param {formal_reportsUpdateArgs} args - Arguments to update one Formal_reports.
+     * Update one Social_media_alert_reports.
+     * @param {social_media_alert_reportsUpdateArgs} args - Arguments to update one Social_media_alert_reports.
      * @example
-     * // Update one Formal_reports
-     * const formal_reports = await prisma.formal_reports.update({
+     * // Update one Social_media_alert_reports
+     * const social_media_alert_reports = await prisma.social_media_alert_reports.update({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -24584,30 +24584,30 @@ export namespace Prisma {
      * })
      * 
      */
-    update<T extends formal_reportsUpdateArgs>(args: SelectSubset<T, formal_reportsUpdateArgs<ExtArgs>>): Prisma__formal_reportsClient<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "update", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+    update<T extends social_media_alert_reportsUpdateArgs>(args: SelectSubset<T, social_media_alert_reportsUpdateArgs<ExtArgs>>): Prisma__social_media_alert_reportsClient<$Result.GetResult<Prisma.$social_media_alert_reportsPayload<ExtArgs>, T, "update", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
 
     /**
-     * Delete zero or more Formal_reports.
-     * @param {formal_reportsDeleteManyArgs} args - Arguments to filter Formal_reports to delete.
+     * Delete zero or more Social_media_alert_reports.
+     * @param {social_media_alert_reportsDeleteManyArgs} args - Arguments to filter Social_media_alert_reports to delete.
      * @example
-     * // Delete a few Formal_reports
-     * const { count } = await prisma.formal_reports.deleteMany({
+     * // Delete a few Social_media_alert_reports
+     * const { count } = await prisma.social_media_alert_reports.deleteMany({
      *   where: {
      *     // ... provide filter here
      *   }
      * })
      * 
      */
-    deleteMany<T extends formal_reportsDeleteManyArgs>(args?: SelectSubset<T, formal_reportsDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+    deleteMany<T extends social_media_alert_reportsDeleteManyArgs>(args?: SelectSubset<T, social_media_alert_reportsDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
 
     /**
-     * Update zero or more Formal_reports.
+     * Update zero or more Social_media_alert_reports.
      * Note, that providing `undefined` is treated as the value not being there.
      * Read more here: https://pris.ly/d/null-undefined
-     * @param {formal_reportsUpdateManyArgs} args - Arguments to update one or more rows.
+     * @param {social_media_alert_reportsUpdateManyArgs} args - Arguments to update one or more rows.
      * @example
-     * // Update many Formal_reports
-     * const formal_reports = await prisma.formal_reports.updateMany({
+     * // Update many Social_media_alert_reports
+     * const social_media_alert_reports = await prisma.social_media_alert_reports.updateMany({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -24617,14 +24617,14 @@ export namespace Prisma {
      * })
      * 
      */
-    updateMany<T extends formal_reportsUpdateManyArgs>(args: SelectSubset<T, formal_reportsUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+    updateMany<T extends social_media_alert_reportsUpdateManyArgs>(args: SelectSubset<T, social_media_alert_reportsUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
 
     /**
-     * Update zero or more Formal_reports and returns the data updated in the database.
-     * @param {formal_reportsUpdateManyAndReturnArgs} args - Arguments to update many Formal_reports.
+     * Update zero or more Social_media_alert_reports and returns the data updated in the database.
+     * @param {social_media_alert_reportsUpdateManyAndReturnArgs} args - Arguments to update many Social_media_alert_reports.
      * @example
-     * // Update many Formal_reports
-     * const formal_reports = await prisma.formal_reports.updateManyAndReturn({
+     * // Update many Social_media_alert_reports
+     * const social_media_alert_reports = await prisma.social_media_alert_reports.updateManyAndReturn({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -24633,8 +24633,8 @@ export namespace Prisma {
      *   ]
      * })
      * 
-     * // Update zero or more Formal_reports and only return the `id`
-     * const formal_reportsWithIdOnly = await prisma.formal_reports.updateManyAndReturn({
+     * // Update zero or more Social_media_alert_reports and only return the `id`
+     * const social_media_alert_reportsWithIdOnly = await prisma.social_media_alert_reports.updateManyAndReturn({
      *   select: { id: true },
      *   where: {
      *     // ... provide filter here
@@ -24647,56 +24647,56 @@ export namespace Prisma {
      * Read more here: https://pris.ly/d/null-undefined
      * 
      */
-    updateManyAndReturn<T extends formal_reportsUpdateManyAndReturnArgs>(args: SelectSubset<T, formal_reportsUpdateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "updateManyAndReturn", GlobalOmitOptions>>
+    updateManyAndReturn<T extends social_media_alert_reportsUpdateManyAndReturnArgs>(args: SelectSubset<T, social_media_alert_reportsUpdateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$social_media_alert_reportsPayload<ExtArgs>, T, "updateManyAndReturn", GlobalOmitOptions>>
 
     /**
-     * Create or update one Formal_reports.
-     * @param {formal_reportsUpsertArgs} args - Arguments to update or create a Formal_reports.
+     * Create or update one Social_media_alert_reports.
+     * @param {social_media_alert_reportsUpsertArgs} args - Arguments to update or create a Social_media_alert_reports.
      * @example
-     * // Update or create a Formal_reports
-     * const formal_reports = await prisma.formal_reports.upsert({
+     * // Update or create a Social_media_alert_reports
+     * const social_media_alert_reports = await prisma.social_media_alert_reports.upsert({
      *   create: {
-     *     // ... data to create a Formal_reports
+     *     // ... data to create a Social_media_alert_reports
      *   },
      *   update: {
      *     // ... in case it already exists, update
      *   },
      *   where: {
-     *     // ... the filter for the Formal_reports we want to update
+     *     // ... the filter for the Social_media_alert_reports we want to update
      *   }
      * })
      */
-    upsert<T extends formal_reportsUpsertArgs>(args: SelectSubset<T, formal_reportsUpsertArgs<ExtArgs>>): Prisma__formal_reportsClient<$Result.GetResult<Prisma.$formal_reportsPayload<ExtArgs>, T, "upsert", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+    upsert<T extends social_media_alert_reportsUpsertArgs>(args: SelectSubset<T, social_media_alert_reportsUpsertArgs<ExtArgs>>): Prisma__social_media_alert_reportsClient<$Result.GetResult<Prisma.$social_media_alert_reportsPayload<ExtArgs>, T, "upsert", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
 
 
     /**
-     * Count the number of Formal_reports.
+     * Count the number of Social_media_alert_reports.
      * Note, that providing `undefined` is treated as the value not being there.
      * Read more here: https://pris.ly/d/null-undefined
-     * @param {formal_reportsCountArgs} args - Arguments to filter Formal_reports to count.
+     * @param {social_media_alert_reportsCountArgs} args - Arguments to filter Social_media_alert_reports to count.
      * @example
-     * // Count the number of Formal_reports
-     * const count = await prisma.formal_reports.count({
+     * // Count the number of Social_media_alert_reports
+     * const count = await prisma.social_media_alert_reports.count({
      *   where: {
-     *     // ... the filter for the Formal_reports we want to count
+     *     // ... the filter for the Social_media_alert_reports we want to count
      *   }
      * })
     **/
-    count<T extends formal_reportsCountArgs>(
-      args?: Subset<T, formal_reportsCountArgs>,
+    count<T extends social_media_alert_reportsCountArgs>(
+      args?: Subset<T, social_media_alert_reportsCountArgs>,
     ): Prisma.PrismaPromise<
       T extends $Utils.Record<'select', any>
         ? T['select'] extends true
           ? number
-          : GetScalarType<T['select'], Formal_reportsCountAggregateOutputType>
+          : GetScalarType<T['select'], Social_media_alert_reportsCountAggregateOutputType>
         : number
     >
 
     /**
-     * Allows you to perform aggregations operations on a Formal_reports.
+     * Allows you to perform aggregations operations on a Social_media_alert_reports.
      * Note, that providing `undefined` is treated as the value not being there.
      * Read more here: https://pris.ly/d/null-undefined
-     * @param {Formal_reportsAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @param {Social_media_alert_reportsAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
      * @example
      * // Ordered by age ascending
      * // Where email contains prisma.io
@@ -24716,13 +24716,13 @@ export namespace Prisma {
      *   take: 10,
      * })
     **/
-    aggregate<T extends Formal_reportsAggregateArgs>(args: Subset<T, Formal_reportsAggregateArgs>): Prisma.PrismaPromise<GetFormal_reportsAggregateType<T>>
+    aggregate<T extends Social_media_alert_reportsAggregateArgs>(args: Subset<T, Social_media_alert_reportsAggregateArgs>): Prisma.PrismaPromise<GetSocial_media_alert_reportsAggregateType<T>>
 
     /**
-     * Group by Formal_reports.
+     * Group by Social_media_alert_reports.
      * Note, that providing `undefined` is treated as the value not being there.
      * Read more here: https://pris.ly/d/null-undefined
-     * @param {formal_reportsGroupByArgs} args - Group by arguments.
+     * @param {social_media_alert_reportsGroupByArgs} args - Group by arguments.
      * @example
      * // Group by city, order by createdAt, get count
      * const result = await prisma.user.groupBy({
@@ -24737,14 +24737,14 @@ export namespace Prisma {
      * 
     **/
     groupBy<
-      T extends formal_reportsGroupByArgs,
+      T extends social_media_alert_reportsGroupByArgs,
       HasSelectOrTake extends Or<
         Extends<'skip', Keys<T>>,
         Extends<'take', Keys<T>>
       >,
       OrderByArg extends True extends HasSelectOrTake
-        ? { orderBy: formal_reportsGroupByArgs['orderBy'] }
-        : { orderBy?: formal_reportsGroupByArgs['orderBy'] },
+        ? { orderBy: social_media_alert_reportsGroupByArgs['orderBy'] }
+        : { orderBy?: social_media_alert_reportsGroupByArgs['orderBy'] },
       OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
       ByFields extends MaybeTupleToUnion<T['by']>,
       ByValid extends Has<ByFields, OrderFields>,
@@ -24793,20 +24793,20 @@ export namespace Prisma {
             ? never
             : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
         }[OrderFields]
-    >(args: SubsetIntersection<T, formal_reportsGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetFormal_reportsGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+    >(args: SubsetIntersection<T, social_media_alert_reportsGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetSocial_media_alert_reportsGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
   /**
-   * Fields of the formal_reports model
+   * Fields of the social_media_alert_reports model
    */
-  readonly fields: formal_reportsFieldRefs;
+  readonly fields: social_media_alert_reportsFieldRefs;
   }
 
   /**
-   * The delegate class that acts as a "Promise-like" for formal_reports.
+   * The delegate class that acts as a "Promise-like" for social_media_alert_reports.
    * Why is this prefixed with `Prisma__`?
    * Because we want to prevent naming conflicts as mentioned in
    * https://github.com/prisma/prisma-client-js/issues/707
    */
-  export interface Prisma__formal_reportsClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
+  export interface Prisma__social_media_alert_reportsClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
     readonly [Symbol.toStringTag]: "PrismaPromise"
     /**
      * Attaches callbacks for the resolution and/or rejection of the Promise.
@@ -24834,392 +24834,392 @@ export namespace Prisma {
 
 
   /**
-   * Fields of the formal_reports model
+   * Fields of the social_media_alert_reports model
    */
-  interface formal_reportsFieldRefs {
-    readonly id: FieldRef<"formal_reports", 'String'>
-    readonly serial_number: FieldRef<"formal_reports", 'String'>
-    readonly alert_id: FieldRef<"formal_reports", 'String'>
-    readonly title: FieldRef<"formal_reports", 'String'>
-    readonly platform: FieldRef<"formal_reports", 'String'>
-    readonly status: FieldRef<"formal_reports", 'String'>
-    readonly source_category: FieldRef<"formal_reports", 'String'>
-    readonly content_url: FieldRef<"formal_reports", 'String'>
-    readonly content_summary: FieldRef<"formal_reports", 'String'>
-    readonly closing_remarks: FieldRef<"formal_reports", 'String'>
-    readonly target_user_details: FieldRef<"formal_reports", 'Json'>
-    readonly media_links: FieldRef<"formal_reports", 'Json'>
-    readonly legal_sections: FieldRef<"formal_reports", 'Json'>
-    readonly violated_policies: FieldRef<"formal_reports", 'Json'>
-    readonly edited_content: FieldRef<"formal_reports", 'Json'>
-    readonly report_pdf_url: FieldRef<"formal_reports", 'String'>
-    readonly pdf_base64: FieldRef<"formal_reports", 'String'>
-    readonly generated_at: FieldRef<"formal_reports", 'DateTime'>
-    readonly created_at: FieldRef<"formal_reports", 'DateTime'>
-    readonly updated_at: FieldRef<"formal_reports", 'DateTime'>
+  interface social_media_alert_reportsFieldRefs {
+    readonly id: FieldRef<"social_media_alert_reports", 'String'>
+    readonly serial_number: FieldRef<"social_media_alert_reports", 'String'>
+    readonly alert_id: FieldRef<"social_media_alert_reports", 'String'>
+    readonly title: FieldRef<"social_media_alert_reports", 'String'>
+    readonly platform: FieldRef<"social_media_alert_reports", 'String'>
+    readonly status: FieldRef<"social_media_alert_reports", 'String'>
+    readonly source_category: FieldRef<"social_media_alert_reports", 'String'>
+    readonly content_url: FieldRef<"social_media_alert_reports", 'String'>
+    readonly content_summary: FieldRef<"social_media_alert_reports", 'String'>
+    readonly closing_remarks: FieldRef<"social_media_alert_reports", 'String'>
+    readonly target_user_details: FieldRef<"social_media_alert_reports", 'Json'>
+    readonly media_links: FieldRef<"social_media_alert_reports", 'Json'>
+    readonly legal_sections: FieldRef<"social_media_alert_reports", 'Json'>
+    readonly violated_policies: FieldRef<"social_media_alert_reports", 'Json'>
+    readonly edited_content: FieldRef<"social_media_alert_reports", 'Json'>
+    readonly report_pdf_url: FieldRef<"social_media_alert_reports", 'String'>
+    readonly pdf_base64: FieldRef<"social_media_alert_reports", 'String'>
+    readonly generated_at: FieldRef<"social_media_alert_reports", 'DateTime'>
+    readonly created_at: FieldRef<"social_media_alert_reports", 'DateTime'>
+    readonly updated_at: FieldRef<"social_media_alert_reports", 'DateTime'>
   }
     
 
   // Custom InputTypes
   /**
-   * formal_reports findUnique
+   * social_media_alert_reports findUnique
    */
-  export type formal_reportsFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+  export type social_media_alert_reportsFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     /**
-     * Select specific fields to fetch from the formal_reports
+     * Select specific fields to fetch from the social_media_alert_reports
      */
-    select?: formal_reportsSelect<ExtArgs> | null
+    select?: social_media_alert_reportsSelect<ExtArgs> | null
     /**
-     * Omit specific fields from the formal_reports
+     * Omit specific fields from the social_media_alert_reports
      */
-    omit?: formal_reportsOmit<ExtArgs> | null
+    omit?: social_media_alert_reportsOmit<ExtArgs> | null
     /**
-     * Filter, which formal_reports to fetch.
+     * Filter, which social_media_alert_reports to fetch.
      */
-    where: formal_reportsWhereUniqueInput
+    where: social_media_alert_reportsWhereUniqueInput
   }
 
   /**
-   * formal_reports findUniqueOrThrow
+   * social_media_alert_reports findUniqueOrThrow
    */
-  export type formal_reportsFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+  export type social_media_alert_reportsFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     /**
-     * Select specific fields to fetch from the formal_reports
+     * Select specific fields to fetch from the social_media_alert_reports
      */
-    select?: formal_reportsSelect<ExtArgs> | null
+    select?: social_media_alert_reportsSelect<ExtArgs> | null
     /**
-     * Omit specific fields from the formal_reports
+     * Omit specific fields from the social_media_alert_reports
      */
-    omit?: formal_reportsOmit<ExtArgs> | null
+    omit?: social_media_alert_reportsOmit<ExtArgs> | null
     /**
-     * Filter, which formal_reports to fetch.
+     * Filter, which social_media_alert_reports to fetch.
      */
-    where: formal_reportsWhereUniqueInput
+    where: social_media_alert_reportsWhereUniqueInput
   }
 
   /**
-   * formal_reports findFirst
+   * social_media_alert_reports findFirst
    */
-  export type formal_reportsFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+  export type social_media_alert_reportsFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     /**
-     * Select specific fields to fetch from the formal_reports
+     * Select specific fields to fetch from the social_media_alert_reports
      */
-    select?: formal_reportsSelect<ExtArgs> | null
+    select?: social_media_alert_reportsSelect<ExtArgs> | null
     /**
-     * Omit specific fields from the formal_reports
+     * Omit specific fields from the social_media_alert_reports
      */
-    omit?: formal_reportsOmit<ExtArgs> | null
+    omit?: social_media_alert_reportsOmit<ExtArgs> | null
     /**
-     * Filter, which formal_reports to fetch.
+     * Filter, which social_media_alert_reports to fetch.
      */
-    where?: formal_reportsWhereInput
+    where?: social_media_alert_reportsWhereInput
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
      * 
-     * Determine the order of formal_reports to fetch.
+     * Determine the order of social_media_alert_reports to fetch.
      */
-    orderBy?: formal_reportsOrderByWithRelationInput | formal_reportsOrderByWithRelationInput[]
+    orderBy?: social_media_alert_reportsOrderByWithRelationInput | social_media_alert_reportsOrderByWithRelationInput[]
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
      * 
-     * Sets the position for searching for formal_reports.
+     * Sets the position for searching for social_media_alert_reports.
      */
-    cursor?: formal_reportsWhereUniqueInput
+    cursor?: social_media_alert_reportsWhereUniqueInput
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
      * 
-     * Take `±n` formal_reports from the position of the cursor.
+     * Take `±n` social_media_alert_reports from the position of the cursor.
      */
     take?: number
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
      * 
-     * Skip the first `n` formal_reports.
+     * Skip the first `n` social_media_alert_reports.
      */
     skip?: number
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
      * 
-     * Filter by unique combinations of formal_reports.
+     * Filter by unique combinations of social_media_alert_reports.
      */
-    distinct?: Formal_reportsScalarFieldEnum | Formal_reportsScalarFieldEnum[]
+    distinct?: Social_media_alert_reportsScalarFieldEnum | Social_media_alert_reportsScalarFieldEnum[]
   }
 
   /**
-   * formal_reports findFirstOrThrow
+   * social_media_alert_reports findFirstOrThrow
    */
-  export type formal_reportsFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+  export type social_media_alert_reportsFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     /**
-     * Select specific fields to fetch from the formal_reports
+     * Select specific fields to fetch from the social_media_alert_reports
      */
-    select?: formal_reportsSelect<ExtArgs> | null
+    select?: social_media_alert_reportsSelect<ExtArgs> | null
     /**
-     * Omit specific fields from the formal_reports
+     * Omit specific fields from the social_media_alert_reports
      */
-    omit?: formal_reportsOmit<ExtArgs> | null
+    omit?: social_media_alert_reportsOmit<ExtArgs> | null
     /**
-     * Filter, which formal_reports to fetch.
+     * Filter, which social_media_alert_reports to fetch.
      */
-    where?: formal_reportsWhereInput
+    where?: social_media_alert_reportsWhereInput
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
      * 
-     * Determine the order of formal_reports to fetch.
+     * Determine the order of social_media_alert_reports to fetch.
      */
-    orderBy?: formal_reportsOrderByWithRelationInput | formal_reportsOrderByWithRelationInput[]
+    orderBy?: social_media_alert_reportsOrderByWithRelationInput | social_media_alert_reportsOrderByWithRelationInput[]
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
      * 
-     * Sets the position for searching for formal_reports.
+     * Sets the position for searching for social_media_alert_reports.
      */
-    cursor?: formal_reportsWhereUniqueInput
+    cursor?: social_media_alert_reportsWhereUniqueInput
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
      * 
-     * Take `±n` formal_reports from the position of the cursor.
+     * Take `±n` social_media_alert_reports from the position of the cursor.
      */
     take?: number
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
      * 
-     * Skip the first `n` formal_reports.
+     * Skip the first `n` social_media_alert_reports.
      */
     skip?: number
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
      * 
-     * Filter by unique combinations of formal_reports.
+     * Filter by unique combinations of social_media_alert_reports.
      */
-    distinct?: Formal_reportsScalarFieldEnum | Formal_reportsScalarFieldEnum[]
+    distinct?: Social_media_alert_reportsScalarFieldEnum | Social_media_alert_reportsScalarFieldEnum[]
   }
 
   /**
-   * formal_reports findMany
+   * social_media_alert_reports findMany
    */
-  export type formal_reportsFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+  export type social_media_alert_reportsFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     /**
-     * Select specific fields to fetch from the formal_reports
+     * Select specific fields to fetch from the social_media_alert_reports
      */
-    select?: formal_reportsSelect<ExtArgs> | null
+    select?: social_media_alert_reportsSelect<ExtArgs> | null
     /**
-     * Omit specific fields from the formal_reports
+     * Omit specific fields from the social_media_alert_reports
      */
-    omit?: formal_reportsOmit<ExtArgs> | null
+    omit?: social_media_alert_reportsOmit<ExtArgs> | null
     /**
-     * Filter, which formal_reports to fetch.
+     * Filter, which social_media_alert_reports to fetch.
      */
-    where?: formal_reportsWhereInput
+    where?: social_media_alert_reportsWhereInput
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
      * 
-     * Determine the order of formal_reports to fetch.
+     * Determine the order of social_media_alert_reports to fetch.
      */
-    orderBy?: formal_reportsOrderByWithRelationInput | formal_reportsOrderByWithRelationInput[]
+    orderBy?: social_media_alert_reportsOrderByWithRelationInput | social_media_alert_reportsOrderByWithRelationInput[]
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
      * 
-     * Sets the position for listing formal_reports.
+     * Sets the position for listing social_media_alert_reports.
      */
-    cursor?: formal_reportsWhereUniqueInput
+    cursor?: social_media_alert_reportsWhereUniqueInput
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
      * 
-     * Take `±n` formal_reports from the position of the cursor.
+     * Take `±n` social_media_alert_reports from the position of the cursor.
      */
     take?: number
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
      * 
-     * Skip the first `n` formal_reports.
+     * Skip the first `n` social_media_alert_reports.
      */
     skip?: number
-    distinct?: Formal_reportsScalarFieldEnum | Formal_reportsScalarFieldEnum[]
+    distinct?: Social_media_alert_reportsScalarFieldEnum | Social_media_alert_reportsScalarFieldEnum[]
   }
 
   /**
-   * formal_reports create
+   * social_media_alert_reports create
    */
-  export type formal_reportsCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+  export type social_media_alert_reportsCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     /**
-     * Select specific fields to fetch from the formal_reports
+     * Select specific fields to fetch from the social_media_alert_reports
      */
-    select?: formal_reportsSelect<ExtArgs> | null
+    select?: social_media_alert_reportsSelect<ExtArgs> | null
     /**
-     * Omit specific fields from the formal_reports
+     * Omit specific fields from the social_media_alert_reports
      */
-    omit?: formal_reportsOmit<ExtArgs> | null
+    omit?: social_media_alert_reportsOmit<ExtArgs> | null
     /**
-     * The data needed to create a formal_reports.
+     * The data needed to create a social_media_alert_reports.
      */
-    data: XOR<formal_reportsCreateInput, formal_reportsUncheckedCreateInput>
+    data: XOR<social_media_alert_reportsCreateInput, social_media_alert_reportsUncheckedCreateInput>
   }
 
   /**
-   * formal_reports createMany
+   * social_media_alert_reports createMany
    */
-  export type formal_reportsCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+  export type social_media_alert_reportsCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     /**
-     * The data used to create many formal_reports.
+     * The data used to create many social_media_alert_reports.
      */
-    data: formal_reportsCreateManyInput | formal_reportsCreateManyInput[]
+    data: social_media_alert_reportsCreateManyInput | social_media_alert_reportsCreateManyInput[]
     skipDuplicates?: boolean
   }
 
   /**
-   * formal_reports createManyAndReturn
+   * social_media_alert_reports createManyAndReturn
    */
-  export type formal_reportsCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+  export type social_media_alert_reportsCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     /**
-     * Select specific fields to fetch from the formal_reports
+     * Select specific fields to fetch from the social_media_alert_reports
      */
-    select?: formal_reportsSelectCreateManyAndReturn<ExtArgs> | null
+    select?: social_media_alert_reportsSelectCreateManyAndReturn<ExtArgs> | null
     /**
-     * Omit specific fields from the formal_reports
+     * Omit specific fields from the social_media_alert_reports
      */
-    omit?: formal_reportsOmit<ExtArgs> | null
+    omit?: social_media_alert_reportsOmit<ExtArgs> | null
     /**
-     * The data used to create many formal_reports.
+     * The data used to create many social_media_alert_reports.
      */
-    data: formal_reportsCreateManyInput | formal_reportsCreateManyInput[]
+    data: social_media_alert_reportsCreateManyInput | social_media_alert_reportsCreateManyInput[]
     skipDuplicates?: boolean
   }
 
   /**
-   * formal_reports update
+   * social_media_alert_reports update
    */
-  export type formal_reportsUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+  export type social_media_alert_reportsUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     /**
-     * Select specific fields to fetch from the formal_reports
+     * Select specific fields to fetch from the social_media_alert_reports
      */
-    select?: formal_reportsSelect<ExtArgs> | null
+    select?: social_media_alert_reportsSelect<ExtArgs> | null
     /**
-     * Omit specific fields from the formal_reports
+     * Omit specific fields from the social_media_alert_reports
      */
-    omit?: formal_reportsOmit<ExtArgs> | null
+    omit?: social_media_alert_reportsOmit<ExtArgs> | null
     /**
-     * The data needed to update a formal_reports.
+     * The data needed to update a social_media_alert_reports.
      */
-    data: XOR<formal_reportsUpdateInput, formal_reportsUncheckedUpdateInput>
+    data: XOR<social_media_alert_reportsUpdateInput, social_media_alert_reportsUncheckedUpdateInput>
     /**
-     * Choose, which formal_reports to update.
+     * Choose, which social_media_alert_reports to update.
      */
-    where: formal_reportsWhereUniqueInput
+    where: social_media_alert_reportsWhereUniqueInput
   }
 
   /**
-   * formal_reports updateMany
+   * social_media_alert_reports updateMany
    */
-  export type formal_reportsUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+  export type social_media_alert_reportsUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     /**
-     * The data used to update formal_reports.
+     * The data used to update social_media_alert_reports.
      */
-    data: XOR<formal_reportsUpdateManyMutationInput, formal_reportsUncheckedUpdateManyInput>
+    data: XOR<social_media_alert_reportsUpdateManyMutationInput, social_media_alert_reportsUncheckedUpdateManyInput>
     /**
-     * Filter which formal_reports to update
+     * Filter which social_media_alert_reports to update
      */
-    where?: formal_reportsWhereInput
+    where?: social_media_alert_reportsWhereInput
     /**
-     * Limit how many formal_reports to update.
+     * Limit how many social_media_alert_reports to update.
      */
     limit?: number
   }
 
   /**
-   * formal_reports updateManyAndReturn
+   * social_media_alert_reports updateManyAndReturn
    */
-  export type formal_reportsUpdateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+  export type social_media_alert_reportsUpdateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     /**
-     * Select specific fields to fetch from the formal_reports
+     * Select specific fields to fetch from the social_media_alert_reports
      */
-    select?: formal_reportsSelectUpdateManyAndReturn<ExtArgs> | null
+    select?: social_media_alert_reportsSelectUpdateManyAndReturn<ExtArgs> | null
     /**
-     * Omit specific fields from the formal_reports
+     * Omit specific fields from the social_media_alert_reports
      */
-    omit?: formal_reportsOmit<ExtArgs> | null
+    omit?: social_media_alert_reportsOmit<ExtArgs> | null
     /**
-     * The data used to update formal_reports.
+     * The data used to update social_media_alert_reports.
      */
-    data: XOR<formal_reportsUpdateManyMutationInput, formal_reportsUncheckedUpdateManyInput>
+    data: XOR<social_media_alert_reportsUpdateManyMutationInput, social_media_alert_reportsUncheckedUpdateManyInput>
     /**
-     * Filter which formal_reports to update
+     * Filter which social_media_alert_reports to update
      */
-    where?: formal_reportsWhereInput
+    where?: social_media_alert_reportsWhereInput
     /**
-     * Limit how many formal_reports to update.
+     * Limit how many social_media_alert_reports to update.
      */
     limit?: number
   }
 
   /**
-   * formal_reports upsert
+   * social_media_alert_reports upsert
    */
-  export type formal_reportsUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+  export type social_media_alert_reportsUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     /**
-     * Select specific fields to fetch from the formal_reports
+     * Select specific fields to fetch from the social_media_alert_reports
      */
-    select?: formal_reportsSelect<ExtArgs> | null
+    select?: social_media_alert_reportsSelect<ExtArgs> | null
     /**
-     * Omit specific fields from the formal_reports
+     * Omit specific fields from the social_media_alert_reports
      */
-    omit?: formal_reportsOmit<ExtArgs> | null
+    omit?: social_media_alert_reportsOmit<ExtArgs> | null
     /**
-     * The filter to search for the formal_reports to update in case it exists.
+     * The filter to search for the social_media_alert_reports to update in case it exists.
      */
-    where: formal_reportsWhereUniqueInput
+    where: social_media_alert_reportsWhereUniqueInput
     /**
-     * In case the formal_reports found by the `where` argument doesn't exist, create a new formal_reports with this data.
+     * In case the social_media_alert_reports found by the `where` argument doesn't exist, create a new social_media_alert_reports with this data.
      */
-    create: XOR<formal_reportsCreateInput, formal_reportsUncheckedCreateInput>
+    create: XOR<social_media_alert_reportsCreateInput, social_media_alert_reportsUncheckedCreateInput>
     /**
-     * In case the formal_reports was found with the provided `where` argument, update it with this data.
+     * In case the social_media_alert_reports was found with the provided `where` argument, update it with this data.
      */
-    update: XOR<formal_reportsUpdateInput, formal_reportsUncheckedUpdateInput>
+    update: XOR<social_media_alert_reportsUpdateInput, social_media_alert_reportsUncheckedUpdateInput>
   }
 
   /**
-   * formal_reports delete
+   * social_media_alert_reports delete
    */
-  export type formal_reportsDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+  export type social_media_alert_reportsDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     /**
-     * Select specific fields to fetch from the formal_reports
+     * Select specific fields to fetch from the social_media_alert_reports
      */
-    select?: formal_reportsSelect<ExtArgs> | null
+    select?: social_media_alert_reportsSelect<ExtArgs> | null
     /**
-     * Omit specific fields from the formal_reports
+     * Omit specific fields from the social_media_alert_reports
      */
-    omit?: formal_reportsOmit<ExtArgs> | null
+    omit?: social_media_alert_reportsOmit<ExtArgs> | null
     /**
-     * Filter which formal_reports to delete.
+     * Filter which social_media_alert_reports to delete.
      */
-    where: formal_reportsWhereUniqueInput
+    where: social_media_alert_reportsWhereUniqueInput
   }
 
   /**
-   * formal_reports deleteMany
+   * social_media_alert_reports deleteMany
    */
-  export type formal_reportsDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+  export type social_media_alert_reportsDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     /**
-     * Filter which formal_reports to delete
+     * Filter which social_media_alert_reports to delete
      */
-    where?: formal_reportsWhereInput
+    where?: social_media_alert_reportsWhereInput
     /**
-     * Limit how many formal_reports to delete.
+     * Limit how many social_media_alert_reports to delete.
      */
     limit?: number
   }
 
   /**
-   * formal_reports without action
+   * social_media_alert_reports without action
    */
-  export type formal_reportsDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+  export type social_media_alert_reportsDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     /**
-     * Select specific fields to fetch from the formal_reports
+     * Select specific fields to fetch from the social_media_alert_reports
      */
-    select?: formal_reportsSelect<ExtArgs> | null
+    select?: social_media_alert_reportsSelect<ExtArgs> | null
     /**
-     * Omit specific fields from the formal_reports
+     * Omit specific fields from the social_media_alert_reports
      */
-    omit?: formal_reportsOmit<ExtArgs> | null
+    omit?: social_media_alert_reportsOmit<ExtArgs> | null
   }
 
 
@@ -25611,7 +25611,7 @@ export namespace Prisma {
   export type Social_media_periscope_reportsScalarFieldEnum = (typeof Social_media_periscope_reportsScalarFieldEnum)[keyof typeof Social_media_periscope_reportsScalarFieldEnum]
 
 
-  export const Formal_reportsScalarFieldEnum: {
+  export const Social_media_alert_reportsScalarFieldEnum: {
     id: 'id',
     serial_number: 'serial_number',
     alert_id: 'alert_id',
@@ -25634,7 +25634,7 @@ export namespace Prisma {
     updated_at: 'updated_at'
   };
 
-  export type Formal_reportsScalarFieldEnum = (typeof Formal_reportsScalarFieldEnum)[keyof typeof Formal_reportsScalarFieldEnum]
+  export type Social_media_alert_reportsScalarFieldEnum = (typeof Social_media_alert_reportsScalarFieldEnum)[keyof typeof Social_media_alert_reportsScalarFieldEnum]
 
 
   export const SortOrder: {
@@ -27702,33 +27702,33 @@ export namespace Prisma {
     updated_at?: DateTimeWithAggregatesFilter<"social_media_periscope_reports"> | Date | string
   }
 
-  export type formal_reportsWhereInput = {
-    AND?: formal_reportsWhereInput | formal_reportsWhereInput[]
-    OR?: formal_reportsWhereInput[]
-    NOT?: formal_reportsWhereInput | formal_reportsWhereInput[]
-    id?: StringFilter<"formal_reports"> | string
-    serial_number?: StringFilter<"formal_reports"> | string
-    alert_id?: StringFilter<"formal_reports"> | string
-    title?: StringFilter<"formal_reports"> | string
-    platform?: StringFilter<"formal_reports"> | string
-    status?: StringFilter<"formal_reports"> | string
-    source_category?: StringNullableFilter<"formal_reports"> | string | null
-    content_url?: StringNullableFilter<"formal_reports"> | string | null
-    content_summary?: StringNullableFilter<"formal_reports"> | string | null
-    closing_remarks?: StringNullableFilter<"formal_reports"> | string | null
-    target_user_details?: JsonFilter<"formal_reports">
-    media_links?: JsonFilter<"formal_reports">
-    legal_sections?: JsonFilter<"formal_reports">
-    violated_policies?: JsonFilter<"formal_reports">
-    edited_content?: JsonFilter<"formal_reports">
-    report_pdf_url?: StringNullableFilter<"formal_reports"> | string | null
-    pdf_base64?: StringNullableFilter<"formal_reports"> | string | null
-    generated_at?: DateTimeFilter<"formal_reports"> | Date | string
-    created_at?: DateTimeFilter<"formal_reports"> | Date | string
-    updated_at?: DateTimeFilter<"formal_reports"> | Date | string
+  export type social_media_alert_reportsWhereInput = {
+    AND?: social_media_alert_reportsWhereInput | social_media_alert_reportsWhereInput[]
+    OR?: social_media_alert_reportsWhereInput[]
+    NOT?: social_media_alert_reportsWhereInput | social_media_alert_reportsWhereInput[]
+    id?: StringFilter<"social_media_alert_reports"> | string
+    serial_number?: StringFilter<"social_media_alert_reports"> | string
+    alert_id?: StringFilter<"social_media_alert_reports"> | string
+    title?: StringFilter<"social_media_alert_reports"> | string
+    platform?: StringFilter<"social_media_alert_reports"> | string
+    status?: StringFilter<"social_media_alert_reports"> | string
+    source_category?: StringNullableFilter<"social_media_alert_reports"> | string | null
+    content_url?: StringNullableFilter<"social_media_alert_reports"> | string | null
+    content_summary?: StringNullableFilter<"social_media_alert_reports"> | string | null
+    closing_remarks?: StringNullableFilter<"social_media_alert_reports"> | string | null
+    target_user_details?: JsonFilter<"social_media_alert_reports">
+    media_links?: JsonFilter<"social_media_alert_reports">
+    legal_sections?: JsonFilter<"social_media_alert_reports">
+    violated_policies?: JsonFilter<"social_media_alert_reports">
+    edited_content?: JsonFilter<"social_media_alert_reports">
+    report_pdf_url?: StringNullableFilter<"social_media_alert_reports"> | string | null
+    pdf_base64?: StringNullableFilter<"social_media_alert_reports"> | string | null
+    generated_at?: DateTimeFilter<"social_media_alert_reports"> | Date | string
+    created_at?: DateTimeFilter<"social_media_alert_reports"> | Date | string
+    updated_at?: DateTimeFilter<"social_media_alert_reports"> | Date | string
   }
 
-  export type formal_reportsOrderByWithRelationInput = {
+  export type social_media_alert_reportsOrderByWithRelationInput = {
     id?: SortOrder
     serial_number?: SortOrder
     alert_id?: SortOrder
@@ -27751,33 +27751,33 @@ export namespace Prisma {
     updated_at?: SortOrder
   }
 
-  export type formal_reportsWhereUniqueInput = Prisma.AtLeast<{
+  export type social_media_alert_reportsWhereUniqueInput = Prisma.AtLeast<{
     id?: string
     serial_number?: string
     alert_id?: string
-    AND?: formal_reportsWhereInput | formal_reportsWhereInput[]
-    OR?: formal_reportsWhereInput[]
-    NOT?: formal_reportsWhereInput | formal_reportsWhereInput[]
-    title?: StringFilter<"formal_reports"> | string
-    platform?: StringFilter<"formal_reports"> | string
-    status?: StringFilter<"formal_reports"> | string
-    source_category?: StringNullableFilter<"formal_reports"> | string | null
-    content_url?: StringNullableFilter<"formal_reports"> | string | null
-    content_summary?: StringNullableFilter<"formal_reports"> | string | null
-    closing_remarks?: StringNullableFilter<"formal_reports"> | string | null
-    target_user_details?: JsonFilter<"formal_reports">
-    media_links?: JsonFilter<"formal_reports">
-    legal_sections?: JsonFilter<"formal_reports">
-    violated_policies?: JsonFilter<"formal_reports">
-    edited_content?: JsonFilter<"formal_reports">
-    report_pdf_url?: StringNullableFilter<"formal_reports"> | string | null
-    pdf_base64?: StringNullableFilter<"formal_reports"> | string | null
-    generated_at?: DateTimeFilter<"formal_reports"> | Date | string
-    created_at?: DateTimeFilter<"formal_reports"> | Date | string
-    updated_at?: DateTimeFilter<"formal_reports"> | Date | string
+    AND?: social_media_alert_reportsWhereInput | social_media_alert_reportsWhereInput[]
+    OR?: social_media_alert_reportsWhereInput[]
+    NOT?: social_media_alert_reportsWhereInput | social_media_alert_reportsWhereInput[]
+    title?: StringFilter<"social_media_alert_reports"> | string
+    platform?: StringFilter<"social_media_alert_reports"> | string
+    status?: StringFilter<"social_media_alert_reports"> | string
+    source_category?: StringNullableFilter<"social_media_alert_reports"> | string | null
+    content_url?: StringNullableFilter<"social_media_alert_reports"> | string | null
+    content_summary?: StringNullableFilter<"social_media_alert_reports"> | string | null
+    closing_remarks?: StringNullableFilter<"social_media_alert_reports"> | string | null
+    target_user_details?: JsonFilter<"social_media_alert_reports">
+    media_links?: JsonFilter<"social_media_alert_reports">
+    legal_sections?: JsonFilter<"social_media_alert_reports">
+    violated_policies?: JsonFilter<"social_media_alert_reports">
+    edited_content?: JsonFilter<"social_media_alert_reports">
+    report_pdf_url?: StringNullableFilter<"social_media_alert_reports"> | string | null
+    pdf_base64?: StringNullableFilter<"social_media_alert_reports"> | string | null
+    generated_at?: DateTimeFilter<"social_media_alert_reports"> | Date | string
+    created_at?: DateTimeFilter<"social_media_alert_reports"> | Date | string
+    updated_at?: DateTimeFilter<"social_media_alert_reports"> | Date | string
   }, "id" | "serial_number" | "alert_id">
 
-  export type formal_reportsOrderByWithAggregationInput = {
+  export type social_media_alert_reportsOrderByWithAggregationInput = {
     id?: SortOrder
     serial_number?: SortOrder
     alert_id?: SortOrder
@@ -27798,35 +27798,35 @@ export namespace Prisma {
     generated_at?: SortOrder
     created_at?: SortOrder
     updated_at?: SortOrder
-    _count?: formal_reportsCountOrderByAggregateInput
-    _max?: formal_reportsMaxOrderByAggregateInput
-    _min?: formal_reportsMinOrderByAggregateInput
+    _count?: social_media_alert_reportsCountOrderByAggregateInput
+    _max?: social_media_alert_reportsMaxOrderByAggregateInput
+    _min?: social_media_alert_reportsMinOrderByAggregateInput
   }
 
-  export type formal_reportsScalarWhereWithAggregatesInput = {
-    AND?: formal_reportsScalarWhereWithAggregatesInput | formal_reportsScalarWhereWithAggregatesInput[]
-    OR?: formal_reportsScalarWhereWithAggregatesInput[]
-    NOT?: formal_reportsScalarWhereWithAggregatesInput | formal_reportsScalarWhereWithAggregatesInput[]
-    id?: StringWithAggregatesFilter<"formal_reports"> | string
-    serial_number?: StringWithAggregatesFilter<"formal_reports"> | string
-    alert_id?: StringWithAggregatesFilter<"formal_reports"> | string
-    title?: StringWithAggregatesFilter<"formal_reports"> | string
-    platform?: StringWithAggregatesFilter<"formal_reports"> | string
-    status?: StringWithAggregatesFilter<"formal_reports"> | string
-    source_category?: StringNullableWithAggregatesFilter<"formal_reports"> | string | null
-    content_url?: StringNullableWithAggregatesFilter<"formal_reports"> | string | null
-    content_summary?: StringNullableWithAggregatesFilter<"formal_reports"> | string | null
-    closing_remarks?: StringNullableWithAggregatesFilter<"formal_reports"> | string | null
-    target_user_details?: JsonWithAggregatesFilter<"formal_reports">
-    media_links?: JsonWithAggregatesFilter<"formal_reports">
-    legal_sections?: JsonWithAggregatesFilter<"formal_reports">
-    violated_policies?: JsonWithAggregatesFilter<"formal_reports">
-    edited_content?: JsonWithAggregatesFilter<"formal_reports">
-    report_pdf_url?: StringNullableWithAggregatesFilter<"formal_reports"> | string | null
-    pdf_base64?: StringNullableWithAggregatesFilter<"formal_reports"> | string | null
-    generated_at?: DateTimeWithAggregatesFilter<"formal_reports"> | Date | string
-    created_at?: DateTimeWithAggregatesFilter<"formal_reports"> | Date | string
-    updated_at?: DateTimeWithAggregatesFilter<"formal_reports"> | Date | string
+  export type social_media_alert_reportsScalarWhereWithAggregatesInput = {
+    AND?: social_media_alert_reportsScalarWhereWithAggregatesInput | social_media_alert_reportsScalarWhereWithAggregatesInput[]
+    OR?: social_media_alert_reportsScalarWhereWithAggregatesInput[]
+    NOT?: social_media_alert_reportsScalarWhereWithAggregatesInput | social_media_alert_reportsScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"social_media_alert_reports"> | string
+    serial_number?: StringWithAggregatesFilter<"social_media_alert_reports"> | string
+    alert_id?: StringWithAggregatesFilter<"social_media_alert_reports"> | string
+    title?: StringWithAggregatesFilter<"social_media_alert_reports"> | string
+    platform?: StringWithAggregatesFilter<"social_media_alert_reports"> | string
+    status?: StringWithAggregatesFilter<"social_media_alert_reports"> | string
+    source_category?: StringNullableWithAggregatesFilter<"social_media_alert_reports"> | string | null
+    content_url?: StringNullableWithAggregatesFilter<"social_media_alert_reports"> | string | null
+    content_summary?: StringNullableWithAggregatesFilter<"social_media_alert_reports"> | string | null
+    closing_remarks?: StringNullableWithAggregatesFilter<"social_media_alert_reports"> | string | null
+    target_user_details?: JsonWithAggregatesFilter<"social_media_alert_reports">
+    media_links?: JsonWithAggregatesFilter<"social_media_alert_reports">
+    legal_sections?: JsonWithAggregatesFilter<"social_media_alert_reports">
+    violated_policies?: JsonWithAggregatesFilter<"social_media_alert_reports">
+    edited_content?: JsonWithAggregatesFilter<"social_media_alert_reports">
+    report_pdf_url?: StringNullableWithAggregatesFilter<"social_media_alert_reports"> | string | null
+    pdf_base64?: StringNullableWithAggregatesFilter<"social_media_alert_reports"> | string | null
+    generated_at?: DateTimeWithAggregatesFilter<"social_media_alert_reports"> | Date | string
+    created_at?: DateTimeWithAggregatesFilter<"social_media_alert_reports"> | Date | string
+    updated_at?: DateTimeWithAggregatesFilter<"social_media_alert_reports"> | Date | string
   }
 
   export type platformsCreateInput = {
@@ -30072,7 +30072,7 @@ export namespace Prisma {
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
-  export type formal_reportsCreateInput = {
+  export type social_media_alert_reportsCreateInput = {
     id?: string
     serial_number: string
     alert_id: string
@@ -30095,7 +30095,7 @@ export namespace Prisma {
     updated_at?: Date | string
   }
 
-  export type formal_reportsUncheckedCreateInput = {
+  export type social_media_alert_reportsUncheckedCreateInput = {
     id?: string
     serial_number: string
     alert_id: string
@@ -30118,7 +30118,7 @@ export namespace Prisma {
     updated_at?: Date | string
   }
 
-  export type formal_reportsUpdateInput = {
+  export type social_media_alert_reportsUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
     serial_number?: StringFieldUpdateOperationsInput | string
     alert_id?: StringFieldUpdateOperationsInput | string
@@ -30141,7 +30141,7 @@ export namespace Prisma {
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
-  export type formal_reportsUncheckedUpdateInput = {
+  export type social_media_alert_reportsUncheckedUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
     serial_number?: StringFieldUpdateOperationsInput | string
     alert_id?: StringFieldUpdateOperationsInput | string
@@ -30164,7 +30164,7 @@ export namespace Prisma {
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
-  export type formal_reportsCreateManyInput = {
+  export type social_media_alert_reportsCreateManyInput = {
     id?: string
     serial_number: string
     alert_id: string
@@ -30187,7 +30187,7 @@ export namespace Prisma {
     updated_at?: Date | string
   }
 
-  export type formal_reportsUpdateManyMutationInput = {
+  export type social_media_alert_reportsUpdateManyMutationInput = {
     id?: StringFieldUpdateOperationsInput | string
     serial_number?: StringFieldUpdateOperationsInput | string
     alert_id?: StringFieldUpdateOperationsInput | string
@@ -30210,7 +30210,7 @@ export namespace Prisma {
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
-  export type formal_reportsUncheckedUpdateManyInput = {
+  export type social_media_alert_reportsUncheckedUpdateManyInput = {
     id?: StringFieldUpdateOperationsInput | string
     serial_number?: StringFieldUpdateOperationsInput | string
     alert_id?: StringFieldUpdateOperationsInput | string
@@ -31784,7 +31784,7 @@ export namespace Prisma {
     _max?: NestedStringFilter<$PrismaModel>
   }
 
-  export type formal_reportsCountOrderByAggregateInput = {
+  export type social_media_alert_reportsCountOrderByAggregateInput = {
     id?: SortOrder
     serial_number?: SortOrder
     alert_id?: SortOrder
@@ -31807,7 +31807,7 @@ export namespace Prisma {
     updated_at?: SortOrder
   }
 
-  export type formal_reportsMaxOrderByAggregateInput = {
+  export type social_media_alert_reportsMaxOrderByAggregateInput = {
     id?: SortOrder
     serial_number?: SortOrder
     alert_id?: SortOrder
@@ -31825,7 +31825,7 @@ export namespace Prisma {
     updated_at?: SortOrder
   }
 
-  export type formal_reportsMinOrderByAggregateInput = {
+  export type social_media_alert_reportsMinOrderByAggregateInput = {
     id?: SortOrder
     serial_number?: SortOrder
     alert_id?: SortOrder

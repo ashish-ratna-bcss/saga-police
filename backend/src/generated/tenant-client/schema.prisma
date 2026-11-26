@@ -437,8 +437,8 @@ model social_media_periscope_reports {
   @@index([report_date(sort: Desc)])
 }
 
-/// Formal notices generated from Alerts → Generate Report (not G/S/C/Q grievances).
-model formal_reports {
+/// Notices generated from Alerts → Generate Report (not G/S/C/Q grievances).
+model social_media_alert_reports {
   id                  String   @id @default(uuid())
   serial_number       String   @unique
   alert_id            String   @unique

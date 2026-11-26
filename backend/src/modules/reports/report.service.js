@@ -1,6 +1,6 @@
 /**
  * Formal Reports API — alert-generated notices only.
- * Rows live in formal_reports; created via POST /reports/escalate/:alertId
+ * Rows live in social_media_alert_reports; created via POST /reports/escalate/:alertId
  * when the user opens Generate Report. G/S/C/Q grievance reports stay in
  * social_media_grievance_reports and are not listed here.
  */
@@ -18,7 +18,7 @@ const asArray = (value) => (Array.isArray(value) ? value : []);
 const escapeRegexLike = (value = '') =>
   String(value).replace(/([%_\\])/g, '\\$1');
 
-/** Map formal_reports row → shape expected by Alerts → Reports UI. */
+/** Map social_media_alert_reports row → shape expected by Alerts → Reports UI. */
 const toFormalReportShape = (row, alertExtra = null) => {
   const target = asObject(row.target_user_details);
   const edited = asObject(row.edited_content);
@@ -69,7 +69,7 @@ const generateSerialNumber = async (platform, { db } = {}) => {
   const mm = String(now.getMonth() + 1).padStart(2, '0');
   const yyyy = now.getFullYear();
   const platformCode = String(platform || 'x').toUpperCase().substring(0, 1);
-  const count = await prisma.formal_reports.count({
+  const count = await prisma.social_media_alert_reports.count({
     where: { platform: String(platform || 'x').toLowerCase() },
   });
   const sn = String(count + 1).padStart(4, '0');
@@ -84,7 +84,7 @@ const createReportFromAlert = async (alertId, { db } = {}) => {
   const prisma = dbOf(db);
   const id = String(alertId);
 
-  const existing = await prisma.formal_reports.findUnique({
+  const existing = await prisma.social_media_alert_reports.findUnique({
     where: { alert_id: id },
   });
   if (existing) return toFormalReportShape(existing);
@@ -119,7 +119,7 @@ const createReportFromAlert = async (alertId, { db } = {}) => {
 
   const serialNumber = await generateSerialNumber(platform, { db: prisma });
 
-  const row = await prisma.formal_reports.create({
+  const row = await prisma.social_media_alert_reports.create({
     data: {
       serial_number: serialNumber,
       alert_id: id,
@@ -249,13 +249,13 @@ const getAllReports = async (filters = {}, { db } = {}) => {
   const skip = (pageNum - 1) * limitNum;
 
   const [rows, total] = await Promise.all([
-    prisma.formal_reports.findMany({
+    prisma.social_media_alert_reports.findMany({
       where,
       orderBy: { generated_at: 'desc' },
       skip,
       take: limitNum,
     }),
-    prisma.formal_reports.count({ where }),
+    prisma.social_media_alert_reports.count({ where }),
   ]);
 
   // Enrich with live alert fields when available
@@ -287,7 +287,7 @@ const getAllReports = async (filters = {}, { db } = {}) => {
 const findFormalReport = async (idOrAlertId, { db } = {}) => {
   const prisma = dbOf(db);
   const key = String(idOrAlertId);
-  return prisma.formal_reports.findFirst({
+  return prisma.social_media_alert_reports.findFirst({
     where: {
       OR: [{ id: key }, { alert_id: key }, { serial_number: key }],
     },
@@ -321,7 +321,7 @@ const updateReport = async (idOrAlertId, updateData, { db } = {}) => {
   if (updateData.pdf_base64 != null) data.pdf_base64 = updateData.pdf_base64;
   if (updateData.source_category != null) data.source_category = updateData.source_category;
 
-  const row = await prisma.formal_reports.update({
+  const row = await prisma.social_media_alert_reports.update({
     where: { id: existing.id },
     data,
   });
@@ -336,7 +336,7 @@ const getReportStats = async ({ db } = {}) => {
   const cached = await cacheService.get(cacheKey);
   if (cached) return cached;
 
-  const grouped = await prisma.formal_reports.groupBy({
+  const grouped = await prisma.social_media_alert_reports.groupBy({
     by: ['platform', 'status'],
     _count: { _all: true },
   });

@@ -8,7 +8,7 @@ const { authorize } = require('../../middleware/auth.middleware');
 const ctrl = require('../grievances/grievance.report.controller');
 
 /**
- * Stream PDF: try formal_reports (alert notices) first, then grievance reports.
+ * Stream PDF: try social_media_alert_reports (alert notices) first, then grievance reports.
  */
 const streamReportPdf = async (req, res) => {
   try {
@@ -89,7 +89,7 @@ router.put('/:id', async (req, res) => {
 });
 
 /**
- * POST /api/reports/:id/pdf — Render notice HTML to PDF and cache on formal_reports.
+ * POST /api/reports/:id/pdf — Render notice HTML to PDF and cache on social_media_alert_reports.
  * `:id` is typically the alert id (Generate Report URL).
  */
 router.post('/:id/pdf', async (req, res) => {
@@ -109,7 +109,7 @@ router.post('/:id/pdf', async (req, res) => {
           db: req.tenantPrisma,
         });
         if (existing) {
-          await req.tenantPrisma.formal_reports.update({
+          await req.tenantPrisma.social_media_alert_reports.update({
             where: { id: existing.id },
             data: {
               pdf_base64: base64,
@@ -118,7 +118,7 @@ router.post('/:id/pdf', async (req, res) => {
           });
         }
       } catch (saveErr) {
-        logger.warn('[reports] Failed to cache notice PDF in formal_reports:', saveErr.message);
+        logger.warn('[reports] Failed to cache notice PDF in social_media_alert_reports:', saveErr.message);
       }
     }
 

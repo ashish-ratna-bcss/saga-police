@@ -441,7 +441,7 @@ exports.Prisma.Social_media_periscope_reportsScalarFieldEnum = {
   updated_at: 'updated_at'
 };
 
-exports.Prisma.Formal_reportsScalarFieldEnum = {
+exports.Prisma.Social_media_alert_reportsScalarFieldEnum = {
   id: 'id',
   serial_number: 'serial_number',
   alert_id: 'alert_id',
@@ -525,7 +525,7 @@ exports.Prisma.ModelName = {
   policy_mappings: 'policy_mappings',
   audit_logs: 'audit_logs',
   social_media_periscope_reports: 'social_media_periscope_reports',
-  formal_reports: 'formal_reports'
+  social_media_alert_reports: 'social_media_alert_reports'
 };
 
 /**
