@@ -730,8 +730,136 @@ const getOverview = async (query = {}) => {
   };
 };
 
+/**
+ * Paginated catalog posts for the dashboard “All Posts” full-screen view.
+ * Same date window as overview KPIs / ingestion trend.
+ */
+const listIngestedPosts = async ({
+  range: rangeKey = '7d',
+  platform: platformRaw = 'all',
+  page = 1,
+  limit = 40,
+  q = '',
+  db,
+} = {}) => {
+  const prisma = dbOf(db);
+  const { range, from, to } = resolveRange(rangeKey);
+  const platform = normalizePlatform(platformRaw);
+  const pageNum = Math.max(1, Number(page) || 1);
+  const take = Math.min(100, Math.max(1, Number(limit) || 40));
+  const skip = (pageNum - 1) * take;
+  const search = String(q || '').trim().slice(0, 200);
+
+  const where = {
+    OR: [{ posted_at: { gte: from, lte: to } }, { posted_at: null, fetched_at: { gte: from, lte: to } }],
+    ...platformWhere(platform),
+  };
+  if (search) {
+    where.AND = [
+      {
+        OR: [
+          { text: { contains: search, mode: 'insensitive' } },
+          { author_name: { contains: search, mode: 'insensitive' } },
+          { author_handle: { contains: search, mode: 'insensitive' } },
+        ],
+      },
+    ];
+  }
+
+  const [total, rows, platformGroups] = await Promise.all([
+    prisma.social_media_posts.count({ where }),
+    prisma.social_media_posts.findMany({
+      where,
+      orderBy: [{ posted_at: 'desc' }, { fetched_at: 'desc' }, { id: 'desc' }],
+      skip,
+      take,
+      select: {
+        id: true,
+        account_id: true,
+        platform: true,
+        external_id: true,
+        url: true,
+        text: true,
+        author_name: true,
+        author_handle: true,
+        media_type: true,
+        media_urls: true,
+        engagement: true,
+        posted_at: true,
+        fetched_at: true,
+        analysis_status: true,
+        analysis_result: true,
+        account: {
+          select: {
+            handle: true,
+            profile: { select: { id: true, display_name: true } },
+          },
+        },
+      },
+    }),
+    prisma.social_media_posts.groupBy({
+      by: ['platform'],
+      where: {
+        OR: [{ posted_at: { gte: from, lte: to } }, { posted_at: null, fetched_at: { gte: from, lte: to } }],
+      },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const posts = rows.map((row) => {
+    const engagement = asEngagement(row.engagement);
+    const mediaUrls = Array.isArray(row.media_urls) ? row.media_urls : [];
+    const analysis =
+      row.analysis_result && typeof row.analysis_result === 'object' && !Array.isArray(row.analysis_result)
+        ? row.analysis_result
+        : {};
+    return {
+      id: String(row.id),
+      account_id: row.account_id,
+      platform: row.platform,
+      external_id: row.external_id,
+      url: row.url || null,
+      text: row.text || '',
+      author_name: row.author_name || row.account?.profile?.display_name || null,
+      author_handle: row.author_handle || row.account?.handle || null,
+      profile_name: row.account?.profile?.display_name || null,
+      media_type: row.media_type || null,
+      media_urls: mediaUrls,
+      engagement,
+      score: engagementScore(engagement),
+      posted_at: row.posted_at || row.fetched_at,
+      fetched_at: row.fetched_at,
+      analysis_status: row.analysis_status,
+      risk_level: analysis.risk_level || analysis.riskLevel || null,
+      sentiment: analysis.sentiment || null,
+    };
+  });
+
+  const by_platform = {};
+  for (const g of platformGroups) {
+    by_platform[g.platform || 'unknown'] = g._count?._all || 0;
+  }
+
+  return {
+    range,
+    platform: platform || 'all',
+    from: from.toISOString(),
+    to: to.toISOString(),
+    posts,
+    by_platform,
+    pagination: {
+      page: pageNum,
+      limit: take,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / take)),
+      hasMore: pageNum * take < total,
+    },
+  };
+};
+
 module.exports = {
   getOverview,
+  listIngestedPosts,
   engagementScore,
   resolveRange,
   normalizePlatform,

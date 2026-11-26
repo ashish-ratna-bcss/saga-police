@@ -66,6 +66,7 @@ import {
 import { cn } from '../../lib/utils';
 import { PlatformBrandIcon, PLATFORM_BRAND_BG } from '../../components/PlatformBrandIcon';
 import { usePagePlatforms } from '../../hooks/usePagePlatforms';
+import AllIngestedPosts from './AllIngestedPosts';
 
 // ==========================================
 // CONSTANTS & HELPERS
@@ -788,6 +789,7 @@ const OperationsDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [overview, setOverview] = useState(emptyOverview);
+  const [allPostsOpen, setAllPostsOpen] = useState(false);
 
   const { platforms: hookPlatforms } = usePagePlatforms();
 
@@ -1128,6 +1130,15 @@ const OperationsDashboard = () => {
                 <span className="text-[11px] text-muted-foreground">Avg/Day:</span>
                 <span className="font-bold tabular-nums text-foreground">{trendStats.avg.toLocaleString('en-IN')}</span>
               </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs font-semibold text-primary"
+                onClick={() => setAllPostsOpen(true)}
+              >
+                <span>All Posts</span>
+                <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
               <Button asChild size="sm" variant="ghost" className="h-7 px-2 text-xs font-semibold text-primary">
                 <Link to="/analytics-hub">
                   <span>Deep Analytics</span>
@@ -1834,6 +1845,14 @@ const OperationsDashboard = () => {
 
       {/* 7. PERISCOPE LIVE DSR SITUATION SCROLLING FEED (kept at the bottom so an empty schedule does not push the analytics down) */}
       <PeriscopeScrollingTicker />
+
+      <AllIngestedPosts
+        open={allPostsOpen}
+        onClose={() => setAllPostsOpen(false)}
+        initialRange={range}
+        initialPlatform={platform}
+        platformOptions={platformOptions}
+      />
     </div>
   );
 };
