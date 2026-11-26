@@ -66,6 +66,12 @@ const pickFacebookMediaUrl = (post) => {
   if (attached?.photo_url) return attached.photo_url;
   if (attached?.video_url) return attached.video_url;
   if (attached?.image?.uri) return attached.image.uri;
+  if (Array.isArray(attached?.album_preview) && attached.album_preview[0]?.image_file_uri) {
+    return attached.album_preview[0].image_file_uri;
+  }
+  const attachedVideo =
+    attached?.video_files?.video_sd_file || attached?.video_files?.video_hd_file || null;
+  if (attachedVideo) return attachedVideo;
   return null;
 };
 
