@@ -1,4 +1,5 @@
 const logger = require('../../lib/logger');
+const dbOf = require('../../lib/dbOf');
 const {
   listCatalogXAccounts,
   analyzeHandleLive,
@@ -66,14 +67,39 @@ const listEngagerProfiles = async (req, res) => {
   }
 };
 
-/** GET /alerts/engagers-db/:profileId — combined engagers from stored posts (no external APIs). */
+/** Resolve a profile id or X/FB handle to a numeric profile_id. */
+const resolveProfileId = async (raw, db) => {
+  const token = String(raw || '').trim();
+  if (/^\d+$/.test(token)) return Number(token);
+  const handle = normalizeHandle(token);
+  if (!handle) return null;
+  const prisma = dbOf(db);
+  const account = await prisma.social_media_accounts.findFirst({
+    where: {
+      OR: [
+        { handle: { equals: handle, mode: 'insensitive' } },
+        { handle: { equals: `@${handle}`, mode: 'insensitive' } },
+      ],
+    },
+    select: { profile_id: true },
+    orderBy: { updated_at: 'desc' },
+  });
+  return account?.profile_id || null;
+};
+
+/** GET /alerts/engagers-db/:profileId — combined engagers from stored posts (no external APIs).
+ *  `:profileId` may be a numeric profile id or an account handle. */
 const getEngagersFromDb = async (req, res) => {
   try {
     const platforms = String(req.query.platforms || '')
       .split(',')
       .map((p) => p.trim().toLowerCase())
       .filter(Boolean);
-    const analysis = await analyzeProfileFromDb(req.params.profileId, {
+    const profileId = await resolveProfileId(req.params.profileId, req.tenantPrisma);
+    if (!profileId) {
+      return res.status(404).json({ message: 'Profile not found for this handle' });
+    }
+    const analysis = await analyzeProfileFromDb(profileId, {
       periodDays: req.query.period_days,
       platforms,
       db: req.tenantPrisma,

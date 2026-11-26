@@ -2379,48 +2379,47 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
         onAddSource({ platform: 'x', identifier: rt.handle, display_name: rt.name || rt.handle, category: 'unknown' });
     };
 
-    // Load live analysis when dialog opens
+    // Same DB path as Frequent Engagers (no live Blugate RETWEETS loop).
     const loadLatest = useCallback(async () => {
         const hc = handleCleanRef.current;
         if (!hc) return;
         setLoading(true);
         setError('');
         try {
-            const res = await api.get(`/alerts/engagers/${encodeURIComponent(hc)}`, {
-                params: { period_days: 30, store: 'catalog' },
-                timeout: 60000,
+            const key = sourceId && String(sourceId).match(/^\d+$/) ? String(sourceId) : hc;
+            const res = await api.get(`/alerts/engagers-db/${encodeURIComponent(key)}`, {
+                params: { period_days: 30, platforms: 'x' },
+                timeout: 20000,
             });
             setAnalysis(res.data);
         } catch (err) {
             const timedOut = err?.code === 'ECONNABORTED' || /timeout/i.test(String(err?.message || ''));
             setError(
               timedOut
-                ? 'Engager analysis timed out — try Refresh'
+                ? 'Engager load timed out — try Refresh'
                 : (err?.response?.data?.message || err?.response?.data?.error || 'Failed to load engagers')
             );
             setAnalysis(null);
         } finally { setLoading(false); }
-    }, []);
+    }, [sourceId]);
 
-    // History not stored (live-only)
     const loadHistory = useCallback(async () => {
         setHistory([]);
     }, []);
 
     const loadAnalysisById = async () => {
-        // no-op — analyses are not persisted
         await loadLatest();
     };
 
-    // Re-run live analysis
     const runAnalysis = async () => {
         if (!handleClean) return;
         setAnalyzing(true);
         setError('');
         try {
-            const res = await api.get(`/alerts/engagers/${encodeURIComponent(handleClean)}`, {
-                params: { period_days: 30, store: 'catalog' },
-                timeout: 60000,
+            const key = sourceId && String(sourceId).match(/^\d+$/) ? String(sourceId) : handleClean;
+            const res = await api.get(`/alerts/engagers-db/${encodeURIComponent(key)}`, {
+                params: { period_days: 30, platforms: 'x' },
+                timeout: 20000,
             });
             setAnalysis(res.data);
             toast.success(`Loaded ${res.data?.unique_retweeters || 0} engagers for @${handleClean}`);
@@ -2428,8 +2427,8 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
             const timedOut = err?.code === 'ECONNABORTED' || /timeout/i.test(String(err?.message || ''));
             setError(
               timedOut
-                ? 'Engager analysis timed out — try again'
-                : (err?.response?.data?.message || 'Failed to analyze engagers')
+                ? 'Engager load timed out — try again'
+                : (err?.response?.data?.message || 'Failed to load engagers')
             );
         } finally {
             setAnalyzing(false);
@@ -2496,13 +2495,13 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
                             )}
                             <Button size="sm" className="h-7 text-[10px] px-3 gap-1.5" onClick={runAnalysis} disabled={analyzing || !handleClean}>
                                 {analyzing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
-                                {analyzing ? 'Analyzing…' : analysis ? 'Re-Analyze' : 'Analyze Now'}
+                                {analyzing ? 'Refreshing…' : 'Refresh'}
                             </Button>
                         </div>
                     </div>
                     {analysis && (
                         <div className="text-[10px] text-muted-foreground">
-                            Last analyzed: {format(new Date(analysis.analyzed_at), 'MMM d, yyyy h:mm a')} · {analysis.tweets_analyzed} tweets · {analysis.period_days}-day window
+                            From stored posts · {format(new Date(analysis.analyzed_at), 'MMM d, yyyy h:mm a')} · {analysis.tweets_analyzed} posts · {analysis.period_days}-day window
                         </div>
                     )}
                 </div>
@@ -2534,13 +2533,13 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
                 {analyzing ? (
                     <div className="h-64 flex flex-col items-center justify-center gap-3 text-muted-foreground">
                         <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                        <span className="text-sm font-medium">Analyzing @{handleClean}'s engagers…</span>
-                        <span className="text-[10px] text-muted-foreground">Fetching tweets & retweeters from Twitter. This may take a minute.</span>
+                        <span className="text-sm font-medium">Refreshing @{handleClean}'s engagers…</span>
+                        <span className="text-[10px] text-muted-foreground">Reading engagers from stored posts.</span>
                     </div>
                 ) : loading ? (
                     <div className="h-64 flex flex-col items-center justify-center gap-3 text-muted-foreground">
                         <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
-                        <span className="text-xs">Loading analysis…</span>
+                        <span className="text-xs">Loading engagers from stored posts…</span>
                     </div>
                 ) : !analysis ? (
                     <div className="h-72 flex flex-col items-center justify-center gap-4 text-muted-foreground px-8">
@@ -2548,13 +2547,13 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
                             <Users className="h-8 w-8 opacity-30" />
                         </div>
                         <div className="text-center space-y-1.5">
-                            <p className="text-sm font-medium text-foreground">No analysis yet for @{handleClean}</p>
+                            <p className="text-sm font-medium text-foreground">No engagers found for @{handleClean}</p>
                             <p className="text-xs text-muted-foreground max-w-sm">
-                                Click <strong>"Analyze Now"</strong> to fetch this user's recent tweets and identify who retweets them most frequently.
+                                Engagers come from stored posts (same as Frequent Engagers). Click <strong>Refresh</strong> to reload.
                             </p>
                         </div>
                         <Button size="sm" className="gap-1.5" onClick={runAnalysis} disabled={analyzing}>
-                            <Zap className="h-3.5 w-3.5" /> Start Analysis
+                            <Zap className="h-3.5 w-3.5" /> Refresh
                         </Button>
                     </div>
                 ) : analysis.status === 'failed' ? (
@@ -2594,7 +2593,9 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
                                 <div className="flex items-center gap-2">
                                     <div className="flex border-b border-border">
                                         {[
-                                            ...(contentId ? [{ key: 'this-tweet', label: 'This Tweet', icon: Repeat, count: thisTweetRetweeters.length }] : []),
+                                            ...(contentId && thisTweetRetweeters.length > 0
+                                              ? [{ key: 'this-tweet', label: 'This Tweet', icon: Repeat, count: thisTweetRetweeters.length }]
+                                              : []),
                                             { key: 'hierarchy', label: 'All Engagers', icon: Users, count: analysis.unique_retweeters }
                                         ].map(tab => (
                                             <button key={tab.key} onClick={() => { setActiveTab(tab.key); setEngagerPage(1); setRetweetSearch(''); }} className={`flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium border-b-2 transition-colors -mb-px ${activeTab === tab.key ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
