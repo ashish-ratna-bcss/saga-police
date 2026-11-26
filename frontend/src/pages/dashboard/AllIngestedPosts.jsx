@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import api from '../../lib/api';
 import { Button } from '../../components/ui/button';
 import { TwitterAlertCard, YoutubeAlertCard } from '../../components/AlertCards';
+import { proxyMediaUrl } from '../../shared/utils/mediaProxy';
 
 const RANGES = [
   { id: '24h', label: '24h' },
@@ -12,17 +13,44 @@ const RANGES = [
   { id: 'all', label: 'All' },
 ];
 
-const toMediaList = (mediaUrls) => {
+const isVideoUrl = (url) =>
+  typeof url === 'string' &&
+  (/video\.twimg\.com/i.test(url) ||
+    /\.(mp4|m3u8|webm|mov)(\?|$)/i.test(url) ||
+    /video\.cdninstagram\.com/i.test(url) ||
+    /video[^.]*\.fbcdn\.net/i.test(url) ||
+    /youtube\.com\/watch|youtu\.be\//i.test(url));
+
+const toMediaList = (mediaUrls, platform) => {
   if (!Array.isArray(mediaUrls)) return [];
   return mediaUrls
     .map((m) => {
-      if (typeof m === 'string' && m.trim()) return { url: m.trim(), type: 'image' };
-      if (m && typeof m === 'object') {
-        const url = m.url || m.src || m.thumbnail || m.preview_url || m.media_url;
-        if (!url) return null;
-        return { ...m, url, type: m.type || m.media_type || 'image' };
+      let url = null;
+      let typeHint = null;
+      if (typeof m === 'string' && m.trim()) {
+        url = m.trim();
+      } else if (m && typeof m === 'object') {
+        url = m.url || m.src || m.thumbnail || m.preview_url || m.media_url || null;
+        typeHint = m.type || m.media_type || null;
       }
-      return null;
+      if (!url || typeof url !== 'string') return null;
+      const isVideo =
+        ['video', 'animated_gif', 'gifv'].includes(String(typeHint || '').toLowerCase()) ||
+        isVideoUrl(url);
+      // YouTube watch URLs are embeds, not image thumbs — skip as grid media;
+      // YoutubeAlertCard uses content_url for the player.
+      if (platform === 'youtube' && /youtube\.com\/watch|youtu\.be\//i.test(url)) {
+        return null;
+      }
+      const proxied = proxyMediaUrl(url) || url;
+      return {
+        type: isVideo ? 'video' : 'photo',
+        url: proxied,
+        preview: proxied,
+        // Keep original for download / resolve fallbacks inside AlertCards.
+        fallbackUrls: proxied !== url ? [url] : [],
+        original_url: url,
+      };
     })
     .filter(Boolean);
 };
@@ -32,8 +60,10 @@ const postToCardProps = (post) => {
   const platform = String(post.platform || '')
     .toLowerCase()
     .replace(/^twitter$/, 'x');
-  const media = toMediaList(post.media_urls);
+  const media = toMediaList(post.media_urls, platform);
   const engagement = post.engagement && typeof post.engagement === 'object' ? post.engagement : {};
+  const avatarRaw = post.profile_image_url || null;
+  const avatar = avatarRaw ? proxyMediaUrl(avatarRaw) || avatarRaw : null;
   const content = {
     text: post.text || '',
     url: post.url || null,
@@ -44,7 +74,7 @@ const postToCardProps = (post) => {
     media,
     media_url: media[0]?.url || null,
     media_urls: media.map((m) => m.url).filter(Boolean),
-    thumbnail: media[0]?.url || null,
+    thumbnail: media.find((m) => m.type === 'photo')?.url || media[0]?.preview || null,
     engagement: {
       likes: Number(engagement.likes ?? engagement.reactions ?? engagement.favorites ?? 0) || 0,
       replies: Number(engagement.comments ?? engagement.replies ?? engagement.reply ?? 0) || 0,
@@ -71,6 +101,7 @@ const postToCardProps = (post) => {
   const source = {
     name: post.author_name || post.profile_name || post.author_handle || 'Unknown',
     handle: post.author_handle || null,
+    profile_image_url: avatar,
   };
 
   return { alert, content, source };

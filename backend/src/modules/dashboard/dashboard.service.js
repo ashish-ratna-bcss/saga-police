@@ -792,6 +792,8 @@ const listIngestedPosts = async ({
         account: {
           select: {
             handle: true,
+            preview_data: true,
+            data: true,
             profile: { select: { id: true, display_name: true } },
           },
         },
@@ -805,6 +807,29 @@ const listIngestedPosts = async ({
       _count: { _all: true },
     }),
   ]);
+
+  const pickProfileImage = (account) => {
+    const preview = asEngagement(account?.preview_data); // reuse object coerce
+    const data = asEngagement(account?.data);
+    const candidates = [
+      preview?.summary?.profile_picture_url,
+      preview?.summary?.profile_image_url,
+      preview?.summary?.avatar,
+      preview?.profile_picture_url,
+      preview?.profile_image_url,
+      preview?.avatar_url,
+      preview?.picture,
+      data?.profile_picture_url,
+      data?.profile_image_url,
+      data?.avatar_url,
+      data?.picture,
+    ];
+    for (const c of candidates) {
+      const t = String(c || '').trim();
+      if (/^https?:\/\//i.test(t)) return t;
+    }
+    return null;
+  };
 
   const posts = rows.map((row) => {
     const engagement = asEngagement(row.engagement);
@@ -823,6 +848,7 @@ const listIngestedPosts = async ({
       author_name: row.author_name || row.account?.profile?.display_name || null,
       author_handle: row.author_handle || row.account?.handle || null,
       profile_name: row.account?.profile?.display_name || null,
+      profile_image_url: pickProfileImage(row.account),
       media_type: row.media_type || null,
       media_urls: mediaUrls,
       engagement,

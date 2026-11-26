@@ -25,6 +25,7 @@ import api, { BACKEND_URL } from '../lib/api';
 import { toast } from 'sonner';
 import ReasonModal from './ReasonModal';
 import { AlertService } from '../api';
+import { proxyMediaUrl } from '../shared/utils/mediaProxy';
 
 /** CDN expiry checks retired — treat playable media as always fresh. */
 const anyPlayableMediaUrlFresh = () => true;
@@ -1476,9 +1477,17 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
         const seen = new Set();
         const urls = [];
         const push = (u) => {
-            if (typeof u === 'string' && u.trim() && !seen.has(u.trim())) {
-                seen.add(u.trim());
-                urls.push(u.trim());
+            if (typeof u !== 'string' || !u.trim()) return;
+            const raw = u.trim();
+            const proxied = proxyMediaUrl(raw) || raw;
+            if (!seen.has(proxied)) {
+                seen.add(proxied);
+                urls.push(proxied);
+            }
+            // Keep raw as fallback after proxy (some local/dev hosts don't need it).
+            if (proxied !== raw && !seen.has(raw)) {
+                seen.add(raw);
+                urls.push(raw);
             }
         };
         const rawCandidates = [
@@ -1500,9 +1509,16 @@ export const VideoPlayer = ({ url, preview, type, autoPlay = false, onError, fal
         const seen = new Set();
         const urls = [];
         const push = (candidate) => {
-            if (typeof candidate === 'string' && candidate.trim() && !seen.has(candidate.trim())) {
-                seen.add(candidate.trim());
-                urls.push(candidate.trim());
+            if (typeof candidate !== 'string' || !candidate.trim()) return;
+            const raw = candidate.trim();
+            const proxied = proxyMediaUrl(raw) || raw;
+            if (!seen.has(proxied)) {
+                seen.add(proxied);
+                urls.push(proxied);
+            }
+            if (proxied !== raw && !seen.has(raw)) {
+                seen.add(raw);
+                urls.push(raw);
             }
         };
 
@@ -1915,14 +1931,21 @@ const ImageWithFallback = ({ src, fallbackUrls = [], alt = '', className = '', p
     const [resolvedFallbackUrl, setResolvedFallbackUrl] = useState('');
     const [attemptedPlatformResolve, setAttemptedPlatformResolve] = useState(false);
 
-    // Build proxied candidates — never load raw S3/CDN URLs directly (CORS)
+    // Build proxied candidates — never load raw S3/CDN URLs directly (CORS / hotlink)
     const allSources = React.useMemo(() => {
         const seen = new Set();
         const urls = [];
         const push = (u) => {
-            if (typeof u === 'string' && u.trim() && !seen.has(u.trim())) {
-                seen.add(u.trim());
-                urls.push(u.trim());
+            if (typeof u !== 'string' || !u.trim()) return;
+            const raw = u.trim();
+            const proxied = proxyMediaUrl(raw) || raw;
+            if (!seen.has(proxied)) {
+                seen.add(proxied);
+                urls.push(proxied);
+            }
+            if (proxied !== raw && !seen.has(raw)) {
+                seen.add(raw);
+                urls.push(raw);
             }
         };
         const rawCandidates = [src, ...(Array.isArray(fallbackUrls) ? fallbackUrls : []), resolvedFallbackUrl];
@@ -2012,7 +2035,11 @@ const ImageWithFallback = ({ src, fallbackUrls = [], alt = '', className = '', p
 // for that avatar, so a dead/expired URL can't spam the console.
 const AvatarWithFallback = ({ src, alt = '', className = '' }) => {
     const [failed, setFailed] = useState(false);
-    const avatarSrc = React.useMemo(() => (src || ''), [src]);
+    const avatarSrc = React.useMemo(() => {
+        const raw = typeof src === 'string' ? src.trim() : '';
+        if (!raw) return '';
+        return proxyMediaUrl(raw) || raw;
+    }, [src]);
 
     React.useEffect(() => {
         setFailed(false);
