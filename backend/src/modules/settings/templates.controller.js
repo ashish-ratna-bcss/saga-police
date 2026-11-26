@@ -105,6 +105,9 @@ const updateTemplateContent = async (req, res) => {
     });
     res.json(template);
   } catch (error) {
+    if (error.status === 403) {
+      return res.status(403).json({ error: error.message });
+    }
     if (error.code === 'P2025') {
       return res.status(404).json({ error: 'Template not found' });
     }
@@ -126,6 +129,9 @@ const setDefaultTemplate = async (req, res) => {
     }
     res.json(updated);
   } catch (error) {
+    if (error.status === 403) {
+      return res.status(403).json({ error: error.message });
+    }
     res.status(500).json({ error: error.message });
   }
 };
@@ -142,6 +148,9 @@ const deleteTemplate = async (req, res) => {
     }
     res.json({ message: 'Template deleted', id: req.params.id });
   } catch (error) {
+    if (error.status === 403) {
+      return res.status(403).json({ error: error.message });
+    }
     res.status(500).json({ error: error.message });
   }
 };

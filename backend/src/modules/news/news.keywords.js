@@ -15,6 +15,11 @@
  */
 
 const { Prisma } = require('../../generated/tenant-client');
+const {
+  foldBrahmicNasals,
+  BRAHMIC_NASAL_TRANSLATE_FROM,
+  BRAHMIC_NASAL_TRANSLATE_TO,
+} = require('../../lib/textNormalize');
 
 const MAX_PHRASES = 150;
 const MAX_KEYWORD_LENGTH = 6000;
@@ -23,7 +28,8 @@ const ITEM_SEPARATORS = /[,;\n\r]+/;
 const EDGE_PUNCTUATION = /^[ .,;:!?\-_*#@&'"“”‘’()[\]{}]+|[ .,;:!?\-_*#@&'"“”‘’()[\]{}]+$/g;
 const NON_WORD = /[^a-z0-9]+/g;
 
-const normalize = (text) => String(text || '').normalize('NFKC').toLowerCase();
+const normalize = (text) =>
+  foldBrahmicNasals(String(text || '').normalize('NFKC').toLowerCase());
 /** Plain ASCII keywords use the word index; anything with non-ASCII letters, substring search. */
 const isLatin = (phrase) => /^[\x00-\x7F]*$/.test(phrase);
 const latinWords = (text) => text.replace(NON_WORD, ' ').trim().split(' ').filter(Boolean);
@@ -72,8 +78,16 @@ const parseKeyword = (keyword) => {
 const tsQuery = (words, weight = '') =>
   words.map((w, i) => (i === words.length - 1 ? `${w}:*${weight}` : weight ? `${w}:${weight}` : w)).join(' <-> ');
 
-const TEXT_SQL = "regexp_replace(normalize(lower(a.title || ' ' || a.summary || ' ' || a.content), NFKC), '\\s+', ' ', 'g')";
-const TITLE_SQL = "regexp_replace(normalize(lower(a.title), NFKC), '\\s+', ' ', 'g')";
+// Fold candrabindu→anusvara after NFKC so रांची / राँची match the same hay.
+const NASAL_SQL = `translate($SRC$, '${BRAHMIC_NASAL_TRANSLATE_FROM}', '${BRAHMIC_NASAL_TRANSLATE_TO}')`;
+const TEXT_SQL = NASAL_SQL.replace(
+  '$SRC$',
+  "regexp_replace(normalize(lower(a.title || ' ' || a.summary || ' ' || a.content), NFKC), '\\s+', ' ', 'g')"
+);
+const TITLE_SQL = NASAL_SQL.replace(
+  '$SRC$',
+  "regexp_replace(normalize(lower(a.title), NFKC), '\\s+', ' ', 'g')"
+);
 
 /** SQL boolean: does article row `a` contain the keyword (anywhere, or in its title)? */
 const contains = (phrase, { title = false } = {}) => {

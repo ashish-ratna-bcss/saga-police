@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../lib/api';
-import { Power, Save, Plus, Trash2, ShieldAlert, BrainCircuit, FileText, Upload, Star, Eye, EyeOff, Pencil, Copy, Check, X, AlertTriangle, Zap, Facebook, Instagram, Loader2, Moon, Sun, Palette, ChevronDown, ChevronUp, Globe2 } from 'lucide-react';
+import { Power, Save, Plus, Trash2, ShieldAlert, BrainCircuit, FileText, Upload, Star, Eye, EyeOff, Pencil, Copy, Check, X, AlertTriangle, Zap, Facebook, Instagram, Loader2, Moon, Sun, Palette, ChevronDown, ChevronUp, Globe2, Lock } from 'lucide-react';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Switch } from '../../components/ui/switch';
@@ -27,6 +27,7 @@ import AlertKeywordsSection from '../../components/settings/AlertKeywordsSection
 import RiskLevelsCard, { riskLevelsValid } from '../../components/settings/RiskLevelsCard';
 import ViralAlertsCard, { viralAlertsValid } from '../../components/settings/ViralAlertsCard';
 import { PagePlatformSelectItems } from '../../components/PagePlatformSelectItems';
+import RichTextEditor from '../../components/RichTextEditor';
 
 const KNOWN_PLATFORM_PRESETS = [
   { slug: 'x', name: 'X (Twitter)', icon: 'twitter' },
@@ -762,7 +763,10 @@ const Settings = () => {
 
   if (viewMode === 'editor') {
     const isEditing = !!editingTemplate;
-    const title = isEditing ? `Edit Template — ${editingTemplate.name}` : `Upload Template — ${templateName}`;
+    const isGlobalView = Boolean(editingTemplate?.is_global);
+    const title = isEditing
+      ? `${isGlobalView ? 'View' : 'Edit'} Template — ${editingTemplate.name}`
+      : `Upload Template — ${templateName}`;
     const handleSave = isEditing ? handleSaveEditedTemplate : handleSaveWithEditor;
     const currentHtml = isEditing ? editingHtml : editedHtml;
     const setCurrentHtml = isEditing ? setEditingHtml : setEditedHtml;
@@ -778,16 +782,22 @@ const Settings = () => {
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900 dark:text-white leading-none">{title}</h2>
-              <p className="text-xs text-gray-500 mt-1">Refine your legal document structure and placeholders.</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {isGlobalView
+                  ? 'Built-in default (view only) — same model as Policy Manager defaults.'
+                  : 'Refine your legal document structure and placeholders.'}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => isEditing ? setViewMode('tabs') : resetUploadDialog()} className="h-9 px-4">
-              Cancel
+              {isGlobalView ? 'Close' : 'Cancel'}
             </Button>
+            {!isGlobalView && (
             <Button size="sm" onClick={handleSave} disabled={isSaving} className="h-9 px-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold">
               {isSaving ? 'Saving...' : 'Save Template'}
             </Button>
+            )}
           </div>
         </div>
 
@@ -795,12 +805,21 @@ const Settings = () => {
         <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* Main Editor Surface */}
           <div className="flex-1 min-h-0 overflow-hidden">
-            <RichTextEditor
-              initialContent={currentHtml}
-              onChange={setCurrentHtml}
-              minHeight="100%"
-              placeholder="Start drafting your template content..."
-            />
+            {isGlobalView ? (
+              <div className="h-full overflow-auto p-6 bg-white dark:bg-zinc-950">
+                <div
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(currentHtml || '') }}
+                />
+              </div>
+            ) : (
+              <RichTextEditor
+                initialContent={currentHtml}
+                onChange={setCurrentHtml}
+                minHeight="100%"
+                placeholder="Start drafting your template content..."
+              />
+            )}
           </div>
 
           {/* Integration Sidebar */}
@@ -972,7 +991,7 @@ const Settings = () => {
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold leading-none">Report Templates</h3>
-                    <p className="text-[11px] text-muted-foreground mt-1">Upload any DOCX — edit before saving. Alert data auto-fills when generating reports.</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">Built-in defaults ship like policies; upload DOCX for custom templates. Alert data auto-fills when generating reports.</p>
                   </div>
                 </div>
 
@@ -1102,8 +1121,8 @@ const Settings = () => {
               {templates.length === 0 ? (
                 <div className="text-center py-8">
                   <FileText className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
-                  <p className="text-xs text-muted-foreground">No templates uploaded yet</p>
-                  <p className="text-[10px] text-muted-foreground mt-1">Upload any DOCX to get started — no placeholders needed!</p>
+                  <p className="text-xs text-muted-foreground">No templates yet</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Built-in defaults appear after schema seed; or upload a DOCX.</p>
                 </div>
               ) : (
                 <ScrollArea className="h-[300px]">
@@ -1117,9 +1136,14 @@ const Settings = () => {
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-semibold truncate">{t.name}</span>
-                              {t.is_default && (
+                              {t.is_global && (
+                                <Badge variant="outline" className="text-[9px] px-1 py-0 border-sky-300 text-sky-700 shrink-0">
+                                  <Lock className="h-2 w-2 mr-0.5" /> Default
+                                </Badge>
+                              )}
+                              {t.is_default && !t.is_global && (
                                 <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-300 text-amber-600 shrink-0">
-                                  <Star className="h-2 w-2 mr-0.5 fill-current" /> Default
+                                  <Star className="h-2 w-2 mr-0.5 fill-current" /> Preferred
                                 </Badge>
                               )}
                             </div>
@@ -1130,25 +1154,29 @@ const Settings = () => {
                               <span className="text-[10px] text-muted-foreground">
                                 {(t.placeholders?.length || 0) > 0 ? `${t.placeholders.length} placeholders` : 'Auto-fill mode'}
                               </span>
-                              <span className="text-[10px] text-muted-foreground">{t.original_filename}</span>
+                              <span className="text-[10px] text-muted-foreground">{t.is_global ? 'Built-in' : (t.original_filename || '')}</span>
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleEditTemplate(t)} title="Edit Template">
-                            <Pencil className="h-3.5 w-3.5" />
+                          {!t.is_global && (
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleEditTemplate(t)} title="Edit Template">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleEditTemplate(t)} title={t.is_global ? 'View template' : 'View / Edit Template'}>
+                            {t.is_global ? <Lock className="h-3.5 w-3.5 text-muted-foreground" /> : <Eye className="h-3.5 w-3.5" />}
                           </Button>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleEditTemplate(t)} title="View / Edit Template">
-                            <Eye className="h-3.5 w-3.5" />
-                          </Button>
-                          {!t.is_default && (
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleSetDefault(t.id)} title="Set as default">
+                          {!t.is_global && !t.is_default && (
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleSetDefault(t.id)} title="Set as preferred">
                               <Star className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDeleteTemplate(t.id)} title="Delete">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          {!t.is_global && (
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDeleteTemplate(t.id)} title="Delete">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}

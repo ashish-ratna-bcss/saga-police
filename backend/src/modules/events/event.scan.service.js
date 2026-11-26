@@ -576,8 +576,22 @@ const mapBlugateFacebookPost = (post) => {
     id: String(id),
     post_id: String(id),
     url: post.url || `https://facebook.com/${id}`,
-    message: post.message || post.text || '',
-    text: post.message || post.text || '',
+    message:
+      post.message ||
+      post.text ||
+      post.description ||
+      post.attached_post?.message ||
+      post.attached_post?.description ||
+      (typeof post.message_rich === 'string' ? post.message_rich : '') ||
+      '',
+    text:
+      post.message ||
+      post.text ||
+      post.description ||
+      post.attached_post?.message ||
+      post.attached_post?.description ||
+      (typeof post.message_rich === 'string' ? post.message_rich : '') ||
+      '',
     author: authorObj?.name || post.author_name || 'Unknown',
     author_name: authorObj?.name || post.author_name || 'Unknown',
     author_handle:

@@ -12,7 +12,7 @@ const { getDefaultAccessForRole, PLATFORM_CATALOG } = require('../src/modules/au
 const BACKEND_ROOT = path.join(__dirname, '..');
 
 /** Must match every `model` in prisma/schema.prisma (main auth only). */
-const REQUIRED_TABLES = ['roles', 'users', 'default_policies'];
+const REQUIRED_TABLES = ['roles', 'users', 'default_policies', 'default_report_templates'];
 
 async function countPublicTables(prisma) {
   const rows = await prisma.$queryRaw`
@@ -1282,6 +1282,42 @@ async function main() {
     }
     if (policySeed.length) {
       console.log(`[postgres] default_policies seeded/updated: ${policySeed.length}`);
+    }
+
+    // Seed / refresh default report templates (same pattern as default_policies)
+    const templateSeedPath = path.join(__dirname, 'default_report_templates_seed.json');
+    let templateSeed = [];
+    try {
+      templateSeed = JSON.parse(require('fs').readFileSync(templateSeedPath, 'utf8'));
+    } catch (e) {
+      console.warn(`[postgres] default_report_templates seed file missing: ${e.message}`);
+    }
+    if (templateSeed.length) {
+      const validKeys = templateSeed.map((t) => t.template_key);
+      await prisma.default_report_templates.deleteMany({
+        where: { template_key: { notIn: validKeys } },
+      });
+    }
+    for (const t of templateSeed) {
+      await prisma.default_report_templates.upsert({
+        where: { template_key: t.template_key },
+        create: {
+          template_key: t.template_key,
+          name: t.name,
+          platform: t.platform || 'all',
+          html_content: t.html_content || '',
+          is_active: true,
+        },
+        update: {
+          name: t.name,
+          platform: t.platform || 'all',
+          html_content: t.html_content || '',
+          is_active: true,
+        },
+      });
+    }
+    if (templateSeed.length) {
+      console.log(`[postgres] default_report_templates seeded/updated: ${templateSeed.length}`);
     }
   } catch (error) {
     console.error('[postgres] schema ensure failed:', error.message);

@@ -49,6 +49,11 @@ function toDevanagari(buf, dropFinalVirama) {
     const it = items[k];
     if (it.t === 'C') {
       const next = items[k + 1];
+      // Homorganic nasal: n + consonant → anusvara (raanchi → रांचि…), except nn/nm gemination.
+      if (it.ch === 'न' && next && next.t === 'C' && next.ch !== 'न' && next.ch !== 'म') {
+        out += 'ं';
+        continue;
+      }
       if (next && next.t === 'V') { out += it.ch + next.v[1]; hadVowel = true; k += 1; }
       else if (!next && dropFinalVirama && hadVowel) out += it.ch;
       else out += `${it.ch}्`;
@@ -56,6 +61,16 @@ function toDevanagari(buf, dropFinalVirama) {
     else out += it.ch;
   }
   return out;
+}
+
+/**
+ * Hindi-style phonetic polish on the Devanagari pivot (before script offset):
+ * lengthen a trailing short-i when an earlier explicit matra/nasal is present
+ * (chori → चोरी, raanchi → रांची) without turning kavi → कवी.
+ */
+function polishNorthDevanagari(deva) {
+  // Include short ॆ/ॊ so polish works before SHORT_TO_LONG (chori → चॊरि → चॊरी → चोरी).
+  return String(deva || '').replace(/([ाोेैौंँॆॊ][\u0900-\u097F]*?)ि$/u, '$1ी');
 }
 
 const INDIC_OFFSET = { te: 0x300, kn: 0x380, ml: 0x400, bn: 0x80, gu: 0x180, pa: 0x100, or: 0x200 };
@@ -193,5 +208,10 @@ export function transliterate(raw, roman) {
   if (code === 'ja') return japanese(roman);
   if (code === 'ko') return korean(roman);
   if (SIMPLE[code]) return simple(SIMPLE[code], roman);
-  return fromDevanagari(toDevanagari(roman, NORTH.has(code)), code);
+  let deva = toDevanagari(roman, NORTH.has(code));
+  if (NORTH.has(code) || code === 'hi' || code === 'mr' || code === 'ne') {
+    // Long e/o already via SHORT_TO_LONG inside fromDevanagari; polish final i first.
+    deva = polishNorthDevanagari(deva);
+  }
+  return fromDevanagari(deva, code);
 }

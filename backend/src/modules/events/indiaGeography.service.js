@@ -63,27 +63,49 @@ const normalizeStateName = (input = '') => {
   return null;
 };
 
+const splitLocationParts = (value = '') =>
+  String(value || '')
+    .split(/[,;|/]+|\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
 /**
  * Resolves all known cities, districts, and landmarks for a state.
+ * Accepts one place or several (comma / semicolon / pipe separated) so
+ * multi-location events expand every mentioned state.
  */
 const resolveStatePlaces = (stateOrLocation = '') => {
-  const state = normalizeStateName(stateOrLocation);
-  if (!state) return [];
+  const parts = splitLocationParts(stateOrLocation);
+  if (!parts.length) {
+    const state = normalizeStateName(stateOrLocation);
+    if (!state) return [];
+    parts.push(state);
+  }
 
   const data = loadGeographyData();
-  const stateObj = data.states?.[state];
-  if (!stateObj) return [];
+  const places = [];
+  for (const part of parts) {
+    const state = normalizeStateName(part) || findStateForLocation(part);
+    if (!state) {
+      places.push(part);
+      continue;
+    }
+    const stateObj = data.states?.[state];
+    if (!stateObj) {
+      places.push(state, part);
+      continue;
+    }
+    places.push(
+      state,
+      stateObj.capital,
+      ...(stateObj.districts || []),
+      ...(stateObj.major_cities_and_towns || []),
+      ...(stateObj.key_landmarks_and_institutions || []),
+      part
+    );
+  }
 
-  const places = [
-    state,
-    stateObj.capital,
-    ...(stateObj.districts || []),
-    ...(stateObj.major_cities_and_towns || []),
-    ...(stateObj.key_landmarks_and_institutions || []),
-  ].filter(Boolean);
-
-  // Return unique places
-  return Array.from(new Set(places));
+  return Array.from(new Set(places.filter(Boolean)));
 };
 
 /**
@@ -144,6 +166,7 @@ const findStateForLocation = (location = '') => {
 module.exports = {
   loadGeographyData,
   normalizeStateName,
+  splitLocationParts,
   resolveStatePlaces,
   isPlaceInState,
   findStateForLocation,

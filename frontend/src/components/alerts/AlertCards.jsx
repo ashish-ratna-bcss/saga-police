@@ -1285,10 +1285,14 @@ export const pickCardMediaItems = ({
 const normalizeText = (text) => {
     if (text === null || text === undefined) return '';
     try {
+        // Candrabindu → anusvara so रांची / राँची match (same fold as backend textNormalize).
         return text
             .toString()
             .normalize('NFKC')
             .replace(/[\u200B-\u200D\u2060\uFE0F]/g, '')
+            .replace(/[\u0901\u0981\u0A01\u0A81\u0B01\u0C01\u0C81\u0D01]/g, (ch) =>
+                String.fromCharCode(ch.charCodeAt(0) + 1)
+            )
             .replace(/\s+/g, ' ')
             .toLowerCase()
             .trim();

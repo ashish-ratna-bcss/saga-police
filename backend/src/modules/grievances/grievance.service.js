@@ -3,6 +3,8 @@ const logger = require('../../lib/logger');
 const { searchMentions } = require('./grievance.mentions');
 const {
   fetchFacebookPosts,
+  pickFacebookText,
+  pickFacebookCommentText,
 } = require('../../services/monitoringsocialmedia/facebook/fetch');
 const {
   fetchInstagramPosts,
@@ -26,6 +28,23 @@ const {
 const asObject = (value, fallback = {}) => {
   const parsed = asJson(value, fallback);
   return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback;
+};
+
+const isPlaceholderText = (value) => /without text\s*\]?\s*$/i.test(String(value || '').trim());
+
+const pickInstagramCommentText = (comment) => {
+  const candidates = [
+    comment?.text,
+    comment?.comment,
+    comment?.message,
+    comment?.body,
+    comment?.caption,
+  ];
+  for (const c of candidates) {
+    const t = String(c || '').trim();
+    if (t) return t;
+  }
+  return null;
 };
 
 const hydrateCatalogGrievance = (row) => {
@@ -274,10 +293,26 @@ const createGrievanceIfNew = async ({
   const prisma = dbOf(db);
   if (!externalId) return { created: false };
 
+  const resolvedText = String(text || content.full_text || content.text || '').trim();
   const existing = await prisma.social_media_grievances.findUnique({
     where: { platform_external_id: { platform, external_id: externalId } },
   });
-  if (existing) return { created: false };
+  if (existing) {
+    // Re-scans used to skip forever, so share-caption / field-fallback fixes
+    // never repaired rows stuck on "[… without text]".
+    if (resolvedText && !isPlaceholderText(resolvedText) && isPlaceholderText(existing.text)) {
+      await prisma.social_media_grievances.update({
+        where: { id: existing.id },
+        data: {
+          text: resolvedText,
+          content: { ...asObject(existing.content), text: resolvedText, full_text: resolvedText },
+          engagement: engagement && Object.keys(engagement).length ? engagement : existing.engagement,
+        },
+      });
+      return { created: false, updated: true };
+    }
+    return { created: false };
+  }
 
   const row = await prisma.social_media_grievances.create({
     data: {
@@ -290,7 +325,7 @@ const createGrievanceIfNew = async ({
       author_name: postedBy.display_name || null,
       author_handle: postedBy.handle || null,
       content_url: contentUrl,
-      text: text || content.full_text || content.text || '',
+      text: resolvedText,
       posted_by: postedBy,
       content,
       engagement,
@@ -409,7 +444,9 @@ const fetchCatalogFacebookGrievances = async (account, startDate, endDate, { db 
     total += 1;
     const canonicalPostId = `facebook:post:${postId}`;
     const postUrl = post.url || `https://facebook.com/${postId}`;
-    const postText = String(post.text || '').trim() || '[Facebook post without text]';
+    const raw = post.raw_data && typeof post.raw_data === 'object' ? post.raw_data : {};
+    const postText =
+      String(post.text || pickFacebookText(raw) || '').trim() || '[Facebook post without text]';
     const postAuthorName = post.author_name || displayName;
     const postAuthorHandle = post.author_handle || taggedHandle;
 
@@ -438,7 +475,7 @@ const fetchCatalogFacebookGrievances = async (account, startDate, endDate, { db 
       postedAt: post.posted_at || null,
       db,
     });
-    if (postResult.created) newCount += 1;
+    if (postResult.created || postResult.updated) newCount += 1;
 
     const comments = await fetchFacebookComments(postId, auth);
     for (const comment of comments.slice(0, 50)) {
@@ -451,8 +488,11 @@ const fetchCatalogFacebookGrievances = async (account, startDate, endDate, { db 
           : post.posted_at;
       if (!inRange(commentDate)) continue;
 
+      const commentText = pickFacebookCommentText(comment);
+      // Sticker / GIF / deleted comments often have no text — don't create junk cards.
+      if (!commentText) continue;
+
       total += 1;
-      const commentText = String(comment.message || '').trim() || '[Facebook comment without text]';
       const commentUrl = postUrl.includes('?')
         ? `${postUrl}&comment_id=${encodeURIComponent(commentId)}`
         : `${postUrl}?comment_id=${encodeURIComponent(commentId)}`;
@@ -487,7 +527,7 @@ const fetchCatalogFacebookGrievances = async (account, startDate, endDate, { db 
         postedAt: commentDate || null,
       db,
     });
-      if (commentResult.created) newCount += 1;
+      if (commentResult.created || commentResult.updated) newCount += 1;
     }
   }
 
@@ -558,7 +598,16 @@ const fetchCatalogInstagramGrievances = async (account, startDate, endDate, { db
     total += 1;
     const canonicalPostId = `instagram:post:${postId}`;
     const postUrl = post.url || `https://www.instagram.com/p/${postId}/`;
-    const postText = String(post.text || '').trim() || '[Instagram post without text]';
+    const raw = post.raw_data && typeof post.raw_data === 'object' ? post.raw_data : {};
+    const igCaption =
+      (typeof raw.caption === 'string' ? raw.caption : null) ||
+      raw.caption?.text ||
+      raw.caption_text ||
+      raw.edge_media_to_caption?.edges?.[0]?.node?.text ||
+      raw.title ||
+      raw.text ||
+      null;
+    const postText = String(post.text || igCaption || '').trim() || '[Instagram post without text]';
     const postAuthorName = post.author_name || displayName;
     const postAuthorHandle = post.author_handle || taggedHandle;
 
@@ -587,7 +636,7 @@ const fetchCatalogInstagramGrievances = async (account, startDate, endDate, { db
       postedAt: post.posted_at || null,
       db,
     });
-    if (postResult.created) newCount += 1;
+    if (postResult.created || postResult.updated) newCount += 1;
 
     const comments = await fetchInstagramComments(postUrl, auth);
     for (const comment of comments.slice(0, 50)) {
@@ -601,8 +650,10 @@ const fetchCatalogInstagramGrievances = async (account, startDate, endDate, { db
           : post.posted_at;
       if (!inRange(commentDate)) continue;
 
+      const commentText = pickInstagramCommentText(comment);
+      if (!commentText) continue;
+
       total += 1;
-      const commentText = String(comment.text || '').trim() || '[Instagram comment without text]';
       const user = comment.user || {};
       const commentUrl = `${postUrl.replace(/\/$/, '')}/c/${encodeURIComponent(commentId)}/`;
 
@@ -638,7 +689,7 @@ const fetchCatalogInstagramGrievances = async (account, startDate, endDate, { db
         postedAt: commentDate || null,
       db,
     });
-      if (commentResult.created) newCount += 1;
+      if (commentResult.created || commentResult.updated) newCount += 1;
     }
   }
 
