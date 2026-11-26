@@ -766,7 +766,8 @@ const ParentFacebookPost = ({ context, getProxiedMediaUrl, onAction, grievance }
     }
 
     const user = context.posted_by || {};
-    const text = context.content?.full_text || context.content?.text || '';
+    const rawText = context.content?.full_text || context.content?.text || '';
+    const text = /^\[Facebook\b/i.test(String(rawText).trim()) ? '' : rawText;
     const media = context.content?.media || [];
 
     return (

@@ -310,19 +310,53 @@ const createGrievanceIfNew = async ({
       isPlaceholderText(existing.text) &&
       resolvedText !== existing.text &&
       (!isPlaceholderText(resolvedText) || /without text/i.test(String(existing.text || '')));
-    if (canUpgradePlaceholder) {
+
+    // Comment cards embed parent caption in context.in_reply_to — repair that too.
+    const incomingParent = asObject(asObject(context).in_reply_to);
+    const incomingParentText = String(
+      asObject(incomingParent.content).full_text || asObject(incomingParent.content).text || ''
+    ).trim();
+    const existingParent = asObject(asObject(existing.context).in_reply_to);
+    const existingParentText = String(
+      asObject(existingParent.content).full_text || asObject(existingParent.content).text || ''
+    ).trim();
+    const canUpgradeParentContext =
+      incomingParentText &&
+      isPlaceholderText(existingParentText) &&
+      !isPlaceholderText(incomingParentText);
+
+    if (canUpgradePlaceholder || canUpgradeParentContext) {
+      const data = {};
+      if (canUpgradePlaceholder) {
+        data.text = resolvedText;
+        data.content = {
+          ...asObject(existing.content),
+          ...asObject(content),
+          text: resolvedText,
+          full_text: resolvedText,
+        };
+        data.engagement =
+          engagement && Object.keys(engagement).length ? engagement : existing.engagement;
+      }
+      if (canUpgradeParentContext) {
+        data.context = {
+          ...asObject(existing.context),
+          ...asObject(context),
+          in_reply_to: {
+            ...existingParent,
+            ...incomingParent,
+            content: {
+              ...asObject(existingParent.content),
+              ...asObject(incomingParent.content),
+              text: incomingParentText,
+              full_text: incomingParentText,
+            },
+          },
+        };
+      }
       await prisma.social_media_grievances.update({
         where: { id: existing.id },
-        data: {
-          text: resolvedText,
-          content: {
-            ...asObject(existing.content),
-            ...asObject(content),
-            text: resolvedText,
-            full_text: resolvedText,
-          },
-          engagement: engagement && Object.keys(engagement).length ? engagement : existing.engagement,
-        },
+        data,
       });
       return { created: false, updated: true };
     }
