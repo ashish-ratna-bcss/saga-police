@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { ExternalLink, Image as ImageIcon, Video as VideoIcon } from 'lucide-react';
+import { ExternalLink, Image as ImageIcon, Video as VideoIcon, Mic } from 'lucide-react';
 import {
     XBrandLogo,
     YoutubeBrandLogo,
@@ -185,8 +185,17 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
         ? imageAnalysis.blocks.length
         : 0;
 
+    const hasVideoMedia = mediaItems.some(m => m.type === 'video');
+    const mediaTypeHint = String(
+        alert?.content_details?.media_type ||
+        content?.media_type ||
+        content?.content_type ||
+        ''
+    ).toLowerCase();
     const isVideoPost =
-        mediaItems.length > 0 && mediaItems.every(m => m.type === 'video');
+        hasVideoMedia ||
+        /^(video|reel|short|shorts)$/i.test(mediaTypeHint) ||
+        mediaTypeHint.includes('video');
 
     // A video post whose media was actually run through video analysis (not
     // just detected as video -- older rows analyzed before that feature
@@ -196,6 +205,27 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
     const videoVisibleText = Array.isArray(imageAnalysis?.visible_text)
         ? imageAnalysis.visible_text.filter(Boolean)
         : [];
+
+    const audioTranscript = imageAnalysis?.transcript && typeof imageAnalysis.transcript === 'object'
+        ? imageAnalysis.transcript
+        : null;
+    const audioText = typeof audioTranscript?.text === 'string' ? audioTranscript.text.trim() : '';
+    const audioTransient = Boolean(
+        audioTranscript?.pending ||
+        audioTranscript?.queued ||
+        audioTranscript?.transient ||
+        /busy|try again|queue wait|waiting for audio/i.test(String(audioTranscript?.error || '')) ||
+        /waiting for audio/i.test(String(alert?.analysis_error || content?.analysis_error || ''))
+    );
+    // Permanent fail only (not busy/queue) — otherwise keep the waiting state like video analysis.
+    const audioFailed = Boolean(audioTranscript?.failed) && !audioTransient && typeof audioTranscript?.text !== 'string';
+    const audioWaiting = Boolean(
+        (isVideoAnalysis || isVideoPost) &&
+        !audioText &&
+        !audioFailed
+    );
+    // Show whenever this looks like a video post (or we already have a transcript).
+    const showAudioRow = Boolean(isVideoAnalysis || isVideoPost || audioTranscript);
 
     // Expert Logic or Reasons
     const rawReasons = alert?.llm_analysis?.reasoning
@@ -758,6 +788,64 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
                                         )}
                                     </td>
                                 </tr>
+
+                                {/* Audio transcript (Whisper speech-to-text on video) */}
+                                {showAudioRow && (
+                                    <tr className="border-b">
+                                        <td className="py-3 pr-4 font-medium text-gray-600 dark:text-gray-400 align-top">
+                                            <div className="flex items-center gap-1.5">
+                                                <Mic className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                                <span>Audio Transcript</span>
+                                            </div>
+                                        </td>
+                                        <td className="py-3">
+                                            {audioWaiting || audioTransient ? (
+                                                <span className="text-sky-600 dark:text-sky-400 italic text-xs">
+                                                    Waiting for audio transcription…
+                                                </span>
+                                            ) : audioFailed ? (
+                                                <div className="text-xs text-amber-600 dark:text-amber-400 italic">
+                                                    Transcription failed: {audioTranscript.error || 'unknown error'}
+                                                </div>
+                                            ) : audioText ? (
+                                                <div className="space-y-2">
+                                                    <div className="flex flex-wrap items-center gap-1.5">
+                                                        {audioTranscript.language && (
+                                                            <Badge
+                                                                variant="outline"
+                                                                className="text-[10px] uppercase font-semibold bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400"
+                                                            >
+                                                                {audioTranscript.language}
+                                                            </Badge>
+                                                        )}
+                                                        {audioTranscript.duration != null && (
+                                                            <Badge
+                                                                variant="outline"
+                                                                className="text-[10px] uppercase font-semibold bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400"
+                                                            >
+                                                                {Math.round(audioTranscript.duration)}s
+                                                            </Badge>
+                                                        )}
+                                                        {audioTranscript.model && (
+                                                            <span className="text-[11px] text-gray-400">
+                                                                {audioTranscript.model}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/80 text-xs text-gray-800 dark:text-gray-200 leading-relaxed font-sans whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+                                                        {audioText}
+                                                    </div>
+                                                </div>
+                                            ) : audioTranscript && typeof audioTranscript.text === 'string' ? (
+                                                <span className="text-gray-400 italic text-xs">No speech detected in audio</span>
+                                            ) : (
+                                                <span className="text-sky-600 dark:text-sky-400 italic text-xs">
+                                                    Waiting for audio transcription…
+                                                </span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>

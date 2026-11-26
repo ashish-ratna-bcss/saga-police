@@ -179,12 +179,33 @@ const hydrateCatalogAlert = (row) => {
     }
   }
 
-  const ocrData =
-    snap.ocr ||
-    snap.image_analysis ||
-    asJson(post?.raw_data, {})?.ocr ||
-    asJson(post?.analysis_result, {})?.ocr ||
-    null;
+  // Prefer the richest media reading: live post/alert columns first (they
+  // get Whisper transcripts), then snapshot/legacy OCR.
+  const pickImageAnalysis = (...candidates) => {
+    const list = candidates
+      .map((c) => asJson(c, null))
+      .filter((c) => c && typeof c === 'object' && !Array.isArray(c));
+    const withTranscript = list.find(
+      (c) =>
+        c.transcript &&
+        (typeof c.transcript.text === 'string' || c.transcript.failed)
+    );
+    if (withTranscript) return withTranscript;
+    return (
+      list.find((c) => c.full_text || c.description || c.media_type === 'video') ||
+      list[0] ||
+      null
+    );
+  };
+
+  const ocrData = pickImageAnalysis(
+    post?.image_analysis,
+    row.image_analysis,
+    asJson(post?.analysis_result, {})?.ocr,
+    snap.ocr,
+    snap.image_analysis,
+    asJson(post?.raw_data, {})?.ocr
+  );
 
   const analysis = {
     category: category || null,

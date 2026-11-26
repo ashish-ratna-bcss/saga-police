@@ -5,7 +5,8 @@ const mappingService = require('../../modules/settings/mapping.service');
 const { getSettingsDoc } = require('../../modules/settings/settings.service');
 const { resolveTenantName } = require('../../lib/tenantDatabase.service');
 const { extractOcr, extractVideo } = require('./extractOcr');
-const { mediaTextOf } = require('./imageText');
+const { extractAudioTranscript } = require('./extractAudio');
+const { mediaTextOf, transcriptOf } = require('./imageText');
 const { keywordMatchesText } = require('../../modules/events/event.utils');
 
 const MAX_ATTEMPTS = Math.max(1, Number(process.env.SENTIMENT_MAX_ATTEMPTS) || 5);
@@ -56,6 +57,15 @@ function extractFirstVideoUrl(mediaField) {
 /** Already-analyzed check that works for either result shape (image OCR or video). */
 function hasMediaAnalysis(imageAnalysis) {
   return Boolean(imageAnalysis?.full_text) || Boolean(imageAnalysis?.description);
+}
+
+function hasAudioTranscript(imageAnalysis) {
+  const t = imageAnalysis?.transcript;
+  if (!t || typeof t !== 'object') return false;
+  if (t.pending || t.queued || t.transient) return false;
+  if (typeof t.text === 'string') return true;
+  if (t.failed) return true;
+  return false;
 }
 
 /**
@@ -185,13 +195,113 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
     }
   }
 
+  // ── STEP 1b: AUDIO TRANSCRIPTION (video speech → Whisper) ──
+  // Same as video analysis: WAIT for audio before sentiment.
+  const audioVideoUrl = extractFirstVideoUrl(row.media);
+  if (audioVideoUrl && !hasAudioTranscript(ocrData)) {
+    const base = ocrData && typeof ocrData === 'object' && !Array.isArray(ocrData)
+      ? { ...ocrData }
+      : { media_type: 'video' };
+
+    ocrData = {
+      ...base,
+      media_type: base.media_type || 'video',
+      transcript: {
+        pending: true,
+        queued: true,
+        at: new Date().toISOString(),
+      },
+    };
+    await prisma.social_media_event_media.update({
+      where: { id },
+      data: {
+        image_analysis: ocrData,
+        analysis_status: 'processing',
+        analysis_error: 'waiting for audio transcription',
+      },
+    });
+    row.image_analysis = ocrData;
+
+    logger.info(`[media_post_analysis/event] Waiting for audio transcription for event media ${id}`);
+    const audioResult = await extractAudioTranscript(audioVideoUrl, {
+      postId: `event_${id}`,
+    });
+
+    if (audioResult.success && audioResult.data) {
+      ocrData = {
+        ...base,
+        media_type: base.media_type || 'video',
+        transcript: {
+          text: audioResult.data.text || '',
+          language: audioResult.data.language,
+          language_probability: audioResult.data.language_probability,
+          duration: audioResult.data.duration,
+          segments: audioResult.data.segments,
+          model: audioResult.data.model,
+          device: audioResult.data.device,
+        },
+      };
+      await prisma.social_media_event_media.update({
+        where: { id },
+        data: { image_analysis: ocrData, analysis_error: null },
+      });
+      row.image_analysis = ocrData;
+    } else if (audioResult.transient) {
+      logger.warn(
+        `[media_post_analysis/event] Audio still waiting for event media ${id}: ${audioResult.error}`
+      );
+      ocrData = {
+        ...base,
+        media_type: base.media_type || 'video',
+        transcript: {
+          pending: true,
+          queued: true,
+          transient: true,
+          error: audioResult.error,
+          attempts: audioResult.attempts,
+          at: new Date().toISOString(),
+        },
+      };
+      await prisma.social_media_event_media.update({
+        where: { id },
+        data: {
+          image_analysis: ocrData,
+          analysis_status: 'pending',
+          analysis_error: 'waiting for audio transcription',
+        },
+      });
+      return { ok: false, error: audioResult.error, retry: true, reason: 'audio_waiting' };
+    } else {
+      logger.warn(`[media_post_analysis/event] Audio permanent failure for event media ${id}: ${audioResult.error}`);
+      ocrData = {
+        ...base,
+        media_type: base.media_type || 'video',
+        transcript: {
+          failed: true,
+          transient: false,
+          error: audioResult.error,
+          attempts: audioResult.attempts,
+        },
+      };
+      await prisma.social_media_event_media.update({
+        where: { id },
+        data: { image_analysis: ocrData },
+      });
+      row.image_analysis = ocrData;
+    }
+  }
+
   // ── STEP 2: SENTIMENT ANALYSIS ──
   const rowText = String(row.text || '').trim();
   // Readable text even when the image reader answered with structured data (it used to become "[object Object]").
   const mediaText = mediaTextOf(ocrData);
-  const textForAnalysis = rowText || mediaText;
+  const speechText = transcriptOf(ocrData);
+  const textForAnalysis = [rowText, mediaText, speechText].filter((t) => t.length >= 3).join('\n\n')
+    || rowText
+    || mediaText
+    || speechText;
 
-  if (rowText.length < 3 && mediaText.length < 3) {
+  if (rowText.length < 3 && mediaText.length < 3 && speechText.length < 3) {
     await prisma.social_media_event_media.update({
       where: { id },
       data: {

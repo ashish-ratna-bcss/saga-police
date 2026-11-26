@@ -23,7 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Calendar } from './ui/calendar';
 import api, { BACKEND_URL } from '../lib/api';
 import { toast } from 'sonner';
-import ReasonModal from './ReasonModal';
+import ReasonModal from '../ReasonModal';
 import { AlertService } from '../../api';
 
 /** CDN expiry checks retired — treat playable media as always fresh. */

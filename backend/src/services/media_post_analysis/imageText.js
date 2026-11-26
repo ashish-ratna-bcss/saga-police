@@ -103,10 +103,18 @@ const signalsOf = (reading) => {
   return all.filter((x, i) => all.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i).slice(0, 8);
 };
 
+/** Spoken transcript from Whisper (`reading.transcript.text`), or ''. */
+const transcriptOf = (reading) => {
+  if (!reading || typeof reading !== 'object' || Array.isArray(reading)) return '';
+  const t = reading.transcript;
+  if (!t || typeof t !== 'object' || t.failed) return '';
+  return flatten(t.text);
+};
+
 /** A translation as the sentiment service returned it: text, or nothing. Never an object, never the broken placeholder. */
 const cleanTranslation = (value) => {
   const text = flatten(value);
   return text || null;
 };
 
-module.exports = { flatten, descriptive, mediaTextOf, sceneOf, signalsOf, cleanTranslation, cut };
+module.exports = { flatten, descriptive, mediaTextOf, sceneOf, signalsOf, transcriptOf, cleanTranslation, cut };

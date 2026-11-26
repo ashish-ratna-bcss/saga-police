@@ -6,7 +6,8 @@ const mappingService = require('../../modules/settings/mapping.service');
 const { createAlertFromCatalogPost } = require('../../modules/alerts');
 const { resolveTenantName } = require('../../lib/tenantDatabase.service');
 const { extractOcr, extractVideo } = require('./extractOcr');
-const { mediaTextOf } = require('./imageText');
+const { extractAudioTranscript } = require('./extractAudio');
+const { mediaTextOf, transcriptOf } = require('./imageText');
 
 const MAX_ATTEMPTS = Math.max(1, Number(process.env.SENTIMENT_MAX_ATTEMPTS) || 5);
 
@@ -72,6 +73,21 @@ function extractFirstVideoUrl(post) {
 /** Already-analyzed check that works for either result shape (section below). */
 function hasMediaAnalysis(imageAnalysis) {
   return Boolean(imageAnalysis?.full_text) || Boolean(imageAnalysis?.description);
+}
+
+/**
+ * True when Whisper already finished for this post:
+ * - success (text string present, even if empty speech), or
+ * - permanent failure (failed && !transient && !pending).
+ * pending/queued/transient must NOT count — keep waiting like video analysis.
+ */
+function hasAudioTranscript(imageAnalysis) {
+  const t = imageAnalysis?.transcript;
+  if (!t || typeof t !== 'object') return false;
+  if (t.pending || t.queued || t.transient) return false;
+  if (typeof t.text === 'string') return true;
+  if (t.failed) return true;
+  return false;
 }
 
 const keywordText = (value) => {
@@ -305,13 +321,119 @@ const analyzeMediaPost = async (postId, { db, dbName } = {}) => {
     }
   }
 
+  // ── STEP 1b: AUDIO TRANSCRIPTION (video speech → Whisper) ──
+  // Same rule as video analysis: WAIT for audio before sentiment.
+  // Eye UI shows "waiting" while transcript.pending / transient is set.
+  const audioVideoUrl = extractFirstVideoUrl(post);
+  if (audioVideoUrl && !hasAudioTranscript(ocrData)) {
+    const base = ocrData && typeof ocrData === 'object' && !Array.isArray(ocrData)
+      ? { ...ocrData }
+      : { media_type: 'video' };
+
+    // Mark waiting (like video analysis in progress) before calling Whisper.
+    ocrData = {
+      ...base,
+      media_type: base.media_type || 'video',
+      transcript: {
+        pending: true,
+        queued: true,
+        at: new Date().toISOString(),
+      },
+    };
+    await prisma.social_media_posts.update({
+      where: { id },
+      data: {
+        image_analysis: ocrData,
+        analysis_status: 'processing',
+        analysis_error: 'waiting for audio transcription',
+      },
+    });
+    post.image_analysis = ocrData;
+
+    logger.info(`[media_post_analysis] Waiting for audio transcription for post ${id}`);
+    const audioResult = await extractAudioTranscript(audioVideoUrl, {
+      postId: String(id),
+    });
+
+    if (audioResult.success && audioResult.data) {
+      ocrData = {
+        ...base,
+        media_type: base.media_type || 'video',
+        transcript: {
+          text: audioResult.data.text || '',
+          language: audioResult.data.language,
+          language_probability: audioResult.data.language_probability,
+          duration: audioResult.data.duration,
+          segments: audioResult.data.segments,
+          model: audioResult.data.model,
+          device: audioResult.data.device,
+        },
+      };
+      await prisma.social_media_posts.update({
+        where: { id },
+        data: { image_analysis: ocrData, analysis_error: null },
+      });
+      post.image_analysis = ocrData;
+      logger.info(
+        `[media_post_analysis] Audio transcription succeeded for post ${id} (${(audioResult.data.text || '').length} chars)`
+      );
+    } else if (audioResult.transient) {
+      // Still waiting — do NOT run sentiment; poller retries like video backlog.
+      logger.warn(
+        `[media_post_analysis] Audio still waiting for post ${id}: ${audioResult.error}`
+      );
+      ocrData = {
+        ...base,
+        media_type: base.media_type || 'video',
+        transcript: {
+          pending: true,
+          queued: true,
+          transient: true,
+          error: audioResult.error,
+          attempts: audioResult.attempts,
+          at: new Date().toISOString(),
+        },
+      };
+      await prisma.social_media_posts.update({
+        where: { id },
+        data: {
+          image_analysis: ocrData,
+          analysis_status: 'pending',
+          analysis_error: 'waiting for audio transcription',
+        },
+      });
+      return { ok: false, error: audioResult.error, retry: true, reason: 'audio_waiting' };
+    } else {
+      logger.warn(`[media_post_analysis] Audio permanent failure for post ${id}: ${audioResult.error}`);
+      ocrData = {
+        ...base,
+        media_type: base.media_type || 'video',
+        transcript: {
+          failed: true,
+          transient: false,
+          error: audioResult.error,
+          attempts: audioResult.attempts,
+        },
+      };
+      await prisma.social_media_posts.update({
+        where: { id },
+        data: { image_analysis: ocrData },
+      });
+      post.image_analysis = ocrData;
+    }
+  }
+
   // ── STEP 2: SENTIMENT & INTELLIGENCE ANALYSIS ──
   const postText = String(post.text || '').trim();
   // Readable text even when the image reader answered with structured data (it used to become "[object Object]").
   const mediaText = mediaTextOf(ocrData);
-  const textForAnalysis = postText || mediaText;
+  const speechText = transcriptOf(ocrData);
+  const textForAnalysis = [postText, mediaText, speechText].filter((t) => t.length >= 3).join('\n\n')
+    || postText
+    || mediaText
+    || speechText;
 
-  if (postText.length < 3 && mediaText.length < 3) {
+  if (postText.length < 3 && mediaText.length < 3 && speechText.length < 3) {
     await prisma.social_media_posts.update({
       where: { id },
       data: {
@@ -460,6 +582,7 @@ const analyzeMediaPost = async (postId, { db, dbName } = {}) => {
     sentiment: analysis_result.sentiment,
     ocr_extracted: Boolean(ocrData?.full_text),
     video_analyzed: Boolean(ocrData?.description),
+    audio_transcribed: Boolean(speechText),
     alert: alertInfo,
   };
 };
@@ -470,6 +593,7 @@ module.exports = {
   extractFirstImageUrl,
   extractFirstVideoUrl,
   hasMediaAnalysis,
+  hasAudioTranscript,
   matchKeywords,
   loadRiskThresholds,
   scoreToLevel,
