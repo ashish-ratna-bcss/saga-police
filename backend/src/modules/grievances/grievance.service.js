@@ -3,6 +3,7 @@ const logger = require('../../lib/logger');
 const { searchMentions } = require('./grievance.mentions');
 const {
   fetchFacebookPosts,
+  pickFacebookText,
   pickFacebookCommentText,
   pickFacebookMediaUrl,
   resolveFacebookText,
@@ -383,6 +384,35 @@ const upsertMentionRow = async ({ account, taggedHandle, mention, db }) =>
     db,
   });
 
+/**
+ * PAGE_POSTS sometimes returns share wrappers with empty message while the
+ * real caption lives only on a full POST lookup. Enrich when caption missing.
+ */
+const enrichFacebookPostRaw = async (postId, postUrl, raw, auth = null) => {
+  if (pickFacebookText(raw)) return raw;
+  try {
+    let data = null;
+    if (postId) {
+      try {
+        data = await callFacebookApi('POST', { post_id: String(postId) }, auth);
+      } catch (_) {
+        data = null;
+      }
+    }
+    if (!data && postUrl) {
+      data = await callFacebookApi('POST', { url: String(postUrl) }, auth);
+    }
+    const payload = data?.results || data?.result || data?.post || data;
+    const enriched = Array.isArray(payload) ? payload[0] : payload;
+    if (enriched && typeof enriched === 'object' && pickFacebookText(enriched)) {
+      return { ...raw, ...enriched, attached_post: enriched.attached_post || raw?.attached_post };
+    }
+  } catch (err) {
+    logger.warn(`[CatalogGrievances] Facebook POST enrich failed for ${postId || postUrl}: ${err.message}`);
+  }
+  return raw;
+};
+
 const fetchFacebookComments = async (postId, auth = null) => {
   try {
     const response = await callFacebookApi('POST_COMMENTS', { post_id: String(postId) }, auth);
@@ -458,11 +488,16 @@ const fetchCatalogFacebookGrievances = async (account, startDate, endDate, { db 
     total += 1;
     const canonicalPostId = `facebook:post:${postId}`;
     const postUrl = post.url || `https://facebook.com/${postId}`;
-    const raw = post.raw_data && typeof post.raw_data === 'object' ? post.raw_data : {};
-    const mediaUrl = (Array.isArray(post.media_urls) && post.media_urls[0]) || pickFacebookMediaUrl(raw);
+    let raw = post.raw_data && typeof post.raw_data === 'object' ? post.raw_data : {};
+    const postUrlForEnrich = post.url || postUrl;
+    if (!pickFacebookText(raw)) {
+      raw = await enrichFacebookPostRaw(postId, postUrlForEnrich, raw, auth);
+    }
+    const mediaUrl =
+      (Array.isArray(post.media_urls) && post.media_urls[0]) || pickFacebookMediaUrl(raw);
     const postText = String(
-      (post.text && !isPlaceholderText(post.text) ? post.text : null) ||
-        resolveFacebookText(raw) ||
+      pickFacebookText(raw) ||
+        (post.text && !isPlaceholderText(post.text) ? post.text : null) ||
         describeFacebookPostFallback(raw)
     ).trim();
     const postAuthorName = post.author_name || displayName;

@@ -1000,7 +1000,8 @@ const FacebookMediaGrid = ({ media, getProxiedMediaUrl }) => {
 
 const FacebookLayout = ({ grievance, getProxiedMediaUrl, onAction, downloadState = {}, isActioned }) => {
     const user = grievance.posted_by || {};
-    const text = grievance.content?.full_text || grievance.content?.text || '';
+    const rawText = grievance.content?.full_text || grievance.content?.text || grievance.text || '';
+    const text = /^\[Facebook\b/i.test(String(rawText).trim()) ? '' : rawText;
     const media = grievance.content?.media || [];
     const engagement = grievance.engagement || {};
     const totalReactions = (engagement.likes || 0);
