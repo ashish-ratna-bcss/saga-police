@@ -157,14 +157,87 @@ const bulkUpsertThresholds = async (thresholds = [], { db } = {}) => {
   return out;
 };
 
+const extractPlaceholders = (html) => {
+  const found = new Set();
+  const re = /\{\{\s*([A-Z0-9_]+)\s*\}\}/g;
+  const src = String(html || '');
+  let m;
+  while ((m = re.exec(src))) found.add(m[1]);
+  return [...found];
+};
+
+const hydrateTemplate = (row, { is_global = false } = {}) => {
+  if (!row) return null;
+  return {
+    ...row,
+    _id: row.id,
+    is_global: Boolean(is_global),
+    is_default: Boolean(row.is_default),
+    placeholders: extractPlaceholders(row.html_content),
+    original_filename: is_global ? 'Built-in default' : row.original_filename || null,
+  };
+};
+
 const listTemplates = async ({ db } = {}) => {
   const prisma = dbOf(db);
-  return prisma.report_templates.findMany({ orderBy: { created_at: 'desc' } });
+  const tenantRows = await prisma.report_templates.findMany({ orderBy: { created_at: 'desc' } });
+  let globalRows = [];
+  try {
+    globalRows = await mainPrisma.default_report_templates.findMany({
+      where: { is_active: true },
+      orderBy: { name: 'asc' },
+    });
+  } catch (err) {
+    // Table may not exist until schema ensure / migrate runs.
+    if (!/does not exist|Unknown model/i.test(String(err?.message || ''))) throw err;
+  }
+  const mappedTenant = tenantRows.map((r) => hydrateTemplate(r));
+  const mappedGlobal = globalRows.map((r) =>
+    hydrateTemplate(
+      {
+        id: r.id,
+        name: r.name,
+        platform: r.platform || 'all',
+        html_content: r.html_content,
+        is_default: false,
+        created_by: null,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+        template_key: r.template_key,
+      },
+      { is_global: true }
+    )
+  );
+  // Custom uploads first, then shared defaults (same order as policies).
+  return [...mappedTenant, ...mappedGlobal];
 };
 
 const getTemplate = async (id, { db } = {}) => {
   const prisma = dbOf(db);
-  return prisma.report_templates.findUnique({ where: { id: String(id) } });
+  const tenant = await prisma.report_templates.findUnique({ where: { id: String(id) } });
+  if (tenant) return hydrateTemplate(tenant);
+  try {
+    const globalRow = await mainPrisma.default_report_templates.findUnique({ where: { id: String(id) } });
+    if (globalRow) {
+      return hydrateTemplate(
+        {
+          id: globalRow.id,
+          name: globalRow.name,
+          platform: globalRow.platform || 'all',
+          html_content: globalRow.html_content,
+          is_default: false,
+          created_by: null,
+          created_at: globalRow.created_at,
+          updated_at: globalRow.updated_at,
+          template_key: globalRow.template_key,
+        },
+        { is_global: true }
+      );
+    }
+  } catch (err) {
+    if (!/does not exist|Unknown model/i.test(String(err?.message || ''))) throw err;
+  }
+  return null;
 };
 
 const createTemplate = async ({ name, platform = 'all', html_content, is_default = false, created_by, db }) => {
@@ -175,40 +248,69 @@ const createTemplate = async ({ name, platform = 'all', html_content, is_default
       data: { is_default: false },
     });
   }
-  return prisma.report_templates.create({
-    data: {
-      name: String(name).trim(),
-      platform,
-      html_content,
-      is_default: Boolean(is_default),
-      created_by: created_by != null ? String(created_by) : null,
-    },
-  });
+  return hydrateTemplate(
+    await prisma.report_templates.create({
+      data: {
+        name: String(name).trim(),
+        platform,
+        html_content,
+        is_default: Boolean(is_default),
+        created_by: created_by != null ? String(created_by) : null,
+      },
+    })
+  );
 };
 
 const updateTemplateContent = async (id, html_content, { db } = {}) => {
+  const existing = await getTemplate(id, { db });
+  if (!existing) {
+    const err = new Error('Template not found');
+    err.code = 'P2025';
+    throw err;
+  }
+  if (existing.is_global) {
+    const err = new Error('Built-in default templates cannot be edited');
+    err.status = 403;
+    throw err;
+  }
   const prisma = dbOf(db);
-  return prisma.report_templates.update({
-    where: { id: String(id) },
-    data: { html_content },
-  });
+  return hydrateTemplate(
+    await prisma.report_templates.update({
+      where: { id: String(id) },
+      data: { html_content },
+    })
+  );
 };
 
 const setDefaultTemplate = async (id, { db } = {}) => {
   const prisma = dbOf(db);
   const template = await getTemplate(id, { db: prisma });
   if (!template) return null;
+  if (template.is_global) {
+    const err = new Error('Built-in default templates cannot be set as the tenant default star');
+    err.status = 403;
+    throw err;
+  }
   await prisma.report_templates.updateMany({
     where: { platform: template.platform },
     data: { is_default: false },
   });
-  return prisma.report_templates.update({
-    where: { id: template.id },
-    data: { is_default: true },
-  });
+  return hydrateTemplate(
+    await prisma.report_templates.update({
+      where: { id: template.id },
+      data: { is_default: true },
+    })
+  );
 };
 
 const deleteTemplate = async (id, { db } = {}) => {
+  const existing = await getTemplate(id, { db });
+  if (!existing) return false;
+  if (existing.is_global) {
+    const err = new Error('Built-in default templates cannot be deleted');
+    err.status = 403;
+    throw err;
+  }
   const prisma = dbOf(db);
   try {
     await prisma.report_templates.delete({ where: { id: String(id) } });

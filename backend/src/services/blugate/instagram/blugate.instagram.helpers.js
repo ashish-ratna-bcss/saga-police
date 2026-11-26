@@ -53,9 +53,12 @@ const mapFeedItemToUpsert = (node, accountId, mediaType = 'post') => {
     }
   }
 
+  const edgeCaption = node.edge_media_to_caption?.edges?.[0]?.node?.text || null;
   const caption =
     (typeof node.caption === 'string' ? node.caption : null) ||
     node.caption?.text ||
+    node.caption_text ||
+    edgeCaption ||
     node.title ||
     node.text ||
     '';
@@ -107,7 +110,12 @@ const mapNodesToSearchPosts = (nodes, username, limit = 50) => {
       const caption =
         typeof node.caption === 'string'
           ? node.caption
-          : node.caption?.text || node.title || '';
+          : node.caption?.text ||
+            node.caption_text ||
+            node.edge_media_to_caption?.edges?.[0]?.node?.text ||
+            node.title ||
+            node.text ||
+            '';
       const takenAt = node.taken_at || node.taken_at_ts || node.device_timestamp;
       const image =
         node.image_versions2?.candidates?.[0]?.url ||

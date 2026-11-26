@@ -48,6 +48,94 @@ const splitKeywords = (value) => {
   return value.split(/\n|,|;/g).map((s) => s.trim()).filter(Boolean);
 };
 
+/** Split a stored location string into place chips (comma / semicolon / pipe / newline). */
+const splitLocations = (value = '') => {
+  const out = [];
+  const seen = new Set();
+  for (const part of String(value || '').split(/[,;|/]+|\n+/)) {
+    const t = part.trim();
+    if (!t) continue;
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+  }
+  return out;
+};
+
+const joinLocations = (list = []) => splitLocations((list || []).join(', ')).join(', ');
+
+/** Multi-location chip field — stored as one comma-separated `location` string. */
+const EventLocationsField = ({ value = '', onChange, placeholder = 'Add city, district, or state' }) => {
+  const locations = useMemo(() => splitLocations(value), [value]);
+  const [draft, setDraft] = useState('');
+
+  const commit = (raw) => {
+    const next = joinLocations([...locations, ...splitLocations(raw)]);
+    setDraft('');
+    onChange?.(next);
+  };
+
+  const removeAt = (idx) => {
+    onChange?.(joinLocations(locations.filter((_, i) => i !== idx)));
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs font-semibold">Locations</Label>
+      <div className="min-h-9 rounded-md border border-input bg-background px-2 py-1.5 flex flex-wrap items-center gap-1.5 focus-within:ring-1 focus-within:ring-ring">
+        {locations.map((loc, idx) => (
+          <Badge
+            key={`${loc}-${idx}`}
+            variant="secondary"
+            className="gap-1 pl-2 pr-1 py-0.5 text-[11px] font-medium max-w-full"
+          >
+            <MapPin className="h-2.5 w-2.5 shrink-0 opacity-70" />
+            <span className="truncate">{loc}</span>
+            <button
+              type="button"
+              className="rounded-sm p-0.5 hover:bg-muted-foreground/15"
+              onClick={() => removeAt(idx)}
+              aria-label={`Remove ${loc}`}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
+        ))}
+        <Input
+          data-keyboard
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+              e.preventDefault();
+              if (draft.trim()) commit(draft);
+            } else if (e.key === 'Backspace' && !draft && locations.length) {
+              removeAt(locations.length - 1);
+            }
+          }}
+          onBlur={() => {
+            if (draft.trim()) commit(draft);
+          }}
+          placeholder={locations.length ? 'Add another…' : placeholder}
+          className="h-7 min-w-[10rem] flex-1 border-0 shadow-none focus-visible:ring-0 px-1 text-sm"
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-[11px] shrink-0"
+          disabled={!draft.trim()}
+          onClick={() => commit(draft)}
+        >
+          <Plus className="h-3 w-3 mr-0.5" /> Add
+        </Button>
+      </div>
+      <p className="text-[10px] text-muted-foreground">Add multiple places — press Enter or Add after each one.</p>
+    </div>
+  );
+};
+
 /** Flatten event keywords into one comma-separated form field (any language / script). */
 const keywordsToSingleField = (keywords = []) => {
   const out = [];
@@ -2729,7 +2817,14 @@ const Events = () => {
                           ))}
                       </div>
                       <div className="flex items-center gap-2 text-[10px] text-gray-400">
-                        {e.location && (<span className="flex items-center gap-0.5 truncate"><MapPin className="h-2.5 w-2.5 shrink-0" />{e.location}</span>)}
+                        {e.location && (
+                          <span className="flex items-center gap-0.5 truncate" title={e.location}>
+                            <MapPin className="h-2.5 w-2.5 shrink-0" />
+                            {splitLocations(e.location).length > 1
+                              ? `${splitLocations(e.location).length} locations`
+                              : e.location}
+                          </span>
+                        )}
                         {(e.start_date || e.end_date) && (
                           <span className="flex items-center gap-0.5 shrink-0">
                             <Clock className="h-2.5 w-2.5 shrink-0" />
@@ -2805,7 +2900,12 @@ const Events = () => {
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted-foreground">
                   {selectedEvent.location && (
-                    <span className="inline-flex items-center gap-1 truncate max-w-[10rem]"><MapPin className="h-3 w-3 shrink-0" />{selectedEvent.location}</span>
+                    <span className="inline-flex items-center gap-1 min-w-0 max-w-full" title={selectedEvent.location}>
+                      <MapPin className="h-3 w-3 shrink-0" />
+                      <span className="truncate">
+                        {splitLocations(selectedEvent.location).join(' · ')}
+                      </span>
+                    </span>
                   )}
                   {(selectedEvent.start_date || selectedEvent.end_date) ? (
                     <span className="inline-flex items-center gap-1">
@@ -3353,9 +3453,8 @@ const Events = () => {
                 <Label className="text-xs font-semibold">Event Name *</Label>
                 <Input data-keyboard value={name} onChange={(e) => setName(e.target.value)} placeholder="Name of the event to monitor" className="h-9" />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Location</Label>
-                <Input data-keyboard value={location} onChange={(e) => setLocation(e.target.value)} placeholder="City, district, or state" className="h-9" />
+              <div className="space-y-1.5 sm:col-span-1">
+                <EventLocationsField value={location} onChange={setLocation} />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Start Date</Label>
@@ -3701,9 +3800,11 @@ const Events = () => {
                 <Label className="text-xs font-semibold">Event Name *</Label>
                 <Input data-keyboard value={nrForm.name} onChange={(e) => setNrForm({ ...nrForm, name: e.target.value })} placeholder="Name of the event to monitor" className="h-9" />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Location</Label>
-                <Input data-keyboard value={nrForm.location} onChange={(e) => setNrForm({ ...nrForm, location: e.target.value })} placeholder="City, district, or state" className="h-9" />
+              <div className="space-y-1.5 sm:col-span-1">
+                <EventLocationsField
+                  value={nrForm.location}
+                  onChange={(next) => setNrForm({ ...nrForm, location: next })}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Start Date</Label>

@@ -255,7 +255,14 @@ const searchFacebookContent = async (query, limit, auth) => {
       }
       return {
         id: String(id),
-        text: post.message || post.text || '',
+        text:
+          post.message ||
+          post.text ||
+          post.description ||
+          post.attached_post?.message ||
+          post.attached_post?.description ||
+          (typeof post.message_rich === 'string' ? post.message_rich : '') ||
+          '',
         url: post.url || `https://facebook.com/${id}`,
         author: authorObj?.name || post.author_name || 'Unknown',
         author_handle: authorObj?.username || authorObj?.id || post.page_id || '',
@@ -413,7 +420,7 @@ const searchYouTubeContent = async (query, limit, auth) => {
     id: video.id,
     title: video.snippet?.title || '',
     description: video.snippet?.description || '',
-    text: video.snippet?.title || '',
+    text: [video.snippet?.title, video.snippet?.description].filter(Boolean).join('\n\n') || '',
     publishedAt: video.snippet?.publishedAt || null,
     created_at: video.snippet?.publishedAt || null,
     thumbnails: video.snippet?.thumbnails || {},

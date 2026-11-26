@@ -61,6 +61,51 @@ const pickFacebookMediaUrl = (post) => {
   if (Array.isArray(post?.album_preview) && post.album_preview[0]?.image_file_uri) {
     return post.album_preview[0].image_file_uri;
   }
+  // Shared/reshared posts often put media on the attached post, not the wrapper.
+  const attached = post?.attached_post;
+  if (attached?.photo_url) return attached.photo_url;
+  if (attached?.video_url) return attached.video_url;
+  if (attached?.image?.uri) return attached.image.uri;
+  return null;
+};
+
+/**
+ * Caption for a PAGE_POSTS item. Blugate leaves `message` null on many shares /
+ * reshare wrappers; the real caption lives on `attached_post.message` (and
+ * sometimes only in `message_rich`).
+ */
+const pickFacebookText = (post) => {
+  const candidates = [
+    post?.message,
+    typeof post?.message_rich === 'string' ? post.message_rich : null,
+    post?.description,
+    post?.text,
+    post?.attached_post?.message,
+    typeof post?.attached_post?.message_rich === 'string' ? post.attached_post.message_rich : null,
+    post?.attached_post?.description,
+    post?.attached_post?.text,
+    post?.author_title,
+  ];
+  for (const c of candidates) {
+    const t = String(c || '').trim();
+    if (t) return t;
+  }
+  return null;
+};
+
+/** Comment body from POST_COMMENTS — sticker/GIF rows often leave `message` empty. */
+const pickFacebookCommentText = (comment) => {
+  const candidates = [
+    comment?.message,
+    comment?.text,
+    comment?.body,
+    comment?.comment_text,
+    typeof comment?.message_rich === 'string' ? comment.message_rich : null,
+  ];
+  for (const c of candidates) {
+    const t = String(c || '').trim();
+    if (t) return t;
+  }
   return null;
 };
 
@@ -77,7 +122,7 @@ const mapFacebookPost = (post, accountId) => {
     platform: 'facebook',
     external_id: String(post.post_id),
     url: post.url || null,
-    text: post.message || null,
+    text: pickFacebookText(post),
     author_name: post.author?.name || null,
     author_handle: post.author?.url || null,
     media_type: post.type || 'post',
@@ -132,5 +177,8 @@ module.exports = {
   fetchFacebookPosts,
   fetchFacebookPostsPage,
   mapFacebookPost,
+  pickFacebookText,
+  pickFacebookCommentText,
+  pickFacebookMediaUrl,
   resolvePageId,
 };
