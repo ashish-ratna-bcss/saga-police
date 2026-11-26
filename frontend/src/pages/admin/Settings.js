@@ -657,8 +657,17 @@ const Settings = () => {
   };
 
   const handleEditTemplate = async (template) => {
-    setEditingTemplate(template);
-    setEditingHtml(template.html_content);
+    // Prefer a fresh fetch so built-in defaults always open with full HTML
+    // even if the list payload was trimmed or cached.
+    let row = template;
+    try {
+      const res = await api.get(`/templates/${template.id}`);
+      if (res?.data?.id) row = { ...template, ...res.data };
+    } catch {
+      // Fall back to the list row (still has html_content for globals).
+    }
+    setEditingTemplate(row);
+    setEditingHtml(row.html_content || '');
     setViewMode('editor');
   };
 
@@ -1128,7 +1137,19 @@ const Settings = () => {
                 <ScrollArea className="h-[300px]">
                   <div className="space-y-2 pr-2">
                     {templates.map(t => (
-                      <div key={t.id} className="group flex items-center justify-between p-3 rounded-lg border hover:border-primary/30 transition-colors bg-background">
+                      <div
+                        key={t.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => handleEditTemplate(t)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handleEditTemplate(t);
+                          }
+                        }}
+                        className="group flex items-center justify-between p-3 rounded-lg border hover:border-primary/30 hover:bg-accent/30 transition-colors bg-background cursor-pointer"
+                      >
                         <div className="flex items-center gap-3 min-w-0 flex-1">
                           <div className="shrink-0 h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
                             <FileText className="h-4 w-4 text-primary" />
@@ -1154,19 +1175,20 @@ const Settings = () => {
                               <span className="text-[10px] text-muted-foreground">
                                 {(t.placeholders?.length || 0) > 0 ? `${t.placeholders.length} placeholders` : 'Auto-fill mode'}
                               </span>
-                              <span className="text-[10px] text-muted-foreground">{t.is_global ? 'Built-in' : (t.original_filename || '')}</span>
+                              <span className="text-[10px] text-muted-foreground">{t.is_global ? 'Built-in · click to view' : (t.original_filename || '')}</span>
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px] gap-1" onClick={() => handleEditTemplate(t)} title={t.is_global ? 'View template' : 'View / Edit Template'}>
+                            <Eye className="h-3.5 w-3.5" />
+                            {t.is_global ? 'View' : 'Open'}
+                          </Button>
                           {!t.is_global && (
                             <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleEditTemplate(t)} title="Edit Template">
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleEditTemplate(t)} title={t.is_global ? 'View template' : 'View / Edit Template'}>
-                            {t.is_global ? <Lock className="h-3.5 w-3.5 text-muted-foreground" /> : <Eye className="h-3.5 w-3.5" />}
-                          </Button>
                           {!t.is_global && !t.is_default && (
                             <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleSetDefault(t.id)} title="Set as preferred">
                               <Star className="h-3.5 w-3.5" />
