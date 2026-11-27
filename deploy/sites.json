@@ -63,7 +63,9 @@
       "admin": "APpolice",
       "frontend_port": 3007,
       "backend_port": 5012,
-      "domain": "appolice.blurasaga.com"
+      "domain": "appolice.blurasaga.com",
+      "ssl_certificate": "/etc/letsencrypt/live/appolice.blurasaga.com/fullchain.pem",
+      "ssl_certificate_key": "/etc/letsencrypt/live/appolice.blurasaga.com/privkey.pem"
     }
   ]
 }
