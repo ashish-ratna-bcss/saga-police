@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { readAlertsUrlFilters, describeRaisedWindow } from './alertsUrlFilters';
 import api from '../../lib/api';
 import { AlertService } from '../../api';
-import { AlertTriangle, CheckCircle, Flag, XCircle, Zap, Activity, MessageSquare, Filter, ExternalLink, Search, Calendar, Download, Loader2, ArrowUpCircle, Plus, LayoutGrid, LayoutList, Users, X, Sparkles, Trash2, Pencil } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Flag, XCircle, Zap, Activity, MessageSquare, Filter, ExternalLink, Search, Calendar, Download, Loader2, ArrowUpCircle, Plus, LayoutGrid, LayoutList, Users, X, Sparkles, Trash2, Pencil, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Skeleton } from '../../components/ui/skeleton';
@@ -102,6 +102,8 @@ export default function Alerts() {
   });
   const [postsMatrixLoading, setPostsMatrixLoading] = useState(false);
   const [postsMatrixLoaded, setPostsMatrixLoaded] = useState(false);
+  // Numeric columns default high → low (desc). Category defaults A→Z (asc).
+  const [postsMatrixSort, setPostsMatrixSort] = useState({ key: 'total', dir: 'desc' });
   const [frequentEngagersOpen, setFrequentEngagersOpen] = useState(false);
   const [viewMode, setViewMode] = useState('grid');
   const [alertCategory, setAlertCategory] = useState('all'); // legacy — mirrors active exclusive dim
@@ -295,42 +297,50 @@ export default function Alerts() {
       x: {
         iconClass: 'text-slate-950',
         rowClass: 'bg-slate-200/70 hover:bg-slate-300/70',
-        stickyClass: 'bg-slate-200/80'
+        stickyClass: 'bg-slate-200/80',
+        headerClass: 'bg-slate-200'
       },
       youtube: {
         iconClass: 'text-red-700',
         rowClass: 'bg-red-200/60 hover:bg-red-300/60',
-        stickyClass: 'bg-red-200/75'
+        stickyClass: 'bg-red-200/75',
+        headerClass: 'bg-red-100'
       },
       facebook: {
         iconClass: 'text-blue-700',
         rowClass: 'bg-blue-200/60 hover:bg-blue-300/60',
-        stickyClass: 'bg-blue-200/75'
+        stickyClass: 'bg-blue-200/75',
+        headerClass: 'bg-blue-100'
       },
       instagram: {
         iconClass: 'text-pink-700',
         rowClass: 'bg-pink-200/60 hover:bg-pink-300/60',
-        stickyClass: 'bg-pink-200/75'
+        stickyClass: 'bg-pink-200/75',
+        headerClass: 'bg-pink-100'
       },
       telegram: {
         iconClass: 'text-sky-700',
         rowClass: 'bg-sky-200/60 hover:bg-sky-300/60',
-        stickyClass: 'bg-sky-200/75'
+        stickyClass: 'bg-sky-200/75',
+        headerClass: 'bg-sky-100'
       },
       reddit: {
         iconClass: 'text-orange-700',
         rowClass: 'bg-orange-200/60 hover:bg-orange-300/60',
-        stickyClass: 'bg-orange-200/75'
+        stickyClass: 'bg-orange-200/75',
+        headerClass: 'bg-orange-100'
       },
       whatsapp: {
         iconClass: 'text-emerald-700',
         rowClass: 'bg-emerald-200/60 hover:bg-emerald-300/60',
-        stickyClass: 'bg-emerald-200/75'
+        stickyClass: 'bg-emerald-200/75',
+        headerClass: 'bg-emerald-100'
       },
       unknown: {
         iconClass: 'text-amber-700',
         rowClass: 'bg-amber-200/60 hover:bg-amber-300/60',
-        stickyClass: 'bg-amber-200/75'
+        stickyClass: 'bg-amber-200/75',
+        headerClass: 'bg-amber-100'
       }
     };
 
@@ -363,6 +373,55 @@ export default function Alerts() {
       setPostsMatrixLoading(false);
     }
   }, []);
+
+  const sortedPostsCategories = useMemo(() => {
+    const list = [...(postsCategoryMatrix.categories || [])];
+    const { key, dir } = postsMatrixSort;
+    const mul = dir === 'asc' ? 1 : -1;
+    const platformCounts =
+      key !== 'category' && key !== 'total'
+        ? postsCategoryMatrix.rows.find((r) => r.platform === key)?.counts || {}
+        : null;
+    list.sort((a, b) => {
+      if (key === 'category') {
+        return mul * String(a.label || a.value || '').localeCompare(String(b.label || b.value || ''));
+      }
+      const aVal =
+        key === 'total'
+          ? Number(postsCategoryMatrix.totalsByCategory[a.value]) || 0
+          : Number(platformCounts?.[a.value]) || 0;
+      const bVal =
+        key === 'total'
+          ? Number(postsCategoryMatrix.totalsByCategory[b.value]) || 0
+          : Number(platformCounts?.[b.value]) || 0;
+      if (aVal !== bVal) return mul * (aVal - bVal);
+      return String(a.label || '').localeCompare(String(b.label || ''));
+    });
+    return list;
+  }, [postsCategoryMatrix, postsMatrixSort]);
+
+  const togglePostsMatrixSort = useCallback((key) => {
+    setPostsMatrixSort((prev) => {
+      if (prev.key === key) {
+        return { key, dir: prev.dir === 'desc' ? 'asc' : 'desc' };
+      }
+      return { key, dir: key === 'category' ? 'asc' : 'desc' };
+    });
+  }, []);
+
+  const renderPostsSortIcon = useCallback(
+    (key) => {
+      if (postsMatrixSort.key !== key) {
+        return <ArrowUpDown className="h-3 w-3 opacity-40" />;
+      }
+      return postsMatrixSort.dir === 'asc' ? (
+        <ArrowUp className="h-3 w-3 text-primary" />
+      ) : (
+        <ArrowDown className="h-3 w-3 text-primary" />
+      );
+    },
+    [postsMatrixSort]
+  );
 
   const normalizeDateInputValue = useCallback((value) => {
     if (!value) return '';
@@ -2214,7 +2273,7 @@ export default function Alerts() {
                     <span className="mx-1.5 text-border">·</span>
                     {postsCategoryMatrix.categories.length} categories
                     <span className="mx-1.5 text-border">·</span>
-                    by platform
+                    click a column header to sort
                   </p>
                 </div>
 
@@ -2227,30 +2286,55 @@ export default function Alerts() {
                     <table className="w-full text-xs border-collapse">
                       <thead className="bg-slate-100 text-slate-800">
                         <tr>
-                          <th className="text-left px-4 py-2.5 font-semibold sticky left-0 top-0 z-20 bg-slate-100 border-b border-r border-slate-300/70 min-w-[220px] max-w-[280px]">
-                            Category
+                          <th className="text-left px-4 py-2.5 font-semibold sticky left-0 top-0 z-40 bg-slate-100 border-b border-r border-slate-300/70 min-w-[220px] max-w-[280px]">
+                            <button
+                              type="button"
+                              onClick={() => togglePostsMatrixSort('category')}
+                              className="inline-flex items-center gap-1.5 hover:text-primary transition-colors"
+                              title="Sort by category name"
+                            >
+                              Category
+                              {renderPostsSortIcon('category')}
+                            </button>
                           </th>
                           {postsCategoryMatrix.rows.map((row) => {
                             const theme = getPlatformTheme(row.platform);
+                            const active = postsMatrixSort.key === row.platform;
                             return (
                               <th
                                 key={row.platform}
-                                className={`text-center px-2 py-2.5 font-semibold sticky top-0 z-10 border-b border-r border-slate-300/60 min-w-[88px] ${theme.stickyClass}`}
+                                className={`text-center px-2 py-2.5 font-semibold sticky top-0 z-30 border-b border-r border-slate-300/60 min-w-[88px] ${theme.headerClass || 'bg-slate-100'}`}
                               >
-                                <div className="flex flex-col items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => togglePostsMatrixSort(row.platform)}
+                                  className={`relative z-10 mx-auto flex flex-col items-center gap-1 hover:opacity-90 transition-opacity ${active ? 'text-primary' : ''}`}
+                                  title={`Sort by ${getPlatformLabel(row.platform)} count`}
+                                >
                                   {renderPlatformIcon(row.platform)}
-                                  <span className="leading-none">{getPlatformLabel(row.platform)}</span>
-                                </div>
+                                  <span className="inline-flex items-center gap-1 leading-none">
+                                    {getPlatformLabel(row.platform)}
+                                    {renderPostsSortIcon(row.platform)}
+                                  </span>
+                                </button>
                               </th>
                             );
                           })}
-                          <th className="text-center px-3 py-2.5 font-semibold sticky top-0 z-10 bg-blue-100 border-b border-slate-300/70 min-w-[84px]">
-                            Total
+                          <th className="text-center px-3 py-2.5 font-semibold sticky top-0 z-30 bg-blue-100 border-b border-slate-300/70 min-w-[84px]">
+                            <button
+                              type="button"
+                              onClick={() => togglePostsMatrixSort('total')}
+                              className="inline-flex items-center justify-center gap-1 hover:text-primary transition-colors"
+                              title="Sort by total count"
+                            >
+                              Total
+                              {renderPostsSortIcon('total')}
+                            </button>
                           </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {postsCategoryMatrix.categories.map((option, idx) => {
+                        {sortedPostsCategories.map((option, idx) => {
                           const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
                           return (
                           <tr
