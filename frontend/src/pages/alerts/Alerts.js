@@ -2224,56 +2224,62 @@ export default function Alerts() {
                   ) : postsCategoryMatrix.rows.length === 0 ? (
                     <div className="text-xs text-muted-foreground">No analysed posts found.</div>
                   ) : (
-                    <div className="border border-border rounded-lg bg-background inline-block min-w-full">
-                      <table className="text-xs border-collapse table-fixed w-max min-w-full">
-                        <thead className="bg-slate-300/85 text-slate-900">
+                    <div className="border border-border rounded-lg bg-background">
+                      <table className="text-xs border-collapse w-max min-w-full">
+                        <thead className="bg-slate-200 text-slate-900">
                           <tr>
-                            <th className="text-left px-2.5 py-2 font-semibold sticky left-0 top-0 bg-slate-300/95 z-20 w-[140px] min-w-[140px] border-r border-b border-slate-500/60">Platform</th>
+                            <th className="text-left px-3 py-2.5 font-semibold sticky left-0 top-0 bg-slate-200 z-20 min-w-[130px] border-r border-b border-slate-400/50 shadow-[2px_0_4px_rgba(0,0,0,0.06)]">
+                              Platform
+                            </th>
                             {postsCategoryMatrix.categories.map((option) => (
                               <th
                                 key={option.value}
                                 title={option.label}
-                                className="text-center px-2 py-2 font-semibold sticky top-0 bg-slate-300/95 z-10 align-bottom border-r border-b border-slate-500/60 w-[108px] min-w-[108px] max-w-[108px]"
+                                className="text-center px-2.5 py-2.5 font-semibold sticky top-0 bg-slate-200 z-10 align-bottom border-r border-b border-slate-400/50 min-w-[120px] max-w-[140px]"
                               >
-                                <span className="block leading-tight whitespace-normal break-words">
+                                <span className="block leading-snug whitespace-normal break-words hyphens-auto">
                                   {option.label}
                                 </span>
                               </th>
                             ))}
-                            <th className="text-center px-2 py-2 font-semibold sticky right-0 top-0 z-20 bg-primary/30 border-b border-slate-500/60 w-[72px] min-w-[72px]">Total</th>
+                            <th className="text-center px-3 py-2.5 font-semibold sticky top-0 bg-blue-100 z-10 border-b border-slate-400/50 min-w-[80px]">
+                              Total
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
                           {postsCategoryMatrix.rows.map((row) => {
                             const theme = getPlatformTheme(row.platform);
                             return (
-                            <tr key={row.platform} className={`border-b border-slate-500/50 ${theme.rowClass}`}>
-                              <td className={`px-2.5 py-1.5 sticky left-0 z-10 border-r border-slate-500/55 ${theme.stickyClass}`}>
-                                <div className="flex items-center gap-1.5 font-medium">
+                            <tr key={row.platform} className={`border-b border-slate-300/70 ${theme.rowClass}`}>
+                              <td className={`px-3 py-2 sticky left-0 z-10 border-r border-slate-400/40 shadow-[2px_0_4px_rgba(0,0,0,0.06)] ${theme.stickyClass}`}>
+                                <div className="flex items-center gap-1.5 font-medium whitespace-nowrap">
                                   {renderPlatformIcon(row.platform)}
                                   <span>{getPlatformLabel(row.platform)}</span>
                                 </div>
                               </td>
                               {postsCategoryMatrix.categories.map((option) => (
-                                <td key={`${row.platform}-${option.value}`} className="text-center px-2 py-1.5 tabular-nums border-r border-slate-500/45 text-slate-900 font-medium">
+                                <td key={`${row.platform}-${option.value}`} className="text-center px-2.5 py-2 tabular-nums border-r border-slate-300/50 text-slate-900 font-medium">
                                   {(row.counts[option.value] || 0).toLocaleString()}
                                 </td>
                               ))}
-                              <td className="text-center px-2 py-1.5 tabular-nums font-semibold sticky right-0 z-10 bg-primary/20 text-slate-950">
+                              <td className="text-center px-3 py-2 tabular-nums font-semibold bg-blue-50/90 text-slate-950">
                                 {(row.total || 0).toLocaleString()}
                               </td>
                             </tr>
                           )})}
                         </tbody>
                         <tfoot>
-                          <tr className="border-t border-slate-600 bg-slate-300/90 font-semibold text-slate-900">
-                            <td className="px-2.5 py-2 sticky left-0 bottom-0 z-20 bg-slate-300/95 border-r border-slate-500/60">All Platforms</td>
+                          <tr className="border-t-2 border-slate-500 bg-slate-200 font-semibold text-slate-900">
+                            <td className="px-3 py-2.5 sticky left-0 z-10 bg-slate-200 border-r border-slate-400/50 shadow-[2px_0_4px_rgba(0,0,0,0.06)]">
+                              All Platforms
+                            </td>
                             {postsCategoryMatrix.categories.map((option) => (
-                              <td key={`total-${option.value}`} className="text-center px-2 py-2 tabular-nums sticky bottom-0 bg-slate-300/95 border-r border-slate-500/60">
+                              <td key={`total-${option.value}`} className="text-center px-2.5 py-2.5 tabular-nums border-r border-slate-400/50">
                                 {(postsCategoryMatrix.totalsByCategory[option.value] || 0).toLocaleString()}
                               </td>
                             ))}
-                            <td className="text-center px-2 py-2 tabular-nums sticky right-0 bottom-0 z-20 bg-primary/30 text-slate-950">
+                            <td className="text-center px-3 py-2.5 tabular-nums bg-blue-100 text-slate-950">
                               {postsCategoryMatrix.grandTotal.toLocaleString()}
                             </td>
                           </tr>
