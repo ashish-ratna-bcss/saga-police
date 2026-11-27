@@ -2,10 +2,13 @@ const { Prisma } = require('../../generated/tenant-client');
 const dbOf = require('../../lib/dbOf');
 
 /**
- * Profile Catalog "Category": the most common analysis category on an account's
- * analysed posts (analysis_status = done). "Normal" loses ties so a real policy
- * category wins when counts are equal. No DB write / no schema column.
+ * Profile Catalog "Category": the most common *meaningful* analysis category
+ * on an account's analysed posts. Noise labels (Normal / Neutral / Monitor / …)
+ * are ignored so a flood of benign posts cannot hide the real top category.
+ * No DB write / no schema column.
  */
+
+const NOISE = new Set(['normal', 'neutral', 'unknown', 'monitor', 'null', 'none', 'uncategorized', '']);
 
 const formatCategory = (raw) => {
   const cleaned = String(raw || '')
@@ -16,23 +19,31 @@ const formatCategory = (raw) => {
   return cleaned.replace(/\b\w/g, (ch) => ch.toUpperCase());
 };
 
-const isNormal = (category) => /^normal$/i.test(String(category || '').trim());
+const isNoise = (category) => NOISE.has(String(category || '').trim().toLowerCase());
 
-/** Pick the highest (most frequent) category; Normal loses ties. */
+/**
+ * Pick the highest (most frequent) non-noise category.
+ * Tie-break: more high-risk hits, then medium-risk, then A→Z.
+ */
 const pickTopCategory = (rows = []) => {
   let best = null;
   for (const row of rows) {
     const category = formatCategory(row.category);
     const count = Number(row.count) || 0;
-    if (!category || !count) continue;
+    const high = Number(row.high_count) || 0;
+    const medium = Number(row.medium_count) || 0;
+    if (!category || !count || isNoise(category)) continue;
     if (
       !best ||
       count > best.count ||
-      (count === best.count && isNormal(best.category) && !isNormal(category)) ||
-      (count === best.count && isNormal(best.category) === isNormal(category) &&
+      (count === best.count && high > best.high) ||
+      (count === best.count && high === best.high && medium > best.medium) ||
+      (count === best.count &&
+        high === best.high &&
+        medium === best.medium &&
         String(category).localeCompare(String(best.category)) < 0)
     ) {
-      best = { category, count };
+      best = { category, count, high, medium };
     }
   }
   return best;
@@ -66,7 +77,13 @@ const attachTopCategoryToAccounts = async (accounts = [], { db } = {}) => {
         ),
         'Normal'
       ) AS category,
-      COUNT(*)::int AS count
+      COUNT(*)::int AS count,
+      COUNT(*) FILTER (
+        WHERE lower(coalesce(analysis_result->>'risk_level', '')) IN ('high', 'critical')
+      )::int AS high_count,
+      COUNT(*) FILTER (
+        WHERE lower(coalesce(analysis_result->>'risk_level', '')) = 'medium'
+      )::int AS medium_count
     FROM social_media_posts
     WHERE account_id IN (${Prisma.join(accountIds)})
       AND analysis_status = 'done'
@@ -94,6 +111,7 @@ const attachTopCategoryToAccounts = async (accounts = [], { db } = {}) => {
 
 module.exports = {
   formatCategory,
+  isNoise,
   pickTopCategory,
   attachTopCategoryToAccounts,
 };
