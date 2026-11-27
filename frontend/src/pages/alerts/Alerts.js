@@ -2201,8 +2201,8 @@ export default function Alerts() {
                   )}
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[92vw] max-w-5xl max-h-[92vh] overflow-hidden p-0">
-                <div className="px-4 py-3 border-b border-border bg-muted/20">
+              <DialogContent className="w-[85vw] max-w-[85vw] h-[85vh] max-h-[85vh] overflow-hidden p-0 flex flex-col gap-0 sm:rounded-lg">
+                <div className="px-4 py-3 border-b border-border bg-muted/20 shrink-0">
                   <DialogHeader>
                     <DialogTitle>Posts Being Monitored</DialogTitle>
                   </DialogHeader>
@@ -2212,27 +2212,35 @@ export default function Alerts() {
                       {postsCategoryMatrix.grandTotal.toLocaleString()}
                     </span>
                     <span className="mx-1.5">·</span>
-                    Categories come from post analysis
+                    {postsCategoryMatrix.categories.length} categories from post analysis
+                    <span className="mx-1.5">·</span>
+                    Scroll sideways to see all columns
                   </p>
                 </div>
 
-                <div className="p-4 overflow-auto">
+                <div className="flex-1 min-h-0 p-4 overflow-auto">
                   {postsMatrixLoading && postsCategoryMatrix.rows.length === 0 ? (
                     <div className="text-xs text-muted-foreground">Loading analysed posts...</div>
                   ) : postsCategoryMatrix.rows.length === 0 ? (
                     <div className="text-xs text-muted-foreground">No analysed posts found.</div>
                   ) : (
-                    <div className="border border-border rounded-lg overflow-hidden bg-background">
-                      <table className="w-full text-xs border-collapse">
+                    <div className="border border-border rounded-lg bg-background inline-block min-w-full">
+                      <table className="text-xs border-collapse table-fixed w-max min-w-full">
                         <thead className="bg-slate-300/85 text-slate-900">
                           <tr>
-                            <th className="text-left px-2.5 py-2 font-semibold sticky left-0 bg-slate-300/95 z-10 min-w-[150px] border-r border-b border-slate-500/60">Platform</th>
+                            <th className="text-left px-2.5 py-2 font-semibold sticky left-0 top-0 bg-slate-300/95 z-20 w-[140px] min-w-[140px] border-r border-b border-slate-500/60">Platform</th>
                             {postsCategoryMatrix.categories.map((option) => (
-                              <th key={option.value} className="text-center px-2 py-2 font-semibold whitespace-nowrap border-r border-b border-slate-500/60">
-                                {option.label}
+                              <th
+                                key={option.value}
+                                title={option.label}
+                                className="text-center px-2 py-2 font-semibold sticky top-0 bg-slate-300/95 z-10 align-bottom border-r border-b border-slate-500/60 w-[108px] min-w-[108px] max-w-[108px]"
+                              >
+                                <span className="block leading-tight whitespace-normal break-words">
+                                  {option.label}
+                                </span>
                               </th>
                             ))}
-                            <th className="text-center px-2 py-2 font-semibold bg-primary/20 border-b border-slate-500/60">Total</th>
+                            <th className="text-center px-2 py-2 font-semibold sticky right-0 top-0 z-20 bg-primary/30 border-b border-slate-500/60 w-[72px] min-w-[72px]">Total</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2251,7 +2259,7 @@ export default function Alerts() {
                                   {(row.counts[option.value] || 0).toLocaleString()}
                                 </td>
                               ))}
-                              <td className="text-center px-2 py-1.5 tabular-nums font-semibold bg-primary/20 text-slate-950">
+                              <td className="text-center px-2 py-1.5 tabular-nums font-semibold sticky right-0 z-10 bg-primary/20 text-slate-950">
                                 {(row.total || 0).toLocaleString()}
                               </td>
                             </tr>
@@ -2259,13 +2267,13 @@ export default function Alerts() {
                         </tbody>
                         <tfoot>
                           <tr className="border-t border-slate-600 bg-slate-300/90 font-semibold text-slate-900">
-                            <td className="px-2.5 py-2 sticky left-0 z-10 bg-slate-300/95 border-r border-slate-500/60">All Platforms</td>
+                            <td className="px-2.5 py-2 sticky left-0 bottom-0 z-20 bg-slate-300/95 border-r border-slate-500/60">All Platforms</td>
                             {postsCategoryMatrix.categories.map((option) => (
-                              <td key={`total-${option.value}`} className="text-center px-2 py-2 tabular-nums border-r border-slate-500/60">
+                              <td key={`total-${option.value}`} className="text-center px-2 py-2 tabular-nums sticky bottom-0 bg-slate-300/95 border-r border-slate-500/60">
                                 {(postsCategoryMatrix.totalsByCategory[option.value] || 0).toLocaleString()}
                               </td>
                             ))}
-                            <td className="text-center px-2 py-2 tabular-nums bg-primary/30 text-slate-950">
+                            <td className="text-center px-2 py-2 tabular-nums sticky right-0 bottom-0 z-20 bg-primary/30 text-slate-950">
                               {postsCategoryMatrix.grandTotal.toLocaleString()}
                             </td>
                           </tr>
