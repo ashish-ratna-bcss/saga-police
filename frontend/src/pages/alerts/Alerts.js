@@ -2201,91 +2201,99 @@ export default function Alerts() {
                   )}
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[85vw] max-w-[85vw] h-[85vh] max-h-[85vh] overflow-hidden p-0 flex flex-col gap-0 sm:rounded-lg">
-                <div className="px-4 py-3 border-b border-border bg-muted/20 shrink-0">
+              <DialogContent className="w-[min(96vw,1100px)] max-w-[96vw] max-h-[90vh] overflow-hidden p-0 flex flex-col gap-0 sm:rounded-xl">
+                <div className="px-5 py-3.5 border-b border-border bg-slate-50/80 shrink-0">
                   <DialogHeader>
                     <DialogTitle>Posts Being Monitored</DialogTitle>
                   </DialogHeader>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Total analysed posts:{' '}
-                    <span className="font-semibold text-foreground">
+                    <span className="font-semibold text-foreground tabular-nums">
                       {postsCategoryMatrix.grandTotal.toLocaleString()}
                     </span>
-                    <span className="mx-1.5">·</span>
-                    {postsCategoryMatrix.categories.length} categories from post analysis
-                    <span className="mx-1.5">·</span>
-                    Scroll sideways to see all columns
+                    {' '}analysed posts
+                    <span className="mx-1.5 text-border">·</span>
+                    {postsCategoryMatrix.categories.length} categories
+                    <span className="mx-1.5 text-border">·</span>
+                    by platform
                   </p>
                 </div>
 
-                <div className="flex-1 min-h-0 p-4 overflow-auto">
+                <div className="min-h-0 flex-1 overflow-auto">
                   {postsMatrixLoading && postsCategoryMatrix.rows.length === 0 ? (
-                    <div className="text-xs text-muted-foreground">Loading analysed posts...</div>
+                    <div className="px-5 py-8 text-xs text-muted-foreground">Loading analysed posts...</div>
                   ) : postsCategoryMatrix.rows.length === 0 ? (
-                    <div className="text-xs text-muted-foreground">No analysed posts found.</div>
+                    <div className="px-5 py-8 text-xs text-muted-foreground">No analysed posts found.</div>
                   ) : (
-                    <div className="border border-border rounded-lg bg-background">
-                      <table className="text-xs border-collapse w-max min-w-full">
-                        <thead className="bg-slate-200 text-slate-900">
-                          <tr>
-                            <th className="text-left px-3 py-2.5 font-semibold sticky left-0 top-0 bg-slate-200 z-20 min-w-[130px] border-r border-b border-slate-400/50 shadow-[2px_0_4px_rgba(0,0,0,0.06)]">
-                              Platform
-                            </th>
-                            {postsCategoryMatrix.categories.map((option) => (
-                              <th
-                                key={option.value}
-                                title={option.label}
-                                className="text-center px-2.5 py-2.5 font-semibold sticky top-0 bg-slate-200 z-10 align-bottom border-r border-b border-slate-400/50 min-w-[120px] max-w-[140px]"
-                              >
-                                <span className="block leading-snug whitespace-normal break-words hyphens-auto">
-                                  {option.label}
-                                </span>
-                              </th>
-                            ))}
-                            <th className="text-center px-3 py-2.5 font-semibold sticky top-0 bg-blue-100 z-10 border-b border-slate-400/50 min-w-[80px]">
-                              Total
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
+                    <table className="w-full text-xs border-collapse">
+                      <thead className="bg-slate-100 text-slate-800">
+                        <tr>
+                          <th className="text-left px-4 py-2.5 font-semibold sticky left-0 top-0 z-20 bg-slate-100 border-b border-r border-slate-300/70 min-w-[220px] max-w-[280px]">
+                            Category
+                          </th>
                           {postsCategoryMatrix.rows.map((row) => {
                             const theme = getPlatformTheme(row.platform);
                             return (
-                            <tr key={row.platform} className={`border-b border-slate-300/70 ${theme.rowClass}`}>
-                              <td className={`px-3 py-2 sticky left-0 z-10 border-r border-slate-400/40 shadow-[2px_0_4px_rgba(0,0,0,0.06)] ${theme.stickyClass}`}>
-                                <div className="flex items-center gap-1.5 font-medium whitespace-nowrap">
+                              <th
+                                key={row.platform}
+                                className={`text-center px-2 py-2.5 font-semibold sticky top-0 z-10 border-b border-r border-slate-300/60 min-w-[88px] ${theme.stickyClass}`}
+                              >
+                                <div className="flex flex-col items-center gap-1">
                                   {renderPlatformIcon(row.platform)}
-                                  <span>{getPlatformLabel(row.platform)}</span>
+                                  <span className="leading-none">{getPlatformLabel(row.platform)}</span>
                                 </div>
-                              </td>
-                              {postsCategoryMatrix.categories.map((option) => (
-                                <td key={`${row.platform}-${option.value}`} className="text-center px-2.5 py-2 tabular-nums border-r border-slate-300/50 text-slate-900 font-medium">
-                                  {(row.counts[option.value] || 0).toLocaleString()}
-                                </td>
-                              ))}
-                              <td className="text-center px-3 py-2 tabular-nums font-semibold bg-blue-50/90 text-slate-950">
-                                {(row.total || 0).toLocaleString()}
-                              </td>
-                            </tr>
-                          )})}
-                        </tbody>
-                        <tfoot>
-                          <tr className="border-t-2 border-slate-500 bg-slate-200 font-semibold text-slate-900">
-                            <td className="px-3 py-2.5 sticky left-0 z-10 bg-slate-200 border-r border-slate-400/50 shadow-[2px_0_4px_rgba(0,0,0,0.06)]">
-                              All Platforms
+                              </th>
+                            );
+                          })}
+                          <th className="text-center px-3 py-2.5 font-semibold sticky top-0 z-10 bg-blue-100 border-b border-slate-300/70 min-w-[84px]">
+                            Total
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {postsCategoryMatrix.categories.map((option, idx) => {
+                          const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                          return (
+                          <tr
+                            key={option.value}
+                            className={`border-b border-slate-200/80 ${rowBg} hover:bg-blue-50/60`}
+                          >
+                            <td
+                              className={`px-4 py-2 sticky left-0 z-10 ${rowBg} border-r border-slate-200 font-medium text-slate-800`}
+                              title={option.label}
+                            >
+                              <span className="line-clamp-2 leading-snug">{option.label}</span>
                             </td>
-                            {postsCategoryMatrix.categories.map((option) => (
-                              <td key={`total-${option.value}`} className="text-center px-2.5 py-2.5 tabular-nums border-r border-slate-400/50">
-                                {(postsCategoryMatrix.totalsByCategory[option.value] || 0).toLocaleString()}
+                            {postsCategoryMatrix.rows.map((row) => (
+                              <td
+                                key={`${option.value}-${row.platform}`}
+                                className="text-center px-2 py-2 tabular-nums border-r border-slate-100 text-slate-900"
+                              >
+                                {(row.counts[option.value] || 0).toLocaleString()}
                               </td>
                             ))}
-                            <td className="text-center px-3 py-2.5 tabular-nums bg-blue-100 text-slate-950">
-                              {postsCategoryMatrix.grandTotal.toLocaleString()}
+                            <td className="text-center px-3 py-2 tabular-nums font-semibold bg-blue-50/80 text-slate-950">
+                              {(postsCategoryMatrix.totalsByCategory[option.value] || 0).toLocaleString()}
                             </td>
                           </tr>
-                        </tfoot>
-                      </table>
-                    </div>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-slate-100 font-semibold text-slate-900 border-t-2 border-slate-300">
+                          <td className="px-4 py-2.5 sticky left-0 z-10 bg-slate-100 border-r border-slate-300/70">
+                            All Categories
+                          </td>
+                          {postsCategoryMatrix.rows.map((row) => (
+                            <td key={`foot-${row.platform}`} className="text-center px-2 py-2.5 tabular-nums border-r border-slate-200">
+                              {(row.total || 0).toLocaleString()}
+                            </td>
+                          ))}
+                          <td className="text-center px-3 py-2.5 tabular-nums bg-blue-100">
+                            {postsCategoryMatrix.grandTotal.toLocaleString()}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
                   )}
                 </div>
               </DialogContent>
