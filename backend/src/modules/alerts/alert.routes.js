@@ -20,6 +20,9 @@ const {
   postEngagersForHandle,
   listEngagerProfiles,
   getEngagersFromDb,
+  listEngagerTargets,
+  postEngagerTarget,
+  deleteEngagerTarget,
 } = require('./alert.engager.controller');
 const { authorize } = require('../../middleware/auth.middleware');
 
@@ -51,6 +54,9 @@ router.delete('/keywords/:id', removeKeyword);
 
 router.get('/engagers-db', listEngagerProfiles);
 router.get('/engagers-db/:profileId', getEngagersFromDb);
+router.get('/engagers-targets', listEngagerTargets);
+router.post('/engagers-targets', postEngagerTarget);
+router.delete('/engagers-targets', deleteEngagerTarget);
 router.get('/engagers', listEngagers);
 router.get('/engagers/:handle', getEngagersForHandle);
 router.post('/engagers', postEngagersForHandle);

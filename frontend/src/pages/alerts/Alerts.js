@@ -106,6 +106,7 @@ export default function Alerts() {
   const [postsMatrixSort, setPostsMatrixSort] = useState({ key: 'total', dir: 'desc' });
   const [frequentEngagersOpen, setFrequentEngagersOpen] = useState(false);
   const [frequentEngagersFocusHandle, setFrequentEngagersFocusHandle] = useState(null);
+  const [engagerHandles, setEngagerHandles] = useState([]);
   const [viewMode, setViewMode] = useState('grid');
   const [alertCategory, setAlertCategory] = useState('all'); // legacy — mirrors active exclusive dim
   // Applied Risk/Virality filters — drive fetch/cache; only changed via Apply Filters.
@@ -1545,6 +1546,48 @@ export default function Alerts() {
     }
   }, []);
 
+  const fetchEngagerTargets = useCallback(async () => {
+    try {
+      const res = await api.get('/alerts/engagers-targets');
+      const targets = Array.isArray(res.data?.targets) ? res.data.targets : [];
+      setEngagerHandles(
+        [...new Set(targets.map((t) => String(t.handle || '').replace(/^@/, '').trim()).filter(Boolean))]
+      );
+    } catch (err) {
+      console.warn('Failed to load Frequent Engagers targets', err);
+    }
+  }, []);
+
+  const handleAddToEngagers = useCallback(async (payload = null) => {
+    const handle = String(payload?.handle || payload?.identifier || '')
+      .replace(/^@/, '')
+      .trim();
+    if (!handle) {
+      toast.error('Missing handle to add');
+      return false;
+    }
+    const toastId = toast.loading(`Adding @${handle} to Frequent Engagers…`);
+    try {
+      await api.post('/alerts/engagers-targets', {
+        platform: payload?.platform || 'x',
+        handle,
+        display_name: payload?.display_name || handle,
+        avatar: payload?.avatar || undefined,
+      });
+      setEngagerHandles((prev) => {
+        const key = handle.toLowerCase();
+        if (prev.some((h) => String(h).toLowerCase() === key)) return prev;
+        return [...prev, handle];
+      });
+      toast.success(`Added @${handle} to Frequent Engagers`, { id: toastId });
+      return true;
+    } catch (err) {
+      const message = err?.response?.data?.message || err.message || 'Failed to add';
+      toast.error(message, { id: toastId });
+      return false;
+    }
+  }, []);
+
   useEffect(() => {
     if (postsMatrixOpen && !postsMatrixLoaded && !postsMatrixLoading) {
       fetchPostsCategoryMatrix();
@@ -1554,12 +1597,14 @@ export default function Alerts() {
   useEffect(() => {
     // fetchSourcesMetadata is called initially and periodically
     fetchSourcesMetadata();
+    fetchEngagerTargets();
     fetchPostsCategoryMatrix();
 
     // Auto-refresh every 2 minutes
     const interval = setInterval(() => {
       checkForNewAlerts(); // Use checkForNewAlerts for silent refresh
       fetchSourcesMetadata();
+      fetchEngagerTargets();
       fetchPostsCategoryMatrix();
       if (isCapturedStoriesView) {
         fetchCapturedStories();
@@ -1567,7 +1612,7 @@ export default function Alerts() {
     }, 120000);
 
     return () => clearInterval(interval);
-  }, [checkForNewAlerts, fetchAlerts, fetchAlertStats, fetchSourcesMetadata, fetchPostsCategoryMatrix, fetchCapturedStories, isCapturedStoriesView]);
+  }, [checkForNewAlerts, fetchAlerts, fetchAlertStats, fetchSourcesMetadata, fetchEngagerTargets, fetchPostsCategoryMatrix, fetchCapturedStories, isCapturedStoriesView]);
 
   useEffect(() => {
     if (!hasAnyAlertFeature) return;
@@ -2247,8 +2292,12 @@ export default function Alerts() {
               variant="outline"
               size="sm"
               className="h-8 gap-1.5 text-xs"
-              title="People who engage most often on monitored posts"
-              onClick={() => setFrequentEngagersOpen(true)}
+              title="Accounts you added from post cards"
+              onClick={() => {
+                fetchEngagerTargets();
+                setFrequentEngagersFocusHandle(null);
+                setFrequentEngagersOpen(true);
+              }}
             >
               <Users className="h-3.5 w-3.5" />
               Frequent Engagers
@@ -2990,6 +3039,8 @@ export default function Alerts() {
                                         report={reportsMap[alert?.id]}
                                         onAddSource={handleOpenAddSource}
                                         onOpenEngagers={handleOpenEngagers}
+                                        onAddToEngagers={handleAddToEngagers}
+                                        engagerHandles={engagerHandles}
                                         isInvestigatedResult={alert?.is_investigation}
                                       />
                                     ) : (
@@ -3005,6 +3056,8 @@ export default function Alerts() {
                                         report={reportsMap[alert?.id]}
                                         onAddSource={handleOpenAddSource}
                                         onOpenEngagers={handleOpenEngagers}
+                                        onAddToEngagers={handleAddToEngagers}
+                                        engagerHandles={engagerHandles}
                                         isInvestigatedResult={alert?.is_investigation}
                                       />
                                     )}
@@ -3200,12 +3253,16 @@ export default function Alerts() {
                                     <YoutubeAlertCard alert={alert} content={contentData} source={sourceData}
                                       onResolve={handleTopAlertResolve} viewMode="grid"
                                       monitoredHandles={monitoredHandles} onAddSource={handleOpenAddSource}
-                                      onOpenEngagers={handleOpenEngagers} />
+                                      onOpenEngagers={handleOpenEngagers}
+                                      onAddToEngagers={handleAddToEngagers}
+                                      engagerHandles={engagerHandles} />
                                   ) : (
                                     <TwitterAlertCard alert={alert} content={contentData} source={sourceData}
                                       onResolve={handleTopAlertResolve} viewMode="grid"
                                       monitoredHandles={monitoredHandles} onAddSource={handleOpenAddSource}
-                                      onOpenEngagers={handleOpenEngagers} />
+                                      onOpenEngagers={handleOpenEngagers}
+                                      onAddToEngagers={handleAddToEngagers}
+                                      engagerHandles={engagerHandles} />
                                   )}
                                 </div>
                               );
