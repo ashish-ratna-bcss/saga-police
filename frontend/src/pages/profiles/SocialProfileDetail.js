@@ -7,13 +7,9 @@ import {
   ChevronUp,
   Clock3,
   ExternalLink,
-  Eye,
-  Heart,
   Loader2,
-  MessageCircle,
   Radio,
   RefreshCw,
-  Repeat2,
   Timer,
   Users,
 } from 'lucide-react';
@@ -22,6 +18,7 @@ import { socialProfilesApi } from '../../api/socialProfiles.api';
 import { Button } from '../../components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../../components/ui/avatar';
 import { PlatformBrandIcon } from '../../components/PlatformBrandIcon';
+import { PlatformEngagementBar } from '../../components/PlatformEngagementBar';
 import { cn } from '../../lib/utils';
 
 const formatWhen = (value) => {
@@ -50,20 +47,6 @@ const formatRelative = (value) => {
   const days = Math.floor(hours / 24);
   if (days < 14) return `${days}d ago`;
   return formatWhen(value);
-};
-
-const formatCount = (n) => {
-  const v = Number(n) || 0;
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
-  if (v >= 1_000) return `${(v / 1_000).toFixed(1).replace(/\.0$/, '')}K`;
-  return v.toLocaleString('en-IN');
-};
-
-const engagementValue = (engagement = {}, keys = []) => {
-  for (const key of keys) {
-    if (engagement[key] != null && engagement[key] !== '') return Number(engagement[key]) || 0;
-  }
-  return 0;
 };
 
 const mediaPreviewUrl = (mediaUrls = []) => {
@@ -119,15 +102,12 @@ const TEXT_PREVIEW_CHARS = 220;
 
 const PostCard = ({ post }) => {
   const [expanded, setExpanded] = useState(false);
-  const likes = engagementValue(post.engagement, ['likes', 'like', 'reactions', 'favorites']);
-  const comments = engagementValue(post.engagement, ['comments', 'replies', 'reply']);
-  const shares = engagementValue(post.engagement, ['shares', 'retweets', 'reposts', 'forwards']);
-  const views = engagementValue(post.engagement, ['views', 'view', 'play_count']);
   const image = mediaPreviewUrl(post.media_urls);
   const analysis =
     post.analysis_result && typeof post.analysis_result === 'object' ? post.analysis_result : {};
   const risk = analysis.risk_level || analysis.riskLevel || null;
   const sentiment = analysis.sentiment || null;
+  const category = analysis.category || null;
   const when =
     formatRelative(post.posted_at || post.fetched_at) || formatWhen(post.posted_at || post.fetched_at);
   const handle = post.author_handle
@@ -141,6 +121,12 @@ const PostCard = ({ post }) => {
       : expanded || !needsMore
         ? fullText
         : `${fullText.slice(0, TEXT_PREVIEW_CHARS).trimEnd()}…`;
+  const categoryLabel = category
+    ? String(category)
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+    : null;
 
   return (
     <article className="flex h-full flex-col rounded-xl border border-border bg-card p-3 shadow-sm transition hover:border-border/80 hover:shadow-md">
@@ -155,7 +141,7 @@ const PostCard = ({ post }) => {
           {handle ? <span className="truncate">{handle}</span> : null}
           {when ? <span>· {when}</span> : null}
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex max-w-[55%] shrink-0 flex-wrap items-center justify-end gap-1">
           {sentiment ? (
             <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold capitalize text-foreground">
               {sentiment}
@@ -164,6 +150,14 @@ const PostCard = ({ post }) => {
           {risk ? (
             <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-semibold capitalize', riskTone(risk))}>
               Risk {String(risk)}
+            </span>
+          ) : null}
+          {categoryLabel ? (
+            <span
+              className="max-w-full truncate rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold capitalize text-slate-700"
+              title={categoryLabel}
+            >
+              {categoryLabel}
             </span>
           ) : null}
         </div>
@@ -198,25 +192,12 @@ const PostCard = ({ post }) => {
         ) : null}
       </div>
 
-      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-2">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-foreground/70">
-          <span className="inline-flex items-center gap-1 tabular-nums">
-            <Heart className="h-3 w-3 text-rose-500" />
-            {formatCount(likes)}
-          </span>
-          <span className="inline-flex items-center gap-1 tabular-nums">
-            <MessageCircle className="h-3 w-3 text-sky-600" />
-            {formatCount(comments)}
-          </span>
-          <span className="inline-flex items-center gap-1 tabular-nums">
-            <Repeat2 className="h-3 w-3 text-emerald-600" />
-            {formatCount(shares)}
-          </span>
-          <span className="inline-flex items-center gap-1 tabular-nums">
-            <Eye className="h-3 w-3 text-violet-600" />
-            {formatCount(views)}
-          </span>
-        </div>
+      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-1.5">
+        <PlatformEngagementBar
+          platform={post.platform}
+          engagement={post.engagement}
+          className="py-0 px-0"
+        />
         {post.url ? (
           <a
             href={post.url}
