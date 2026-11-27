@@ -18,7 +18,8 @@ import { socialProfilesApi } from '../../api/socialProfiles.api';
 import { Button } from '../../components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../../components/ui/avatar';
 import { PlatformBrandIcon } from '../../components/PlatformBrandIcon';
-import { PlatformEngagementBar } from '../../components/PlatformEngagementBar';
+import { TwitterAlertCard, YoutubeAlertCard } from '../../components/AlertCards';
+import { postToAlertCardProps } from '../../shared/utils/postToAlertCard';
 import { cn } from '../../lib/utils';
 
 const formatWhen = (value) => {
@@ -49,16 +50,11 @@ const formatRelative = (value) => {
   return formatWhen(value);
 };
 
-const mediaPreviewUrl = (mediaUrls = []) => {
-  for (const item of mediaUrls) {
-    if (!item) continue;
-    if (typeof item === 'string' && /^https?:\/\//i.test(item)) return item;
-    if (typeof item === 'object') {
-      const url = item.preview || item.thumbnail || item.url || item.src;
-      if (url && /^https?:\/\//i.test(String(url))) return String(url);
-    }
-  }
-  return null;
+const formatCount = (n) => {
+  const v = Number(n) || 0;
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(1).replace(/\.0$/, '')}K`;
+  return v.toLocaleString('en-IN');
 };
 
 const profileExternalUrl = (profile, summary) => {
@@ -76,14 +72,6 @@ const profileExternalUrl = (profile, summary) => {
   return null;
 };
 
-const riskTone = (level) => {
-  const v = String(level || '').toLowerCase();
-  if (v === 'high' || v === 'critical') return 'bg-rose-50 text-rose-700';
-  if (v === 'medium') return 'bg-amber-50 text-amber-800';
-  if (v === 'low') return 'bg-emerald-50 text-emerald-800';
-  return 'bg-muted text-muted-foreground';
-};
-
 const Kpi = ({ label, value, hint }) => (
   <div className="min-w-0">
     <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
@@ -97,126 +85,6 @@ const Kpi = ({ label, value, hint }) => (
     ) : null}
   </div>
 );
-
-const TEXT_PREVIEW_CHARS = 220;
-
-const PostCard = ({ post }) => {
-  const [expanded, setExpanded] = useState(false);
-  const image = mediaPreviewUrl(post.media_urls);
-  const analysis =
-    post.analysis_result && typeof post.analysis_result === 'object' ? post.analysis_result : {};
-  const risk = analysis.risk_level || analysis.riskLevel || null;
-  const sentiment = analysis.sentiment || null;
-  const rawCategory = analysis.category || null;
-  const category =
-    rawCategory && !/^(normal|neutral|monitor|unknown|none)$/i.test(String(rawCategory).trim())
-      ? rawCategory
-      : null;
-  const when =
-    formatRelative(post.posted_at || post.fetched_at) || formatWhen(post.posted_at || post.fetched_at);
-  const handle = post.author_handle
-    ? `@${String(post.author_handle).replace(/^@/, '')}`
-    : post.author_name || null;
-  const fullText = String(post.text || '').trim();
-  const needsMore = fullText.length > TEXT_PREVIEW_CHARS;
-  const shownText =
-    !fullText
-      ? null
-      : expanded || !needsMore
-        ? fullText
-        : `${fullText.slice(0, TEXT_PREVIEW_CHARS).trimEnd()}…`;
-  const categoryLabel = category
-    ? String(category)
-        .replace(/[_-]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-    : null;
-
-  return (
-    <article className="flex h-full flex-col rounded-xl border border-border bg-card p-3 shadow-sm transition hover:border-border/80 hover:shadow-md">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground">
-          {post.platform ? (
-            <span className="inline-flex items-center gap-1 font-medium text-foreground">
-              <PlatformBrandIcon platform={post.platform} className="h-3.5 w-3.5" />
-              <span className="capitalize">{post.platform}</span>
-            </span>
-          ) : null}
-          {handle ? <span className="truncate">{handle}</span> : null}
-          {when ? <span>· {when}</span> : null}
-        </div>
-        <div className="flex max-w-[55%] shrink-0 flex-wrap items-center justify-end gap-1">
-          {sentiment ? (
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold capitalize text-foreground">
-              {sentiment}
-            </span>
-          ) : null}
-          {risk ? (
-            <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-semibold capitalize', riskTone(risk))}>
-              Risk {String(risk)}
-            </span>
-          ) : null}
-          {categoryLabel ? (
-            <span
-              className="max-w-full truncate rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold capitalize text-slate-700"
-              title={categoryLabel}
-            >
-              {categoryLabel}
-            </span>
-          ) : null}
-        </div>
-      </div>
-
-      <div className={cn('mt-2 flex-1', image ? 'grid gap-2 sm:grid-cols-[minmax(0,1fr)_5.5rem] sm:items-start' : '')}>
-        <div className="min-w-0">
-          {shownText ? (
-            <p className="whitespace-pre-wrap text-[13px] leading-5 text-foreground">{shownText}</p>
-          ) : (
-            <p className="text-[13px] italic text-muted-foreground">No text content</p>
-          )}
-          {needsMore ? (
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              className="mt-1 text-[11px] font-semibold text-primary hover:underline"
-            >
-              {expanded ? 'See less' : 'See more'}
-            </button>
-          ) : null}
-        </div>
-        {image ? (
-          <a
-            href={post.url || image}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block overflow-hidden rounded-md bg-muted"
-          >
-            <img src={image} alt="" className="h-24 w-full object-cover sm:h-20" loading="lazy" />
-          </a>
-        ) : null}
-      </div>
-
-      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-1.5">
-        <PlatformEngagementBar
-          platform={post.platform}
-          engagement={post.engagement}
-          className="py-0 px-0"
-        />
-        {post.url ? (
-          <a
-            href={post.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
-          >
-            Open
-            <ExternalLink className="h-3 w-3" />
-          </a>
-        ) : null}
-      </div>
-    </article>
-  );
-};
 
 const SocialProfileDetail = () => {
   const { id } = useParams();
@@ -709,10 +577,36 @@ const SocialProfileDetail = () => {
               </div>
             </div>
           ) : (
-            <div className="grid gap-3 py-3 sm:grid-cols-2 xl:grid-cols-3">
-              {posts.map((post) => (
-                <PostCard key={post.id} post={post} />
-              ))}
+            <div className="grid gap-5 py-3 sm:grid-cols-2 xl:grid-cols-3">
+              {posts.map((post) => {
+                const { alert, content, source } = postToAlertCardProps({
+                  ...post,
+                  profile_name: post.profile_name || displayName,
+                  profile_image_url: post.profile_image_url || avatarUrl,
+                  author_name: post.author_name || displayName,
+                  author_handle: post.author_handle || handle,
+                });
+                const isYoutube = alert.platform === 'youtube';
+                return isYoutube ? (
+                  <YoutubeAlertCard
+                    key={post.id}
+                    alert={alert}
+                    content={content}
+                    source={source}
+                    viewMode="grid"
+                    hideActions
+                  />
+                ) : (
+                  <TwitterAlertCard
+                    key={post.id}
+                    alert={alert}
+                    content={content}
+                    source={source}
+                    viewMode="grid"
+                    hideActions
+                  />
+                );
+              })}
             </div>
           )}
         </div>

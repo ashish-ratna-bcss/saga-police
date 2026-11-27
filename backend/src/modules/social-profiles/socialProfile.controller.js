@@ -482,8 +482,22 @@ const listProfiles = async (req, res) => {
 const serializePost = (row) => {
   const engagement =
     row.engagement && typeof row.engagement === 'object' && !Array.isArray(row.engagement)
-      ? row.engagement
+      ? { ...row.engagement }
       : {};
+  const raw =
+    row.raw_data && typeof row.raw_data === 'object' && !Array.isArray(row.raw_data)
+      ? row.raw_data
+      : {};
+  // Older Facebook rows stored plays only on raw_data.video_view_count.
+  if (engagement.views == null && engagement.video_view_count == null) {
+    const fromRaw = raw.video_view_count ?? raw.views ?? raw.view_count ?? null;
+    if (fromRaw != null) {
+      engagement.views = fromRaw;
+      engagement.video_view_count = raw.video_view_count ?? fromRaw;
+    }
+  } else if (engagement.views == null && engagement.video_view_count != null) {
+    engagement.views = engagement.video_view_count;
+  }
   const mediaUrls = Array.isArray(row.media_urls) ? row.media_urls : [];
   return {
     id: row.id != null ? String(row.id) : null,

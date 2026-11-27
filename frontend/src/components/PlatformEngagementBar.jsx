@@ -49,7 +49,14 @@ export const buildPlatformEngagementItems = (platform, engagement = {}) => {
 
   if (normalized === 'facebook') {
     const shares = isPresentMetric(e.shares) ? e.shares : e.retweets;
-    push('views', 'Views', e.views ?? e.view_count, Eye, 'hover:text-foreground');
+    // BluGate stores video plays as video_view_count; older rows may only have that key.
+    push(
+      'views',
+      'Views',
+      e.views ?? e.video_view_count ?? e.view_count ?? e.play_count,
+      Eye,
+      'hover:text-foreground'
+    );
     push('likes', 'Likes', e.likes ?? e.reactions ?? e.like_count, ThumbsUp, 'hover:text-blue-500');
     push('comments', 'Comments', e.comments ?? e.comment_count, MessageCircle, 'hover:text-blue-500');
     push('shares', 'Shares', shares, Share2, 'hover:text-emerald-500');

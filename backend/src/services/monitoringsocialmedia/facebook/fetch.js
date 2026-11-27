@@ -174,7 +174,11 @@ const mapFacebookPost = (post, accountId) => {
     engagement: {
       comments: post.comments_count ?? 0,
       reactions: post.reactions_count ?? 0,
+      likes: post.reactions_count ?? 0,
       shares: post.reshare_count ?? 0,
+      // BluGate page/profile posts expose video plays as video_view_count.
+      views: post.video_view_count ?? post.views ?? post.view_count ?? null,
+      video_view_count: post.video_view_count ?? null,
       reactions_breakdown: post.reactions || {},
     },
     posted_at: postedAt,

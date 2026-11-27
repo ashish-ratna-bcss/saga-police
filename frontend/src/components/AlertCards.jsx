@@ -965,8 +965,15 @@ const buildPlatformEngagementItems = (platform, engagement = {}) => {
     if (normalized === 'facebook') {
         // Historical FB shares were persisted as engagement.retweets — display as Shares only.
         const shares = isPresentMetric(e.shares) ? e.shares : e.retweets;
-        push('views', 'Views', e.views, Eye, 'hover:text-foreground');
-        push('likes', 'Likes', e.likes, ThumbsUp, 'hover:text-blue-500');
+        // BluGate video plays land as video_view_count; keep Eye visible when that key exists.
+        push(
+            'views',
+            'Views',
+            e.views ?? e.video_view_count ?? e.view_count ?? e.play_count,
+            Eye,
+            'hover:text-foreground'
+        );
+        push('likes', 'Likes', e.likes ?? e.reactions, ThumbsUp, 'hover:text-blue-500');
         push('comments', 'Comments', e.comments, MessageCircle, 'hover:text-blue-500');
         push('shares', 'Shares', shares, Share2, 'hover:text-emerald-500');
         return items;
@@ -4321,7 +4328,7 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                         </button>
                         )}
 
-                        {/* Catalog All Posts: open original. Alerts: view details modal. */}
+                        {/* Catalog / profile posts: keep Open + analysis Eye (same popup as Alerts). */}
                         {hideActions && cardOpenUrl ? (
                           <a
                             href={cardOpenUrl}
@@ -4334,7 +4341,7 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                             <ExternalLink className="h-3.5 w-3.5" />
                             <span className="whitespace-nowrap">Open</span>
                           </a>
-                        ) : (
+                        ) : null}
                         <button
                             onClick={(e) => {
                                 e.preventDefault();
@@ -4342,14 +4349,13 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                                 setShowReasonModal(true);
                             }}
                             className="p-2 rounded-md hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors z-20"
-                            title="View Details"
+                            title="View analysis"
                         >
                             <div className="flex flex-col items-center gap-1">
                                 <PlatformLogoBadge platform={alert.platform || 'x'} />
                                 <Eye className="h-4 w-4" />
                             </div>
                         </button>
-                        )}
                     </div>
 
                     {/* Alert Title/Reason Removed to save space */}
@@ -5432,7 +5438,7 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
                             <ExternalLink className="h-3.5 w-3.5" />
                             <span className="whitespace-nowrap">Open</span>
                           </a>
-                        ) : (
+                        ) : null}
                         <button
                             onClick={(e) => {
                                 e.preventDefault();
@@ -5440,14 +5446,13 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
                                 setShowReasonModal(true);
                             }}
                             className="p-2 rounded-md hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors z-20"
-                            title="View Details"
+                            title="View analysis"
                         >
                             <div className="flex flex-col items-center gap-1">
                                 <PlatformLogoBadge platform={alert.platform || 'youtube'} />
                                 <Eye className="h-4 w-4" />
                             </div>
                         </button>
-                        )}
                     </div>
                     {/* Header: Avatar | Channel */}
                     <div className="flex justify-between items-start gap-2 mb-3">

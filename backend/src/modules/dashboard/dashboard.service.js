@@ -785,6 +785,7 @@ const listIngestedPosts = async ({
         media_type: true,
         media_urls: true,
         engagement: true,
+        raw_data: true,
         posted_at: true,
         fetched_at: true,
         analysis_status: true,
@@ -832,7 +833,18 @@ const listIngestedPosts = async ({
   };
 
   const posts = rows.map((row) => {
-    const engagement = asEngagement(row.engagement);
+    const engagement = { ...asEngagement(row.engagement) };
+    const raw = asEngagement(row.raw_data);
+    // Older Facebook rows only stored plays on raw_data.video_view_count.
+    if (engagement.views == null && engagement.video_view_count == null) {
+      const fromRaw = raw.video_view_count ?? raw.views ?? raw.view_count ?? null;
+      if (fromRaw != null) {
+        engagement.views = fromRaw;
+        engagement.video_view_count = raw.video_view_count ?? fromRaw;
+      }
+    } else if (engagement.views == null && engagement.video_view_count != null) {
+      engagement.views = engagement.video_view_count;
+    }
     const mediaUrls = Array.isArray(row.media_urls) ? row.media_urls : [];
     const analysis =
       row.analysis_result && typeof row.analysis_result === 'object' && !Array.isArray(row.analysis_result)
@@ -856,6 +868,7 @@ const listIngestedPosts = async ({
       posted_at: row.posted_at || row.fetched_at,
       fetched_at: row.fetched_at,
       analysis_status: row.analysis_status,
+      analysis_result: analysis,
       risk_level: analysis.risk_level || analysis.riskLevel || null,
       sentiment: analysis.sentiment || null,
     };

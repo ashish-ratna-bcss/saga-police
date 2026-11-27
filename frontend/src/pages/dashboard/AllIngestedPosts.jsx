@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import api from '../../lib/api';
 import { Button } from '../../components/ui/button';
 import { TwitterAlertCard, YoutubeAlertCard } from '../../components/AlertCards';
-import { proxyMediaUrl } from '../../shared/utils/mediaProxy';
+import { postToAlertCardProps } from '../../shared/utils/postToAlertCard';
 
 const RANGES = [
   { id: '24h', label: '24h' },
@@ -12,107 +12,6 @@ const RANGES = [
   { id: '30d', label: '30d' },
   { id: 'all', label: 'All' },
 ];
-
-const isVideoUrl = (url) =>
-  typeof url === 'string' &&
-  (/video\.twimg\.com/i.test(url) ||
-    /\.(mp4|m3u8|webm|mov)(\?|$)/i.test(url) ||
-    /video\.cdninstagram\.com/i.test(url) ||
-    /video[^.]*\.fbcdn\.net/i.test(url) ||
-    /youtube\.com\/watch|youtu\.be\//i.test(url));
-
-const toMediaList = (mediaUrls, platform) => {
-  if (!Array.isArray(mediaUrls)) return [];
-  return mediaUrls
-    .map((m) => {
-      let url = null;
-      let typeHint = null;
-      if (typeof m === 'string' && m.trim()) {
-        url = m.trim();
-      } else if (m && typeof m === 'object') {
-        url = m.url || m.src || m.thumbnail || m.preview_url || m.media_url || null;
-        typeHint = m.type || m.media_type || null;
-      }
-      if (!url || typeof url !== 'string') return null;
-      const isVideo =
-        ['video', 'animated_gif', 'gifv'].includes(String(typeHint || '').toLowerCase()) ||
-        isVideoUrl(url);
-      // YouTube watch URLs are embeds, not image thumbs — skip as grid media;
-      // YoutubeAlertCard uses content_url for the player.
-      if (platform === 'youtube' && /youtube\.com\/watch|youtu\.be\//i.test(url)) {
-        return null;
-      }
-      const proxied = proxyMediaUrl(url) || url;
-      return {
-        type: isVideo ? 'video' : 'photo',
-        url: proxied,
-        // Never use an mp4/video URL as poster — that paints a black frame.
-        preview: isVideo ? '' : proxied,
-        // Keep original for download / resolve fallbacks inside AlertCards.
-        fallbackUrls: proxied !== url ? [url] : [],
-        original_url: url,
-      };
-    })
-    .filter(Boolean);
-};
-
-/** Map catalog post → same alert/content/source shape Top 50 cards expect. */
-const postToCardProps = (post) => {
-  const platform = String(post.platform || '')
-    .toLowerCase()
-    .replace(/^twitter$/, 'x');
-  const media = toMediaList(post.media_urls, platform);
-  const engagement = post.engagement && typeof post.engagement === 'object' ? post.engagement : {};
-  const avatarRaw = post.profile_image_url || null;
-  const avatar = avatarRaw ? proxyMediaUrl(avatarRaw) || avatarRaw : null;
-  const content = {
-    text: post.text || '',
-    url: post.url || null,
-    link: post.url || null,
-    content_url: post.url || null,
-    published_at: post.posted_at || post.fetched_at || null,
-    author_handle: post.author_handle || null,
-    media,
-    media_url: media[0]?.url || null,
-    media_urls: media.map((m) => m.url).filter(Boolean),
-    thumbnail: media.find((m) => m.type === 'photo')?.url || media[0]?.preview || null,
-    // Keep platform-native keys so AlertCards PlatformEngagementBar can show
-    // Views / Likes / Comments / Shares the same way as the Alerts page.
-    engagement: {
-      ...engagement,
-      views: engagement.views ?? engagement.view ?? engagement.view_count ?? engagement.play_count,
-      likes: engagement.likes ?? engagement.reactions ?? engagement.like_count ?? engagement.favorites,
-      comments: engagement.comments ?? engagement.comment_count ?? engagement.replies ?? engagement.reply,
-      shares: engagement.shares ?? engagement.retweets ?? engagement.reposts,
-      replies: engagement.replies ?? engagement.comments ?? engagement.reply_count,
-      retweets: engagement.retweets ?? engagement.reposts ?? engagement.shares,
-      quotes: engagement.quotes,
-      saves: engagement.saves,
-    },
-  };
-
-  const alert = {
-    id: post.id,
-    platform,
-    author: post.author_name || post.profile_name || post.author_handle || 'Unknown',
-    author_handle: post.author_handle || null,
-    risk_level: post.risk_level || 'low',
-    sentiment: post.sentiment || null,
-    content_url: post.url || null,
-    description: post.text || '',
-    content_details: content,
-    status: 'active',
-    account_id: post.account_id || null,
-  };
-
-  const source = {
-    name: post.author_name || post.profile_name || post.author_handle || 'Unknown',
-    handle: post.author_handle || null,
-    profile_image_url: avatar,
-  };
-
-  return { alert, content, source };
-};
 
 const useColumnCount = () => {
   const [cols, setCols] = useState(() =>
@@ -370,7 +269,7 @@ const AllIngestedPosts = ({ open, onClose, initialRange = '7d', initialPlatform 
             {columns.map((colItems, ci) => (
               <div key={ci} className="flex-1 min-w-0 flex flex-col gap-5">
                 {colItems.map((post) => {
-                  const { alert, content, source } = postToCardProps(post);
+                  const { alert, content, source } = postToAlertCardProps(post);
                   const isYoutube = alert.platform === 'youtube';
                   return (
                     <div key={post.id}>
