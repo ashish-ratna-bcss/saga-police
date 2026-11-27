@@ -87,7 +87,14 @@ function App() {
               <Route path="sources" element={<Navigate to="/social-profiles" replace />} />
               <Route path="social-profiles" element={<SocialProfiles />} />
               <Route path="analytics-hub" element={<AnalyticsHub />} />
-              <Route path="social-profiles/:id" element={<SocialProfileDetail />} />
+              <Route
+                path="social-profiles/:id"
+                element={
+                  <ErrorBoundary label="Social profile detail">
+                    <SocialProfileDetail />
+                  </ErrorBoundary>
+                }
+              />
               <Route path="content" element={<Navigate to="/analytics-hub" replace />} />
               <Route path="youtube-monitor" element={<YouTubeMonitor />} />
               <Route path="x-monitor" element={<XMonitor />} />

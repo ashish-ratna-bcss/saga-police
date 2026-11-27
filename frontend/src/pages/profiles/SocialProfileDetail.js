@@ -107,7 +107,11 @@ const PostCard = ({ post }) => {
     post.analysis_result && typeof post.analysis_result === 'object' ? post.analysis_result : {};
   const risk = analysis.risk_level || analysis.riskLevel || null;
   const sentiment = analysis.sentiment || null;
-  const category = analysis.category || null;
+  const rawCategory = analysis.category || null;
+  const category =
+    rawCategory && !/^(normal|neutral|monitor|unknown|none)$/i.test(String(rawCategory).trim())
+      ? rawCategory
+      : null;
   const when =
     formatRelative(post.posted_at || post.fetched_at) || formatWhen(post.posted_at || post.fetched_at);
   const handle = post.author_handle

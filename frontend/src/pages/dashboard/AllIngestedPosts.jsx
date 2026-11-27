@@ -76,12 +76,18 @@ const postToCardProps = (post) => {
     media_url: media[0]?.url || null,
     media_urls: media.map((m) => m.url).filter(Boolean),
     thumbnail: media.find((m) => m.type === 'photo')?.url || media[0]?.preview || null,
+    // Keep platform-native keys so AlertCards PlatformEngagementBar can show
+    // Views / Likes / Comments / Shares the same way as the Alerts page.
     engagement: {
-      likes: Number(engagement.likes ?? engagement.reactions ?? engagement.favorites ?? 0) || 0,
-      replies: Number(engagement.comments ?? engagement.replies ?? engagement.reply ?? 0) || 0,
-      retweets: Number(engagement.shares ?? engagement.retweets ?? engagement.reposts ?? 0) || 0,
-      views: Number(engagement.views ?? engagement.view ?? engagement.play_count ?? 0) || 0,
       ...engagement,
+      views: engagement.views ?? engagement.view ?? engagement.view_count ?? engagement.play_count,
+      likes: engagement.likes ?? engagement.reactions ?? engagement.like_count ?? engagement.favorites,
+      comments: engagement.comments ?? engagement.comment_count ?? engagement.replies ?? engagement.reply,
+      shares: engagement.shares ?? engagement.retweets ?? engagement.reposts,
+      replies: engagement.replies ?? engagement.comments ?? engagement.reply_count,
+      retweets: engagement.retweets ?? engagement.reposts ?? engagement.shares,
+      quotes: engagement.quotes,
+      saves: engagement.saves,
     },
   };
 
@@ -391,23 +397,60 @@ const AllIngestedPosts = ({ open, onClose, initialRange = '7d', initialPlatform 
               </div>
             ))}
           </div>
-          {pagination.hasMore ? (
-            <div className="flex justify-center mt-6">
-              <Button
-                variant="outline"
-                disabled={loadingMore}
-                onClick={() => fetchPosts({ page: (pagination.page || 1) + 1, append: true })}
-                className="gap-2"
-              >
-                {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Load more
-              </Button>
-            </div>
-          ) : (
-            <p className="text-center text-xs text-muted-foreground mt-6">
-              Showing all {Number(pagination.total || posts.length).toLocaleString('en-IN')} posts
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+            <p className="text-[11px] text-muted-foreground">
+              {pagination.totalPages > 1 ? (
+                <>
+                  Page <span className="font-semibold text-foreground">{pagination.page || 1}</span> of{' '}
+                  {pagination.totalPages}
+                  <span className="mx-1.5">·</span>
+                </>
+              ) : null}
+              {Number(pagination.total || posts.length).toLocaleString('en-IN')} posts
             </p>
-          )}
+            <div className="flex flex-wrap items-center gap-2">
+              {pagination.totalPages > 1 ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    disabled={loading || loadingMore || (pagination.page || 1) <= 1}
+                    onClick={() => fetchPosts({ page: (pagination.page || 1) - 1, append: false })}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    disabled={
+                      loading ||
+                      loadingMore ||
+                      (pagination.page || 1) >= (pagination.totalPages || 1)
+                    }
+                    onClick={() => fetchPosts({ page: (pagination.page || 1) + 1, append: false })}
+                  >
+                    Next
+                  </Button>
+                </>
+              ) : null}
+              {pagination.hasMore ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-2"
+                  disabled={loadingMore}
+                  onClick={() => fetchPosts({ page: (pagination.page || 1) + 1, append: true })}
+                >
+                  {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Load more
+                </Button>
+              ) : null}
+            </div>
+          </div>
         </div>
       ) : null}
     </div>

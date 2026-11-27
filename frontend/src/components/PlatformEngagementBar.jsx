@@ -74,24 +74,32 @@ export const buildPlatformEngagementItems = (platform, engagement = {}) => {
 };
 
 export const PlatformEngagementBar = ({ platform, engagement, className = '' }) => {
-  const items = buildPlatformEngagementItems(platform, engagement);
-  if (items.length === 0) return null;
+  let items = [];
+  try {
+    items = buildPlatformEngagementItems(platform, engagement);
+  } catch (_) {
+    return null;
+  }
+  if (!items.length) return null;
 
   return (
     <div className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 py-1.5 px-1 ${className}`}>
-      {items.map(({ key, label, value, Icon, hoverClass }) => (
-        <div
-          key={key}
-          className={`flex items-center gap-1 text-muted-foreground ${hoverClass || ''}`.trim()}
-          title={label}
-        >
-          <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span className="text-[11px] font-medium tabular-nums text-foreground">
-            {formatMetric(value)}
-          </span>
-          <span className="text-[10px] text-muted-foreground">{label}</span>
-        </div>
-      ))}
+      {items.map(({ key, label, value, Icon, hoverClass }) => {
+        if (!Icon) return null;
+        return (
+          <div
+            key={key}
+            className={`flex items-center gap-1 text-muted-foreground ${hoverClass || ''}`.trim()}
+            title={label}
+          >
+            <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span className="text-[11px] font-medium tabular-nums text-foreground">
+              {formatMetric(value)}
+            </span>
+            <span className="text-[10px] text-muted-foreground">{label}</span>
+          </div>
+        );
+      })}
     </div>
   );
 };
