@@ -1001,7 +1001,7 @@ const SocialProfiles = () => {
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Profile</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Relevance</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Platform</th>
-                <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Details</th>
+                <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Category</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Poll</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Monitoring</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap text-right">Actions</th>
@@ -1027,10 +1027,7 @@ const SocialProfiles = () => {
               ) : (
                 profiles.map((row) => {
                   const Icon = ICONS[platforms.find((p) => p.slug === row.platform)?.icon] || Globe2;
-                  const detail = Object.entries(row.data || {})
-                    .filter(([, v]) => v)
-                    .map(([k, v]) => `${k}: ${v}`)
-                    .join(' · ');
+                  const category = row.top_category || null;
                   const isMonitoring = row.monitoring_status === 'started';
                   const history = buildMonitoringHistory(row.monitoring_logs, row.monitoring_status);
                   const fetchStats = summarizeFetchHistory(row.last_fetched_history, history);
@@ -1073,10 +1070,22 @@ const SocialProfiles = () => {
                           <Icon className="h-3 w-3" /> {row.platform_name || row.platform}
                         </Badge>
                       </td>
-                      <td className="px-2.5 py-2 align-top max-w-[220px]">
-                        <p className="truncate text-[11px] text-muted-foreground" title={detail || ''}>
-                          {detail || '—'}
-                        </p>
+                      <td className="px-2.5 py-2 align-top max-w-[180px]">
+                        {category ? (
+                          <Badge
+                            variant="outline"
+                            className="h-5 max-w-full truncate px-1.5 text-[10px] font-medium"
+                            title={
+                              row.top_category_count
+                                ? `${category} · ${row.top_category_count} analysed post${row.top_category_count === 1 ? '' : 's'}`
+                                : category
+                            }
+                          >
+                            {category}
+                          </Badge>
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground">—</span>
+                        )}
                       </td>
                       <td className="px-2.5 py-2 align-top whitespace-nowrap">
                         <span className="text-[11px] text-muted-foreground">

@@ -50,7 +50,7 @@ const profiles = {
             ['Profile', 'Name and handle. Click it to open the detail page.'],
             ['Relevance', 'Score out of 100. Click for the alert breakdown.'],
             ['Platform', 'The platform of this row.'],
-            ['Details', 'Short detail text fetched from the platform.'],
+            ['Category', 'Most common analysis category on this profile’s analysed posts.'],
             ['Poll', 'How often it is checked, for example Every 30m or Every 1h.'],
             ['Monitoring', 'Start / Stop button and a History popover.'],
             ['Actions', 'Edit and the delete (bin) button.'],
