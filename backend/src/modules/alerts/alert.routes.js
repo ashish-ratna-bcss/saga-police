@@ -11,6 +11,7 @@ const {
   getTopByCategory,
   getWorkflowKpi,
   translateAlertContent,
+  getPostsMatrix,
 } = require('./alert.controller');
 const { getKeywords, postKeyword, putKeyword, removeKeyword } = require('./alert.keyword.controller');
 const {
@@ -41,6 +42,7 @@ router.get('/workflow-kpi', getWorkflowKpi);
 router.get('/unread', authorize({ pages: ['/alerts'] }), getUnread);
 router.get('/top-by-category', authorize({ pages: ['/alerts'] }), getTopByCategory);
 router.post('/top-by-category', authorize({ pages: ['/alerts'] }), getTopByCategory);
+router.get('/posts-category-matrix', authorize({ pages: ['/alerts'] }), getPostsMatrix);
 
 router.get('/keywords', getKeywords);
 router.post('/keywords', postKeyword);

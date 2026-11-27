@@ -10,6 +10,7 @@ const {
   markAllRead,
   listTopCatalogAlertsByCategory,
   getCatalogWorkflowKpi,
+  getPostsCategoryMatrix,
 } = require('./alert.service');
 
 const listAlerts = async (req, res) => {
@@ -207,6 +208,16 @@ const translateAlertContent = async (req, res) => {
   }
 };
 
+const getPostsMatrix = async (req, res) => {
+  try {
+    const data = await getPostsCategoryMatrix({ db: req.tenantPrisma });
+    return res.status(200).json(data);
+  } catch (error) {
+    logger.error('[Alerts] posts-category-matrix failed:', error);
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   listAlerts,
   getAlert,
@@ -218,6 +229,7 @@ module.exports = {
   getTopByCategory,
   getWorkflowKpi,
   translateAlertContent,
+  getPostsMatrix,
   // used by sentiment pipeline
   createAlertFromCatalogPost,
 };

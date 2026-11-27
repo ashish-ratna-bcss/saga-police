@@ -72,6 +72,12 @@ export const alertsApi = {
     });
   },
 
+  postsCategoryMatrix() {
+    return apiHandler.get('/alerts/posts-category-matrix', {
+      params: withCatalogParams(),
+    });
+  },
+
   listEngagers() {
     return apiHandler.get('/alerts/engagers', { params: withCatalogParams() });
   },

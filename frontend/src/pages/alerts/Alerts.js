@@ -82,16 +82,6 @@ const ALERT_STATUS_TABS = [
 const ALERTS_CACHE_KEY = 'alertsCache_catalog_v1';
 const ALERTS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-const SOURCE_CATEGORY_OPTIONS = [
-  { value: 'political', label: 'Political' },
-  { value: 'communal', label: 'Communal' },
-  { value: 'trouble_makers', label: 'Trouble Makers' },
-  { value: 'defamation', label: 'Defamation' },
-  { value: 'narcotics', label: 'Narcotics' },
-  { value: 'history_sheeters', label: 'History Sheeters' },
-  { value: 'others', label: 'Others' }
-];
-
 export default function Alerts() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -103,7 +93,15 @@ export default function Alerts() {
   const [monitoredSources, setMonitoredSources] = useState([]);
   const [sourcesMetaLoading, setSourcesMetaLoading] = useState(false);
   const [sourcesMetaLoaded, setSourcesMetaLoaded] = useState(false);
-  const [profilesMatrixOpen, setProfilesMatrixOpen] = useState(false);
+  const [postsMatrixOpen, setPostsMatrixOpen] = useState(false);
+  const [postsCategoryMatrix, setPostsCategoryMatrix] = useState({
+    categories: [],
+    rows: [],
+    totalsByCategory: {},
+    grandTotal: 0,
+  });
+  const [postsMatrixLoading, setPostsMatrixLoading] = useState(false);
+  const [postsMatrixLoaded, setPostsMatrixLoaded] = useState(false);
   const [frequentEngagersOpen, setFrequentEngagersOpen] = useState(false);
   const [viewMode, setViewMode] = useState('grid');
   const [alertCategory, setAlertCategory] = useState('all'); // legacy — mirrors active exclusive dim
@@ -276,16 +274,6 @@ export default function Alerts() {
     return value;
   }, []);
 
-  const normalizeCategory = useCallback((categoryValue) => {
-    const normalized = String(categoryValue || '')
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, '_');
-
-    if (!normalized) return 'others';
-    return SOURCE_CATEGORY_OPTIONS.some((option) => option.value === normalized) ? normalized : 'others';
-  }, []);
-
   const getPlatformLabel = useCallback((platformValue) => {
     const normalized = normalizePlatform(platformValue);
     const labels = {
@@ -356,57 +344,25 @@ export default function Alerts() {
     return <PlatformBrandIcon platform={normalized} className={iconClass} colored={false} />;
   }, [getPlatformTheme, normalizePlatform]);
 
-  const monitoredProfilesMatrix = useMemo(() => {
-    const categoryKeys = SOURCE_CATEGORY_OPTIONS.map((option) => option.value);
-    const categorySet = new Set(categoryKeys);
-    const platformCounts = {};
-
-    monitoredSources.forEach((source) => {
-      const platform = normalizePlatform(source?.platform);
-      const category = normalizeCategory(source?.category);
-
-      if (!platformCounts[platform]) {
-        platformCounts[platform] = { total: 0 };
-        categoryKeys.forEach((key) => {
-          platformCounts[platform][key] = 0;
-        });
-      }
-
-      if (!categorySet.has(category)) return;
-      platformCounts[platform][category] += 1;
-      platformCounts[platform].total += 1;
-    });
-
-    const displayOrder = pagePlatformSlugs.length
-      ? pagePlatformSlugs
-      : availablePlatforms.map((p) => p.slug);
-    const discoveredPlatforms = Object.keys(platformCounts)
-      .filter((platform) => !displayOrder.includes(platform))
-      .sort((a, b) => a.localeCompare(b));
-
-    const orderedPlatforms = [...displayOrder, ...discoveredPlatforms];
-
-    const rows = orderedPlatforms
-      .filter((platform) => platformCounts[platform])
-      .map((platform) => ({
-        platform,
-        counts: platformCounts[platform]
-      }));
-
-    const totalsByCategory = categoryKeys.reduce((acc, key) => {
-      acc[key] = rows.reduce((sum, row) => sum + (row.counts[key] || 0), 0);
-      return acc;
-    }, {});
-
-    const grandTotal = rows.reduce((sum, row) => sum + (row.counts.total || 0), 0);
-
-    return {
-      categoryKeys,
-      rows,
-      totalsByCategory,
-      grandTotal
-    };
-  }, [monitoredSources, normalizePlatform, normalizeCategory, pagePlatformSlugs, availablePlatforms]);
+  const fetchPostsCategoryMatrix = useCallback(async () => {
+    setPostsMatrixLoading(true);
+    try {
+      const response = await AlertService.postsCategoryMatrix();
+      const data = response.data || {};
+      setPostsCategoryMatrix({
+        categories: Array.isArray(data.categories) ? data.categories : [],
+        rows: Array.isArray(data.rows) ? data.rows : [],
+        totalsByCategory: data.totalsByCategory || {},
+        grandTotal: Number(data.grandTotal) || 0,
+      });
+      setPostsMatrixLoaded(true);
+    } catch (err) {
+      console.error('Error fetching posts category matrix:', err);
+      toast.error('Failed to load posts matrix');
+    } finally {
+      setPostsMatrixLoading(false);
+    }
+  }, []);
 
   const normalizeDateInputValue = useCallback((value) => {
     if (!value) return '';
@@ -1530,26 +1486,28 @@ export default function Alerts() {
   }, []);
 
   useEffect(() => {
-    if (profilesMatrixOpen && !sourcesMetaLoaded && !sourcesMetaLoading) {
-      fetchSourcesMetadata();
+    if (postsMatrixOpen && !postsMatrixLoaded && !postsMatrixLoading) {
+      fetchPostsCategoryMatrix();
     }
-  }, [profilesMatrixOpen, sourcesMetaLoaded, sourcesMetaLoading, fetchSourcesMetadata]);
+  }, [postsMatrixOpen, postsMatrixLoaded, postsMatrixLoading, fetchPostsCategoryMatrix]);
 
   useEffect(() => {
     // fetchSourcesMetadata is called initially and periodically
     fetchSourcesMetadata();
+    fetchPostsCategoryMatrix();
 
     // Auto-refresh every 2 minutes
     const interval = setInterval(() => {
       checkForNewAlerts(); // Use checkForNewAlerts for silent refresh
       fetchSourcesMetadata();
+      fetchPostsCategoryMatrix();
       if (isCapturedStoriesView) {
         fetchCapturedStories();
       }
     }, 120000);
 
     return () => clearInterval(interval);
-  }, [checkForNewAlerts, fetchAlerts, fetchAlertStats, fetchSourcesMetadata, fetchCapturedStories, isCapturedStoriesView]);
+  }, [checkForNewAlerts, fetchAlerts, fetchAlertStats, fetchSourcesMetadata, fetchPostsCategoryMatrix, fetchCapturedStories, isCapturedStoriesView]);
 
   useEffect(() => {
     if (!hasAnyAlertFeature) return;
@@ -2227,44 +2185,49 @@ export default function Alerts() {
               <Users className="h-3.5 w-3.5" />
               Frequent Engagers
             </Button>
-            <Dialog open={profilesMatrixOpen} onOpenChange={setProfilesMatrixOpen}>
+            <Dialog open={postsMatrixOpen} onOpenChange={setPostsMatrixOpen}>
               <DialogTrigger asChild>
                 <Button
                   variant="outline"
                   size="sm"
                   className="h-8 gap-1.5 text-xs"
-                  title="Breakdown of monitored profiles by platform and category"
-                  disabled={sourcesMetaLoading && !sourcesMetaLoaded}
+                  title="Breakdown of analysed posts by platform and category"
+                  disabled={postsMatrixLoading && !postsMatrixLoaded}
                 >
                   <LayoutGrid className="h-3.5 w-3.5" />
-                  Monitored Profiles
-                  {monitoredProfilesMatrix.grandTotal > 0 && (
-                    <span className="tabular-nums opacity-80">{monitoredProfilesMatrix.grandTotal}</span>
+                  Monitored Posts
+                  {postsCategoryMatrix.grandTotal > 0 && (
+                    <span className="tabular-nums opacity-80">{postsCategoryMatrix.grandTotal}</span>
                   )}
                 </Button>
               </DialogTrigger>
               <DialogContent className="w-[92vw] max-w-5xl max-h-[92vh] overflow-hidden p-0">
                 <div className="px-4 py-3 border-b border-border bg-muted/20">
                   <DialogHeader>
-                    <DialogTitle>Profiles Being Monitored</DialogTitle>
+                    <DialogTitle>Posts Being Monitored</DialogTitle>
                   </DialogHeader>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Total monitored profiles: <span className="font-semibold text-foreground">{monitoredProfilesMatrix.grandTotal.toLocaleString()}</span>
+                    Total analysed posts:{' '}
+                    <span className="font-semibold text-foreground">
+                      {postsCategoryMatrix.grandTotal.toLocaleString()}
+                    </span>
+                    <span className="mx-1.5">·</span>
+                    Categories come from post analysis
                   </p>
                 </div>
 
                 <div className="p-4 overflow-auto">
-                  {sourcesMetaLoading && monitoredProfilesMatrix.rows.length === 0 ? (
-                    <div className="text-xs text-muted-foreground">Loading monitored profiles...</div>
-                  ) : monitoredProfilesMatrix.rows.length === 0 ? (
-                    <div className="text-xs text-muted-foreground">No monitored profiles found.</div>
+                  {postsMatrixLoading && postsCategoryMatrix.rows.length === 0 ? (
+                    <div className="text-xs text-muted-foreground">Loading analysed posts...</div>
+                  ) : postsCategoryMatrix.rows.length === 0 ? (
+                    <div className="text-xs text-muted-foreground">No analysed posts found.</div>
                   ) : (
                     <div className="border border-border rounded-lg overflow-hidden bg-background">
                       <table className="w-full text-xs border-collapse">
                         <thead className="bg-slate-300/85 text-slate-900">
                           <tr>
                             <th className="text-left px-2.5 py-2 font-semibold sticky left-0 bg-slate-300/95 z-10 min-w-[150px] border-r border-b border-slate-500/60">Platform</th>
-                            {SOURCE_CATEGORY_OPTIONS.map((option) => (
+                            {postsCategoryMatrix.categories.map((option) => (
                               <th key={option.value} className="text-center px-2 py-2 font-semibold whitespace-nowrap border-r border-b border-slate-500/60">
                                 {option.label}
                               </th>
@@ -2273,7 +2236,7 @@ export default function Alerts() {
                           </tr>
                         </thead>
                         <tbody>
-                          {monitoredProfilesMatrix.rows.map((row) => {
+                          {postsCategoryMatrix.rows.map((row) => {
                             const theme = getPlatformTheme(row.platform);
                             return (
                             <tr key={row.platform} className={`border-b border-slate-500/50 ${theme.rowClass}`}>
@@ -2283,13 +2246,13 @@ export default function Alerts() {
                                   <span>{getPlatformLabel(row.platform)}</span>
                                 </div>
                               </td>
-                              {SOURCE_CATEGORY_OPTIONS.map((option) => (
+                              {postsCategoryMatrix.categories.map((option) => (
                                 <td key={`${row.platform}-${option.value}`} className="text-center px-2 py-1.5 tabular-nums border-r border-slate-500/45 text-slate-900 font-medium">
                                   {(row.counts[option.value] || 0).toLocaleString()}
                                 </td>
                               ))}
                               <td className="text-center px-2 py-1.5 tabular-nums font-semibold bg-primary/20 text-slate-950">
-                                {(row.counts.total || 0).toLocaleString()}
+                                {(row.total || 0).toLocaleString()}
                               </td>
                             </tr>
                           )})}
@@ -2297,13 +2260,13 @@ export default function Alerts() {
                         <tfoot>
                           <tr className="border-t border-slate-600 bg-slate-300/90 font-semibold text-slate-900">
                             <td className="px-2.5 py-2 sticky left-0 z-10 bg-slate-300/95 border-r border-slate-500/60">All Platforms</td>
-                            {SOURCE_CATEGORY_OPTIONS.map((option) => (
+                            {postsCategoryMatrix.categories.map((option) => (
                               <td key={`total-${option.value}`} className="text-center px-2 py-2 tabular-nums border-r border-slate-500/60">
-                                {(monitoredProfilesMatrix.totalsByCategory[option.value] || 0).toLocaleString()}
+                                {(postsCategoryMatrix.totalsByCategory[option.value] || 0).toLocaleString()}
                               </td>
                             ))}
                             <td className="text-center px-2 py-2 tabular-nums bg-primary/30 text-slate-950">
-                              {monitoredProfilesMatrix.grandTotal.toLocaleString()}
+                              {postsCategoryMatrix.grandTotal.toLocaleString()}
                             </td>
                           </tr>
                         </tfoot>

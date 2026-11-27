@@ -468,6 +468,90 @@ const getCatalogWorkflowKpi = async ({ start, end, db } = {}) => {
   };
 };
 
+/**
+ * Platform × analysis-category matrix from analysed catalog posts.
+ * Categories come from post analysis (auto), not from profile tags.
+ */
+const getPostsCategoryMatrix = async ({ db } = {}) => {
+  const prisma = dbOf(db);
+
+  const rows = await prisma.$queryRawUnsafe(`
+    SELECT
+      CASE
+        WHEN lower(coalesce(platform, '')) IN ('twitter', 'x') THEN 'x'
+        WHEN lower(coalesce(platform, '')) IN ('fb', 'facebook') THEN 'facebook'
+        WHEN lower(coalesce(platform, '')) IN ('yt', 'youtube') THEN 'youtube'
+        WHEN nullif(trim(lower(coalesce(platform, ''))), '') IS NULL THEN 'unknown'
+        ELSE trim(lower(platform))
+      END AS platform,
+      coalesce(
+        nullif(
+          regexp_replace(
+            initcap(replace(replace(trim(analysis_result->>'category'), '_', ' '), '-', ' ')),
+            '\\s+',
+            ' ',
+            'g'
+          ),
+          ''
+        ),
+        'Normal'
+      ) AS category,
+      COUNT(*)::int AS count
+    FROM social_media_posts
+    WHERE analysis_status = 'done'
+    GROUP BY 1, 2
+    ORDER BY 1, 3 DESC
+  `);
+
+  const categoryTotals = new Map();
+  const platformMap = new Map();
+
+  for (const row of rows || []) {
+    const platform = String(row.platform || 'unknown');
+    const category = String(row.category || 'Normal').trim() || 'Normal';
+    const count = Number(row.count) || 0;
+    if (!count) continue;
+
+    if (!platformMap.has(platform)) platformMap.set(platform, { total: 0, counts: {} });
+    const cell = platformMap.get(platform);
+    cell.counts[category] = (cell.counts[category] || 0) + count;
+    cell.total += count;
+    categoryTotals.set(category, (categoryTotals.get(category) || 0) + count);
+  }
+
+  const categories = Array.from(categoryTotals.entries())
+    .sort((a, b) => {
+      const aNormal = /^normal$/i.test(a[0]);
+      const bNormal = /^normal$/i.test(b[0]);
+      if (aNormal !== bNormal) return aNormal ? 1 : -1;
+      if (b[1] !== a[1]) return b[1] - a[1];
+      return String(a[0]).localeCompare(String(b[0]));
+    })
+    .map(([value, total]) => ({
+      value,
+      label: value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+      total,
+    }));
+
+  const platformRows = Array.from(platformMap.entries())
+    .map(([platform, data]) => ({
+      platform,
+      counts: data.counts,
+      total: data.total,
+    }))
+    .sort((a, b) => b.total - a.total);
+
+  const grandTotal = platformRows.reduce((sum, row) => sum + row.total, 0);
+  const totalsByCategory = Object.fromEntries(categories.map((c) => [c.value, c.total]));
+
+  return {
+    categories,
+    rows: platformRows,
+    totalsByCategory,
+    grandTotal,
+  };
+};
+
 module.exports = {
   createAlertFromCatalogPost,
   buildCatalogStats,
@@ -479,5 +563,6 @@ module.exports = {
   markAllRead,
   listTopCatalogAlertsByCategory,
   getCatalogWorkflowKpi,
+  getPostsCategoryMatrix,
   TRACKED_WORKFLOW_STATUSES,
 };
