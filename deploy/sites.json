@@ -62,7 +62,8 @@
     {
       "admin": "APpolice",
       "frontend_port": 3007,
-      "backend_port": 5012
+      "backend_port": 5012,
+      "domain": "appolice.blurasaga.com"
     }
   ]
 }
