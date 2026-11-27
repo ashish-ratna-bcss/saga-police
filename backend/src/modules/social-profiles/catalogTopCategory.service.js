@@ -2,15 +2,38 @@ const { Prisma } = require('../../generated/tenant-client');
 const dbOf = require('../../lib/dbOf');
 
 /**
- * Profile Catalog "Category": the most common *meaningful* analysis category
- * on an account's analysed posts. Noise labels (Normal / Neutral / Monitor / …)
- * are ignored so a flood of benign posts cannot hide the real top category.
+ * Profile Catalog "Category": pick the highest-risk meaningful category on an
+ * account's analysed posts, then the most common within that risk tier.
+ * Noise labels (Normal / Neutral / Monitor / …) are ignored.
  * No DB write / no schema column.
  */
 
 const NOISE = new Set(['normal', 'neutral', 'unknown', 'monitor', 'null', 'none', 'uncategorized', '']);
 
-const formatCategory = (raw) => {
+/** Compact badge labels for the 12 default LE policy category_ids. */
+const SHORT_LABELS = {
+  COMMUNAL_INCITEMENT_RELIGIOUS_DISCORD: 'Communal Incitement',
+  MISINFORMATION_CIVIC_ELECTION_DEEPFAKES: 'Misinfo / Deepfakes',
+  CHILD_SEXUAL_EXPLOITATION_POCSO: 'CSE / POCSO',
+  CYBER_HARASSMENT_WOMEN_SAFETY_DOXXING: 'Cyber Harassment',
+  TERRORISM_EXTREMISM_SEPARATISM: 'Terrorism / Extremism',
+  PUBLIC_DISORDER_MOB_VIOLENCE_INCITEMENT: 'Public Disorder',
+  FINANCIAL_FRAUD_CYBER_CRIME_SCAMS: 'Financial Fraud',
+  DRUGS_NARCOTICS_CONTRABAND_TRAFFICKING: 'Drugs / Narcotics',
+  DEFAMATION_EXTORTION_IMPERSONATION_OF_OFFICIALS: 'Defamation / Extortion',
+  ILLEGAL_WEAPONS_EXPLOSIVES_FIREARMS: 'Illegal Weapons',
+  THREAT_TO_CRITICAL_INFRASTRUCTURE_CYBER_WARFARE: 'Critical Infrastructure',
+  SUICIDE_SELF_HARM_CYBER_BULLYING: 'Self-harm / Bullying',
+};
+
+const toKey = (raw) =>
+  String(raw || '')
+    .trim()
+    .replace(/[\s-]+/g, '_')
+    .replace(/_+/g, '_')
+    .toUpperCase();
+
+const formatFullLabel = (raw) => {
   const cleaned = String(raw || '')
     .trim()
     .replace(/[_-]+/g, ' ')
@@ -19,38 +42,66 @@ const formatCategory = (raw) => {
   return cleaned.replace(/\b\w/g, (ch) => ch.toUpperCase());
 };
 
+const shortLabelOf = (raw) => {
+  const key = toKey(raw);
+  if (SHORT_LABELS[key]) return SHORT_LABELS[key];
+  const full = formatFullLabel(raw);
+  if (!full) return null;
+  // Unknown / custom ids: keep first two Title-Case words so the badge stays short.
+  const parts = full.split(' ').filter(Boolean);
+  if (parts.length <= 3) return full;
+  return `${parts.slice(0, 2).join(' ')}…`;
+};
+
 const isNoise = (category) => NOISE.has(String(category || '').trim().toLowerCase());
 
 /**
- * Pick the highest (most frequent) non-noise category.
- * Tie-break: more high-risk hits, then medium-risk, then A→Z.
+ * Prefer categories that appear on high-risk posts, then medium, then any.
+ * Within a tier, most frequent wins.
  */
 const pickTopCategory = (rows = []) => {
-  let best = null;
+  const usable = [];
   for (const row of rows) {
-    const category = formatCategory(row.category);
+    const raw = String(row.category || '').trim();
+    if (!raw || isNoise(raw)) continue;
     const count = Number(row.count) || 0;
     const high = Number(row.high_count) || 0;
     const medium = Number(row.medium_count) || 0;
-    if (!category || !count || isNoise(category)) continue;
-    if (
-      !best ||
-      count > best.count ||
-      (count === best.count && high > best.high) ||
-      (count === best.count && high === best.high && medium > best.medium) ||
-      (count === best.count &&
-        high === best.high &&
-        medium === best.medium &&
-        String(category).localeCompare(String(best.category)) < 0)
-    ) {
-      best = { category, count, high, medium };
-    }
+    if (!count) continue;
+    usable.push({
+      key: toKey(raw),
+      full: formatFullLabel(raw),
+      label: shortLabelOf(raw),
+      count,
+      high,
+      medium,
+    });
   }
-  return best;
+  if (!usable.length) return null;
+
+  const byTier = (tier) => {
+    const pool =
+      tier === 'high'
+        ? usable.filter((r) => r.high > 0)
+        : tier === 'medium'
+          ? usable.filter((r) => r.medium > 0)
+          : usable;
+    if (!pool.length) return null;
+    pool.sort((a, b) => {
+      const aScore = tier === 'high' ? a.high : tier === 'medium' ? a.medium : a.count;
+      const bScore = tier === 'high' ? b.high : tier === 'medium' ? b.medium : b.count;
+      if (bScore !== aScore) return bScore - aScore;
+      if (b.count !== a.count) return b.count - a.count;
+      return String(a.label).localeCompare(String(b.label));
+    });
+    return pool[0];
+  };
+
+  return byTier('high') || byTier('medium') || byTier('any');
 };
 
 /**
- * Attach `top_category` (+ count) to flattened account rows from each account's
+ * Attach top_category fields to flattened account rows from each account's
  * own analysed posts.
  */
 const attachTopCategoryToAccounts = async (accounts = [], { db } = {}) => {
@@ -59,7 +110,13 @@ const attachTopCategoryToAccounts = async (accounts = [], { db } = {}) => {
 
   const accountIds = accounts.map((a) => a.id).filter((id) => Number.isInteger(id));
   if (!accountIds.length) {
-    return accounts.map((a) => ({ ...a, top_category: null, top_category_count: 0 }));
+    return accounts.map((a) => ({
+      ...a,
+      top_category: null,
+      top_category_key: null,
+      top_category_full: null,
+      top_category_count: 0,
+    }));
   }
 
   const rows = await prisma.$queryRaw`
@@ -103,14 +160,19 @@ const attachTopCategoryToAccounts = async (accounts = [], { db } = {}) => {
     const top = pickTopCategory(byAccount.get(account.id) || []);
     return {
       ...account,
-      top_category: top?.category || null,
+      top_category: top?.label || null,
+      top_category_key: top?.key || null,
+      top_category_full: top?.full || null,
       top_category_count: top?.count || 0,
     };
   });
 };
 
 module.exports = {
-  formatCategory,
+  SHORT_LABELS,
+  toKey,
+  formatFullLabel,
+  shortLabelOf,
   isNoise,
   pickTopCategory,
   attachTopCategoryToAccounts,

@@ -374,6 +374,7 @@ const SocialProfiles = () => {
   const [platformTab, setPlatformTab] = useState(() => readCatalogUrlFilters(location.search).platform || 'all');
   const [query, setQuery] = useState(() => readCatalogUrlFilters(location.search).query);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState(null);
@@ -404,6 +405,38 @@ const SocialProfiles = () => {
     () => profiles.some((p) => p.monitoring_status === 'started'),
     [profiles]
   );
+
+  const categoryOptions = useMemo(() => {
+    const byKey = new Map();
+    for (const row of profiles) {
+      const key = row.top_category_key || (row.top_category ? String(row.top_category) : null);
+      if (!key) continue;
+      if (!byKey.has(key)) {
+        byKey.set(key, row.top_category || row.top_category_full || key);
+      }
+    }
+    return [...byKey.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => String(a.label).localeCompare(String(b.label)));
+  }, [profiles]);
+
+  const visibleProfiles = useMemo(() => {
+    if (categoryFilter === 'all') return profiles;
+    if (categoryFilter === 'uncategorized') {
+      return profiles.filter((row) => !row.top_category_key && !row.top_category);
+    }
+    return profiles.filter(
+      (row) =>
+        row.top_category_key === categoryFilter ||
+        row.top_category === categoryFilter
+    );
+  }, [profiles, categoryFilter]);
+
+  useEffect(() => {
+    if (categoryFilter === 'all' || categoryFilter === 'uncategorized') return;
+    if (categoryOptions.some((o) => o.value === categoryFilter)) return;
+    setCategoryFilter('all');
+  }, [categoryFilter, categoryOptions]);
   useEffect(() => {
     if (!anyMonitoring) return undefined;
     setMonitorNow(Date.now());
@@ -992,6 +1025,20 @@ const SocialProfiles = () => {
             <SelectItem value="paused">Paused</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="h-7 w-[160px] text-[11px]">
+            <SelectValue placeholder="Category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All categories</SelectItem>
+            <SelectItem value="uncategorized">Uncategorized</SelectItem>
+            {categoryOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
         <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto max-h-[calc(100dvh-14rem)]">
@@ -1024,10 +1071,18 @@ const SocialProfiles = () => {
                       </Button>
                   </td>
                 </tr>
+              ) : visibleProfiles.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-3 py-12 text-center">
+                    <p className="text-sm font-medium text-foreground">No profiles match this category</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Try another category filter, or choose All categories.</p>
+                  </td>
+                </tr>
               ) : (
-                profiles.map((row) => {
+                visibleProfiles.map((row) => {
                   const Icon = ICONS[platforms.find((p) => p.slug === row.platform)?.icon] || Globe2;
                   const category = row.top_category || null;
+                  const categoryFull = row.top_category_full || category;
                   const isMonitoring = row.monitoring_status === 'started';
                   const history = buildMonitoringHistory(row.monitoring_logs, row.monitoring_status);
                   const fetchStats = summarizeFetchHistory(row.last_fetched_history, history);
@@ -1070,21 +1125,26 @@ const SocialProfiles = () => {
                           <Icon className="h-3 w-3" /> {row.platform_name || row.platform}
                         </Badge>
                       </td>
-                      <td className="px-2.5 py-2 align-top max-w-[180px]">
+                      <td className="px-2.5 py-2 align-top max-w-[160px]">
                         {category ? (
                           <Badge
                             variant="outline"
                             className="h-5 max-w-full truncate px-1.5 text-[10px] font-medium"
                             title={
                               row.top_category_count
-                                ? `${category} · ${row.top_category_count} analysed post${row.top_category_count === 1 ? '' : 's'}`
-                                : category
+                                ? `${categoryFull} · ${row.top_category_count} analysed post${row.top_category_count === 1 ? '' : 's'}`
+                                : categoryFull
                             }
                           >
                             {category}
                           </Badge>
                         ) : (
-                          <span className="text-[11px] text-muted-foreground">—</span>
+                          <span
+                            className="text-[11px] text-muted-foreground"
+                            title="Not enough analysed posts with a policy category yet"
+                          >
+                            Uncategorized
+                          </span>
                         )}
                       </td>
                       <td className="px-2.5 py-2 align-top whitespace-nowrap">
