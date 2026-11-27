@@ -4434,7 +4434,15 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                                   : 'Frequent Engagers unavailable'
                             }
                         >
-                            <Users className={`h-4 w-4 ${isInEngagersList ? 'text-emerald-600' : ''}`} />
+                            <span className="relative inline-flex">
+                              <Users className={`h-4 w-4 ${isInEngagersList ? 'text-emerald-600' : ''}`} />
+                              {isInEngagersList ? (
+                                <Check
+                                  className="absolute -bottom-1 -right-1 h-2.5 w-2.5 text-emerald-600 bg-background rounded-full"
+                                  strokeWidth={3}
+                                />
+                              ) : null}
+                            </span>
                         </button>
                         )}
 
@@ -5575,7 +5583,15 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
                                   : 'Frequent Engagers unavailable'
                             }
                         >
-                            <Users className={`h-4 w-4 ${already ? 'text-emerald-600' : ''}`} />
+                            <span className="relative inline-flex">
+                              <Users className={`h-4 w-4 ${already ? 'text-emerald-600' : ''}`} />
+                              {already ? (
+                                <Check
+                                  className="absolute -bottom-1 -right-1 h-2.5 w-2.5 text-emerald-600 bg-background rounded-full"
+                                  strokeWidth={3}
+                                />
+                              ) : null}
+                            </span>
                         </button>
                             );
                         })()}
