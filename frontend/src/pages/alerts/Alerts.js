@@ -105,6 +105,7 @@ export default function Alerts() {
   // Numeric columns default high → low (desc). Category defaults A→Z (asc).
   const [postsMatrixSort, setPostsMatrixSort] = useState({ key: 'total', dir: 'desc' });
   const [frequentEngagersOpen, setFrequentEngagersOpen] = useState(false);
+  const [frequentEngagersFocusHandle, setFrequentEngagersFocusHandle] = useState(null);
   const [viewMode, setViewMode] = useState('grid');
   const [alertCategory, setAlertCategory] = useState('all'); // legacy — mirrors active exclusive dim
   // Applied Risk/Virality filters — drive fetch/cache; only changed via Apply Filters.
@@ -2018,6 +2019,14 @@ export default function Alerts() {
     }
   };
 
+  const handleOpenEngagers = (payload = null) => {
+    const handle = String(payload?.handle || payload?.identifier || '')
+      .replace(/^@/, '')
+      .trim();
+    setFrequentEngagersFocusHandle(handle || null);
+    setFrequentEngagersOpen(true);
+  };
+
   const handleOpenAddSource = async (data = null) => {
     const platform = data?.platform;
     const identifier = data?.identifier || data?.handle;
@@ -2980,6 +2989,7 @@ export default function Alerts() {
                                         searchQuery={debouncedSearchQuery}
                                         report={reportsMap[alert?.id]}
                                         onAddSource={handleOpenAddSource}
+                                        onOpenEngagers={handleOpenEngagers}
                                         isInvestigatedResult={alert?.is_investigation}
                                       />
                                     ) : (
@@ -2994,6 +3004,7 @@ export default function Alerts() {
                                         monitoredHandles={monitoredHandles}
                                         report={reportsMap[alert?.id]}
                                         onAddSource={handleOpenAddSource}
+                                        onOpenEngagers={handleOpenEngagers}
                                         isInvestigatedResult={alert?.is_investigation}
                                       />
                                     )}
@@ -3029,9 +3040,13 @@ export default function Alerts() {
 
       <FrequentEngagersDialog
         open={frequentEngagersOpen}
-        onOpenChange={setFrequentEngagersOpen}
+        onOpenChange={(next) => {
+          setFrequentEngagersOpen(next);
+          if (!next) setFrequentEngagersFocusHandle(null);
+        }}
         onAddSource={handleOpenAddSource}
         monitoredHandles={monitoredHandles}
+        initialHandle={frequentEngagersFocusHandle}
       />
 
       {/* ── AI Top Alerts — Full Screen Page ────────────────────────────── */}
@@ -3184,11 +3199,13 @@ export default function Alerts() {
                                   {isYoutube ? (
                                     <YoutubeAlertCard alert={alert} content={contentData} source={sourceData}
                                       onResolve={handleTopAlertResolve} viewMode="grid"
-                                      monitoredHandles={monitoredHandles} onAddSource={handleOpenAddSource} />
+                                      monitoredHandles={monitoredHandles} onAddSource={handleOpenAddSource}
+                                      onOpenEngagers={handleOpenEngagers} />
                                   ) : (
                                     <TwitterAlertCard alert={alert} content={contentData} source={sourceData}
                                       onResolve={handleTopAlertResolve} viewMode="grid"
-                                      monitoredHandles={monitoredHandles} onAddSource={handleOpenAddSource} />
+                                      monitoredHandles={monitoredHandles} onAddSource={handleOpenAddSource}
+                                      onOpenEngagers={handleOpenEngagers} />
                                   )}
                                 </div>
                               );

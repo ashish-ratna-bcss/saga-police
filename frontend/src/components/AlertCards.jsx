@@ -2806,7 +2806,14 @@ const RetweetNetworkDialog = ({ open, onOpenChange, sourceId, sourceHandle, sour
 };
 
 /* ── Frequent Engagers Panel (top-bar dialog) ── */
-export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monitoredHandles = [] }) => {
+export const FrequentEngagersDialog = ({
+    open,
+    onOpenChange,
+    onAddSource,
+    monitoredHandles = [],
+    /** When set (e.g. from alert card Users icon), jump to this account’s engagers. */
+    initialHandle = null,
+}) => {
     const [analyses, setAnalyses] = useState([]);
     const [selectedProfileId, setSelectedProfileId] = useState(null);
     const [days, setDays] = useState(30);
@@ -2823,6 +2830,7 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
     /** Keys of engagers added in this dialog session — flips Add → Monitored immediately. */
     const [justAddedKeys, setJustAddedKeys] = useState(() => new Set());
     const [addingKey, setAddingKey] = useState(null);
+    const focusAppliedRef = useRef(false);
     const LIST_PAGE_SIZE = 20;
     const PAGE_SIZE = 20;
 
@@ -2978,6 +2986,7 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
     // Live list — no background job polling
     useEffect(() => {
         if (open) {
+            focusAppliedRef.current = false;
             loadAnalyses();
             setSelectedHandle(null);
             setSelectedProfileId(null);
@@ -2988,6 +2997,50 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
             setAddingKey(null);
         }
     }, [open]);
+
+    // Card Users icon → open this dialog focused on that account’s engagers list.
+    useEffect(() => {
+        if (!open || loading || focusAppliedRef.current) return;
+        const want = String(initialHandle || '')
+            .replace(/^@/, '')
+            .trim()
+            .toLowerCase();
+        if (!want) return;
+        if (!analyses.length) {
+            // List loaded empty or still waiting — only settle after load finishes.
+            if (!loading) {
+                focusAppliedRef.current = true;
+                setListSearch(want);
+                toast.message(`@${want} is not in Frequent Engagers`, {
+                    description: 'Only monitored profiles with saved posts appear in this list.',
+                });
+            }
+            return;
+        }
+        const match = analyses.find((a) => {
+            const h = String(a.handle || '')
+                .replace(/^@/, '')
+                .trim()
+                .toLowerCase();
+            if (h === want) return true;
+            return (a.platforms || []).some(
+                (pl) =>
+                    String(pl.handle || '')
+                        .replace(/^@/, '')
+                        .trim()
+                        .toLowerCase() === want
+            );
+        });
+        focusAppliedRef.current = true;
+        if (match) {
+            openDetail(match.handle, match.profile_id);
+        } else {
+            setListSearch(want);
+            toast.message(`@${want} is not in Frequent Engagers`, {
+                description: 'Only monitored profiles with saved posts appear in this list.',
+            });
+        }
+    }, [open, initialHandle, analyses, loading]);
 
     // Analysis detail view computed values
     const analysis = selectedAnalysis;
@@ -3385,7 +3438,7 @@ export const FrequentEngagersDialog = ({ open, onOpenChange, onAddSource, monito
     );
 };
 
-export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSource, monitoredHandles = [], viewMode = 'list', searchQuery, hideActions = false, report = null, isInvestigatedResult = false, customClass = '' }) => {
+export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSource, onOpenEngagers, monitoredHandles = [], viewMode = 'list', searchQuery, hideActions = false, report = null, isInvestigatedResult = false, customClass = '' }) => {
     const [showReasonModal, setShowReasonModal] = useState(false);
     const [showFullTextModal, setShowFullTextModal] = useState(false);
     const [downloading, setDownloading] = useState(false);
@@ -3522,22 +3575,23 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
     const [isQuotedExpanded, setIsQuotedExpanded] = useState(false);
     const dropdownRef = useRef(null);
 
-    const addAuthorAsEngager = (e) => {
+    const openEngagersForAuthor = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (!onAddSource) return;
+        if (!onOpenEngagers) return;
         const targetHandle = content?.is_repost
             ? (content.original_author || content.original_author_handle)
             : (content?.author_handle || source?.handle || alert.author_handle);
-        if (!targetHandle) return;
-        onAddSource({
+        if (!targetHandle) {
+            toast.error('No handle available for Frequent Engagers');
+            return;
+        }
+        onOpenEngagers({
+            handle: String(targetHandle).replace(/^@/, '').trim(),
             platform: alert.platform || 'x',
-            identifier: targetHandle,
             display_name: content?.is_repost
                 ? (content.original_author_name || content.original_author)
                 : (source?.name || alert.author),
-            category: 'unknown',
-            page_id: content?.page_id || source?.page_id || alert?.page_id || undefined,
         });
     };
 
@@ -4325,14 +4379,14 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                             />
                         )}
 
-                        {/* Add author to monitoring (same as Plus) — do not open Frequent Engagers dialog. */}
+                        {/* Open Frequent Engagers list for this author (not profile monitoring). */}
                         {!hideActions && (
                         <button
                             type="button"
-                            onClick={addAuthorAsEngager}
-                            disabled={!onAddSource}
-                            className={`p-2 rounded-md transition-colors z-20 relative ${onAddSource ? 'hover:bg-accent text-muted-foreground hover:text-accent-foreground' : 'text-muted-foreground/40 cursor-not-allowed'}`}
-                            title={onAddSource ? 'Add to engagers' : 'Add unavailable'}
+                            onClick={openEngagersForAuthor}
+                            disabled={!onOpenEngagers}
+                            className={`p-2 rounded-md transition-colors z-20 relative ${onOpenEngagers ? 'hover:bg-accent text-muted-foreground hover:text-accent-foreground' : 'text-muted-foreground/40 cursor-not-allowed'}`}
+                            title={onOpenEngagers ? 'Frequent Engagers' : 'Frequent Engagers unavailable'}
                         >
                             <Users className="h-4 w-4" />
                         </button>
@@ -4689,7 +4743,7 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
 };
 TwitterAlertCard.displayName = 'TwitterAlertCard';
 
-export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSource, monitoredHandles = [], viewMode = 'list', searchQuery = '', hideActions = false, report = null, isInvestigatedResult = false, customClass = '' }) => {
+export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSource, onOpenEngagers, monitoredHandles = [], viewMode = 'list', searchQuery = '', hideActions = false, report = null, isInvestigatedResult = false, customClass = '' }) => {
     const [showReasonModal, setShowReasonModal] = useState(false);
     const [showFullTextModal, setShowFullTextModal] = useState(false);
     const [showActionDropdown, setShowActionDropdown] = useState(false);
@@ -5421,23 +5475,25 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                if (!onAddSource) return;
+                                if (!onOpenEngagers) return;
                                 const targetHandle =
-                                    content?.channelId ||
                                     content?.author_handle ||
                                     source?.handle ||
+                                    content?.channelId ||
                                     alert.author_handle;
-                                if (!targetHandle) return;
-                                onAddSource({
+                                if (!targetHandle) {
+                                    toast.error('No handle available for Frequent Engagers');
+                                    return;
+                                }
+                                onOpenEngagers({
+                                    handle: String(targetHandle).replace(/^@/, '').trim(),
                                     platform: 'youtube',
-                                    identifier: targetHandle,
                                     display_name: content?.author_name || source?.name || alert.author,
-                                    category: 'others',
                                 });
                             }}
-                            disabled={!onAddSource}
-                            className={`p-2 rounded-md transition-colors z-20 relative ${onAddSource ? 'hover:bg-accent text-muted-foreground hover:text-accent-foreground' : 'text-muted-foreground/40 cursor-not-allowed'}`}
-                            title={onAddSource ? 'Add to engagers' : 'Add unavailable'}
+                            disabled={!onOpenEngagers}
+                            className={`p-2 rounded-md transition-colors z-20 relative ${onOpenEngagers ? 'hover:bg-accent text-muted-foreground hover:text-accent-foreground' : 'text-muted-foreground/40 cursor-not-allowed'}`}
+                            title={onOpenEngagers ? 'Frequent Engagers' : 'Frequent Engagers unavailable'}
                         >
                             <Users className="h-4 w-4" />
                         </button>
