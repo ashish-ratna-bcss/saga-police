@@ -1031,7 +1031,7 @@ const SocialProfiles = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
-            <SelectItem value="uncategorized">Uncategorized</SelectItem>
+            <SelectItem value="uncategorized">No enough data to categorize</SelectItem>
             {categoryOptions.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
@@ -1141,9 +1141,9 @@ const SocialProfiles = () => {
                         ) : (
                           <span
                             className="text-[11px] text-muted-foreground"
-                            title="Not enough analysed posts with a policy category yet"
+                            title="No enough data to categorize"
                           >
-                            Uncategorized
+                            No enough data to categorize
                           </span>
                         )}
                       </td>
