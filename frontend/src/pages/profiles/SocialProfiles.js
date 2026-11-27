@@ -1042,14 +1042,13 @@ const SocialProfiles = () => {
       </div>
 
         <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto max-h-[calc(100dvh-14rem)]">
-          <table className="text-sm border-collapse w-full" style={{ minWidth: 1080 }}>
+          <table className="text-sm border-collapse w-full" style={{ minWidth: 980 }}>
             <thead className="sticky top-0 z-10 border-b bg-muted/95 text-left text-[11px] text-muted-foreground">
               <tr>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Profile</th>
-                <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Relevance</th>
-                <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Platform</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Category</th>
-                <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Poll</th>
+                <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Platform</th>
+                <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Relevance</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Monitoring</th>
                 <th className="px-2.5 py-2 font-semibold whitespace-nowrap text-right">Actions</th>
               </tr>
@@ -1057,13 +1056,13 @@ const SocialProfiles = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-12 text-center text-muted-foreground">
+                  <td colSpan={6} className="px-3 py-12 text-center text-muted-foreground">
                     <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" /> Loading…
                   </td>
                 </tr>
               ) : profiles.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-12 text-center">
+                  <td colSpan={6} className="px-3 py-12 text-center">
                     <p className="text-sm font-medium text-foreground">No profiles yet</p>
                     <p className="text-xs text-muted-foreground mt-0.5">Add a platform account to start monitoring.</p>
                     <Button size="sm" className="mt-3 h-8 gap-1.5" onClick={openAddProfile}>
@@ -1073,7 +1072,7 @@ const SocialProfiles = () => {
                 </tr>
               ) : visibleProfiles.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-12 text-center">
+                  <td colSpan={6} className="px-3 py-12 text-center">
                     <p className="text-sm font-medium text-foreground">No profiles match this category</p>
                     <p className="text-xs text-muted-foreground mt-0.5">Try another category filter, or choose All categories.</p>
                   </td>
@@ -1117,14 +1116,6 @@ const SocialProfiles = () => {
                           </p>
                         ) : null}
                       </td>
-                      <td className="px-2.5 py-2 align-top">
-                        <ProfileRelevanceBadge row={row} />
-                      </td>
-                      <td className="px-2.5 py-2 align-top whitespace-nowrap">
-                        <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px]">
-                          <Icon className="h-3 w-3" /> {row.platform_name || row.platform}
-                        </Badge>
-                      </td>
                       <td className="px-2.5 py-2 align-top max-w-[160px]">
                         {category ? (
                           <Badge
@@ -1148,9 +1139,12 @@ const SocialProfiles = () => {
                         )}
                       </td>
                       <td className="px-2.5 py-2 align-top whitespace-nowrap">
-                        <span className="text-[11px] text-muted-foreground">
-                          {formatPollInterval(row.poll_interval_minutes)}
-                        </span>
+                        <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px]">
+                          <Icon className="h-3 w-3" /> {row.platform_name || row.platform}
+                        </Badge>
+                      </td>
+                      <td className="px-2.5 py-2 align-top">
+                        <ProfileRelevanceBadge row={row} />
                       </td>
                       <td className="px-2.5 py-2 align-top">
                         <div className="flex items-center gap-1 flex-wrap">
@@ -1345,6 +1339,9 @@ const SocialProfiles = () => {
                             </PopoverContent>
                           </Popover>
                         </div>
+                        <p className="mt-1 text-[10px] text-muted-foreground tabular-nums">
+                          {formatPollInterval(row.poll_interval_minutes)}
+                        </p>
                       </td>
                       <td className="px-2.5 py-2 align-top">
                         <div className="flex justify-end gap-1">
