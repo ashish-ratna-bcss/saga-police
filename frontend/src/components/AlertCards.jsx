@@ -3520,11 +3520,26 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
     const [isTranslating, setIsTranslating] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
     const [isQuotedExpanded, setIsQuotedExpanded] = useState(false);
-    const [showRetweetNetworkDialog, setShowRetweetNetworkDialog] = useState(false);
     const dropdownRef = useRef(null);
-    const sourceIdForRetweetNetwork = content?.source_id || alert?.source_id || null;
-    const sourceHandleForRetweetNetwork = content?.author_handle || source?.handle || alert?.author_handle || null;
-    const canOpenRetweetNetwork = (alert?.platform === 'x' || alert?.platform === 'twitter') && (sourceIdForRetweetNetwork || sourceHandleForRetweetNetwork);
+
+    const addAuthorAsEngager = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!onAddSource) return;
+        const targetHandle = content?.is_repost
+            ? (content.original_author || content.original_author_handle)
+            : (content?.author_handle || source?.handle || alert.author_handle);
+        if (!targetHandle) return;
+        onAddSource({
+            platform: alert.platform || 'x',
+            identifier: targetHandle,
+            display_name: content?.is_repost
+                ? (content.original_author_name || content.original_author)
+                : (source?.name || alert.author),
+            category: 'unknown',
+            page_id: content?.page_id || source?.page_id || alert?.page_id || undefined,
+        });
+    };
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -4310,21 +4325,16 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                             />
                         )}
 
-                        {/* Relation button — alerts only (not catalog All Posts). Opens dialog; analysis loads inside. */}
+                        {/* Add author to monitoring (same as Plus) — do not open Frequent Engagers dialog. */}
                         {!hideActions && (
                         <button
-                            onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                if (!canOpenRetweetNetwork) return;
-                                setShowRetweetNetworkDialog(true);
-                            }}
-                            disabled={!canOpenRetweetNetwork}
-                            className={`p-2 rounded-md transition-colors z-20 relative ${canOpenRetweetNetwork ? 'hover:bg-accent text-muted-foreground hover:text-accent-foreground' : 'text-muted-foreground/40 cursor-not-allowed'}`}
-                            title={canOpenRetweetNetwork ? 'Frequent Engagers' : 'Only available for X (Twitter)'}
+                            type="button"
+                            onClick={addAuthorAsEngager}
+                            disabled={!onAddSource}
+                            className={`p-2 rounded-md transition-colors z-20 relative ${onAddSource ? 'hover:bg-accent text-muted-foreground hover:text-accent-foreground' : 'text-muted-foreground/40 cursor-not-allowed'}`}
+                            title={onAddSource ? 'Add to engagers' : 'Add unavailable'}
                         >
                             <Users className="h-4 w-4" />
-                            {!canOpenRetweetNetwork && <span className="absolute inset-0 flex items-center justify-center"><span className="block w-5 h-[1.5px] bg-muted-foreground/50 rotate-[-45deg] rounded-full" /></span>}
                         </button>
                         )}
 
@@ -4672,16 +4682,6 @@ export const TwitterAlertCard = ({ alert, content, source, onResolve, onAddSourc
                     isOpen={isShareModalOpen}
                     onClose={() => setIsShareModalOpen(false)}
                     initialText={shareText}
-                />
-                <RetweetNetworkDialog
-                    open={showRetweetNetworkDialog}
-                    onOpenChange={setShowRetweetNetworkDialog}
-                    sourceId={sourceIdForRetweetNetwork}
-                    sourceHandle={sourceHandleForRetweetNetwork}
-                    sourceName={source?.name || alert?.author || sourceHandleForRetweetNetwork}
-                    contentId={content?.external_id || alert?.external_id || content?.id || null}
-                    onAddSource={onAddSource}
-                    monitoredHandles={monitoredHandles}
                 />
             </div>
         </>
@@ -5417,12 +5417,29 @@ export const YoutubeAlertCard = ({ alert, content, source, onResolve, onAddSourc
 
                         {!hideActions && (
                         <button
-                            disabled
-                            className="p-2 rounded-md text-muted-foreground/40 cursor-not-allowed transition-colors relative"
-                            title="Only available for X (Twitter)"
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (!onAddSource) return;
+                                const targetHandle =
+                                    content?.channelId ||
+                                    content?.author_handle ||
+                                    source?.handle ||
+                                    alert.author_handle;
+                                if (!targetHandle) return;
+                                onAddSource({
+                                    platform: 'youtube',
+                                    identifier: targetHandle,
+                                    display_name: content?.author_name || source?.name || alert.author,
+                                    category: 'others',
+                                });
+                            }}
+                            disabled={!onAddSource}
+                            className={`p-2 rounded-md transition-colors z-20 relative ${onAddSource ? 'hover:bg-accent text-muted-foreground hover:text-accent-foreground' : 'text-muted-foreground/40 cursor-not-allowed'}`}
+                            title={onAddSource ? 'Add to engagers' : 'Add unavailable'}
                         >
                             <Users className="h-4 w-4" />
-                            <span className="absolute inset-0 flex items-center justify-center"><span className="block w-5 h-[1.5px] bg-muted-foreground/50 rotate-[-45deg] rounded-full" /></span>
                         </button>
                         )}
 
