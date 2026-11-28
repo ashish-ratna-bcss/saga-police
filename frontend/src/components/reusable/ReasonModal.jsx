@@ -27,6 +27,25 @@ const cleanPostText = (t) => (t || '')
     .replace(/\*\*Intent Detected:\*\*.*?(?:\n\n|\n|$)/g, '')
     .trim();
 
+/** Human label for classifyEventRelevance reason codes (event Detected Content). */
+const eventInclusionLabel = (reason) => {
+    switch (String(reason || '')) {
+        case 'direct_title_match':
+            return 'Matched the event title in the post text';
+        case 'anchored_keyword_match':
+        case 'specific_keyword_match':
+            return 'Matched one or more event monitoring keywords';
+        case 'unanchored_keyword_with_post_anchor':
+            return 'Matched an event keyword with location/title support';
+        case 'location_and_subject_match':
+            return 'Matched the event location plus related subject terms (not a configured keyword)';
+        case 'multi_title_token_match':
+            return 'Matched words from the event title (not a configured keyword)';
+        default:
+            return reason ? `Included via ${String(reason).replace(/_/g, ' ')}` : null;
+    }
+};
+
 const extractMediaItems = (alert, content) => {
     const raw = [
         ...(Array.isArray(alert?.content_details?.media) ? alert.content_details.media : []),
@@ -236,11 +255,37 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
     const seenKeywords = new Set();
     rawKeywords.forEach(kw => {
         const str = typeof kw === 'string' ? kw.trim() : (kw?.keyword || kw?.name || String(kw || '')).trim();
+        if (kw && typeof kw === 'object' && String(kw.type || '').toLowerCase() === 'anchor') return;
         if (str && !seenKeywords.has(str.toLowerCase())) {
             seenKeywords.add(str.toLowerCase());
             detectedKeywords.push(typeof kw === 'object' ? kw : { keyword: str });
         }
     });
+
+    const inclusionWhy = isEventPost
+        ? eventInclusionLabel(content?.relevance_reason || alert?.relevance_reason)
+        : null;
+    const inclusionSignals = [];
+    if (isEventPost) {
+        const seenSig = new Set();
+        const pushSig = (v) => {
+            const s = String(v || '').trim();
+            if (!s) return;
+            const key = s.toLowerCase();
+            if (seenSig.has(key)) return;
+            seenSig.add(key);
+            inclusionSignals.push(s);
+        };
+        (Array.isArray(content?.relevance_matched) ? content.relevance_matched : []).forEach(pushSig);
+        (Array.isArray(alert?.relevance_matched) ? alert.relevance_matched : []).forEach(pushSig);
+        (Array.isArray(content?.relevance_anchors) ? content.relevance_anchors : []).forEach(pushSig);
+        (Array.isArray(alert?.relevance_anchors) ? alert.relevance_anchors : []).forEach(pushSig);
+        rawKeywords.forEach((kw) => {
+            if (kw && typeof kw === 'object' && String(kw.type || '').toLowerCase() === 'anchor') {
+                pushSig(kw.keyword || kw.name);
+            }
+        });
+    }
 
     const riskScore = Math.max(
         alert?.llm_analysis?.score || 0,
@@ -503,15 +548,33 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
                                                     </Badge>
                                                 ))}
                                             </div>
-                                        ) : isEventPost && isPendingAnalysis ? (
-                                            <span className="text-amber-600 dark:text-amber-400 italic text-xs">
-                                                No event keyword in the post text yet — waiting on analysis (post may still match via location/title).
-                                            </span>
                                         ) : (
-                                            <span className="text-gray-400 italic">None detected</span>
+                                            <span className="text-gray-400 italic">
+                                                None — no configured event keyword appears in this post
+                                            </span>
                                         )}
                                     </td>
                                 </tr>
+
+                                {isEventPost && (inclusionWhy || inclusionSignals.length > 0) && (
+                                    <tr className="border-b">
+                                        <td className="py-3 pr-4 font-medium text-gray-600 dark:text-gray-400 align-top">Why in this event</td>
+                                        <td className="py-3 space-y-2">
+                                            {inclusionWhy && (
+                                                <p className="text-sm text-foreground leading-relaxed">{inclusionWhy}</p>
+                                            )}
+                                            {inclusionSignals.length > 0 && (
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {inclusionSignals.map((sig) => (
+                                                        <Badge key={sig} variant="outline" className="text-xs capitalize bg-sky-50 text-sky-800 border-sky-200 dark:bg-sky-950/30 dark:text-sky-300 dark:border-sky-800">
+                                                            {sig}
+                                                        </Badge>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                )}
 
                                 {isEventPost && textHashtags.length > 0 && (
                                     <tr className="border-b">

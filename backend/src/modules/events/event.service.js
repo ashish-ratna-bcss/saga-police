@@ -362,6 +362,8 @@ const listEventContent = async (id, { page = 1, limit = 50, platform = 'all', db
         ...hydrated,
         matched_keywords,
         relevance_reason: relevance?.reason || null,
+        relevance_matched: Array.isArray(relevance?.matched) ? relevance.matched : [],
+        relevance_anchors: Array.isArray(relevance?.anchors) ? relevance.anchors : [],
         repost_count: r._repost_count || 1,
       };
     }),

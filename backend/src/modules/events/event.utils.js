@@ -381,10 +381,7 @@ const resolveDetectedEventKeywords = ({
   if (Array.isArray(analysisMatched)) {
     for (const kw of analysisMatched) push(kw);
   }
-  // Relevance via location/title only — still show what tied the post to the event.
-  if (!out.length && relevance && Array.isArray(relevance.anchors)) {
-    for (const a of relevance.anchors) push({ keyword: a, type: 'anchor' });
-  }
+  // Location/title anchors are not keywords — Eye modal shows them under "Why in this event".
   return out;
 };
 
