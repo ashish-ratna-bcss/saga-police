@@ -17,7 +17,21 @@ function isBusyError(err) {
   return status === 429 || err?.code === 'EBUSY' || /busy|try again shortly/i.test(detail);
 }
 
+/**
+ * Media that Whisper/ffmpeg cannot decode (corrupt file, image URL, empty
+ * container, etc.). These come back as HTTP 500 with ffmpeg's config dump in
+ * the detail — treating them as transient left video posts stuck on
+ * "Analyzing…" forever and blocked sentiment on caption text alone.
+ */
+function isPermanentMediaError(err) {
+  const detail = String(err?.response?.data?.detail || err?.message || '');
+  return /enable-lib[a-z]|ffmpeg version|Invalid data found|does not contain any stream|moov atom not found|Protocol not found|Error opening input|Could not find codec|No such file or directory|HTTP Error 4\d\d|Download failed|Downloaded media is empty|File too large/i.test(
+    detail
+  );
+}
+
 function isTransientError(err) {
+  if (isPermanentMediaError(err)) return false;
   const status = err?.response?.status;
   return (
     isBusyError(err) ||
