@@ -142,6 +142,8 @@ const mapYouTubePost = (item, accountId, channelMeta) => {
     author_name: channelMeta?.snippet?.title || snippet.channelTitle || null,
     author_handle: channelMeta?.snippet?.customUrl || null,
     media_type: 'video',
+    // Poster image only (no direct mp4 from Data API). Callers must not treat
+    // this as a Whisper/ffmpeg input — event media mapping stores it as photo.
     media_urls: thumbUrl ? [thumbUrl] : [],
     engagement: {},
     posted_at: postedAt,

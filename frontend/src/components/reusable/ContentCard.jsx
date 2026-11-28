@@ -163,6 +163,51 @@ const extractYouTubeId = (value) => {
   return null;
 };
 
+/**
+ * Poster + real "Watch on YouTube" link. Avoids iframe embeds: many news channels
+ * (e.g. ETV) block embedding and YouTube's error page dumps raw HTML into the card.
+ */
+const YouTubeMediaPlayer = ({ youtubeId, poster, watchUrl, compact }) => {
+  const href = watchUrl || `https://www.youtube.com/watch?v=${youtubeId}`;
+  const posterSrc =
+    poster && !/youtube\.com\/watch|youtu\.be\//i.test(String(poster))
+      ? poster
+      : `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`;
+
+  return (
+    <div
+      className={`relative w-full overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700 group bg-zinc-900 ${
+        compact ? 'aspect-square' : 'aspect-video'
+      }`}
+    >
+      <img
+        src={posterSrc}
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover"
+        loading="lazy"
+        onError={(e) => {
+          e.currentTarget.style.opacity = '0.2';
+        }}
+      />
+      <div className="absolute inset-0 bg-black/40" />
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 text-white hover:bg-black/20 transition-colors"
+        title="Watch on YouTube"
+      >
+        <div className="w-14 h-14 rounded-full bg-red-600/95 flex items-center justify-center shadow-lg">
+          <Play className="h-7 w-7 text-white ml-0.5 fill-white" />
+        </div>
+        <span className="px-3 py-1.5 rounded-md bg-black/70 text-xs font-medium backdrop-blur-sm">
+          Watch on YouTube
+        </span>
+      </a>
+    </div>
+  );
+};
+
 /* ──────────────────────────────────────────────
    Facebook-specific fallback components
    ────────────────────────────────────────────── */
@@ -276,38 +321,40 @@ const MediaGrid = ({ media, platformTheme, platform, contentUrl, contentId }) =>
       document.body.removeChild(link);
     };
 
-    if (type === 'video') {
-      const isYouTube =
-        platform === 'youtube' ||
-        url.includes('youtube.com') ||
-        url.includes('youtu.be') ||
-        String(contentUrl || '').includes('youtube.com') ||
-        String(contentUrl || '').includes('youtu.be');
-      const youtubeId =
-        extractYouTubeId(contentId) ||
-        extractYouTubeId(contentUrl) ||
-        extractYouTubeId(url);
+    const youtubeId =
+      extractYouTubeId(contentId) ||
+      extractYouTubeId(contentUrl) ||
+      extractYouTubeId(url);
+    const isYouTube =
+      platform === 'youtube' ||
+      Boolean(youtubeId) ||
+      String(url || '').includes('youtube.com') ||
+      String(url || '').includes('youtu.be') ||
+      String(contentUrl || '').includes('youtube.com') ||
+      String(contentUrl || '').includes('youtu.be');
 
+    if (isYouTube && youtubeId) {
+      const poster =
+        preview ||
+        (/\.(jpe?g|png|webp)(\?|$)/i.test(String(url)) || /i\.ytimg\.com/i.test(String(url))
+          ? url
+          : null);
+      return (
+        <div key={idx} className="relative group">
+          <YouTubeMediaPlayer
+            youtubeId={youtubeId}
+            poster={poster}
+            watchUrl={contentUrl || `https://www.youtube.com/watch?v=${youtubeId}`}
+            compact={validItems.length > 1}
+          />
+        </div>
+      );
+    }
+
+    if (type === 'video') {
       return (
         <div key={idx} className={`relative rounded-xl overflow-hidden ${platformTheme.border} border group ${validItems.length > 1 ? 'aspect-square' : 'aspect-video'} bg-zinc-900`}>
-          {isYouTube && youtubeId ? (
-            <iframe
-              src={`https://www.youtube.com/embed/${youtubeId}?rel=0&modestbranding=1`}
-              title={`youtube-${youtubeId}`}
-              className="absolute top-0 left-0 w-full h-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              referrerPolicy="strict-origin-when-cross-origin"
-              allowFullScreen
-            />
-          ) : isYouTube ? (
-            <ReactPlayer
-              url={contentUrl || url}
-              controls
-              width="100%"
-              height="100%"
-              style={{ position: 'absolute', top: 0, left: 0 }}
-            />
-          ) : isFacebook ? (
+          {isFacebook ? (
             <FacebookVideoPlayer videoUrl={videoUrl || url} preview={preview} contentUrl={contentUrl} fallbackUrls={fallbackUrls} />
           ) : (
             <div className="absolute top-0 left-0 w-full h-full">

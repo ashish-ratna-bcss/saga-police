@@ -148,16 +148,31 @@ const getCatalogPostSearchText = (post) => {
   return parts.join(' ');
 };
 
+const looksLikeImageMediaUrl = (url) => {
+  const u = String(url || '');
+  if (!u) return false;
+  if (/\.(jpe?g|png|gif|webp|bmp|svg)(\?|$)/i.test(u)) return true;
+  if (/i\.ytimg\.com|img\.youtube\.com|(^|\/\/)ytimg\.com\//i.test(u)) return true;
+  if (/maxresdefault|hqdefault|mqdefault|sddefault|hq720|default\.jpg/i.test(u)) return true;
+  return false;
+};
+
 const mediaItemsFromPostUrls = (mediaUrls, mediaType) => {
   const urls = Array.isArray(mediaUrls) ? mediaUrls : asJson(mediaUrls, []);
   const list = Array.isArray(urls) ? urls.filter(Boolean) : [];
   const preferVideo = String(mediaType || '').toLowerCase() === 'reel' || String(mediaType || '').toLowerCase() === 'video';
   return list.map((url) => {
     const u = String(url);
-    const isVideo =
-      preferVideo ||
+    // YouTube catalog stores poster JPEGs in media_urls with media_type=video —
+    // keep them as photos so Whisper is never pointed at a thumbnail.
+    if (looksLikeImageMediaUrl(u)) {
+      return { type: 'photo', url: u, preview: u };
+    }
+    const isVideoFile =
       /\.(mp4|mov|webm|m3u8)(\?|$)/i.test(u) ||
+      /video\.twimg\.com/i.test(u) ||
       /\/video\//i.test(u);
+    const isVideo = isVideoFile || (preferVideo && !/youtube\.com\/watch|youtu\.be\//i.test(u));
     return { type: isVideo ? 'video' : 'photo', url: u, preview: u };
   });
 };

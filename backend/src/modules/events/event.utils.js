@@ -243,6 +243,28 @@ const hydrateEventMedia = (row) => {
     });
   }
 
+  // Repair YouTube rows that stored the poster JPEG as type:"video" url.
+  if (String(row.platform || '').toLowerCase() === 'youtube' && media.length) {
+    const watchUrl =
+      (row.url && /youtube\.com\/watch|youtu\.be\//i.test(String(row.url)) && String(row.url)) ||
+      (row.external_id ? `https://www.youtube.com/watch?v=${row.external_id}` : null);
+    media = media.map((item) => {
+      if (!item || typeof item !== 'object') return item;
+      const current = String(item.video_url || item.url || '');
+      const isPoster =
+        /\.(jpe?g|png|gif|webp)(\?|$)/i.test(current) ||
+        /i\.ytimg\.com|img\.youtube\.com|maxresdefault|hqdefault/i.test(current);
+      if (!isPoster) return item;
+      return {
+        ...item,
+        type: 'photo',
+        url: current,
+        preview: item.preview || current,
+        ...(watchUrl ? { content_url: watchUrl } : {}),
+      };
+    });
+  }
+
   return serialize({
     id: String(row.id),
     platform: row.platform,

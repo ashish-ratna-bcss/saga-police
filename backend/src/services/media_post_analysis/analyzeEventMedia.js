@@ -30,25 +30,48 @@ function extractFirstImageUrl(mediaField) {
 }
 
 const VIDEO_URL_RE = /\.(mp4|m4v|mov|webm|avi|mkv)(\?.*)?$/i;
-const looksLikeVideoUrl = (url) => VIDEO_URL_RE.test(String(url || '')) || String(url || '').toLowerCase().includes('.m3u8');
+const IMAGE_URL_RE = /\.(jpe?g|png|gif|webp|bmp|svg)(\?|$)/i;
+
+/** Poster/thumbnail CDNs and image files — never feed these to Whisper/ffmpeg. */
+const looksLikeImageUrl = (url) => {
+  const u = String(url || '');
+  if (!u) return false;
+  if (IMAGE_URL_RE.test(u)) return true;
+  if (/i\.ytimg\.com|img\.youtube\.com|(^|\/\/)ytimg\.com\//i.test(u)) return true;
+  if (/maxresdefault|hqdefault|mqdefault|sddefault|hq720|default\.jpg/i.test(u)) return true;
+  return false;
+};
 
 /**
- * Finds a real video url in the event media field. Items already carry an
- * explicit type when the scan-time mapper knows it (normalizeFbMedia /
- * mapBlugateTweet in event.scan.service.js already resolve the real video
- * file, not a thumbnail, for Facebook/X) -- trust that first, then fall back
- * to sniffing the url extension the same way extractFirstImageUrl above
- * sniffs it to *exclude* video.
+ * Direct media file Whisper/ffmpeg can download. Not a YouTube/Facebook watch
+ * page, and not a JPEG poster that catalog/YouTube mistakenly typed as video.
+ */
+const looksLikeDirectVideoFileUrl = (url) => {
+  const u = String(url || '');
+  if (!u || looksLikeImageUrl(u)) return false;
+  if (/youtube\.com\/watch|youtu\.be\/|facebook\.com\/.+\/videos\//i.test(u)) return false;
+  return (
+    VIDEO_URL_RE.test(u) ||
+    u.toLowerCase().includes('.m3u8') ||
+    /video\.twimg\.com|(?:fbcdn\.net|cdninstagram\.com).*\/.+\.mp4/i.test(u)
+  );
+};
+
+/**
+ * Finds a real downloadable video file url in the event media field.
+ * Do not trust type:"video" alone — YouTube catalog rows often store
+ * i.ytimg.com posters with type video.
  */
 function extractFirstVideoUrl(mediaField) {
   if (!mediaField || !Array.isArray(mediaField)) return null;
   for (const item of mediaField) {
-    if (typeof item === 'string' && looksLikeVideoUrl(item)) return item;
+    if (typeof item === 'string') {
+      if (looksLikeDirectVideoFileUrl(item)) return item;
+      continue;
+    }
     if (typeof item === 'object' && item) {
       const url = item.video_url || item.url;
-      if (!url) continue;
-      const declaredVideo = ['video', 'animated_gif'].includes(String(item.type || '').toLowerCase());
-      if (declaredVideo || looksLikeVideoUrl(url)) return url;
+      if (url && looksLikeDirectVideoFileUrl(url)) return url;
     }
   }
   return null;
