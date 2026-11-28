@@ -177,9 +177,37 @@ const extractYouTubeId = (value) => {
   return null;
 };
 
+/** Load YouTube IFrame API once (for embed error codes 101/150 = embedding disabled). */
+let ytApiPromise = null;
+const loadYouTubeApi = () => {
+  if (typeof window === 'undefined') return Promise.reject(new Error('no window'));
+  if (window.YT?.Player) return Promise.resolve(window.YT);
+  if (ytApiPromise) return ytApiPromise;
+  ytApiPromise = new Promise((resolve) => {
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      if (typeof prev === 'function') prev();
+      resolve(window.YT);
+    };
+    if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(tag);
+    }
+    // Already loading / ready race
+    const t = setInterval(() => {
+      if (window.YT?.Player) {
+        clearInterval(t);
+        resolve(window.YT);
+      }
+    }, 50);
+  });
+  return ytApiPromise;
+};
+
 /**
- * Poster + real "Watch on YouTube" link. Avoids iframe embeds: many news channels
- * (e.g. ETV) block embedding and YouTube's error page dumps raw HTML into the card.
+ * Play in-card via YouTube embed. If the channel blocks embedding, fall back to
+ * poster + Watch on YouTube (avoids the raw-HTML error page inside the iframe).
  */
 const YouTubeMediaPlayer = ({ youtubeId, poster, watchUrl, compact }) => {
   const href = watchUrl || `https://www.youtube.com/watch?v=${youtubeId}`;
@@ -187,37 +215,91 @@ const YouTubeMediaPlayer = ({ youtubeId, poster, watchUrl, compact }) => {
     poster && !/youtube\.com\/watch|youtu\.be\//i.test(String(poster))
       ? poster
       : `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`;
+  const hostRef = React.useRef(null);
+  const playerRef = React.useRef(null);
+  const [mode, setMode] = React.useState('embed'); // embed | fallback
+  const sizeClass = compact ? 'h-40' : 'h-52';
+
+  React.useEffect(() => {
+    if (mode !== 'embed' || !youtubeId || !hostRef.current) return undefined;
+    let cancelled = false;
+    loadYouTubeApi()
+      .then((YT) => {
+        if (cancelled || !hostRef.current) return;
+        if (playerRef.current?.destroy) {
+          try { playerRef.current.destroy(); } catch (_) { /* ignore */ }
+          playerRef.current = null;
+        }
+        hostRef.current.innerHTML = '';
+        const mount = document.createElement('div');
+        hostRef.current.appendChild(mount);
+        playerRef.current = new YT.Player(mount, {
+          videoId: youtubeId,
+          width: '100%',
+          height: '100%',
+          playerVars: { rel: 0, modestbranding: 1, playsinline: 1 },
+          events: {
+            onError: (e) => {
+              // 101 / 150 = owner disabled embedding on other sites
+              const code = Number(e?.data);
+              if (code === 101 || code === 150 || code === 100 || code === 2) {
+                setMode('fallback');
+              }
+            },
+          },
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setMode('fallback');
+      });
+    return () => {
+      cancelled = true;
+      if (playerRef.current?.destroy) {
+        try { playerRef.current.destroy(); } catch (_) { /* ignore */ }
+        playerRef.current = null;
+      }
+    };
+  }, [youtubeId, mode]);
+
+  if (mode === 'fallback') {
+    return (
+      <div
+        className={`relative w-full overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700 group bg-zinc-900 ${sizeClass}`}
+      >
+        <img
+          src={posterSrc}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+          loading="lazy"
+          onError={(e) => { e.currentTarget.style.opacity = '0.2'; }}
+        />
+        <div className="absolute inset-0 bg-black/40" />
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 text-white hover:bg-black/20 transition-colors"
+          title="Watch on YouTube"
+        >
+          <div className="w-14 h-14 rounded-full bg-red-600/95 flex items-center justify-center shadow-lg">
+            <Play className="h-7 w-7 text-white ml-0.5 fill-white" />
+          </div>
+          <span className="px-3 py-1.5 rounded-md bg-black/70 text-xs font-medium backdrop-blur-sm">
+            Watch on YouTube
+          </span>
+          <span className="text-[10px] text-white/80 px-2 text-center">
+            Embedding blocked by the channel — open on YouTube
+          </span>
+        </a>
+      </div>
+    );
+  }
 
   return (
     <div
-      className={`relative w-full overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700 group bg-zinc-900 ${
-        compact ? 'h-40' : 'h-52'
-      }`}
+      className={`relative w-full overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700 group bg-zinc-900 ${sizeClass}`}
     >
-      <img
-        src={posterSrc}
-        alt=""
-        className="absolute inset-0 h-full w-full object-cover"
-        loading="lazy"
-        onError={(e) => {
-          e.currentTarget.style.opacity = '0.2';
-        }}
-      />
-      <div className="absolute inset-0 bg-black/40" />
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 text-white hover:bg-black/20 transition-colors"
-        title="Watch on YouTube"
-      >
-        <div className="w-14 h-14 rounded-full bg-red-600/95 flex items-center justify-center shadow-lg">
-          <Play className="h-7 w-7 text-white ml-0.5 fill-white" />
-        </div>
-        <span className="px-3 py-1.5 rounded-md bg-black/70 text-xs font-medium backdrop-blur-sm">
-          Watch on YouTube
-        </span>
-      </a>
+      <div ref={hostRef} className="absolute inset-0 [&>div]:h-full [&>div]:w-full [&_iframe]:h-full [&_iframe]:w-full" />
     </div>
   );
 };
