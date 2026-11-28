@@ -208,10 +208,15 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
         : [];
 
     // Auto-extract hashtags from post text if none populated in database yet
-    const isEventPost = Array.isArray(content?.event_ids) && content.event_ids.length > 0;
+    const isEventPost =
+        (Array.isArray(content?.event_ids) && content.event_ids.length > 0) ||
+        (Array.isArray(alert?.event_ids) && alert.event_ids.length > 0);
     const textHashtags = (postText.match(/#[^\s#.,!?:;()[\]{}]+/g) || []).map(h => ({ keyword: h, type: 'hashtag' }));
 
     const rawKeywords = [
+        // Event content API attaches keywords matched against the event's keyword list.
+        ...(Array.isArray(content?.matched_keywords) ? content.matched_keywords : []),
+        ...(Array.isArray(alert?.matched_keywords) ? alert.matched_keywords : []),
         ...(Array.isArray(alert?.matched_keywords_normalized) ? alert.matched_keywords_normalized : []),
         ...(Array.isArray(alert?.threat_details?.highlights) ? alert.threat_details.highlights : []),
         ...(Array.isArray(alert?.triggered_keywords) ? alert.triggered_keywords : []),
@@ -219,8 +224,8 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
         ...(Array.isArray(content?.analysis_result?.matched_keywords) ? content.analysis_result.matched_keywords : []),
         ...(Array.isArray(alert?.analysis_result?.keywords) ? alert.analysis_result.keywords : []),
         ...(Array.isArray(content?.analysis_result?.keywords) ? content.analysis_result.keywords : []),
-        ...(Array.isArray(content?.matched_keywords) ? content.matched_keywords : []),
         ...(Array.isArray(analysis?.triggered_keywords) ? analysis.triggered_keywords : []),
+        ...(Array.isArray(analysis?.matched_keywords) ? analysis.matched_keywords : []),
         ...(Array.isArray(alert?.highlights) ? alert.highlights : []),
         // Event posts: "Detected Keywords" are the event's own keywords only. The post's own
         // hashtags are listed separately below so they are not mistaken for event keywords.

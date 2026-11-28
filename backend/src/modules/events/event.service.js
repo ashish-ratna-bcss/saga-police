@@ -1,5 +1,14 @@
 const dbOf = require('../../lib/dbOf');
-const { hydrateEvent, hydrateEventMedia, normalizeEventPayload, asJson, resolveEventPlatforms, postedAtRangeWhere, keywordMatchesText } = require('./event.utils');
+const {
+  hydrateEvent,
+  hydrateEventMedia,
+  normalizeEventPayload,
+  asJson,
+  resolveEventPlatforms,
+  postedAtRangeWhere,
+  keywordMatchesText,
+  matchEventKeywordsInText,
+} = require('./event.utils');
 const { classifyEventRelevance, evaluateThreatRisk } = require('./eventTelemetry.service');
 const { getGenericTokens } = require('./event.corpus.service');
 const cfg = require('./event.config');
@@ -327,8 +336,25 @@ const listEventContent = async (id, { page = 1, limit = 50, platform = 'all', db
   const pagedRows = finalRows.slice(skip, skip + take);
 
   const hasMore = skip + pagedRows.length < total;
+  const eventKeywords = asJson(event.keywords, []) || [];
   return {
-    content: pagedRows.map((r) => ({ ...hydrateEventMedia(r), repost_count: r._repost_count || 1 })),
+    content: pagedRows.map((r) => {
+      const hydrated = hydrateEventMedia(r);
+      const ar = asJson(r.analysis_result, {}) || {};
+      const fromAnalysis = Array.isArray(ar.matched_keywords) ? ar.matched_keywords : [];
+      const fromEvent = matchEventKeywordsInText(
+        hydrated?.text || r.text || '',
+        eventKeywords,
+        typeof ar.english_text === 'string' ? ar.english_text : ''
+      );
+      // Prefer live match against the event's current keywords; fall back to analysis payload.
+      const matched_keywords = fromEvent.length ? fromEvent : fromAnalysis;
+      return {
+        ...hydrated,
+        matched_keywords,
+        repost_count: r._repost_count || 1,
+      };
+    }),
     has_more: hasMore,
     pagination: {
       total,

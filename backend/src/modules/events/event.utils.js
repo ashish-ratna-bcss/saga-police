@@ -315,6 +315,34 @@ const keywordMatchesText = (keyword, text) => {
 };
 
 /**
+ * Which of the event's keywords appear in this post text (and optional English
+ * translation). Used so Post & Analysis Details can show Detected Keywords even
+ * while AI analysis is still running / has no matched_keywords yet.
+ */
+const matchEventKeywordsInText = (text, eventKeywords, englishText = '') => {
+  const list = Array.isArray(eventKeywords) ? eventKeywords : [];
+  const out = [];
+  const seen = new Set();
+  for (const entry of list) {
+    const raw = typeof entry === 'string' ? entry : entry?.keyword;
+    const kw = String(raw || '').trim();
+    if (!kw) continue;
+    if (!keywordMatchesText(kw, text) && !(englishText && keywordMatchesText(kw, englishText))) {
+      continue;
+    }
+    const key = kw.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(
+      entry && typeof entry === 'object'
+        ? { ...entry, keyword: kw }
+        : { keyword: kw }
+    );
+  }
+  return out;
+};
+
+/**
  * Engagement score from whatever metrics a platform reports; null when it
  * reports none (so "no data" is never treated as "zero engagement").
  */
@@ -337,6 +365,7 @@ const engagementScore = (engagement) => {
 
 module.exports = {
   keywordMatchesText,
+  matchEventKeywordsInText,
   engagementScore,
   serialize,
   asJson,
