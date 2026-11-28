@@ -307,9 +307,14 @@ const keywordMatchesText = (keyword, text) => {
   const test = (needle) =>
     new RegExp(`(^|[^\\p{L}\\p{M}\\p{N}_])${esc(needle)}($|[^\\p{L}\\p{M}\\p{N}_])`, 'u').test(t);
   if (test(k)) return true;
+  // "Andhra Pradesh" should also hit "#AndhraPradesh" / "AndhraPradesh" in hashtags.
+  const compact = k.replace(/\s+/g, '');
+  if (compact.length >= 3 && compact !== k && test(compact)) return true;
   if (k.startsWith('#') || k.startsWith('@')) {
     const bare = k.slice(1);
-    return bare.length >= 3 && test(bare);
+    if (bare.length >= 3 && test(bare)) return true;
+    const bareCompact = bare.replace(/\s+/g, '');
+    return bareCompact.length >= 3 && bareCompact !== bare && test(bareCompact);
   }
   return false;
 };
@@ -343,6 +348,47 @@ const matchEventKeywordsInText = (text, eventKeywords, englishText = '') => {
 };
 
 /**
+ * Detected Keywords for an event post: exact event-keyword hits, plus whatever
+ * classifyEventRelevance used to accept the post (matched keywords / anchors).
+ * Posts often enter Detected Content via location+title anchors without an
+ * exact keyword string — those must still surface here or the Eye modal shows
+ * "None detected" while the card is listed under the event.
+ */
+const resolveDetectedEventKeywords = ({
+  text = '',
+  englishText = '',
+  eventKeywords = [],
+  relevance = null,
+  analysisMatched = [],
+} = {}) => {
+  const out = [];
+  const seen = new Set();
+  const push = (entry) => {
+    const kw = String(
+      typeof entry === 'string' ? entry : entry?.keyword || entry?.name || ''
+    ).trim();
+    if (!kw) return;
+    const key = kw.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(typeof entry === 'object' && entry ? { ...entry, keyword: kw } : { keyword: kw });
+  };
+
+  for (const kw of matchEventKeywordsInText(text, eventKeywords, englishText)) push(kw);
+  if (relevance && Array.isArray(relevance.matched)) {
+    for (const kw of relevance.matched) push(kw);
+  }
+  if (Array.isArray(analysisMatched)) {
+    for (const kw of analysisMatched) push(kw);
+  }
+  // Relevance via location/title only — still show what tied the post to the event.
+  if (!out.length && relevance && Array.isArray(relevance.anchors)) {
+    for (const a of relevance.anchors) push({ keyword: a, type: 'anchor' });
+  }
+  return out;
+};
+
+/**
  * Engagement score from whatever metrics a platform reports; null when it
  * reports none (so "no data" is never treated as "zero engagement").
  */
@@ -366,6 +412,7 @@ const engagementScore = (engagement) => {
 module.exports = {
   keywordMatchesText,
   matchEventKeywordsInText,
+  resolveDetectedEventKeywords,
   engagementScore,
   serialize,
   asJson,

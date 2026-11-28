@@ -8,6 +8,7 @@ const {
   postedAtRangeWhere,
   keywordMatchesText,
   matchEventKeywordsInText,
+  resolveDetectedEventKeywords,
 } = require('./event.utils');
 const { classifyEventRelevance, evaluateThreatRisk } = require('./eventTelemetry.service');
 const { getGenericTokens } = require('./event.corpus.service');
@@ -337,21 +338,31 @@ const listEventContent = async (id, { page = 1, limit = 50, platform = 'all', db
 
   const hasMore = skip + pagedRows.length < total;
   const eventKeywords = asJson(event.keywords, []) || [];
+  const genericTokens = await getGenericTokens(prisma);
+  const relCtx = { genericTokens };
   return {
     content: pagedRows.map((r) => {
       const hydrated = hydrateEventMedia(r);
       const ar = asJson(r.analysis_result, {}) || {};
-      const fromAnalysis = Array.isArray(ar.matched_keywords) ? ar.matched_keywords : [];
-      const fromEvent = matchEventKeywordsInText(
-        hydrated?.text || r.text || '',
+      const text = hydrated?.text || r.text || '';
+      const englishText = typeof ar.english_text === 'string' ? ar.english_text : '';
+      let relevance = classifyEventRelevance(text, event, [], '', '', relCtx);
+      if (!relevance?.isRelevant && englishText.trim()) {
+        const enRel = classifyEventRelevance(englishText, event, [], '', '', relCtx);
+        if (enRel?.isRelevant) relevance = enRel;
+      }
+      // Same signals that put the post in Detected Content — not only exact keyword strings.
+      const matched_keywords = resolveDetectedEventKeywords({
+        text,
+        englishText,
         eventKeywords,
-        typeof ar.english_text === 'string' ? ar.english_text : ''
-      );
-      // Prefer live match against the event's current keywords; fall back to analysis payload.
-      const matched_keywords = fromEvent.length ? fromEvent : fromAnalysis;
+        relevance,
+        analysisMatched: Array.isArray(ar.matched_keywords) ? ar.matched_keywords : [],
+      });
       return {
         ...hydrated,
         matched_keywords,
+        relevance_reason: relevance?.reason || null,
         repost_count: r._repost_count || 1,
       };
     }),

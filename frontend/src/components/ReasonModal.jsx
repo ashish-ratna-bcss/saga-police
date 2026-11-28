@@ -541,6 +541,10 @@ const ReasonModal = ({ open, onClose, alert, content, analysis }) => {
                                                     </Badge>
                                                 ))}
                                             </div>
+                                        ) : isEventPost && isPendingAnalysis ? (
+                                            <span className="text-amber-600 dark:text-amber-400 italic text-xs">
+                                                No event keyword in the post text yet — waiting on analysis (post may still match via location/title).
+                                            </span>
                                         ) : (
                                             <span className="text-gray-400 italic">None detected</span>
                                         )}
