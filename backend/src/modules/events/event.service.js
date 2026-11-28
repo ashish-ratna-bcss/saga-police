@@ -7,7 +7,6 @@ const {
   resolveEventPlatforms,
   postedAtRangeWhere,
   keywordMatchesText,
-  matchEventKeywordsInText,
   resolveDetectedEventKeywords,
 } = require('./event.utils');
 const { classifyEventRelevance, evaluateThreatRisk } = require('./eventTelemetry.service');
