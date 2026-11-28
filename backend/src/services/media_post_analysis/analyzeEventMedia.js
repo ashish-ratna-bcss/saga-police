@@ -221,6 +221,29 @@ const analyzeEventMedia = async (mediaId, { db, dbName } = {}) => {
   // ── STEP 1b: AUDIO TRANSCRIPTION (video speech → Whisper) ──
   // Same as video analysis: WAIT for audio before sentiment.
   const audioVideoUrl = extractFirstVideoUrl(row.media);
+  // Older YouTube rows stored poster JPEGs as type:"video" and got stuck with
+  // transcript.pending forever. With no real file URL, clear that wait and continue.
+  if (
+    !audioVideoUrl &&
+    ocrData &&
+    typeof ocrData === 'object' &&
+    ocrData.transcript &&
+    (ocrData.transcript.pending || ocrData.transcript.queued || ocrData.transcript.transient)
+  ) {
+    ocrData = {
+      ...ocrData,
+      transcript: {
+        skipped: true,
+        reason: 'no_direct_video_file',
+        at: new Date().toISOString(),
+      },
+    };
+    await prisma.social_media_event_media.update({
+      where: { id },
+      data: { image_analysis: ocrData, analysis_error: null },
+    });
+    row.image_analysis = ocrData;
+  }
   if (audioVideoUrl && !hasAudioTranscript(ocrData)) {
     const base = ocrData && typeof ocrData === 'object' && !Array.isArray(ocrData)
       ? { ...ocrData }

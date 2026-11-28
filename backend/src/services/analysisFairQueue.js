@@ -98,6 +98,21 @@ const releaseStaleProcessing = async (prisma) => {
       if (!/analysis_status|updated_at|does not exist/i.test(err.message || '')) throw err;
     }
   }
+  // YouTube poster-as-video left many event rows stuck on "waiting for audio".
+  // Re-queue them immediately so text/OCR sentiment can run (no Whisper file).
+  if (prisma.social_media_event_media?.updateMany) {
+    try {
+      await prisma.social_media_event_media.updateMany({
+        where: {
+          analysis_status: { in: ['processing', 'pending'] },
+          analysis_error: { contains: 'waiting for audio' },
+        },
+        data: { analysis_status: 'pending', analysis_error: null },
+      });
+    } catch (err) {
+      if (!/analysis_error|analysis_status|does not exist/i.test(err.message || '')) throw err;
+    }
+  }
 };
 
 const enqueueOldestPending = async (prisma, dbName, enqueue, { batch, maxAttempts }) => {
